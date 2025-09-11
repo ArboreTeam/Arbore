@@ -18,13 +18,13 @@ jobs:
       packages: write
     
     steps:
-      - name: 📥 Checkout
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: 🐳 Setup Docker Buildx
+      - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: 🔐 Login to Container Registry
+      - name: Login to Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -41,9 +41,9 @@ jobs:
             cd ArboreBackend
             docker build -t ${{ env.REGISTRY }}/${REPO_LOWER}-backend:latest .
             docker push ${{ env.REGISTRY }}/${REPO_LOWER}-backend:latest
-            echo "✅ Backend déployé"
+            echo "Backend déployé"
           else
-            echo "⏭️ Dockerfile backend non trouvé, création..."
+            echo "Dockerfile backend non trouvé, création..."
             cat > ArboreBackend/Dockerfile << 'EOF'
           FROM golang:1.24-alpine AS builder
           WORKDIR /app
@@ -62,7 +62,7 @@ jobs:
             cd ArboreBackend
             docker build -t ${{ env.REGISTRY }}/${REPO_LOWER}-backend:latest .
             docker push ${{ env.REGISTRY }}/${REPO_LOWER}-backend:latest
-            echo "✅ Backend déployé avec Dockerfile généré"
+            echo "Backend déployé avec Dockerfile généré"
           fi
 
       # AI Generator Docker Build & Push  
@@ -75,9 +75,9 @@ jobs:
             cd AiGenerator
             docker build -t ${{ env.REGISTRY }}/${REPO_LOWER}-ai:latest .
             docker push ${{ env.REGISTRY }}/${REPO_LOWER}-ai:latest
-            echo "✅ AI Generator déployé"
+            echo "AI Generator déployé"
           else
-            echo "⏭️ Dockerfile AI non trouvé, création..."
+            echo "Dockerfile AI non trouvé, création..."
             cat > AiGenerator/Dockerfile << 'EOF'
           FROM python:3.11-slim
           WORKDIR /app
@@ -90,7 +90,7 @@ jobs:
             cd AiGenerator
             docker build -t ${{ env.REGISTRY }}/${REPO_LOWER}-ai:latest .
             docker push ${{ env.REGISTRY }}/${REPO_LOWER}-ai:latest
-            echo "✅ AI Generator déployé avec Dockerfile généré"
+            echo "AI Generator déployé avec Dockerfile généré"
           fi
 
       # Notification de succès
@@ -98,11 +98,11 @@ jobs:
         run: |
           # Convertir le nom du repo en minuscules pour l'affichage
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "🎉 Déploiement Arbore terminé avec succès !"
-          echo "📦 Images disponibles :"
+          echo "Déploiement Arbore terminé avec succès !"
+          echo "Images disponibles :"
           echo "  - Backend: ${{ env.REGISTRY }}/${REPO_LOWER}-backend:latest"
           echo "  - AI Generator: ${{ env.REGISTRY }}/${REPO_LOWER}-ai:latest"
           echo ""
-          echo "🐳 Pour utiliser ces images :"
+          echo "Pour utiliser ces images :"
           echo "  docker pull ${{ env.REGISTRY }}/${REPO_LOWER}-backend:latest"
           echo "  docker pull ${{ env.REGISTRY }}/${REPO_LOWER}-ai:latest"

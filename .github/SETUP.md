@@ -39,6 +39,8 @@ Les workflows créent automatiquement ces images dans GitHub Container Registry 
 - `ghcr.io/arboreteam/arbore-backend:latest`
 - `ghcr.io/arboreteam/arbore-ai:latest`
 
+**Note importante** : Les noms sont automatiquement convertis en minuscules pour respecter les exigences de Docker Registry.
+
 ## 🔧 Test en local
 
 ```bash

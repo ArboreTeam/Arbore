@@ -1,0 +1,95 @@
+name: 🚀 Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Build et déploiement des services
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: � Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔐 Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Backend Docker Build & Push
+      - name: 🏗️ Build & Push Backend
+        run: |
+          if [ -f "ArboreBackend/Dockerfile" ]; then
+            cd ArboreBackend
+            docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest .
+            docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest
+            echo "✅ Backend déployé"
+          else
+            echo "⏭️ Dockerfile backend non trouvé, création..."
+            cat > ArboreBackend/Dockerfile << 'EOF'
+          FROM golang:1.24-alpine AS builder
+          WORKDIR /app
+          COPY go.mod go.sum ./
+          RUN go mod download
+          COPY . .
+          RUN CGO_ENABLED=0 GOOS=linux go build -o main .
+          
+          FROM alpine:latest
+          RUN apk --no-cache add ca-certificates
+          WORKDIR /root/
+          COPY --from=builder /app/main .
+          EXPOSE 8080
+          CMD ["./main"]
+          EOF
+            docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest .
+            docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest
+            echo "✅ Backend déployé avec Dockerfile généré"
+          fi
+
+      # AI Generator Docker Build & Push  
+      - name: 🤖 Build & Push AI Generator
+        run: |
+          if [ -f "AiGenerator/Dockerfile" ]; then
+            cd AiGenerator
+            docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-ai:latest .
+            docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-ai:latest
+            echo "✅ AI Generator déployé"
+          else
+            echo "⏭️ Dockerfile AI non trouvé, création..."
+            cat > AiGenerator/Dockerfile << 'EOF'
+          FROM python:3.11-slim
+          WORKDIR /app
+          COPY requirements.txt* ./
+          RUN pip install fastapi uvicorn openai || pip install fastapi uvicorn
+          COPY . .
+          EXPOSE 8000
+          CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+          EOF
+            docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-ai:latest .
+            docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-ai:latest
+            echo "✅ AI Generator déployé avec Dockerfile généré"
+          fi
+
+      # Notification de succès
+      - name: 🌱 Deployment Complete
+        run: |
+          echo "� Déploiement Arbore terminé avec succès !"
+          echo "📦 Images disponibles :"
+          echo "  - Backend: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:latest"
+          echo "  - AI Generator: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-ai:latest"

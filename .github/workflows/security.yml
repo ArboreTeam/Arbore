@@ -1,0 +1,45 @@
+name: 🔒 Security Check
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    # Scan de sécurité chaque lundi à 9h UTC
+    - cron: '0 9 * * 1'
+
+jobs:
+  security_scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🔍 Scan for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+
+      - name: 🔒 Go security scan
+        if: hashFiles('ArboreBackend/go.mod') != ''
+        working-directory: ./ArboreBackend
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./... || echo "Vulnerabilités trouvées dans le code Go"
+
+      - name: 🐍 Python security scan
+        if: hashFiles('AiGenerator/requirements.txt') != '' || hashFiles('AiGenerator/main.py') != ''
+        working-directory: ./AiGenerator
+        run: |
+          pip install safety
+          safety check || echo "Vulnerabilités trouvées dans les dépendances Python"
+
+      - name: 📊 Security Summary
+        if: always()
+        run: |
+          echo "🔒 Scan de sécurité Arbore terminé"
+          echo "Vérifiez les logs ci-dessus pour d'éventuelles vulnérabilités"

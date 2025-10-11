@@ -12,87 +12,92 @@ struct CatalogueView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                // ✅ Barre de recherche avec fond vert foncé
-                ZStack(alignment: .bottom) {
-                    Color(hex: "#263826")
-                        .ignoresSafeArea(edges: .top)
+            ZStack {
+                (colorScheme == .dark ? Color(hex: "#1A1A1A") : Color(hex: "#F1F5ED"))
+                    .ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    // ✅ Barre de recherche avec fond vert foncé
+                    ZStack(alignment: .bottom) {
+                        Color(hex: "#263826")
+                            .ignoresSafeArea(edges: .top)
 
-                    VStack(spacing: 10) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(.gray)
+                        VStack(spacing: 10) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "magnifyingglass")
+                                    .foregroundColor(.white.opacity(0.7))
 
-                            TextField("Search", text: $searchText)
-                                .font(.system(size: 16))
-                                .foregroundColor(.black)
-                                .animation(.easeInOut(duration: 0.25), value: searchText)
+                                TextField("Search", text: $searchText)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white)
+                                    .animation(.easeInOut(duration: 0.25), value: searchText)
 
-                            if !searchText.isEmpty {
-                                Button(action: { searchText = "" }) {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.gray)
+                                if !searchText.isEmpty {
+                                    Button(action: { searchText = "" }) {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.white.opacity(0.7))
+                                    }
+                                }
+
+                                NavigationLink(destination: FilterView()) {
+                                    Image(systemName: "slider.horizontal.3")
+                                        .foregroundColor(.white)
+                                        .padding(.leading, 4)
                                 }
                             }
+                            .padding(.horizontal)
+                            .padding(.vertical, 12)
+                            .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                            )
+                            .cornerRadius(12)
+                            .shadow(color: Color.black.opacity(0.3), radius: 8, x: 0, y: 4)
+                            .padding(.horizontal, 20)
 
-                            NavigationLink(destination: FilterView()) {
-                                Image(systemName: "slider.horizontal.3")
-                                    .foregroundColor(Color(hex: "#263826"))
+                            // ✅ Compteur de résultats
+                            HStack {
+                                Text("\(filteredPlants.count) résultat\(filteredPlants.count > 1 ? "s" : "")")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white.opacity(0.8))
                                     .padding(.leading, 4)
+                                Spacer()
                             }
+                            .padding(.horizontal, 24)
+                            .padding(.bottom, 10)
                         }
-                        .padding(.horizontal)
-                        .padding(.vertical, 12)
-                        .background(Color.white)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color(hex: "#263826"), lineWidth: 1)
-                        )
-                        .cornerRadius(12)
-                        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
-                        .padding(.horizontal, 20)
-
-                        // ✅ Compteur de résultats
-                        HStack {
-                            Text("\(filteredPlants.count) résultat\(filteredPlants.count > 1 ? "s" : "")")
-                                .font(.subheadline)
-                                .foregroundColor(.white.opacity(0.8))
-                                .padding(.leading, 4)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 10)
                     }
-                }
-                .frame(height: 95)
+                    .frame(height: 95)
 
-                // ✅ Liste des plantes
-                if isLoading {
-                    ProgressView("Chargement des plantes...")
-                        .padding()
-                } else if let errorMessage = errorMessage {
-                    Text("❌ \(errorMessage)")
-                        .foregroundColor(.red)
-                        .padding()
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: [
-                            GridItem(.flexible(), spacing: 15),
-                            GridItem(.flexible(), spacing: 15)
-                        ], spacing: 20) {
-                            ForEach(filteredPlants) { plant in
-                                NavigationLink(destination: PlantDetailView(plantID: plant.id)) {
-                                    PlantCard(plant: plant)
+                    // ✅ Liste des plantes
+                    if isLoading {
+                        ProgressView("Chargement des plantes...")
+                            .foregroundColor(colorScheme == .dark ? .white : .black)
+                            .padding()
+                    } else if let errorMessage = errorMessage {
+                        Text("❌ \(errorMessage)")
+                            .foregroundColor(.red)
+                            .padding()
+                    } else {
+                        ScrollView {
+                            LazyVGrid(columns: [
+                                GridItem(.flexible(), spacing: 15),
+                                GridItem(.flexible(), spacing: 15)
+                            ], spacing: 20) {
+                                ForEach(filteredPlants) { plant in
+                                    NavigationLink(destination: PlantDetailView(plantID: plant.id)) {
+                                        PlantCard(plant: plant)
+                                    }
                                 }
                             }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 20)
+                            .padding(.bottom, 40)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 20)
-                        .padding(.bottom, 40)
                     }
                 }
             }
-            .background(Color(hex: "#F1F5ED").ignoresSafeArea())
             .navigationBarBackButtonHidden(true)
             .onAppear(perform: fetchPlants)
         }

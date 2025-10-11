@@ -7,6 +7,7 @@ struct YourApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     @AppStorage("selectedLanguage") private var selectedLanguage = "en"
     @State private var showLaunchScreen = true
+    @StateObject private var themeManager = ThemeManager()
 
     var body: some Scene {
         WindowGroup {
@@ -21,9 +22,11 @@ struct YourApp: App {
                     }
             } else {
                 NavigationView {
-                    LoginView()
+                    ModernLoginView()
                 }
                 .environment(\.locale, Locale(identifier: selectedLanguage))
+                .environmentObject(themeManager)
+                .preferredColorScheme(themeManager.colorScheme)
             }
         }
     }

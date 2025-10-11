@@ -15,6 +15,7 @@ struct PlantDetailView: View {
     @State private var isAddedToGarden = false
     @AppStorage("selectedLanguage") private var selectedLanguage = "en"
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
@@ -58,6 +59,7 @@ struct PlantDetailView: View {
 
             if isLoading {
                 ProgressView("Chargement de la plante...")
+                    .foregroundColor(colorScheme == .dark ? .white : .black)
                     .padding()
             } else if let errorMessage = errorMessage {
                 Text("\u{274C} \(errorMessage)")
@@ -93,7 +95,7 @@ struct PlantDetailView: View {
                         // ✅ Fond incurvé + contenu
                         ZStack(alignment: .top) {
                             RoundedRectangle(cornerRadius: 32)
-                                .fill(Color(hex: "#F1F5ED"))
+                                .fill(colorScheme == .dark ? Color(hex: "#1A1A1A") : Color(hex: "#F1F5ED"))
                                 .padding(.top, -32)
                                 .padding(.bottom, -200)
 
@@ -131,19 +133,19 @@ struct PlantDetailView: View {
                                             Image("description_icon")
                                                 .resizable()
                                                 .renderingMode(.template)
-                                                .foregroundColor(Color(hex: "#2C2F24"))
+                                                .foregroundColor(Color(hex: "#263826"))
                                                 .frame(width: 25, height: 25)
 
                                             Text("Description")
-                                                .font(.system(size: 20, weight: .semibold)) // 🔁 Titre plus grand
-                                                .foregroundColor(Color(hex: "#2C2F24"))
+                                                .font(.system(size: 20, weight: .semibold))
+                                                .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#2C2F24"))
 
                                             Spacer()
                                         }
 
                                         Text(t["description"] ?? plant.description)
-                                            .font(.system(size: 15)) // 🔁 Texte plus petit
-                                            .foregroundColor(Color(hex: "#2C2F24"))
+                                            .font(.system(size: 15))
+                                            .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : Color(hex: "#2C2F24"))
                                             .lineLimit(showFullDescription ? nil : 2)
                                             .fixedSize(horizontal: false, vertical: true)
 
@@ -156,14 +158,14 @@ struct PlantDetailView: View {
                                                 Text(showFullDescription ? "Lire moins" : "Lire plus")
                                                     .font(.subheadline)
                                                     .fontWeight(.semibold)
-                                                    .foregroundColor(Color(hex: "#2C2F24"))
+                                                    .foregroundColor(Color(hex: "#263826"))
                                             }
                                         }
                                     }
                                     .padding(20)
-                                    .background(Color(hex: "#D9E0D2")) // ✅ Marron/Beige doux
+                                    .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color(hex: "#D9E0D2"))
                                     .cornerRadius(20)
-                                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                                    .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.1), radius: 8, x: 0, y: 4)
                                 }
                                 .frame(maxWidth: 380)
                                 .frame(maxWidth: .infinity)
@@ -176,11 +178,11 @@ struct PlantDetailView: View {
                                 VStack(spacing: 12) {
                                     Text("Voir la plante en Réalité Virtuelle")
                                         .font(.headline)
-                                        .foregroundColor(Color(hex: "#263826"))
+                                        .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#263826"))
 
                                     Text("Utilisez votre caméra pour visualiser cette plante dans votre environnement réel.")
                                         .font(.subheadline)
-                                        .foregroundColor(.gray)
+                                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .gray)
                                         .multilineTextAlignment(.center)
                                         .padding(.horizontal)
 
@@ -210,16 +212,16 @@ struct PlantDetailView: View {
                                     }
                                 }
                                 .padding()
-                                .background(Color.white)
+                                .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
                                 .cornerRadius(20)
                                 
-                                // ✅ Galerie stylée dans une carte claire
+                                // ✅ Galerie stylée dans une carte
                                 if plant.imageURLs.count > 1 {
                                     VStack(alignment: .leading, spacing: 12) {
                                         HStack(spacing: 12) {
                                             ZStack {
                                                 Circle()
-                                                    .fill(Color(hex: "#E1EDE4"))
+                                                    .fill(Color(hex: "#263826").opacity(0.1))
                                                     .frame(width: 32, height: 32)
                                                 Image(systemName: "photo.on.rectangle")
                                                     .foregroundColor(Color(hex: "#263826"))
@@ -227,7 +229,7 @@ struct PlantDetailView: View {
 
                                             Text("Galerie de la plante")
                                                 .font(.headline)
-                                                .foregroundColor(Color(hex: "#263826"))
+                                                .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#263826"))
 
                                             Spacer()
 
@@ -238,7 +240,7 @@ struct PlantDetailView: View {
                                                 Text("Voir tout")
                                                     .font(.subheadline)
                                                     .fontWeight(.medium)
-                                                    .foregroundColor(.gray)
+                                                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .gray)
                                             }
                                         }
                                         .padding(.horizontal, 8)
@@ -287,9 +289,9 @@ struct PlantDetailView: View {
                                         }
                                     }
                                     .padding()
-                                    .background(Color.white)
+                                    .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
                                     .cornerRadius(20)
-                                    .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: 4)
+                                    .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.05), radius: 8, x: 0, y: 4)
                                     .padding(.bottom)
                                 }
                                 
@@ -372,6 +374,8 @@ struct PlantDetailView: View {
 }
 
 struct GeneralInfoGridView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
@@ -380,6 +384,7 @@ struct GeneralInfoGridView: View {
                 Text("Informations générales")
                     .font(.title3)
                     .fontWeight(.semibold)
+                    .foregroundColor(colorScheme == .dark ? .white : .black)
             }
             .padding(.horizontal)
 
@@ -402,6 +407,7 @@ struct GeneralInfoCard<Destination: View>: View {
     let description: String
     let color: Color
     let destination: Destination
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         NavigationLink(destination: destination) {
@@ -418,20 +424,20 @@ struct GeneralInfoCard<Destination: View>: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.headline)
-                        .foregroundColor(.primary)
+                        .foregroundColor(colorScheme == .dark ? .white : .primary)
                     Text(description)
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
                 }
 
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .foregroundColor(.gray)
+                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .gray)
             }
             .padding()
-            .background(Color.white)
+            .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
             .cornerRadius(16)
-            .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.04), radius: 4, x: 0, y: 2)
         }
     }
 }

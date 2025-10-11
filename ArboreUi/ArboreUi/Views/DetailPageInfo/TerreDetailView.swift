@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct TerreDetailView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -12,6 +14,7 @@ struct TerreDetailView: View {
                     Text("Détails sur la terre & le pot")
                         .font(.title2)
                         .bold()
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
                 }
                 .padding(.horizontal)
 
@@ -19,7 +22,7 @@ struct TerreDetailView: View {
                 VStack(spacing: 16) {
                     InfoCardView(emoji: "🪴", title: "Taille du pot", value: "Adaptée à la taille des racines, avec 1–2 cm de marge")
                     InfoCardView(emoji: "🌱", title: "Type de sol", value: "Terreau universel ou spécifique (cactus, orchidée…)")
-                    InfoCardView(emoji: "💧", title: "Drainage", value: "Trous de drainage indispensables + billes d’argile")
+                    InfoCardView(emoji: "💧", title: "Drainage", value: "Trous de drainage indispensables + billes d'argile")
                     InfoCardView(emoji: "🧪", title: "pH idéal", value: "Souvent neutre (pH 6 à 7), sauf plantes acidophiles")
                 }
                 .padding(.horizontal)
@@ -28,6 +31,7 @@ struct TerreDetailView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("🧰 Outils suggérés")
                         .font(.headline)
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
                         .padding(.bottom, 4)
 
                     ToolCardView(icon: "ruler", title: "Pot Meter", description: "Aide à choisir la bonne taille de pot.")
@@ -39,6 +43,6 @@ struct TerreDetailView: View {
         }
         .navigationTitle("🪴 Terre & Pot")
         .navigationBarTitleDisplayMode(.inline)
-        .background(Color(hex: "#F1F5ED").ignoresSafeArea())
+        .background((colorScheme == .dark ? Color(hex: "#1A1A1A") : Color(hex: "#F1F5ED")).ignoresSafeArea())
     }
 }

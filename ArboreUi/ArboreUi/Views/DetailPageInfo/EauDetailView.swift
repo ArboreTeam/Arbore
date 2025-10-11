@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct EauDetailView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -12,6 +14,7 @@ struct EauDetailView: View {
                     Text("Détails sur l’eau")
                         .font(.title2)
                         .bold()
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
                 }
                 .padding(.horizontal)
 
@@ -28,6 +31,7 @@ struct EauDetailView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("🧰 Outils suggérés")
                         .font(.headline)
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
                         .padding(.bottom, 4)
 
                     ToolCardView(icon: "drop.triangle", title: "Water Calculator", description: "Estime la quantité d’eau idéale.")
@@ -38,6 +42,6 @@ struct EauDetailView: View {
         }
         .navigationTitle("💧 Eau")
         .navigationBarTitleDisplayMode(.inline)
-        .background(Color(hex: "#F1F5ED").ignoresSafeArea())
+        .background((colorScheme == .dark ? Color(hex: "#1A1A1A") : Color(hex: "#F1F5ED")).ignoresSafeArea())
     }
 }

@@ -1,9 +1,7 @@
 import SwiftUI
 
 struct AppearanceView: View {
-    @AppStorage("selectedColorScheme") private var selectedColorScheme: String = "Default"
-    @AppStorage("isDarkMode") private var isDarkMode: Bool = false
-    @AppStorage("dynamicTypeSize") private var dynamicTypeSize: Double = 1.0
+    @EnvironmentObject var themeManager: ThemeManager
 
     let colorSchemes: [String: String] = [
         "Default": "Normal",
@@ -21,6 +19,14 @@ struct AppearanceView: View {
                 .padding(.horizontal)
 
             List {
+                Section(header: Text("Mode d'affichage")) {
+                    Toggle("Utiliser le thème système", isOn: $themeManager.useSystemTheme)
+                    
+                    if !themeManager.useSystemTheme {
+                        Toggle("Mode sombre", isOn: $themeManager.manualDarkMode)
+                    }
+                }
+                
                 Section(header: Text(LocalizedStringKey("color_adjustments"))) {
                     ForEach(colorSchemes.keys.sorted(), id: \.self) { scheme in
                         HStack {
@@ -32,48 +38,31 @@ struct AppearanceView: View {
                                     .foregroundColor(.gray)
                             }
                             Spacer()
-                            if scheme == selectedColorScheme {
+                            if scheme == themeManager.selectedColorScheme {
                                 Image(systemName: "checkmark")
                                     .foregroundColor(.blue)
                             }
                         }
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            selectedColorScheme = scheme
-                            applyColorScheme(scheme)
+                            themeManager.selectedColorScheme = scheme
                         }
                         .accessibilityElement(children: .combine)
                         .accessibilityLabel("\(scheme), \(colorSchemes[scheme] ?? "")")
-                        .accessibilityAddTraits(scheme == selectedColorScheme ? .isSelected : [])
-                    }
-                }
-
-                Section(header: Text(LocalizedStringKey("display_mode"))) {
-                    Toggle(isOn: $isDarkMode) {
-                        Text(LocalizedStringKey("dark_mode"))
-                    }
-                    .onChange(of: isDarkMode) {
-                        applyDarkMode()
+                        .accessibilityAddTraits(scheme == themeManager.selectedColorScheme ? .isSelected : [])
                     }
                 }
 
                 Section(header: Text(LocalizedStringKey("text_size"))) {
-                    Slider(value: $dynamicTypeSize, in: 0.8...1.5, step: 0.1) {
+                    Slider(value: $themeManager.dynamicTypeSize, in: 0.8...1.5, step: 0.1) {
                         Text(LocalizedStringKey("text_size"))
                     }
-                    .accessibilityValue("\(Int(dynamicTypeSize * 100))%")
-                    Text("\(Int(dynamicTypeSize * 100))%")
+                    .accessibilityValue("\(Int(themeManager.dynamicTypeSize * 100))%")
+                    Text("\(Int(themeManager.dynamicTypeSize * 100))%")
                         .font(.caption)
                 }
             }
         }
-    }
-
-    func applyColorScheme(_ scheme: String) {
-        UserDefaults.standard.set(scheme, forKey: "ColorScheme")
-    }
-
-    func applyDarkMode() {
-        UserDefaults.standard.set(isDarkMode, forKey: "isDarkMode")
+        .background(themeManager.backgroundColor)
     }
 }

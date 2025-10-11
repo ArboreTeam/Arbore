@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct SubscriptionView: View {
+    @EnvironmentObject var themeManager: ThemeManager
+    
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
@@ -11,12 +13,13 @@ struct SubscriptionView: View {
                     .bold()
                     .multilineTextAlignment(.center)
                     .padding(.top, 40)
+                    .foregroundColor(themeManager.textColor)
                 
                 // Description
                 Text("Accède à du contenu exclusif, débloque des fonctionnalités premium et améliore ton expérience.")
                     .font(.subheadline)
                     .multilineTextAlignment(.center)
-                    .foregroundColor(.gray)
+                    .foregroundColor(themeManager.secondaryTextColor)
                     .padding(.horizontal)
                 
                 // Carte d'abonnement mensuel
@@ -26,6 +29,7 @@ struct SubscriptionView: View {
                     features: ["Accès illimité", "Mises à jour prioritaires", "Support premium"],
                     isHighlighted: false
                 )
+                .environmentObject(themeManager)
                 
                 // Carte d'abonnement annuel (mise en avant)
                 SubscriptionOptionView(
@@ -34,6 +38,7 @@ struct SubscriptionView: View {
                     features: ["2 mois offerts", "Accès illimité", "Support premium"],
                     isHighlighted: true
                 )
+                .environmentObject(themeManager)
                 
                 // Bouton continuer
                 Button(action: {
@@ -51,12 +56,13 @@ struct SubscriptionView: View {
                 // Lien conditions
                 Text("En continuant, tu acceptes les conditions d'utilisation.")
                     .font(.footnote)
-                    .foregroundColor(.gray)
+                    .foregroundColor(themeManager.secondaryTextColor)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
                     .padding(.bottom, 40)
             }
         }
+        .background(themeManager.backgroundColor)
         .navigationTitle("Abonnement")
         .navigationBarTitleDisplayMode(.inline)
     }

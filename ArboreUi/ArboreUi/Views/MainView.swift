@@ -2,54 +2,48 @@ import SwiftUI
 
 struct MainView: View {
     @State private var selectedTab: TabSelection = .home
+    @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Vue selon onglet
-            Group {
-                switch selectedTab {
-                case .home:
-                    HomeView()
-                case .explore:
-                    CatalogueView()
-                case .garden:
-                    MyGardenView()
-                case .profile:
-                    ProfileView()
+        TabView(selection: $selectedTab) {
+            HomeView()
+                .tabItem {
+                    Image(systemName: selectedTab == .home ? "house.fill" : "house")
+                    Text("Accueil")
                 }
-            }
-
-            Divider()
-
-            // Barre fixe façon Revolut
-            HStack {
-                ForEach(TabSelection.allCases, id: \.self) { tab in
-                    Spacer()
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedTab = tab
-                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        }
-                    } label: {
-                        VStack(spacing: 4) {
-                            Image(systemName: selectedTab == tab ? tab.iconFill : tab.icon)
-                                .font(.system(size: 20, weight: .semibold))
-                                .scaleEffect(selectedTab == tab ? 1.15 : 1.0)
-                                .opacity(selectedTab == tab ? 1.0 : 0.6)
-                                .foregroundColor(selectedTab == tab ? Color(hex: "#263826") : .gray)
-
-                            Text(tab.label)
-                                .font(.footnote)
-                                .foregroundColor(selectedTab == tab ? Color(hex: "#263826") : .gray)
-                                .opacity(selectedTab == tab ? 1.0 : 0.6)
-                        }
-                    }
-                    Spacer()
+                .tag(TabSelection.home)
+            
+            CatalogueView()
+                .tabItem {
+                    Image(systemName: selectedTab == .explore ? "square.grid.2x2.fill" : "square.grid.2x2")
+                    Text("Catalogue")
                 }
-            }
-            .padding(.top, 6)
-            .padding(.bottom, 12)
-            .background(Color(hex: "#F1F5ED").ignoresSafeArea(edges: .bottom))
+                .tag(TabSelection.explore)
+            
+            MyGardenView()
+                .tabItem {
+                    Image(systemName: selectedTab == .garden ? "leaf.fill" : "leaf")
+                    Text("Jardin")
+                }
+                .tag(TabSelection.garden)
+            
+            ProfileView()
+                .environmentObject(themeManager)
+                .tabItem {
+                    Image(systemName: selectedTab == .profile ? "person.crop.circle.fill" : "person.crop.circle")
+                    Text("Profil")
+                }
+                .tag(TabSelection.profile)
+        }
+        .accentColor(.green) // Couleur des éléments sélectionnés
+        .onAppear {
+            // Configuration de l'apparence de la TabBar pour qu'elle s'adapte au thème système
+            let appearance = UITabBarAppearance()
+            appearance.configureWithDefaultBackground()
+            
+            // La TabBar s'adaptera automatiquement au thème système (clair/sombre)
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
         }
     }
 }

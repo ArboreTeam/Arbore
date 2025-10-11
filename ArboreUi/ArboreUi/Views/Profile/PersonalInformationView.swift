@@ -6,49 +6,79 @@ struct PersonalInformationView: View {
     @State private var email: String = ""
     @State private var address: String = ""
     @State private var citizenship: String = ""
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
-        VStack(alignment: .leading) {
-            Text("Personal Information")
-                .font(.largeTitle)
-                .bold()
-                .padding(.top, 20)
-                .padding(.horizontal)
-            
-            List {
-                Section(header: Text("Name")) {
-                    TextField("Full Name", text: $fullName)
-                }
+        NavigationView {
+            ZStack {
+                (colorScheme == .dark ? Color(hex: "#1A1A1A") : Color(hex: "#F1F5ED"))
+                    .ignoresSafeArea()
                 
-                Section(header: Text("Phone Number")) {
-                    TextField("Phone Number", text: $phoneNumber)
-                        .keyboardType(.phonePad)
+                VStack(alignment: .leading) {
+                    List {
+                        Section(header: Text("Name").foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)) {
+                            TextField("Full Name", text: $fullName)
+                                .foregroundColor(colorScheme == .dark ? .white : .black)
+                        }
+                        .listRowBackground(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
+                        
+                        Section(header: Text("Phone Number").foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)) {
+                            TextField("Phone Number", text: $phoneNumber)
+                                .foregroundColor(colorScheme == .dark ? .white : .black)
+                                .keyboardType(.phonePad)
+                        }
+                        .listRowBackground(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
+                        
+                        Section(header: Text("Email").foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)) {
+                            TextField("Email", text: $email)
+                                .foregroundColor(colorScheme == .dark ? .white : .black)
+                                .keyboardType(.emailAddress)
+                        }
+                        .listRowBackground(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
+                        
+                        Section(header: Text("Address").foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)) {
+                            TextField("Address", text: $address)
+                                .foregroundColor(colorScheme == .dark ? .white : .black)
+                        }
+                        .listRowBackground(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
+                        
+                        Section(header: Text("Citizenship").foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)) {
+                            TextField("Citizenship", text: $citizenship)
+                                .foregroundColor(colorScheme == .dark ? .white : .black)
+                        }
+                        .listRowBackground(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
+                        
+                        Section {
+                            Button(action: {
+                                // Save personal information logic
+                                dismiss()
+                            }) {
+                                Text("Save Changes")
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(Color(hex: "#2E7D32"))
+                                    .foregroundColor(.white)
+                                    .cornerRadius(10)
+                            }
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets())
+                            .padding()
+                        }
+                    }
+                    .scrollContentBackground(.hidden)
+                    .background(colorScheme == .dark ? Color(hex: "#1A1A1A") : Color(hex: "#F1F5ED"))
                 }
-                
-                Section(header: Text("Email")) {
-                    TextField("Email", text: $email)
-                        .keyboardType(.emailAddress)
+            }
+            .navigationTitle("Personal Information")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Fermer") {
+                        dismiss()
+                    }
+                    .foregroundColor(Color(hex: "#2E7D32"))
                 }
-                
-                Section(header: Text("Address")) {
-                    TextField("Address", text: $address)
-                }
-                
-                Section(header: Text("Citizenship")) {
-                    TextField("Citizenship", text: $citizenship)
-                }
-                
-                Button(action: {
-                    // Save personal information logic
-                }) {
-                    Text("Save Changes")
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                }
-                .padding()
             }
         }
     }

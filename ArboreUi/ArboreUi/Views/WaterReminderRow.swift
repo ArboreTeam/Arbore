@@ -15,7 +15,11 @@ struct WaterReminderRow: View {
             Spacer()
         }
         .padding()
-        .background(Color.blue.opacity(0.2))
+        .background(Color(hex: "#2A2A2A"))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+        )
         .cornerRadius(10)
     }
 }

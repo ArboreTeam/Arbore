@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct CycleDeVieView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -12,11 +14,12 @@ struct CycleDeVieView: View {
                     Text("Cycle de vie")
                         .font(.title2)
                         .bold()
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
                 }
                 .padding(.horizontal)
 
                 // 🌸 Floraison
-                InfoCardView(emoji: "🌸", title: "Floraison", value: "De mars à juin. Certaines espèces peuvent refleurir à l’automne.")
+                InfoCardView(emoji: "🌸", title: "Floraison", value: "De mars à juin. Certaines espèces peuvent refleurir à l'automne.")
 
                 // 🌱 Croissance
                 InfoCardView(emoji: "🌱", title: "Croissance", value: "Modérée à rapide selon les conditions (température, lumière, arrosage).")
@@ -28,6 +31,7 @@ struct CycleDeVieView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("📚 Informations générales")
                         .font(.headline)
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("• Type de plante : Vivace ou annuelle")
@@ -35,7 +39,7 @@ struct CycleDeVieView: View {
                         Text("• Repos végétatif : Oui, en hiver (selon espèce)")
                     }
                     .font(.subheadline)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
                 }
                 .padding(.horizontal)
 
@@ -44,6 +48,6 @@ struct CycleDeVieView: View {
         }
         .navigationTitle("📅 Cycle de vie")
         .navigationBarTitleDisplayMode(.inline)
-        .background(Color(hex: "#F1F5ED").ignoresSafeArea())
+        .background((colorScheme == .dark ? Color(hex: "#1A1A1A") : Color(hex: "#F1F5ED")).ignoresSafeArea())
     }
 }

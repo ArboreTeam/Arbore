@@ -5,30 +5,47 @@ struct NotificationsView: View {
     @AppStorage("reminderFrequency") private var reminderFrequency: Double = 1.0 // En jours
     
     var body: some View {
-        VStack(alignment: .leading) {
-            Text("Notifications")
-                .font(.largeTitle)
-                .bold()
-                .padding(.top, 20)
-                .padding(.horizontal)
+        ZStack {
+            Color(hex: "#1A1A1A")
+                .ignoresSafeArea()
             
-            List {
-                Section(header: Text("Notification Settings")) {
-                    Toggle(isOn: $notificationsEnabled) {
-                        Text("Enable Notifications")
-                    }
-                }
+            VStack(alignment: .leading) {
+                Text("Notifications")
+                    .font(.largeTitle)
+                    .bold()
+                    .foregroundColor(.white)
+                    .padding(.top, 20)
+                    .padding(.horizontal)
                 
-                if notificationsEnabled {
-                    Section(header: Text("Reminder Frequency")) {
-                        Slider(value: $reminderFrequency, in: 1...7, step: 1) {
-                            Text("Frequency")
+                List {
+                    Section(header: Text("Notification Settings").foregroundColor(.white.opacity(0.7))) {
+                        Toggle(isOn: $notificationsEnabled) {
+                            Text("Enable Notifications")
+                                .foregroundColor(.white)
                         }
-                        Text("Remind me every \(Int(reminderFrequency)) day(s)")
-                            .font(.subheadline)
-                            .foregroundColor(.gray)
+                        .toggleStyle(SwitchToggleStyle(tint: Color(hex: "#263826")))
+                    }
+                    .listRowBackground(Color(hex: "#2A2A2A"))
+                    
+                    if notificationsEnabled {
+                        Section(header: Text("Reminder Frequency").foregroundColor(.white.opacity(0.7))) {
+                            VStack(alignment: .leading) {
+                                Slider(value: $reminderFrequency, in: 1...7, step: 1) {
+                                    Text("Frequency")
+                                        .foregroundColor(.white)
+                                }
+                                .accentColor(Color(hex: "#263826"))
+                                
+                                Text("Remind me every \(Int(reminderFrequency)) day(s)")
+                                    .font(.subheadline)
+                                    .foregroundColor(.white.opacity(0.7))
+                            }
+                        }
+                        .listRowBackground(Color(hex: "#2A2A2A"))
                     }
                 }
+                .scrollContentBackground(.hidden)
+                .background(Color(hex: "#1A1A1A"))
             }
         }
     }

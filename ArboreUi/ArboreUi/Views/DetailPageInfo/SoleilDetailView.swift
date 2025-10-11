@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct SoleilDetailView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -12,6 +14,7 @@ struct SoleilDetailView: View {
                     Text("Détails sur le soleil")
                         .font(.title2)
                         .bold()
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
                 }
                 .padding(.horizontal)
 
@@ -28,10 +31,11 @@ struct SoleilDetailView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("🧰 Outils suggérés")
                         .font(.headline)
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
                         .padding(.bottom, 4)
 
-                    ToolCardView(icon: "lightbulb", title: "Light Meter", description: "Mesure l’intensité lumineuse reçue.")
-                    ToolCardView(icon: "location.north.line", title: "Compass", description: "Détermine l’orientation de vos fenêtres.")
+                    ToolCardView(icon: "lightbulb", title: "Light Meter", description: "Mesure l'intensité lumineuse reçue.")
+                    ToolCardView(icon: "location.north.line", title: "Compass", description: "Détermine l'orientation de vos fenêtres.")
                 }
                 .padding(.horizontal)
             }
@@ -39,6 +43,6 @@ struct SoleilDetailView: View {
         }
         .navigationTitle("🌞 Soleil")
         .navigationBarTitleDisplayMode(.inline)
-        .background(Color(hex: "#F1F5ED").ignoresSafeArea())
+        .background((colorScheme == .dark ? Color(hex: "#1A1A1A") : Color(hex: "#F1F5ED")).ignoresSafeArea())
     }
 }

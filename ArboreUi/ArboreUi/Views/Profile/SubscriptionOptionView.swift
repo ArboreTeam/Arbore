@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SubscriptionOptionView: View {
+    @EnvironmentObject var themeManager: ThemeManager
     let title: String
     let price: String
     let features: [String]
@@ -12,10 +13,11 @@ struct SubscriptionOptionView: View {
                 Text(title)
                     .font(.headline)
                     .bold()
+                    .foregroundColor(themeManager.textColor)
                 Spacer()
                 Text(price)
                     .font(.subheadline)
-                    .foregroundColor(.gray)
+                    .foregroundColor(themeManager.secondaryTextColor)
             }
             
             ForEach(features, id: \.self) { feature in
@@ -23,11 +25,12 @@ struct SubscriptionOptionView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundColor(.green)
                     Text(feature)
+                        .foregroundColor(themeManager.textColor)
                 }
             }
         }
         .padding()
-        .background(isHighlighted ? Color.green.opacity(0.1) : Color.gray.opacity(0.1))
+        .background(isHighlighted ? Color.green.opacity(0.1) : themeManager.cardBackgroundColor)
         .cornerRadius(16)
         .padding(.horizontal)
     }

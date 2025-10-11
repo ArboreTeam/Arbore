@@ -3,6 +3,7 @@ import SwiftUI
 struct PlantCard: View {
     let plant: Plant
     @AppStorage("selectedLanguage") private var selectedLanguage = "en"
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .center, spacing: 10) {
@@ -18,8 +19,9 @@ struct PlantCard: View {
                             .clipShape(RoundedRectangle(cornerRadius: 16))
                     } placeholder: {
                         ZStack {
-                            Color(hex: "#F1F5ED")
+                            Color(colorScheme == .dark ? "#2A2A2A" : "#F1F5ED")
                             ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: colorScheme == .dark ? .white : .black))
                         }
                         .frame(width: 130, height: 130)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -27,7 +29,7 @@ struct PlantCard: View {
                 } else {
                     ZStack {
                         RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(hex: "#EAF1E7"))
+                            .fill(Color(hex: colorScheme == .dark ? "#2A2A2A" : "#EAF1E7"))
                             .frame(width: 130, height: 130)
 
                         Image(systemName: "leaf")
@@ -43,21 +45,21 @@ struct PlantCard: View {
             VStack(spacing: 4) {
                 Text(plant.localized["nom"] ?? plant.name)
                     .font(.system(size: 16, weight: .semibold, design: .default))
-                    .foregroundColor(Color(hex: "#263826"))
+                    .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#263826"))
                     .multilineTextAlignment(.center)
                     .lineLimit(1)
 
                 Text((plant.localized["type"] ?? plant.type).isEmpty ? "Type inconnu" : (plant.localized["type"] ?? plant.type))
                     .font(.system(size: 13))
-                    .foregroundColor(.gray)
+                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .gray)
                     .multilineTextAlignment(.center)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
         }
         .padding(14)
-        .background(Color.white)
+        .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
         .cornerRadius(20)
-        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.05), radius: 5, x: 0, y: 2)
     }
 }

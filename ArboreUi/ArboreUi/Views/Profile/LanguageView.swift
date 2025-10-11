@@ -12,31 +12,41 @@ struct LanguageView: View {
     ]
 
     var body: some View {
-        VStack(alignment: .leading) {
-            Text(LocalizedStringKey("language_title"))
-                .font(.largeTitle)
-                .bold()
-                .padding(.top, 20)
-                .padding(.horizontal)
+        ZStack {
+            Color(hex: "#1A1A1A")
+                .ignoresSafeArea()
+            
+            VStack(alignment: .leading) {
+                Text(LocalizedStringKey("language_title"))
+                    .font(.largeTitle)
+                    .bold()
+                    .foregroundColor(.white)
+                    .padding(.top, 20)
+                    .padding(.horizontal)
 
-            List {
-                ForEach(languages.keys.sorted(), id: \.self) { code in
-                    HStack {
-                        Text(languages[code] ?? code)
-                        Spacer()
-                        if code == selectedLanguage {
-                            Image(systemName: "checkmark")
-                                .foregroundColor(.blue)
+                List {
+                    ForEach(languages.keys.sorted(), id: \.self) { code in
+                        HStack {
+                            Text(languages[code] ?? code)
+                                .foregroundColor(.white)
+                            Spacer()
+                            if code == selectedLanguage {
+                                Image(systemName: "checkmark")
+                                    .foregroundColor(Color(hex: "#263826"))
+                            }
                         }
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            selectedLanguage = code
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(Text(languages[code] ?? code))
+                        .accessibilityAddTraits(code == selectedLanguage ? .isSelected : [])
+                        .listRowBackground(Color(hex: "#2A2A2A"))
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        selectedLanguage = code
-                    }
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel(Text(languages[code] ?? code))
-                    .accessibilityAddTraits(code == selectedLanguage ? .isSelected : [])
                 }
+                .scrollContentBackground(.hidden)
+                .background(Color(hex: "#1A1A1A"))
             }
         }
     }

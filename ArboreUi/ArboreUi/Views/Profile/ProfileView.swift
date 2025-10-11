@@ -3,6 +3,7 @@ import Firebase
 
 struct ProfileView: View {
     @AppStorage("isLoggedIn") var isLoggedIn = false
+    @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -11,17 +12,18 @@ struct ProfileView: View {
                 .bold()
                 .padding(.top, 20)
                 .padding(.horizontal)
+                .foregroundColor(themeManager.textColor)
 
             List {
-                NavigationLink(destination: PersonalInformationView()) {
+                NavigationLink(destination: PersonalInformationView().environmentObject(themeManager)) {
                     ProfileRow(icon: "person.fill", title: "Personal Information")
                 }
                 ProfileRow(icon: "creditcard.fill", title: "Payment Information")
                 ProfileRow(icon: "house.fill", title: "Delivery Information")
-                NavigationLink(destination: SettingsView()) {
+                NavigationLink(destination: SettingsView().environmentObject(themeManager)) {
                     ProfileRow(icon: "gearshape.fill", title: "Settings")
                 }
-                NavigationLink(destination: SubscriptionView()) {
+                NavigationLink(destination: SubscriptionView().environmentObject(themeManager)) {
                     ProfileRow(icon: "star.fill", title: "Abonnement")
                 }
                 ProfileRow(icon: "questionmark.circle.fill", title: "Help")
@@ -37,7 +39,9 @@ struct ProfileView: View {
                     }
                 }
             }
+            .background(themeManager.backgroundColor)
         }
+        .background(themeManager.backgroundColor)
         .navigationTitle("")
         .navigationBarBackButtonHidden(true)
     }

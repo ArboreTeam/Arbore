@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct EntretienView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    
     // Exemple de conseils (à rendre dynamiques plus tard)
     let careTips: [String] = [
         "Nettoyer les feuilles régulièrement pour enlever la poussière.",
@@ -21,6 +23,7 @@ struct EntretienView: View {
                     Text("Entretien")
                         .font(.title2)
                         .bold()
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
                 }
                 .padding(.horizontal)
 
@@ -28,12 +31,14 @@ struct EntretienView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("🧾 Astuces et bonnes pratiques")
                         .font(.headline)
+                        .foregroundColor(colorScheme == .dark ? .white : .black)
                     
                     ForEach(careTips, id: \.self) { tip in
                         HStack(alignment: .top, spacing: 8) {
                             Image(systemName: "checkmark.circle.fill")
                                 .foregroundColor(Color(hex: "#263826"))
                             Text(tip)
+                                .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : .primary)
                         }
                         .font(.subheadline)
                     }
@@ -44,6 +49,6 @@ struct EntretienView: View {
         }
         .navigationTitle("🧠 Entretien")
         .navigationBarTitleDisplayMode(.inline)
-        .background(Color(hex: "#F1F5ED").ignoresSafeArea())
+        .background((colorScheme == .dark ? Color(hex: "#1A1A1A") : Color(hex: "#F1F5ED")).ignoresSafeArea())
     }
 }

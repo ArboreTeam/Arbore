@@ -1,4 +1,6 @@
 import SwiftUI
+import ARKit
+import RealityKit
 
 struct PlantDetailView: View {
     let plantID: String
@@ -204,10 +206,20 @@ struct PlantDetailView: View {
                                             .cornerRadius(12)
                                     }
                                     .fullScreenCover(isPresented: $showARView) {
-                                        if let modelURLString = plant.modelURL, let url = URL(string: modelURLString) {
+                                        // Créer une URL de modèle de démonstration si modelURL est vide
+                                        let demoModelURL = getDemoModelURL(for: plant.name.lowercased())
+                                        
+                                        if let modelURLString = plant.modelURL,
+                                           !modelURLString.isEmpty,
+                                           let url = URL(string: modelURLString) {
+                                            // Utiliser le modèle de la base de données s'il existe
                                             ARViewWrapper(modelURL: url)
+                                        } else if let demoURL = demoModelURL {
+                                            // Utiliser un modèle de démonstration
+                                            ARViewWrapper(modelURL: demoURL)
                                         } else {
-                                            Text("\u{274C} Modèle AR non disponible.")
+                                            // Interface AR basique sans modèle 3D
+                                            ARViewBasic()
                                         }
                                     }
                                 }
@@ -370,6 +382,28 @@ struct PlantDetailView: View {
                 }
             }
         }.resume()
+    }
+    
+    // Fonction pour obtenir une URL de modèle 3D de démonstration
+    private func getDemoModelURL(for plantName: String) -> URL? {
+        // First, try to find the local plant2.usdz file
+        if let bundleURL = Bundle.main.url(forResource: "plant2", withExtension: "usdz", subdirectory: "Assets") {
+            print("✅ Using local plant2.usdz from Assets subdirectory: \(bundleURL)")
+            return bundleURL
+        }
+        else if let bundleURL = Bundle.main.url(forResource: "plant2", withExtension: "usdz") {
+            print("✅ Using local plant2.usdz from main bundle: \(bundleURL)")
+            return bundleURL
+        }
+        else if let bundlePath = Bundle.main.path(forResource: "plant2", ofType: "usdz", inDirectory: "Assets") {
+            let url = URL(fileURLWithPath: bundlePath)
+            print("✅ Using local plant2.usdz via path construction: \(url)")
+            return url
+        }
+        
+        // If local file not found, use fallback URL that will trigger test model creation
+        print("❌ Could not find local plant2.usdz file - using fallback")
+        return URL(string: "fallback://test")
     }
 }
 

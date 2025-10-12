@@ -132,13 +132,7 @@ struct ARPage: View {
                             .padding(.horizontal)
                         Spacer(minLength: 20)
 
-                        NavigationLink(destination: {
-                            if let urlString = plant.modelURL, let url = URL(string: urlString) {
-                                ARViewWrapper(modelURL: url)
-                            } else {
-                                Text("❌ Modèle AR indisponible.")
-                            }
-                        }) {
+                        NavigationLink(destination: destinationView()) {
                             HStack {
                                 Image(systemName: "camera.viewfinder")
                                 Text("Launch AR")
@@ -231,5 +225,39 @@ struct ARPage: View {
         } catch let signOutError as NSError {
             print("Erreur de déconnexion: \(signOutError.localizedDescription)")
         }
+    }
+    
+    @ViewBuilder
+    private func destinationView() -> some View {
+        // Try multiple approaches to find the plant2.usdz file
+        let modelURL = findModelURL()
+        
+        if let url = modelURL {
+            ARViewWrapper(modelURL: url)
+        } else {
+            ARViewWrapper(modelURL: URL(string: "fallback://test")!)
+        }
+    }
+    
+    private func findModelURL() -> URL? {
+        // Method 1: Try finding in Assets subdirectory
+        if let bundleURL = Bundle.main.url(forResource: "plant2", withExtension: "usdz", subdirectory: "Assets") {
+            print("✅ Found plant2.usdz in Assets subdirectory: \(bundleURL)")
+            return bundleURL
+        }
+        // Method 2: Try finding in main bundle without subdirectory
+        else if let bundleURL = Bundle.main.url(forResource: "plant2", withExtension: "usdz") {
+            print("✅ Found plant2.usdz in main bundle: \(bundleURL)")
+            return bundleURL
+        }
+        // Method 3: Try manual path construction
+        else if let bundlePath = Bundle.main.path(forResource: "plant2", ofType: "usdz", inDirectory: "Assets") {
+            let url = URL(fileURLWithPath: bundlePath)
+            print("✅ Found plant2.usdz via path construction: \(url)")
+            return url
+        }
+        
+        print("❌ Could not find plant2.usdz file - using fallback")
+        return nil
     }
 }

@@ -35,7 +35,7 @@ struct MainView: View {
                 }
                 .tag(TabSelection.profile)
         }
-        .accentColor(.green) // Couleur des éléments sélectionnés
+        .accentColor(themeManager.accentColor)
         .onAppear {
             // Configuration de l'apparence de la TabBar pour qu'elle s'adapte au thème système
             let appearance = UITabBarAppearance()

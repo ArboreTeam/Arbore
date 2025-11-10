@@ -8,7 +8,7 @@ struct HomeView: View {
     @State private var userName: String = ""
     @State private var userError: String? = nil
     @State private var currentUID: String = ""
-    @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
         NavigationStack {
@@ -21,18 +21,18 @@ struct HomeView: View {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text("Bonjour 👋")
                                     .font(.subheadline)
-                                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .gray)
+                                    .foregroundColor(themeManager.secondaryTextColor)
                                 
                                 if let error = userError {
                                     Text("Erreur de connexion")
                                         .font(.title2)
                                         .fontWeight(.bold)
-                                        .foregroundColor(.red)
+                                        .foregroundColor(themeManager.systemRed)
                                 } else {
                                     Text(userName.isEmpty ? "Ami des plantes" : userName)
                                         .font(.title2)
                                         .fontWeight(.bold)
-                                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                                        .foregroundColor(themeManager.textColor)
                                 }
                             }
                             
@@ -42,7 +42,7 @@ struct HomeView: View {
                             Circle()
                                 .fill(
                                     LinearGradient(
-                                        colors: [Color(hex: "#2E7D32"), Color(hex: "#4CAF50")],
+                                        colors: [themeManager.adjust(Color(hex: "#2E7D32")), themeManager.adjust(Color(hex: "#4CAF50"))],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     )
@@ -66,41 +66,41 @@ struct HomeView: View {
                                 HStack(spacing: 12) {
                                     ZStack {
                                         Circle()
-                                            .fill(Color.white.opacity(0.2))
+                                            .fill(themeManager.adjust(Color.white).opacity(0.2))
                                             .frame(width: 40, height: 40)
                                         
                                         Image(systemName: "camera.viewfinder")
                                             .font(.system(size: 20, weight: .semibold))
-                                            .foregroundColor(.white)
+                                            .foregroundColor(themeManager.adjust(Color.white))
                                     }
                                     
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text("Scanner une plante")
                                             .font(.headline)
                                             .fontWeight(.semibold)
-                                            .foregroundColor(.white)
+                                            .foregroundColor(themeManager.adjust(Color.white))
                                         
                                         Text("Découvre instantanément")
                                             .font(.subheadline)
-                                            .foregroundColor(.white.opacity(0.8))
+                                            .foregroundColor(themeManager.adjust(Color.white).opacity(0.8))
                                     }
                                     
                                     Spacer()
                                     
                                     Image(systemName: "arrow.right")
                                         .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(.white.opacity(0.8))
+                                        .foregroundColor(themeManager.adjust(Color.white).opacity(0.8))
                                 }
                                 .padding(20)
                                 .background(
                                     LinearGradient(
-                                        colors: [Color(hex: "#2E7D32"), Color(hex: "#4CAF50")],
+                                        colors: [themeManager.adjust(Color(hex: "#2E7D32")), themeManager.adjust(Color(hex: "#4CAF50"))],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     )
                                 )
                                 .cornerRadius(16)
-                                .shadow(color: Color(hex: "#2E7D32").opacity(0.3), radius: 8, x: 0, y: 4)
+                                .shadow(color: themeManager.adjust(Color(hex: "#2E7D32")).opacity(0.3), radius: 8, x: 0, y: 4)
                             }
                             .padding(.horizontal, 20)
                         }
@@ -113,37 +113,37 @@ struct HomeView: View {
                             HStack(spacing: 12) {
                                 ZStack {
                                     Circle()
-                                        .fill(Color.orange.opacity(0.1))
+                                        .fill(themeManager.systemOrange.opacity(0.1))
                                         .frame(width: 36, height: 36)
                                     
                                     Image(systemName: "drop.fill")
                                         .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(.orange)
+                                        .foregroundColor(themeManager.systemOrange)
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Rappel d'arrosage")
                                         .font(.subheadline)
                                         .fontWeight(.semibold)
-                                        .foregroundColor(colorScheme == .dark ? .white : .black)
+                                        .foregroundColor(themeManager.textColor)
                                     
                                     Text("N'oublie pas d'arroser ton Monstera aujourd'hui !")
                                         .font(.footnote)
-                                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .gray)
+                                        .foregroundColor(themeManager.secondaryTextColor)
                                 }
                                 
                                 Spacer()
                                 
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(themeManager.secondaryTextColor)
                             }
                             .padding(16)
-                            .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
+                            .background(themeManager.cardBackgroundColor)
                             .cornerRadius(12)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+                                    .stroke(themeManager.systemOrange.opacity(0.2), lineWidth: 1)
                             )
                         }
                         .padding(.horizontal, 20)
@@ -156,7 +156,7 @@ struct HomeView: View {
                             Text("Actions rapides")
                                 .font(.headline)
                                 .fontWeight(.semibold)
-                                .foregroundColor(colorScheme == .dark ? .white : .black)
+                                .foregroundColor(themeManager.textColor)
                             
                             Spacer()
                         }
@@ -212,7 +212,7 @@ struct HomeView: View {
                     .padding(.bottom, 120) // Espace pour la tab bar
                 }
             }
-            .background(colorScheme == .dark ? Color(hex: "#1A1A1A") : Color(hex: "#F1F5ED"))
+            .background(themeManager.backgroundColor)
             .navigationBarHidden(true)
             .fullScreenCover(isPresented: $showARScan) {
                 ScanAR()
@@ -248,18 +248,18 @@ struct QuickActionCard: View {
     let title: String
     let subtitle: String
     let color: Color
-    @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
         VStack(spacing: 8) {
             // Icône
             Image(systemName: icon)
                 .font(.system(size: 24))
-                .foregroundColor(color)
+                .foregroundColor(themeManager.adjust(color))
                 .frame(width: 48, height: 48)
                 .background(
                     Circle()
-                        .fill(color.opacity(0.2))
+                        .fill(themeManager.adjust(color).opacity(0.2))
                         .frame(width: 56, height: 56)
                 )
             
@@ -268,17 +268,17 @@ struct QuickActionCard: View {
                 Text(title)
                     .font(.subheadline)
                     .fontWeight(.semibold)
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                    .foregroundColor(themeManager.textColor)
                 
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .gray)
+                    .foregroundColor(themeManager.secondaryTextColor)
             }
         }
         .padding(16)
-        .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
+        .background(themeManager.cardBackgroundColor)
         .cornerRadius(12)
-        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+        .shadow(color: themeManager.adjust(Color.black).opacity(0.1), radius: 4, x: 0, y: 2)
     }
 }
 
@@ -286,7 +286,7 @@ struct PlantSection: View {
     let title: String
     let subtitle: String
     let plants: [Plant]
-    @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -295,7 +295,7 @@ struct PlantSection: View {
                 Text(title)
                     .font(.headline)
                     .fontWeight(.semibold)
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                    .foregroundColor(themeManager.textColor)
                 
                 Spacer()
             }
@@ -304,7 +304,7 @@ struct PlantSection: View {
             HStack {
                 Text(subtitle)
                     .font(.subheadline)
-                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .gray)
+                    .foregroundColor(themeManager.secondaryTextColor)
                 
                 Spacer()
             }
@@ -326,7 +326,7 @@ struct PlantSection: View {
 
 struct WateringSection: View {
     let plants: [Plant]
-    @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -335,7 +335,7 @@ struct WateringSection: View {
                 Text("💧 Plantes à arroser bientôt")
                     .font(.headline)
                     .fontWeight(.semibold)
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                    .foregroundColor(themeManager.textColor)
                 
                 Spacer()
             }

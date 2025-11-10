@@ -26,7 +26,10 @@ struct YourApp: App {
                 }
                 .environment(\.locale, Locale(identifier: selectedLanguage))
                 .environmentObject(themeManager)
+                .environment(\.themeManager, themeManager)
                 .preferredColorScheme(themeManager.colorScheme)
+                .environment(\.dynamicTypeSize, themeManager.mappedDynamicTypeSize)
+                .accentColor(themeManager.accentColor)
             }
         }
     }

@@ -26,29 +26,29 @@ struct ModernLoginView: View {
         !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
     
-    // Dynamic colors based on theme
+    // Use ThemeManager's color-blindness adjusted colors
     var backgroundColor: Color {
-        themeManager.colorScheme == .dark ? Color.black : Color.white
+        themeManager.backgroundColor
     }
     
     var primaryColor: Color {
-        Color(hex: "#4A7C59")
+        themeManager.adjust(Color(hex: "#4A7C59"))
     }
     
     var textColor: Color {
-        themeManager.colorScheme == .dark ? Color.white : Color(hex: "#1C1C1E")
+        themeManager.textColor
     }
     
     var secondaryTextColor: Color {
-        themeManager.colorScheme == .dark ? Color(hex: "#EBEBF5").opacity(0.6) : Color(hex: "#8E8E93")
+        themeManager.secondaryTextColor
     }
     
     var fieldBackgroundColor: Color {
-        themeManager.colorScheme == .dark ? Color(hex: "#1C1C1E") : Color.white
+        themeManager.cardBackgroundColor
     }
     
     var placeholderColor: Color {
-        themeManager.colorScheme == .dark ? Color(hex: "#EBEBF5").opacity(0.4) : Color(hex: "#C7C7CC")
+        themeManager.placeholderTextColor
     }
 
     var body: some View {
@@ -60,9 +60,9 @@ struct ModernLoginView: View {
                     // Modern gradient background adapted for dark theme
                     LinearGradient(
                         gradient: Gradient(stops: [
-                            .init(color: themeManager.colorScheme == .dark ? 
+                            .init(color: themeManager.colorScheme == .dark ?
                                   Color(hex: "#000000") : Color(hex: "#E8F5E8"), location: 0.0),
-                            .init(color: themeManager.colorScheme == .dark ? 
+                            .init(color: themeManager.colorScheme == .dark ?
                                   Color(hex: "#1C1C1E") : Color(hex: "#F0F9F0"), location: 0.3),
                             .init(color: backgroundColor, location: 1.0)
                         ]),
@@ -194,7 +194,7 @@ struct ModernLoginView: View {
                                         RoundedRectangle(cornerRadius: 16)
                                             .fill(
                                                 LinearGradient(
-                                                    colors: isFormValid ? 
+                                                    colors: isFormValid ?
                                                         [primaryColor, Color(hex: "#2D5016")] :
                                                         [Color(hex: "#8E8E93"), Color(hex: "#636366")],
                                                     startPoint: .leading,
@@ -412,8 +412,8 @@ struct ModernTextField: View {
     
     // Dynamic colors based on theme
     var iconColor: Color {
-        focusedField == fieldType ? 
-            Color(hex: "#4A7C59") : 
+        focusedField == fieldType ?
+            Color(hex: "#4A7C59") :
             (themeManager.colorScheme == .dark ? Color(hex: "#EBEBF5").opacity(0.6) : Color(hex: "#8E8E93"))
     }
     
@@ -430,14 +430,14 @@ struct ModernTextField: View {
     }
     
     var borderColor: Color {
-        focusedField == fieldType ? 
-            Color(hex: "#4A7C59") : 
+        focusedField == fieldType ?
+            Color(hex: "#4A7C59") :
             (themeManager.colorScheme == .dark ? Color(hex: "#38383A") : Color(hex: "#E5E5E7"))
     }
     
     var shadowColor: Color {
-        focusedField == fieldType ? 
-            Color(hex: "#4A7C59").opacity(0.1) : 
+        focusedField == fieldType ?
+            Color(hex: "#4A7C59").opacity(0.1) :
             (themeManager.colorScheme == .dark ? Color.clear : Color.black.opacity(0.05))
     }
     
@@ -549,7 +549,7 @@ struct SocialLoginButton: View {
                 RoundedRectangle(cornerRadius: 16)
                     .fill(backgroundColor)
                     .overlay(
-                        hasBorder ? 
+                        hasBorder ?
                             RoundedRectangle(cornerRadius: 16)
                                 .stroke(borderColor, lineWidth: 1) :
                             nil

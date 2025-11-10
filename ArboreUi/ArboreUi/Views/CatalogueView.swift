@@ -3,7 +3,7 @@ import SwiftUI
 struct CatalogueView: View {
     @State private var showArticleDetail = false
     @State private var selectedPlant: Plant?
-    @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var searchText = ""
     @State private var plants: [Plant] = []
     @State private var isLoading = true
@@ -13,54 +13,54 @@ struct CatalogueView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                (colorScheme == .dark ? Color(hex: "#1A1A1A") : Color(hex: "#F1F5ED"))
+                themeManager.backgroundColor
                     .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    // ✅ Barre de recherche avec fond vert foncé
+                    // ✅ Barre de recherche avec fond vert foncé ajusté pour daltonisme
                     ZStack(alignment: .bottom) {
-                        Color(hex: "#263826")
+                        themeManager.adjust(Color(hex: "#263826"))
                             .ignoresSafeArea(edges: .top)
 
                         VStack(spacing: 10) {
                             HStack(spacing: 12) {
                                 Image(systemName: "magnifyingglass")
-                                    .foregroundColor(.white.opacity(0.7))
+                                    .foregroundColor(themeManager.secondaryTextColor)
 
                                 TextField("Search", text: $searchText)
                                     .font(.system(size: 16))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(themeManager.textColor)
                                     .animation(.easeInOut(duration: 0.25), value: searchText)
 
                                 if !searchText.isEmpty {
                                     Button(action: { searchText = "" }) {
                                         Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.white.opacity(0.7))
+                                            .foregroundColor(themeManager.secondaryTextColor)
                                     }
                                 }
 
                                 NavigationLink(destination: FilterView()) {
                                     Image(systemName: "slider.horizontal.3")
-                                        .foregroundColor(.white)
+                                        .foregroundColor(themeManager.textColor)
                                         .padding(.leading, 4)
                                 }
                             }
                             .padding(.horizontal)
                             .padding(.vertical, 12)
-                            .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
+                            .background(themeManager.cardBackgroundColor)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                    .stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1)
                             )
                             .cornerRadius(12)
-                            .shadow(color: Color.black.opacity(0.3), radius: 8, x: 0, y: 4)
+                            .shadow(color: themeManager.adjust(Color.black).opacity(0.3), radius: 8, x: 0, y: 4)
                             .padding(.horizontal, 20)
 
                             // ✅ Compteur de résultats
                             HStack {
                                 Text("\(filteredPlants.count) résultat\(filteredPlants.count > 1 ? "s" : "")")
                                     .font(.subheadline)
-                                    .foregroundColor(.white.opacity(0.8))
+                                    .foregroundColor(themeManager.secondaryTextColor)
                                     .padding(.leading, 4)
                                 Spacer()
                             }
@@ -73,11 +73,11 @@ struct CatalogueView: View {
                     // ✅ Liste des plantes
                     if isLoading {
                         ProgressView("Chargement des plantes...")
-                            .foregroundColor(colorScheme == .dark ? .white : .black)
+                            .foregroundColor(themeManager.textColor)
                             .padding()
                     } else if let errorMessage = errorMessage {
                         Text("❌ \(errorMessage)")
-                            .foregroundColor(.red)
+                            .foregroundColor(themeManager.systemRed)
                             .padding()
                     } else {
                         ScrollView {

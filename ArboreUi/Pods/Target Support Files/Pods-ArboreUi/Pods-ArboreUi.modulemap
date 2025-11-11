@@ -1,6 +1,0 @@
-framework module Pods_ArboreUi {
-  umbrella header "Pods-ArboreUi-umbrella.h"
-
-  export *
-  module * { export * }
-}

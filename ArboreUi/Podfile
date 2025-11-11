@@ -1,59 +1,33 @@
 platform :ios, '13.0'
 use_frameworks!
+inhibit_all_warnings!
 
 target 'ArboreUi' do
-  pod 'Firebase/Analytics'
-  pod 'Firebase/Auth'
+  # --- Firebase (versions modernes) ---
+  pod 'FirebaseAuth',        '~> 11.15'
+  pod 'FirebaseFirestore',   '~> 11.15'
+  # Analytics (optionnel). Prends la version sans Ad ID pour éviter AppTrackingTransparency si tu n’en as pas besoin.
+  # pod 'FirebaseAnalyticsWithoutAdIdSupport', '~> 11.15'
+
+  # --- Google Sign-In ---
   pod 'GoogleSignIn', '~> 7.0'
-  pod 'GoogleSignInSwift'
-  pod 'GTMSessionFetcher/Core', '~> 1.1'
-  pod 'FBSDKLoginKit'
-  pod 'Firebase/Firestore'
+  # Si tu utilises vraiment les helpers Swift UI :
+  pod 'GoogleSignInSwift', '~> 0.3'
 
-  target 'ArboreUiTests' do
-    inherit! :search_paths
-  end
+  # --- Facebook Login ---
+  pod 'FacebookLogin', '~> 18.0'   # remplace l’ancien FBSDKLoginKit
 
-  target 'ArboreUiUITests' do
-  end
+  # Ces dépendances transitives ne sont PAS nécessaires à déclarer à la main :
+  # ❌ GTMSessionFetcher/Core
 end
 
-# Enhanced post_install block to handle deployment target and simulator architecture
+# post_install minimal et sûr
 post_install do |installer|
-  installer.generated_projects.each do |project|
-    project.targets.each do |target|
-      target.build_configurations.each do |config|
-        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-        
-        # Exclude arm64 architecture for simulator builds
-        config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"
-      end
-    end
-  end
-
-  # Configure each pod target
-  installer.pods_project.targets.each do |target|
-    target.build_configurations.each do |config|
+  installer.pods_project.targets.each do |t|
+    t.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-      
-      # Exclude arm64 for simulator
-      config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"
-      
-      # Additional Firebase-specific configurations
-      if target.name.start_with?('Firebase') || target.name.start_with?('Google')
-        config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'YES'
-      end
-    end
-    
-    # Remove compiler flag for BoringSSL-GRPC
-    if target.name == 'BoringSSL-GRPC'
-      target.source_build_phase.files.each do |file|
-        if file.settings && file.settings['COMPILER_FLAGS']
-          flags = file.settings['COMPILER_FLAGS'].split
-          flags.reject! { |flag| flag == '-GCC_WARN_INHIBIT_ALL_WARNINGS' }
-          file.settings['COMPILER_FLAGS'] = flags.join(' ')
-        end
-      end
+      # Si simulateur Apple Silicon pose souci, décommente :
+      # config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"
     end
   end
 end

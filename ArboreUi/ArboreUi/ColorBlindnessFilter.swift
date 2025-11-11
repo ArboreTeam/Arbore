@@ -41,13 +41,10 @@ class ColorFilterUIView: UIView {
     var filterType: String = "Default"
     
     override func draw(_ rect: CGRect) {
-        guard let context = UIGraphicsGetCurrentContext() else { return }
-        
-        // Application du filtre via CGContext
-        if filterType != "Default" {
-            // Cette vue est transparente mais pourrait servir pour des effets avancés
-            // Pour l'instant, on utilise l'approche de layer sur toute l'app
-        }
+        // Eviter l'avertissement "context defined but never used"
+        // On ne fait rien pour l'instant si pas de filtre.
+        guard filterType != "Default" else { return }
+        // Placeholder pour future implémentation CoreImage / CALayer
     }
 }
 

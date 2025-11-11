@@ -7,11 +7,13 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2C2F9EF680DF8FED20F336CE /* Pods_ArboreUiTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6BA53C6F977DC2AC85DFA529 /* Pods_ArboreUiTests.framework */; };
 		77F4355D2D86E1AC00E8E78D /* RealityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 77F4355C2D86E1AC00E8E78D /* RealityKit.framework */; };
 		77F4355F2D86E1B400E8E78D /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 77F4355E2D86E1B400E8E78D /* ARKit.framework */; };
-		81A95F412E23CAABA7FDAC0B /* Pods_ArboreUi.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = DBF7F2295089B2B76AB3D9A5 /* Pods_ArboreUi.framework */; };
-		E2B4006D2F433B5DB028985B /* Pods_ArboreUi_ArboreUiUITests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AED865F48D1438C9E733A56F /* Pods_ArboreUi_ArboreUiUITests.framework */; };
+		974EF1E72EC2AFC900565B6A /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 974EF1E62EC2AFC900565B6A /* FirebaseAuth */; };
+		974EF1E92EC2AFC900565B6A /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 974EF1E82EC2AFC900565B6A /* FirebaseCore */; };
+		974EF1EB2EC2AFC900565B6A /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 974EF1EA2EC2AFC900565B6A /* FirebaseFirestore */; };
+		974EF1ED2EC2B48F00565B6A /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 974EF1EC2EC2B48F00565B6A /* GoogleSignIn */; };
+		974EF1EF2EC2B48F00565B6A /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 974EF1EE2EC2B48F00565B6A /* GoogleSignInSwift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -45,20 +47,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		14EABF8F2A7750400991DBD1 /* Pods-ArboreUi-ArboreUiUITests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUi-ArboreUiUITests.debug.xcconfig"; path = "Target Support Files/Pods-ArboreUi-ArboreUiUITests/Pods-ArboreUi-ArboreUiUITests.debug.xcconfig"; sourceTree = "<group>"; };
-		30E54B97B6D87308ECC1AE24 /* Pods-ArboreUi-ArboreUiUITests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUi-ArboreUiUITests.release.xcconfig"; path = "Target Support Files/Pods-ArboreUi-ArboreUiUITests/Pods-ArboreUi-ArboreUiUITests.release.xcconfig"; sourceTree = "<group>"; };
-		6BA53C6F977DC2AC85DFA529 /* Pods_ArboreUiTests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ArboreUiTests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		77DD7ADD2D84270700A6F6F1 /* ArboreUi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ArboreUi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		77DD7AED2D84270800A6F6F1 /* ArboreUiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ArboreUiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		77DD7AF72D84270800A6F6F1 /* ArboreUiUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ArboreUiUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		77F4355C2D86E1AC00E8E78D /* RealityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RealityKit.framework; path = System/Library/Frameworks/RealityKit.framework; sourceTree = SDKROOT; };
 		77F4355E2D86E1B400E8E78D /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
-		85AC486FEC6C54B1E59EDF32 /* Pods-ArboreUi.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUi.release.xcconfig"; path = "Target Support Files/Pods-ArboreUi/Pods-ArboreUi.release.xcconfig"; sourceTree = "<group>"; };
-		8AB767C9ABF925C27063C455 /* Pods-ArboreUi.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUi.debug.xcconfig"; path = "Target Support Files/Pods-ArboreUi/Pods-ArboreUi.debug.xcconfig"; sourceTree = "<group>"; };
-		AAB129577769256F78452269 /* Pods-ArboreUiTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUiTests.release.xcconfig"; path = "Target Support Files/Pods-ArboreUiTests/Pods-ArboreUiTests.release.xcconfig"; sourceTree = "<group>"; };
-		AED865F48D1438C9E733A56F /* Pods_ArboreUi_ArboreUiUITests.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ArboreUi_ArboreUiUITests.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		B40E7D7D8A4693F51963E9FF /* Pods-ArboreUiTests.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUiTests.debug.xcconfig"; path = "Target Support Files/Pods-ArboreUiTests/Pods-ArboreUiTests.debug.xcconfig"; sourceTree = "<group>"; };
-		DBF7F2295089B2B76AB3D9A5 /* Pods_ArboreUi.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ArboreUi.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -98,8 +91,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				77F4355F2D86E1B400E8E78D /* ARKit.framework in Frameworks */,
+				974EF1E72EC2AFC900565B6A /* FirebaseAuth in Frameworks */,
+				974EF1EF2EC2B48F00565B6A /* GoogleSignInSwift in Frameworks */,
+				974EF1E92EC2AFC900565B6A /* FirebaseCore in Frameworks */,
+				974EF1EB2EC2AFC900565B6A /* FirebaseFirestore in Frameworks */,
 				77F4355D2D86E1AC00E8E78D /* RealityKit.framework in Frameworks */,
-				81A95F412E23CAABA7FDAC0B /* Pods_ArboreUi.framework in Frameworks */,
+				974EF1ED2EC2B48F00565B6A /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -107,7 +104,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2C2F9EF680DF8FED20F336CE /* Pods_ArboreUiTests.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -115,34 +111,17 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E2B4006D2F433B5DB028985B /* Pods_ArboreUi_ArboreUiUITests.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		4B0BB883BB2E6515755553A2 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				8AB767C9ABF925C27063C455 /* Pods-ArboreUi.debug.xcconfig */,
-				85AC486FEC6C54B1E59EDF32 /* Pods-ArboreUi.release.xcconfig */,
-				14EABF8F2A7750400991DBD1 /* Pods-ArboreUi-ArboreUiUITests.debug.xcconfig */,
-				30E54B97B6D87308ECC1AE24 /* Pods-ArboreUi-ArboreUiUITests.release.xcconfig */,
-				B40E7D7D8A4693F51963E9FF /* Pods-ArboreUiTests.debug.xcconfig */,
-				AAB129577769256F78452269 /* Pods-ArboreUiTests.release.xcconfig */,
-			);
-			path = Pods;
-			sourceTree = "<group>";
-		};
 		774B710A2D84BE8D002595B2 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				77F4355E2D86E1B400E8E78D /* ARKit.framework */,
 				77F4355C2D86E1AC00E8E78D /* RealityKit.framework */,
-				DBF7F2295089B2B76AB3D9A5 /* Pods_ArboreUi.framework */,
-				AED865F48D1438C9E733A56F /* Pods_ArboreUi_ArboreUiUITests.framework */,
-				6BA53C6F977DC2AC85DFA529 /* Pods_ArboreUiTests.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -155,7 +134,6 @@
 				77DD7AFA2D84270800A6F6F1 /* ArboreUiUITests */,
 				774B710A2D84BE8D002595B2 /* Frameworks */,
 				77DD7ADE2D84270700A6F6F1 /* Products */,
-				4B0BB883BB2E6515755553A2 /* Pods */,
 			);
 			sourceTree = "<group>";
 		};
@@ -176,12 +154,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 77DD7B012D84270800A6F6F1 /* Build configuration list for PBXNativeTarget "ArboreUi" */;
 			buildPhases = (
-				E8CA55FA2159C105ABA76EC5 /* [CP] Check Pods Manifest.lock */,
 				77DD7AD92D84270700A6F6F1 /* Sources */,
 				77DD7ADA2D84270700A6F6F1 /* Frameworks */,
 				77DD7ADB2D84270700A6F6F1 /* Resources */,
 				774B710D2D84BE8E002595B2 /* Embed Frameworks */,
-				79FC822ADB4AD9C480FF4F64 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -199,7 +175,6 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 77DD7B042D84270800A6F6F1 /* Build configuration list for PBXNativeTarget "ArboreUiTests" */;
 			buildPhases = (
-				898140A6E103DC67FF86E1C2 /* [CP] Check Pods Manifest.lock */,
 				77DD7AE92D84270800A6F6F1 /* Sources */,
 				77DD7AEA2D84270800A6F6F1 /* Frameworks */,
 				77DD7AEB2D84270800A6F6F1 /* Resources */,
@@ -221,11 +196,9 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 77DD7B072D84270800A6F6F1 /* Build configuration list for PBXNativeTarget "ArboreUiUITests" */;
 			buildPhases = (
-				D570974B36D0A78AB45EC5F2 /* [CP] Check Pods Manifest.lock */,
 				77DD7AF32D84270800A6F6F1 /* Sources */,
 				77DD7AF42D84270800A6F6F1 /* Frameworks */,
 				77DD7AF52D84270800A6F6F1 /* Resources */,
-				4DF49AF2CCA44D6D298D5061 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -278,6 +251,7 @@
 			packageReferences = (
 				77A24D4A2D877E9D00D5DBD3 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				97AE3ED12DD2989D008631AF /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */,
+				974EF1E52EC2AFC900565B6A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 77DD7ADE2D84270700A6F6F1 /* Products */;
@@ -314,117 +288,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
-
-/* Begin PBXShellScriptBuildPhase section */
-		4DF49AF2CCA44D6D298D5061 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-ArboreUi-ArboreUiUITests/Pods-ArboreUi-ArboreUiUITests-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			inputPaths = (
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-ArboreUi-ArboreUiUITests/Pods-ArboreUi-ArboreUiUITests-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ArboreUi-ArboreUiUITests/Pods-ArboreUi-ArboreUiUITests-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		79FC822ADB4AD9C480FF4F64 /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-ArboreUi/Pods-ArboreUi-frameworks-${CONFIGURATION}-input-files.xcfilelist",
-			);
-			inputPaths = (
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputFileListPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-ArboreUi/Pods-ArboreUi-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ArboreUi/Pods-ArboreUi-frameworks.sh\"\n";
-			showEnvVarsInLog = 0;
-		};
-		898140A6E103DC67FF86E1C2 /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-ArboreUiTests-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		D570974B36D0A78AB45EC5F2 /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-ArboreUi-ArboreUiUITests-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		E8CA55FA2159C105ABA76EC5 /* [CP] Check Pods Manifest.lock */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
-				"${PODS_ROOT}/Manifest.lock",
-			);
-			name = "[CP] Check Pods Manifest.lock";
-			outputFileListPaths = (
-			);
-			outputPaths = (
-				"$(DERIVED_FILE_DIR)/Pods-ArboreUi-checkManifestLockResult.txt",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		77DD7AD92D84270700A6F6F1 /* Sources */ = {
@@ -585,7 +448,6 @@
 		};
 		77DD7B022D84270800A6F6F1 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 8AB767C9ABF925C27063C455 /* Pods-ArboreUi.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -594,27 +456,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ArboreUi/Preview Content\"";
-				DEVELOPMENT_TEAM = 4BKX9ANKAW;
+				DEVELOPMENT_TEAM = XRS7C6AA96;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/AppAuth\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/AppCheckCore\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseAppCheckInterop\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseAuth\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseAuthInterop\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseCore\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseCoreExtension\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseCoreInternal\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/GTMAppAuth\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/GTMSessionFetcher\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/GoogleSignIn\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/GoogleUtilities\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/PromisesObjC\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/RecaptchaInterop\"",
-					"$(SRCROOT)/Pods",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ArboreUI/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Cette application utilise la caméra pour afficher des objets en réalité augmentée.";
@@ -632,13 +477,11 @@
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"\"${TOOLCHAIN_DIR}/usr/lib/swift/${PLATFORM_NAME}\"",
-					/usr/lib/swift,
 					"$(inherited)",
-					"$(SRCROOT)/Pods",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.ArboreUi.hugooo;
+				MTL_ENABLE_DEBUG_INFO = None;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hugomichel.arbore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -649,7 +492,6 @@
 		};
 		77DD7B032D84270800A6F6F1 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 85AC486FEC6C54B1E59EDF32 /* Pods-ArboreUi.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -658,27 +500,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ArboreUi/Preview Content\"";
-				DEVELOPMENT_TEAM = 4BKX9ANKAW;
+				DEVELOPMENT_TEAM = XRS7C6AA96;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/AppAuth\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/AppCheckCore\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseAppCheckInterop\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseAuth\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseAuthInterop\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseCore\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseCoreExtension\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseCoreInternal\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/GTMAppAuth\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/GTMSessionFetcher\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/GoogleSignIn\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/GoogleUtilities\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/PromisesObjC\"",
-					"\"${PODS_CONFIGURATION_BUILD_DIR}/RecaptchaInterop\"",
-					"$(SRCROOT)/Pods",
-				);
+				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ArboreUI/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "Cette application utilise la caméra pour afficher des objets en réalité augmentée.";
@@ -696,13 +521,10 @@
 				);
 				LIBRARY_SEARCH_PATHS = (
 					"$(inherited)",
-					"\"${TOOLCHAIN_DIR}/usr/lib/swift/${PLATFORM_NAME}\"",
-					/usr/lib/swift,
 					"$(inherited)",
-					"$(SRCROOT)/Pods",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.ArboreUi.hugooo;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hugomichel.arbore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -712,7 +534,6 @@
 		};
 		77DD7B052D84270800A6F6F1 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = B40E7D7D8A4693F51963E9FF /* Pods-ArboreUiTests.debug.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -732,7 +553,6 @@
 		};
 		77DD7B062D84270800A6F6F1 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = AAB129577769256F78452269 /* Pods-ArboreUiTests.release.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -752,7 +572,6 @@
 		};
 		77DD7B082D84270800A6F6F1 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 14EABF8F2A7750400991DBD1 /* Pods-ArboreUi-ArboreUiUITests.debug.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -770,7 +589,6 @@
 		};
 		77DD7B092D84270800A6F6F1 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 30E54B97B6D87308ECC1AE24 /* Pods-ArboreUi-ArboreUiUITests.release.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -836,6 +654,14 @@
 				minimumVersion = 8.0.0;
 			};
 		};
+		974EF1E52EC2AFC900565B6A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "git@github.com:firebase/firebase-ios-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.5.0;
+			};
+		};
 		97AE3ED12DD2989D008631AF /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/siteline/SwiftUI-Introspect";
@@ -845,6 +671,34 @@
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		974EF1E62EC2AFC900565B6A /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 974EF1E52EC2AFC900565B6A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		974EF1E82EC2AFC900565B6A /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 974EF1E52EC2AFC900565B6A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		974EF1EA2EC2AFC900565B6A /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 974EF1E52EC2AFC900565B6A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
+		};
+		974EF1EC2EC2B48F00565B6A /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 77A24D4A2D877E9D00D5DBD3 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+		974EF1EE2EC2B48F00565B6A /* GoogleSignInSwift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 77A24D4A2D877E9D00D5DBD3 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignInSwift;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 77DD7AD52D84270700A6F6F1 /* Project object */;
 }

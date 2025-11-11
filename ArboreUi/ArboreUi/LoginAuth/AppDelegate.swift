@@ -5,9 +5,11 @@
 //  Created by Hugo Rath on 16/03/2025.
 //
 
+import FirebaseAuth
 import SwiftUI
 import FirebaseCore
 import GoogleSignIn
+import GoogleSignInSwift
 
 class AppDelegate: NSObject, UIApplicationDelegate{
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool{

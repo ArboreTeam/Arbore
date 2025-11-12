@@ -326,59 +326,138 @@ func generateMultiplePlantsHandler(c *gin.Context) {
 	})
 }
 
+func uploadUserPhoto(c *gin.Context) {
+    uid := c.Param("uid")
+
+    file, header, err := c.Request.FormFile("photo")
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "photo not provided or invalid"})
+        return
+    }
+    defer file.Close()
+
+    imageBytes, err := ioutil.ReadAll(file)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot read uploaded file"})
+        return
+    }
+
+    encoded := base64.StdEncoding.EncodeToString(imageBytes)
+    contentType := header.Header.Get("Content-Type")
+    if contentType == "" {
+        contentType = http.DetectContentType(imageBytes)
+    }
+
+    collection := client.Database("arbore").Collection("users")
+    filter := bson.M{"uid": uid}
+    update := bson.M{"$set": bson.M{
+        "photoData":        encoded,
+        "photoContentType": contentType,
+    }}
+
+    _, err = collection.UpdateOne(context.Background(), filter, update)
+    if err != nil {
+        log.Println("❌ Erreur lors de la mise à jour photo :", err)
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la sauvegarde de la photo"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Photo enregistrée avec succès"})
+}
+
+// Return raw image bytes for a user (GET /users/:uid/photo)
+func getUserPhoto(c *gin.Context) {
+    uid := c.Param("uid")
+    collection := client.Database("arbore").Collection("users")
+
+    var user User
+    err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
+    if err != nil {
+        if err == mongo.ErrNoDocuments {
+            c.Status(http.StatusNotFound)
+            return
+        }
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la lecture utilisateur"})
+        return
+    }
+
+    if user.PhotoData == "" {
+        c.Status(http.StatusNoContent)
+        return
+    }
+
+    data, err := base64.StdEncoding.DecodeString(user.PhotoData)
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur decoding photo"})
+        return
+    }
+
+    contentType := user.PhotoContentType
+    if contentType == "" {
+        contentType = http.DetectContentType(data)
+    }
+
+    c.Data(http.StatusOK, contentType, data)
+}
+
 func main() {
-	uri := "mongodb+srv://hugorath1234:hugopapa@arbore.cew6l.mongodb.net/arbore?retryWrites=true&w=majority&appName=Arbore"
-	clientOptions := options.Client().ApplyURI(uri)
+    uri := "mongodb+srv://hugorath1234:hugopapa@arbore.cew6l.mongodb.net/arbore?retryWrites=true&w=majority&appName=Arbore"
+    clientOptions := options.Client().ApplyURI(uri)
 
-	var err error
-	client, err = mongo.Connect(context.Background(), clientOptions)
-	if err != nil {
-		log.Fatal("❌ Erreur lors de la connexion à MongoDB :", err)
-	}
+    var err error
+    client, err = mongo.Connect(context.Background(), clientOptions)
+    if err != nil {
+        log.Fatal("❌ Erreur lors de la connexion à MongoDB :", err)
+    }
 
-	err = client.Ping(context.Background(), nil)
-	if err != nil {
-		log.Fatal("❌ Erreur lors de la vérification de la connexion à MongoDB :", err)
-	}
-	fmt.Println("✅ Connecté à MongoDB!")
+    err = client.Ping(context.Background(), nil)
+    if err != nil {
+        log.Fatal("❌ Erreur lors de la vérification de la connexion à MongoDB :", err)
+    }
+    fmt.Println("✅ Connecté à MongoDB!")
 
-	router := gin.Default()
+    router := gin.Default()
 
-	router.POST("/users", createUser)
-	router.GET("/users/:uid", func(c *gin.Context) {
-		uid := c.Param("uid")
+    // existing routes
+    router.POST("/users", createUser)
+    router.GET("/users/:uid", func(c *gin.Context) {
+        uid := c.Param("uid")
 
-		var user User
-		collection := client.Database("arbore").Collection("users")
-		err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
-		if err != nil {
-			if err == mongo.ErrNoDocuments {
-				c.JSON(http.StatusNotFound, gin.H{"message": "Utilisateur non trouvé"})
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
+        var user User
+        collection := client.Database("arbore").Collection("users")
+        err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
+        if err != nil {
+            if err == mongo.ErrNoDocuments {
+                c.JSON(http.StatusNotFound, gin.H{"message": "Utilisateur non trouvé"})
+                return
+            }
+            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+            return
+        }
 
-		c.JSON(http.StatusOK, gin.H{"user": user})
-	})
+        c.JSON(http.StatusOK, gin.H{"user": user})
+    })
 
-	router.DELETE("/users/:uid", deleteUser)
-	router.POST("/plants", createPlant)
-	router.GET("/plants", getPlants)
-	router.GET("/plants/:id", getPlantByID)
-	router.POST("/plants/generate", generatePlantWithAI)
-	router.POST("/plants/generate-multiple", generateMultiplePlantsHandler)
+    // photo endpoints
+    router.POST("/users/:uid/photo", uploadUserPhoto)
+    router.GET("/users/:uid/photo", getUserPhoto)
 
-	fmt.Println("🚀 Serveur démarré sur http://localhost:8080")
-	if err := router.Run(":8080"); err != nil {
-		log.Fatal("❌ Erreur lors du démarrage du serveur :", err)
-	}
+    router.DELETE("/users/:uid", deleteUser)
+    router.POST("/plants", createPlant)
+    router.GET("/plants", getPlants)
+    router.GET("/plants/:id", getPlantByID)
+    router.POST("/plants/generate", generatePlantWithAI)
+    router.POST("/plants/generate-multiple", generateMultiplePlantsHandler)
 
-	defer func() {
-		if err = client.Disconnect(context.Background()); err != nil {
-			log.Fatal("❌ Erreur lors de la déconnexion de MongoDB :", err)
-		}
-		fmt.Println("🔌 Déconnecté de MongoDB.")
-	}()
+    fmt.Println("🚀 Serveur démarré sur http://localhost:8080")
+    if err := router.Run(":8080"); err != nil {
+        log.Fatal("❌ Erreur lors du démarrage du serveur :", err)
+    }
+
+    defer func() {
+        if err = client.Disconnect(context.Background()); err != nil {
+            log.Fatal("❌ Erreur lors de la déconnexion de MongoDB :", err)
+        }
+        fmt.Println("🔌 Déconnecté de MongoDB.")
+    }()
 }

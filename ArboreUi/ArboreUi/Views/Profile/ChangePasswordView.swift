@@ -10,11 +10,11 @@ struct ChangePasswordView: View {
 
     var body: some View {
         ZStack {
-            Color(hex: "#1A1A1A")
+            themeManager.backgroundColor // Utiliser le thème manager
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top bar with close button (same pattern as PersonalDetailsView / UpgradePlanView)
+                // Top bar - Uniforme
                 HStack {
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
@@ -30,70 +30,81 @@ struct ChangePasswordView: View {
                 }
                 .frame(height: 48)
                 .padding(.horizontal, 16)
-                .background(Color(hex: "#1A1A1A"))
+                .background(themeManager.backgroundColor) // Assurer un fond uni pour la barre
 
                 // Content
                 ScrollView {
-                    VStack(spacing: 18) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("CURRENT PASSWORD")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(themeManager.secondaryTextColor)
-                                .padding(.horizontal, 16)
+                    VStack(spacing: 24) { // Augmentation de l'espacement
+                        
+                        // Current Password
+                        secureInputField(title: "CURRENT PASSWORD", placeholder: "Enter current password", text: $currentPassword)
 
-                            SecureField("Enter current password", text: $currentPassword)
-                                .padding(.vertical, 12)
-                                .padding(.horizontal, 16)
-                                .background(Color(hex: "#2A2A2A"))
-                                .cornerRadius(10)
-                                .padding(.horizontal, 16)
-                                .foregroundColor(.white)
-                        }
-
-                        VStack(alignment: .leading, spacing: 8) {
+                        // New Passwords
+                        VStack(alignment: .leading, spacing: 16) {
                             Text("NEW PASSWORD")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(themeManager.secondaryTextColor)
-                                .padding(.horizontal, 16)
-
-                            SecureField("Enter new password", text: $newPassword)
-                                .foregroundColor(.white)
-                                .padding(.vertical, 12)
-                                .padding(.horizontal, 16)
-                                .background(Color(hex: "#2A2A2A"))
-                                .cornerRadius(10)
-                                .padding(.horizontal, 16)
-
-                            SecureField("Confirm new password", text: $confirmPassword)
-                                .foregroundColor(.white)
-                                .padding(.vertical, 12)
-                                .padding(.horizontal, 16)
-                                .background(Color(hex: "#2A2A2A"))
-                                .cornerRadius(10)
-                                .padding(.horizontal, 16)
+                                .padding(.horizontal, 4)
+                            
+                            secureInputFieldContent(placeholder: "Enter new password", text: $newPassword)
+                            secureInputFieldContent(placeholder: "Confirm new password", text: $confirmPassword)
                         }
+                        .padding(.horizontal, 16)
 
                         Spacer(minLength: 8)
 
+                        // Update Button (Style vert et audacieux)
                         Button(action: {
                             // Logic to change password
                             dismiss()
                         }) {
                             Text("Update Password")
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color(hex: "#263826"))
+                                .font(.system(size: 17, weight: .bold)) // Plus audacieux
                                 .foregroundColor(.white)
-                                .cornerRadius(10)
-                                .padding(.horizontal, 16)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16) // Plus de rembourrage
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(Color.green) // Couleur verte principale
+                                )
+                                .shadow(color: Color.green.opacity(0.4), radius: 8, x: 0, y: 4)
                         }
+                        .padding(.horizontal, 16)
                         .padding(.bottom, 24)
                     }
-                    .padding(.top, 18)
+                    .padding(.top, 20)
                 }
             }
         }
         .interactiveDismissDisabled()
+    }
+    
+    // MARK: - Secure Input Field (Refonte pour un style plus professionnel/glassmorphism)
+    private func secureInputField(title: String, placeholder: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(themeManager.secondaryTextColor)
+                .padding(.horizontal, 4)
+            
+            secureInputFieldContent(placeholder: placeholder, text: text)
+        }
+        .padding(.horizontal, 16)
+    }
+    
+    private func secureInputFieldContent(placeholder: String, text: Binding<String>) -> some View {
+        SecureField(placeholder, text: text)
+            .padding(.vertical, 14)
+            .padding(.horizontal, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 14)
+                    .fill(Color.gray.opacity(0.12)) // Fond en verre-morphisme subtil
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1) // Bordure légère
+                    )
+            )
+            .foregroundColor(themeManager.textColor)
     }
 }
 

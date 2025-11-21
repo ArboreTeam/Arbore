@@ -13,10 +13,10 @@ struct PrivacyPolicyView: View {
             themeManager.backgroundColor.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top bar with close button
+                // Top bar with close button - Uniforme
                 HStack {
                     Button(action: { dismiss() }) {
-                        Image(systemName: "xmark")
+                        Image(systemName: "xmark") // Utiliser X
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(themeManager.textColor)
                     }
@@ -32,7 +32,7 @@ struct PrivacyPolicyView: View {
                 .background(themeManager.backgroundColor)
 
                 ScrollView {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 18) { // Augmentation de l'espacement
                         headerCard
 
                         PolicyCard(
@@ -47,7 +47,8 @@ struct PrivacyPolicyView: View {
                             ],
                             themeManager: themeManager
                         )
-
+                        
+                        // ... (Autres PolicyCard conservées) ...
                         PolicyCard(
                             title: "Pourquoi nous les utilisons",
                             icon: "target",
@@ -135,19 +136,20 @@ struct PrivacyPolicyView: View {
                             ],
                             themeManager: themeManager
                         )
+                        // ... (Fin des autres PolicyCard) ...
 
                         contactCard
                         footerNote
                     }
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 24)
+                    .padding(.vertical, 20) // Ajout de padding vertical
                 }
             }
         }
         .interactiveDismissDisabled()
     }
 
-    // MARK: - Header
+    // MARK: - Header (Mise à jour pour coins uniformes)
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("\(brandName) respecte votre vie privée.")
@@ -161,15 +163,15 @@ struct PrivacyPolicyView: View {
                 .foregroundColor(themeManager.secondaryTextColor.opacity(0.9))
                 .padding(.top, 2)
         }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(18)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 18)
                 .stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
     }
 
-    // MARK: - Contact card
+    // MARK: - Contact card (Mise à jour pour coins uniformes et bouton noir/blanc)
     private var contactCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
@@ -190,21 +192,21 @@ struct PrivacyPolicyView: View {
                     Image(systemName: "paperplane.fill")
                     Text(contactEmail)
                 }
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 15, weight: .bold)) // Un peu plus audacieux
                 .foregroundColor(.black)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
                 .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.white))
+                .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
             }
         }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(18)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
         .overlay(
-            RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
     }
 
-    // MARK: - Footer note
+    // MARK: - Footer note (Mise à jour pour coins uniformes)
     private var footerNote: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Modifications de cette politique")
@@ -214,16 +216,16 @@ struct PrivacyPolicyView: View {
                 .font(.system(size: 13))
                 .foregroundColor(themeManager.secondaryTextColor)
         }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(18)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
         .overlay(
-            RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
         .padding(.top, 4)
     }
 }
 
-// MARK: - Reusable Card
+// MARK: - Reusable Card (Mise à jour pour coins uniformes)
 struct PolicyCard: View {
     let title: String
     let icon: String
@@ -231,13 +233,13 @@ struct PolicyCard: View {
     let themeManager: ThemeManager
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) { // Augmentation de l'espacement
+            HStack(spacing: 12) { // Augmentation de l'espacement
                 Image(systemName: icon)
-                    .font(.system(size: 18))
+                    .font(.system(size: 20)) // Icône plus grande
                     .foregroundColor(.green)
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 17, weight: .bold)) // Plus audacieux
                     .foregroundColor(themeManager.textColor)
                 Spacer()
             }
@@ -257,15 +259,10 @@ struct PolicyCard: View {
                 }
             }
         }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(18) // Rembourrage uniforme
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)) // Coins uniformes
         .overlay(
-            RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
     }
-}
-
-#Preview {
-    PrivacyPolicyView()
-        .environmentObject(ThemeManager())
 }

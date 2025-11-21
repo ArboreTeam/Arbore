@@ -10,7 +10,7 @@ struct AboutUsView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top bar with close button
+                // Top bar with close button - Uniforme
                 HStack {
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
@@ -18,7 +18,7 @@ struct AboutUsView: View {
                             .foregroundColor(themeManager.textColor)
                     }
                     Spacer()
-                    Text("About Us")
+                    Text("About Arbore") // Titre plus spécifique
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(themeManager.textColor)
                     Spacer()
@@ -29,42 +29,46 @@ struct AboutUsView: View {
                 .background(themeManager.backgroundColor)
 
                 ScrollView {
-                    VStack(spacing: 20) {
-                        // Header card with app info
+                    VStack(spacing: 24) { // Augmentation de l'espacement
+                        // Header card with app info (Mise à jour des coins et de la typo)
                         VStack(spacing: 16) {
                             Image(systemName: "leaf.fill")
-                                .font(.system(size: 48))
+                                .font(.system(size: 52)) // Icône plus grande
                                 .foregroundColor(.green)
 
                             VStack(spacing: 6) {
                                 Text("Arbore")
-                                    .font(.system(size: 28, weight: .bold))
+                                    .font(.system(size: 32, weight: .heavy)) // Plus audacieux
                                     .foregroundColor(themeManager.textColor)
 
                                 Text("Version 1.0.0")
-                                    .font(.system(size: 14, weight: .semibold))
+                                    .font(.system(size: 15, weight: .bold)) // Plus audacieux
                                     .foregroundColor(.green)
                             }
 
                             Text("Your intelligent gardening companion")
-                                .font(.system(size: 14))
+                                .font(.system(size: 15)) // Plus grand
                                 .foregroundColor(themeManager.secondaryTextColor)
                                 .multilineTextAlignment(.center)
                         }
-                        .padding(20)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.10), lineWidth: 1))
+                        .padding(24)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18)
+                                .fill(Color.gray.opacity(0.12))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        )
+                        .cornerRadius(18)
                         .padding(.horizontal, 16)
                         .padding(.top, 20)
 
-                        // About section
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 10) {
+                        // About section (Mise à jour des coins)
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(spacing: 12) {
                                 Image(systemName: "info.circle.fill")
                                     .foregroundColor(.green)
-                                    .font(.system(size: 18))
+                                    .font(.system(size: 20))
                                 Text("About Arbore")
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .font(.system(size: 17, weight: .bold))
                                     .foregroundColor(themeManager.textColor)
                                 Spacer()
                             }
@@ -74,43 +78,51 @@ struct AboutUsView: View {
                                 .foregroundColor(themeManager.textColor)
                                 .lineSpacing(4)
                         }
-                        .padding(16)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.06), lineWidth: 1))
+                        .padding(18)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18)
+                                .fill(Color.gray.opacity(0.12))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        )
+                        .cornerRadius(18)
                         .padding(.horizontal, 16)
 
-                        // Features section
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 10) {
-                                Image(systemName: "sparkles")
+                        // Features section (Mise à jour des coins)
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "sparkles.square.fill") // Nouvelle icône
                                     .foregroundColor(.green)
-                                    .font(.system(size: 18))
+                                    .font(.system(size: 20))
                                 Text("Key Features")
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .font(.system(size: 17, weight: .bold))
                                     .foregroundColor(themeManager.textColor)
                                 Spacer()
                             }
 
-                            VStack(alignment: .leading, spacing: 10) {
+                            VStack(alignment: .leading, spacing: 12) {
                                 FeatureRow(icon: "camera.viewfinder", title: "Plant Identification", description: "Instantly identify plants with AI-powered scanning")
                                 FeatureRow(icon: "cube.fill", title: "3D Garden Design", description: "Plan and visualize your garden in 3D")
                                 FeatureRow(icon: "bell.badge.fill", title: "Smart Notifications", description: "Get reminders based on weather and seasons")
                                 FeatureRow(icon: "leaf.fill", title: "Care Guidance", description: "Receive personalized plant care tips")
                             }
                         }
-                        .padding(16)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.06), lineWidth: 1))
+                        .padding(18)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18)
+                                .fill(Color.gray.opacity(0.12))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        )
+                        .cornerRadius(18)
                         .padding(.horizontal, 16)
 
-                        // Contact & Support
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 10) {
+                        // Contact & Support (Mise à jour des coins et du bouton)
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(spacing: 12) {
                                 Image(systemName: "envelope.fill")
                                     .foregroundColor(.green)
-                                    .font(.system(size: 18))
+                                    .font(.system(size: 20))
                                 Text("Get in Touch")
-                                    .font(.system(size: 16, weight: .semibold))
+                                    .font(.system(size: 17, weight: .bold))
                                     .foregroundColor(themeManager.textColor)
                                 Spacer()
                             }
@@ -124,26 +136,29 @@ struct AboutUsView: View {
                                     Image(systemName: "paperplane.fill")
                                     Text("Contact Support")
                                 }
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.black)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
-                                .background(Color.white)
-                                .cornerRadius(10)
+                                .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
                             }
                         }
-                        .padding(16)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.06), lineWidth: 1))
+                        .padding(18)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18)
+                                .fill(Color.gray.opacity(0.12))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        )
+                        .cornerRadius(18)
                         .padding(.horizontal, 16)
 
                         // Footer
                         VStack(alignment: .center, spacing: 6) {
                             Text("Made with 🌿 for plant lovers")
-                                .font(.system(size: 13))
+                                .font(.system(size: 14, weight: .medium)) // Plus audacieux
                                 .foregroundColor(themeManager.secondaryTextColor)
                             Text("© 2025 Arbore. All rights reserved.")
-                                .font(.system(size: 12))
+                                .font(.system(size: 13))
                                 .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
                         }
                         .padding(.vertical, 20)
@@ -156,7 +171,7 @@ struct AboutUsView: View {
     }
 }
 
-// MARK: - Feature Row Component
+// MARK: - Feature Row Component (Mise à jour des icônes)
 struct FeatureRow: View {
     @EnvironmentObject var themeManager: ThemeManager
     let icon: String
@@ -164,18 +179,18 @@ struct FeatureRow: View {
     let description: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 14) { // Augmentation de l'espacement
             Image(systemName: icon)
                 .foregroundColor(.green)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 20, weight: .semibold)) // Plus grand
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold)) // Plus grand
                     .foregroundColor(themeManager.textColor)
                 Text(description)
-                    .font(.system(size: 12))
+                    .font(.system(size: 13))
                     .foregroundColor(themeManager.secondaryTextColor)
                     .lineLimit(2)
             }
@@ -183,9 +198,4 @@ struct FeatureRow: View {
             Spacer()
         }
     }
-}
-
-#Preview {
-    AboutUsView()
-        .environmentObject(ThemeManager())
 }

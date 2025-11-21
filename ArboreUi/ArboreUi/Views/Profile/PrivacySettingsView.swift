@@ -14,7 +14,7 @@ struct PrivacySettingsView: View {
             themeManager.backgroundColor.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top bar with close button
+                // Top bar with close button - Uniforme
                 HStack {
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
@@ -33,20 +33,18 @@ struct PrivacySettingsView: View {
                 .background(themeManager.backgroundColor)
 
                 ScrollView {
-                    VStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 20) { // Augmentation de l'espacement
                         // Header
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Privacy Settings")
-                                .font(.system(size: 22, weight: .bold))
+                            Text("Your Privacy, Your Control") // Nouveau titre plus audacieux
+                                .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(themeManager.textColor)
                             Text("Control who sees your profile, your activity, and how we use your data.")
-                                .font(.system(size: 14))
+                                .font(.system(size: 15))
                                 .foregroundColor(themeManager.secondaryTextColor)
                         }
-                        .padding(16)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.10), lineWidth: 1))
-
+                        .padding(.top, 18)
+                        
                         // Section — Profile Visibility
                         PrivacySectionCard(
                             title: "Profile Visibility",
@@ -64,12 +62,12 @@ struct PrivacySettingsView: View {
 
                         // Section — Activity
                         PrivacySectionCard(
-                            title: "Activity",
+                            title: "Activity Sharing",
                             icon: "waveform.path.ecg.rectangle.fill",
                             content: {
                                 ToggleRow(
-                                    icon: "text.badge.star",
-                                    title: "Show My Activity",
+                                    icon: "list.bullet.rectangle.portrait",
+                                    title: "Show My Activity", // Nouvelle icône
                                     subtitle: "Allow showing your recent garden updates.",
                                     isOn: $showActivity
                                 )
@@ -80,7 +78,7 @@ struct PrivacySettingsView: View {
                         // Section — Data Sharing
                         PrivacySectionCard(
                             title: "Data Sharing",
-                            icon: "lock.shield.fill",
+                            icon: "chart.bar.doc.horizontal.fill", // Icône mise à jour
                             content: {
                                 ToggleRow(
                                     icon: "chart.bar.doc.horizontal.fill",
@@ -92,48 +90,58 @@ struct PrivacySettingsView: View {
                             themeManager: themeManager
                         )
 
-                        // Lien vers la politique de confidentialité
+                        // Lien vers la politique de confidentialité (Style de carte unifié)
                         Button(action: { showPrivacyPolicy = true }) {
-                            HStack(spacing: 10) {
+                            HStack(spacing: 12) { // Augmentation de l'espacement
                                 Image(systemName: "doc.text.fill")
-                                    .font(.system(size: 16))
+                                    .font(.system(size: 20)) // Icône plus grande
                                     .foregroundColor(.green)
-                                    .frame(width: 22)
+                                    .frame(width: 24) // Espace d'icône plus large
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Read our Privacy Policy")
-                                        .font(.system(size: 15, weight: .semibold))
+                                        .font(.system(size: 16, weight: .semibold)) // Plus grand
                                         .foregroundColor(themeManager.textColor)
                                     Text("Understand how we collect, use and protect your data.")
-                                        .font(.system(size: 12))
+                                        .font(.system(size: 13))
                                         .foregroundColor(themeManager.secondaryTextColor)
                                 }
                                 Spacer()
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundColor(themeManager.secondaryTextColor)
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
                             }
-                            .padding(14)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.10), lineWidth: 1))
                         }
+                        .padding(16) // Rembourrage uniforme
+                        .background(
+                            RoundedRectangle(cornerRadius: 18)
+                                .fill(Color.gray.opacity(0.12))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        )
+                        .cornerRadius(18)
+                        .buttonStyle(.plain)
 
-                        // Note d'information
-                        VStack(alignment: .leading, spacing: 6) {
+
+                        // Note d'information (Style de carte unifié)
+                        VStack(alignment: .leading, spacing: 8) {
                             Text("Note")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.system(size: 15, weight: .semibold)) // Plus grand
                                 .foregroundColor(themeManager.textColor)
                             Text("You can change these settings at any time. Some changes may take a few minutes to apply across all your devices.")
-                                .font(.system(size: 12))
+                                .font(.system(size: 13))
                                 .foregroundColor(themeManager.secondaryTextColor)
                         }
-                        .padding(14)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.10), lineWidth: 1))
+                        .padding(16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18)
+                                .fill(Color.gray.opacity(0.12))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        )
+                        .cornerRadius(18)
 
                         Spacer(minLength: 8)
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 20)
+                    .padding(.bottom, 20)
                 }
             }
         }
@@ -145,7 +153,7 @@ struct PrivacySettingsView: View {
     }
 }
 
-// MARK: - Section Card
+// MARK: - Section Card (Mise à jour pour coins uniformes)
 private struct PrivacySectionCard<Content: View>: View {
     let title: String
     let icon: String
@@ -160,28 +168,29 @@ private struct PrivacySectionCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) { // Augmentation de l'espacement
+            HStack(spacing: 12) { // Augmentation de l'espacement
                 Image(systemName: icon)
-                    .font(.system(size: 18))
+                    .font(.system(size: 20)) // Icône plus grande
                     .foregroundColor(.green)
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 17, weight: .bold)) // Plus audacieux
                     .foregroundColor(themeManager.textColor)
                 Spacer()
             }
             content
         }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        .padding(18) // Rembourrage uniforme
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.gray.opacity(0.12))
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
         )
+        .cornerRadius(18)
     }
 }
 
-// MARK: - Toggle Row
+// MARK: - Toggle Row (Mise à jour pour coins uniformes et icônes plus grandes)
 private struct ToggleRow: View {
     @EnvironmentObject var themeManager: ThemeManager
     let icon: String
@@ -192,17 +201,17 @@ private struct ToggleRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 16))
+                .font(.system(size: 20)) // Icône plus grande
                 .foregroundColor(.green)
-                .frame(width: 22)
+                .frame(width: 24) // Espace d'icône plus large
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold)) // Plus grand
                     .foregroundColor(themeManager.textColor)
                 if let subtitle = subtitle {
                     Text(subtitle)
-                        .font(.system(size: 12))
+                        .font(.system(size: 13))
                         .foregroundColor(themeManager.secondaryTextColor)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -212,6 +221,7 @@ private struct ToggleRow: View {
 
             Toggle("", isOn: $isOn)
                 .labelsHidden()
+                .tint(.green) // Couleur d'accentuation verte
         }
     }
 }

@@ -3,108 +3,218 @@ import UIKit
 
 struct AccessibilityView: View {
     @EnvironmentObject var themeManager: ThemeManager
-    @State private var voiceOverEnabled: Bool = UIAccessibility.isVoiceOverRunning
-    @State private var boldText: Bool = false
-    @State private var increaseContrast: Bool = false
-    @State private var reduceMotion: Bool = UIAccessibility.isReduceMotionEnabled
-    @State private var textSizeMultiplier: Double = 1.0
+    @Environment(\.dismiss) private var dismiss
     
     var body: some View {
         ZStack {
             themeManager.backgroundColor
                 .ignoresSafeArea()
             
-            VStack {
-                List {
-                    Section(header: Text("VoiceOver")) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("VoiceOver")
-                                    .foregroundColor(themeManager.textColor)
-                                Text("Screen reader for blind and low vision users")
-                                    .font(.caption)
-                                    .foregroundColor(themeManager.secondaryTextColor)
-                            }
-                            Spacer()
-                            HStack {
-                                Image(systemName: "gear")
-                                    .foregroundColor(.blue)
-                                Text("Settings")
-                                    .foregroundColor(.blue)
-                                    .font(.caption)
-                            }
-                            .onTapGesture {
-                                openSettings()
-                            }
-                        }
-                    }
-                    .listRowBackground(themeManager.cardBackgroundColor)
-                    
-                    Section(header: Text("Display")) {
-                        Toggle("Bold Text", isOn: $boldText)
-                        Toggle("Increase Contrast", isOn: $increaseContrast)
-                    }
-                    .listRowBackground(themeManager.cardBackgroundColor)
-                    
-                    Section(header: Text("Motion")) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("Reduce Motion")
-                                    .foregroundColor(themeManager.textColor)
-                                Text("Minimize animations and transitions")
-                                    .font(.caption)
-                                    .foregroundColor(themeManager.secondaryTextColor)
-                            }
-                            Spacer()
-                            HStack {
-                                Image(systemName: "gear")
-                                    .foregroundColor(.blue)
-                                Text("Settings")
-                                    .foregroundColor(.blue)
-                                    .font(.caption)
-                            }
-                            .onTapGesture {
-                                openSettings()
-                            }
-                        }
-                    }
-                    .listRowBackground(themeManager.cardBackgroundColor)
-                    
-                    Section(header: Text("Text Size")) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Text("A")
-                                    .font(.caption)
-                                    .foregroundColor(themeManager.secondaryTextColor)
-                                Slider(value: $textSizeMultiplier, in: 0.8...1.5, step: 0.1)
-                                Text("A")
-                                    .font(.title2)
-                                    .foregroundColor(themeManager.secondaryTextColor)
-                            }
-                            
-                            HStack {
-                                Text("Size: \(Int(textSizeMultiplier * 100))%")
-                                    .font(.caption)
-                                    .foregroundColor(themeManager.secondaryTextColor)
-                                Spacer()
-                                Text("Sample Text")
-                                    .font(.system(size: 14 * textSizeMultiplier))
-                                    .foregroundColor(themeManager.textColor)
-                            }
-                        }
-                    }
-                    .listRowBackground(themeManager.cardBackgroundColor)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    header
+                    descriptionText
+                    systemSettingsCard
+                    featuresCard
                 }
-                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
             }
         }
-        .navigationTitle("Accessibility")
-        .navigationBarTitleDisplayMode(.inline)
     }
     
-    private func openSettings() {
-        if let url = URL(string: UIApplication.openSettingsURLString) {
-            UIApplication.shared.open(url)
+    // MARK: - Header
+    
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Button(action: { dismiss() }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(themeManager.textColor)
+                        .padding(.trailing, 4)
+                }
+                Spacer()
+            }
+            
+            Text("Accessibility")
+                .font(.system(size: 32, weight: .bold))
+                .foregroundColor(themeManager.textColor)
         }
+        .padding(.top, 4)
     }
+    
+    private var descriptionText: some View {
+        Text("Features controlled by the system")
+            .font(.system(size: 14, weight: .medium))
+            .foregroundColor(themeManager.secondaryTextColor)
+    }
+    
+    // MARK: - System settings card
+    
+    private var systemSettingsCard: some View {
+        Button(action: openSystemAccessibilitySettings) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.blue.opacity(0.18))
+                        .frame(width: 40, height: 40)
+                    
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("System settings")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(themeManager.textColor)
+                    
+                    Text("We apply system accessibility features. You can configure them in device settings.")
+                        .font(.system(size: 13))
+                        .foregroundColor(themeManager.secondaryTextColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
+            }
+            .padding(16)
+            .background(
+                ZStack {
+                    Color.gray.opacity(0.08)
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [
+                                    Color.white.opacity(0.18),
+                                    Color.white.opacity(0.06)
+                                ]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
+                }
+            )
+            .cornerRadius(16)
+        }
+        .buttonStyle(.plain)
+    }
+    
+    // MARK: - Features card
+    
+    private var featuresCard: some View {
+        VStack(spacing: 0) {
+            featureRow(
+                icon: "speaker.wave.2.fill",
+                title: "Screen reader - VoiceOver",
+                subtitle: "Audio descriptions of text and visual elements"
+            )
+            
+            divider
+            
+            featureRow(
+                icon: "u.square.fill",
+                title: "Action visibility",
+                subtitle: "Use Button Shapes setting to increase visibility of links and buttons"
+            )
+            
+            divider
+            
+            featureRow(
+                icon: "circle.lefthalf.filled",
+                title: "Colour contrast",
+                subtitle: "Increase contrast between colours"
+            )
+            
+            divider
+            
+            featureRow(
+                icon: "textformat.size",
+                title: "Adjust text size",
+                subtitle: "Make text bold or change its size for better readability"
+            )
+            
+            divider
+            
+            featureRow(
+                icon: "sparkles",
+                title: "Reduce motion",
+                subtitle: "Reduce amount of various motion effects"
+            )
+        }
+        .background(
+            ZStack {
+                Color.gray.opacity(0.08)
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color.white.opacity(0.15),
+                                Color.white.opacity(0.05)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            }
+        )
+        .cornerRadius(16)
+    }
+    
+    private var divider: some View {
+        Divider()
+            .background(Color.gray.opacity(0.3))
+            .padding(.leading, 64)
+    }
+    
+    /// Lignes descriptives (non cliquables, sans flèche)
+    private func featureRow(icon: String, title: String, subtitle: String) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 40, height: 40)
+                
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+            }
+            
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(themeManager.textColor)
+                
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .foregroundColor(themeManager.secondaryTextColor)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+    }
+    
+    // MARK: - Helpers
+    
+    private func openSystemAccessibilitySettings() {
+        // API publique : ouvre la page Réglages de l’app.
+        // Depuis là, l’utilisateur peut remonter à la page principale des Réglages.
+        guard let url = URL(string: UIApplication.openSettingsURLString),
+              UIApplication.shared.canOpenURL(url) else { return }
+        UIApplication.shared.open(url)
+    }
+}
+
+#Preview {
+    AccessibilityView()
+        .environmentObject(ThemeManager())
 }

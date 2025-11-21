@@ -27,36 +27,38 @@ struct ProfileView: View {
         return (f + l).uppercased()
     }
 
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                themeManager.backgroundColor
-                    .ignoresSafeArea()
+    @State private var selectedDestination: DestinationItem? = nil
 
-                ScrollView {
-                    VStack(spacing: 20) {
-                        header()
-                        currentPlanSection()
-                        settingsSectionsGroup()
-                        footerSection()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 20)
+    var body: some View {
+        ZStack {
+            themeManager.backgroundColor
+                .ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 20) {
+                    header()
+                    currentPlanSection()
+                    settingsSectionsGroup()
+                    footerSection()
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 20)
             }
-            .navigationTitle("")
-            .navigationBarBackButtonHidden(true)
-            .onAppear {
-                loadUserData()
-                fetchProfileImage()
-            }
-            .sheet(isPresented: $showImagePicker) {
-                PhotoPicker(selectedImage: $profileImage) { image in
-                    if let img = image {
-                        Task {
-                            await uploadProfileImage(img)
-                        }
-                    }
+        }
+        .onAppear {
+            loadUserData()
+            fetchProfileImage()
+        }
+        // utilise fullScreenCover(item:) lié à selectedDestination
+        .fullScreenCover(item: $selectedDestination) { dest in
+            dest.view
+                .environmentObject(themeManager)
+                .interactiveDismissDisabled() // empêche le swipe-down
+        }
+        .sheet(isPresented: $showImagePicker) {
+            PhotoPicker(selectedImage: $profileImage) { image in
+                if let img = image {
+                    Task { await uploadProfileImage(img) }
                 }
             }
         }
@@ -419,7 +421,7 @@ struct ProfileView: View {
     private func settingsSection(items: [SettingRowItem]) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                NavigationLink(destination: item.destination) {
+                Button(action: { selectedDestination = DestinationItem(view: item.destination) }) {
                     settingRowContent(item: item)
                 }
 
@@ -519,6 +521,11 @@ struct SettingRowItem {
         self.label = label
         self.destination = AnyView(destination)
     }
+}
+
+struct DestinationItem: Identifiable {
+    let id = UUID()
+    let view: AnyView
 }
 
 // MARK: - PhotoPicker (PHPicker)

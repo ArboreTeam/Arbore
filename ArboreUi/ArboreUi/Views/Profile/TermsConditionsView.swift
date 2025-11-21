@@ -13,10 +13,10 @@ struct TermsConditionsView: View {
             themeManager.backgroundColor.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top bar
+                // Top bar - Uniforme
                 HStack {
                     Button(action: { dismiss() }) {
-                        Image(systemName: "chevron.left")
+                        Image(systemName: "xmark") // Utiliser X pour la fermeture de vues modales pleines
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(themeManager.textColor)
                     }
@@ -27,11 +27,12 @@ struct TermsConditionsView: View {
                     Spacer()
                     Color.clear.frame(width: 16)
                 }
-                .padding(.horizontal, 16)
                 .frame(height: 48)
+                .padding(.horizontal, 16)
+                .background(themeManager.backgroundColor) // Assurer un fond uni pour la barre
 
                 ScrollView {
-                    VStack(spacing: 16) {
+                    VStack(spacing: 18) { // Augmentation de l'espacement
                         headerCard
 
                         TermsCard(
@@ -43,7 +44,8 @@ struct TermsConditionsView: View {
                             ],
                             themeManager: themeManager
                         )
-
+                        
+                        // ... (Autres cartes TermsCard conservées) ...
                         TermsCard(
                             title: "Description du service",
                             icon: "leaf.fill",
@@ -175,19 +177,20 @@ struct TermsConditionsView: View {
                             ],
                             themeManager: themeManager
                         )
+                        // ... (Fin des autres cartes) ...
 
                         contactCard
                         footerNote
                     }
                     .padding(.horizontal, 16)
-                    .padding(.bottom, 24)
+                    .padding(.vertical, 20) // Ajout de padding vertical
                 }
             }
         }
         .interactiveDismissDisabled(false)
     }
 
-    // MARK: - Header
+    // MARK: - Header (Mise à jour pour coins uniformes)
     private var headerCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Conditions générales d’utilisation")
@@ -201,15 +204,15 @@ struct TermsConditionsView: View {
                 .foregroundColor(themeManager.secondaryTextColor.opacity(0.9))
                 .padding(.top, 2)
         }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(18) // Rembourrage uniforme
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)) // Coins uniformes
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
+            RoundedRectangle(cornerRadius: 18)
                 .stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
     }
 
-    // MARK: - Contact card
+    // MARK: - Contact card (Mise à jour pour coins uniformes et bouton noir/blanc)
     private var contactCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 10) {
@@ -230,21 +233,21 @@ struct TermsConditionsView: View {
                     Image(systemName: "paperplane.fill")
                     Text(contactEmail)
                 }
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 15, weight: .bold)) // Un peu plus audacieux
                 .foregroundColor(.black)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12) // Rembourrage uniforme
                 .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.white))
+                .background(RoundedRectangle(cornerRadius: 14).fill(Color.white)) // Coins uniformes
             }
         }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(18) // Rembourrage uniforme
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)) // Coins uniformes
         .overlay(
-            RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
     }
 
-    // MARK: - Footer note
+    // MARK: - Footer note (Mise à jour pour coins uniformes)
     private var footerNote: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Mises à jour des Conditions")
@@ -254,16 +257,16 @@ struct TermsConditionsView: View {
                 .font(.system(size: 13))
                 .foregroundColor(themeManager.secondaryTextColor)
         }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(18) // Rembourrage uniforme
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)) // Coins uniformes
         .overlay(
-            RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
         .padding(.top, 4)
     }
 }
 
-// MARK: - Reusable Card
+// MARK: - Reusable Card (Mise à jour pour coins uniformes)
 struct TermsCard: View {
     let title: String
     let icon: String
@@ -271,13 +274,13 @@ struct TermsCard: View {
     let themeManager: ThemeManager
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) { // Augmentation de l'espacement
+            HStack(spacing: 12) { // Augmentation de l'espacement
                 Image(systemName: icon)
-                    .font(.system(size: 18))
+                    .font(.system(size: 20)) // Icône plus grande
                     .foregroundColor(.green)
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 17, weight: .bold)) // Plus audacieux
                     .foregroundColor(themeManager.textColor)
                 Spacer()
             }
@@ -297,15 +300,10 @@ struct TermsCard: View {
                 }
             }
         }
-        .padding(16)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .padding(18) // Rembourrage uniforme
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)) // Coins uniformes
         .overlay(
-            RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.10), lineWidth: 1)
         )
     }
-}
-
-#Preview {
-    TermsConditionsView()
-        .environmentObject(ThemeManager())
 }

@@ -10,68 +10,82 @@ struct AccessibilityView: View {
             themeManager.backgroundColor
                 .ignoresSafeArea()
             
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    header
-                    descriptionText
-                    systemSettingsCard
-                    featuresCard
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-            }
-        }
-    }
-    
-    // MARK: - Header
-    
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Button(action: { dismiss() }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 20, weight: .semibold))
+            VStack(spacing: 0) {
+                // Top bar - Uniforme
+                HStack {
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(themeManager.textColor)
+                    }
+                    Spacer()
+                    Text("Accessibility")
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(themeManager.textColor)
-                        .padding(.trailing, 4)
+                    Spacer()
+                    Color.clear.frame(width: 16)
                 }
-                Spacer()
+                .frame(height: 48)
+                .padding(.horizontal, 16)
+                .background(themeManager.backgroundColor) // Assurer un fond uni pour la barre
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) { // Augmentation de l'espacement
+                        
+                        // Header text
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Adapt Your Experience")
+                                .font(.system(size: 28, weight: .bold)) // Plus grand
+                                .foregroundColor(themeManager.textColor)
+                            
+                            Text("We follow your device's accessibility settings to ensure the best experience.")
+                                .font(.system(size: 15))
+                                .foregroundColor(themeManager.secondaryTextColor)
+                        }
+                        .padding(.top, 18)
+                        
+                        // System settings card (Bouton d'action)
+                        systemSettingsCard
+                        
+                        // Features list (Glassmorphism card)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Supported System Features")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(themeManager.secondaryTextColor)
+                                .padding(.leading, 8)
+                            
+                            featuresCard
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 40)
+                    .padding(.top, 8)
+                }
             }
-            
-            Text("Accessibility")
-                .font(.system(size: 32, weight: .bold))
-                .foregroundColor(themeManager.textColor)
         }
-        .padding(.top, 4)
     }
     
-    private var descriptionText: some View {
-        Text("Features controlled by the system")
-            .font(.system(size: 14, weight: .medium))
-            .foregroundColor(themeManager.secondaryTextColor)
-    }
-    
-    // MARK: - System settings card
-    
+    // MARK: - System settings card (Refonte en bouton de style uniforme)
     private var systemSettingsCard: some View {
         Button(action: openSystemAccessibilitySettings) {
             HStack(spacing: 14) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12)
+                    RoundedRectangle(cornerRadius: 14) // Carré arrondi
                         .fill(Color.blue.opacity(0.18))
-                        .frame(width: 40, height: 40)
+                        .frame(width: 48, height: 48) // Plus grand
                     
                     Image(systemName: "gearshape.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
+                        .font(.system(size: 22, weight: .bold)) // Plus grand
+                        .foregroundColor(.blue) // Couleur d'accentuation
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("System settings")
-                        .font(.system(size: 16, weight: .semibold))
+                    Text("Open Device Settings")
+                        .font(.system(size: 17, weight: .semibold)) // Plus grand
                         .foregroundColor(themeManager.textColor)
                     
-                    Text("We apply system accessibility features. You can configure them in device settings.")
-                        .font(.system(size: 13))
+                    Text("We apply system accessibility features. Configure them in device settings.")
+                        .font(.system(size: 14))
                         .foregroundColor(themeManager.secondaryTextColor)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -79,111 +93,82 @@ struct AccessibilityView: View {
                 Spacer()
                 
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
             }
-            .padding(16)
-            .background(
-                ZStack {
-                    Color.gray.opacity(0.08)
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    Color.white.opacity(0.18),
-                                    Color.white.opacity(0.06)
-                                ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1
-                        )
-                }
-            )
-            .cornerRadius(16)
         }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 18) // Coins uniformes
+                .fill(Color.gray.opacity(0.12))
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+        )
+        .cornerRadius(18) // Coins uniformes
         .buttonStyle(.plain)
     }
     
-    // MARK: - Features card
-    
+    // MARK: - Features card (Liste plus propre)
     private var featuresCard: some View {
         VStack(spacing: 0) {
             featureRow(
-                icon: "speaker.wave.2.fill",
-                title: "Screen reader - VoiceOver",
+                icon: "waveform.circle.fill", // Nouvelle icône plus moderne
+                iconColor: .orange,
+                title: "VoiceOver (Screen Reader)",
                 subtitle: "Audio descriptions of text and visual elements"
             )
             
             divider
             
             featureRow(
-                icon: "u.square.fill",
-                title: "Action visibility",
-                subtitle: "Use Button Shapes setting to increase visibility of links and buttons"
+                icon: "rectangle.and.text.magnifyingglass", // Nouvelle icône
+                iconColor: .purple,
+                title: "Dynamic Type (Text Size)",
+                subtitle: "The app adapts to your preferred text size for readability"
             )
             
             divider
             
             featureRow(
                 icon: "circle.lefthalf.filled",
-                title: "Colour contrast",
-                subtitle: "Increase contrast between colours"
+                iconColor: .yellow,
+                title: "Increased Contrast",
+                subtitle: "Adjusts colour contrast for better visibility"
             )
             
             divider
             
             featureRow(
-                icon: "textformat.size",
-                title: "Adjust text size",
-                subtitle: "Make text bold or change its size for better readability"
-            )
-            
-            divider
-            
-            featureRow(
-                icon: "sparkles",
-                title: "Reduce motion",
-                subtitle: "Reduce amount of various motion effects"
+                icon: "hand.tap.fill", // Nouvelle icône
+                iconColor: .teal,
+                title: "Reduced Motion",
+                subtitle: "Reduces motion and visual effects for comfort"
             )
         }
         .background(
-            ZStack {
-                Color.gray.opacity(0.08)
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.white.opacity(0.15),
-                                Color.white.opacity(0.05)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            }
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.gray.opacity(0.12))
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
         )
-        .cornerRadius(16)
+        .cornerRadius(18)
     }
     
     private var divider: some View {
         Divider()
-            .background(Color.gray.opacity(0.3))
+            .background(Color.white.opacity(0.1))
             .padding(.leading, 64)
     }
     
-    /// Lignes descriptives (non cliquables, sans flèche)
-    private func featureRow(icon: String, title: String, subtitle: String) -> some View {
+    /// Lignes descriptives (non cliquables, pas de flèche)
+    private func featureRow(icon: String, iconColor: Color, title: String, subtitle: String) -> some View {
         HStack(spacing: 14) {
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.08))
+                    .fill(iconColor.opacity(0.18))
                     .frame(width: 40, height: 40)
                 
                 Image(systemName: icon)
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(iconColor)
             }
             
             VStack(alignment: .leading, spacing: 3) {
@@ -206,8 +191,7 @@ struct AccessibilityView: View {
     // MARK: - Helpers
     
     private func openSystemAccessibilitySettings() {
-        // API publique : ouvre la page Réglages de l’app.
-        // Depuis là, l’utilisateur peut remonter à la page principale des Réglages.
+        // Envoie l'utilisateur aux paramètres de l'application (le plus que l'on puisse faire en général)
         guard let url = URL(string: UIApplication.openSettingsURLString),
               UIApplication.shared.canOpenURL(url) else { return }
         UIApplication.shared.open(url)

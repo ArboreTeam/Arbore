@@ -65,6 +65,11 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		774C3B512ED1FFB100324E07 /* scanRoom */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = scanRoom;
+			sourceTree = "<group>";
+		};
 		77DD7ADF2D84270700A6F6F1 /* ArboreUi */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -129,6 +134,7 @@
 		77DD7AD42D84270700A6F6F1 = {
 			isa = PBXGroup;
 			children = (
+				774C3B512ED1FFB100324E07 /* scanRoom */,
 				77DD7ADF2D84270700A6F6F1 /* ArboreUi */,
 				77DD7AF02D84270800A6F6F1 /* ArboreUiTests */,
 				77DD7AFA2D84270800A6F6F1 /* ArboreUiUITests */,
@@ -164,6 +170,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
+				774C3B512ED1FFB100324E07 /* scanRoom */,
 				77DD7ADF2D84270700A6F6F1 /* ArboreUi */,
 			);
 			name = ArboreUi;
@@ -456,7 +463,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ArboreUi/Preview Content\"";
-				DEVELOPMENT_TEAM = XRS7C6AA96;
+				DEVELOPMENT_TEAM = 4BKX9ANKAW;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -500,7 +507,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ArboreUi/Preview Content\"";
-				DEVELOPMENT_TEAM = XRS7C6AA96;
+				DEVELOPMENT_TEAM = 4BKX9ANKAW;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";

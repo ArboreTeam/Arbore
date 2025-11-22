@@ -5,6 +5,7 @@ struct HomeView: View {
     @ObservedObject var plantService = PlantService()
     @StateObject var userService = UserService()
     @State private var showARScan = false
+    @State private var showRoomScan = false
     @State private var userName: String = ""
     @State private var userError: String? = nil
     @State private var currentUID: String = ""
@@ -102,6 +103,51 @@ struct HomeView: View {
                                 )
                                 .cornerRadius(16)
                                 .shadow(color: themeManager.adjust(Color(hex: "#2E7D32")).opacity(0.3), radius: 8, x: 0, y: 4)
+                            }
+                            .padding(.horizontal, 20)
+                            
+                            // Bouton Scanner une pièce
+                            Button(action: {
+                                showRoomScan.toggle()
+                            }) {
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        Circle()
+                                            .fill(themeManager.adjust(Color.white).opacity(0.2))
+                                            .frame(width: 40, height: 40)
+                                        
+                                        Image(systemName: "cube.fill")
+                                            .font(.system(size: 20, weight: .semibold))
+                                            .foregroundColor(themeManager.adjust(Color.white))
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Scanner mon jardin")
+                                            .font(.headline)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(themeManager.adjust(Color.white))
+                                        
+                                        Text("Scanne l'espace de ton jardin")
+                                            .font(.subheadline)
+                                            .foregroundColor(themeManager.adjust(Color.white).opacity(0.8))
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    Image(systemName: "arrow.right")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(themeManager.adjust(Color.white).opacity(0.8))
+                                }
+                                .padding(20)
+                                .background(
+                                    LinearGradient(
+                                        colors: [themeManager.adjust(Color(hex: "#1976D2")), themeManager.adjust(Color(hex: "#42A5F5"))],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .cornerRadius(16)
+                                .shadow(color: themeManager.adjust(Color(hex: "#1976D2")).opacity(0.3), radius: 8, x: 0, y: 4)
                             }
                             .padding(.horizontal, 20)
                         }
@@ -224,6 +270,9 @@ struct HomeView: View {
             .navigationBarHidden(true)
             .fullScreenCover(isPresented: $showARScan) {
                 ScanAR()
+            }
+            .sheet(isPresented: $showRoomScan) {
+                RoomScanWrapper()
             }
             .onAppear {
                 loadUserData()

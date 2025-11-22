@@ -35,12 +35,11 @@ struct ProfileView: View {
 
     var body: some View {
         ZStack {
-            // Utiliser le thème manager
             themeManager.backgroundColor
                 .ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 24) { // Augmentation de l'espacement
+                VStack(spacing: 24) {
                     header()
                     currentPlanSection()
                     settingsSectionsGroup()
@@ -54,9 +53,7 @@ struct ProfileView: View {
             loadUserData()
             fetchProfileImage()
         }
-        // utilise fullScreenCover(item:) lié à selectedDestination
         .fullScreenCover(item: $selectedDestination) { dest in
-            // Utiliser une transition plus professionnelle
             dest.view
                 .environmentObject(themeManager)
                 .interactiveDismissDisabled()
@@ -75,7 +72,6 @@ struct ProfileView: View {
         VStack(spacing: 12) {
             VStack(alignment: .center, spacing: 12) {
                 ZStack(alignment: .bottomTrailing) {
-                    // Profile Image or Initials (Glass-like Circle)
                     Group {
                         if let img = profileImage {
                             Image(uiImage: img)
@@ -94,42 +90,38 @@ struct ProfileView: View {
                                     )
                                 )
                                 .overlay(
-                                    Text(initials.isEmpty ? "U" : initials)
+                                    Text(initials.isEmpty ? NSLocalizedString("PROFILE_USER_DEFAULT", comment: "Default user display name") : initials)
                                         .font(.system(size: 32, weight: .bold))
                                         .foregroundColor(.white)
                                 )
                         }
                     }
-                    .frame(width: 90, height: 90) // Légèrement plus grand
+                    .frame(width: 90, height: 90)
                     .clipShape(Circle())
-                    .shadow(color: .green.opacity(0.4), radius: 8) // Ombre pour plus de profondeur
+                    .shadow(color: .green.opacity(0.4), radius: 8)
 
-                    // Camera icon button
                     Button(action: { showImagePicker = true }) {
                         ZStack {
                             Circle()
-                                .fill(themeManager.backgroundColor.opacity(0.8)) // Fond sombre transparent pour l'icône
+                                .fill(themeManager.backgroundColor.opacity(0.8))
                                 .frame(width: 36, height: 36)
                             Image(systemName: "camera.fill")
                                 .foregroundColor(.green)
-                                .font(.system(size: 16, weight: .bold)) // Icône verte
+                                .font(.system(size: 16, weight: .bold))
                         }
                     }
                     .offset(x: 6, y: 6)
                 }
-                
-                // Name centered
+
                 VStack(alignment: .center, spacing: 4) {
                     HStack(spacing: 6) {
                         Spacer()
-                        Text(firstName.isEmpty ? "Utilisateur" : firstName)
-                            .font(.system(size: 22, weight: .bold)) // Plus grand
+                        Text(firstName.isEmpty ? NSLocalizedString("PROFILE_USER_DEFAULT", comment: "") : firstName)
+                            .font(.system(size: 22, weight: .bold))
                             .foregroundColor(themeManager.textColor)
                         if !lastName.isEmpty {
                             Text(lastName)
-                                .font(.system(size: 22, weight: .bold)) // Plus grand
-                            // Correction: .foregroundColor(themeManager.textColor) (déjà dans le Group)
-                            // Note: Le code ici est basé sur ce que vous avez fourni, mais l'utilisation de `themeManager.textColor` dans la boucle ci-dessus était déjà présente.
+                                .font(.system(size: 22, weight: .bold))
                                 .foregroundColor(themeManager.textColor)
                         }
                         Spacer()
@@ -146,39 +138,34 @@ struct ProfileView: View {
         }
     }
 
-
-    // MARK: - Current Plan Section (UX/Bouton corrigé)
+    // MARK: - Current Plan Section
     private func currentPlanSection() -> some View {
         let currentPlanLevel = currentSubscriptionPlan
         var ctaText: String
         var ctaIcon: String
-        
-        // Logique UX pour le bouton d'action
+
         switch currentPlanLevel {
         case "Standard":
-            ctaText = "Try Premium"
+            ctaText = NSLocalizedString("PROFILE_CTA_TRY_PREMIUM", comment: "")
             ctaIcon = "sparkles"
         case "Premium":
-            ctaText = "Upgrade to Metal" // Propose le plan supérieur
+            ctaText = NSLocalizedString("PROFILE_CTA_UPGRADE_METAL", comment: "")
             ctaIcon = "arrow.up.circle.fill"
         case "Metal":
-            ctaText = "Upgrade to Ultra" // Propose le plan supérieur
+            ctaText = NSLocalizedString("PROFILE_CTA_UPGRADE_ULTRA", comment: "")
             ctaIcon = "arrow.up.circle.fill"
         case "Ultra":
-            ctaText = "Manage Subscription" // Plan le plus élevé, propose la gestion
+            ctaText = NSLocalizedString("PROFILE_CTA_MANAGE", comment: "")
             ctaIcon = "gearshape.fill"
         default:
-            ctaText = "Discover Plans"
+            ctaText = NSLocalizedString("PROFILE_CTA_TRY_PREMIUM", comment: "")
             ctaIcon = "sparkles"
         }
 
         return VStack(spacing: 16) {
-
-            // Carte d'abonnement stylisée
             SubscriptionPlanCard(currentPlanName: currentPlanLevel)
                 .environmentObject(themeManager)
 
-            // Bouton d'action logique (CTA corrigé)
             Button(action: { showUpgradeSheet = true }) {
                 HStack(spacing: 8) {
                     Image(systemName: ctaIcon)
@@ -205,8 +192,6 @@ struct ProfileView: View {
                 .shadow(color: Color.green.opacity(0.5), radius: 10, x: 0, y: 6)
             }
             .buttonStyle(.plain)
-            .padding(.horizontal, 0)
-            .padding(.top, 0)
         }
         .padding(.top, 8)
         .fullScreenCover(isPresented: $showUpgradeSheet) {
@@ -214,61 +199,56 @@ struct ProfileView: View {
         }
     }
 
-    // MARK: - Settings groups (Redesigned icons, same style)
+    // MARK: - Settings groups
     private func settingsSectionsGroup() -> some View {
-        VStack(spacing: 20) { // Augmentation de l'espacement
-            
-            // Account Section
+        VStack(spacing: 20) {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Account")
-                    .font(.system(size: 14, weight: .bold)) // Un peu plus audacieux
-                    .foregroundColor(themeManager.secondaryTextColor)
-                    .padding(.horizontal, 4)
-                
-                settingsSection(items: [
-                    SettingRowItem(icon: "person.circle.fill", label: "Personal Details", destination: PersonalDetailsView().environmentObject(themeManager), iconColor: .green),
-                    SettingRowItem(icon: "key.fill", label: "Change Password", destination: ChangePasswordView().environmentObject(themeManager), iconColor: .orange),
-                    SettingRowItem(icon: "lock.shield.fill", label: "Privacy Policy", destination: PrivacyPolicyView().environmentObject(themeManager), iconColor: .blue),
-                    SettingRowItem(icon: "scroll.fill", label: "Terms & Conditions", destination: TermsConditionsView().environmentObject(themeManager), iconColor: .purple),
-                    SettingRowItem(icon: "trash.fill", label: "Close Account", destination: CloseAccountView().environmentObject(themeManager), iconColor: .red) // Icône plus simple
-                ])
-            }
-
-            // Privacy Section
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Privacy")
+                Text(NSLocalizedString("PROFILE_ACCOUNT_TITLE", comment: ""))
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(themeManager.secondaryTextColor)
                     .padding(.horizontal, 4)
-                
+
                 settingsSection(items: [
-                    SettingRowItem(icon: "eye.slash.fill", label: "Privacy Settings", destination: PrivacySettingsView().environmentObject(themeManager), iconColor: .teal)
+                    SettingRowItem(icon: "person.circle.fill", label: NSLocalizedString("PROFILE_PERSONAL_DETAILS", comment: ""), destination: PersonalDetailsView().environmentObject(themeManager), iconColor: .green),
+                    SettingRowItem(icon: "key.fill", label: NSLocalizedString("PROFILE_CHANGE_PASSWORD", comment: ""), destination: ChangePasswordView().environmentObject(themeManager), iconColor: .orange),
+                    SettingRowItem(icon: "lock.shield.fill", label: NSLocalizedString("PROFILE_PRIVACY_POLICY", comment: ""), destination: PrivacyPolicyView().environmentObject(themeManager), iconColor: .blue),
+                    SettingRowItem(icon: "scroll.fill", label: NSLocalizedString("PROFILE_TERMS", comment: ""), destination: TermsConditionsView().environmentObject(themeManager), iconColor: .purple),
+                    SettingRowItem(icon: "trash.fill", label: NSLocalizedString("PROFILE_CLOSE_ACCOUNT", comment: ""), destination: CloseAccountView().environmentObject(themeManager), iconColor: .red)
                 ])
             }
 
-            // Settings Section
             VStack(alignment: .leading, spacing: 8) {
-                Text("Settings")
+                Text(NSLocalizedString("PROFILE_PRIVACY_SECTION", comment: ""))
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(themeManager.secondaryTextColor)
                     .padding(.horizontal, 4)
-                
+
                 settingsSection(items: [
-                    SettingRowItem(icon: "bell.badge.fill", label: "Notification Settings", destination: NotificationsView().environmentObject(themeManager), iconColor: .pink),
-                    SettingRowItem(icon: "paintbrush.fill", label: "Appearance", destination: AppearanceView().environmentObject(themeManager), iconColor: .yellow)
+                    SettingRowItem(icon: "eye.slash.fill", label: NSLocalizedString("PROFILE_PRIVACY_SETTINGS", comment: ""), destination: PrivacySettingsView().environmentObject(themeManager), iconColor: .teal)
                 ])
             }
 
-            // Information & Accessibility
             VStack(alignment: .leading, spacing: 8) {
-                Text("App Information")
+                Text(NSLocalizedString("PROFILE_SETTINGS_SECTION", comment: ""))
                     .font(.system(size: 14, weight: .bold))
                     .foregroundColor(themeManager.secondaryTextColor)
                     .padding(.horizontal, 4)
-                
+
                 settingsSection(items: [
-                    SettingRowItem(icon: "figure.walk", label: "Accessibility", destination: AccessibilityView().environmentObject(themeManager), iconColor: .cyan),
-                    SettingRowItem(icon: "info.circle.fill", label: "About Arbore", destination: AboutUsView().environmentObject(themeManager), iconColor: .gray)
+                    SettingRowItem(icon: "bell.badge.fill", label: NSLocalizedString("PROFILE_NOTIFICATIONS", comment: ""), destination: NotificationsView().environmentObject(themeManager), iconColor: .pink),
+                    SettingRowItem(icon: "paintbrush.fill", label: NSLocalizedString("PROFILE_APPEARANCE", comment: ""), destination: AppearanceView().environmentObject(themeManager), iconColor: .yellow)
+                ])
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(NSLocalizedString("PROFILE_APP_INFO", comment: ""))
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(themeManager.secondaryTextColor)
+                    .padding(.horizontal, 4)
+
+                settingsSection(items: [
+                    SettingRowItem(icon: "figure.walk", label: NSLocalizedString("PROFILE_ACCESSIBILITY", comment: ""), destination: AccessibilityView().environmentObject(themeManager), iconColor: .cyan),
+                    SettingRowItem(icon: "info.circle.fill", label: NSLocalizedString("PROFILE_ABOUT", comment: ""), destination: AboutUsView().environmentObject(themeManager), iconColor: .gray)
                 ])
             }
         }
@@ -283,15 +263,15 @@ struct ProfileView: View {
 
                 if index < items.count - 1 {
                     Divider()
-                        .background(Color.white.opacity(0.1)) // Ligne de séparation plus fine/subtile
-                        .padding(.leading, 64) // Indenter la ligne pour un look moderne
+                        .background(Color.white.opacity(0.1))
+                        .padding(.leading, 64)
                 }
             }
         }
         .background(
             ZStack {
                 Color.gray.opacity(0.12)
-                RoundedRectangle(cornerRadius: 18) // Cohérence des coins
+                RoundedRectangle(cornerRadius: 18)
                     .stroke(
                         LinearGradient(
                             gradient: Gradient(colors: [
@@ -305,7 +285,7 @@ struct ProfileView: View {
                     )
             }
         )
-        .cornerRadius(18) // Cohérence des coins
+        .cornerRadius(18)
         .buttonStyle(.plain)
     }
 
@@ -313,11 +293,11 @@ struct ProfileView: View {
         HStack(spacing: 14) {
             ZStack {
                 Circle()
-                    .fill(item.iconColor.opacity(0.18)) // Utiliser la couleur spécifique pour l'arrière-plan de l'icône
+                    .fill(item.iconColor.opacity(0.18))
                     .frame(width: 40, height: 40)
-                
+
                 Image(systemName: item.icon)
-                    .font(.system(size: 18, weight: .semibold)) // Icône un peu plus grande et plus audacieuse
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(item.iconColor)
             }
 
@@ -326,7 +306,7 @@ struct ProfileView: View {
                 .foregroundColor(themeManager.textColor)
 
             Spacer()
-            
+
             Image(systemName: "chevron.right")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
@@ -338,21 +318,21 @@ struct ProfileView: View {
 
     // MARK: - Footer
     private func footerSection() -> some View {
-        VStack(spacing: 16) { // Augmentation de l'espacement
-            Text("Version 1.0.0")
+        VStack(spacing: 16) {
+            Text(String(format: NSLocalizedString("PROFILE_VERSION", comment: ""), "1.0.0"))
                 .font(.system(size: 12))
                 .foregroundColor(themeManager.secondaryTextColor)
-            
+
             Button(action: logout) {
                 HStack(spacing: 8) {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
-                    Text("Log Out")
+                    Text(NSLocalizedString("PROFILE_LOGOUT", comment: ""))
                 }
                 .font(.system(size: 16, weight: .bold))
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 14)
-                .background(Color.red.opacity(0.8)) // Fond plus solide pour la déconnexion
+                .background(Color.red.opacity(0.8))
                 .cornerRadius(14)
                 .shadow(color: Color.red.opacity(0.4), radius: 8, x: 0, y: 4)
             }
@@ -361,23 +341,36 @@ struct ProfileView: View {
         .padding(.top, 24)
         .padding(.bottom, 40)
     }
-    
-    // ... Networking / loadUserData / logout functions (unchanged) ...
-    
-    private func uploadProfileImage(_ image: UIImage) async { /* ... */ }
-    private func fetchProfileImage() { /* ... */ }
-    
-    // Simplifié pour l'exemple
-    private func loadUserData() {
-        if let user = Auth.auth().currentUser {
-            // Logique de chargement simulée
-            self.firstName = "Hugo"
-            self.lastName = "Michel"
+
+    // MARK: - Networking / helpers
+    private func uploadProfileImage(_ image: UIImage) async {
+        // Placeholder upload logic - replace with your storage/upload code
+        isUploading = true
+        uploadError = nil
+        try? await Task.sleep(nanoseconds: 700_000_000)
+        DispatchQueue.main.async {
+            self.profileImage = image
+            self.isUploading = false
         }
     }
-    
-    private func loadFallbackFromAuth() { /* ... */ }
-    
+
+    private func fetchProfileImage() {
+        // Implement your fetch logic; kept empty for sample
+    }
+
+    private func loadUserData() {
+        if let user = Auth.auth().currentUser {
+            self.firstName = user.displayName?.components(separatedBy: " ").first ?? "Hugo"
+            self.lastName = user.displayName?.components(separatedBy: " ").last ?? ""
+        }
+    }
+
+    private func loadFallbackFromAuth() {
+        if let user = Auth.auth().currentUser {
+            self.firstName = user.displayName ?? NSLocalizedString("PROFILE_USER_DEFAULT", comment: "")
+        }
+    }
+
     private func logout() {
         do {
             try Auth.auth().signOut()

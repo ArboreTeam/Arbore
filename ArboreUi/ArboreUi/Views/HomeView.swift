@@ -19,17 +19,18 @@ struct HomeView: View {
                         // Salutation et avatar
                         HStack {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("Bonjour 👋")
+                                Text("HOME_GREETING") // Fonctionne directement
                                     .font(.subheadline)
                                     .foregroundColor(themeManager.secondaryTextColor)
                                 
-                                if let error = userError {
-                                    Text("Erreur de connexion")
+                                if userError != nil {
+                                    Text("HOME_TITLE_ERROR")
                                         .font(.title2)
                                         .fontWeight(.bold)
                                         .foregroundColor(themeManager.systemRed)
                                 } else {
-                                    Text(userName.isEmpty ? "Ami des plantes" : userName)
+                                    // Utilisation de NSLocalizedString pour le fallback
+                                    Text(userName.isEmpty ? NSLocalizedString("HOME_DEFAULT_USER", comment: "") : userName)
                                         .font(.title2)
                                         .fontWeight(.bold)
                                         .foregroundColor(themeManager.textColor)
@@ -38,7 +39,7 @@ struct HomeView: View {
                             
                             Spacer()
                             
-                            // Avatar circulaire
+                            // Avatar circulaire (unchanged)
                             Circle()
                                 .fill(
                                     LinearGradient(
@@ -75,12 +76,12 @@ struct HomeView: View {
                                     }
                                     
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Scanner une plante")
+                                        Text("HOME_BUTTON_SCAN")
                                             .font(.headline)
                                             .fontWeight(.semibold)
                                             .foregroundColor(themeManager.adjust(Color.white))
                                         
-                                        Text("Découvre instantanément")
+                                        Text("HOME_BUTTON_SUBTITLE")
                                             .font(.subheadline)
                                             .foregroundColor(themeManager.adjust(Color.white).opacity(0.8))
                                     }
@@ -109,6 +110,10 @@ struct HomeView: View {
                     
                     // ✨ REMINDER CARD - Notification importante
                     if !plantService.plants.isEmpty {
+                        // Exemple de récupération du nom d'une plante pour la notification
+                        let plantName = plantService.plants.first?.name ?? "plante"
+                        let reminderMessage = String(format: NSLocalizedString("REMINDER_SUBTITLE", comment: ""), plantName)
+
                         VStack(alignment: .leading, spacing: 12) {
                             HStack(spacing: 12) {
                                 ZStack {
@@ -122,12 +127,12 @@ struct HomeView: View {
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Rappel d'arrosage")
+                                    Text("REMINDER_TITLE")
                                         .font(.subheadline)
                                         .fontWeight(.semibold)
                                         .foregroundColor(themeManager.textColor)
                                     
-                                    Text("N'oublie pas d'arroser ton Monstera aujourd'hui !")
+                                    Text(reminderMessage) // Message formaté
                                         .font(.footnote)
                                         .foregroundColor(themeManager.secondaryTextColor)
                                 }
@@ -153,7 +158,7 @@ struct HomeView: View {
                     // ✨ QUICK ACTIONS - Actions rapides
                     VStack(alignment: .leading, spacing: 16) {
                         HStack {
-                            Text("Actions rapides")
+                            Text("HOME_ACTION_TITLE")
                                 .font(.headline)
                                 .fontWeight(.semibold)
                                 .foregroundColor(themeManager.textColor)
@@ -166,22 +171,22 @@ struct HomeView: View {
                             HStack(spacing: 12) {
                                 QuickActionCard(
                                     icon: "leaf.fill",
-                                    title: "Mon Jardin",
-                                    subtitle: "Gérer mes plantes",
+                                    titleKey: "ACTION_GARDEN", // <- Clé transmise, doit être LocalizedStringKey dans le composant
+                                    subtitleKey: "ACTION_GARDEN_SUB",
                                     color: Color(hex: "#4CAF50")
                                 )
                                 
                                 QuickActionCard(
                                     icon: "magnifyingglass",
-                                    title: "Explorer",
-                                    subtitle: "Découvrir nouvelles plantes",
+                                    titleKey: "ACTION_EXPLORE",
+                                    subtitleKey: "ACTION_EXPLORE_SUB",
                                     color: Color.blue
                                 )
                                 
                                 QuickActionCard(
                                     icon: "calendar",
-                                    title: "Planning",
-                                    subtitle: "Calendrier d'entretien",
+                                    titleKey: "ACTION_PLANNING",
+                                    subtitleKey: "ACTION_PLANNING_SUB",
                                     color: Color.purple
                                 )
                             }
@@ -194,18 +199,21 @@ struct HomeView: View {
                     VStack(spacing: 32) {
                         // Plantes populaires
                         PlantSection(
-                            title: "🌱 Plantes populaires",
-                            subtitle: "Les plus appréciées",
+                            titleKey: "SECTION_TITLE_POPULAR",
+                            subtitleKey: "SECTION_SUBTITLE_POPULAR",
                             plants: Array(plantService.plants.prefix(5))
                         )
                         
                         // Plantes à arroser
-                        WateringSection(plants: Array(plantService.plants.prefix(3)))
+                        WateringSection(
+                            titleKey: "SECTION_TITLE_WATERING",
+                            plants: Array(plantService.plants.prefix(3))
+                        )
                         
                         // Dernières visitées
                         PlantSection(
-                            title: "🔍 Récemment consultées",
-                            subtitle: "Tes dernières découvertes",
+                            titleKey: "SECTION_TITLE_RECENT",
+                            subtitleKey: "SECTION_SUBTITLE_RECENT",
                             plants: Array(plantService.plants.prefix(4))
                         )
                     }
@@ -224,6 +232,7 @@ struct HomeView: View {
         }
     }
     
+    // ... (loadUserData inchangé)
     private func loadUserData() {
         if let uid = Auth.auth().currentUser?.uid {
             self.currentUID = uid
@@ -243,16 +252,17 @@ struct HomeView: View {
     }
 }
 
+// MARK: - QuickActionCard (Mise à jour pour les clés)
 struct QuickActionCard: View {
     let icon: String
-    let title: String
-    let subtitle: String
+    let titleKey: LocalizedStringKey // CORRECTION: Doit être LocalizedStringKey
+    let subtitleKey: LocalizedStringKey // CORRECTION: Doit être LocalizedStringKey
     let color: Color
     @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
         VStack(spacing: 8) {
-            // Icône
+            // Icône (unchanged)
             Image(systemName: icon)
                 .font(.system(size: 24))
                 .foregroundColor(themeManager.adjust(color))
@@ -263,14 +273,14 @@ struct QuickActionCard: View {
                         .frame(width: 56, height: 56)
                 )
             
-            // Titres
+            // Titres (Localisés)
             VStack(alignment: .center, spacing: 2) {
-                Text(title)
+                Text(titleKey) // Fonctionne avec LocalizedStringKey
                     .font(.subheadline)
                     .fontWeight(.semibold)
                     .foregroundColor(themeManager.textColor)
                 
-                Text(subtitle)
+                Text(subtitleKey) // Fonctionne avec LocalizedStringKey
                     .font(.caption)
                     .foregroundColor(themeManager.secondaryTextColor)
             }
@@ -282,17 +292,18 @@ struct QuickActionCard: View {
     }
 }
 
+// MARK: - PlantSection (Mise à jour pour les clés)
 struct PlantSection: View {
-    let title: String
-    let subtitle: String
+    let titleKey: LocalizedStringKey // CORRECTION: Doit être LocalizedStringKey
+    let subtitleKey: LocalizedStringKey // CORRECTION: Doit être LocalizedStringKey
     let plants: [Plant]
     @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Titres
+            // Titres (Localisés)
             HStack {
-                Text(title)
+                Text(titleKey) // Fonctionne avec LocalizedStringKey
                     .font(.headline)
                     .fontWeight(.semibold)
                     .foregroundColor(themeManager.textColor)
@@ -302,7 +313,7 @@ struct PlantSection: View {
             .padding(.horizontal, 20)
             
             HStack {
-                Text(subtitle)
+                Text(subtitleKey) // Fonctionne avec LocalizedStringKey
                     .font(.subheadline)
                     .foregroundColor(themeManager.secondaryTextColor)
                 
@@ -311,7 +322,7 @@ struct PlantSection: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 8)
             
-            // Cartes de plantes
+            // Cartes de plantes (unchanged)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(plants) { plant in
@@ -324,15 +335,17 @@ struct PlantSection: View {
     }
 }
 
+// MARK: - WateringSection (Mise à jour pour les clés)
 struct WateringSection: View {
+    let titleKey: LocalizedStringKey // CORRECTION: Doit être LocalizedStringKey
     let plants: [Plant]
     @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // Titres
+            // Titres (Localisés)
             HStack {
-                Text("💧 Plantes à arroser bientôt")
+                Text(titleKey) // Fonctionne avec LocalizedStringKey
                     .font(.headline)
                     .fontWeight(.semibold)
                     .foregroundColor(themeManager.textColor)
@@ -341,7 +354,7 @@ struct WateringSection: View {
             }
             .padding(.horizontal, 20)
             
-            // Liste des plantes à arroser
+            // Liste des plantes à arroser (unchanged)
             VStack(spacing: 8) {
                 ForEach(plants) { plant in
                     WaterReminderRow(plantName: plant.name, daysLeft: Int.random(in: 1...5))

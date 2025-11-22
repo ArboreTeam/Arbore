@@ -6,3 +6,72 @@
 "text_size" = "Tamaño del texto";
 "color_adjustments" = "Ajustes de color";
 "display_mode" = "Modo de visualización";
+
+// HomeView
+"HOME_GREETING" = "Hola 👋";
+"HOME_DEFAULT_USER" = "Amigo de las plantas";
+"HOME_TITLE_ERROR" = "Error de conexión";
+"HOME_BUTTON_SCAN" = "Escanear una planta";
+"HOME_BUTTON_SUBTITLE" = "Descubre al instante";
+"HOME_ACTION_TITLE" = "Acciones rápidas";
+"REMINDER_TITLE" = "Recordatorio de riego";
+"REMINDER_SUBTITLE" = "¡No olvides regar tu %@ hoy!";
+"SECTION_TITLE_POPULAR" = "🌱 Plantas populares";
+"SECTION_SUBTITLE_POPULAR" = "Las más queridas";
+"SECTION_TITLE_WATERING" = "💧 Próximas plantas a regar";
+"SECTION_TITLE_RECENT" = "🔍 Visto recientemente";
+"SECTION_SUBTITLE_RECENT" = "Tus últimos descubrimientos";
+"ACTION_GARDEN" = "Mi Jardín";
+"ACTION_GARDEN_SUB" = "Gestionar mis plantas";
+"ACTION_EXPLORE" = "Explorar";
+"ACTION_EXPLORE_SUB" = "Descubrir nuevas plantas";
+"ACTION_PLANNING" = "Planificación";
+"ACTION_PLANNING_SUB" = "Calendario de mantenimiento";
+
+/* Profile / Settings */
+"PROFILE_ACCOUNT_TITLE" = "Cuenta";
+"PROFILE_PERSONAL_DETAILS" = "Datos personales";
+"PROFILE_CHANGE_PASSWORD" = "Cambiar contraseña";
+"PROFILE_PRIVACY_POLICY" = "Política de privacidad";
+"PROFILE_TERMS" = "Términos y condiciones";
+"PROFILE_CLOSE_ACCOUNT" = "Cerrar cuenta";
+
+"PROFILE_PRIVACY_SECTION" = "Privacidad";
+"PROFILE_PRIVACY_SETTINGS" = "Configuración de privacidad";
+
+"PROFILE_SETTINGS_SECTION" = "Ajustes";
+"PROFILE_NOTIFICATIONS" = "Notificaciones";
+"PROFILE_APPEARANCE" = "Apariencia";
+
+"PROFILE_APP_INFO" = "Información de la aplicación";
+"PROFILE_ACCESSIBILITY" = "Accesibilidad";
+"PROFILE_ABOUT" = "Acerca de Arbore";
+
+"PROFILE_VERSION" = "Versión %@";
+"PROFILE_LOGOUT" = "Cerrar sesión";
+"PROFILE_USER_DEFAULT" = "Usuario";
+
+/* Subscription CTA */
+"PROFILE_CTA_TRY_PREMIUM" = "Probar Premium";
+"PROFILE_CTA_UPGRADE_METAL" = "Actualizar a Metal";
+"PROFILE_CTA_UPGRADE_ULTRA" = "Actualizar a Ultra";
+"PROFILE_CTA_MANAGE" = "Gestionar suscripción";
+
+/* Acerca de (AboutUsView) */
+"ABOUT_APP_SLOGAN" = "Tu compañero de jardinería inteligente";
+"ABOUT_SECTION_TITLE" = "Acerca de Arbore";
+"ABOUT_SECTION_DESCRIPTION" = "Arbore es un compañero de jardinería inteligente diseñado para ayudarte a cultivar, gestionar y mantener tus plantas con facilidad. Ya seas un jardinero experimentado o principiante, Arbore proporciona recomendaciones personalizadas, monitoreo en tiempo real y orientación experta.";
+"FEATURES_SECTION_TITLE" = "Características clave";
+"FEATURE_ID_TITLE" = "Identificación de plantas";
+"FEATURE_ID_DESC" = "Identifica plantas al instante con escaneo asistido por IA";
+"FEATURE_3D_TITLE" = "Diseño de Jardín 3D";
+"FEATURE_3D_DESC" = "Planifica y visualiza tu jardín en 3D";
+"FEATURE_NOTIF_TITLE" = "Notificaciones inteligentes";
+"FEATURE_NOTIF_DESC" = "Recibe recordatorios basados en el clima y las estaciones";
+"FEATURE_CARE_TITLE" = "Guía de cuidado";
+"FEATURE_CARE_DESC" = "Recibe consejos de cuidado de plantas personalizados";
+"CONTACT_SECTION_TITLE" = "Ponte en contacto";
+"CONTACT_SECTION_SUBTITLE" = "¿Tienes preguntas o comentarios? Nos encantaría saber de ti.";
+"CONTACT_BUTTON" = "Contactar soporte";
+"FOOTER_MADEMOTTO" = "Hecho con 🌿 para amantes de las plantas";
+"FOOTER_COPYRIGHT" = "© 2025 Arbore. Todos los derechos reservados.";

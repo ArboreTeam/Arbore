@@ -3,6 +3,10 @@ import SwiftUI
 struct AboutUsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) var dismiss
+    
+    // Simuler la version de l'application (pour la clé PROFILE_VERSION)
+    private let appVersion = "1.0.0" 
+    private let supportEmail = "support@arbore.app"
 
     var body: some View {
         ZStack {
@@ -18,7 +22,8 @@ struct AboutUsView: View {
                             .foregroundColor(themeManager.textColor)
                     }
                     Spacer()
-                    Text("About Arbore") // Titre plus spécifique
+                    // Utilisation de la clé PROFILE_ABOUT pour le titre
+                    Text("PROFILE_ABOUT") 
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(themeManager.textColor)
                     Spacer()
@@ -30,24 +35,27 @@ struct AboutUsView: View {
 
                 ScrollView {
                     VStack(spacing: 24) { // Augmentation de l'espacement
-                        // Header card with app info (Mise à jour des coins et de la typo)
+                        
+                        // MARK: - Header Card (Info de l'application)
                         VStack(spacing: 16) {
                             Image(systemName: "leaf.fill")
-                                .font(.system(size: 52)) // Icône plus grande
+                                .font(.system(size: 52)) 
                                 .foregroundColor(.green)
 
                             VStack(spacing: 6) {
-                                Text("Arbore")
-                                    .font(.system(size: 32, weight: .heavy)) // Plus audacieux
+                                Text("Arbore") // Nom de l'app, souvent laissé en dur
+                                    .font(.system(size: 32, weight: .heavy))
                                     .foregroundColor(themeManager.textColor)
 
-                                Text("Version 1.0.0")
-                                    .font(.system(size: 15, weight: .bold)) // Plus audacieux
+                                // Utilisation de String(format:) pour la version
+                                Text(String(format: NSLocalizedString("PROFILE_VERSION", comment: ""), appVersion)) 
+                                    .font(.system(size: 15, weight: .bold))
                                     .foregroundColor(.green)
                             }
 
-                            Text("Your intelligent gardening companion")
-                                .font(.system(size: 15)) // Plus grand
+                            // Clé spécifique à l'application
+                            Text("ABOUT_APP_SLOGAN") 
+                                .font(.system(size: 15)) 
                                 .foregroundColor(themeManager.secondaryTextColor)
                                 .multilineTextAlignment(.center)
                         }
@@ -61,19 +69,19 @@ struct AboutUsView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 20)
 
-                        // About section (Mise à jour des coins)
+                        // MARK: - About Section (Description générale)
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(spacing: 12) {
                                 Image(systemName: "info.circle.fill")
                                     .foregroundColor(.green)
                                     .font(.system(size: 20))
-                                Text("About Arbore")
+                                Text("ABOUT_SECTION_TITLE") // LOCALISÉ
                                     .font(.system(size: 17, weight: .bold))
                                     .foregroundColor(themeManager.textColor)
                                 Spacer()
                             }
 
-                            Text("Arbore is an intelligent gardening companion designed to help you grow, manage, and maintain your plants with ease. Whether you're a seasoned gardener or just starting out, Arbore provides personalized recommendations, real-time monitoring, and expert guidance.")
+                            Text("ABOUT_SECTION_DESCRIPTION") // LOCALISÉ (longue description)
                                 .font(.system(size: 14))
                                 .foregroundColor(themeManager.textColor)
                                 .lineSpacing(4)
@@ -87,23 +95,24 @@ struct AboutUsView: View {
                         .cornerRadius(18)
                         .padding(.horizontal, 16)
 
-                        // Features section (Mise à jour des coins)
+                        // MARK: - Features Section
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(spacing: 12) {
-                                Image(systemName: "sparkles.square.fill") // Nouvelle icône
+                                Image(systemName: "sparkles.square.fill") 
                                     .foregroundColor(.green)
                                     .font(.system(size: 20))
-                                Text("Key Features")
+                                Text("FEATURES_SECTION_TITLE") // LOCALISÉ
                                     .font(.system(size: 17, weight: .bold))
                                     .foregroundColor(themeManager.textColor)
                                 Spacer()
                             }
 
                             VStack(alignment: .leading, spacing: 12) {
-                                FeatureRow(icon: "camera.viewfinder", title: "Plant Identification", description: "Instantly identify plants with AI-powered scanning")
-                                FeatureRow(icon: "cube.fill", title: "3D Garden Design", description: "Plan and visualize your garden in 3D")
-                                FeatureRow(icon: "bell.badge.fill", title: "Smart Notifications", description: "Get reminders based on weather and seasons")
-                                FeatureRow(icon: "leaf.fill", title: "Care Guidance", description: "Receive personalized plant care tips")
+                                // Les FeatureRow doivent utiliser des clés (voir la structure modifiée ci-dessous)
+                                FeatureRow(icon: "camera.viewfinder", titleKey: "FEATURE_ID_TITLE", descriptionKey: "FEATURE_ID_DESC")
+                                FeatureRow(icon: "cube.fill", titleKey: "FEATURE_3D_TITLE", descriptionKey: "FEATURE_3D_DESC")
+                                FeatureRow(icon: "bell.badge.fill", titleKey: "FEATURE_NOTIF_TITLE", descriptionKey: "FEATURE_NOTIF_DESC")
+                                FeatureRow(icon: "leaf.fill", titleKey: "FEATURE_CARE_TITLE", descriptionKey: "FEATURE_CARE_DESC")
                             }
                         }
                         .padding(18)
@@ -115,26 +124,26 @@ struct AboutUsView: View {
                         .cornerRadius(18)
                         .padding(.horizontal, 16)
 
-                        // Contact & Support (Mise à jour des coins et du bouton)
+                        // MARK: - Contact & Support
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(spacing: 12) {
                                 Image(systemName: "envelope.fill")
                                     .foregroundColor(.green)
                                     .font(.system(size: 20))
-                                Text("Get in Touch")
+                                Text("CONTACT_SECTION_TITLE") // LOCALISÉ
                                     .font(.system(size: 17, weight: .bold))
                                     .foregroundColor(themeManager.textColor)
                                 Spacer()
                             }
 
-                            Text("Have questions or feedback? We'd love to hear from you.")
+                            Text("CONTACT_SECTION_SUBTITLE") // LOCALISÉ
                                 .font(.system(size: 14))
                                 .foregroundColor(themeManager.secondaryTextColor)
 
-                            Link(destination: URL(string: "mailto:support@arbore.app") ?? URL(fileURLWithPath: "")) {
+                            Link(destination: URL(string: "mailto:\(supportEmail)") ?? URL(fileURLWithPath: "")) {
                                 HStack(spacing: 8) {
                                     Image(systemName: "paperplane.fill")
-                                    Text("Contact Support")
+                                    Text("CONTACT_BUTTON") // LOCALISÉ
                                 }
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.black)
@@ -152,12 +161,12 @@ struct AboutUsView: View {
                         .cornerRadius(18)
                         .padding(.horizontal, 16)
 
-                        // Footer
+                        // MARK: - Footer
                         VStack(alignment: .center, spacing: 6) {
-                            Text("Made with 🌿 for plant lovers")
-                                .font(.system(size: 14, weight: .medium)) // Plus audacieux
+                            Text("FOOTER_MADEMOTTO") // LOCALISÉ
+                                .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(themeManager.secondaryTextColor)
-                            Text("© 2025 Arbore. All rights reserved.")
+                            Text("FOOTER_COPYRIGHT") // LOCALISÉ
                                 .font(.system(size: 13))
                                 .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
                         }
@@ -171,25 +180,25 @@ struct AboutUsView: View {
     }
 }
 
-// MARK: - Feature Row Component (Mise à jour des icônes)
+// MARK: - Feature Row Component (MIS À JOUR POUR LA LOCALISATION)
 struct FeatureRow: View {
     @EnvironmentObject var themeManager: ThemeManager
     let icon: String
-    let title: String
-    let description: String
+    let titleKey: LocalizedStringKey // CHANGÉ
+    let descriptionKey: LocalizedStringKey // CHANGÉ
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) { // Augmentation de l'espacement
+        HStack(alignment: .top, spacing: 14) { 
             Image(systemName: icon)
                 .foregroundColor(.green)
-                .font(.system(size: 20, weight: .semibold)) // Plus grand
+                .font(.system(size: 20, weight: .semibold)) 
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 15, weight: .semibold)) // Plus grand
+                Text(titleKey) // LOCALISÉ
+                    .font(.system(size: 15, weight: .semibold)) 
                     .foregroundColor(themeManager.textColor)
-                Text(description)
+                Text(descriptionKey) // LOCALISÉ
                     .font(.system(size: 13))
                     .foregroundColor(themeManager.secondaryTextColor)
                     .lineLimit(2)
@@ -198,4 +207,9 @@ struct FeatureRow: View {
             Spacer()
         }
     }
+}
+
+#Preview {
+    AboutUsView()
+        .environmentObject(ThemeManager())
 }

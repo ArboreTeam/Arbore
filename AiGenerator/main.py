@@ -1,12 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import openai
+from openai import OpenAI
 import os
 import json
-import re
+import traceback
 
-# Configure ton client OpenAI (clé d'API dans une variable d'environnement)
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI()
 
@@ -17,7 +16,8 @@ class PlantRequest(BaseModel):
 async def generate_plant_info(req: PlantRequest):
     try:
         completion = client.chat.completions.create(
-            model="gpt-3.5-turbo",  # Tu peux mettre gpt-4o si tu veux plus de qualité
+            model="gpt-4o-mini",  # ou gpt-4o / gpt-3.5-turbo selon ton quota
+            response_format={ "type": "json_object" },
             messages=[
                 {
                     "role": "system",
@@ -41,19 +41,16 @@ Ne mets que l'objet JSON pur."""
             temperature=0.7
         )
 
-        raw = completion.choices[0].message.content.strip()
-        print("🧠 Réponse brute de GPT :")
-        print(raw)
-
-        match = re.search(r'\{.*\}', raw, re.DOTALL)
-        if not match:
-            raise ValueError("Aucun JSON détecté")
-
-        clean_json = match.group(0)
-        data = json.loads(clean_json)
+        raw = completion.choices[0].message.content
+        # Ici, 'raw' est déjà une string JSON valide.
+        data = json.loads(raw)
 
         return data
 
     except Exception as e:
-        print("❌ Erreur globale :", e)
-        raise HTTPException(status_code=500, detail="Erreur lors du parsing de la réponse IA")
+        # Log complet côté serveur pour debug
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur IA : {str(e)}"
+        )

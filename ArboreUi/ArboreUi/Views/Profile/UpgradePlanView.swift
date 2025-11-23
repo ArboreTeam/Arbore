@@ -5,48 +5,48 @@ struct UpgradePlanView: View {
     @Environment(\.dismiss) var dismiss
     @State private var selectedPlan: String = "Premium"
 
-    // MARK: - 3 plans payants
+    // MARK: - Plans payants
     let plans: [PlanModel] = [
         PlanModel(
-            name: "Premium",
-            price: "4,99 € / mois",
+            name: "Premium", // identifiant interne
+            price: NSLocalizedString("UPGRADE_PREMIUM_PRICE", comment: ""),
             emoji: "🌼",
-            description: "Tout pour concevoir et entretenir sans friction",
+            description: NSLocalizedString("UPGRADE_PREMIUM_DESC", comment: ""),
             features: [
-                "Scans illimités pour identifier instantanément vos plantes.",
-                "Projets multiples pour chaque espace (jardin, terrasse, intérieur).",
-                "Placement intelligent : recommandations par ensoleillement et compatibilités.",
-                "Styles exclusifs pour des compositions harmonieuses.",
-                "Notifications intelligentes selon météo et saison.",
-                "Synchronisation sécurisée entre vos appareils."
+                NSLocalizedString("UPGRADE_PREMIUM_FEATURE1", comment: ""),
+                NSLocalizedString("UPGRADE_PREMIUM_FEATURE2", comment: ""),
+                NSLocalizedString("UPGRADE_PREMIUM_FEATURE3", comment: ""),
+                NSLocalizedString("UPGRADE_PREMIUM_FEATURE4", comment: ""),
+                NSLocalizedString("UPGRADE_PREMIUM_FEATURE5", comment: ""),
+                NSLocalizedString("UPGRADE_PREMIUM_FEATURE6", comment: "")
             ],
             isPopular: true
         ),
         PlanModel(
             name: "Metal",
-            price: "9,99 € / mois",
+            price: NSLocalizedString("UPGRADE_METAL_PRICE", comment: ""),
             emoji: "🪙",
-            description: "Précision et puissance pour les exigences élevées",
+            description: NSLocalizedString("UPGRADE_METAL_DESC", comment: ""),
             features: [
-                "Plans 3D plus détaillés avec calques d’aménagement.",
-                "Conseils d’entretien avancés personnalisés par espèce.",
-                "Historique de croissance et suivi des interventions.",
-                "Bibliothèque premium d’espèces et de styles.",
-                "Analyses et traitements prioritaires."
+                NSLocalizedString("UPGRADE_METAL_FEATURE1", comment: ""),
+                NSLocalizedString("UPGRADE_METAL_FEATURE2", comment: ""),
+                NSLocalizedString("UPGRADE_METAL_FEATURE3", comment: ""),
+                NSLocalizedString("UPGRADE_METAL_FEATURE4", comment: ""),
+                NSLocalizedString("UPGRADE_METAL_FEATURE5", comment: "")
             ],
             isPopular: false
         ),
         PlanModel(
             name: "Ultra",
-            price: "14,99 € / mois",
+            price: NSLocalizedString("UPGRADE_ULTRA_PRICE", comment: ""),
             emoji: "💎",
-            description: "L’expérience complète pour viser l’excellence",
+            description: NSLocalizedString("UPGRADE_ULTRA_DESC", comment: ""),
             features: [
-                "Guides d’aménagement étape-par-étape, du plan à la réalisation.",
-                "Assistant météo proactif avec recommandations automatiques.",
-                "Exports HD (visuels & listes) pour achats et partage.",
-                "Mode collaboration (lecture) pour avis et validation.",
-                "Support prioritaire avec réponses accélérées."
+                NSLocalizedString("UPGRADE_ULTRA_FEATURE1", comment: ""),
+                NSLocalizedString("UPGRADE_ULTRA_FEATURE2", comment: ""),
+                NSLocalizedString("UPGRADE_ULTRA_FEATURE3", comment: ""),
+                NSLocalizedString("UPGRADE_ULTRA_FEATURE4", comment: ""),
+                NSLocalizedString("UPGRADE_ULTRA_FEATURE5", comment: "")
             ],
             isPopular: false
         )
@@ -66,7 +66,7 @@ struct UpgradePlanView: View {
                             .foregroundColor(themeManager.textColor)
                     }
                     Spacer()
-                    Text("Upgrade plan")
+                    Text(NSLocalizedString("UPGRADE_TITLE", comment: ""))
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(themeManager.textColor)
                     Spacer()
@@ -84,10 +84,13 @@ struct UpgradePlanView: View {
 
                         // Carte style Revolut
                         if let current = plans.first(where: { $0.name == selectedPlan }) {
-                            RevolutStylePlanCard(plan: current, featureRows: featuresFor(plan: current.name))
-                                .environmentObject(themeManager)
-                                .padding(.horizontal, 16)
-                                .frame(minHeight: 460) // homogénéise la hauteur
+                            RevolutStylePlanCard(
+                                plan: current,
+                                featureRows: featuresFor(plan: current.name)
+                            )
+                            .environmentObject(themeManager)
+                            .padding(.horizontal, 16)
+                            .frame(minHeight: 460)
                         }
 
                         // CTA
@@ -101,22 +104,28 @@ struct UpgradePlanView: View {
                                     .foregroundColor(.black)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 16)
-                                    .background(RoundedRectangle(cornerRadius: 28).fill(Color.white))
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 28)
+                                            .fill(Color.white)
+                                    )
                                     .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 6)
                             }
                             .buttonStyle(.plain)
                             .padding(.horizontal, 16)
                         }
 
-                        // Support (comme avant, dans la page)
+                        // Support
                         VStack(spacing: 8) {
-                            Text("Des questions ?")
+                            Text(NSLocalizedString("UPGRADE_SUPPORT_QUESTION", comment: ""))
                                 .font(.system(size: 12))
                                 .foregroundColor(themeManager.secondaryTextColor)
-                            Link("Contacter le support",
-                                 destination: URL(string: "mailto:support@arbore.app") ?? URL(fileURLWithPath: ""))
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.9))
+
+                            Link(
+                                NSLocalizedString("UPGRADE_SUPPORT_CONTACT", comment: ""),
+                                destination: URL(string: "mailto:support@arbore.app") ?? URL(fileURLWithPath: "")
+                            )
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.9))
                         }
                         .padding(.vertical, 24)
                     }
@@ -130,10 +139,14 @@ struct UpgradePlanView: View {
     // MARK: - CTA label
     private func ctaButtonLabel(for plan: String) -> String {
         switch plan {
-        case "Premium": return "Join Premium"
-        case "Metal":   return "Join Metal"
-        case "Ultra":   return "Join Ultra"
-        default:        return "Join"
+        case "Premium":
+            return NSLocalizedString("UPGRADE_CTA_PREMIUM", comment: "")
+        case "Metal":
+            return NSLocalizedString("UPGRADE_CTA_METAL", comment: "")
+        case "Ultra":
+            return NSLocalizedString("UPGRADE_CTA_ULTRA", comment: "")
+        default:
+            return NSLocalizedString("UPGRADE_CTA_DEFAULT", comment: "")
         }
     }
 
@@ -142,49 +155,64 @@ struct UpgradePlanView: View {
     private func backgroundForSelectedPlan(_ plan: String) -> some View {
         switch plan {
         case "Premium":
-            LinearGradient(colors: [Color(red: 0.06, green: 0.10, blue: 0.09),
-                                    Color(red: 0.03, green: 0.20, blue: 0.18)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(
+                colors: [
+                    Color(red: 0.06, green: 0.10, blue: 0.09),
+                    Color(red: 0.03, green: 0.20, blue: 0.18)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         case "Metal":
-            LinearGradient(colors: [Color(red: 0.08, green: 0.09, blue: 0.10),
-                                    Color(red: 0.16, green: 0.18, blue: 0.20)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(
+                colors: [
+                    Color(red: 0.08, green: 0.09, blue: 0.10),
+                    Color(red: 0.16, green: 0.18, blue: 0.20)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         case "Ultra":
-            LinearGradient(colors: [Color(red: 0.08, green: 0.06, blue: 0.12),
-                                    Color(red: 0.14, green: 0.10, blue: 0.22)],
-                           startPoint: .topLeading, endPoint: .bottomTrailing)
+            LinearGradient(
+                colors: [
+                    Color(red: 0.08, green: 0.06, blue: 0.12),
+                    Color(red: 0.14, green: 0.10, blue: 0.22)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         default:
             themeManager.backgroundColor
         }
     }
 
-    // MARK: - Features avec icônes adaptées par plan (style Revolut)
+    // MARK: - Features avec texte localisé
     private func featuresFor(plan name: String) -> [(String, String)] {
         switch name {
         case "Premium":
             return [
-                ("camera.viewfinder", "Scans de plantes illimités"),
-                ("square.grid.2x2", "Projets multiples (jardin, terrasse, intérieur)"),
-                ("sun.max.and.horizon", "Placement intelligent selon l’ensoleillement"),
-                ("paintbrush.pointed.fill", "Styles d’aménagement exclusifs"),
-                ("bell.badge.fill", "Notifications météo & saison personnalisées"),
-                ("icloud.fill", "Synchronisation cloud sécurisée")
+                ("camera.viewfinder", NSLocalizedString("UPGRADE_PREMIUM_FEATUREROW1", comment: "")),
+                ("square.grid.2x2", NSLocalizedString("UPGRADE_PREMIUM_FEATUREROW2", comment: "")),
+                ("sun.max.and.horizon", NSLocalizedString("UPGRADE_PREMIUM_FEATUREROW3", comment: "")),
+                ("paintbrush.pointed.fill", NSLocalizedString("UPGRADE_PREMIUM_FEATUREROW4", comment: "")),
+                ("bell.badge.fill", NSLocalizedString("UPGRADE_PREMIUM_FEATUREROW5", comment: "")),
+                ("icloud.fill", NSLocalizedString("UPGRADE_PREMIUM_FEATUREROW6", comment: ""))
             ]
         case "Metal":
             return [
-                ("cube.fill", "Plans 3D détaillés avec calques"),
-                ("leaf.fill", "Conseils d’entretien avancés par espèce"),
-                ("clock.arrow.circlepath", "Historique & suivi des interventions"),
-                ("book.closed.fill", "Bibliothèque premium d’espèces et styles"),
-                ("bolt.fill", "Analyses et traitements prioritaires")
+                ("cube.fill", NSLocalizedString("UPGRADE_METAL_FEATUREROW1", comment: "")),
+                ("leaf.fill", NSLocalizedString("UPGRADE_METAL_FEATUREROW2", comment: "")),
+                ("clock.arrow.circlepath", NSLocalizedString("UPGRADE_METAL_FEATUREROW3", comment: "")),
+                ("book.closed.fill", NSLocalizedString("UPGRADE_METAL_FEATUREROW4", comment: "")),
+                ("bolt.fill", NSLocalizedString("UPGRADE_METAL_FEATUREROW5", comment: ""))
             ]
         case "Ultra":
             return [
-                ("map.fill", "Guides d’aménagement étape par étape"),
-                ("cloud.sun.rain.fill", "Assistant météo proactif"),
-                ("square.and.arrow.up.on.square.fill", "Exports HD : visuels & listes"),
-                ("person.2.fill", "Mode collaboration (lecture)"),
-                ("headphones", "Support prioritaire")
+                ("map.fill", NSLocalizedString("UPGRADE_ULTRA_FEATUREROW1", comment: "")),
+                ("cloud.sun.rain.fill", NSLocalizedString("UPGRADE_ULTRA_FEATUREROW2", comment: "")),
+                ("square.and.arrow.up.on.square.fill", NSLocalizedString("UPGRADE_ULTRA_FEATUREROW3", comment: "")),
+                ("person.2.fill", NSLocalizedString("UPGRADE_ULTRA_FEATUREROW4", comment: "")),
+                ("headphones", NSLocalizedString("UPGRADE_ULTRA_FEATUREROW5", comment: ""))
             ]
         default:
             return []
@@ -202,7 +230,7 @@ struct PlanSwitcher: View {
         HStack(spacing: 8) {
             ForEach(options, id: \.self) { opt in
                 Button(action: { selected = opt }) {
-                    Text(opt)
+                    Text(opt) // "Premium / Metal / Ultra" = noms de plans (brand)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(selected == opt ? .black : themeManager.textColor)
                         .padding(.vertical, 10)
@@ -215,8 +243,10 @@ struct PlanSwitcher: View {
                                         .stroke(Color.white.opacity(selected == opt ? 0 : 0.12), lineWidth: 1)
                                 )
                         )
-                        .shadow(color: selected == opt ? Color.black.opacity(0.12) : .clear,
-                                radius: 8, x: 0, y: 4)
+                        .shadow(
+                            color: selected == opt ? Color.black.opacity(0.12) : .clear,
+                            radius: 8, x: 0, y: 4
+                        )
                 }
                 .buttonStyle(.plain)
             }
@@ -224,7 +254,7 @@ struct PlanSwitcher: View {
     }
 }
 
-// MARK: - Carte style Revolut (flou + icônes dédiées)
+// MARK: - Carte style Revolut
 struct RevolutStylePlanCard: View {
     @EnvironmentObject var themeManager: ThemeManager
     let plan: PlanModel
@@ -234,9 +264,10 @@ struct RevolutStylePlanCard: View {
         VStack(alignment: .leading, spacing: 18) {
             // Header
             VStack(alignment: .leading, spacing: 6) {
-                Text(plan.name)
+                Text(plan.name) // Nom du plan (Premium / Metal / Ultra)
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(.white)
+
                 Text(plan.price.replacingOccurrences(of: " / ", with: "/"))
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.white.opacity(0.9))
@@ -250,10 +281,12 @@ struct RevolutStylePlanCard: View {
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(.white)
                             .frame(width: 24)
+
                         Text(row.text)
                             .font(.system(size: 17))
                             .foregroundColor(.white)
                             .fixedSize(horizontal: false, vertical: true)
+
                         Spacer(minLength: 0)
                     }
                 }
@@ -275,11 +308,11 @@ struct RevolutStylePlanCard: View {
 
 // MARK: - Model
 struct PlanModel {
-    let name: String
-    let price: String
+    let name: String          // identifiant / label
+    let price: String         // localisé
     let emoji: String
-    let description: String
-    let features: [String]
+    let description: String   // localisé
+    let features: [String]    // localisé (si tu veux les afficher ailleurs)
     let isPopular: Bool
 }
 

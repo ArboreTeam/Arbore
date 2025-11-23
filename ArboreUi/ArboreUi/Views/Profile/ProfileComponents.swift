@@ -1,44 +1,44 @@
 import SwiftUI
 import PhotosUI
 
-// MARK: - Subscription Plan Card (AMÉLIORÉE V3)
+// MARK: - Subscription Plan Card (AMÉLIORÉE V3, localisée)
 struct SubscriptionPlanCard: View {
     @EnvironmentObject var themeManager: ThemeManager
-    
+
     let currentPlanName: String
-    
-    // Définitions des plans traduits en français avec le texte du prix
-    private let plansData: [String: (color: Color, icon: String, description: String, priceText: String)] = [
+
+    // plansData now holds keys for localized strings
+    private let plansData: [String: (color: Color, icon: String, descriptionKey: String, priceKey: String)] = [
         "Standard": (
             color: .green,
             icon: "leaf.fill",
-            description: "Fonctionnalités de base. Scans limités.",
-            priceText: "Gratuit"
+            descriptionKey: "SUBSCRIPTION_DESCRIPTION_STANDARD",
+            priceKey: "PLAN_FREE"
         ),
         "Premium": (
-            color: Color(red: 0.1, green: 0.8, blue: 0.5), // Vert vif Premium
+            color: Color(red: 0.1, green: 0.8, blue: 0.5),
             icon: "sparkles.square.fill",
-            description: "Abonnement Premium actif. Scans illimités et plus.",
-            priceText: "Payant"
+            descriptionKey: "SUBSCRIPTION_DESCRIPTION_PREMIUM",
+            priceKey: "PLAN_PAID"
         ),
         "Metal": (
-            color: Color(red: 0.6, green: 0.6, blue: 0.7), // Gris/Bleu Métal
+            color: Color(red: 0.6, green: 0.6, blue: 0.7),
             icon: "goforward.plus",
-            description: "Abonnement Metal actif. Analyses et suivis avancés.",
-            priceText: "Payant"
+            descriptionKey: "SUBSCRIPTION_DESCRIPTION_METAL",
+            priceKey: "PLAN_PAID"
         ),
         "Ultra": (
-            color: Color(red: 0.7, green: 0.5, blue: 0.9), // Violet/Bleu Ultra
+            color: Color(red: 0.7, green: 0.5, blue: 0.9),
             icon: "diamond.fill",
-            description: "Abonnement Ultra actif. Expérience et support complets.",
-            priceText: "Payant"
+            descriptionKey: "SUBSCRIPTION_DESCRIPTION_ULTRA",
+            priceKey: "PLAN_PAID"
         )
     ]
-    
-    private var currentPlan: (color: Color, icon: String, description: String, priceText: String)? {
+
+    private var currentPlan: (color: Color, icon: String, descriptionKey: String, priceKey: String)? {
         plansData[currentPlanName]
     }
-    
+
     private var isFreePlan: Bool {
         currentPlanName == "Standard"
     }
@@ -49,15 +49,22 @@ struct SubscriptionPlanCard: View {
         }
 
         let planColor = isFreePlan ? .green : plan.color
-        let planTitle = currentPlanName == "Standard" ? "Plan Standard" : "Plan \(currentPlanName)"
+        let planTitle: String = {
+            if currentPlanName == "Standard" {
+                return NSLocalizedString("PLAN_TITLE_STANDARD", comment: "Standard plan title")
+            } else {
+                return String(format: NSLocalizedString("PLAN_TITLE_FORMAT", comment: "Plan title format"), currentPlanName)
+            }
+        }()
+
+        let description = NSLocalizedString(plan.descriptionKey, comment: "")
+        let priceText = NSLocalizedString(plan.priceKey, comment: "")
+        let activeBadge = NSLocalizedString("SUBSCRIPTION_BADGE_ACTIVE", comment: "Active badge")
 
         return AnyView(
             VStack(spacing: 0) {
-                // Contenu de la carte
                 VStack(spacing: 12) {
                     HStack(alignment: .top, spacing: 12) {
-                        
-                        // Icône du plan
                         Image(systemName: plan.icon)
                             .font(.system(size: 22, weight: .bold))
                             .foregroundColor(planColor)
@@ -68,21 +75,20 @@ struct SubscriptionPlanCard: View {
                                 .font(.system(size: 19, weight: .heavy))
                                 .foregroundColor(themeManager.textColor)
 
-                            Text(plan.description)
+                            Text(description)
                                 .font(.system(size: 13))
                                 .foregroundColor(themeManager.secondaryTextColor)
                                 .lineLimit(2)
                         }
-                        
+
                         Spacer()
 
                         VStack(alignment: .trailing, spacing: 4) {
-                            Text(plan.priceText)
+                            Text(priceText)
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(planColor)
-                            
-                            // Badge de statut actif (utilisé dans la capture d'écran)
-                            Text("Actif")
+
+                            Text(activeBadge)
                                 .font(.system(size: 11, weight: .bold))
                                 .foregroundColor(.black)
                                 .padding(.horizontal, 8)
@@ -92,13 +98,11 @@ struct SubscriptionPlanCard: View {
                     }
                 }
                 .padding(18)
-                // Le padding doit être appliqué à la VStack interne pour ne pas perturber l'overlay/stroke
             }
             .background(
                 ZStack {
                     Color.gray.opacity(0.15)
-                    
-                    // Bordure stylisée avec accentuation supérieure
+
                     RoundedRectangle(cornerRadius: 18)
                         .stroke(
                             LinearGradient(
@@ -111,8 +115,7 @@ struct SubscriptionPlanCard: View {
                             ),
                             lineWidth: 2
                         )
-                    
-                    // Bandeau d'accentuation (Implémentation stable et propre)
+
                     RoundedRectangle(cornerRadius: 18)
                         .fill(planColor)
                         .frame(height: 4)
@@ -128,9 +131,9 @@ struct SubscriptionPlanCard: View {
             .shadow(color: planColor.opacity(0.25), radius: 8, x: 0, y: 4)
         )
     }
-    
+
     private var emptyPlanView: some View {
-        Text("Plan non défini ou erreur de chargement.")
+        Text(NSLocalizedString("PLAN_UNDEFINED", comment: "Plan undefined message"))
             .foregroundColor(.red)
             .padding()
     }

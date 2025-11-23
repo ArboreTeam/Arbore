@@ -27,7 +27,6 @@ struct AppearanceView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header
-                    
                     appearanceCard
                 }
                 .padding(.horizontal, 16)
@@ -62,7 +61,7 @@ struct AppearanceView: View {
                 Spacer()
             }
             
-            Text("Appearance")
+            Text(NSLocalizedString("APPEARANCE_TITLE", comment: "Appearance Title"))
                 .font(.system(size: 32, weight: .bold))
                 .foregroundColor(themeManager.textColor)
         }
@@ -76,12 +75,10 @@ struct AppearanceView: View {
             buttonRow(
                 icon: "r.circle.fill",
                 iconBackground: .gray.opacity(0.25),
-                title: "App icon",
-                subtitle: "Standard",
+                title: NSLocalizedString("APPEARANCE_APP_ICON", comment: ""),
+                subtitle: NSLocalizedString("APPEARANCE_APP_ICON_STANDARD", comment: ""),
                 valueText: nil,
-                action: {
-                    // TODO: ouvrir un écran / sheet pour choisir l’icône si tu en as plusieurs
-                }
+                action: {}
             )
             
             divider
@@ -89,12 +86,10 @@ struct AppearanceView: View {
             buttonRow(
                 icon: "lightbulb.fill",
                 iconBackground: .yellow.opacity(0.25),
-                title: "Theme",
-                subtitle: "Dark · Glow", // TODO: rendre dynamique si tu as plusieurs thèmes
+                title: NSLocalizedString("APPEARANCE_THEME", comment: ""),
+                subtitle: NSLocalizedString("APPEARANCE_THEME_CURRENT", comment: ""),  
                 valueText: nil,
-                action: {
-                    showThemeSheet = true
-                }
+                action: { showThemeSheet = true }
             )
             
             divider
@@ -102,12 +97,10 @@ struct AppearanceView: View {
             buttonRow(
                 icon: "rectangle.and.hand.point.up.left.fill",
                 iconBackground: .blue.opacity(0.25),
-                title: "Interface",
-                subtitle: "Buttons, animations, etc.",
+                title: NSLocalizedString("APPEARANCE_INTERFACE", comment: ""),
+                subtitle: NSLocalizedString("APPEARANCE_INTERFACE_SUBTITLE", comment: ""),
                 valueText: nil,
-                action: {
-                    showInterfaceSheet = true
-                }
+                action: { showInterfaceSheet = true }
             )
             
             divider
@@ -115,12 +108,10 @@ struct AppearanceView: View {
             buttonRow(
                 icon: "globe",
                 iconBackground: .green.opacity(0.25),
-                title: "Language",
+                title: NSLocalizedString("APPEARANCE_LANGUAGE", comment: ""),
                 subtitle: currentLanguageDisplayName,
                 valueText: nil,
-                action: {
-                    showLanguageSheet = true
-                }
+                action: { showLanguageSheet = true }
             )
         }
         .background(
@@ -211,18 +202,18 @@ struct AppearanceView: View {
                 .foregroundColor(Color.gray.opacity(0.4))
                 .padding(.top, 8)
             
-            Text("Language")
+            Text(NSLocalizedString("APPEARANCE_LANGUAGE", comment: ""))
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(themeManager.textColor)
             
-            Text("We use the same language set for your device. So, you can change the language simply by going into your device settings.")
+            Text(NSLocalizedString("APPEARANCE_LANGUAGE_DESCRIPTION", comment: ""))
                 .font(.system(size: 15))
                 .foregroundColor(themeManager.secondaryTextColor)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
             
             Button(action: openSystemSettings) {
-                Text("Take me there")
+                Text(NSLocalizedString("APPEARANCE_LANGUAGE_BUTTON", comment: ""))
                     .font(.system(size: 16, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
@@ -246,26 +237,20 @@ struct AppearanceView: View {
                 .foregroundColor(Color.gray.opacity(0.4))
                 .padding(.top, 8)
             
-            Text("Theme")
+            Text(NSLocalizedString("APPEARANCE_THEME", comment: ""))
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(themeManager.textColor)
             
-            Text("Choose how your app looks. You can match the system appearance or force light / dark.")
+            Text(NSLocalizedString("APPEARANCE_THEME_DESCRIPTION", comment: ""))
                 .font(.system(size: 15))
                 .foregroundColor(themeManager.secondaryTextColor)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
             
             VStack(spacing: 10) {
-                themeOptionRow(title: "Match system") {
-                    // TODO: themeManager.set(.system) si tu as ça
-                }
-                themeOptionRow(title: "Light") {
-                    // TODO: themeManager.set(.light)
-                }
-                themeOptionRow(title: "Dark") {
-                    // TODO: themeManager.set(.dark)
-                }
+                themeOptionRow(title: NSLocalizedString("APPEARANCE_THEME_SYSTEM", comment: "")) {}
+                themeOptionRow(title: NSLocalizedString("APPEARANCE_THEME_LIGHT", comment: "")) {}
+                themeOptionRow(title: NSLocalizedString("APPEARANCE_THEME_DARK", comment: "")) {}
             }
             .padding(.horizontal, 24)
             
@@ -296,18 +281,18 @@ struct AppearanceView: View {
                 .foregroundColor(Color.gray.opacity(0.4))
                 .padding(.top, 8)
             
-            Text("Interface")
+            Text(NSLocalizedString("APPEARANCE_INTERFACE", comment: ""))
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(themeManager.textColor)
             
-            Text("Interface options such as button style and motion effects are based on your system settings. You can customise them from the device settings.")
+            Text(NSLocalizedString("APPEARANCE_INTERFACE_DESCRIPTION", comment: ""))
                 .font(.system(size: 15))
                 .foregroundColor(themeManager.secondaryTextColor)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
             
             Button(action: openSystemSettings) {
-                Text("Open device settings")
+                Text(NSLocalizedString("APPEARANCE_OPEN_DEVICE_SETTINGS", comment: ""))
                     .font(.system(size: 16, weight: .semibold))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)

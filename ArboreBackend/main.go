@@ -255,6 +255,8 @@ func generatePlantWithAI(c *gin.Context) {
 	defer resp.Body.Close()
 	bodyBytes, _ := ioutil.ReadAll(resp.Body)
 
+	log.Println("🔍 Réponse brute de l'IA (status", resp.StatusCode, "):", string(bodyBytes))
+
 	var aiResponse AIResponse
 	err = json.Unmarshal(bodyBytes, &aiResponse)
 	if err != nil {

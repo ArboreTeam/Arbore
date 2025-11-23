@@ -174,7 +174,7 @@ struct PlantDetailView: View {
                                 .padding(.top, 12)
 
                                 // Cartes infos
-                                GeneralInfoGridView()
+                                GeneralInfoGridView(plant: plant, selectedLanguage: selectedLanguage)
 
                                 // AR View
                                 VStack(spacing: 12) {
@@ -410,6 +410,9 @@ struct PlantDetailView: View {
 struct GeneralInfoGridView: View {
     @Environment(\.colorScheme) private var colorScheme
     
+    let plant: Plant
+    let selectedLanguage: String
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
@@ -423,7 +426,15 @@ struct GeneralInfoGridView: View {
             .padding(.horizontal)
 
             VStack(spacing: 14) {
-                GeneralInfoCard(icon: "sun.max.fill", title: "Soleil", description: "Exposition, orientation", color: Color(hex: "#EEDB8B"), destination: SoleilDetailView())
+                GeneralInfoCard(
+                    icon: "sun.max.fill",
+                    title: "Soleil",
+                    description: "Exposition, orientation",
+                    color: Color(hex: "#EEDB8B"),
+                    destination: SoleilDetailView(plant: plant, selectedLanguage: selectedLanguage)
+                )
+                
+                // Les autres restent comme avant pour l’instant :
                 GeneralInfoCard(icon: "drop.fill", title: "Eau", description: "Fréquence, quantité", color: Color(hex: "#A4C3D7"), destination: EauDetailView())
                 GeneralInfoCard(icon: "leaf.fill", title: "Terre & Pot", description: "Sol, drainage, pot", color: Color(hex: "#A7C6AD"), destination: TerreDetailView())
                 GeneralInfoCard(icon: "cross.case.fill", title: "Santé", description: "Prévention, parasites, maladies", color: Color(hex: "#E6A6A1"), destination: SanteDetailView())

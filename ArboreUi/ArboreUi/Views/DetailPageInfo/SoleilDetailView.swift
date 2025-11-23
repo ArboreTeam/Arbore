@@ -4,6 +4,80 @@ struct SoleilDetailView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
     
+    let plant: Plant
+    let selectedLanguage: String
+    
+    // Raccourci vers les traductions dans la bonne langue (fallback FR)
+    private var t: [String: String] {
+        plant.translations[selectedLanguage]
+        ?? plant.translations["fr"]
+        ?? [:]
+    }
+    
+    // MARK: - Contenu Soleil venant de l’IA (avec fallback)
+    
+    private var overviewHighlight1: String {
+        t["soleil_overview_highlight1"]
+        ?? "Lumière vive indirecte"
+    }
+    
+    private var overviewHighlight2: String {
+        t["soleil_overview_highlight2"]
+        ?? "Éviter le plein soleil brûlant"
+    }
+    
+    private var overviewText: String {
+        t["soleil_overview"]
+        ?? "La plupart des plantes d’intérieur apprécient une lumière vive mais filtrée. Trop de soleil direct peut brûler le feuillage, tandis qu’un manque de lumière ralentit la croissance."
+    }
+    
+    private var windowsText: String {
+        t["soleil_windows"]
+        ?? "Est ou Ouest, à 1–3 mètres de la fenêtre."
+    }
+    
+    private var roomsText: String {
+        t["soleil_rooms"]
+        ?? "Salon lumineux, bureau, chambre bien éclairée."
+    }
+    
+    private var tagList: [String] {
+        if let tagsString = t["soleil_tags"] {
+            let parts = tagsString
+                .split(separator: "|")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if !parts.isEmpty { return parts }
+        }
+        // Fallback si pas de tags IA
+        return ["Fenêtre Est", "Fenêtre Ouest", "Lumière filtrée", "Voilage fin"]
+    }
+    
+    private var watch1: String {
+        t["soleil_watch1"]
+        ?? "Feuilles qui brûlent ou se décolorent : la plante est trop proche d’une source de soleil direct."
+    }
+    
+    private var watch2: String {
+        t["soleil_watch2"]
+        ?? "Tiges qui s’allongent et feuilles qui pâlissent : manque de lumière, rapproche la plante d’une fenêtre."
+    }
+    
+    private var watch3: String {
+        t["soleil_watch3"]
+        ?? "Pense à tourner le pot régulièrement pour éviter que la plante ne penche d’un seul côté."
+    }
+    
+    private var toolLightMeter: String {
+        t["soleil_tool_lightmeter"]
+        ?? "Mesure l’intensité lumineuse à l’endroit exact où tu poses la plante."
+    }
+    
+    private var toolCompass: String {
+        t["soleil_tool_compass"]
+        ?? "T’aide à identifier l’orientation des fenêtres (Est, Ouest, Sud, Nord)."
+    }
+
     var body: some View {
         ZStack {
             // Fond global : même que les autres pages (gris sombre du thème)
@@ -23,10 +97,10 @@ struct SoleilDetailView: View {
                         title: "Vue d’ensemble"
                     ) {
                         VStack(alignment: .leading, spacing: 10) {
-                            HighlightChip(text: "Lumière vive indirecte")
-                            HighlightChip(text: "Éviter le plein soleil brûlant")
+                            HighlightChip(text: overviewHighlight1)
+                            HighlightChip(text: overviewHighlight2)
                             
-                            Text("La plupart des plantes d’intérieur apprécient une lumière vive mais filtrée. Trop de soleil direct peut brûler le feuillage, tandis qu’un manque de lumière ralentit la croissance.")
+                            Text(overviewText)
                                 .font(.system(size: 14))
                                 .foregroundColor(.secondaryText(for: colorScheme))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -42,21 +116,16 @@ struct SoleilDetailView: View {
                         VStack(alignment: .leading, spacing: 14) {
                             InfoRow(
                                 title: "Fenêtres idéales",
-                                subtitle: "Est ou Ouest, à 1–3 mètres de la fenêtre.",
+                                subtitle: windowsText,
                                 badge: "Recommandé"
                             )
                             InfoRow(
                                 title: "Pièces conseillées",
-                                subtitle: "Salon lumineux, bureau, chambre bien éclairée.",
+                                subtitle: roomsText,
                                 badge: "Confort"
                             )
                             
-                            sunTagCloud(tags: [
-                                "Fenêtre Est",
-                                "Fenêtre Ouest",
-                                "Lumière filtrée",
-                                "Voilage fin"
-                            ])
+                            sunTagCloud(tags: tagList)
                         }
                     }
                     
@@ -69,15 +138,15 @@ struct SoleilDetailView: View {
                         VStack(alignment: .leading, spacing: 10) {
                             WarningRow(
                                 icon: "flame.fill",
-                                text: "Feuilles qui brûlent ou se décolorent : la plante est trop proche d’une source de soleil direct."
+                                text: watch1
                             )
                             WarningRow(
                                 icon: "arrow.down.right.and.arrow.up.left",
-                                text: "Tiges qui s’allongent et feuilles qui pâlissent : manque de lumière, rapproche la plante d’une fenêtre."
+                                text: watch2
                             )
                             WarningRow(
                                 icon: "arrow.triangle.2.circlepath",
-                                text: "Pense à tourner le pot régulièrement pour éviter que la plante ne penche d’un seul côté."
+                                text: watch3
                             )
                         }
                     }
@@ -92,12 +161,12 @@ struct SoleilDetailView: View {
                             ToolRow(
                                 systemIcon: "lightbulb.max.fill",
                                 title: "Light meter",
-                                subtitle: "Mesure l’intensité lumineuse à l’endroit exact où tu poses la plante."
+                                subtitle: toolLightMeter
                             )
                             ToolRow(
                                 systemIcon: "location.north.line",
                                 title: "Boussole",
-                                subtitle: "T’aide à identifier l’orientation des fenêtres (Est, Ouest, Sud, Nord)."
+                                subtitle: toolCompass
                             )
                         }
                     }
@@ -145,7 +214,7 @@ struct SoleilDetailView: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(hex: "#064E3B"), // plus proche du vert de ta navigation
+                            Color(hex: "#064E3B"), // proche du vert de ta navigation
                             Color(hex: "#065F46")
                         ],
                         startPoint: .topLeading,
@@ -181,11 +250,17 @@ struct SoleilDetailView: View {
                     .background(Color.white.opacity(0.15))
                 
                 HStack(spacing: 12) {
-                    PillInfo(icon: "sun.max", text: "Lumière vive indirecte")
+                    // 🟢 ICI la correction : plant.exposure (camelCase)
+                    PillInfo(
+                        icon: "sun.max",
+                        text: plant.exposure.isEmpty
+                            ? "Lumière vive indirecte"
+                            : plant.exposure
+                    )
                     PillInfo(icon: "clock.arrow.circlepath", text: "8–12 h / jour")
                 }
                 
-                Text("Comprends comment placer ta plante pour qu’elle profite de la lumière sans brûler ni dépérir.")
+                Text(overviewText)
                     .font(.system(size: 13))
                     .foregroundColor(.white.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
@@ -196,7 +271,7 @@ struct SoleilDetailView: View {
     }
 }
 
-// MARK: - Sub-components
+// MARK: - Sub-components (inchangés, juste réutilisés)
 
 private struct SectionCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -338,7 +413,7 @@ private struct ToolRow: View {
     }
 }
 
-// Tag cloud sans chevauchement : fonction, pas de struct → pas de problème d'init privé
+// Tag cloud sans chevauchement : fonction, pas de struct → pas de problème d’accessibilité
 private func sunTagCloud(tags: [String]) -> some View {
     GeometryReader { _ in
         let columns = [
@@ -351,10 +426,9 @@ private func sunTagCloud(tags: [String]) -> some View {
             }
         }
     }
-    .frame(minHeight: 0) // laisse le layout décider
+    .frame(minHeight: 0)
 }
 
-// Petit chip réutilisable pour les tags
 private struct TagChip: View {
     @Environment(\.colorScheme) private var colorScheme
     let text: String

@@ -1,8 +1,11 @@
+// main.go
+
 package main
 
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -20,28 +23,85 @@ import (
 var client *mongo.Client
 
 type User struct {
-	UID       string `json:"uid"`
-	Email     string `json:"email"`
-	Name      string `json:"name"`
-	CreatedAt string `json:"createdAt"`
+	UID              string `json:"uid" bson:"uid"`
+	Email            string `json:"email" bson:"email"`
+	Name             string `json:"name" bson:"name"`
+	CreatedAt        string `json:"createdAt" bson:"createdAt"`
+	PhotoData        string `json:"photoData,omitempty" bson:"photoData,omitempty"`
+	PhotoContentType string `json:"photoContentType,omitempty" bson:"photoContentType,omitempty"`
+}
+
+// ---------- PLANTS & AI STRUCTS ----------
+
+type SunInfo struct {
+	LightType        string   `json:"lightType" bson:"lightType"`
+	DurationPerDay   string   `json:"durationPerDay" bson:"durationPerDay"`
+	Orientation      string   `json:"orientation" bson:"orientation"`
+	WindowDistance   string   `json:"windowDistance" bson:"windowDistance"`
+	RecommendedRooms []string `json:"recommendedRooms" bson:"recommendedRooms"`
+	Tips             []string `json:"tips" bson:"tips"`
+}
+
+type WaterInfo struct {
+	Frequency        string `json:"frequency" bson:"frequency"`
+	Amount           string `json:"amount" bson:"amount"`
+	Method           string `json:"method" bson:"method"`
+	Humidity         string `json:"humidity" bson:"humidity"`
+	SignsLack        string `json:"signsLack" bson:"signsLack"`
+	SignsExcess      string `json:"signsExcess" bson:"signsExcess"`
+	RecommendedWater string `json:"recommendedWater" bson:"recommendedWater"`
+}
+
+type SoilAndPotInfo struct {
+	Substrate      string `json:"substrate" bson:"substrate"`
+	Drainage       string `json:"drainage" bson:"drainage"`
+	PotSize        string `json:"potSize" bson:"potSize"`
+	RepotFrequency string `json:"repotFrequency" bson:"repotFrequency"`
+	RepotSigns     string `json:"repotSigns" bson:"repotSigns"`
+}
+
+type HealthInfo struct {
+	CommonProblems     []string `json:"commonProblems" bson:"commonProblems"`
+	SymptomsAndCauses  []string `json:"symptomsAndCauses" bson:"symptomsAndCauses"`
+	Pests              []string `json:"pests" bson:"pests"`
+	Treatments         []string `json:"treatments" bson:"treatments"`
+	Prevention         []string `json:"prevention" bson:"prevention"`
+}
+
+type LifeCycleInfo struct {
+	Growth     string `json:"growth" bson:"growth"`
+	Flowering  string `json:"flowering" bson:"flowering"`
+	Dormancy   string `json:"dormancy" bson:"dormancy"`
+	Fertilizer string `json:"fertilizer" bson:"fertilizer"`
+	Pruning    string `json:"pruning" bson:"pruning"`
+}
+
+type CareInfo struct {
+	Weekly    []string `json:"weekly" bson:"weekly"`
+	Monthly   []string `json:"monthly" bson:"monthly"`
+	Yearly    []string `json:"yearly" bson:"yearly"`
+	ExtraTips []string `json:"extraTips" bson:"extraTips"`
+}
+
+type LanguageData struct {
+	Description string        `json:"description" bson:"description"`
+	PlantType   string        `json:"plantType" bson:"plantType"`
+	Sun         SunInfo       `json:"sun" bson:"sun"`
+	Water       WaterInfo     `json:"water" bson:"water"`
+	SoilAndPot  SoilAndPotInfo`json:"soilAndPot" bson:"soilAndPot"`
+	Health      HealthInfo    `json:"health" bson:"health"`
+	LifeCycle   LifeCycleInfo `json:"lifeCycle" bson:"lifeCycle"`
+	Care        CareInfo      `json:"care" bson:"care"`
 }
 
 type Plant struct {
-	ID               primitive.ObjectID           `bson:"_id,omitempty" json:"id"`
-	Name             string                       `json:"name"`
-	Type             string                       `json:"type"`
-	ImageURLs        []string                     `json:"imageURLs"`
-	Description      string                       `json:"description"`
-	SoilType         string                       `json:"soilType"`
-	Exposure         string                       `json:"exposure"`
-	WateringNeeds    string                       `json:"wateringNeeds"`
-	Temperature      string                       `json:"temperature"`
-	Floraison        string                       `json:"floraison"`
-	Origin           string                       `json:"origin"`
-	WateringReminder string                       `json:"wateringReminder"`
-	CareTips         []string                     `json:"careTips"`
-	ModelURL         string                       `json:"modelURL" bson:"modelURL"`
-	Translations     map[string]map[string]string `json:"translations" bson:"translations"`
+	ID           primitive.ObjectID            `bson:"_id,omitempty" json:"id"`
+	Name         string                        `json:"name" bson:"name"`
+	Type         string                        `json:"type" bson:"type"`
+	ImageURLs    []string                      `json:"imageURLs" bson:"imageURLs"`
+	Description  string                        `json:"description" bson:"description"`
+	ModelURL     string                        `json:"modelURL" bson:"modelURL"`
+	Translations map[string]LanguageData       `json:"translations" bson:"translations"`
 }
 
 type AIRequest struct {
@@ -49,11 +109,13 @@ type AIRequest struct {
 }
 
 type AIResponse struct {
-	FR map[string]string `json:"fr"`
-	EN map[string]string `json:"en"`
-	ES map[string]string `json:"es"`
-	DE map[string]string `json:"de"`
+	FR LanguageData `json:"fr"`
+	EN LanguageData `json:"en"`
+	ES LanguageData `json:"es"`
+	DE LanguageData `json:"de"`
 }
+
+// ---------- USERS ----------
 
 func createUser(c *gin.Context) {
 	var user User
@@ -90,6 +152,8 @@ func deleteUser(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Utilisateur supprimé avec succès"})
 }
+
+// ---------- PLANTS CRUD ----------
 
 func createPlant(c *gin.Context) {
 	var plant Plant
@@ -155,6 +219,8 @@ func getPlantByID(c *gin.Context) {
 	c.JSON(http.StatusOK, plant)
 }
 
+// ---------- AI GENERATION ----------
+
 func generatePlantWithAI(c *gin.Context) {
 	var req AIRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -164,6 +230,7 @@ func generatePlantWithAI(c *gin.Context) {
 
 	collection := client.Database("arbore").Collection("plants")
 
+	// Vérifie si la plante existe déjà (insensible à la casse)
 	filter := bson.M{
 		"name": bson.M{"$regex": primitive.Regex{Pattern: "^" + req.Name + "$", Options: "i"}},
 	}
@@ -177,6 +244,7 @@ func generatePlantWithAI(c *gin.Context) {
 		return
 	}
 
+	// Appel microservice IA
 	jsonData, _ := json.Marshal(req)
 	resp, err := http.Post("http://localhost:8001/generate", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
@@ -190,6 +258,7 @@ func generatePlantWithAI(c *gin.Context) {
 	var aiResponse AIResponse
 	err = json.Unmarshal(bodyBytes, &aiResponse)
 	if err != nil {
+		log.Println("Erreur parsing IA:", err, string(bodyBytes))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors du parsing de la réponse IA"})
 		return
 	}
@@ -197,21 +266,13 @@ func generatePlantWithAI(c *gin.Context) {
 	imageURLs := fetchUnsplashImageURLs(req.Name, 3)
 
 	plant := Plant{
-		ID:               primitive.NewObjectID(),
-		Name:             req.Name,
-		Type:             aiResponse.FR["type"],
-		ImageURLs:        imageURLs,
-		Description:      aiResponse.FR["description"],
-		SoilType:         aiResponse.FR["sol"],
-		Exposure:         aiResponse.FR["lumière"],
-		WateringNeeds:    aiResponse.FR["arrosage"],
-		Temperature:      aiResponse.FR["température"],
-		Floraison:        aiResponse.FR["floraison"],
-		Origin:           aiResponse.FR["origine"],
-		WateringReminder: aiResponse.FR["arrosage_frequence"],
-		CareTips:         []string{aiResponse.FR["conseils"]},
-		ModelURL:         "",
-		Translations: map[string]map[string]string{
+		ID:          primitive.NewObjectID(),
+		Name:        req.Name,
+		Type:        aiResponse.FR.PlantType,
+		ImageURLs:   imageURLs,
+		Description: aiResponse.FR.Description,
+		ModelURL:    "",
+		Translations: map[string]LanguageData{
 			"fr": aiResponse.FR,
 			"en": aiResponse.EN,
 			"es": aiResponse.ES,
@@ -219,7 +280,9 @@ func generatePlantWithAI(c *gin.Context) {
 		},
 	}
 
-	plant.SetDefaults()
+	// Si tu as une méthode SetDefaults, tu peux la garder
+	// plant.SetDefaults()
+
 	_, err = collection.InsertOne(context.Background(), plant)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de l'insertion de la plante générée"})
@@ -278,7 +341,7 @@ func generateMultiplePlantsHandler(c *gin.Context) {
 		var aiResponse AIResponse
 		err = json.Unmarshal(body, &aiResponse)
 		if err != nil {
-			log.Println("❌ Erreur JSON IA pour", name, ":", err)
+			log.Println("❌ Erreur JSON IA pour", name, ":", err, string(body))
 			skipped = append(skipped, name)
 			continue
 		}
@@ -286,21 +349,13 @@ func generateMultiplePlantsHandler(c *gin.Context) {
 		imageURLs := fetchUnsplashImageURLs(name, 3)
 
 		plant := Plant{
-			ID:               primitive.NewObjectID(),
-			Name:             name,
-			Type:             aiResponse.FR["type"],
-			ImageURLs:        imageURLs,
-			Description:      aiResponse.FR["description"],
-			SoilType:         aiResponse.FR["sol"],
-			Exposure:         aiResponse.FR["lumière"],
-			WateringNeeds:    aiResponse.FR["arrosage"],
-			Temperature:      aiResponse.FR["température"],
-			Floraison:        aiResponse.FR["floraison"],
-			Origin:           aiResponse.FR["origine"],
-			WateringReminder: aiResponse.FR["arrosage_frequence"],
-			CareTips:         []string{aiResponse.FR["conseils"]},
-			ModelURL:         "",
-			Translations: map[string]map[string]string{
+			ID:          primitive.NewObjectID(),
+			Name:        name,
+			Type:        aiResponse.FR.PlantType,
+			ImageURLs:   imageURLs,
+			Description: aiResponse.FR.Description,
+			ModelURL:    "",
+			Translations: map[string]LanguageData{
 				"fr": aiResponse.FR,
 				"en": aiResponse.EN,
 				"es": aiResponse.ES,
@@ -308,7 +363,8 @@ func generateMultiplePlantsHandler(c *gin.Context) {
 			},
 		}
 
-		plant.SetDefaults()
+		// plant.SetDefaults()
+
 		_, err = collection.InsertOne(context.Background(), plant)
 		if err != nil {
 			log.Println("❌ Erreur MongoDB insertion:", err)
@@ -326,138 +382,142 @@ func generateMultiplePlantsHandler(c *gin.Context) {
 	})
 }
 
+// ---------- USER PHOTOS ----------
+
 func uploadUserPhoto(c *gin.Context) {
-    uid := c.Param("uid")
+	uid := c.Param("uid")
 
-    file, header, err := c.Request.FormFile("photo")
-    if err != nil {
-        c.JSON(http.StatusBadRequest, gin.H{"error": "photo not provided or invalid"})
-        return
-    }
-    defer file.Close()
+	file, header, err := c.Request.FormFile("photo")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "photo not provided or invalid"})
+		return
+	}
+	defer file.Close()
 
-    imageBytes, err := ioutil.ReadAll(file)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot read uploaded file"})
-        return
-    }
+	imageBytes, err := ioutil.ReadAll(file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot read uploaded file"})
+		return
+	}
 
-    encoded := base64.StdEncoding.EncodeToString(imageBytes)
-    contentType := header.Header.Get("Content-Type")
-    if contentType == "" {
-        contentType = http.DetectContentType(imageBytes)
-    }
+	encoded := base64.StdEncoding.EncodeToString(imageBytes)
+	contentType := header.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = http.DetectContentType(imageBytes)
+	}
 
-    collection := client.Database("arbore").Collection("users")
-    filter := bson.M{"uid": uid}
-    update := bson.M{"$set": bson.M{
-        "photoData":        encoded,
-        "photoContentType": contentType,
-    }}
+	collection := client.Database("arbore").Collection("users")
+	filter := bson.M{"uid": uid}
+	update := bson.M{"$set": bson.M{
+		"photoData":        encoded,
+		"photoContentType": contentType,
+	}}
 
-    _, err = collection.UpdateOne(context.Background(), filter, update)
-    if err != nil {
-        log.Println("❌ Erreur lors de la mise à jour photo :", err)
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la sauvegarde de la photo"})
-        return
-    }
+	_, err = collection.UpdateOne(context.Background(), filter, update)
+	if err != nil {
+		log.Println("❌ Erreur lors de la mise à jour photo :", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la sauvegarde de la photo"})
+		return
+	}
 
-    c.JSON(http.StatusOK, gin.H{"message": "Photo enregistrée avec succès"})
+	c.JSON(http.StatusOK, gin.H{"message": "Photo enregistrée avec succès"})
 }
 
-// Return raw image bytes for a user (GET /users/:uid/photo)
 func getUserPhoto(c *gin.Context) {
-    uid := c.Param("uid")
-    collection := client.Database("arbore").Collection("users")
+	uid := c.Param("uid")
+	collection := client.Database("arbore").Collection("users")
 
-    var user User
-    err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
-    if err != nil {
-        if err == mongo.ErrNoDocuments {
-            c.Status(http.StatusNotFound)
-            return
-        }
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la lecture utilisateur"})
-        return
-    }
+	var user User
+	err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la lecture utilisateur"})
+		return
+	}
 
-    if user.PhotoData == "" {
-        c.Status(http.StatusNoContent)
-        return
-    }
+	if user.PhotoData == "" {
+		c.Status(http.StatusNoContent)
+		return
+	}
 
-    data, err := base64.StdEncoding.DecodeString(user.PhotoData)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur decoding photo"})
-        return
-    }
+	data, err := base64.StdEncoding.DecodeString(user.PhotoData)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur decoding photo"})
+		return
+	}
 
-    contentType := user.PhotoContentType
-    if contentType == "" {
-        contentType = http.DetectContentType(data)
-    }
+	contentType := user.PhotoContentType
+	if contentType == "" {
+		contentType = http.DetectContentType(data)
+	}
 
-    c.Data(http.StatusOK, contentType, data)
+	c.Data(http.StatusOK, contentType, data)
 }
+
+// ---------- MAIN ----------
 
 func main() {
-    uri := "mongodb+srv://hugorath1234:hugopapa@arbore.cew6l.mongodb.net/arbore?retryWrites=true&w=majority&appName=Arbore"
-    clientOptions := options.Client().ApplyURI(uri)
+	uri := "mongodb+srv://hugorath1234:hugopapa@arbore.cew6l.mongodb.net/arbore?retryWrites=true&w=majority&appName=Arbore"
+	clientOptions := options.Client().ApplyURI(uri)
 
-    var err error
-    client, err = mongo.Connect(context.Background(), clientOptions)
-    if err != nil {
-        log.Fatal("❌ Erreur lors de la connexion à MongoDB :", err)
-    }
+	var err error
+	client, err = mongo.Connect(context.Background(), clientOptions)
+	if err != nil {
+		log.Fatal("❌ Erreur lors de la connexion à MongoDB :", err)
+	}
 
-    err = client.Ping(context.Background(), nil)
-    if err != nil {
-        log.Fatal("❌ Erreur lors de la vérification de la connexion à MongoDB :", err)
-    }
-    fmt.Println("✅ Connecté à MongoDB!")
+	err = client.Ping(context.Background(), nil)
+	if err != nil {
+		log.Fatal("❌ Erreur lors de la vérification de la connexion à MongoDB :", err)
+	}
+	fmt.Println("✅ Connecté à MongoDB!")
 
-    router := gin.Default()
+	router := gin.Default()
 
-    // existing routes
-    router.POST("/users", createUser)
-    router.GET("/users/:uid", func(c *gin.Context) {
-        uid := c.Param("uid")
+	// Users
+	router.POST("/users", createUser)
+	router.GET("/users/:uid", func(c *gin.Context) {
+		uid := c.Param("uid")
 
-        var user User
-        collection := client.Database("arbore").Collection("users")
-        err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
-        if err != nil {
-            if err == mongo.ErrNoDocuments {
-                c.JSON(http.StatusNotFound, gin.H{"message": "Utilisateur non trouvé"})
-                return
-            }
-            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-            return
-        }
+		var user User
+		collection := client.Database("arbore").Collection("users")
+		err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
+		if err != nil {
+			if err == mongo.ErrNoDocuments {
+				c.JSON(http.StatusNotFound, gin.H{"message": "Utilisateur non trouvé"})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 
-        c.JSON(http.StatusOK, gin.H{"user": user})
-    })
+		c.JSON(http.StatusOK, gin.H{"user": user})
+	})
 
-    // photo endpoints
-    router.POST("/users/:uid/photo", uploadUserPhoto)
-    router.GET("/users/:uid/photo", getUserPhoto)
+	router.POST("/users/:uid/photo", uploadUserPhoto)
+	router.GET("/users/:uid/photo", getUserPhoto)
 
-    router.DELETE("/users/:uid", deleteUser)
-    router.POST("/plants", createPlant)
-    router.GET("/plants", getPlants)
-    router.GET("/plants/:id", getPlantByID)
-    router.POST("/plants/generate", generatePlantWithAI)
-    router.POST("/plants/generate-multiple", generateMultiplePlantsHandler)
+	router.DELETE("/users/:uid", deleteUser)
 
-    fmt.Println("🚀 Serveur démarré sur http://localhost:8080")
-    if err := router.Run(":8080"); err != nil {
-        log.Fatal("❌ Erreur lors du démarrage du serveur :", err)
-    }
+	// Plants
+	router.POST("/plants", createPlant)
+	router.GET("/plants", getPlants)
+	router.GET("/plants/:id", getPlantByID)
+	router.POST("/plants/generate", generatePlantWithAI)
+	router.POST("/plants/generate-multiple", generateMultiplePlantsHandler)
 
-    defer func() {
-        if err = client.Disconnect(context.Background()); err != nil {
-            log.Fatal("❌ Erreur lors de la déconnexion de MongoDB :", err)
-        }
-        fmt.Println("🔌 Déconnecté de MongoDB.")
-    }()
+	fmt.Println("🚀 Serveur démarré sur http://localhost:8080")
+	if err := router.Run(":8080"); err != nil {
+		log.Fatal("❌ Erreur lors du démarrage du serveur :", err)
+	}
+
+	defer func() {
+		if err = client.Disconnect(context.Background()); err != nil {
+			log.Fatal("❌ Erreur lors de la déconnexion de MongoDB :", err)
+		}
+		fmt.Println("🔌 Déconnecté de MongoDB.")
+	}()
 }

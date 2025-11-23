@@ -10,11 +10,11 @@ struct ChangePasswordView: View {
 
     var body: some View {
         ZStack {
-            themeManager.backgroundColor // Utiliser le thème manager
+            themeManager.backgroundColor
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top bar - Uniforme
+                // Top bar
                 HStack {
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
@@ -22,7 +22,7 @@ struct ChangePasswordView: View {
                             .foregroundColor(themeManager.textColor)
                     }
                     Spacer()
-                    Text("Change Password")
+                    Text(NSLocalizedString("CHANGE_PASSWORD_TITLE", comment: "Change password title"))
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(themeManager.textColor)
                     Spacer()
@@ -30,42 +30,52 @@ struct ChangePasswordView: View {
                 }
                 .frame(height: 48)
                 .padding(.horizontal, 16)
-                .background(themeManager.backgroundColor) // Assurer un fond uni pour la barre
+                .background(themeManager.backgroundColor)
 
                 // Content
                 ScrollView {
-                    VStack(spacing: 24) { // Augmentation de l'espacement
+                    VStack(spacing: 24) {
                         
                         // Current Password
-                        secureInputField(title: "CURRENT PASSWORD", placeholder: "Enter current password", text: $currentPassword)
+                        secureInputField(
+                            title: NSLocalizedString("CHANGE_PASSWORD_CURRENT_TITLE", comment: ""),
+                            placeholder: NSLocalizedString("CHANGE_PASSWORD_CURRENT_PLACEHOLDER", comment: ""),
+                            text: $currentPassword
+                        )
 
                         // New Passwords
                         VStack(alignment: .leading, spacing: 16) {
-                            Text("NEW PASSWORD")
+                            Text(NSLocalizedString("CHANGE_PASSWORD_NEW_SECTION_TITLE", comment: ""))
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(themeManager.secondaryTextColor)
                                 .padding(.horizontal, 4)
                             
-                            secureInputFieldContent(placeholder: "Enter new password", text: $newPassword)
-                            secureInputFieldContent(placeholder: "Confirm new password", text: $confirmPassword)
+                            secureInputFieldContent(
+                                placeholder: NSLocalizedString("CHANGE_PASSWORD_NEW_PLACEHOLDER", comment: ""),
+                                text: $newPassword
+                            )
+                            secureInputFieldContent(
+                                placeholder: NSLocalizedString("CHANGE_PASSWORD_CONFIRM_PLACEHOLDER", comment: ""),
+                                text: $confirmPassword
+                            )
                         }
                         .padding(.horizontal, 16)
 
                         Spacer(minLength: 8)
 
-                        // Update Button (Style vert et audacieux)
+                        // Update Button
                         Button(action: {
-                            // Logic to change password
+                            // TODO: logique de changement de mot de passe
                             dismiss()
                         }) {
-                            Text("Update Password")
-                                .font(.system(size: 17, weight: .bold)) // Plus audacieux
+                            Text(NSLocalizedString("CHANGE_PASSWORD_UPDATE_BUTTON", comment: ""))
+                                .font(.system(size: 17, weight: .bold))
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16) // Plus de rembourrage
+                                .padding(.vertical, 16)
                                 .background(
                                     RoundedRectangle(cornerRadius: 14)
-                                        .fill(Color.green) // Couleur verte principale
+                                        .fill(Color.green)
                                 )
                                 .shadow(color: Color.green.opacity(0.4), radius: 8, x: 0, y: 4)
                         }
@@ -79,7 +89,8 @@ struct ChangePasswordView: View {
         .interactiveDismissDisabled()
     }
     
-    // MARK: - Secure Input Field (Refonte pour un style plus professionnel/glassmorphism)
+    // MARK: - Secure Input Field
+    
     private func secureInputField(title: String, placeholder: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
@@ -98,10 +109,10 @@ struct ChangePasswordView: View {
             .padding(.horizontal, 16)
             .background(
                 RoundedRectangle(cornerRadius: 14)
-                    .fill(Color.gray.opacity(0.12)) // Fond en verre-morphisme subtil
+                    .fill(Color.gray.opacity(0.12))
                     .overlay(
                         RoundedRectangle(cornerRadius: 14)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 1) // Bordure légère
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
                     )
             )
             .foregroundColor(themeManager.textColor)

@@ -14,7 +14,7 @@ struct PrivacySettingsView: View {
             themeManager.backgroundColor.ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top bar with close button - Uniforme
+                // Top bar
                 HStack {
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
@@ -22,7 +22,7 @@ struct PrivacySettingsView: View {
                             .foregroundColor(themeManager.textColor)
                     }
                     Spacer()
-                    Text("Privacy Settings")
+                    Text(NSLocalizedString("PRIVACYSETTINGS_TITLE", comment: ""))
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(themeManager.textColor)
                     Spacer()
@@ -33,85 +33,91 @@ struct PrivacySettingsView: View {
                 .background(themeManager.backgroundColor)
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) { // Augmentation de l'espacement
+                    VStack(alignment: .leading, spacing: 20) {
+
                         // Header
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Your Privacy, Your Control") // Nouveau titre plus audacieux
+                            Text(NSLocalizedString("PRIVACYSETTINGS_HEADER_TITLE", comment: ""))
                                 .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(themeManager.textColor)
-                            Text("Control who sees your profile, your activity, and how we use your data.")
+
+                            Text(NSLocalizedString("PRIVACYSETTINGS_HEADER_SUBTITLE", comment: ""))
                                 .font(.system(size: 15))
                                 .foregroundColor(themeManager.secondaryTextColor)
                         }
                         .padding(.top, 18)
-                        
-                        // Section — Profile Visibility
+
+                        // Profile Visibility
                         PrivacySectionCard(
-                            title: "Profile Visibility",
+                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_PROFILE", comment: ""),
                             icon: "person.crop.circle.fill",
                             content: {
                                 ToggleRow(
                                     icon: "globe.europe.africa.fill",
-                                    title: "Public Profile",
-                                    subtitle: "Your name and avatar are visible to others.",
+                                    title: NSLocalizedString("PRIVACYSETTINGS_PUBLICPROFILE_TITLE", comment: ""),
+                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_PUBLICPROFILE_SUB", comment: ""),
                                     isOn: $profilePublic
                                 )
                             },
                             themeManager: themeManager
                         )
 
-                        // Section — Activity
+                        // Activity Sharing
                         PrivacySectionCard(
-                            title: "Activity Sharing",
+                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_ACTIVITY", comment: ""),
                             icon: "waveform.path.ecg.rectangle.fill",
                             content: {
                                 ToggleRow(
                                     icon: "list.bullet.rectangle.portrait",
-                                    title: "Show My Activity", // Nouvelle icône
-                                    subtitle: "Allow showing your recent garden updates.",
+                                    title: NSLocalizedString("PRIVACYSETTINGS_ACTIVITY_TITLE", comment: ""),
+                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_ACTIVITY_SUB", comment: ""),
                                     isOn: $showActivity
                                 )
                             },
                             themeManager: themeManager
                         )
 
-                        // Section — Data Sharing
+                        // Data Sharing
                         PrivacySectionCard(
-                            title: "Data Sharing",
-                            icon: "chart.bar.doc.horizontal.fill", // Icône mise à jour
+                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_DATASHARING", comment: ""),
+                            icon: "chart.bar.doc.horizontal.fill",
                             content: {
                                 ToggleRow(
                                     icon: "chart.bar.doc.horizontal.fill",
-                                    title: "Share Data for Analytics",
-                                    subtitle: "Help us improve features and reliability. No personal content is sold.",
+                                    title: NSLocalizedString("PRIVACYSETTINGS_DATASHARING_TITLE", comment: ""),
+                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_DATASHARING_SUB", comment: ""),
                                     isOn: $shareData
                                 )
                             },
                             themeManager: themeManager
                         )
 
-                        // Lien vers la politique de confidentialité (Style de carte unifié)
+                        // Link to Privacy Policy
                         Button(action: { showPrivacyPolicy = true }) {
-                            HStack(spacing: 12) { // Augmentation de l'espacement
+                            HStack(spacing: 12) {
                                 Image(systemName: "doc.text.fill")
-                                    .font(.system(size: 20)) // Icône plus grande
+                                    .font(.system(size: 20))
                                     .foregroundColor(.green)
-                                    .frame(width: 24) // Espace d'icône plus large
+                                    .frame(width: 24)
+
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text("Read our Privacy Policy")
-                                        .font(.system(size: 16, weight: .semibold)) // Plus grand
+                                    Text(NSLocalizedString("PRIVACYSETTINGS_READ_POLICY", comment: ""))
+                                        .font(.system(size: 16, weight: .semibold))
                                         .foregroundColor(themeManager.textColor)
-                                    Text("Understand how we collect, use and protect your data.")
+
+                                    Text(NSLocalizedString("PRIVACYSETTINGS_READ_POLICY_SUB", comment: ""))
                                         .font(.system(size: 13))
                                         .foregroundColor(themeManager.secondaryTextColor)
                                 }
+
                                 Spacer()
+
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
                             }
                         }
-                        .padding(16) // Rembourrage uniforme
+                        .padding(16)
                         .background(
                             RoundedRectangle(cornerRadius: 18)
                                 .fill(Color.gray.opacity(0.12))
@@ -120,13 +126,13 @@ struct PrivacySettingsView: View {
                         .cornerRadius(18)
                         .buttonStyle(.plain)
 
-
-                        // Note d'information (Style de carte unifié)
+                        // Info note
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Note")
-                                .font(.system(size: 15, weight: .semibold)) // Plus grand
+                            Text(NSLocalizedString("PRIVACYSETTINGS_NOTE_TITLE", comment: ""))
+                                .font(.system(size: 15, weight: .semibold))
                                 .foregroundColor(themeManager.textColor)
-                            Text("You can change these settings at any time. Some changes may take a few minutes to apply across all your devices.")
+
+                            Text(NSLocalizedString("PRIVACYSETTINGS_NOTE_TEXT", comment: ""))
                                 .font(.system(size: 13))
                                 .foregroundColor(themeManager.secondaryTextColor)
                         }
@@ -153,7 +159,7 @@ struct PrivacySettingsView: View {
     }
 }
 
-// MARK: - Section Card (Mise à jour pour coins uniformes)
+// MARK: - Section Card
 private struct PrivacySectionCard<Content: View>: View {
     let title: String
     let icon: String
@@ -168,19 +174,22 @@ private struct PrivacySectionCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) { // Augmentation de l'espacement
-            HStack(spacing: 12) { // Augmentation de l'espacement
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 20)) // Icône plus grande
+                    .font(.system(size: 20))
                     .foregroundColor(.green)
+
                 Text(title)
-                    .font(.system(size: 17, weight: .bold)) // Plus audacieux
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundColor(themeManager.textColor)
+
                 Spacer()
             }
+
             content
         }
-        .padding(18) // Rembourrage uniforme
+        .padding(18)
         .background(
             RoundedRectangle(cornerRadius: 18)
                 .fill(Color.gray.opacity(0.12))
@@ -190,7 +199,7 @@ private struct PrivacySectionCard<Content: View>: View {
     }
 }
 
-// MARK: - Toggle Row (Mise à jour pour coins uniformes et icônes plus grandes)
+// MARK: - Toggle Row
 private struct ToggleRow: View {
     @EnvironmentObject var themeManager: ThemeManager
     let icon: String
@@ -201,14 +210,15 @@ private struct ToggleRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 20)) // Icône plus grande
+                .font(.system(size: 20))
                 .foregroundColor(.green)
-                .frame(width: 24) // Espace d'icône plus large
+                .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold)) // Plus grand
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(themeManager.textColor)
+
                 if let subtitle = subtitle {
                     Text(subtitle)
                         .font(.system(size: 13))
@@ -221,7 +231,7 @@ private struct ToggleRow: View {
 
             Toggle("", isOn: $isOn)
                 .labelsHidden()
-                .tint(.green) // Couleur d'accentuation verte
+                .tint(.green)
         }
     }
 }

@@ -17,7 +17,7 @@ struct NotificationsView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top bar with close button - Uniforme
+                // Top bar
                 HStack {
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
@@ -25,7 +25,7 @@ struct NotificationsView: View {
                             .foregroundColor(themeManager.textColor)
                     }
                     Spacer()
-                    Text("Notification Settings") // Nom plus complet
+                    Text(NSLocalizedString("NOTIF_TITLE", comment: "Notification settings title"))
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(themeManager.textColor)
                     Spacer()
@@ -36,80 +36,83 @@ struct NotificationsView: View {
                 .background(themeManager.backgroundColor)
 
                 ScrollView {
-                    VStack(spacing: 20) { // Augmentation de l'espacement
-                        // Header (Aligné à gauche pour un look plus moderne)
+                    VStack(spacing: 20) {
+                        // Header
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Stay Updated")
-                                .font(.system(size: 28, weight: .bold)) // Plus grand
+                            Text(NSLocalizedString("NOTIF_HEADER_TITLE", comment: ""))
+                                .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(themeManager.textColor)
-                            Text("Get timely reminders for plant care and important alerts")
-                                .font(.system(size: 15)) // Plus grand
+                            
+                            Text(NSLocalizedString("NOTIF_HEADER_SUBTITLE", comment: ""))
+                                .font(.system(size: 15))
                                 .foregroundColor(themeManager.secondaryTextColor)
                         }
                         .padding(.horizontal, 16)
                         .padding(.top, 18)
                         
-                        // Main notifications toggle (Uniformisé avec le style de carte en verre-morphisme)
+                        // Main notifications toggle
                         notificationToggleCard(
                             icon: "bell.badge.fill",
                             iconColor: .green,
-                            title: "Enable Notifications",
-                            subtitle: "Receive all notifications and reminders",
+                            title: NSLocalizedString("NOTIF_MAIN_TOGGLE_TITLE", comment: ""),
+                            subtitle: NSLocalizedString("NOTIF_MAIN_TOGGLE_SUBTITLE", comment: ""),
                             isOn: $notificationsEnabled
                         )
-                        .cornerRadius(18) // Coins uniformes
+                        .cornerRadius(18)
                         .padding(.horizontal, 16)
 
                         if notificationsEnabled {
                             VStack(spacing: 16) {
-                                
-                                // Watering reminders section
+                                // Watering reminders
                                 wateringRemindersCard()
                                     .padding(.horizontal, 16)
 
                                 // Disease & pest alerts
                                 notificationToggleCard(
-                                    icon: "ant.fill", // Icône plus spécifique aux maladies/nuisibles
+                                    icon: "ant.fill",
                                     iconColor: .orange,
-                                    title: "Disease & Pest Alerts",
-                                    subtitle: "Alert me about potential plant diseases",
+                                    title: NSLocalizedString("NOTIF_DISEASE_TITLE", comment: ""),
+                                    subtitle: NSLocalizedString("NOTIF_DISEASE_SUBTITLE", comment: ""),
                                     isOn: $diseaseAlerts
                                 )
                                 .padding(.horizontal, 16)
                                 
                                 // Weather alerts
                                 notificationToggleCard(
-                                    icon: "cloud.drizzle.fill", // Icône plus adaptée à la météo
+                                    icon: "cloud.drizzle.fill",
                                     iconColor: .blue,
-                                    title: "Weather Alerts",
-                                    subtitle: "Get notified about weather changes",
+                                    title: NSLocalizedString("NOTIF_WEATHER_TITLE", comment: ""),
+                                    subtitle: NSLocalizedString("NOTIF_WEATHER_SUBTITLE", comment: ""),
                                     isOn: $weatherAlerts
                                 )
                                 .padding(.horizontal, 16)
 
                                 // Seasonal tips
                                 notificationToggleCard(
-                                    icon: "sun.max.fill", // Icône plus adaptée aux saisons
+                                    icon: "sun.max.fill",
                                     iconColor: .yellow,
-                                    title: "Seasonal Tips",
-                                    subtitle: "Receive seasonal gardening advice",
+                                    title: NSLocalizedString("NOTIF_SEASONAL_TITLE", comment: ""),
+                                    subtitle: NSLocalizedString("NOTIF_SEASONAL_SUBTITLE", comment: ""),
                                     isOn: $seasonalTips
                                 )
                                 .padding(.horizontal, 16)
                             }
                             
-                            // Info card (Utiliser un style de carte plus grand)
+                            // Info card
                             VStack(alignment: .leading, spacing: 10) {
                                 HStack(spacing: 10) {
                                     Image(systemName: "info.circle.fill")
                                         .foregroundColor(.green)
                                         .font(.system(size: 18))
-                                    Text("Manage in Device Settings")
+                                    
+                                    Text(NSLocalizedString("NOTIF_INFO_TITLE", comment: ""))
                                         .font(.system(size: 16, weight: .semibold))
                                         .foregroundColor(themeManager.textColor)
+                                    
                                     Spacer()
                                 }
-                                Text("For full control, you can also manage notification permissions directly in your device's Settings app.")
+                                
+                                Text(NSLocalizedString("NOTIF_INFO_SUBTITLE", comment: ""))
                                     .font(.system(size: 13))
                                     .foregroundColor(themeManager.secondaryTextColor)
                             }
@@ -121,15 +124,17 @@ struct NotificationsView: View {
                             )
                             .padding(.horizontal, 16)
                         } else {
-                            // Notifications disabled message (Uniformisé avec le style de carte)
+                            // Notifications disabled card
                             VStack(alignment: .center, spacing: 10) {
                                 Image(systemName: "bell.slash.fill")
-                                    .font(.system(size: 36)) // Plus grand
+                                    .font(.system(size: 36))
                                     .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
-                                Text("Notifications Disabled")
-                                    .font(.system(size: 18, weight: .bold)) // Plus audacieux
+                                
+                                Text(NSLocalizedString("NOTIF_DISABLED_TITLE", comment: ""))
+                                    .font(.system(size: 18, weight: .bold))
                                     .foregroundColor(themeManager.textColor)
-                                Text("Enable notifications above to stay updated on your plant care and alerts.")
+                                
+                                Text(NSLocalizedString("NOTIF_DISABLED_SUBTITLE", comment: ""))
                                     .font(.system(size: 14))
                                     .foregroundColor(themeManager.secondaryTextColor)
                                     .multilineTextAlignment(.center)
@@ -153,34 +158,46 @@ struct NotificationsView: View {
         .interactiveDismissDisabled()
     }
     
-    // MARK: - Toggle Card Component (Style uniformisé)
-    private func notificationToggleCard(icon: String, iconColor: Color, title: String, subtitle: String, isOn: Binding<Bool>) -> some View {
+    // MARK: - Toggle Card Component
+    
+    private func notificationToggleCard(
+        icon: String,
+        iconColor: Color,
+        title: String,
+        subtitle: String,
+        isOn: Binding<Bool>
+    ) -> some View {
         HStack {
             Image(systemName: icon)
                 .foregroundColor(iconColor)
                 .font(.system(size: 20))
                 .frame(width: 28)
+            
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(themeManager.textColor)
+                
                 Text(subtitle)
                     .font(.system(size: 13))
                     .foregroundColor(themeManager.secondaryTextColor)
             }
+            
             Spacer()
+            
             Toggle("", isOn: isOn)
                 .labelsHidden()
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 18) // Uniformisation des coins
+            RoundedRectangle(cornerRadius: 18)
                 .fill(Color.gray.opacity(0.12))
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
         )
     }
     
     // MARK: - Watering Reminders Card
+    
     private func wateringRemindersCard() -> some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -188,40 +205,55 @@ struct NotificationsView: View {
                     .foregroundColor(.cyan)
                     .font(.system(size: 20))
                     .frame(width: 28)
+                
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Watering Reminders")
+                    Text(NSLocalizedString("NOTIF_WATERING_TITLE", comment: ""))
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(themeManager.textColor)
-                    Text("Get reminded when your plants need water")
+                    
+                    Text(NSLocalizedString("NOTIF_WATERING_SUBTITLE", comment: ""))
                         .font(.system(size: 13))
                         .foregroundColor(themeManager.secondaryTextColor)
                 }
+                
                 Spacer()
+                
                 Toggle("", isOn: $wateringReminders)
                     .labelsHidden()
             }
 
             if wateringReminders {
                 VStack(alignment: .leading, spacing: 10) {
-                    Divider().background(Color.white.opacity(0.1)).padding(.horizontal, -16) // Séparateur de contenu
+                    Divider()
+                        .background(Color.white.opacity(0.1))
+                        .padding(.horizontal, -16)
                     
                     HStack {
-                        Text("Frequency")
+                        Text(NSLocalizedString("NOTIF_WATERING_FREQUENCY_TITLE", comment: ""))
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(themeManager.textColor)
+                        
                         Spacer()
-                        Text("Every \(Int(wateringFrequency)) day\(Int(wateringFrequency) > 1 ? "s" : "")")
-                            .font(.system(size: 14, weight: .bold)) // Plus audacieux
+                        
+                        let days = Int(wateringFrequency)
+                        let key = days > 1
+                            ? "NOTIF_WATERING_FREQUENCY_FORMAT_PLURAL"
+                            : "NOTIF_WATERING_FREQUENCY_FORMAT_SINGULAR"
+                        
+                        Text(String(format: NSLocalizedString(key, comment: ""), days))
+                            .font(.system(size: 14, weight: .bold))
                             .foregroundColor(.cyan)
                     }
                     
                     HStack(spacing: 8) {
-                        Text("1d")
+                        Text(NSLocalizedString("NOTIF_WATERING_MIN_LABEL", comment: ""))
                             .font(.caption2)
                             .foregroundColor(themeManager.secondaryTextColor)
+                        
                         Slider(value: $wateringFrequency, in: 1...14, step: 1)
-                            .tint(.cyan) // Couleur d'accentuation
-                        Text("14d")
+                            .tint(.cyan)
+                        
+                        Text(NSLocalizedString("NOTIF_WATERING_MAX_LABEL", comment: ""))
                             .font(.caption2)
                             .foregroundColor(themeManager.secondaryTextColor)
                     }
@@ -231,7 +263,7 @@ struct NotificationsView: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 18) // Uniformisation des coins
+            RoundedRectangle(cornerRadius: 18)
                 .fill(Color.gray.opacity(0.12))
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
         )

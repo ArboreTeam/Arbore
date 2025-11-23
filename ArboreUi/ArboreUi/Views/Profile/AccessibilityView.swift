@@ -11,7 +11,7 @@ struct AccessibilityView: View {
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Top bar - Uniforme
+                // Top bar
                 HStack {
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
@@ -19,7 +19,7 @@ struct AccessibilityView: View {
                             .foregroundColor(themeManager.textColor)
                     }
                     Spacer()
-                    Text("Accessibility")
+                    Text(NSLocalizedString("ACCESSIBILITY_TITLE", comment: "Accessibility screen title"))
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(themeManager.textColor)
                     Spacer()
@@ -27,29 +27,29 @@ struct AccessibilityView: View {
                 }
                 .frame(height: 48)
                 .padding(.horizontal, 16)
-                .background(themeManager.backgroundColor) // Assurer un fond uni pour la barre
+                .background(themeManager.backgroundColor)
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) { // Augmentation de l'espacement
+                    VStack(alignment: .leading, spacing: 24) {
                         
                         // Header text
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Adapt Your Experience")
-                                .font(.system(size: 28, weight: .bold)) // Plus grand
+                            Text(NSLocalizedString("ACCESSIBILITY_HEADER_TITLE", comment: "Accessibility header title"))
+                                .font(.system(size: 28, weight: .bold))
                                 .foregroundColor(themeManager.textColor)
                             
-                            Text("We follow your device's accessibility settings to ensure the best experience.")
+                            Text(NSLocalizedString("ACCESSIBILITY_HEADER_SUBTITLE", comment: "Accessibility header subtitle"))
                                 .font(.system(size: 15))
                                 .foregroundColor(themeManager.secondaryTextColor)
                         }
                         .padding(.top, 18)
                         
-                        // System settings card (Bouton d'action)
+                        // System settings card
                         systemSettingsCard
                         
-                        // Features list (Glassmorphism card)
+                        // Features list
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Supported System Features")
+                            Text(NSLocalizedString("ACCESSIBILITY_FEATURES_SECTION_TITLE", comment: "Supported system features title"))
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(themeManager.secondaryTextColor)
                                 .padding(.leading, 8)
@@ -65,26 +65,27 @@ struct AccessibilityView: View {
         }
     }
     
-    // MARK: - System settings card (Refonte en bouton de style uniforme)
+    // MARK: - System settings card
+    
     private var systemSettingsCard: some View {
         Button(action: openSystemAccessibilitySettings) {
             HStack(spacing: 14) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 14) // Carré arrondi
+                    RoundedRectangle(cornerRadius: 14)
                         .fill(Color.blue.opacity(0.18))
-                        .frame(width: 48, height: 48) // Plus grand
+                        .frame(width: 48, height: 48)
                     
                     Image(systemName: "gearshape.fill")
-                        .font(.system(size: 22, weight: .bold)) // Plus grand
-                        .foregroundColor(.blue) // Couleur d'accentuation
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.blue)
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Open Device Settings")
-                        .font(.system(size: 17, weight: .semibold)) // Plus grand
+                    Text(NSLocalizedString("ACCESSIBILITY_OPEN_SETTINGS_TITLE", comment: "Open device settings button title"))
+                        .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(themeManager.textColor)
                     
-                    Text("We apply system accessibility features. Configure them in device settings.")
+                    Text(NSLocalizedString("ACCESSIBILITY_OPEN_SETTINGS_SUBTITLE", comment: "Open device settings subtitle"))
                         .font(.system(size: 14))
                         .foregroundColor(themeManager.secondaryTextColor)
                         .fixedSize(horizontal: false, vertical: true)
@@ -99,31 +100,32 @@ struct AccessibilityView: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 18) // Coins uniformes
+            RoundedRectangle(cornerRadius: 18)
                 .fill(Color.gray.opacity(0.12))
                 .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
         )
-        .cornerRadius(18) // Coins uniformes
+        .cornerRadius(18)
         .buttonStyle(.plain)
     }
     
-    // MARK: - Features card (Liste plus propre)
+    // MARK: - Features card
+    
     private var featuresCard: some View {
         VStack(spacing: 0) {
             featureRow(
-                icon: "waveform.circle.fill", // Nouvelle icône plus moderne
+                icon: "waveform.circle.fill",
                 iconColor: .orange,
-                title: "VoiceOver (Screen Reader)",
-                subtitle: "Audio descriptions of text and visual elements"
+                titleKey: "ACCESSIBILITY_FEATURE_VOICEOVER_TITLE",
+                subtitleKey: "ACCESSIBILITY_FEATURE_VOICEOVER_SUBTITLE"
             )
             
             divider
             
             featureRow(
-                icon: "rectangle.and.text.magnifyingglass", // Nouvelle icône
+                icon: "rectangle.and.text.magnifyingglass",
                 iconColor: .purple,
-                title: "Dynamic Type (Text Size)",
-                subtitle: "The app adapts to your preferred text size for readability"
+                titleKey: "ACCESSIBILITY_FEATURE_DYNAMICTYPE_TITLE",
+                subtitleKey: "ACCESSIBILITY_FEATURE_DYNAMICTYPE_SUBTITLE"
             )
             
             divider
@@ -131,17 +133,17 @@ struct AccessibilityView: View {
             featureRow(
                 icon: "circle.lefthalf.filled",
                 iconColor: .yellow,
-                title: "Increased Contrast",
-                subtitle: "Adjusts colour contrast for better visibility"
+                titleKey: "ACCESSIBILITY_FEATURE_CONTRAST_TITLE",
+                subtitleKey: "ACCESSIBILITY_FEATURE_CONTRAST_SUBTITLE"
             )
             
             divider
             
             featureRow(
-                icon: "hand.tap.fill", // Nouvelle icône
+                icon: "hand.tap.fill",
                 iconColor: .teal,
-                title: "Reduced Motion",
-                subtitle: "Reduces motion and visual effects for comfort"
+                titleKey: "ACCESSIBILITY_FEATURE_REDUCEDMOTION_TITLE",
+                subtitleKey: "ACCESSIBILITY_FEATURE_REDUCEDMOTION_SUBTITLE"
             )
         }
         .background(
@@ -159,7 +161,7 @@ struct AccessibilityView: View {
     }
     
     /// Lignes descriptives (non cliquables, pas de flèche)
-    private func featureRow(icon: String, iconColor: Color, title: String, subtitle: String) -> some View {
+    private func featureRow(icon: String, iconColor: Color, titleKey: String, subtitleKey: String) -> some View {
         HStack(spacing: 14) {
             ZStack {
                 Circle()
@@ -172,11 +174,11 @@ struct AccessibilityView: View {
             }
             
             VStack(alignment: .leading, spacing: 3) {
-                Text(title)
+                Text(NSLocalizedString(titleKey, comment: "Accessibility feature title"))
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(themeManager.textColor)
                 
-                Text(subtitle)
+                Text(NSLocalizedString(subtitleKey, comment: "Accessibility feature subtitle"))
                     .font(.system(size: 13))
                     .foregroundColor(themeManager.secondaryTextColor)
                     .fixedSize(horizontal: false, vertical: true)
@@ -191,7 +193,6 @@ struct AccessibilityView: View {
     // MARK: - Helpers
     
     private func openSystemAccessibilitySettings() {
-        // Envoie l'utilisateur aux paramètres de l'application (le plus que l'on puisse faire en général)
         guard let url = URL(string: UIApplication.openSettingsURLString),
               UIApplication.shared.canOpenURL(url) else { return }
         UIApplication.shared.open(url)

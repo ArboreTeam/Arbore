@@ -4,8 +4,8 @@ struct AboutUsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) var dismiss
     
-    // Simuler la version de l'application (pour la clé PROFILE_VERSION)
-    private let appVersion = "1.0.0" 
+    // Version de l'application
+    private let appVersion = "1.0.0"
     private let supportEmail = "support@arbore.app"
 
     var body: some View {
@@ -14,7 +14,7 @@ struct AboutUsView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top bar with close button - Uniforme
+                // MARK: - Top Bar
                 HStack {
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
@@ -22,8 +22,8 @@ struct AboutUsView: View {
                             .foregroundColor(themeManager.textColor)
                     }
                     Spacer()
-                    // Utilisation de la clé PROFILE_ABOUT pour le titre
-                    Text("PROFILE_ABOUT") 
+                    // Titre localisé
+                    Text(NSLocalizedString("PROFILE_ABOUT", comment: "About Arbore title"))
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(themeManager.textColor)
                     Spacer()
@@ -34,28 +34,28 @@ struct AboutUsView: View {
                 .background(themeManager.backgroundColor)
 
                 ScrollView {
-                    VStack(spacing: 24) { // Augmentation de l'espacement
+                    VStack(spacing: 24) {
                         
-                        // MARK: - Header Card (Info de l'application)
+                        // MARK: - Header Card
                         VStack(spacing: 16) {
                             Image(systemName: "leaf.fill")
-                                .font(.system(size: 52)) 
+                                .font(.system(size: 52))
                                 .foregroundColor(.green)
 
                             VStack(spacing: 6) {
-                                Text("Arbore") // Nom de l'app, souvent laissé en dur
+                                Text("Arbore") // Nom de l'app
                                     .font(.system(size: 32, weight: .heavy))
                                     .foregroundColor(themeManager.textColor)
 
-                                // Utilisation de String(format:) pour la version
-                                Text(String(format: NSLocalizedString("PROFILE_VERSION", comment: ""), appVersion)) 
+                                // Version localisée avec format
+                                Text(String(format: NSLocalizedString("PROFILE_VERSION", comment: ""), appVersion))
                                     .font(.system(size: 15, weight: .bold))
                                     .foregroundColor(.green)
                             }
 
-                            // Clé spécifique à l'application
-                            Text("ABOUT_APP_SLOGAN") 
-                                .font(.system(size: 15)) 
+                            // Slogan localisé
+                            Text(NSLocalizedString("ABOUT_APP_SLOGAN", comment: "App slogan"))
+                                .font(.system(size: 15))
                                 .foregroundColor(themeManager.secondaryTextColor)
                                 .multilineTextAlignment(.center)
                         }
@@ -69,19 +69,19 @@ struct AboutUsView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 20)
 
-                        // MARK: - About Section (Description générale)
+                        // MARK: - About Section
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(spacing: 12) {
                                 Image(systemName: "info.circle.fill")
                                     .foregroundColor(.green)
                                     .font(.system(size: 20))
-                                Text("ABOUT_SECTION_TITLE") // LOCALISÉ
+                                Text(NSLocalizedString("ABOUT_SECTION_TITLE", comment: "About section title"))
                                     .font(.system(size: 17, weight: .bold))
                                     .foregroundColor(themeManager.textColor)
                                 Spacer()
                             }
 
-                            Text("ABOUT_SECTION_DESCRIPTION") // LOCALISÉ (longue description)
+                            Text(NSLocalizedString("ABOUT_SECTION_DESCRIPTION", comment: "About section description"))
                                 .font(.system(size: 14))
                                 .foregroundColor(themeManager.textColor)
                                 .lineSpacing(4)
@@ -98,21 +98,28 @@ struct AboutUsView: View {
                         // MARK: - Features Section
                         VStack(alignment: .leading, spacing: 14) {
                             HStack(spacing: 12) {
-                                Image(systemName: "sparkles.square.fill") 
+                                Image(systemName: "sparkles.square.fill")
                                     .foregroundColor(.green)
                                     .font(.system(size: 20))
-                                Text("FEATURES_SECTION_TITLE") // LOCALISÉ
+                                Text(NSLocalizedString("FEATURES_SECTION_TITLE", comment: "Features section title"))
                                     .font(.system(size: 17, weight: .bold))
                                     .foregroundColor(themeManager.textColor)
                                 Spacer()
                             }
 
                             VStack(alignment: .leading, spacing: 12) {
-                                // Les FeatureRow doivent utiliser des clés (voir la structure modifiée ci-dessous)
-                                FeatureRow(icon: "camera.viewfinder", titleKey: "FEATURE_ID_TITLE", descriptionKey: "FEATURE_ID_DESC")
-                                FeatureRow(icon: "cube.fill", titleKey: "FEATURE_3D_TITLE", descriptionKey: "FEATURE_3D_DESC")
-                                FeatureRow(icon: "bell.badge.fill", titleKey: "FEATURE_NOTIF_TITLE", descriptionKey: "FEATURE_NOTIF_DESC")
-                                FeatureRow(icon: "leaf.fill", titleKey: "FEATURE_CARE_TITLE", descriptionKey: "FEATURE_CARE_DESC")
+                                FeatureRow(icon: "camera.viewfinder",
+                                           titleKey: "FEATURE_ID_TITLE",
+                                           descriptionKey: "FEATURE_ID_DESC")
+                                FeatureRow(icon: "cube.fill",
+                                           titleKey: "FEATURE_3D_TITLE",
+                                           descriptionKey: "FEATURE_3D_DESC")
+                                FeatureRow(icon: "bell.badge.fill",
+                                           titleKey: "FEATURE_NOTIF_TITLE",
+                                           descriptionKey: "FEATURE_NOTIF_DESC")
+                                FeatureRow(icon: "leaf.fill",
+                                           titleKey: "FEATURE_CARE_TITLE",
+                                           descriptionKey: "FEATURE_CARE_DESC")
                             }
                         }
                         .padding(18)
@@ -130,20 +137,20 @@ struct AboutUsView: View {
                                 Image(systemName: "envelope.fill")
                                     .foregroundColor(.green)
                                     .font(.system(size: 20))
-                                Text("CONTACT_SECTION_TITLE") // LOCALISÉ
+                                Text(NSLocalizedString("CONTACT_SECTION_TITLE", comment: "Contact section title"))
                                     .font(.system(size: 17, weight: .bold))
                                     .foregroundColor(themeManager.textColor)
                                 Spacer()
                             }
 
-                            Text("CONTACT_SECTION_SUBTITLE") // LOCALISÉ
+                            Text(NSLocalizedString("CONTACT_SECTION_SUBTITLE", comment: "Contact section subtitle"))
                                 .font(.system(size: 14))
                                 .foregroundColor(themeManager.secondaryTextColor)
 
                             Link(destination: URL(string: "mailto:\(supportEmail)") ?? URL(fileURLWithPath: "")) {
                                 HStack(spacing: 8) {
                                     Image(systemName: "paperplane.fill")
-                                    Text("CONTACT_BUTTON") // LOCALISÉ
+                                    Text(NSLocalizedString("CONTACT_BUTTON", comment: "Contact button"))
                                 }
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.black)
@@ -163,10 +170,10 @@ struct AboutUsView: View {
 
                         // MARK: - Footer
                         VStack(alignment: .center, spacing: 6) {
-                            Text("FOOTER_MADEMOTTO") // LOCALISÉ
+                            Text(NSLocalizedString("FOOTER_MADEMOTTO", comment: "Footer motto"))
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(themeManager.secondaryTextColor)
-                            Text("FOOTER_COPYRIGHT") // LOCALISÉ
+                            Text(NSLocalizedString("FOOTER_COPYRIGHT", comment: "Footer copyright"))
                                 .font(.system(size: 13))
                                 .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
                         }
@@ -180,25 +187,26 @@ struct AboutUsView: View {
     }
 }
 
-// MARK: - Feature Row Component (MIS À JOUR POUR LA LOCALISATION)
+// MARK: - Feature Row (Composant Localisé)
 struct FeatureRow: View {
     @EnvironmentObject var themeManager: ThemeManager
     let icon: String
-    let titleKey: LocalizedStringKey // CHANGÉ
-    let descriptionKey: LocalizedStringKey // CHANGÉ
+    let titleKey: String
+    let descriptionKey: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) { 
+        HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon)
                 .foregroundColor(.green)
-                .font(.system(size: 20, weight: .semibold)) 
+                .font(.system(size: 20, weight: .semibold))
                 .frame(width: 24)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(titleKey) // LOCALISÉ
-                    .font(.system(size: 15, weight: .semibold)) 
+                Text(NSLocalizedString(titleKey, comment: "Feature title"))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(themeManager.textColor)
-                Text(descriptionKey) // LOCALISÉ
+                
+                Text(NSLocalizedString(descriptionKey, comment: "Feature description"))
                     .font(.system(size: 13))
                     .foregroundColor(themeManager.secondaryTextColor)
                     .lineLimit(2)

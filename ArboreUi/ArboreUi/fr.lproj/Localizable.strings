@@ -1,36 +1,36 @@
 "my_garden_title" = "Mon jardin";
-"my_garden_description" = "Voici la page vous permettant de gérer votre jardin";
+"my_garden_description" = "Ici, tu peux gérer ton jardin";
 "appearance_title" = "Apparence";
 "language_title" = "Langue";
 "dark_mode" = "Mode sombre";
 "text_size" = "Taille du texte";
-"color_adjustments" = "Filtres de couleur";
-"display_mode" = "Mode d'affichage";
+"color_adjustments" = "Ajustements de couleur";
+"display_mode" = "Mode d’affichage";
 
-//HomeView
+// HomeView
 "HOME_GREETING" = "Bonjour 👋";
 "HOME_DEFAULT_USER" = "Ami des plantes";
 "HOME_TITLE_ERROR" = "Erreur de connexion";
 "HOME_BUTTON_SCAN" = "Scanner une plante";
 "HOME_BUTTON_SUBTITLE" = "Découvre instantanément";
 "HOME_ACTION_TITLE" = "Actions rapides";
-"REMINDER_TITLE" = "Rappel d'arrosage";
-"REMINDER_SUBTITLE" = "N'oublie pas d'arroser ton %@ aujourd'hui !"; // Utilisation de %@ pour le nom de la plante
+"REMINDER_TITLE" = "Rappel d’arrosage";
+"REMINDER_SUBTITLE" = "N’oublie pas d’arroser ton/ta %@ aujourd’hui !";
 "SECTION_TITLE_POPULAR" = "🌱 Plantes populaires";
 "SECTION_SUBTITLE_POPULAR" = "Les plus appréciées";
-"SECTION_TITLE_WATERING" = "💧 Plantes à arroser bientôt";
-"SECTION_TITLE_RECENT" = "🔍 Récemment consultées";
+"SECTION_TITLE_WATERING" = "💧 Prochaines plantes à arroser";
+"SECTION_TITLE_RECENT" = "🔍 Vu récemment";
 "SECTION_SUBTITLE_RECENT" = "Tes dernières découvertes";
-"ACTION_GARDEN" = "Mon Jardin";
+"ACTION_GARDEN" = "Mon jardin";
 "ACTION_GARDEN_SUB" = "Gérer mes plantes";
 "ACTION_EXPLORE" = "Explorer";
-"ACTION_EXPLORE_SUB" = "Découvrir nouvelles plantes";
-"ACTION_PLANNING" = "Planning";
-"ACTION_PLANNING_SUB" = "Calendrier d'entretien";
+"ACTION_EXPLORE_SUB" = "Découvrir de nouvelles plantes";
+"ACTION_PLANNING" = "Planification";
+"ACTION_PLANNING_SUB" = "Calendrier d’entretien";
 
-/* Profile / Settings */
+// Profile
 "PROFILE_ACCOUNT_TITLE" = "Compte";
-"PROFILE_PERSONAL_DETAILS" = "Détails personnels";
+"PROFILE_PERSONAL_DETAILS" = "Informations personnelles";
 "PROFILE_CHANGE_PASSWORD" = "Changer le mot de passe";
 "PROFILE_PRIVACY_POLICY" = "Politique de confidentialité";
 "PROFILE_TERMS" = "Conditions générales";
@@ -43,35 +43,442 @@
 "PROFILE_NOTIFICATIONS" = "Notifications";
 "PROFILE_APPEARANCE" = "Apparence";
 
-"PROFILE_APP_INFO" = "Informations sur l'application";
+"PROFILE_APP_INFO" = "Informations sur l’app";
 "PROFILE_ACCESSIBILITY" = "Accessibilité";
-"PROFILE_ABOUT" = "À propos d'Arbore";
+"PROFILE_ABOUT" = "À propos d’Arbore";
 
 "PROFILE_VERSION" = "Version %@";
-"PROFILE_LOGOUT" = "Déconnexion";
+"PROFILE_LOGOUT" = "Se déconnecter";
 "PROFILE_USER_DEFAULT" = "Utilisateur";
 
-/* Subscription CTA */
+// Subscription CTA
 "PROFILE_CTA_TRY_PREMIUM" = "Essayer Premium";
 "PROFILE_CTA_UPGRADE_METAL" = "Passer à Metal";
 "PROFILE_CTA_UPGRADE_ULTRA" = "Passer à Ultra";
-"PROFILE_CTA_MANAGE" = "Gérer l'abonnement";
+"PROFILE_CTA_MANAGE" = "Gérer l’abonnement";
 
-/* À Propos (AboutUsView) */
-"ABOUT_APP_SLOGAN" = "Votre compagnon de jardinage intelligent";
-"ABOUT_SECTION_TITLE" = "À propos d'Arbore";
-"ABOUT_SECTION_DESCRIPTION" = "Arbore est un compagnon de jardinage intelligent conçu pour vous aider à cultiver, gérer et entretenir vos plantes facilement. Que vous soyez un jardinier expérimenté ou débutant, Arbore fournit des recommandations personnalisées, une surveillance en temps réel et des conseils d'experts.";
+// About Us View
+"ABOUT_APP_SLOGAN" = "Ton compagnon de jardinage intelligent";
+"ABOUT_SECTION_TITLE" = "À propos d’Arbore";
+"ABOUT_SECTION_DESCRIPTION" = "Arbore est un compagnon de jardinage intelligent conçu pour t’aider à cultiver, gérer et entretenir tes plantes facilement. Que tu sois jardinier confirmé ou débutant, Arbore fournit des recommandations personnalisées, un suivi en temps réel et des conseils d’experts.";
+
 "FEATURES_SECTION_TITLE" = "Fonctionnalités clés";
-"FEATURE_ID_TITLE" = "Identification des plantes";
-"FEATURE_ID_DESC" = "Identifiez instantanément les plantes grâce à la numérisation assistée par IA";
+"FEATURE_ID_TITLE" = "Identification de plantes";
+"FEATURE_ID_DESC" = "Identifie les plantes instantanément grâce au scan assisté par IA";
 "FEATURE_3D_TITLE" = "Conception de jardin 3D";
-"FEATURE_3D_DESC" = "Planifiez et visualisez votre jardin en 3D";
+"FEATURE_3D_DESC" = "Planifie et visualise ton jardin en 3D";
 "FEATURE_NOTIF_TITLE" = "Notifications intelligentes";
-"FEATURE_NOTIF_DESC" = "Recevez des rappels basés sur la météo et les saisons";
-"FEATURE_CARE_TITLE" = "Conseils d'entretien";
-"FEATURE_CARE_DESC" = "Recevez des conseils d'entretien personnalisés pour vos plantes";
+"FEATURE_NOTIF_DESC" = "Reçois des rappels en fonction de la météo et des saisons";
+"FEATURE_CARE_TITLE" = "Guide d’entretien";
+"FEATURE_CARE_DESC" = "Reçois des conseils d’entretien personnalisés pour tes plantes";
+
 "CONTACT_SECTION_TITLE" = "Nous contacter";
-"CONTACT_SECTION_SUBTITLE" = "Vous avez des questions ou des commentaires ? Nous serions ravis de vous entendre.";
+"CONTACT_SECTION_SUBTITLE" = "Des questions ou des retours ? Nous serions ravis d’en parler avec toi.";
 "CONTACT_BUTTON" = "Contacter le support";
+
 "FOOTER_MADEMOTTO" = "Fait avec 🌿 pour les amoureux des plantes";
 "FOOTER_COPYRIGHT" = "© 2025 Arbore. Tous droits réservés.";
+
+// Profile Components
+"PLAN_TITLE_STANDARD" = "Forfait Standard";
+"PLAN_TITLE_FORMAT" = "Forfait %@";
+"PLAN_FREE" = "Gratuit";
+"PLAN_PAID" = "Payant";
+"PLAN_ACTIVE" = "Actif";
+
+"SUBSCRIPTION_DESCRIPTION_STANDARD" = "Fonctionnalités de base. Scans limités.";
+"SUBSCRIPTION_DESCRIPTION_PREMIUM" = "Abonnement Premium actif. Scans illimités et plus encore.";
+"SUBSCRIPTION_DESCRIPTION_METAL" = "Abonnement Metal actif. Analyses et suivi avancés.";
+"SUBSCRIPTION_DESCRIPTION_ULTRA" = "Abonnement Ultra actif. Expérience complète et support étendu.";
+
+// small status/badge
+"SUBSCRIPTION_BADGE_ACTIVE" = "Actif";
+
+
+// Accessibilité
+"ACCESSIBILITY_TITLE" = "Accessibilité";
+
+"ACCESSIBILITY_HEADER_TITLE" = "Adapte ton expérience";
+"ACCESSIBILITY_HEADER_SUBTITLE" = "Nous suivons les réglages d’accessibilité de ton appareil pour t’offrir la meilleure expérience.";
+
+"ACCESSIBILITY_OPEN_SETTINGS_TITLE" = "Ouvrir les réglages de l’appareil";
+"ACCESSIBILITY_OPEN_SETTINGS_SUBTITLE" = "Nous appliquons les fonctionnalités d’accessibilité du système. Tu peux les configurer dans les réglages de ton appareil.";
+
+"ACCESSIBILITY_FEATURES_SECTION_TITLE" = "Fonctionnalités système prises en charge";
+
+"ACCESSIBILITY_FEATURE_VOICEOVER_TITLE" = "VoiceOver (lecteur d’écran)";
+"ACCESSIBILITY_FEATURE_VOICEOVER_SUBTITLE" = "Descriptions audio du texte et des éléments visuels.";
+
+"ACCESSIBILITY_FEATURE_DYNAMICTYPE_TITLE" = "Texte dynamique (taille du texte)";
+"ACCESSIBILITY_FEATURE_DYNAMICTYPE_SUBTITLE" = "L’app s’adapte à la taille de texte que tu as choisie pour améliorer la lisibilité.";
+
+"ACCESSIBILITY_FEATURE_CONTRAST_TITLE" = "Contraste renforcé";
+"ACCESSIBILITY_FEATURE_CONTRAST_SUBTITLE" = "Ajuste le contraste des couleurs pour une meilleure visibilité.";
+
+"ACCESSIBILITY_FEATURE_REDUCEDMOTION_TITLE" = "Réduire les animations";
+"ACCESSIBILITY_FEATURE_REDUCEDMOTION_SUBTITLE" = "Réduit les mouvements et effets visuels pour plus de confort.";
+
+
+// Apparence
+"APPEARANCE_TITLE" = "Apparence";
+
+"APPEARANCE_APP_ICON" = "Icône de l’app";
+"APPEARANCE_APP_ICON_STANDARD" = "Standard";
+
+"APPEARANCE_THEME" = "Thème";
+"APPEARANCE_THEME_CURRENT" = "Sombre · Glow";
+"APPEARANCE_THEME_DESCRIPTION" = "Choisis l’apparence de l’app. Tu peux suivre le système ou imposer le mode clair/sombre.";
+"APPEARANCE_THEME_SYSTEM" = "Suivre le système";
+"APPEARANCE_THEME_LIGHT" = "Clair";
+"APPEARANCE_THEME_DARK" = "Sombre";
+
+"APPEARANCE_INTERFACE" = "Interface";
+"APPEARANCE_INTERFACE_SUBTITLE" = "Boutons, animations, etc.";
+"APPEARANCE_INTERFACE_DESCRIPTION" = "Les options d’interface (style des boutons, effets de mouvement) se basent sur les réglages système. Tu peux les modifier dans les réglages de l’appareil.";
+"APPEARANCE_OPEN_DEVICE_SETTINGS" = "Ouvrir les réglages de l’appareil";
+
+"APPEARANCE_LANGUAGE" = "Langue";
+"APPEARANCE_LANGUAGE_DESCRIPTION" = "Nous utilisons la langue définie sur ton appareil. Tu peux la changer dans les réglages.";
+"APPEARANCE_LANGUAGE_BUTTON" = "M’y emmener";
+
+
+// Changement de mot de passe
+"CHANGE_PASSWORD_TITLE" = "Changer le mot de passe";
+
+"CHANGE_PASSWORD_CURRENT_TITLE" = "MOT DE PASSE ACTUEL";
+"CHANGE_PASSWORD_CURRENT_PLACEHOLDER" = "Saisis ton mot de passe actuel";
+
+"CHANGE_PASSWORD_NEW_SECTION_TITLE" = "NOUVEAU MOT DE PASSE";
+"CHANGE_PASSWORD_NEW_PLACEHOLDER" = "Saisis le nouveau mot de passe";
+"CHANGE_PASSWORD_CONFIRM_PLACEHOLDER" = "Confirme le nouveau mot de passe";
+
+"CHANGE_PASSWORD_UPDATE_BUTTON" = "Mettre à jour le mot de passe";
+
+
+// Fermeture de compte
+"CLOSE_ACCOUNT_TITLE" = "Fermer le compte";
+"CLOSE_ACCOUNT_SUBTITLE" = "Cette action est définitive et ne peut pas être annulée.";
+
+"CLOSE_ACCOUNT_WARNING_TITLE" = "Avertissement";
+"CLOSE_ACCOUNT_WARNING_TEXT" = "La fermeture de ton compte supprimera définitivement toutes tes données et contenus associés.";
+"CLOSE_ACCOUNT_WARNING_REAUTH" = "Pour des raisons de sécurité, tu dois saisir à nouveau ton e-mail et ton mot de passe avant de continuer.";
+
+"CLOSE_ACCOUNT_WHAT_HAPPENS_TITLE" = "Ce qui va se passer";
+
+"CLOSE_ACCOUNT_CONSEQUENCE_PROFILE" = "Ton profil, tes préférences et tes sauvegardes seront supprimés.";
+"CLOSE_ACCOUNT_CONSEQUENCE_UPLOADS" = "Le contenu importé (par ex. scans de plantes) sera définitivement supprimé.";
+"CLOSE_ACCOUNT_CONSEQUENCE_SIGNOUT" = "Tu seras déconnecté(e) de tous tes appareils.";
+"CLOSE_ACCOUNT_CONSEQUENCE_CLOUD" = "La synchronisation cloud sera désactivée et les données effacées de nos serveurs.";
+
+"CLOSE_ACCOUNT_READY_TITLE" = "Prêt(e) à fermer ton compte ?";
+"CLOSE_ACCOUNT_BUTTON" = "Fermer mon compte";
+
+"CLOSE_ACCOUNT_CANCEL_HINT" = "Tu as changé d’avis ? Tu peux annuler à tout moment avant de confirmer.";
+
+
+// Notifications
+"NOTIF_TITLE" = "Paramètres de notifications";
+
+"NOTIF_HEADER_TITLE" = "Reste informé(e)";
+"NOTIF_HEADER_SUBTITLE" = "Reçois des rappels ponctuels pour l’entretien de tes plantes et les alertes importantes.";
+
+"NOTIF_MAIN_TOGGLE_TITLE" = "Activer les notifications";
+"NOTIF_MAIN_TOGGLE_SUBTITLE" = "Recevoir toutes les notifications et rappels.";
+
+"NOTIF_WATERING_TITLE" = "Rappels d’arrosage";
+"NOTIF_WATERING_SUBTITLE" = "Reçois un rappel lorsque tes plantes ont besoin d’eau.";
+
+"NOTIF_WATERING_FREQUENCY_TITLE" = "Fréquence";
+"NOTIF_WATERING_FREQUENCY_FORMAT_SINGULAR" = "Tous les %d jour";
+"NOTIF_WATERING_FREQUENCY_FORMAT_PLURAL" = "Tous les %d jours";
+"NOTIF_WATERING_MIN_LABEL" = "1j";
+"NOTIF_WATERING_MAX_LABEL" = "14j";
+
+"NOTIF_DISEASE_TITLE" = "Alertes maladies et parasites";
+"NOTIF_DISEASE_SUBTITLE" = "Préviens-moi en cas de risque de maladie sur les plantes.";
+
+"NOTIF_WEATHER_TITLE" = "Alertes météo";
+"NOTIF_WEATHER_SUBTITLE" = "Reçois des notifications en cas de changement météo.";
+
+"NOTIF_SEASONAL_TITLE" = "Conseils saisonniers";
+"NOTIF_SEASONAL_SUBTITLE" = "Reçois des conseils de jardinage selon la saison.";
+
+"NOTIF_INFO_TITLE" = "Gérer dans les Réglages";
+"NOTIF_INFO_SUBTITLE" = "Pour un contrôle complet, tu peux aussi gérer les autorisations de notifications dans l’app Réglages de ton appareil.";
+
+"NOTIF_DISABLED_TITLE" = "Notifications désactivées";
+"NOTIF_DISABLED_SUBTITLE" = "Active les notifications ci-dessus pour rester informé(e) de l’entretien de tes plantes et des alertes.";
+
+
+// Détails personnels
+"PERSONAL_DETAILS_TITLE" = "Informations personnelles";
+
+"PERSONAL_DETAILS_FULLNAME_LABEL" = "NOM COMPLET";
+"PERSONAL_DETAILS_FULLNAME_PLACEHOLDER" = "Nom complet";
+
+"PERSONAL_DETAILS_PHONE_LABEL" = "NUMÉRO DE TÉLÉPHONE";
+"PERSONAL_DETAILS_PHONE_PLACEHOLDER" = "Numéro de téléphone";
+
+"PERSONAL_DETAILS_EMAIL_LABEL" = "ADRESSE E-MAIL";
+"PERSONAL_DETAILS_EMAIL_PLACEHOLDER" = "Adresse e-mail";
+
+"PERSONAL_DETAILS_ADDRESS_LABEL" = "ADRESSE";
+"PERSONAL_DETAILS_ADDRESS_PLACEHOLDER" = "Adresse";
+
+"PERSONAL_DETAILS_SAVE_BUTTON" = "Enregistrer les modifications";
+
+
+// Politique de confidentialité
+"PRIVACY_TITLE" = "Politique de confidentialité";
+
+"PRIVACY_HEADER_TITLE" = "%@ respecte ta vie privée.";
+"PRIVACY_HEADER_SUBTITLE" = "Cette politique explique quelles données nous collectons, comment nous les utilisons et les choix dont tu disposes.";
+"PRIVACY_LAST_UPDATED" = "Dernière mise à jour : %@";
+
+// Données collectées
+"PRIVACY_SECTION_DATA_TITLE" = "Données que nous collectons";
+"PRIVACY_SECTION_DATA_ITEM1" = "Identité : nom, adresse e-mail, identifiant Firebase.";
+"PRIVACY_SECTION_DATA_ITEM2" = "Utilisation : scans de plantes, préférences d’affichage, interactions dans l’app.";
+"PRIVACY_SECTION_DATA_ITEM3" = "Appareil & diagnostics : version de l’app, modèle d’appareil, journaux de crash.";
+"PRIVACY_SECTION_DATA_ITEM4" = "Contenu utilisateur : photos/visuels importés pour l’identification.";
+"PRIVACY_SECTION_DATA_ITEM5" = "Achats : historiques d’abonnement (via App Store / Play Store).";
+
+// Pourquoi nous les utilisons
+"PRIVACY_SECTION_USAGE_TITLE" = "Pourquoi nous utilisons ces données";
+"PRIVACY_SECTION_USAGE_ITEM1" = "Fournir les fonctionnalités principales de %@ (scans, recommandations, sauvegardes).";
+"PRIVACY_SECTION_USAGE_ITEM2" = "Personnaliser ton expérience (styles, notifications météo, conseils).";
+"PRIVACY_SECTION_USAGE_ITEM3" = "Améliorer la qualité (analyses d’usage, correction de bugs, sécurité).";
+"PRIVACY_SECTION_USAGE_ITEM4" = "Gérer l’abonnement et l’assistance client.";
+"PRIVACY_SECTION_USAGE_ITEM5" = "Respecter nos obligations légales.";
+
+// Base légale (RGPD)
+"PRIVACY_SECTION_LEGAL_TITLE" = "Base légale (RGPD)";
+"PRIVACY_SECTION_LEGAL_ITEM1" = "Exécution du contrat : fournir l’app et ses services.";
+"PRIVACY_SECTION_LEGAL_ITEM2" = "Intérêts légitimes : améliorer et sécuriser %@.";
+"PRIVACY_SECTION_LEGAL_ITEM3" = "Consentement : notifications, accès caméra/photos.";
+"PRIVACY_SECTION_LEGAL_ITEM4" = "Obligation légale : conservation liée à la facturation.";
+
+// Conservation
+"PRIVACY_SECTION_RETENTION_TITLE" = "Conservation";
+"PRIVACY_SECTION_RETENTION_ITEM1" = "Nous conservons tes données uniquement le temps nécessaire pour fournir le service.";
+"PRIVACY_SECTION_RETENTION_ITEM2" = "Tu peux supprimer ton compte depuis ton profil ; les données associées sont alors supprimées ou anonymisées, sauf obligation légale de conservation.";
+
+// Partage
+"PRIVACY_SECTION_SHARING_TITLE" = "Partage & destinataires";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Fournisseurs techniques : hébergement, analytics, rapports de crash.";
+"PRIVACY_SECTION_SHARING_ITEM2" = "Paiements & abonnements : App Store / Play Store.";
+"PRIVACY_SECTION_SHARING_ITEM3" = "Nous ne vendons pas tes données. Les transferts sont limités au nécessaire et encadrés par contrat.";
+
+// Tes droits
+"PRIVACY_SECTION_RIGHTS_TITLE" = "Tes droits";
+"PRIVACY_SECTION_RIGHTS_ITEM1" = "Accès, rectification, portabilité, effacement.";
+"PRIVACY_SECTION_RIGHTS_ITEM2" = "Opposition et limitation dans les cas prévus par la loi.";
+"PRIVACY_SECTION_RIGHTS_ITEM3" = "Retrait du consentement (ex : notifications) à tout moment.";
+"PRIVACY_SECTION_RIGHTS_ITEM4" = "Pour exercer tes droits, contacte-nous à : %@.";
+
+// Sécurité
+"PRIVACY_SECTION_SECURITY_TITLE" = "Sécurité";
+"PRIVACY_SECTION_SECURITY_ITEM1" = "Chiffrement en transit (HTTPS) et bonnes pratiques de sécurité.";
+"PRIVACY_SECTION_SECURITY_ITEM2" = "Accès restreint aux seules personnes habilitées.";
+"PRIVACY_SECTION_SECURITY_ITEM3" = "Sur mobile, protège ton appareil (code, Face/Touch ID).";
+
+// Enfants
+"PRIVACY_SECTION_CHILDREN_TITLE" = "Enfants";
+"PRIVACY_SECTION_CHILDREN_ITEM1" = "%@ ne vise pas les personnes de moins de 13 ans (ou l’âge légal local).";
+"PRIVACY_SECTION_CHILDREN_ITEM2" = "Si une collecte inappropriée nous est signalée, nous supprimerons les données concernées.";
+
+// Transferts internationaux
+"PRIVACY_SECTION_TRANSFERS_TITLE" = "Transferts internationaux";
+"PRIVACY_SECTION_TRANSFERS_ITEM1" = "Lorsque des données sont traitées hors UE/EEE, nous appliquons des garanties appropriées (clauses types, mesures complémentaires) conformément au RGPD.";
+
+// Contact
+"PRIVACY_CONTACT_TITLE" = "Nous contacter";
+"PRIVACY_CONTACT_SUBTITLE" = "Pour toute question, demande d’accès ou suppression de données, écris-nous.";
+
+// Pied de page
+"PRIVACY_FOOTER_TITLE" = "Modifications de cette politique";
+"PRIVACY_FOOTER_TEXT" = "Nous pouvons mettre à jour cette politique pour refléter l’évolution de nos pratiques. Toute modification importante sera indiquée dans l’app.";
+
+
+// Paramètres de confidentialité
+"PRIVACYSETTINGS_TITLE" = "Paramètres de confidentialité";
+
+"PRIVACYSETTINGS_HEADER_TITLE" = "Ta vie privée, ton contrôle";
+"PRIVACYSETTINGS_HEADER_SUBTITLE" = "Contrôle qui voit ton profil, ton activité et comment nous utilisons tes données.";
+
+// Sections
+"PRIVACYSETTINGS_SECTION_PROFILE" = "Visibilité du profil";
+"PRIVACYSETTINGS_SECTION_ACTIVITY" = "Partage d’activité";
+"PRIVACYSETTINGS_SECTION_DATASHARING" = "Partage de données";
+
+// Toggles
+"PRIVACYSETTINGS_PUBLICPROFILE_TITLE" = "Profil public";
+"PRIVACYSETTINGS_PUBLICPROFILE_SUB" = "Ton nom et ton avatar sont visibles par les autres.";
+
+"PRIVACYSETTINGS_ACTIVITY_TITLE" = "Afficher mon activité";
+"PRIVACYSETTINGS_ACTIVITY_SUB" = "Permet d’afficher tes mises à jour récentes de jardin.";
+
+"PRIVACYSETTINGS_DATASHARING_TITLE" = "Partager des données pour l’analytics";
+"PRIVACYSETTINGS_DATASHARING_SUB" = "Aide-nous à améliorer les fonctionnalités et la fiabilité. Aucun contenu personnel n’est vendu.";
+
+// Lien vers la politique
+"PRIVACYSETTINGS_READ_POLICY" = "Lire notre politique de confidentialité";
+"PRIVACYSETTINGS_READ_POLICY_SUB" = "Comprends comment nous collectons, utilisons et protégeons tes données.";
+
+// Note
+"PRIVACYSETTINGS_NOTE_TITLE" = "Note";
+"PRIVACYSETTINGS_NOTE_TEXT" = "Tu peux modifier ces paramètres à tout moment. Certains changements peuvent prendre quelques minutes pour se propager sur tous tes appareils.";
+
+
+// Conditions générales
+"TERMS_TITLE" = "Conditions générales";
+
+"TERMS_HEADER_TITLE" = "Conditions d’utilisation";
+"TERMS_HEADER_INTRO" = "Merci d’utiliser %@. Merci de lire attentivement ces Conditions : elles encadrent ton accès à l’app et son utilisation.";
+"TERMS_LAST_UPDATED" = "Dernière mise à jour : %@";
+
+// Acceptation des conditions
+"TERMS_SECTION_ACCEPT_TITLE" = "Acceptation des conditions";
+"TERMS_SECTION_ACCEPT_ITEM1" = "En créant un compte ou en utilisant %@, tu acceptes les présentes Conditions.";
+"TERMS_SECTION_ACCEPT_ITEM2" = "Si tu n’acceptes pas ces Conditions, tu ne dois pas utiliser l’app.";
+
+// Description du service
+"TERMS_SECTION_SERVICE_TITLE" = "Description du service";
+"TERMS_SECTION_SERVICE_ITEM1" = "%@ fournit des fonctionnalités liées au jardinage : scans de plantes, recommandations, visualisations, notifications et synchronisation.";
+"TERMS_SECTION_SERVICE_ITEM2" = "Certaines fonctionnalités sont payantes et accessibles via des abonnements.";
+
+// Comptes & sécurité
+"TERMS_SECTION_ACCOUNT_TITLE" = "Comptes & sécurité";
+"TERMS_SECTION_ACCOUNT_ITEM1" = "Tu es responsable de l’exactitude des informations de ton compte et de la confidentialité de tes identifiants.";
+"TERMS_SECTION_ACCOUNT_ITEM2" = "Préviens-nous immédiatement en cas d’usage non autorisé de ton compte.";
+
+// Abonnements & facturation
+"TERMS_SECTION_SUBS_TITLE" = "Abonnements & facturation";
+"TERMS_SECTION_SUBS_ITEM1" = "Les achats sont gérés par l’App Store / Play Store ; leurs conditions s’appliquent.";
+"TERMS_SECTION_SUBS_ITEM2" = "Les abonnements se renouvellent automatiquement jusqu’à annulation.";
+"TERMS_SECTION_SUBS_ITEM3" = "Les tarifs peuvent évoluer ; nous t’informerons des changements applicables.";
+
+// Essais gratuits & annulation
+"TERMS_SECTION_TRIALS_TITLE" = "Essais gratuits & annulation";
+"TERMS_SECTION_TRIALS_ITEM1" = "Les essais gratuits, lorsqu’ils sont proposés, se transforment en abonnement payant à la fin de la période, sauf annulation avant l’échéance.";
+"TERMS_SECTION_TRIALS_ITEM2" = "Tu peux annuler ton abonnement à tout moment depuis les réglages de l’App Store / Play Store.";
+
+// Contenu utilisateur
+"TERMS_SECTION_USERCONTENT_TITLE" = "Contenu utilisateur";
+"TERMS_SECTION_USERCONTENT_ITEM1" = "Tu conserves tes droits sur les photos et contenus que tu importes.";
+"TERMS_SECTION_USERCONTENT_ITEM2" = "Tu nous accordes une licence mondiale, non exclusive et révocable pour héberger, traiter et afficher ce contenu uniquement afin de fournir le service.";
+"TERMS_SECTION_USERCONTENT_ITEM3" = "Tu garantis disposer des droits nécessaires pour partager ces contenus.";
+
+// Usages interdits
+"TERMS_SECTION_FORBIDDEN_TITLE" = "Usages interdits";
+"TERMS_SECTION_FORBIDDEN_ITEM1" = "Ingénierie inverse, contournement des mesures de sécurité, usage frauduleux ou illégal.";
+"TERMS_SECTION_FORBIDDEN_ITEM2" = "Interférence avec le service, surcharge des serveurs, collecte automatisée non autorisée.";
+"TERMS_SECTION_FORBIDDEN_ITEM3" = "Publication de contenus illégaux, offensants, diffamatoires ou portant atteinte aux droits d’autrui.";
+
+// Propriété intellectuelle
+"TERMS_SECTION_IP_TITLE" = "Propriété intellectuelle";
+"TERMS_SECTION_IP_ITEM1" = "Le nom %@, son logo, l’app et son contenu (hors contenu utilisateur) sont protégés par des droits de propriété intellectuelle.";
+"TERMS_SECTION_IP_ITEM2" = "L’utilisation de l’app ne te confère aucun droit de propriété sur celle-ci.";
+
+// Vie privée
+"TERMS_SECTION_PRIVACY_TITLE" = "Vie privée";
+"TERMS_SECTION_PRIVACY_ITEM1" = "Ton utilisation est également régie par notre Politique de confidentialité.";
+"TERMS_SECTION_PRIVACY_ITEM2" = "Cette politique explique les données collectées, leurs usages et tes droits.";
+
+// Services tiers
+"TERMS_SECTION_THIRDPARTY_TITLE" = "Services tiers";
+"TERMS_SECTION_THIRDPARTY_ITEM1" = "L’app peut intégrer des services tiers (hébergement, analytics, paiements).";
+"TERMS_SECTION_THIRDPARTY_ITEM2" = "Nous ne sommes pas responsables des pratiques ou contenus de ces services tiers.";
+
+// Disponibilité & modifications
+"TERMS_SECTION_AVAILABILITY_TITLE" = "Disponibilité & modifications";
+"TERMS_SECTION_AVAILABILITY_ITEM1" = "Nous pouvons mettre à jour, suspendre ou interrompre tout ou partie du service à tout moment, avec ou sans préavis.";
+"TERMS_SECTION_AVAILABILITY_ITEM2" = "Nous ne garantissons pas une disponibilité ininterrompue.";
+
+// Limitation de responsabilité
+"TERMS_SECTION_LIABILITY_TITLE" = "Limitation de responsabilité";
+"TERMS_SECTION_LIABILITY_ITEM1" = "Dans les limites autorisées par la loi, %@ ne saurait être responsable des dommages indirects, spéciaux, accessoires ou consécutifs, ni de pertes de données ou de profits.";
+"TERMS_SECTION_LIABILITY_ITEM2" = "Ton seul recours en cas d’insatisfaction est de cesser d’utiliser l’app et, le cas échéant, d’annuler ton abonnement.";
+
+// Indemnisation
+"TERMS_SECTION_INDEMNITY_TITLE" = "Indemnisation";
+"TERMS_SECTION_INDEMNITY_ITEM1" = "Tu acceptes d’indemniser %@ pour toute réclamation résultant d’une violation de ces Conditions ou d’un usage illégal de l’app.";
+
+// Loi applicable & juridiction
+"TERMS_SECTION_LAW_TITLE" = "Loi applicable & juridiction";
+"TERMS_SECTION_LAW_ITEM1" = "Ces Conditions sont régies par le droit applicable dans ton pays de résidence si la loi locale l’impose, à défaut par le droit français.";
+"TERMS_SECTION_LAW_ITEM2" = "Tout litige sera soumis aux tribunaux compétents déterminés par ces règles.";
+
+// Contact
+"TERMS_CONTACT_TITLE" = "Nous contacter";
+"TERMS_CONTACT_SUBTITLE" = "Pour toute question ou réclamation liée à ces Conditions, contacte-nous.";
+
+// Pied de page
+"TERMS_FOOTER_TITLE" = "Mises à jour de ces Conditions";
+"TERMS_FOOTER_TEXT" = "Nous pouvons modifier ces Conditions pour refléter l’évolution de nos services et de nos obligations légales. Nous t’informerons des changements importants dans l’app.";
+
+
+// Upgrade / Plans
+"UPGRADE_TITLE" = "Mettre à niveau le forfait";
+
+// CTA
+"UPGRADE_CTA_PREMIUM" = "Rejoindre Premium";
+"UPGRADE_CTA_METAL" = "Rejoindre Metal";
+"UPGRADE_CTA_ULTRA" = "Rejoindre Ultra";
+"UPGRADE_CTA_DEFAULT" = "Rejoindre";
+
+// Support
+"UPGRADE_SUPPORT_QUESTION" = "Des questions ?";
+"UPGRADE_SUPPORT_CONTACT" = "Contacter le support";
+
+// Prix
+"UPGRADE_PREMIUM_PRICE" = "4,99 € / mois";
+"UPGRADE_METAL_PRICE" = "9,99 € / mois";
+"UPGRADE_ULTRA_PRICE" = "14,99 € / mois";
+
+// Descriptions
+"UPGRADE_PREMIUM_DESC" = "Tout ce qu’il faut pour concevoir et entretenir sans friction.";
+"UPGRADE_METAL_DESC" = "Précision et puissance pour les besoins les plus élevés.";
+"UPGRADE_ULTRA_DESC" = "L’expérience complète pour viser l’excellence.";
+
+// Détails Premium
+"UPGRADE_PREMIUM_FEATURE1" = "Scans illimités pour identifier instantanément tes plantes.";
+"UPGRADE_PREMIUM_FEATURE2" = "Projets multiples pour chaque espace (jardin, terrasse, intérieur).";
+"UPGRADE_PREMIUM_FEATURE3" = "Placement intelligent selon l’ensoleillement et les compatibilités.";
+"UPGRADE_PREMIUM_FEATURE4" = "Styles exclusifs pour des compositions harmonieuses.";
+"UPGRADE_PREMIUM_FEATURE5" = "Notifications intelligentes selon la météo et les saisons.";
+"UPGRADE_PREMIUM_FEATURE6" = "Synchronisation sécurisée entre tes appareils.";
+
+// Détails Metal
+"UPGRADE_METAL_FEATURE1" = "Plans 3D plus détaillés avec calques d’aménagement.";
+"UPGRADE_METAL_FEATURE2" = "Conseils d’entretien avancés personnalisés par espèce.";
+"UPGRADE_METAL_FEATURE3" = "Historique de croissance et suivi des interventions.";
+"UPGRADE_METAL_FEATURE4" = "Bibliothèque premium d’espèces et de styles.";
+"UPGRADE_METAL_FEATURE5" = "Analyses et traitement prioritaires.";
+
+// Détails Ultra
+"UPGRADE_ULTRA_FEATURE1" = "Guides d’aménagement étape par étape, du plan à la réalisation.";
+"UPGRADE_ULTRA_FEATURE2" = "Assistant météo proactif avec recommandations automatiques.";
+"UPGRADE_ULTRA_FEATURE3" = "Exports HD (visuels & listes) pour les achats et le partage.";
+"UPGRADE_ULTRA_FEATURE4" = "Mode collaboration (lecture seule) pour avis et validation.";
+"UPGRADE_ULTRA_FEATURE5" = "Support prioritaire avec réponses accélérées.";
+
+// Version courte pour la carte
+"UPGRADE_PREMIUM_FEATUREROW1" = "Scans de plantes illimités";
+"UPGRADE_PREMIUM_FEATUREROW2" = "Projets multiples (jardin, terrasse, intérieur)";
+"UPGRADE_PREMIUM_FEATUREROW3" = "Placement intelligent selon l’ensoleillement";
+"UPGRADE_PREMIUM_FEATUREROW4" = "Styles d’aménagement exclusifs";
+"UPGRADE_PREMIUM_FEATUREROW5" = "Notifications météo & saisonnières";
+"UPGRADE_PREMIUM_FEATUREROW6" = "Synchronisation cloud sécurisée";
+
+"UPGRADE_METAL_FEATUREROW1" = "Plans 3D détaillés avec calques";
+"UPGRADE_METAL_FEATUREROW2" = "Conseils d’entretien avancés par espèce";
+"UPGRADE_METAL_FEATUREROW3" = "Historique & suivi des interventions";
+"UPGRADE_METAL_FEATUREROW4" = "Bibliothèque premium d’espèces et de styles";
+"UPGRADE_METAL_FEATUREROW5" = "Analyses & traitement prioritaires";
+
+"UPGRADE_ULTRA_FEATUREROW1" = "Guides d’aménagement pas à pas";
+"UPGRADE_ULTRA_FEATUREROW2" = "Assistant météo proactif";
+"UPGRADE_ULTRA_FEATUREROW3" = "Exports HD : visuels & listes";
+"UPGRADE_ULTRA_FEATUREROW4" = "Mode collaboration en lecture seule";
+"UPGRADE_ULTRA_FEATUREROW5" = "Support prioritaire";

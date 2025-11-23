@@ -1,5 +1,6 @@
 import Foundation
-import SwiftUI
+
+// MARK: - Root Plant model
 
 struct Plant: Identifiable, Codable {
     let id: String
@@ -7,48 +8,96 @@ struct Plant: Identifiable, Codable {
     let type: String
     let imageURLs: [String]
     let description: String
-    let soilType: String
-    let exposure: String
-    let wateringNeeds: String
-    let temperature: String
-    let floraison: String
-    let origin: String
-    let wateringReminder: String
-    let careTips: [String]
     let modelURL: String?
-    let translations: [String: [String: String]]
+    let translations: [String: PlantTranslation]   // fr / en / es / de
 
     enum CodingKeys: String, CodingKey {
-        case id = "id"
-        case name, type, imageURLs, description, soilType, exposure,
-             wateringNeeds, temperature, floraison, origin,
-             wateringReminder, careTips, modelURL, translations
+        case id
+        case name, type, imageURLs, description, modelURL, translations
     }
 
-    // Décode avec fallback
+    // Décode avec fallback safe
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         self.id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
         self.name = try container.decodeIfPresent(String.self, forKey: .name) ?? "Plante inconnue"
-        self.type = try container.decodeIfPresent(String.self, forKey: .type) ?? "Inconnu"
-        self.imageURLs = try container.decodeIfPresent([String].self, forKey: .imageURLs)?.filter { !$0.isEmpty } ?? ["https://via.placeholder.com/300x200?text=Plante"]
-        self.description = try container.decodeIfPresent(String.self, forKey: .description) ?? "Description inconnue"
-        self.soilType = try container.decodeIfPresent(String.self, forKey: .soilType) ?? "Inconnu"
-        self.exposure = try container.decodeIfPresent(String.self, forKey: .exposure) ?? "Inconnue"
-        self.wateringNeeds = try container.decodeIfPresent(String.self, forKey: .wateringNeeds) ?? "Inconnus"
-        self.temperature = try container.decodeIfPresent(String.self, forKey: .temperature) ?? "N.C."
-        self.floraison = try container.decodeIfPresent(String.self, forKey: .floraison) ?? "N.C."
-        self.origin = try container.decodeIfPresent(String.self, forKey: .origin) ?? "N.C."
-        self.wateringReminder = try container.decodeIfPresent(String.self, forKey: .wateringReminder) ?? "Non défini"
-        self.careTips = try container.decodeIfPresent([String].self, forKey: .careTips) ?? ["Aucun conseil disponible"]
-        self.modelURL = try container.decodeIfPresent(String.self, forKey: .modelURL)
-        self.translations = try container.decodeIfPresent([String: [String: String]].self, forKey: .translations) ?? [:]
-    }
+        self.type = try container.decodeIfPresent(String.self, forKey: .type) ?? "Type inconnu"
 
-    // 🔁 Traductions dynamiques selon la langue sélectionnée
-    @AppStorage("selectedLanguage") static var selectedLanguage = "en"
-    var localized: [String: String] {
-        translations[Plant.selectedLanguage] ?? [:]
+        self.imageURLs = try container
+            .decodeIfPresent([String].self, forKey: .imageURLs)?
+            .filter { !$0.isEmpty }
+            ?? ["https://via.placeholder.com/300x200?text=Plante"]
+
+        self.description = try container.decodeIfPresent(String.self, forKey: .description)
+            ?? "Description non disponible."
+
+        self.modelURL = try container.decodeIfPresent(String.self, forKey: .modelURL)
+
+        self.translations = try container.decodeIfPresent([String: PlantTranslation].self, forKey: .translations)
+            ?? [:]
     }
+}
+
+// MARK: - Translations & sub-objects
+
+struct PlantTranslation: Codable {
+    let description: String
+    let plantType: String
+    let sun: SunInfo?
+    let water: WaterInfo?
+    let soilAndPot: SoilAndPotInfo?
+    let health: HealthInfo?
+    let lifeCycle: LifeCycleInfo?
+    let care: CareInfo?
+}
+
+struct SunInfo: Codable {
+    let lightType: String?
+    let durationPerDay: String?
+    let orientation: String?
+    let windowDistance: String?
+    let recommendedRooms: [String]?
+    let tips: [String]?
+}
+
+struct WaterInfo: Codable {
+    let frequency: String?
+    let amount: String?
+    let method: String?
+    let humidity: String?
+    let signsLack: String?
+    let signsExcess: String?
+    let recommendedWater: String?
+}
+
+struct SoilAndPotInfo: Codable {
+    let substrate: String?
+    let drainage: String?
+    let potSize: String?
+    let repotFrequency: String?
+    let repotSigns: String?
+}
+
+struct HealthInfo: Codable {
+    let commonProblems: [String]?
+    let symptomsAndCauses: [String]?
+    let pests: [String]?
+    let treatments: [String]?
+    let prevention: [String]?
+}
+
+struct LifeCycleInfo: Codable {
+    let growth: String?
+    let flowering: String?
+    let dormancy: String?
+    let fertilizer: String?
+    let pruning: String?
+}
+
+struct CareInfo: Codable {
+    let weekly: [String]?
+    let monthly: [String]?
+    let yearly: [String]?
+    let extraTips: [String]?
 }

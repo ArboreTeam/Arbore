@@ -5,11 +5,17 @@ struct PlantCard: View {
     @AppStorage("selectedLanguage") private var selectedLanguage = "en"
     @Environment(\.colorScheme) private var colorScheme
 
+    private var translation: PlantTranslation? {
+        plant.translations[selectedLanguage]
+    }
+
     var body: some View {
         VStack(alignment: .center, spacing: 10) {
             // ✅ Image réelle ou fallback stylée
             ZStack {
-                if let firstURL = plant.imageURLs.first, let url = URL(string: firstURL), !firstURL.isEmpty {
+                if let firstURL = plant.imageURLs.first,
+                   let url = URL(string: firstURL),
+                   !firstURL.isEmpty {
                     AsyncImage(url: url) { image in
                         image
                             .resizable()
@@ -19,9 +25,13 @@ struct PlantCard: View {
                             .clipShape(RoundedRectangle(cornerRadius: 16))
                     } placeholder: {
                         ZStack {
-                            Color(colorScheme == .dark ? "#2A2A2A" : "#F1F5ED")
+                            Color(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color(hex: "#F1F5ED"))
                             ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: colorScheme == .dark ? .white : .black))
+                                .progressViewStyle(
+                                    CircularProgressViewStyle(
+                                        tint: colorScheme == .dark ? .white : .black
+                                    )
+                                )
                         }
                         .frame(width: 130, height: 130)
                         .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -43,13 +53,15 @@ struct PlantCard: View {
 
             // ✅ Texte
             VStack(spacing: 4) {
-                Text(plant.localized["nom"] ?? plant.name)
+                // Nom : on garde celui stocké en base
+                Text(plant.name)
                     .font(.system(size: 16, weight: .semibold, design: .default))
                     .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#263826"))
                     .multilineTextAlignment(.center)
                     .lineLimit(1)
 
-                Text((plant.localized["type"] ?? plant.type).isEmpty ? "Type inconnu" : (plant.localized["type"] ?? plant.type))
+                // Type : on prend celui de la langue si dispo, sinon le type racine
+                Text(translation?.plantType ?? plant.type)
                     .font(.system(size: 13))
                     .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .gray)
                     .multilineTextAlignment(.center)
@@ -60,6 +72,11 @@ struct PlantCard: View {
         .padding(14)
         .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
         .cornerRadius(20)
-        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.05), radius: 5, x: 0, y: 2)
+        .shadow(
+            color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.05),
+            radius: 5,
+            x: 0,
+            y: 2
+        )
     }
 }

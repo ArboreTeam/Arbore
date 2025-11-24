@@ -61,11 +61,11 @@ type SoilAndPotInfo struct {
 }
 
 type HealthInfo struct {
-	CommonProblems     []string `json:"commonProblems" bson:"commonProblems"`
-	SymptomsAndCauses  []string `json:"symptomsAndCauses" bson:"symptomsAndCauses"`
-	Pests              []string `json:"pests" bson:"pests"`
-	Treatments         []string `json:"treatments" bson:"treatments"`
-	Prevention         []string `json:"prevention" bson:"prevention"`
+	CommonProblems    []string `json:"commonProblems" bson:"commonProblems"`
+	SymptomsAndCauses []string `json:"symptomsAndCauses" bson:"symptomsAndCauses"`
+	Pests             []string `json:"pests" bson:"pests"`
+	Treatments        []string `json:"treatments" bson:"treatments"`
+	Prevention        []string `json:"prevention" bson:"prevention"`
 }
 
 type LifeCycleInfo struct {
@@ -95,13 +95,13 @@ type LanguageData struct {
 }
 
 type Plant struct {
-	ID           primitive.ObjectID            `bson:"_id,omitempty" json:"id"`
-	Name         string                        `json:"name" bson:"name"`
-	Type         string                        `json:"type" bson:"type"`
-	ImageURLs    []string                      `json:"imageURLs" bson:"imageURLs"`
-	Description  string                        `json:"description" bson:"description"`
-	ModelURL     string                        `json:"modelURL" bson:"modelURL"`
-	Translations map[string]LanguageData       `json:"translations" bson:"translations"`
+	ID           primitive.ObjectID      `bson:"_id,omitempty" json:"id"`
+	Name         string                  `json:"name" bson:"name"`
+	Type         string                  `json:"type" bson:"type"`
+	ImageURLs    []string                `json:"imageURLs" bson:"imageURLs"`
+	Description  string                  `json:"description" bson:"description"`
+	ModelURL     string                  `json:"modelURL" bson:"modelURL"`
+	Translations map[string]LanguageData `json:"translations" bson:"translations"`
 }
 
 type AIRequest struct {
@@ -219,57 +219,54 @@ func getPlantByID(c *gin.Context) {
 	c.JSON(http.StatusOK, plant)
 }
 
-// ---------- AI GENERATION ----------
+// ---------- AI GENERATION (logique commune) ----------
 
-func generatePlantWithAI(c *gin.Context) {
-	var req AIRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
+// Génère une plante avec l'IA + Unsplash + insertion Mongo
+// - name: nom de la plante
+// Retourne: (plant, alreadyExists, error)
+func generateAndInsertPlant(ctx context.Context, name string) (Plant, bool, error) {
 	collection := client.Database("arbore").Collection("plants")
 
 	// Vérifie si la plante existe déjà (insensible à la casse)
 	filter := bson.M{
-		"name": bson.M{"$regex": primitive.Regex{Pattern: "^" + req.Name + "$", Options: "i"}},
-	}
-	var existing Plant
-	err := collection.FindOne(context.Background(), filter).Decode(&existing)
-	if err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "🌿 Cette plante existe déjà."})
-		return
-	} else if err != mongo.ErrNoDocuments {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la vérification de l'existence de la plante"})
-		return
+		"name": bson.M{"$regex": primitive.Regex{Pattern: "^" + name + "$", Options: "i"}},
 	}
 
-	// Appel microservice IA
-	jsonData, _ := json.Marshal(req)
+	var existing Plant
+	err := collection.FindOne(ctx, filter).Decode(&existing)
+	if err == nil {
+		// Elle existe déjà
+		return Plant{}, true, nil
+	} else if err != mongo.ErrNoDocuments {
+		// Erreur Mongo
+		return Plant{}, false, err
+	}
+
+	// Appel du microservice IA
+	jsonData, _ := json.Marshal(AIRequest{Name: name})
 	resp, err := http.Post("http://localhost:8001/generate", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
-		log.Println("Erreur appel API IA:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de l'appel à l'IA"})
-		return
+		log.Println("❌ Erreur appel API IA:", err)
+		return Plant{}, false, err
 	}
 	defer resp.Body.Close()
-	bodyBytes, _ := ioutil.ReadAll(resp.Body)
 
+	bodyBytes, _ := ioutil.ReadAll(resp.Body)
 	log.Println("🔍 Réponse brute de l'IA (status", resp.StatusCode, "):", string(bodyBytes))
 
 	var aiResponse AIResponse
 	err = json.Unmarshal(bodyBytes, &aiResponse)
 	if err != nil {
-		log.Println("Erreur parsing IA:", err, string(bodyBytes))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors du parsing de la réponse IA"})
-		return
+		log.Println("❌ Erreur parsing IA:", err, string(bodyBytes))
+		return Plant{}, false, err
 	}
 
-	imageURLs := fetchUnsplashImageURLs(req.Name, 3)
+	// Images Unsplash
+	imageURLs := fetchUnsplashImageURLs(name, 3)
 
 	plant := Plant{
 		ID:          primitive.NewObjectID(),
-		Name:        req.Name,
+		Name:        name,
 		Type:        aiResponse.FR.PlantType,
 		ImageURLs:   imageURLs,
 		Description: aiResponse.FR.Description,
@@ -282,17 +279,45 @@ func generatePlantWithAI(c *gin.Context) {
 		},
 	}
 
-	// Si tu as une méthode SetDefaults, tu peux la garder
-	// plant.SetDefaults()
+	// plant.SetDefaults() // si tu remets ça plus tard
 
-	_, err = collection.InsertOne(context.Background(), plant)
+	_, err = collection.InsertOne(ctx, plant)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de l'insertion de la plante générée"})
+		log.Println("❌ Erreur lors de l'insertion MongoDB :", err)
+		return Plant{}, false, err
+	}
+
+	return plant, false, nil
+}
+
+// ---------- AI GENERATION : single ----------
+
+func generatePlantWithAI(c *gin.Context) {
+	var req AIRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Plante générée et enregistrée avec succès 🌿", "plant": plant})
+	plant, exists, err := generateAndInsertPlant(context.Background(), req.Name)
+	if err != nil {
+		log.Println("❌ Erreur lors de la génération de la plante :", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la génération de la plante"})
+		return
+	}
+
+	if exists {
+		c.JSON(http.StatusConflict, gin.H{"error": "🌿 Cette plante existe déjà."})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Plante générée et enregistrée avec succès 🌿",
+		"plant":   plant,
+	})
 }
+
+// ---------- AI GENERATION : multiple ----------
 
 func generateMultiplePlantsHandler(c *gin.Context) {
 	var req struct {
@@ -304,72 +329,24 @@ func generateMultiplePlantsHandler(c *gin.Context) {
 		return
 	}
 
-	collection := client.Database("arbore").Collection("plants")
-
 	var created []Plant
 	var skipped []string
 
-	for _, name := range req.Names {
-		name = strings.TrimSpace(name)
+	for _, rawName := range req.Names {
+		name := strings.TrimSpace(rawName)
 		if name == "" {
 			continue
 		}
 
-		filter := bson.M{
-			"name": bson.M{"$regex": primitive.Regex{Pattern: "^" + name + "$", Options: "i"}},
-		}
-
-		var existing Plant
-		err := collection.FindOne(context.Background(), filter).Decode(&existing)
-		if err == nil {
-			skipped = append(skipped, name)
-			continue
-		} else if err != mongo.ErrNoDocuments {
-			skipped = append(skipped, name)
-			continue
-		}
-
-		jsonData, _ := json.Marshal(AIRequest{Name: name})
-		resp, err := http.Post("http://localhost:8001/generate", "application/json", bytes.NewBuffer(jsonData))
+		plant, exists, err := generateAndInsertPlant(context.Background(), name)
 		if err != nil {
-			log.Println("❌ Erreur IA pour", name, ":", err)
+			log.Println("❌ Erreur lors de la génération pour", name, ":", err)
 			skipped = append(skipped, name)
 			continue
 		}
 
-		body, _ := ioutil.ReadAll(resp.Body)
-		resp.Body.Close()
-
-		var aiResponse AIResponse
-		err = json.Unmarshal(body, &aiResponse)
-		if err != nil {
-			log.Println("❌ Erreur JSON IA pour", name, ":", err, string(body))
-			skipped = append(skipped, name)
-			continue
-		}
-
-		imageURLs := fetchUnsplashImageURLs(name, 3)
-
-		plant := Plant{
-			ID:          primitive.NewObjectID(),
-			Name:        name,
-			Type:        aiResponse.FR.PlantType,
-			ImageURLs:   imageURLs,
-			Description: aiResponse.FR.Description,
-			ModelURL:    "",
-			Translations: map[string]LanguageData{
-				"fr": aiResponse.FR,
-				"en": aiResponse.EN,
-				"es": aiResponse.ES,
-				"de": aiResponse.DE,
-			},
-		}
-
-		// plant.SetDefaults()
-
-		_, err = collection.InsertOne(context.Background(), plant)
-		if err != nil {
-			log.Println("❌ Erreur MongoDB insertion:", err)
+		if exists {
+			// Déjà présente en base → on la met dans skipped
 			skipped = append(skipped, name)
 			continue
 		}

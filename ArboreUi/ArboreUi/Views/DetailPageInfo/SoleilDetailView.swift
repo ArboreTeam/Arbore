@@ -3,157 +3,75 @@ import SwiftUI
 struct SoleilDetailView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
-    
+
+    /// Infos "Soleil" de la plante courante
+    let sun: SunInfo?
+
     var body: some View {
         ZStack {
-            // Fond global : même que les autres pages (gris sombre du thème)
             themeManager.backgroundColor
                 .ignoresSafeArea()
-            
+
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
-                    
-                    // MARK: - Hero Header
+
                     headerHero
-                    
-                    // MARK: - Section "Vue d’ensemble"
-                    SectionCard(
-                        icon: "sun.max.fill",
-                        iconColor: Color(hex: "#FACC15"),
-                        title: "Vue d’ensemble"
-                    ) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HighlightChip(text: "Lumière vive indirecte")
-                            HighlightChip(text: "Éviter le plein soleil brûlant")
-                            
-                            Text("La plupart des plantes d’intérieur apprécient une lumière vive mais filtrée. Trop de soleil direct peut brûler le feuillage, tandis qu’un manque de lumière ralentit la croissance.")
+
+                    if let sun = sun {
+                        lightSection(sun: sun)
+
+                        if hasPlacementInfo(sun: sun) {
+                            placementSection(sun: sun)
+                        }
+
+                        if let tips = sun.tips, !tips.isEmpty {
+                            tipsSection(tips: tips)
+                        }
+
+                        outilsUtilesSection
+                        testerLumiereCTA
+                    } else {
+                        SectionCard(
+                            icon: "sun.max.fill",
+                            iconColor: Color(hex: "#FACC15"),
+                            title: "Informations indisponibles"
+                        ) {
+                            Text("Aucune information spécifique sur la lumière n’est disponible pour cette plante.")
                                 .font(.system(size: 14))
                                 .foregroundColor(.secondaryText(for: colorScheme))
                                 .fixedSize(horizontal: false, vertical: true)
                         }
+
+                        outilsUtilesSection
+                        testerLumiereCTA
                     }
-                    
-                    // MARK: - Section "Où placer la plante ?"
-                    SectionCard(
-                        icon: "house.fill",
-                        iconColor: Color(hex: "#22C55E"),
-                        title: "Où placer la plante ?"
-                    ) {
-                        VStack(alignment: .leading, spacing: 14) {
-                            InfoRow(
-                                title: "Fenêtres idéales",
-                                subtitle: "Est ou Ouest, à 1–3 mètres de la fenêtre.",
-                                badge: "Recommandé"
-                            )
-                            InfoRow(
-                                title: "Pièces conseillées",
-                                subtitle: "Salon lumineux, bureau, chambre bien éclairée.",
-                                badge: "Confort"
-                            )
-                            
-                            sunTagCloud(tags: [
-                                "Fenêtre Est",
-                                "Fenêtre Ouest",
-                                "Lumière filtrée",
-                                "Voilage fin"
-                            ])
-                        }
-                    }
-                    
-                    // MARK: - Section "À surveiller"
-                    SectionCard(
-                        icon: "exclamationmark.triangle.fill",
-                        iconColor: Color(hex: "#F97316"),
-                        title: "À surveiller"
-                    ) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            WarningRow(
-                                icon: "flame.fill",
-                                text: "Feuilles qui brûlent ou se décolorent : la plante est trop proche d’une source de soleil direct."
-                            )
-                            WarningRow(
-                                icon: "arrow.down.right.and.arrow.up.left",
-                                text: "Tiges qui s’allongent et feuilles qui pâlissent : manque de lumière, rapproche la plante d’une fenêtre."
-                            )
-                            WarningRow(
-                                icon: "arrow.triangle.2.circlepath",
-                                text: "Pense à tourner le pot régulièrement pour éviter que la plante ne penche d’un seul côté."
-                            )
-                        }
-                    }
-                    
-                    // MARK: - Section "Outils utiles"
-                    SectionCard(
-                        icon: "wrench.and.screwdriver.fill",
-                        iconColor: Color(hex: "#38BDF8"),
-                        title: "Outils utiles"
-                    ) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            ToolRow(
-                                systemIcon: "lightbulb.max.fill",
-                                title: "Light meter",
-                                subtitle: "Mesure l’intensité lumineuse à l’endroit exact où tu poses la plante."
-                            )
-                            ToolRow(
-                                systemIcon: "location.north.line",
-                                title: "Boussole",
-                                subtitle: "T’aide à identifier l’orientation des fenêtres (Est, Ouest, Sud, Nord)."
-                            )
-                        }
-                    }
-                    
-                    // MARK: - Call to action
-                    Button(action: {
-                        // TODO: déclencher un test de lumière ou une feature plus tard
-                    }) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "sun.max.trianglebadge.exclamationmark.fill")
-                            Text("Tester la lumière de ma pièce")
-                        }
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.black)
-                        .padding(.vertical, 14)
-                        .frame(maxWidth: .infinity)
-                        .background(
-                            LinearGradient(
-                                colors: [
-                                    Color(hex: "#BBF7D0"),
-                                    Color(hex: "#6EE7B7")
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .cornerRadius(22)
-                        .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 6)
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 32)
                 }
                 .padding(.top, 16)
                 .padding(.horizontal, 16)
+                .padding(.bottom, 32)
             }
         }
         .navigationBarTitleDisplayMode(.inline)
         .navigationTitle("Soleil")
     }
-    
-    // MARK: - Hero Header
+
+    // MARK: - HEADER
+
     private var headerHero: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(hex: "#064E3B"), // plus proche du vert de ta navigation
-                            Color(hex: "#065F46")
+                            Color(hex: "#263826"),
+                            Color(hex: "#1F2B20")
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .shadow(color: Color.black.opacity(0.35), radius: 18, x: 0, y: 10)
-            
+
             VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .center, spacing: 14) {
                     ZStack {
@@ -164,39 +82,227 @@ struct SoleilDetailView: View {
                             .font(.system(size: 32))
                             .foregroundColor(Color(hex: "#FACC15"))
                     }
-                    
+
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Soleil")
-                            .font(.system(size: 26, weight: .bold))
+                            .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
-                        Text("Exposition & orientation")
+
+                        let subtitle = sun?.lightType ?? "Lumière & emplacement"
+                        Text(subtitle)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white.opacity(0.85))
+                            .lineLimit(1)
                     }
-                    
+
                     Spacer()
                 }
-                
-                Divider()
-                    .background(Color.white.opacity(0.15))
-                
-                HStack(spacing: 12) {
-                    PillInfo(icon: "sun.max", text: "Lumière vive indirecte")
-                    PillInfo(icon: "clock.arrow.circlepath", text: "8–12 h / jour")
+
+                if let sun = sun {
+                    Divider()
+                        .background(Color.white.opacity(0.15))
+
+                    HStack(spacing: 10) {
+                        if let duration = sun.durationPerDay, !duration.isEmpty {
+                            HeaderMeta(icon: "clock", text: duration)
+                        }
+                        if let orientation = sun.orientation, !orientation.isEmpty {
+                            HeaderMeta(icon: "location.north.line", text: orientation)
+                        }
+                    }
+
+                    if let distance = sun.windowDistance, !distance.isEmpty {
+                        Text("Idéale à environ \(distance.lowercased()) de la fenêtre.")
+                            .font(.system(size: 13))
+                            .foregroundColor(.white.opacity(0.85))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    Text("Comprends rapidement quel type de lumière convient le mieux à cette plante.")
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.85))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                
-                Text("Comprends comment placer ta plante pour qu’elle profite de la lumière sans brûler ni dépérir.")
-                    .font(.system(size: 13))
-                    .foregroundColor(.white.opacity(0.85))
-                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(18)
         }
         .frame(maxWidth: .infinity)
     }
+
+    // MARK: - Section 1 : Lumière quotidienne
+
+    private func lightSection(sun: SunInfo) -> some View {
+        SectionCard(
+            icon: "sun.max.fill",
+            iconColor: Color(hex: "#FACC15"),
+            title: "Lumière quotidienne"
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                if let light = sun.lightType, !light.isEmpty {
+                    KeyValueRow(label: "Type", value: light)
+                }
+
+                if let duration = sun.durationPerDay, !duration.isEmpty {
+                    KeyValueRow(label: "Durée idéale", value: duration)
+                }
+
+                let text = buildLightDescription(sun: sun)
+                if !text.isEmpty {
+                    Text(text)
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondaryText(for: colorScheme))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
+                }
+            }
+        }
+    }
+
+    private func buildLightDescription(sun: SunInfo) -> String {
+        var parts: [String] = []
+
+        if let light = sun.lightType, !light.isEmpty {
+            parts.append("Cette plante préfère une lumière \(light.lowercased()).")
+        }
+        if let duration = sun.durationPerDay, !duration.isEmpty {
+            parts.append("Essaie de lui offrir environ \(duration.lowercased()) par jour.")
+        }
+
+        return parts.joined(separator: " ")
+    }
+
+    // MARK: - Section 2 : Emplacement idéal
+
+    private func hasPlacementInfo(sun: SunInfo) -> Bool {
+        if let o = sun.orientation, !o.isEmpty { return true }
+        if let d = sun.windowDistance, !d.isEmpty { return true }
+        if let rooms = sun.recommendedRooms, !rooms.isEmpty { return true }
+        return false
+    }
+
+    private func placementSection(sun: SunInfo) -> some View {
+        SectionCard(
+            icon: "house.fill",
+            iconColor: Color(hex: "#22C55E"),
+            title: "Emplacement idéal"
+        ) {
+            VStack(alignment: .leading, spacing: 14) {
+                if let orientation = sun.orientation, !orientation.isEmpty {
+                    let distance = (sun.windowDistance ?? "").isEmpty ? nil : sun.windowDistance
+                    let subtitle = distance.map { "\(orientation) • \($0)" } ?? orientation
+
+                    InfoRow(
+                        title: "Fenêtres recommandées",
+                        subtitle: subtitle,
+                        badge: "Recommandé"
+                    )
+                }
+
+                if let rooms = sun.recommendedRooms, !rooms.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Pièces conseillées")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.primaryText(for: colorScheme))
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(rooms, id: \.self) { room in
+                                HStack(spacing: 6) {
+                                    Image(systemName: "circle.fill")
+                                        .font(.system(size: 6))
+                                        .foregroundColor(Color(hex: "#22C55E"))
+                                    Text(room)
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.secondaryText(for: colorScheme))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    if let orientation = sun.orientation, !orientation.isEmpty {
+                        PillTag(text: orientation)
+                    }
+                    if let distance = sun.windowDistance, !distance.isEmpty {
+                        PillTag(text: distance)
+                    }
+                }
+                .padding(.top, 2)
+            }
+        }
+    }
+
+    // MARK: - Section 3 : Conseils & astuces
+
+    private func tipsSection(tips: [String]) -> some View {
+        SectionCard(
+            icon: "lightbulb.max.fill",
+            iconColor: Color(hex: "#FDE68A"),
+            title: "Conseils & astuces"
+        ) {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(tips, id: \.self) { tip in
+                    TipRow(text: tip)
+                }
+            }
+        }
+    }
+
+    // MARK: - Outils utiles
+
+    private var outilsUtilesSection: some View {
+        SectionCard(
+            icon: "wrench.and.screwdriver.fill",
+            iconColor: Color(hex: "#38BDF8"),
+            title: "Outils utiles"
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                ToolRow(
+                    systemIcon: "lightbulb.max.fill",
+                    title: "Light meter",
+                    subtitle: "Mesure l’intensité lumineuse à l’endroit exact où tu poses la plante."
+                )
+                ToolRow(
+                    systemIcon: "location.north.line",
+                    title: "Boussole",
+                    subtitle: "T’aide à identifier l’orientation des fenêtres (Est, Ouest, Sud, Nord)."
+                )
+            }
+        }
+    }
+
+    // MARK: - CTA
+
+    private var testerLumiereCTA: some View {
+        Button(action: {
+            // TODO: déclencher un test de lumière plus tard
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: "sun.max.trianglebadge.exclamationmark.fill")
+                Text("Tester la lumière de ma pièce")
+            }
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundColor(.black)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(hex: "#BBF7D0"),
+                        Color(hex: "#6EE7B7")
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .cornerRadius(22)
+            .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 6)
+        }
+        .padding(.horizontal, 20)
+    }
 }
 
-// MARK: - Sub-components
+// MARK: - Subviews & Helpers
 
 private struct SectionCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
@@ -204,14 +310,14 @@ private struct SectionCard<Content: View>: View {
     let iconColor: Color
     let title: String
     let content: Content
-    
+
     init(icon: String, iconColor: Color, title: String, @ViewBuilder content: () -> Content) {
         self.icon = icon
         self.iconColor = iconColor
         self.title = title
         self.content = content()
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
@@ -223,14 +329,14 @@ private struct SectionCard<Content: View>: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(iconColor)
                 }
-                
+
                 Text(title)
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.primaryText(for: colorScheme))
-                
+
                 Spacer()
             }
-            
+
             content
         }
         .padding(16)
@@ -245,20 +351,40 @@ private struct SectionCard<Content: View>: View {
     }
 }
 
-private struct HighlightChip: View {
-    @Environment(\.colorScheme) private var colorScheme
+private struct HeaderMeta: View {
+    let icon: String
     let text: String
-    
+
     var body: some View {
-        Text(text)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundColor(.accentColor(for: colorScheme))
-            .padding(.vertical, 6)
-            .padding(.horizontal, 12)
-            .background(
-                Capsule()
-                    .fill(Color.white.opacity(0.04))
-            )
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+            Text(text)
+                .font(.system(size: 13, weight: .medium))
+        }
+        .foregroundColor(.white)
+        .padding(.vertical, 5)
+        .padding(.horizontal, 10)
+        .background(Color.white.opacity(0.12))
+        .clipShape(Capsule())
+    }
+}
+
+private struct KeyValueRow: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(label)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.primaryText(for: colorScheme))
+            Spacer()
+            Text(value)
+                .font(.system(size: 14))
+                .foregroundColor(.secondaryText(for: colorScheme))
+        }
     }
 }
 
@@ -267,7 +393,7 @@ private struct InfoRow: View {
     let title: String
     let subtitle: String
     let badge: String
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
@@ -292,19 +418,18 @@ private struct InfoRow: View {
     }
 }
 
-private struct WarningRow: View {
+private struct TipRow: View {
     @Environment(\.colorScheme) private var colorScheme
-    let icon: String
     let text: String
-    
+
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 18))
-                .foregroundColor(Color(hex: "#F97316"))
-                .frame(width: 22)
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 12))
+                .foregroundColor(Color(hex: "#FACC15"))
+                .padding(.top, 4)
             Text(text)
-                .font(.system(size: 14))
+                .font(.system(size: 13))
                 .foregroundColor(.secondaryText(for: colorScheme))
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -317,7 +442,7 @@ private struct ToolRow: View {
     let systemIcon: String
     let title: String
     let subtitle: String
-    
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: systemIcon)
@@ -338,77 +463,37 @@ private struct ToolRow: View {
     }
 }
 
-// Tag cloud sans chevauchement : fonction, pas de struct → pas de problème d'init privé
-private func sunTagCloud(tags: [String]) -> some View {
-    GeometryReader { _ in
-        let columns = [
-            GridItem(.adaptive(minimum: 110), spacing: 8, alignment: .leading)
-        ]
-        
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
-            ForEach(tags, id: \.self) { tag in
-                TagChip(text: tag)
-            }
-        }
-    }
-    .frame(minHeight: 0) // laisse le layout décider
-}
-
-// Petit chip réutilisable pour les tags
-private struct TagChip: View {
+private struct PillTag: View {
     @Environment(\.colorScheme) private var colorScheme
     let text: String
-    
+
     var body: some View {
         Text(text)
             .font(.system(size: 12, weight: .medium))
             .foregroundColor(.secondaryText(for: colorScheme))
-            .padding(.vertical, 6)
+            .padding(.vertical, 5)
             .padding(.horizontal, 10)
             .background(
                 Capsule()
-                    .fill(Color.white.opacity(0.03))
+                    .fill(Color.white.opacity(0.04))
             )
     }
 }
 
-private struct PillInfo: View {
-    let icon: String
-    let text: String
-    
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
-            Text(text)
-                .font(.system(size: 13, weight: .medium))
-        }
-        .foregroundColor(.white)
-        .padding(.vertical, 6)
-        .padding(.horizontal, 10)
-        .background(Color.white.opacity(0.12))
-        .clipShape(Capsule())
-    }
-}
-
-// MARK: - Helpers (colors)
+// MARK: - Color helpers
 
 private extension Color {
     static func primaryText(for scheme: ColorScheme) -> Color {
         scheme == .dark ? .white : .black
     }
-    
+
     static func secondaryText(for scheme: ColorScheme) -> Color {
         scheme == .dark ? Color.white.opacity(0.7) : Color.black.opacity(0.7)
     }
-    
+
     static func cardBackground(for scheme: ColorScheme) -> Color {
-        // Gris foncé comme les autres cartes (proche de systemGray6 en dark)
-        scheme == .dark ? Color(red: 0.11, green: 0.11, blue: 0.12)
-                        : Color(red: 0.95, green: 0.95, blue: 0.96)
-    }
-    
-    static func accentColor(for scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(hex: "#4ADE80") : Color(hex: "#15803D")
+        scheme == .dark
+        ? Color(red: 0.11, green: 0.11, blue: 0.12)
+        : Color(red: 0.95, green: 0.95, blue: 0.96)
     }
 }

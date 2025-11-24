@@ -31,6 +31,7 @@ struct PlantDetailView: View {
                     .foregroundColor(.red)
                     .padding()
             } else if let plant = plant {
+                // Traduction de la langue sélectionnée
                 let t = plant.translations[selectedLanguage]
 
                 ScrollView(showsIndicators: false) {
@@ -49,7 +50,7 @@ struct PlantDetailView: View {
                                 descriptionSection(t: t)
 
                                 // Cartes Soleil / Eau / Terre / Santé / Cycle / Entretien
-                                GeneralInfoGridView()
+                                GeneralInfoGridView(translation: t)
 
                                 arSection(for: plant)
 
@@ -417,6 +418,7 @@ struct PlantDetailView: View {
 
 struct GeneralInfoGridView: View {
     @Environment(\.colorScheme) private var colorScheme
+    let translation: PlantTranslation?   // 🟢 on reçoit la traduction ici
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -436,35 +438,35 @@ struct GeneralInfoGridView: View {
                     title: "Soleil",
                     description: "Exposition, orientation",
                     color: Color(hex: "#EEDB8B"),
-                    destination: SoleilDetailView()
+                    destination: SoleilDetailView(sun: translation?.sun)
                 )
                 GeneralInfoCard(
                     icon: "drop.fill",
                     title: "Eau",
                     description: "Fréquence, quantité",
                     color: Color(hex: "#A4C3D7"),
-                    destination: EauDetailView()
+                    destination: EauDetailView(water: translation?.water)
                 )
                 GeneralInfoCard(
                     icon: "leaf.fill",
                     title: "Terre & Pot",
                     description: "Sol, drainage, pot",
                     color: Color(hex: "#A7C6AD"),
-                    destination: TerreDetailView()
+                    destination: TerreDetailView(soil: translation?.soilAndPot)
                 )
                 GeneralInfoCard(
                     icon: "cross.case.fill",
                     title: "Santé",
                     description: "Prévention, parasites, maladies",
                     color: Color(hex: "#E6A6A1"),
-                    destination: SanteDetailView()
+                    destination: SanteDetailView(health: translation?.health)
                 )
                 GeneralInfoCard(
                     icon: "calendar",
                     title: "Cycle de vie",
                     description: "Croissance, floraison, repos",
                     color: Color(hex: "#EFCFAF"),
-                    destination: CycleDeVieView()
+                    destination: CycleDeVieView(lifecycle: translation?.lifeCycle)
                 )
                 GeneralInfoCard(
                     icon: "brain.head.profile",

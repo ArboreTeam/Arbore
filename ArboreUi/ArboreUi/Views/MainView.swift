@@ -20,7 +20,7 @@ struct MainView: View {
                 }
                 .tag(TabSelection.explore)
             
-            MyGardenView()
+            NewMyGardenView()
                 .tabItem {
                     Image(systemName: selectedTab == .garden ? "leaf.fill" : "leaf")
                     Text("Jardin")

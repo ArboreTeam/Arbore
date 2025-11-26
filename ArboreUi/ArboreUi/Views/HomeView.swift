@@ -4,292 +4,354 @@ import FirebaseAuth
 struct HomeView: View {
     @ObservedObject var plantService = PlantService()
     @StateObject var userService = UserService()
-    @State private var showARScan = false
-    @State private var showRoomScan = false
-    @State private var userName: String = ""
+    @EnvironmentObject var themeManager: ThemeManager
+
+    // MOCKS – à brancher ensuite sur ton backend / services
+    @State private var userName: String = "Hugo"
     @State private var userError: String? = nil
     @State private var currentUID: String = ""
-    @EnvironmentObject var themeManager: ThemeManager
+    @State private var profileImageURL: URL? = URL(string:
+        "https://lh3.googleusercontent.com/aida-public/AB6AXuDWmaHAl_C1VSIzZLeaHvIVQY7q_1XPTw4E1bwkpalrEtAoGOdI0CHFIjQhQPPf6GHMZcwxa0gMOdFsuvzbuJ9tjcmxkegeBHpegLpCN9k86jE05YcooVOCcq40CJoT_cdl3Wm3uFEEZgztfDxDF3uaUfon17L2LiN_3wWH7USt2-uOFUQ8GcgeWxKN5RKf51dJGyRpkbnMxSD5MIwJy_sUnENID4G7OLEPSHtF16ljGHVmOepfnUbwBtAH8SdLbbwGrtOVUUrG9AI"
+    )
+
+    @State private var heroImageURL: URL? = URL(string:
+        "https://lh3.googleusercontent.com/aida-public/AB6AXuCe_3do_emvEEcKrzXhX4NPE_KEXqIfqls06OPVJAHBZByFJaHRvcbjgdSaNmzLmjYQZQ9uubbD1w3vLjaAho6PCId_U5a84LblSIhhh438CjGSbqoyRlXAcq0-Ms8AK7sWfGFqJefH8o9krWdE688UHBiWnD81Y1bFpjYP2fCIgDbp0fFcEkVvx4-vwo54HTkTdn4q4tPUL4USXAkri6t6WfOWV24goEy0z5LqQl0AC1NljyVqeMl3Auwh4UmHWECjVq25dlCwFVw"
+    )
+
+    @State private var sponsorLogoURL: URL? = URL(string:
+        "https://lh3.googleusercontent.com/aida-public/AB6AXuB1UhsiroUqp2E8eHgsZtuDXFvcC-Um0gl0Zn9ttiq-NQ3UbkvW_bz4NYs9AN7TiJGkJfm3GNQEg2Pl95t4QnlmokqfBvxaEdddQuL1vsngT1_qgdgEp5J8i1GCxvdpSE_X6_-8kdnutqC30hOKXWdPZ-Gv_UfFaXvoYB2tkeNmQYEr18Grgca-HB8hqetoJVjOOtk530HfjVuvnauGwBC0Wd4q-7Wwpt_cF51NPv2WOUCOCoC5fxZjFFGS_h-6Ues8o5PMBsM27kM"
+    )
+
+    // Données du résumé quotidien
+    @State private var plantCount: Int = 12
+    @State private var weatherTemp: String = "18°"
+    @State private var weatherDesc: String = "Partiellement nuageux"
+    @State private var plantsToWater: Int = 2
+    @State private var healthStatus: String = "Stable"
+
+    // Couleurs du design HTML
+    private let primary = Color(hex: "#13EC5B")
+    private let cardDark = Color(hex: "#28392E")
+    private let cardDarkSoft = Color(hex: "#28392E").opacity(0.5)
 
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    // ✨ HEADER SECTION - Accueil personnalisé
-                    VStack(spacing: 16) {
-                        // Salutation et avatar
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text("HOME_GREETING") // Fonctionne directement
-                                    .font(.subheadline)
-                                    .foregroundColor(themeManager.secondaryTextColor)
-                                
-                                if userError != nil {
-                                    Text("HOME_TITLE_ERROR")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(themeManager.systemRed)
-                                } else {
-                                    // Utilisation de NSLocalizedString pour le fallback
-                                    Text(userName.isEmpty ? NSLocalizedString("HOME_DEFAULT_USER", comment: "") : userName)
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                        .foregroundColor(themeManager.textColor)
-                                }
-                            }
-                            
-                            Spacer()
-                            
-                            // Avatar circulaire (unchanged)
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        colors: [themeManager.adjust(Color(hex: "#2E7D32")), themeManager.adjust(Color(hex: "#4CAF50"))],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: 45, height: 45)
-                                .overlay(
-                                    Text(userName.first?.uppercased() ?? "U")
-                                        .font(.headline)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.white)
-                                )
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 10)
-                        
-                        // Action principale - Scanner
-                        VStack(spacing: 12) {
-                            Button(action: {
-                                showARScan.toggle()
-                            }) {
-                                HStack(spacing: 12) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(themeManager.adjust(Color.white).opacity(0.2))
-                                            .frame(width: 40, height: 40)
-                                        
-                                        Image(systemName: "camera.viewfinder")
-                                            .font(.system(size: 20, weight: .semibold))
-                                            .foregroundColor(themeManager.adjust(Color.white))
-                                    }
-                                    
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("HOME_BUTTON_SCAN")
-                                            .font(.headline)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(themeManager.adjust(Color.white))
-                                        
-                                        Text("HOME_BUTTON_SUBTITLE")
-                                            .font(.subheadline)
-                                            .foregroundColor(themeManager.adjust(Color.white).opacity(0.8))
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    Image(systemName: "arrow.right")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(themeManager.adjust(Color.white).opacity(0.8))
-                                }
-                                .padding(20)
-                                .background(
-                                    LinearGradient(
-                                        colors: [themeManager.adjust(Color(hex: "#2E7D32")), themeManager.adjust(Color(hex: "#4CAF50"))],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .cornerRadius(16)
-                                .shadow(color: themeManager.adjust(Color(hex: "#2E7D32")).opacity(0.3), radius: 8, x: 0, y: 4)
-                            }
-                            .padding(.horizontal, 20)
-                            
-                            // Bouton Scanner une pièce
-                            Button(action: {
-                                showRoomScan.toggle()
-                            }) {
-                                HStack(spacing: 12) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(themeManager.adjust(Color.white).opacity(0.2))
-                                            .frame(width: 40, height: 40)
-                                        
-                                        Image(systemName: "cube.fill")
-                                            .font(.system(size: 20, weight: .semibold))
-                                            .foregroundColor(themeManager.adjust(Color.white))
-                                    }
-                                    
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Scanner mon jardin")
-                                            .font(.headline)
-                                            .fontWeight(.semibold)
-                                            .foregroundColor(themeManager.adjust(Color.white))
-                                        
-                                        Text("Scanne l'espace de ton jardin")
-                                            .font(.subheadline)
-                                            .foregroundColor(themeManager.adjust(Color.white).opacity(0.8))
-                                    }
-                                    
-                                    Spacer()
-                                    
-                                    Image(systemName: "arrow.right")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(themeManager.adjust(Color.white).opacity(0.8))
-                                }
-                                .padding(20)
-                                .background(
-                                    LinearGradient(
-                                        colors: [themeManager.adjust(Color(hex: "#1976D2")), themeManager.adjust(Color(hex: "#42A5F5"))],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .cornerRadius(16)
-                                .shadow(color: themeManager.adjust(Color(hex: "#1976D2")).opacity(0.3), radius: 8, x: 0, y: 4)
-                            }
-                            .padding(.horizontal, 20)
-                        }
-                    }
-                    .padding(.bottom, 32)
-                    
-                    // ✨ REMINDER CARD - Notification importante
-                    if !plantService.plants.isEmpty {
-                        // Exemple de récupération du nom d'une plante pour la notification
-                        let plantName = plantService.plants.first?.name ?? "plante"
-                        let reminderMessage = String(format: NSLocalizedString("REMINDER_SUBTITLE", comment: ""), plantName)
+            ZStack {
+                // Fond noir, comme tu veux
+                Color.black
+                    .ignoresSafeArea()
 
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    Circle()
-                                        .fill(themeManager.systemOrange.opacity(0.1))
-                                        .frame(width: 36, height: 36)
-                                    
-                                    Image(systemName: "drop.fill")
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(themeManager.systemOrange)
-                                }
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("REMINDER_TITLE")
-                                        .font(.subheadline)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(themeManager.textColor)
-                                    
-                                    Text(reminderMessage) // Message formaté
-                                        .font(.footnote)
-                                        .foregroundColor(themeManager.secondaryTextColor)
-                                }
-                                
-                                Spacer()
-                                
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(themeManager.secondaryTextColor)
-                            }
-                            .padding(16)
-                            .background(themeManager.cardBackgroundColor)
-                            .cornerRadius(12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(themeManager.systemOrange.opacity(0.2), lineWidth: 1)
-                            )
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 32)
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+
+                        profileHeader
+                            .padding(.horizontal, 16)
+                            .padding(.top, 16)
+
+                        futureGardenCard
+                            .padding(.horizontal, 16)
+                            .padding(.top, 24)
+
+                        // RÉSUMÉ QUOTIDIEN
+                        Text("Résumé Quotidien")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 16)
+
+                        dailySummaryGrid
+                            .padding(.horizontal, 16)
+                            .padding(.top, 4)
+
+                        // SPONSOR
+                        sponsorBanner
+                            .padding(.horizontal, 16)
+                            .padding(.top, 24)
+                            .padding(.bottom, 32)
                     }
-                    
-                    // ✨ QUICK ACTIONS - Actions rapides
-                    VStack(alignment: .leading, spacing: 16) {
-                        HStack {
-                            Text("HOME_ACTION_TITLE")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(themeManager.textColor)
-                            
-                            Spacer()
-                        }
-                        .padding(.horizontal, 20)
-                        
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 12) {
-                                QuickActionCard(
-                                    icon: "leaf.fill",
-                                    titleKey: "ACTION_GARDEN", // <- Clé transmise, doit être LocalizedStringKey dans le composant
-                                    subtitleKey: "ACTION_GARDEN_SUB",
-                                    color: Color(hex: "#4CAF50")
-                                )
-                                
-                                QuickActionCard(
-                                    icon: "magnifyingglass",
-                                    titleKey: "ACTION_EXPLORE",
-                                    subtitleKey: "ACTION_EXPLORE_SUB",
-                                    color: Color.blue
-                                )
-                                
-                                QuickActionCard(
-                                    icon: "calendar",
-                                    titleKey: "ACTION_PLANNING",
-                                    subtitleKey: "ACTION_PLANNING_SUB",
-                                    color: Color.purple
-                                )
-                            }
-                            .padding(.horizontal, 20)
-                        }
-                    }
-                    .padding(.bottom, 32)
-                    
-                    // ✨ SECTIONS DE CONTENU
-                    VStack(spacing: 32) {
-                        // Plantes populaires
-                        PlantSection(
-                            titleKey: "SECTION_TITLE_POPULAR",
-                            subtitleKey: "SECTION_SUBTITLE_POPULAR",
-                            plants: Array(plantService.plants.prefix(5))
-                        )
-                        
-                        // Plantes à arroser
-                        WateringSection(
-                            titleKey: "SECTION_TITLE_WATERING",
-                            plants: Array(plantService.plants.prefix(3))
-                        )
-                        
-                        // Dernières visitées
-                        PlantSection(
-                            titleKey: "SECTION_TITLE_RECENT",
-                            subtitleKey: "SECTION_SUBTITLE_RECENT",
-                            plants: Array(plantService.plants.prefix(4))
-                        )
-                    }
-                    .padding(.bottom, 120) // Espace pour la tab bar
                 }
             }
-            .background(themeManager.backgroundColor)
             .navigationBarHidden(true)
-            .fullScreenCover(isPresented: $showARScan) {
-                ScanAR()
-            }
-            .sheet(isPresented: $showRoomScan) {
-                RoomScanWrapper()
-            }
             .onAppear {
                 loadUserData()
                 plantService.fetchPlants()
             }
         }
     }
-    
-    // ... (loadUserData inchangé)
-    private func loadUserData() {
+}
+
+// MARK: - Header
+
+private extension HomeView {
+    var profileHeader: some View {
+        HStack(spacing: 12) {
+            // Image profil
+            AsyncImage(url: profileImageURL) { phase in
+                switch phase {
+                case .empty:
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: 64, height: 64)
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 64, height: 64)
+                        .clipShape(Circle())
+                case .failure:
+                    Circle()
+                        .fill(Color.gray.opacity(0.3))
+                        .overlay(
+                            Image(systemName: "person.fill")
+                                .foregroundColor(.white.opacity(0.8))
+                        )
+                        .frame(width: 64, height: 64)
+                @unknown default:
+                    EmptyView()
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Bonjour \(userName)")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(.white)
+
+                Text("Vue d’ensemble de ton univers végétal 🌱")
+                    .font(.system(size: 15))
+                    .foregroundColor(Color(hex: "#9DB9A6"))
+            }
+
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Futur Jardin
+
+private extension HomeView {
+    var futureGardenCard: some View {
+        ZStack(alignment: .bottomLeading) {
+            AsyncImage(url: heroImageURL) { phase in
+                switch phase {
+                case .empty:
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(height: 220)
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 220)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .clipped()
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    Color.black.opacity(0.6),
+                                    Color.black.opacity(0.0)
+                                ],
+                                startPoint: .bottom,
+                                endPoint: .top
+                            )
+                        )
+                case .failure:
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(height: 220)
+                @unknown default:
+                    EmptyView()
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text("Jardin japonais")
+                            .font(.system(size: 22, weight: .bold))
+                        Image(systemName: "video.fill")
+                            .font(.system(size: 16))
+                    }
+                    .foregroundColor(.white)
+
+                    Text("Allée en gravier, érables rouges, lanternes en pierre et zone repos.")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(.white)
+                }
+
+                HStack(spacing: 8) {
+                    chip(icon: "sun.max.fill", text: "Lumière adaptée")
+                    chip(icon: "drop.fill", text: "Sol drainant")
+                }
+
+                Button {
+                    // TODO: ouvrir la visualisation AR
+                } label: {
+                    Text("Ouvrir la visualisation")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(Color(hex: "#102216"))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(primary)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(16)
+        }
+    }
+
+    func chip(icon: String, text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 14))
+            Text(text)
+                .font(.system(size: 14, weight: .medium))
+        }
+        .foregroundColor(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.white.opacity(0.1))
+        .clipShape(Capsule())
+    }
+}
+
+// MARK: - Résumé Quotidien
+
+private extension HomeView {
+    var dailySummaryGrid: some View {
+        let columns = [
+            GridItem(.flexible(), spacing: 12),
+            GridItem(.flexible(), spacing: 12)
+        ]
+
+        return ZStack {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(cardDarkSoft)
+
+            LazyVGrid(columns: columns, spacing: 12) {
+                metricCard(
+                    icon: "leaf.fill",
+                    title: "Dans ton jardin",
+                    value: "\(plantCount)"
+                )
+
+                metricCard(
+                    icon: "cloud.sun.fill",
+                    title: weatherDesc,
+                    value: weatherTemp
+                )
+
+                metricCard(
+                    icon: "drop.fill",
+                    title: "À arroser aujourd'hui",
+                    value: "\(plantsToWater) plantes"
+                )
+
+                metricCard(
+                    icon: "heart.fill",
+                    title: "Aucune alerte",
+                    value: healthStatus
+                )
+            }
+            .padding(8)
+        }
+    }
+
+    func metricCard(icon: String, title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 20))
+                .foregroundColor(primary)
+
+            Text(value)
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(.white)
+
+            Text(title)
+                .font(.system(size: 13))
+                .foregroundColor(Color.white.opacity(0.7))
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(cardDark)
+        )
+    }
+}
+
+// MARK: - Sponsor
+
+private extension HomeView {
+    var sponsorBanner: some View {
+        HStack(spacing: 12) {
+            AsyncImage(url: sponsorLogoURL) { phase in
+                switch phase {
+                case .empty:
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.green.opacity(0.3))
+                        .frame(width: 48, height: 48)
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 48, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                case .failure:
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.green.opacity(0.3))
+                        .frame(width: 48, height: 48)
+                @unknown default:
+                    EmptyView()
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Green&Co Terreau Premium")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
+
+                Text("Le meilleur pour vos plantes.")
+                    .font(.system(size: 13))
+                    .foregroundColor(Color.white.opacity(0.7))
+            }
+
+            Spacer()
+
+            Button {
+                // TODO: ouvrir l’offre sponsorisée
+            } label: {
+                Text("Découvrir")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(primary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(primary.opacity(0.2))
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(cardDarkSoft)
+        )
+    }
+}
+
+// MARK: - User
+
+private extension HomeView {
+    func loadUserData() {
         if let uid = Auth.auth().currentUser?.uid {
             self.currentUID = uid
             userService.fetchUser(by: uid) { result in
                 DispatchQueue.main.async {
                     switch result {
                     case .success(let user):
-                        self.userName = user.name.components(separatedBy: " ").first ?? ""
+                        let first = user.name.components(separatedBy: " ").first
+                        self.userName = first ?? userName
+                        self.userError = nil
                     case .failure(let error):
                         self.userError = "Impossible de récupérer l'utilisateur : \(error.localizedDescription)"
                     }
@@ -301,115 +363,11 @@ struct HomeView: View {
     }
 }
 
-// MARK: - QuickActionCard (Mise à jour pour les clés)
-struct QuickActionCard: View {
-    let icon: String
-    let titleKey: LocalizedStringKey // CORRECTION: Doit être LocalizedStringKey
-    let subtitleKey: LocalizedStringKey // CORRECTION: Doit être LocalizedStringKey
-    let color: Color
-    @EnvironmentObject var themeManager: ThemeManager
+// MARK: - Preview
 
-    var body: some View {
-        VStack(spacing: 8) {
-            // Icône (unchanged)
-            Image(systemName: icon)
-                .font(.system(size: 24))
-                .foregroundColor(themeManager.adjust(color))
-                .frame(width: 48, height: 48)
-                .background(
-                    Circle()
-                        .fill(themeManager.adjust(color).opacity(0.2))
-                        .frame(width: 56, height: 56)
-                )
-            
-            // Titres (Localisés)
-            VStack(alignment: .center, spacing: 2) {
-                Text(titleKey) // Fonctionne avec LocalizedStringKey
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(themeManager.textColor)
-                
-                Text(subtitleKey) // Fonctionne avec LocalizedStringKey
-                    .font(.caption)
-                    .foregroundColor(themeManager.secondaryTextColor)
-            }
-        }
-        .padding(16)
-        .background(themeManager.cardBackgroundColor)
-        .cornerRadius(12)
-        .shadow(color: themeManager.adjust(Color.black).opacity(0.1), radius: 4, x: 0, y: 2)
-    }
-}
-
-// MARK: - PlantSection (Mise à jour pour les clés)
-struct PlantSection: View {
-    let titleKey: LocalizedStringKey // CORRECTION: Doit être LocalizedStringKey
-    let subtitleKey: LocalizedStringKey // CORRECTION: Doit être LocalizedStringKey
-    let plants: [Plant]
-    @EnvironmentObject var themeManager: ThemeManager
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Titres (Localisés)
-            HStack {
-                Text(titleKey) // Fonctionne avec LocalizedStringKey
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(themeManager.textColor)
-                
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            
-            HStack {
-                Text(subtitleKey) // Fonctionne avec LocalizedStringKey
-                    .font(.subheadline)
-                    .foregroundColor(themeManager.secondaryTextColor)
-                
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 8)
-            
-            // Cartes de plantes (unchanged)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(plants) { plant in
-                        PlantCard(plant: plant)
-                    }
-                }
-                .padding(.horizontal, 20)
-            }
-        }
-    }
-}
-
-// MARK: - WateringSection (Mise à jour pour les clés)
-struct WateringSection: View {
-    let titleKey: LocalizedStringKey // CORRECTION: Doit être LocalizedStringKey
-    let plants: [Plant]
-    @EnvironmentObject var themeManager: ThemeManager
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Titres (Localisés)
-            HStack {
-                Text(titleKey) // Fonctionne avec LocalizedStringKey
-                    .font(.headline)
-                    .fontWeight(.semibold)
-                    .foregroundColor(themeManager.textColor)
-                
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-            
-            // Liste des plantes à arroser (unchanged)
-            VStack(spacing: 8) {
-                ForEach(plants) { plant in
-                    WaterReminderRow(plantName: plant.name, daysLeft: Int.random(in: 1...5))
-                }
-            }
-            .padding(.horizontal, 20)
-        }
+struct HomeView_Previews: PreviewProvider {
+    static var previews: some View {
+        HomeView()
+            .environmentObject(ThemeManager())
     }
 }

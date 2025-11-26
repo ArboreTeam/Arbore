@@ -473,7 +473,7 @@ struct GeneralInfoGridView: View {
                     title: "Entretien",
                     description: "Conseils pratiques",
                     color: Color(hex: "#C5B3E6"),
-                    destination: EntretienView()
+                    destination: EntretienView(care: translation?.care)
                 )
             }
             .padding(.horizontal)

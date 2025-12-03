@@ -246,13 +246,20 @@ struct PlantDetailView: View {
                     .cornerRadius(12)
             }
             .fullScreenCover(isPresented: $showARView) {
-                if let modelURL = plant.modelURL,
-                   let url = URL(string: modelURL),
-                   !modelURL.isEmpty {
-                    ARViewWrapper(modelURL: url)
-                } else if let demoURL = getDemoModelURL(for: plant.name.lowercased()) {
-                    ARViewWrapper(modelURL: demoURL)
+                // 🔑 Nouvelle logique : on utilise d'abord le modèle local de la plante
+                if let modelURL = plant.localModelURL {
+                    ARViewWrapper(
+                        modelURL: modelURL,
+                        modelConfig: plant.model3D
+                    )
+                } else if let demoURL = getDemoModelURL() {
+                    // Fallback démo global
+                    ARViewWrapper(
+                        modelURL: demoURL,
+                        modelConfig: nil
+                    )
                 } else {
+                    // Dernier fallback : vue AR basique
                     ARViewBasic()
                 }
             }
@@ -400,17 +407,14 @@ struct PlantDetailView: View {
 
     // MARK: - AR FALLBACK
 
-    private func getDemoModelURL(for plantName: String) -> URL? {
+    private func getDemoModelURL() -> URL? {
         if let url = Bundle.main.url(forResource: "plant2", withExtension: "usdz", subdirectory: "Assets") {
             return url
         }
         if let url = Bundle.main.url(forResource: "plant2", withExtension: "usdz") {
             return url
         }
-        if let path = Bundle.main.path(forResource: "plant2", ofType: "usdz", inDirectory: "Assets") {
-            return URL(fileURLWithPath: path)
-        }
-        return URL(string: "fallback://test")
+        return nil
     }
 }
 
@@ -418,7 +422,7 @@ struct PlantDetailView: View {
 
 struct GeneralInfoGridView: View {
     @Environment(\.colorScheme) private var colorScheme
-    let translation: PlantTranslation?   // 🟢 on reçoit la traduction ici
+    let translation: PlantTranslation?   // on reçoit la traduction ici
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {

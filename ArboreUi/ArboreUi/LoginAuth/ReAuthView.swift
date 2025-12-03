@@ -115,6 +115,7 @@ struct ReAuthView: View {
                                     }
                                     .padding()
                                     .frame(maxWidth: .infinity)
+                                    .foregroundColor(.black)
                                     .background(Color.white)
                                     .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.2)))
                                     .cornerRadius(10)

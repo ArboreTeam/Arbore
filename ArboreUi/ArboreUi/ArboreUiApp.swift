@@ -22,7 +22,7 @@ struct YourApp: App {
                     }
             } else {
                 NavigationView {
-                    ModernLoginView()
+                    LoginView()
                 }
                 .environment(\.locale, Locale(identifier: selectedLanguage))
                 .environmentObject(themeManager)

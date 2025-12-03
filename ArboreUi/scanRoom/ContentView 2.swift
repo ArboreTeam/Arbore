@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct ContentView: View {
+struct RoomScanListView: View {
     @State private var files: [String] = []
     
     var body: some View {
@@ -73,5 +73,5 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    RoomScanListView()
 }

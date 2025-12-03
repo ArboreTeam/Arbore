@@ -3,6 +3,8 @@ import ARKit
 import RealityKit
 import FirebaseAuth
 
+// MARK: - ShareSheet
+
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
 
@@ -13,8 +15,12 @@ struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
+// MARK: - ARViewWrapper
+
 struct ARViewWrapper: View {
     let modelURL: URL
+    let modelConfig: PlantModel3D?   // config par plante
+    
     @Environment(\.presentationMode) var presentationMode
     @State private var showShareSheet = false
     @State private var capturedImage: UIImage?
@@ -23,10 +29,14 @@ struct ARViewWrapper: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            ARViewContainer(arView: $arView, modelURL: modelURL)
-                .edgesIgnoringSafeArea(.all)
+            ARViewContainer(
+                arView: $arView,
+                modelURL: modelURL,
+                modelConfig: modelConfig
+            )
+            .edgesIgnoringSafeArea(.all)
 
-            // Bouton Retour en haut à gauche
+            // Bouton Retour
             Button(action: {
                 presentationMode.wrappedValue.dismiss()
             }) {
@@ -39,7 +49,7 @@ struct ARViewWrapper: View {
             }
             .padding()
 
-            // Bouton Prendre une photo centré en bas
+            // Bouton photo
             VStack {
                 Spacer()
                 Button(action: captureARView) {
@@ -88,6 +98,8 @@ struct ARViewWrapper: View {
         }
     }
 }
+
+// MARK: - ARPage
 
 struct ARPage: View {
     let plant: Plant
@@ -190,6 +202,8 @@ struct ARPage: View {
         }
     }
 
+    // MARK: - User
+
     private func fetchUserName() {
         if let user = Auth.auth().currentUser {
             if let displayName = user.displayName {
@@ -218,7 +232,6 @@ struct ARPage: View {
         do {
             try Auth.auth().signOut()
             print("Utilisateur déconnecté avec succès")
-            //deleteCredentials() // Supprimez les identifiants sauvegardés
             withAnimation(.easeInOut(duration: 0.5)) {
                 navigateToLogin = true
             }
@@ -227,15 +240,20 @@ struct ARPage: View {
         }
     }
     
+    // MARK: - Destination AR
+
     @ViewBuilder
     private func destinationView() -> some View {
-        // Try multiple approaches to find the plant2.usdz file
-        let modelURL = findModelURL()
-        
-        if let url = modelURL {
-            ARViewWrapper(modelURL: url)
+        if let url = plant.localModelURL {
+            // Modèle spécifique à la plante (Guzmania, Monstera, etc.)
+            ARViewWrapper(modelURL: url, modelConfig: plant.model3D)
+        } else if let url = findModelURL() {
+            // Modèle de démo / fallback global
+            ARViewWrapper(modelURL: url, modelConfig: nil)
         } else {
-            ARViewWrapper(modelURL: URL(string: "fallback://test")!)
+            // Si vraiment rien de dispo, on affiche juste un message
+            Text("Aucun modèle AR disponible pour cette plante pour le moment.")
+                .padding()
         }
     }
     
@@ -257,7 +275,7 @@ struct ARPage: View {
             return url
         }
         
-        print("❌ Could not find plant2.usdz file - using fallback")
+        print("❌ Could not find plant2.usdz file - no AR fallback available")
         return nil
     }
 }

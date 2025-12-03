@@ -1,4 +1,5 @@
 import Foundation
+import simd
 
 // MARK: - Root Plant model
 
@@ -100,4 +101,87 @@ struct CareInfo: Codable {
     let monthly: [String]?
     let yearly: [String]?
     let extraTips: [String]?
+}
+
+// MARK: - PlantModel3D
+
+struct PlantModel3D {
+    /// Nom du fichier dans le bundle (sans extension)
+    let assetName: String
+    
+    /// Extension du fichier (usdz ou usdc)
+    let fileExtension: String
+    
+    /// Échelle appliquée au modèle dans AR
+    let scale: SIMD3<Float>
+    
+    /// Décalage vertical (pour que le pot repose bien sur le sol)
+    let yOffset: Float
+    
+    init(
+        assetName: String,
+        fileExtension: String = "usdz",
+        scale: SIMD3<Float> = SIMD3<Float>(repeating: 1.0),
+        yOffset: Float = 0.0
+    ) {
+        self.assetName = assetName
+        self.fileExtension = fileExtension
+        self.scale = scale
+        self.yOffset = yOffset
+    }
+}
+
+// MARK: - Extension Plant → config 3D + URL locale
+
+extension Plant {
+    /// Configuration du modèle 3D local associé à la plante (si dispo côté app)
+    var model3D: PlantModel3D? {
+        switch name.lowercased() {
+        case "guzmania":
+            // 🔧 adapte assetName / extension à ton vrai fichier dans Xcode
+            return PlantModel3D(
+                assetName: "Guzmania",   // ex: fichier "Guzmania.usdz"
+                fileExtension: "usdz",
+                scale: SIMD3<Float>(repeating: 0.01),
+                yOffset: 0.0
+            )
+            
+        case "monstera":
+            return PlantModel3D(
+                assetName: "Monstera",
+                fileExtension: "glb",
+                scale: SIMD3<Float>(repeating: 0.01),
+                yOffset: 0.0
+            )
+        
+        case "bambou":
+            return PlantModel3D(
+                assetName: "Bambou",
+                fileExtension: "glb",
+                scale: SIMD3<Float>(repeating: 0.01),
+                yOffset: 0.0
+            )
+
+        // ➕ Tu ajoutes simplement un case par plante qui a un modèle
+        // case "ficus":
+        //     return PlantModel3D(
+        //         assetName: "Ficus",
+        //         fileExtension: "usdz",
+        //         scale: SIMD3<Float>(repeating: 0.01),
+        //         yOffset: 0.0
+        //     )
+            
+        default:
+            return nil
+        }
+    }
+    
+    /// URL du fichier local dans le bundle, dérivée de `model3D`
+    var localModelURL: URL? {
+        guard let cfg = model3D else { return nil }
+        return Bundle.main.url(
+            forResource: cfg.assetName,
+            withExtension: cfg.fileExtension
+        )
+    }
 }

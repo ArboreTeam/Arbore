@@ -17,7 +17,7 @@ struct CatalogueView: View {
                     .ignoresSafeArea()
                 
                 VStack(spacing: 0) {
-                    // ✅ Barre de recherche avec fond vert foncé ajusté pour daltonisme
+                    // ✅ Barre de recherche
                     ZStack(alignment: .bottom) {
                         themeManager.adjust(Color(hex: "#263826"))
                             .ignoresSafeArea(edges: .top)
@@ -27,10 +27,13 @@ struct CatalogueView: View {
                                 Image(systemName: "magnifyingglass")
                                     .foregroundColor(themeManager.secondaryTextColor)
 
-                                TextField("Search", text: $searchText)
-                                    .font(.system(size: 16))
-                                    .foregroundColor(themeManager.textColor)
-                                    .animation(.easeInOut(duration: 0.25), value: searchText)
+                                TextField(
+                                    NSLocalizedString("CATALOG_SEARCH_PLACEHOLDER", comment: "Search placeholder"),
+                                    text: $searchText
+                                )
+                                .font(.system(size: 16))
+                                .foregroundColor(themeManager.textColor)
+                                .animation(.easeInOut(duration: 0.25), value: searchText)
 
                                 if !searchText.isEmpty {
                                     Button(action: { searchText = "" }) {
@@ -58,7 +61,7 @@ struct CatalogueView: View {
 
                             // ✅ Compteur de résultats
                             HStack {
-                                Text("\(filteredPlants.count) résultat\(filteredPlants.count > 1 ? "s" : "")")
+                                Text(resultsCountText)
                                     .font(.subheadline)
                                     .foregroundColor(themeManager.secondaryTextColor)
                                     .padding(.leading, 4)
@@ -72,7 +75,7 @@ struct CatalogueView: View {
 
                     // ✅ Liste des plantes
                     if isLoading {
-                        ProgressView("Chargement des plantes...")
+                        ProgressView(NSLocalizedString("CATALOG_LOADING", comment: "Loading plants"))
                             .foregroundColor(themeManager.textColor)
                             .padding()
                     } else if let errorMessage = errorMessage {
@@ -103,6 +106,17 @@ struct CatalogueView: View {
         }
     }
 
+    // MARK: - Texte du compteur de résultats
+    private var resultsCountText: String {
+        let count = filteredPlants.count
+        if count == 1 {
+            return String(format: NSLocalizedString("CATALOG_RESULTS_SINGLE", comment: "One result"), count)
+        } else {
+            return String(format: NSLocalizedString("CATALOG_RESULTS_PLURAL", comment: "Multiple results"), count)
+        }
+    }
+
+    // MARK: - Filtrage
     var filteredPlants: [Plant] {
         if searchText.isEmpty {
             return plants
@@ -111,9 +125,10 @@ struct CatalogueView: View {
         }
     }
 
+    // MARK: - Networking
     func fetchPlants() {
         guard let url = URL(string: "http://79.137.92.154:8080/plants") else {
-            self.errorMessage = "URL invalide"
+            self.errorMessage = NSLocalizedString("CATALOG_ERROR_URL_INVALID", comment: "Invalid URL")
             self.isLoading = false
             return
         }
@@ -123,19 +138,20 @@ struct CatalogueView: View {
                 self.isLoading = false
 
                 if let error = error {
-                    self.errorMessage = "Erreur de connexion : \(error.localizedDescription)"
+                    let format = NSLocalizedString("CATALOG_ERROR_CONNECTION_FORMAT", comment: "Connection error with description")
+                    self.errorMessage = String(format: format, error.localizedDescription)
                     return
                 }
 
                 guard let data = data else {
-                    self.errorMessage = "Données non valides"
+                    self.errorMessage = NSLocalizedString("CATALOG_ERROR_INVALID_DATA", comment: "Invalid data")
                     return
                 }
 
                 do {
                     self.plants = try JSONDecoder().decode([Plant].self, from: data)
                 } catch {
-                    self.errorMessage = "Erreur lors du décodage des données"
+                    self.errorMessage = NSLocalizedString("CATALOG_ERROR_DECODING", comment: "Decoding error")
                 }
             }
         }.resume()

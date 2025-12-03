@@ -462,3 +462,15 @@
 "UPGRADE_ULTRA_FEATUREROW3" = "Exportaciones HD: visuales y listas";
 "UPGRADE_ULTRA_FEATUREROW4" = "Modo colaboración solo lectura";
 "UPGRADE_ULTRA_FEATUREROW5" = "Soporte prioritario";
+
+// Catalogue / Explore View
+"CATALOG_SEARCH_PLACEHOLDER" = "Buscar una planta";
+"CATALOG_LOADING" = "Cargando plantas…";
+
+"CATALOG_RESULTS_SINGLE" = "%d resultado";
+"CATALOG_RESULTS_PLURAL" = "%d resultados";
+
+"CATALOG_ERROR_URL_INVALID" = "URL no válida";
+"CATALOG_ERROR_CONNECTION_FORMAT" = "Error de conexión: %@";
+"CATALOG_ERROR_INVALID_DATA" = "Datos no válidos";
+"CATALOG_ERROR_DECODING" = "Error al decodificar los datos";

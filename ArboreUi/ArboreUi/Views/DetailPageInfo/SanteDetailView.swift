@@ -36,9 +36,9 @@ struct SanteDetailView: View {
                         HealthSectionCard(
                             icon: "cross.case.fill",
                             iconColor: Color(hex: "#F97316"),
-                            title: "Informations indisponibles"
+                            title: NSLocalizedString("HEALTHDETAIL_INFO_UNAVAILABLE_TITLE", comment: "")
                         ) {
-                            Text("Aucune information spécifique sur la santé de cette plante n’est disponible.")
+                            Text(NSLocalizedString("HEALTHDETAIL_INFO_UNAVAILABLE_BODY", comment: ""))
                                 .font(.system(size: 14))
                                 .foregroundColor(secondaryTextColor)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -54,7 +54,7 @@ struct SanteDetailView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .navigationTitle("Santé")
+        .navigationTitle(NSLocalizedString("HEALTHDETAIL_NAV_TITLE", comment: ""))
     }
 
     // MARK: - Helpers couleurs
@@ -78,7 +78,7 @@ struct SanteDetailView: View {
            !firstPest.isEmpty {
             return firstPest
         }
-        return "Problèmes, parasites, prévention"
+        return NSLocalizedString("HEALTHDETAIL_HEADER_DEFAULT_SUBTITLE", comment: "")
     }
 
     // MARK: - HEADER
@@ -110,7 +110,7 @@ struct SanteDetailView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Santé")
+                        Text(NSLocalizedString("HEALTHDETAIL_HEADER_TITLE", comment: ""))
                             .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
 
@@ -131,20 +131,24 @@ struct SanteDetailView: View {
 
                     HStack(spacing: 10) {
                         if let count = health.commonProblems?.count, count > 0 {
+                            let format = NSLocalizedString("HEALTHDETAIL_HEADER_PROBLEMS_COUNT_FORMAT", comment: "")
+                            let text = String(format: format, count)
                             HealthHeaderPill(
                                 icon: "exclamationmark.triangle.fill",
-                                text: "\(count) problème(s) fréquent(s)"
+                                text: text
                             )
                         }
                         if let count = health.pests?.count, count > 0 {
+                            let format = NSLocalizedString("HEALTHDETAIL_HEADER_PESTS_COUNT_FORMAT", comment: "")
+                            let text = String(format: format, count)
                             HealthHeaderPill(
                                 icon: "ant.fill",
-                                text: "\(count) parasite(s)"
+                                text: text
                             )
                         }
                     }
                 } else {
-                    Text("Repère rapidement les problèmes les plus courants, les parasites et les gestes de prévention.")
+                    Text(NSLocalizedString("HEALTHDETAIL_HEADER_FALLBACK_TEXT", comment: ""))
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.85))
                         .fixedSize(horizontal: false, vertical: true)
@@ -167,13 +171,13 @@ struct SanteDetailView: View {
         HealthSectionCard(
             icon: "exclamationmark.triangle.fill",
             iconColor: Color(hex: "#F97316"),
-            title: "Problèmes fréquents"
+            title: NSLocalizedString("HEALTHDETAIL_SECTION_PROBLEMS_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
 
                 if let problems = health.commonProblems, !problems.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Problèmes courants")
+                        Text(NSLocalizedString("HEALTHDETAIL_SECTION_PROBLEMS_COMMON_TITLE", comment: ""))
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(primaryTextColor)
 
@@ -187,7 +191,7 @@ struct SanteDetailView: View {
 
                 if let symptoms = health.symptomsAndCauses, !symptoms.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Symptômes & causes")
+                        Text(NSLocalizedString("HEALTHDETAIL_SECTION_PROBLEMS_SYMPTOMS_TITLE", comment: ""))
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(primaryTextColor)
 
@@ -215,13 +219,13 @@ struct SanteDetailView: View {
         HealthSectionCard(
             icon: "ant.fill",
             iconColor: Color(hex: "#22C55E"),
-            title: "Parasites & ravageurs"
+            title: NSLocalizedString("HEALTHDETAIL_SECTION_PESTS_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
 
                 if let pests = health.pests, !pests.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Parasites fréquents")
+                        Text(NSLocalizedString("HEALTHDETAIL_SECTION_PESTS_COMMON_TITLE", comment: ""))
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(primaryTextColor)
 
@@ -231,7 +235,7 @@ struct SanteDetailView: View {
 
                 if let treatments = health.treatments, !treatments.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Traitements possibles")
+                        Text(NSLocalizedString("HEALTHDETAIL_SECTION_PESTS_TREATMENTS_TITLE", comment: ""))
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(primaryTextColor)
 
@@ -258,7 +262,7 @@ struct SanteDetailView: View {
         HealthSectionCard(
             icon: "shield.lefthalf.filled",
             iconColor: Color(hex: "#22C55E"),
-            title: "Prévention"
+            title: NSLocalizedString("HEALTHDETAIL_SECTION_PREVENTION_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 8) {
                 if let prevention = health.prevention, !prevention.isEmpty {
@@ -276,18 +280,18 @@ struct SanteDetailView: View {
         HealthSectionCard(
             icon: "wrench.and.screwdriver.fill",
             iconColor: Color(hex: "#38BDF8"),
-            title: "Outils utiles"
+            title: NSLocalizedString("HEALTHDETAIL_TOOLS_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 HealthToolRow(
                     systemIcon: "magnifyingglass",
-                    title: "Loupe ou zoom photo",
-                    subtitle: "Pratique pour inspecter les feuilles et repérer les parasites tôt."
+                    title: NSLocalizedString("HEALTHDETAIL_TOOLS_MAGNIFIER_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("HEALTHDETAIL_TOOLS_MAGNIFIER_SUBTITLE", comment: "")
                 )
                 HealthToolRow(
                     systemIcon: "camera.viewfinder",
-                    title: "Photos régulières",
-                    subtitle: "Comparer l’état de la plante au fil du temps pour détecter les changements."
+                    title: NSLocalizedString("HEALTHDETAIL_TOOLS_PHOTOS_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("HEALTHDETAIL_TOOLS_PHOTOS_SUBTITLE", comment: "")
                 )
             }
         }
@@ -301,7 +305,7 @@ struct SanteDetailView: View {
         }) {
             HStack(spacing: 10) {
                 Image(systemName: "camera.viewfinder")
-                Text("Lancer un scan de la plante")
+                Text(NSLocalizedString("HEALTHDETAIL_CTA_SCAN_TITLE", comment: ""))
             }
             .font(.system(size: 16, weight: .semibold))
             .foregroundColor(.black)

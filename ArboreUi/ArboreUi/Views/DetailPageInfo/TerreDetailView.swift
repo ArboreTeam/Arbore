@@ -36,9 +36,9 @@ struct TerreDetailView: View {
                         SoilSectionCard(
                             icon: "leaf.fill",
                             iconColor: Color(hex: "#4ADE80"),
-                            title: "Informations indisponibles"
+                            title: NSLocalizedString("SOILDETAIL_INFO_UNAVAILABLE_TITLE", comment: "")
                         ) {
-                            Text("Aucune information spécifique sur le substrat et le pot n’est disponible pour cette plante.")
+                            Text(NSLocalizedString("SOILDETAIL_INFO_UNAVAILABLE_BODY", comment: ""))
                                 .font(.system(size: 14))
                                 .foregroundColor(secondaryTextColor)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -54,7 +54,7 @@ struct TerreDetailView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .navigationTitle("Terre & pot")
+        .navigationTitle(NSLocalizedString("SOILDETAIL_NAV_TITLE", comment: ""))
     }
 
     // MARK: - Helpers couleurs
@@ -81,8 +81,8 @@ struct TerreDetailView: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(hex: "#431407"), // marron foncé
-                            Color(hex: "#1C1917")  // brun très sombre
+                            Color(hex: "#431407"),
+                            Color(hex: "#1C1917")
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -102,11 +102,11 @@ struct TerreDetailView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Terre & pot")
+                        Text(NSLocalizedString("SOILDETAIL_HEADER_TITLE", comment: ""))
                             .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
 
-                        let subtitle = soil?.substrate ?? "Substrat, drainage, rempotage"
+                        let subtitle = soil?.substrate ?? NSLocalizedString("SOILDETAIL_HEADER_DEFAULT_SUBTITLE", comment: "")
                         Text(subtitle)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white.opacity(0.85))
@@ -136,7 +136,7 @@ struct TerreDetailView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 } else {
-                    Text("Découvre quel type de substrat utiliser et quand rempoter ta plante.")
+                    Text(NSLocalizedString("SOILDETAIL_HEADER_FALLBACK_TEXT", comment: ""))
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.85))
                         .fixedSize(horizontal: false, vertical: true)
@@ -158,15 +158,21 @@ struct TerreDetailView: View {
         SoilSectionCard(
             icon: "leaf.fill",
             iconColor: Color(hex: "#4ADE80"),
-            title: "Substrat"
+            title: NSLocalizedString("SOILDETAIL_SECTION_SUBSTRATE_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 if let substrate = soil.substrate, !substrate.isEmpty {
-                    SoilFieldRow(label: "Type de terre", value: substrate)
+                    SoilFieldRow(
+                        label: NSLocalizedString("SOILDETAIL_FIELD_SOILTYPE", comment: ""),
+                        value: substrate
+                    )
                 }
 
                 if let drainage = soil.drainage, !drainage.isEmpty {
-                    SoilFieldRow(label: "Drainage conseillé", value: drainage)
+                    SoilFieldRow(
+                        label: NSLocalizedString("SOILDETAIL_FIELD_DRAINAGE_RECOMMENDED", comment: ""),
+                        value: drainage
+                    )
                 }
             }
         }
@@ -184,15 +190,21 @@ struct TerreDetailView: View {
         SoilSectionCard(
             icon: "tray.fill",
             iconColor: Color(hex: "#22C55E"),
-            title: "Pot & drainage"
+            title: NSLocalizedString("SOILDETAIL_SECTION_POT_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 if let potSize = soil.potSize, !potSize.isEmpty {
-                    SoilFieldRow(label: "Taille du pot", value: potSize)
+                    SoilFieldRow(
+                        label: NSLocalizedString("SOILDETAIL_FIELD_POTSIZE", comment: ""),
+                        value: potSize
+                    )
                 }
 
                 if let drainage = soil.drainage, !drainage.isEmpty {
-                    SoilFieldRow(label: "Conseils de drainage", value: drainage)
+                    SoilFieldRow(
+                        label: NSLocalizedString("SOILDETAIL_FIELD_DRAINAGE_ADVICE", comment: ""),
+                        value: drainage
+                    )
                 }
             }
         }
@@ -210,16 +222,19 @@ struct TerreDetailView: View {
         SoilSectionCard(
             icon: "arrow.triangle.2.circlepath",
             iconColor: Color(hex: "#EAB308"),
-            title: "Rempotage"
+            title: NSLocalizedString("SOILDETAIL_SECTION_REPOT_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 if let freq = soil.repotFrequency, !freq.isEmpty {
-                    SoilFieldRow(label: "Fréquence", value: freq)
+                    SoilFieldRow(
+                        label: NSLocalizedString("SOILDETAIL_FIELD_REPOT_FREQUENCY", comment: ""),
+                        value: freq
+                    )
                 }
 
                 if let signs = soil.repotSigns, !signs.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Signes qu’il est temps de rempoter")
+                        Text(NSLocalizedString("SOILDETAIL_REPOT_SIGNS_TITLE", comment: ""))
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(primaryTextColor)
 
@@ -239,18 +254,18 @@ struct TerreDetailView: View {
         SoilSectionCard(
             icon: "wrench.and.screwdriver.fill",
             iconColor: Color(hex: "#38BDF8"),
-            title: "Outils utiles"
+            title: NSLocalizedString("SOILDETAIL_TOOLS_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 SoilToolRow(
                     systemIcon: "scissors",
-                    title: "Sécateur propre",
-                    subtitle: "Pratique pour couper les racines abîmées lors du rempotage."
+                    title: NSLocalizedString("SOILDETAIL_TOOLS_PRUNER_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("SOILDETAIL_TOOLS_PRUNER_SUBTITLE", comment: "")
                 )
                 SoilToolRow(
                     systemIcon: "cube.transparent",
-                    title: "Billes d’argile",
-                    subtitle: "Aident à créer une couche de drainage au fond du pot."
+                    title: NSLocalizedString("SOILDETAIL_TOOLS_CLAYBALLS_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("SOILDETAIL_TOOLS_CLAYBALLS_SUBTITLE", comment: "")
                 )
             }
         }
@@ -264,7 +279,7 @@ struct TerreDetailView: View {
         }) {
             HStack(spacing: 8) {
                 Image(systemName: "ruler.fill")
-                Text("Mesurer mon pot")
+                Text(NSLocalizedString("SOILDETAIL_CTA_MEASURE_POT", comment: ""))
             }
             .font(.system(size: 16, weight: .semibold))
             .foregroundColor(.black)

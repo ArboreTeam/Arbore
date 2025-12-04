@@ -5,7 +5,7 @@ import GoogleSignIn
 @main
 struct YourApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
-    @AppStorage("selectedLanguage") private var selectedLanguage = "en"
+    @AppStorage("selectedLanguage") private var selectedLanguage = "system"
     @State private var showLaunchScreen = true
     @StateObject private var themeManager = ThemeManager()
 

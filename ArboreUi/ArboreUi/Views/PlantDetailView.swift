@@ -14,16 +14,68 @@ struct PlantDetailView: View {
     @State private var showGallery = false
     @State private var galleryStartIndex = 0
     @State private var isAddedToGarden = false
-    @AppStorage("selectedLanguage") private var selectedLanguage = "en"
+    @AppStorage("selectedLanguage") private var selectedLanguage = "system"
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+
+    // MARK: - Langue effective (UI + traductions)
+    private var effectiveLanguageCode: String {
+        // normalisation d’un code ("es-ES" -> "es")
+        func normalize(_ raw: String) -> String {
+            let lower = raw.lowercased()
+            if let dash = lower.firstIndex(of: "-") {
+                return String(lower[..<dash])
+            }
+            if let underscore = lower.firstIndex(of: "_") {
+                return String(lower[..<underscore])
+            }
+            return lower      // déjà "fr", "en", "es", …
+        }
+
+        // 1) si l’utilisateur a choisi une langue explicite
+        if selectedLanguage != "system" && !selectedLanguage.isEmpty {
+            return normalize(selectedLanguage)
+        }
+
+        // 2) sinon on suit la langue de l’app
+        let appLang = Bundle.main.preferredLocalizations.first
+            ?? Locale.current.language.languageCode?.identifier
+            ?? "en"
+
+        return normalize(appLang)   // "es", "fr", "en", …
+    }
+
+    private func translation(for plant: Plant) -> PlantTranslation? {
+        let lang = effectiveLanguageCode   // ex: "es"
+
+        if let t = plant.translations[lang] {
+            return t                // prend "es" si dispo
+        } else if let en = plant.translations["en"] {
+            return en               // fallback anglais
+        } else {
+            return plant.translations.values.first
+        }
+    }
+
+    private var localizedPlantType: String {
+        guard let plant = plant else {
+            return NSLocalizedString("PLANTDETAIL_TYPE_UNKNOWN", comment: "")
+        }
+        if let t = translation(for: plant) {
+            return t.plantType
+        }
+        if !plant.type.isEmpty {
+            return plant.type
+        }
+        return NSLocalizedString("PLANTDETAIL_TYPE_UNKNOWN", comment: "")
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             topBar
 
             if isLoading {
-                ProgressView("Chargement de la plante…")
+                ProgressView(NSLocalizedString("PLANTDETAIL_LOADING", comment: "Loading plant"))
                     .foregroundColor(colorScheme == .dark ? .white : .black)
                     .padding()
             } else if let errorMessage = errorMessage {
@@ -31,8 +83,7 @@ struct PlantDetailView: View {
                     .foregroundColor(.red)
                     .padding()
             } else if let plant = plant {
-                // Traduction de la langue sélectionnée
-                let t = plant.translations[selectedLanguage]
+                let t = translation(for: plant)
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
@@ -47,7 +98,7 @@ struct PlantDetailView: View {
                             VStack(alignment: .leading, spacing: 24) {
                                 addToGardenButton
 
-                                descriptionSection(t: t)
+                                descriptionSection(t: t, plant: plant)
 
                                 // Cartes Soleil / Eau / Terre / Santé / Cycle / Entretien
                                 GeneralInfoGridView(translation: t)
@@ -95,9 +146,7 @@ struct PlantDetailView: View {
                         .foregroundColor(.white)
                         .lineLimit(1)
 
-                    let type = plant?.translations[selectedLanguage]?.plantType ?? plant?.type ?? "Type inconnu"
-
-                    Text(type.capitalized)
+                    Text(localizedPlantType.capitalized)
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.7))
                 }
@@ -154,15 +203,19 @@ struct PlantDetailView: View {
                     isAddedToGarden = true
                 }
             }) {
-                Text(isAddedToGarden ? "🌱 Déjà ajouté !" : "Ajouter à mon jardin")
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(isAddedToGarden ? Color(hex: "#B5D3B2") : Color(hex: "#263826"))
-                    .foregroundColor(isAddedToGarden ? Color(hex: "#263826") : .white)
-                    .cornerRadius(20)
-                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                Text(
+                    isAddedToGarden
+                    ? NSLocalizedString("PLANTDETAIL_ADDED_TO_GARDEN", comment: "")
+                    : NSLocalizedString("PLANTDETAIL_ADD_TO_GARDEN", comment: "")
+                )
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(isAddedToGarden ? Color(hex: "#B5D3B2") : Color(hex: "#263826"))
+                .foregroundColor(isAddedToGarden ? Color(hex: "#263826") : .white)
+                .cornerRadius(20)
+                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
             }
 
             Spacer()
@@ -173,8 +226,10 @@ struct PlantDetailView: View {
 
     // MARK: - DESCRIPTION
 
-    private func descriptionSection(t: PlantTranslation?) -> some View {
-        HStack {
+    private func descriptionSection(t: PlantTranslation?, plant: Plant) -> some View {
+        let descriptionText = t?.description ?? plant.description
+
+        return HStack {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 10) {
                     Image("description_icon")
@@ -183,27 +238,31 @@ struct PlantDetailView: View {
                         .foregroundColor(Color(hex: "#263826"))
                         .frame(width: 25, height: 25)
 
-                    Text("Description")
+                    Text(NSLocalizedString("PLANTDETAIL_SECTION_DESCRIPTION", comment: ""))
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#2C2F24"))
 
                     Spacer()
                 }
 
-                Text(t?.description ?? plant?.description ?? "")
+                Text(descriptionText)
                     .font(.system(size: 15))
                     .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : Color(hex: "#2C2F24"))
                     .lineLimit(showFullDescription ? nil : 2)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if (t?.description ?? plant?.description ?? "").count > 100 {
+                if descriptionText.count > 100 {
                     Button(action: {
                         withAnimation { showFullDescription.toggle() }
                     }) {
-                        Text(showFullDescription ? "Lire moins" : "Lire plus")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .foregroundColor(Color(hex: "#263826"))
+                        Text(
+                            showFullDescription
+                            ? NSLocalizedString("PLANTDETAIL_READ_LESS", comment: "")
+                            : NSLocalizedString("PLANTDETAIL_READ_MORE", comment: "")
+                        )
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(Color(hex: "#263826"))
                     }
                 }
             }
@@ -221,11 +280,11 @@ struct PlantDetailView: View {
 
     private func arSection(for plant: Plant) -> some View {
         VStack(spacing: 12) {
-            Text("Voir la plante en Réalité Virtuelle")
+            Text(NSLocalizedString("PLANTDETAIL_AR_TITLE", comment: ""))
                 .font(.headline)
                 .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#263826"))
 
-            Text("Utilisez votre caméra pour visualiser cette plante dans votre environnement réel.")
+            Text(NSLocalizedString("PLANTDETAIL_AR_SUBTITLE", comment: ""))
                 .font(.subheadline)
                 .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .gray)
                 .multilineTextAlignment(.center)
@@ -237,7 +296,7 @@ struct PlantDetailView: View {
                 .frame(height: 180)
 
             Button(action: { showARView = true }) {
-                Text("Commencer maintenant")
+                Text(NSLocalizedString("PLANTDETAIL_AR_CTA", comment: ""))
                     .foregroundColor(.white)
                     .fontWeight(.semibold)
                     .padding()
@@ -246,20 +305,17 @@ struct PlantDetailView: View {
                     .cornerRadius(12)
             }
             .fullScreenCover(isPresented: $showARView) {
-                // 🔑 Nouvelle logique : on utilise d'abord le modèle local de la plante
                 if let modelURL = plant.localModelURL {
                     ARViewWrapper(
                         modelURL: modelURL,
                         modelConfig: plant.model3D
                     )
                 } else if let demoURL = getDemoModelURL() {
-                    // Fallback démo global
                     ARViewWrapper(
                         modelURL: demoURL,
                         modelConfig: nil
                     )
                 } else {
-                    // Dernier fallback : vue AR basique
                     ARViewBasic()
                 }
             }
@@ -284,7 +340,7 @@ struct PlantDetailView: View {
                                 .foregroundColor(Color(hex: "#263826"))
                         }
 
-                        Text("Galerie de la plante")
+                        Text(NSLocalizedString("PLANTDETAIL_GALLERY_TITLE", comment: ""))
                             .font(.headline)
                             .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#263826"))
 
@@ -294,7 +350,7 @@ struct PlantDetailView: View {
                             galleryStartIndex = 0
                             showGallery = true
                         }) {
-                            Text("Voir tout")
+                            Text(NSLocalizedString("PLANTDETAIL_GALLERY_SEE_ALL", comment: ""))
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
                         }
@@ -375,7 +431,7 @@ struct PlantDetailView: View {
 
     private func fetchPlantDetails() {
         guard let url = URL(string: "http://79.137.92.154:8080/plants/\(plantID)") else {
-            self.errorMessage = "URL invalide"
+            self.errorMessage = NSLocalizedString("PLANTDETAIL_ERROR_URL_INVALID", comment: "")
             self.isLoading = false
             return
         }
@@ -385,19 +441,21 @@ struct PlantDetailView: View {
                 isLoading = false
 
                 if let error = error {
-                    errorMessage = "Erreur de connexion : \(error.localizedDescription)"
+                    let format = NSLocalizedString("PLANTDETAIL_ERROR_CONNECTION_FORMAT", comment: "")
+                    errorMessage = String(format: format, error.localizedDescription)
                     return
                 }
 
                 guard let data = data else {
-                    errorMessage = "Données non valides"
+                    errorMessage = NSLocalizedString("PLANTDETAIL_ERROR_INVALID_DATA", comment: "")
                     return
                 }
 
                 do {
                     plant = try JSONDecoder().decode(Plant.self, from: data)
                 } catch {
-                    errorMessage = "Erreur lors du décodage : \(error)"
+                    let format = NSLocalizedString("PLANTDETAIL_ERROR_DECODING_FORMAT", comment: "")
+                    errorMessage = String(format: format, "\(error)")
                     print("❌ Décodage PlantDetailView :", error)
                 }
             }
@@ -422,14 +480,14 @@ struct PlantDetailView: View {
 
 struct GeneralInfoGridView: View {
     @Environment(\.colorScheme) private var colorScheme
-    let translation: PlantTranslation?   // on reçoit la traduction ici
+    let translation: PlantTranslation?   // traduction MongoDB
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Image(systemName: "doc.text.below.ecg.fill")
                     .foregroundColor(Color(hex: "#263826"))
-                Text("Informations générales")
+                Text(NSLocalizedString("PLANTDETAIL_GENERALINFO_TITLE", comment: ""))
                     .font(.title3)
                     .fontWeight(.semibold)
                     .foregroundColor(colorScheme == .dark ? .white : .black)
@@ -439,43 +497,43 @@ struct GeneralInfoGridView: View {
             VStack(spacing: 14) {
                 GeneralInfoCard(
                     icon: "sun.max.fill",
-                    title: "Soleil",
-                    description: "Exposition, orientation",
+                    title: NSLocalizedString("PLANTDETAIL_SUN_TITLE", comment: ""),
+                    description: NSLocalizedString("PLANTDETAIL_SUN_SUBTITLE", comment: ""),
                     color: Color(hex: "#EEDB8B"),
                     destination: SoleilDetailView(sun: translation?.sun)
                 )
                 GeneralInfoCard(
                     icon: "drop.fill",
-                    title: "Eau",
-                    description: "Fréquence, quantité",
+                    title: NSLocalizedString("PLANTDETAIL_WATER_TITLE", comment: ""),
+                    description: NSLocalizedString("PLANTDETAIL_WATER_SUBTITLE", comment: ""),
                     color: Color(hex: "#A4C3D7"),
                     destination: EauDetailView(water: translation?.water)
                 )
                 GeneralInfoCard(
                     icon: "leaf.fill",
-                    title: "Terre & Pot",
-                    description: "Sol, drainage, pot",
+                    title: NSLocalizedString("PLANTDETAIL_SOIL_TITLE", comment: ""),
+                    description: NSLocalizedString("PLANTDETAIL_SOIL_SUBTITLE", comment: ""),
                     color: Color(hex: "#A7C6AD"),
                     destination: TerreDetailView(soil: translation?.soilAndPot)
                 )
                 GeneralInfoCard(
                     icon: "cross.case.fill",
-                    title: "Santé",
-                    description: "Prévention, parasites, maladies",
+                    title: NSLocalizedString("PLANTDETAIL_HEALTH_TITLE", comment: ""),
+                    description: NSLocalizedString("PLANTDETAIL_HEALTH_SUBTITLE", comment: ""),
                     color: Color(hex: "#E6A6A1"),
                     destination: SanteDetailView(health: translation?.health)
                 )
                 GeneralInfoCard(
                     icon: "calendar",
-                    title: "Cycle de vie",
-                    description: "Croissance, floraison, repos",
+                    title: NSLocalizedString("PLANTDETAIL_LIFECYCLE_TITLE", comment: ""),
+                    description: NSLocalizedString("PLANTDETAIL_LIFECYCLE_SUBTITLE", comment: ""),
                     color: Color(hex: "#EFCFAF"),
                     destination: CycleDeVieView(lifecycle: translation?.lifeCycle)
                 )
                 GeneralInfoCard(
                     icon: "brain.head.profile",
-                    title: "Entretien",
-                    description: "Conseils pratiques",
+                    title: NSLocalizedString("PLANTDETAIL_CARE_TITLE", comment: ""),
+                    description: NSLocalizedString("PLANTDETAIL_CARE_SUBTITLE", comment: ""),
                     color: Color(hex: "#C5B3E6"),
                     destination: EntretienView(care: translation?.care)
                 )

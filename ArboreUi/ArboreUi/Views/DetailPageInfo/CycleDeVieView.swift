@@ -32,9 +32,9 @@ struct CycleDeVieView: View {
                         LifecycleSectionCard(
                             icon: "calendar",
                             iconColor: Color(hex: "#F97316"),
-                            title: "Informations indisponibles"
+                            title: NSLocalizedString("LIFECYCLEDETAIL_INFO_UNAVAILABLE_TITLE", comment: "")
                         ) {
-                            Text("Aucune information spécifique sur le cycle de vie de cette plante n’est disponible.")
+                            Text(NSLocalizedString("LIFECYCLEDETAIL_INFO_UNAVAILABLE_BODY", comment: ""))
                                 .font(.system(size: 14))
                                 .foregroundColor(secondaryTextColor)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -50,7 +50,7 @@ struct CycleDeVieView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .navigationTitle("Cycle de vie")
+        .navigationTitle(NSLocalizedString("LIFECYCLEDETAIL_NAV_TITLE", comment: ""))
     }
 
     // MARK: - Helpers couleurs
@@ -67,15 +67,18 @@ struct CycleDeVieView: View {
 
     private var headerSubtitle: String {
         if let growth = lifecycle?.growth, !growth.isEmpty {
-            return "Croissance : \(growth)"
+            let format = NSLocalizedString("LIFECYCLEDETAIL_HEADER_GROWTH_FORMAT", comment: "")
+            return String(format: format, growth)
         }
         if let flowering = lifecycle?.flowering, !flowering.isEmpty {
-            return "Floraison : \(flowering)"
+            let format = NSLocalizedString("LIFECYCLEDETAIL_HEADER_FLOWERING_FORMAT", comment: "")
+            return String(format: format, flowering)
         }
         if let dormancy = lifecycle?.dormancy, !dormancy.isEmpty {
-            return "Repos : \(dormancy)"
+            let format = NSLocalizedString("LIFECYCLEDETAIL_HEADER_DORMANCY_FORMAT", comment: "")
+            return String(format: format, dormancy)
         }
-        return "Croissance, floraison, repos"
+        return NSLocalizedString("LIFECYCLEDETAIL_HEADER_DEFAULT_SUBTITLE", comment: "")
     }
 
     // MARK: - HEADER
@@ -107,7 +110,7 @@ struct CycleDeVieView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Cycle de vie")
+                        Text(NSLocalizedString("LIFECYCLEDETAIL_HEADER_TITLE", comment: ""))
                             .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
 
@@ -135,7 +138,7 @@ struct CycleDeVieView: View {
                         }
                     }
                 } else {
-                    Text("Visualise les grandes étapes de l’année pour adapter ton entretien au bon moment.")
+                    Text(NSLocalizedString("LIFECYCLEDETAIL_HEADER_FALLBACK_TEXT", comment: ""))
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.85))
                         .fixedSize(horizontal: false, vertical: true)
@@ -159,17 +162,26 @@ struct CycleDeVieView: View {
         LifecycleSectionCard(
             icon: "clock.arrow.circlepath",
             iconColor: Color(hex: "#FACC15"),
-            title: "Phases du cycle"
+            title: NSLocalizedString("LIFECYCLEDETAIL_SECTION_PHASES_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 if let growth = lifecycle.growth, !growth.isEmpty {
-                    LifecycleKeyValueRow(label: "Période de croissance", value: growth)
+                    LifecycleKeyValueRow(
+                        label: NSLocalizedString("LIFECYCLEDETAIL_SECTION_PHASES_GROWTH_LABEL", comment: ""),
+                        value: growth
+                    )
                 }
                 if let flowering = lifecycle.flowering, !flowering.isEmpty {
-                    LifecycleKeyValueRow(label: "Floraison", value: flowering)
+                    LifecycleKeyValueRow(
+                        label: NSLocalizedString("LIFECYCLEDETAIL_SECTION_PHASES_FLOWERING_LABEL", comment: ""),
+                        value: flowering
+                    )
                 }
                 if let dormancy = lifecycle.dormancy, !dormancy.isEmpty {
-                    LifecycleKeyValueRow(label: "Période de repos", value: dormancy)
+                    LifecycleKeyValueRow(
+                        label: NSLocalizedString("LIFECYCLEDETAIL_SECTION_PHASES_DORMANCY_LABEL", comment: ""),
+                        value: dormancy
+                    )
                 }
 
                 let text = buildPhasesDescription(lifecycle: lifecycle)
@@ -188,13 +200,16 @@ struct CycleDeVieView: View {
         var parts: [String] = []
 
         if let growth = lifecycle.growth, !growth.isEmpty {
-            parts.append("La plante se développe surtout pendant \(growth.lowercased()).")
+            let format = NSLocalizedString("LIFECYCLEDETAIL_SECTION_PHASES_GROWTH_FORMAT", comment: "")
+            parts.append(String(format: format, growth.lowercased()))
         }
         if let flowering = lifecycle.flowering, !flowering.isEmpty {
-            parts.append("La floraison a lieu en général \(flowering.lowercased()).")
+            let format = NSLocalizedString("LIFECYCLEDETAIL_SECTION_PHASES_FLOWERING_FORMAT", comment: "")
+            parts.append(String(format: format, flowering.lowercased()))
         }
         if let dormancy = lifecycle.dormancy, !dormancy.isEmpty {
-            parts.append("Prévoyez une période plus calme \(dormancy.lowercased()) pour laisser la plante se reposer.")
+            let format = NSLocalizedString("LIFECYCLEDETAIL_SECTION_PHASES_DORMANCY_FORMAT", comment: "")
+            parts.append(String(format: format, dormancy.lowercased()))
         }
 
         return parts.joined(separator: " ")
@@ -212,14 +227,20 @@ struct CycleDeVieView: View {
         LifecycleSectionCard(
             icon: "leaf.circle.fill",
             iconColor: Color(hex: "#22C55E"),
-            title: "Entretien selon le cycle"
+            title: NSLocalizedString("LIFECYCLEDETAIL_SECTION_CARE_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 if let fertilizer = lifecycle.fertilizer, !fertilizer.isEmpty {
-                    LifecycleKeyValueRow(label: "Engrais", value: fertilizer)
+                    LifecycleKeyValueRow(
+                        label: NSLocalizedString("LIFECYCLEDETAIL_SECTION_CARE_FERTILIZER_LABEL", comment: ""),
+                        value: fertilizer
+                    )
                 }
                 if let pruning = lifecycle.pruning, !pruning.isEmpty {
-                    LifecycleKeyValueRow(label: "Taille", value: pruning)
+                    LifecycleKeyValueRow(
+                        label: NSLocalizedString("LIFECYCLEDETAIL_SECTION_CARE_PRUNING_LABEL", comment: ""),
+                        value: pruning
+                    )
                 }
             }
         }
@@ -231,18 +252,18 @@ struct CycleDeVieView: View {
         LifecycleSectionCard(
             icon: "wrench.and.screwdriver.fill",
             iconColor: Color(hex: "#38BDF8"),
-            title: "Outils utiles"
+            title: NSLocalizedString("LIFECYCLEDETAIL_TOOLS_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 LifecycleToolRow(
                     systemIcon: "calendar.badge.clock",
-                    title: "Agenda d’entretien",
-                    subtitle: "Note les périodes de croissance, de repos et les moments pour fertiliser."
+                    title: NSLocalizedString("LIFECYCLEDETAIL_TOOLS_AGENDA_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("LIFECYCLEDETAIL_TOOLS_AGENDA_SUBTITLE", comment: "")
                 )
                 LifecycleToolRow(
                     systemIcon: "bell.badge",
-                    title: "Rappels saisonniers",
-                    subtitle: "Crée des rappels avant les périodes clés (croissance, floraison, repos)."
+                    title: NSLocalizedString("LIFECYCLEDETAIL_TOOLS_REMINDERS_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("LIFECYCLEDETAIL_TOOLS_REMINDERS_SUBTITLE", comment: "")
                 )
             }
         }
@@ -256,7 +277,7 @@ struct CycleDeVieView: View {
         }) {
             HStack(spacing: 10) {
                 Image(systemName: "calendar.badge.plus")
-                Text("Planifier l’année de la plante")
+                Text(NSLocalizedString("LIFECYCLEDETAIL_CTA_PLAN_TITLE", comment: ""))
             }
             .font(.system(size: 16, weight: .semibold))
             .foregroundColor(.black)

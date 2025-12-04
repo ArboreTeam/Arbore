@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PlantCard: View {
     let plant: Plant
-    @AppStorage("selectedLanguage") private var selectedLanguage = "en"
+    @AppStorage("selectedLanguage") private var selectedLanguage = "system"
     @Environment(\.colorScheme) private var colorScheme
 
     private var translation: PlantTranslation? {

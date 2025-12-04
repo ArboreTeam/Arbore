@@ -22,7 +22,7 @@ struct EntretienView: View {
                             routineSection(
                                 icon: "clock.badge.checkmark",
                                 iconColor: Color(hex: "#22C55E"),
-                                title: "Routines hebdomadaires",
+                                title: NSLocalizedString("ENTDETAIL_SECTION_WEEKLY_TITLE", comment: ""),
                                 tips: weekly
                             )
                         }
@@ -31,7 +31,7 @@ struct EntretienView: View {
                             routineSection(
                                 icon: "calendar",
                                 iconColor: Color(hex: "#FACC15"),
-                                title: "Routines mensuelles",
+                                title: NSLocalizedString("ENTDETAIL_SECTION_MONTHLY_TITLE", comment: ""),
                                 tips: monthly
                             )
                         }
@@ -40,7 +40,7 @@ struct EntretienView: View {
                             routineSection(
                                 icon: "calendar.badge.exclamationmark",
                                 iconColor: Color(hex: "#FB923C"),
-                                title: "Routines annuelles",
+                                title: NSLocalizedString("ENTDETAIL_SECTION_YEARLY_TITLE", comment: ""),
                                 tips: yearly
                             )
                         }
@@ -49,7 +49,7 @@ struct EntretienView: View {
                             routineSection(
                                 icon: "lightbulb.fill",
                                 iconColor: Color(hex: "#38BDF8"),
-                                title: "Astuces supplémentaires",
+                                title: NSLocalizedString("ENTDETAIL_SECTION_EXTRA_TITLE", comment: ""),
                                 tips: extra
                             )
                         }
@@ -60,9 +60,9 @@ struct EntretienView: View {
                         CareSectionCard(
                             icon: "brain.head.profile",
                             iconColor: Color(hex: "#6366F1"),
-                            title: "Aucune routine disponible"
+                            title: NSLocalizedString("ENTDETAIL_INFO_UNAVAILABLE_TITLE", comment: "")
                         ) {
-                            Text("Aucune information d’entretien spécifique n’est disponible pour cette plante pour le moment.")
+                            Text(NSLocalizedString("ENTDETAIL_INFO_UNAVAILABLE_BODY", comment: ""))
                                 .font(.system(size: 14))
                                 .foregroundColor(secondaryTextColor)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -76,7 +76,7 @@ struct EntretienView: View {
                 .padding(.bottom, 32)
             }
         }
-        .navigationTitle("🧠 Entretien")
+        .navigationTitle(NSLocalizedString("ENTDETAIL_NAV_TITLE", comment: ""))
         .navigationBarTitleDisplayMode(.inline)
     }
 
@@ -93,9 +93,9 @@ struct EntretienView: View {
     // Sous-titre dynamique du header
     private var subtitleText: String {
         if let care = care, hasAnyCareInfo(care) {
-            return "Routines & bonnes pratiques"
+            return NSLocalizedString("ENTDETAIL_HEADER_SUBTITLE_WITH_DATA", comment: "")
         } else {
-            return "Conseils généraux"
+            return NSLocalizedString("ENTDETAIL_HEADER_SUBTITLE_NO_DATA", comment: "")
         }
     }
 
@@ -128,7 +128,7 @@ struct EntretienView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Entretien")
+                        Text(NSLocalizedString("ENTDETAIL_HEADER_TITLE", comment: ""))
                             .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
 
@@ -141,7 +141,7 @@ struct EntretienView: View {
                     Spacer()
                 }
 
-                Text("Planifie l’entretien de ta plante sans prise de tête : routines hebdos, mensuelles, annuelles et astuces pratiques.")
+                Text(NSLocalizedString("ENTDETAIL_HEADER_DESCRIPTION", comment: ""))
                     .font(.system(size: 13))
                     .foregroundColor(.white.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
@@ -188,7 +188,7 @@ struct EntretienView: View {
         }) {
             HStack(spacing: 8) {
                 Image(systemName: "checklist")
-                Text("Créer ma checklist d’entretien")
+                Text(NSLocalizedString("ENTDETAIL_CTA_CREATE_CHECKLIST_TITLE", comment: ""))
             }
             .font(.system(size: 16, weight: .semibold))
             .foregroundColor(.black)

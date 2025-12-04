@@ -35,9 +35,9 @@ struct EauDetailView: View {
                         WaterSectionCard(
                             icon: "drop.fill",
                             iconColor: Color(hex: "#38BDF8"),
-                            title: "Informations indisponibles"
+                            title: NSLocalizedString("WATERDETAIL_INFO_UNAVAILABLE_TITLE", comment: "")
                         ) {
-                            Text("Aucune information spécifique d’arrosage n’est disponible pour cette plante.")
+                            Text(NSLocalizedString("WATERDETAIL_INFO_UNAVAILABLE_BODY", comment: ""))
                                 .font(.system(size: 14))
                                 .foregroundColor(secondaryTextColor)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -53,7 +53,7 @@ struct EauDetailView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .navigationTitle("Eau")
+        .navigationTitle(NSLocalizedString("WATERDETAIL_NAV_TITLE", comment: ""))
     }
 
     // MARK: - Helpers couleurs
@@ -101,11 +101,11 @@ struct EauDetailView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Eau")
+                        Text(NSLocalizedString("WATERDETAIL_HEADER_TITLE", comment: ""))
                             .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
 
-                        let subtitle = water?.frequency ?? "Arrosage & humidité"
+                        let subtitle = water?.frequency ?? NSLocalizedString("WATERDETAIL_HEADER_DEFAULT_SUBTITLE", comment: "")
                         Text(subtitle)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white.opacity(0.85))
@@ -129,13 +129,14 @@ struct EauDetailView: View {
                     }
 
                     if let recommended = water.recommendedWater, !recommended.isEmpty {
-                        Text("Eau conseillée : \(recommended).")
+                        let format = NSLocalizedString("WATERDETAIL_HEADER_RECOMMENDED_WATER_FORMAT", comment: "")
+                        Text(String(format: format, recommended))
                             .font(.system(size: 13))
                             .foregroundColor(.white.opacity(0.85))
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 } else {
-                    Text("Découvre comment arroser ta plante sans trop ni pas assez d’eau.")
+                    Text(NSLocalizedString("WATERDETAIL_HEADER_FALLBACK_TEXT", comment: ""))
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.85))
                         .fixedSize(horizontal: false, vertical: true)
@@ -152,24 +153,36 @@ struct EauDetailView: View {
         WaterSectionCard(
             icon: "drop.fill",
             iconColor: Color(hex: "#38BDF8"),
-            title: "Arrosage"
+            title: NSLocalizedString("WATERDETAIL_WATERING_SECTION_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
 
                 if let freq = water.frequency, !freq.isEmpty {
-                    WaterFieldRow(label: "Fréquence", value: freq)
+                    WaterFieldRow(
+                        label: NSLocalizedString("WATERDETAIL_FIELD_FREQUENCY", comment: ""),
+                        value: freq
+                    )
                 }
 
                 if let amount = water.amount, !amount.isEmpty {
-                    WaterFieldRow(label: "Quantité", value: amount)
+                    WaterFieldRow(
+                        label: NSLocalizedString("WATERDETAIL_FIELD_AMOUNT", comment: ""),
+                        value: amount
+                    )
                 }
 
                 if let method = water.method, !method.isEmpty {
-                    WaterFieldRow(label: "Méthode", value: method)
+                    WaterFieldRow(
+                        label: NSLocalizedString("WATERDETAIL_FIELD_METHOD", comment: ""),
+                        value: method
+                    )
                 }
 
                 if let type = water.recommendedWater, !type.isEmpty {
-                    WaterFieldRow(label: "Type d’eau", value: type)
+                    WaterFieldRow(
+                        label: NSLocalizedString("WATERDETAIL_FIELD_WATERTYPE", comment: ""),
+                        value: type
+                    )
                 }
 
                 let text = buildWaterDescription(water: water)
@@ -188,13 +201,16 @@ struct EauDetailView: View {
         var parts: [String] = []
 
         if let freq = water.frequency, !freq.isEmpty {
-            parts.append("Arrose en suivant la fréquence : \(freq.lowercased()).")
+            let format = NSLocalizedString("WATERDETAIL_WATER_DESC_FREQ_FORMAT", comment: "")
+            parts.append(String(format: format, freq.lowercased()))
         }
         if let method = water.method, !method.isEmpty {
-            parts.append("Privilégie la méthode \(method.lowercased()).")
+            let format = NSLocalizedString("WATERDETAIL_WATER_DESC_METHOD_FORMAT", comment: "")
+            parts.append(String(format: format, method.lowercased()))
         }
         if let amount = water.amount, !amount.isEmpty {
-            parts.append("Verse l’eau jusqu’à \(amount.lowercased()).")
+            let format = NSLocalizedString("WATERDETAIL_WATER_DESC_AMOUNT_FORMAT", comment: "")
+            parts.append(String(format: format, amount.lowercased()))
         }
 
         return parts.joined(separator: " ")
@@ -212,15 +228,19 @@ struct EauDetailView: View {
         WaterSectionCard(
             icon: "humidity.fill",
             iconColor: Color(hex: "#22C55E"),
-            title: "Humidité & environnement"
+            title: NSLocalizedString("WATERDETAIL_HUMIDITY_SECTION_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 10) {
                 if let humidity = water.humidity, !humidity.isEmpty {
-                    WaterFieldRow(label: "Humidité idéale", value: humidity)
+                    WaterFieldRow(
+                        label: NSLocalizedString("WATERDETAIL_FIELD_IDEAL_HUMIDITY", comment: ""),
+                        value: humidity
+                    )
                 }
 
                 if let recommended = water.recommendedWater, !recommended.isEmpty {
-                    Text("Eau recommandée : \(recommended).")
+                    let format = NSLocalizedString("WATERDETAIL_HUMIDITY_RECOMMENDED_WATER_FORMAT", comment: "")
+                    Text(String(format: format, recommended))
                         .font(.system(size: 13))
                         .foregroundColor(secondaryTextColor)
                 }
@@ -240,12 +260,12 @@ struct EauDetailView: View {
         WaterSectionCard(
             icon: "exclamationmark.triangle.fill",
             iconColor: Color(hex: "#F97316"),
-            title: "Signes à surveiller"
+            title: NSLocalizedString("WATERDETAIL_SIGNS_SECTION_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 if let lack = water.signsLack, !lack.isEmpty {
                     WarningBlock(
-                        title: "Manque d’eau",
+                        title: NSLocalizedString("WATERDETAIL_SIGNS_LACK_TITLE", comment: ""),
                         icon: "drop.triangle",
                         iconColor: Color(hex: "#FACC15"),
                         text: lack
@@ -254,7 +274,7 @@ struct EauDetailView: View {
 
                 if let excess = water.signsExcess, !excess.isEmpty {
                     WarningBlock(
-                        title: "Trop d’eau",
+                        title: NSLocalizedString("WATERDETAIL_SIGNS_EXCESS_TITLE", comment: ""),
                         icon: "drop.triangle.fill",
                         iconColor: Color(hex: "#FB923C"),
                         text: excess
@@ -270,18 +290,18 @@ struct EauDetailView: View {
         WaterSectionCard(
             icon: "wrench.and.screwdriver.fill",
             iconColor: Color(hex: "#38BDF8"),
-            title: "Outils utiles"
+            title: NSLocalizedString("WATERDETAIL_TOOLS_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 WaterToolRow(
                     systemIcon: "drop.fill",
-                    title: "Arrosoir avec bec fin",
-                    subtitle: "Permet de viser directement le sol sans détremper les feuilles."
+                    title: NSLocalizedString("WATERDETAIL_TOOLS_WATERINGCAN_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("WATERDETAIL_TOOLS_WATERINGCAN_SUBTITLE", comment: "")
                 )
                 WaterToolRow(
                     systemIcon: "gauge",
-                    title: "Testeur d’humidité",
-                    subtitle: "T’aide à savoir si le substrat est encore humide en profondeur."
+                    title: NSLocalizedString("WATERDETAIL_TOOLS_MOISTUREMETER_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("WATERDETAIL_TOOLS_MOISTUREMETER_SUBTITLE", comment: "")
                 )
             }
         }
@@ -295,7 +315,7 @@ struct EauDetailView: View {
         }) {
             HStack(spacing: 8) {
                 Image(systemName: "drop.circle.fill")
-                Text("Créer ma routine d’arrosage")
+                Text(NSLocalizedString("WATERDETAIL_CTA_CREATE_ROUTINE", comment: ""))
             }
             .font(.system(size: 16, weight: .semibold))
             .foregroundColor(.black)

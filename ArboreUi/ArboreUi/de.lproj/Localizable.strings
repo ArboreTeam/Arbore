@@ -462,3 +462,279 @@
 "UPGRADE_ULTRA_FEATUREROW3" = "HD-Exporte: Visuals & Listen";
 "UPGRADE_ULTRA_FEATUREROW4" = "Kollaborationsmodus Nur-Lesen";
 "UPGRADE_ULTRA_FEATUREROW5" = "Priorisierter Support";
+
+// Catalogue / Explore View
+"CATALOG_SEARCH_PLACEHOLDER" = "Nach einer Pflanze suchen";
+"CATALOG_LOADING" = "Pflanzen werden geladen…";
+
+"CATALOG_RESULTS_SINGLE" = "%d Ergebnis";
+"CATALOG_RESULTS_PLURAL" = "%d Ergebnisse";
+
+"CATALOG_ERROR_URL_INVALID" = "Ungültige URL";
+"CATALOG_ERROR_CONNECTION_FORMAT" = "Verbindungsfehler: %@";
+"CATALOG_ERROR_INVALID_DATA" = "Ungültige Daten";
+"CATALOG_ERROR_DECODING" = "Fehler beim Dekodieren der Daten";
+
+// PlantDetailView
+"PLANTDETAIL_LOADING" = "Pflanze wird geladen…";
+"PLANTDETAIL_ERROR_URL_INVALID" = "Ungültige URL";
+"PLANTDETAIL_ERROR_CONNECTION_FORMAT" = "Verbindungsfehler: %@";
+"PLANTDETAIL_ERROR_INVALID_DATA" = "Ungültige Daten";
+"PLANTDETAIL_ERROR_DECODING_FORMAT" = "Decodierfehler: %@";
+"PLANTDETAIL_TYPE_UNKNOWN" = "Unbekannter Typ";
+
+"PLANTDETAIL_ADDED_TO_GARDEN" = "🌱 Bereits hinzugefügt!";
+"PLANTDETAIL_ADD_TO_GARDEN" = "Zu meinem Garten hinzufügen";
+
+"PLANTDETAIL_SECTION_DESCRIPTION" = "Beschreibung";
+"PLANTDETAIL_READ_MORE" = "Mehr anzeigen";
+"PLANTDETAIL_READ_LESS" = "Weniger anzeigen";
+
+"PLANTDETAIL_AR_TITLE" = "Pflanze in AR anzeigen";
+"PLANTDETAIL_AR_SUBTITLE" = "Nutze die Kamera, um diese Pflanze in deiner echten Umgebung zu sehen.";
+"PLANTDETAIL_AR_CTA" = "Jetzt starten";
+
+"PLANTDETAIL_GALLERY_TITLE" = "Pflanzengalerie";
+"PLANTDETAIL_GALLERY_SEE_ALL" = "Alle ansehen";
+
+"PLANTDETAIL_GENERALINFO_TITLE" = "Allgemeine Informationen";
+"PLANTDETAIL_SUN_TITLE" = "Licht";
+"PLANTDETAIL_SUN_SUBTITLE" = "Belichtung, Ausrichtung";
+
+"PLANTDETAIL_WATER_TITLE" = "Wasser";
+"PLANTDETAIL_WATER_SUBTITLE" = "Frequenz, Menge";
+
+"PLANTDETAIL_SOIL_TITLE" = "Erde & Topf";
+"PLANTDETAIL_SOIL_SUBTITLE" = "Erde, Drainage, Topf";
+
+"PLANTDETAIL_HEALTH_TITLE" = "Gesundheit";
+"PLANTDETAIL_HEALTH_SUBTITLE" = "Prävention, Schädlinge, Krankheiten";
+
+"PLANTDETAIL_LIFECYCLE_TITLE" = "Lebenszyklus";
+"PLANTDETAIL_LIFECYCLE_SUBTITLE" = "Wachstum, Blüte, Ruhephase";
+
+"PLANTDETAIL_CARE_TITLE" = "Pflege";
+"PLANTDETAIL_CARE_SUBTITLE" = "Praktische Tipps";
+
+// SUN DETAIL
+"SUNDETAIL_NAV_TITLE" = "Licht";
+
+"SUNDETAIL_INFO_UNAVAILABLE_TITLE" = "Keine Informationen verfügbar";
+"SUNDETAIL_INFO_UNAVAILABLE_BODY" = "Für diese Pflanze sind keine Lichtinformationen verfügbar.";
+
+"SUNDETAIL_HEADER_TITLE" = "Licht";
+"SUNDETAIL_HEADER_DEFAULT_SUBTITLE" = "Licht & Standort";
+
+"SUNDETAIL_HEADER_DISTANCE_FORMAT" = "Idealerweise etwa %@ vom Fenster entfernt.";
+"SUNDETAIL_HEADER_FALLBACK_TEXT" = "Verstehe schnell, welches Licht diese Pflanze benötigt.";
+
+/* SECTION */
+"SUNDETAIL_LIGHT_SECTION_TITLE" = "Tägliches Licht";
+"SUNDETAIL_LIGHT_TYPE_LABEL" = "Typ";
+"SUNDETAIL_LIGHT_DURATION_LABEL" = "Ideale Dauer";
+
+"SUNDETAIL_LIGHT_DESC_LIGHT_FORMAT" = "Diese Pflanze bevorzugt %@ Licht.";
+"SUNDETAIL_LIGHT_DESC_DURATION_FORMAT" = "Gib ihr ungefähr %@ pro Tag.";
+
+/* PLACEMENT */
+"SUNDETAIL_PLACEMENT_TITLE" = "Idealplatz";
+"SUNDETAIL_PLACEMENT_WINDOWS_TITLE" = "Empfohlene Fenster";
+"SUNDETAIL_PLACEMENT_BADGE" = "Empfohlen";
+"SUNDETAIL_PLACEMENT_ROOMS_TITLE" = "Empfohlene Räume";
+
+/* TIPS */
+"SUNDETAIL_TIPS_TITLE" = "Tipps & Ratschläge";
+
+/* TOOLS */
+"SUNDETAIL_TOOLS_TITLE" = "Nützliche Werkzeuge";
+
+"SUNDETAIL_TOOLS_LIGHTMETER_TITLE" = "Lichtmesser";
+"SUNDETAIL_TOOLS_LIGHTMETER_SUBTITLE" = "Misst die Lichtintensität am genauen Standort.";
+
+"SUNDETAIL_TOOLS_COMPASS_TITLE" = "Kompass";
+"SUNDETAIL_TOOLS_COMPASS_SUBTITLE" = "Hilft bei der Fensterorientierung (Ost, West, Süd, Nord).";
+
+/* CTA */
+"SUNDETAIL_CTA_TEST_LIGHT" = "Licht in meinem Raum testen";
+
+// WATER DETAIL
+"WATERDETAIL_NAV_TITLE" = "Wasser";
+
+"WATERDETAIL_INFO_UNAVAILABLE_TITLE" = "Keine Informationen verfügbar";
+"WATERDETAIL_INFO_UNAVAILABLE_BODY" = "Es liegen keine Bewässerungsinformationen für diese Pflanze vor.";
+
+"WATERDETAIL_HEADER_TITLE" = "Wasser";
+"WATERDETAIL_HEADER_DEFAULT_SUBTITLE" = "Bewässerung & Luftfeuchtigkeit";
+"WATERDETAIL_HEADER_RECOMMENDED_WATER_FORMAT" = "Empfohlenes Wasser: %@.";
+"WATERDETAIL_HEADER_FALLBACK_TEXT" = "Erfahre, wie du richtig gießt – nicht zu viel, nicht zu wenig.";
+
+/* SECTION */
+"WATERDETAIL_WATERING_SECTION_TITLE" = "Bewässerung";
+
+"WATERDETAIL_FIELD_FREQUENCY" = "Frequenz";
+"WATERDETAIL_FIELD_AMOUNT" = "Menge";
+"WATERDETAIL_FIELD_METHOD" = "Methode";
+"WATERDETAIL_FIELD_WATERTYPE" = "Wassertyp";
+
+"WATERDETAIL_WATER_DESC_FREQ_FORMAT" = "Gieße nach folgender Frequenz: %@.";
+"WATERDETAIL_WATER_DESC_METHOD_FORMAT" = "Bevorzuge die Methode %@.";
+"WATERDETAIL_WATER_DESC_AMOUNT_FORMAT" = "Gieße Wasser, bis %@.";
+
+/* HUMIDITY */
+"WATERDETAIL_HUMIDITY_SECTION_TITLE" = "Luftfeuchtigkeit & Umgebung";
+"WATERDETAIL_FIELD_IDEAL_HUMIDITY" = "Ideale Luftfeuchtigkeit";
+"WATERDETAIL_HUMIDITY_RECOMMENDED_WATER_FORMAT" = "Empfohlenes Wasser: %@.";
+
+/* SIGNS */
+"WATERDETAIL_SIGNS_SECTION_TITLE" = "Warnsignale";
+"WATERDETAIL_SIGNS_LACK_TITLE" = "Wassermangel";
+"WATERDETAIL_SIGNS_EXCESS_TITLE" = "Zu viel Wasser";
+
+/* TOOLS */
+"WATERDETAIL_TOOLS_TITLE" = "Nützliche Werkzeuge";
+
+"WATERDETAIL_TOOLS_WATERINGCAN_TITLE" = "Gießkanne mit feiner Tülle";
+"WATERDETAIL_TOOLS_WATERINGCAN_SUBTITLE" = "Leitet das Wasser direkt ins Substrat.";
+
+"WATERDETAIL_TOOLS_MOISTUREMETER_TITLE" = "Feuchtigkeitsmesser";
+"WATERDETAIL_TOOLS_MOISTUREMETER_SUBTITLE" = "Hilft zu prüfen, ob das Substrat tief unten noch feucht ist.";
+
+/* CTA */
+"WATERDETAIL_CTA_CREATE_ROUTINE" = "Meine Gießroutine erstellen";
+
+// SOIL DETAIL
+"SOILDETAIL_NAV_TITLE" = "Erde & Topf";
+
+"SOILDETAIL_INFO_UNAVAILABLE_TITLE" = "Keine Informationen verfügbar";
+"SOILDETAIL_INFO_UNAVAILABLE_BODY" = "Keine Boden- oder Topfinformationen verfügbar.";
+
+"SOILDETAIL_HEADER_TITLE" = "Erde & Topf";
+"SOILDETAIL_HEADER_DEFAULT_SUBTITLE" = "Substrat, Drainage, Umtopfen";
+"SOILDETAIL_HEADER_FALLBACK_TEXT" = "Erfahre, welches Substrat du verwenden solltest und wann du umtopfen musst.";
+
+/* SECTION */
+"SOILDETAIL_SECTION_SUBSTRATE_TITLE" = "Substrat";
+"SOILDETAIL_FIELD_SOILTYPE" = "Bodenart";
+"SOILDETAIL_FIELD_DRAINAGE_RECOMMENDED" = "Empfohlene Drainage";
+
+/* POT */
+"SOILDETAIL_SECTION_POT_TITLE" = "Topf & Drainage";
+"SOILDETAIL_FIELD_POTSIZE" = "Topfgröße";
+"SOILDETAIL_FIELD_DRAINAGE_ADVICE" = "Drainage-Tipps";
+
+/* REPOTTING */
+"SOILDETAIL_SECTION_REPOT_TITLE" = "Umtopfen";
+"SOILDETAIL_FIELD_REPOT_FREQUENCY" = "Frequenz";
+"SOILDETAIL_REPOT_SIGNS_TITLE" = "Anzeichen, dass es Zeit ist umzutopfen";
+
+/* TOOLS */
+"SOILDETAIL_TOOLS_TITLE" = "Nützliche Werkzeuge";
+
+"SOILDETAIL_TOOLS_PRUNER_TITLE" = "Saubere Gartenschere";
+"SOILDETAIL_TOOLS_PRUNER_SUBTITLE" = "Nützlich zum Schneiden beschädigter Wurzeln.";
+
+"SOILDETAIL_TOOLS_CLAYBALLS_TITLE" = "Blähton";
+"SOILDETAIL_TOOLS_CLAYBALLS_SUBTITLE" = "Hilft, eine Drainageschicht am Topfboden zu bilden.";
+
+/* CTA */
+"SOILDETAIL_CTA_MEASURE_POT" = "Meinen Topf messen";
+
+// HEALTH DETAIL
+"HEALTHDETAIL_NAV_TITLE" = "Gesundheit";
+
+"HEALTHDETAIL_INFO_UNAVAILABLE_TITLE" = "Keine Informationen verfügbar";
+"HEALTHDETAIL_INFO_UNAVAILABLE_BODY" = "Es liegen keine Gesundheitsinformationen für diese Pflanze vor.";
+
+"HEALTHDETAIL_HEADER_TITLE" = "Gesundheit";
+"HEALTHDETAIL_HEADER_DEFAULT_SUBTITLE" = "Probleme, Schädlinge & Prävention";
+"HEALTHDETAIL_HEADER_FALLBACK_TEXT" = "Identifiziere schnell die häufigsten Probleme und Schädlinge.";
+
+"HEALTHDETAIL_HEADER_PROBLEMS_COUNT_FORMAT" = "%d häufige(s) Problem(e)";
+"HEALTHDETAIL_HEADER_PESTS_COUNT_FORMAT" = "%d Schädling(e)";
+
+/* SECTION */
+"HEALTHDETAIL_SECTION_PROBLEMS_TITLE" = "Häufige Probleme";
+"HEALTHDETAIL_SECTION_PROBLEMS_COMMON_TITLE" = "Gewöhnliche Probleme";
+"HEALTHDETAIL_SECTION_PROBLEMS_SYMPTOMS_TITLE" = "Symptome & Ursachen";
+
+/* PESTS */
+"HEALTHDETAIL_SECTION_PESTS_TITLE" = "Schädlinge & Behandlungen";
+"HEALTHDETAIL_SECTION_PESTS_COMMON_TITLE" = "Häufige Schädlinge";
+"HEALTHDETAIL_SECTION_PESTS_TREATMENTS_TITLE" = "Mögliche Behandlungen";
+
+/* PREVENTION */
+"HEALTHDETAIL_SECTION_PREVENTION_TITLE" = "Prävention";
+
+/* TOOLS */
+"HEALTHDETAIL_TOOLS_TITLE" = "Nützliche Werkzeuge";
+
+"HEALTHDETAIL_TOOLS_MAGNIFIER_TITLE" = "Lupe oder Kamera-Zoom";
+"HEALTHDETAIL_TOOLS_MAGNIFIER_SUBTITLE" = "Ideal zur Blätterkontrolle aus nächster Nähe.";
+
+"HEALTHDETAIL_TOOLS_PHOTOS_TITLE" = "Regelmäßige Fotos";
+"HEALTHDETAIL_TOOLS_PHOTOS_SUBTITLE" = "Hilft, Veränderungen im Laufe der Zeit zu erkennen.";
+
+/* CTA */
+"HEALTHDETAIL_CTA_SCAN_TITLE" = "Pflanze scannen";
+
+// LIFECYCLE
+"LIFECYCLEDETAIL_NAV_TITLE" = "Lebenszyklus";
+
+"LIFECYCLEDETAIL_INFO_UNAVAILABLE_TITLE" = "Keine Informationen verfügbar";
+"LIFECYCLEDETAIL_INFO_UNAVAILABLE_BODY" = "Keine Informationen zum Lebenszyklus verfügbar.";
+
+/* Header */
+"LIFECYCLEDETAIL_HEADER_TITLE" = "Lebenszyklus";
+"LIFECYCLEDETAIL_HEADER_GROWTH_FORMAT" = "Wachstum: %@";
+"LIFECYCLEDETAIL_HEADER_FLOWERING_FORMAT" = "Blüte: %@";
+"LIFECYCLEDETAIL_HEADER_DORMANCY_FORMAT" = "Ruhephase: %@";
+"LIFECYCLEDETAIL_HEADER_DEFAULT_SUBTITLE" = "Wachstum, Blüte & Ruhephase";
+"LIFECYCLEDETAIL_HEADER_FALLBACK_TEXT" = "Sieh dir die wichtigen Jahresphasen für optimale Pflege an.";
+
+/* Phases */
+"LIFECYCLEDETAIL_SECTION_PHASES_TITLE" = "Phasen des Zyklus";
+"LIFECYCLEDETAIL_SECTION_PHASES_GROWTH_LABEL" = "Wachstumsphase";
+"LIFECYCLEDETAIL_SECTION_PHASES_FLOWERING_LABEL" = "Blüte";
+"LIFECYCLEDETAIL_SECTION_PHASES_DORMANCY_LABEL" = "Ruhezeit";
+
+"LIFECYCLEDETAIL_SECTION_PHASES_GROWTH_FORMAT" = "Die Pflanze wächst hauptsächlich %@.";
+"LIFECYCLEDETAIL_SECTION_PHASES_FLOWERING_FORMAT" = "Die Blüte erfolgt meist %@.";
+"LIFECYCLEDETAIL_SECTION_PHASES_DORMANCY_FORMAT" = "Eine ruhigere Zeit %@ erlaubt der Pflanze, sich zu erholen.";
+
+/* Care */
+"LIFECYCLEDETAIL_SECTION_CARE_TITLE" = "Pflege nach Zyklus";
+"LIFECYCLEDETAIL_SECTION_CARE_FERTILIZER_LABEL" = "Dünger";
+"LIFECYCLEDETAIL_SECTION_CARE_PRUNING_LABEL" = "Schnitt";
+
+/* Tools */
+"LIFECYCLEDETAIL_TOOLS_TITLE" = "Nützliche Werkzeuge";
+
+"LIFECYCLEDETAIL_TOOLS_AGENDA_TITLE" = "Pflegekalender";
+"LIFECYCLEDETAIL_TOOLS_AGENDA_SUBTITLE" = "Notiere Wachstums-, Ruhe- und Düngezeiten.";
+
+"LIFECYCLEDETAIL_TOOLS_REMINDERS_TITLE" = "Saisonale Erinnerungen";
+"LIFECYCLEDETAIL_TOOLS_REMINDERS_SUBTITLE" = "Erstelle Erinnerungen für wichtige Zeiträume.";
+
+/* CTA */
+"LIFECYCLEDETAIL_CTA_PLAN_TITLE" = "Jahr der Pflanze planen";
+
+// CARE DETAIL
+"ENTDETAIL_NAV_TITLE" = "🧠 Pflege";
+
+"ENTDETAIL_HEADER_TITLE" = "Pflege";
+"ENTDETAIL_HEADER_SUBTITLE_WITH_DATA" = "Routinen & bewährte Methoden";
+"ENTDETAIL_HEADER_SUBTITLE_NO_DATA" = "Allgemeine Tipps";
+"ENTDETAIL_HEADER_DESCRIPTION" = "Plane die Pflege deiner Pflanze einfach: wöchentliche, monatliche, jährliche Routinen + praktische Tipps.";
+
+/* Sections */
+"ENTDETAIL_SECTION_WEEKLY_TITLE" = "Wöchentliche Routinen";
+"ENTDETAIL_SECTION_MONTHLY_TITLE" = "Monatliche Routinen";
+"ENTDETAIL_SECTION_YEARLY_TITLE" = "Jährliche Routinen";
+"ENTDETAIL_SECTION_EXTRA_TITLE" = "Zusätzliche Tipps";
+
+/* No data */
+"ENTDETAIL_INFO_UNAVAILABLE_TITLE" = "Keine Routinen verfügbar";
+"ENTDETAIL_INFO_UNAVAILABLE_BODY" = "Für diese Pflanze sind derzeit keine spezifischen Pflegeinformationen verfügbar.";
+
+/* CTA */
+"ENTDETAIL_CTA_CREATE_CHECKLIST_TITLE" = "Meine Pflegeliste erstellen";

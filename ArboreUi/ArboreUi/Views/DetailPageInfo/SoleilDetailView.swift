@@ -34,9 +34,9 @@ struct SoleilDetailView: View {
                         SectionCard(
                             icon: "sun.max.fill",
                             iconColor: Color(hex: "#FACC15"),
-                            title: "Informations indisponibles"
+                            title: NSLocalizedString("SUNDETAIL_INFO_UNAVAILABLE_TITLE", comment: "")
                         ) {
-                            Text("Aucune information spécifique sur la lumière n’est disponible pour cette plante.")
+                            Text(NSLocalizedString("SUNDETAIL_INFO_UNAVAILABLE_BODY", comment: ""))
                                 .font(.system(size: 14))
                                 .foregroundColor(.secondaryText(for: colorScheme))
                                 .fixedSize(horizontal: false, vertical: true)
@@ -52,7 +52,7 @@ struct SoleilDetailView: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .navigationTitle("Soleil")
+        .navigationTitle(NSLocalizedString("SUNDETAIL_NAV_TITLE", comment: "Sun detail screen title"))
     }
 
     // MARK: - HEADER
@@ -84,11 +84,12 @@ struct SoleilDetailView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Soleil")
+                        Text(NSLocalizedString("SUNDETAIL_HEADER_TITLE", comment: ""))
                             .font(.system(size: 24, weight: .bold))
                             .foregroundColor(.white)
 
-                        let subtitle = sun?.lightType ?? "Lumière & emplacement"
+                        let defaultSubtitle = NSLocalizedString("SUNDETAIL_HEADER_DEFAULT_SUBTITLE", comment: "")
+                        let subtitle = sun?.lightType ?? defaultSubtitle
                         Text(subtitle)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white.opacity(0.85))
@@ -112,13 +113,14 @@ struct SoleilDetailView: View {
                     }
 
                     if let distance = sun.windowDistance, !distance.isEmpty {
-                        Text("Idéale à environ \(distance.lowercased()) de la fenêtre.")
+                        let format = NSLocalizedString("SUNDETAIL_HEADER_DISTANCE_FORMAT", comment: "")
+                        Text(String(format: format, distance.lowercased()))
                             .font(.system(size: 13))
                             .foregroundColor(.white.opacity(0.85))
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 } else {
-                    Text("Comprends rapidement quel type de lumière convient le mieux à cette plante.")
+                    Text(NSLocalizedString("SUNDETAIL_HEADER_FALLBACK_TEXT", comment: ""))
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.85))
                         .fixedSize(horizontal: false, vertical: true)
@@ -135,15 +137,21 @@ struct SoleilDetailView: View {
         SectionCard(
             icon: "sun.max.fill",
             iconColor: Color(hex: "#FACC15"),
-            title: "Lumière quotidienne"
+            title: NSLocalizedString("SUNDETAIL_LIGHT_SECTION_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 if let light = sun.lightType, !light.isEmpty {
-                    KeyValueRow(label: "Type", value: light)
+                    KeyValueRow(
+                        label: NSLocalizedString("SUNDETAIL_LIGHT_TYPE_LABEL", comment: ""),
+                        value: light
+                    )
                 }
 
                 if let duration = sun.durationPerDay, !duration.isEmpty {
-                    KeyValueRow(label: "Durée idéale", value: duration)
+                    KeyValueRow(
+                        label: NSLocalizedString("SUNDETAIL_LIGHT_DURATION_LABEL", comment: ""),
+                        value: duration
+                    )
                 }
 
                 let text = buildLightDescription(sun: sun)
@@ -162,10 +170,12 @@ struct SoleilDetailView: View {
         var parts: [String] = []
 
         if let light = sun.lightType, !light.isEmpty {
-            parts.append("Cette plante préfère une lumière \(light.lowercased()).")
+            let format = NSLocalizedString("SUNDETAIL_LIGHT_DESC_LIGHT_FORMAT", comment: "")
+            parts.append(String(format: format, light.lowercased()))
         }
         if let duration = sun.durationPerDay, !duration.isEmpty {
-            parts.append("Essaie de lui offrir environ \(duration.lowercased()) par jour.")
+            let format = NSLocalizedString("SUNDETAIL_LIGHT_DESC_DURATION_FORMAT", comment: "")
+            parts.append(String(format: format, duration.lowercased()))
         }
 
         return parts.joined(separator: " ")
@@ -184,7 +194,7 @@ struct SoleilDetailView: View {
         SectionCard(
             icon: "house.fill",
             iconColor: Color(hex: "#22C55E"),
-            title: "Emplacement idéal"
+            title: NSLocalizedString("SUNDETAIL_PLACEMENT_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 14) {
                 if let orientation = sun.orientation, !orientation.isEmpty {
@@ -192,15 +202,15 @@ struct SoleilDetailView: View {
                     let subtitle = distance.map { "\(orientation) • \($0)" } ?? orientation
 
                     InfoRow(
-                        title: "Fenêtres recommandées",
+                        title: NSLocalizedString("SUNDETAIL_PLACEMENT_WINDOWS_TITLE", comment: ""),
                         subtitle: subtitle,
-                        badge: "Recommandé"
+                        badge: NSLocalizedString("SUNDETAIL_PLACEMENT_BADGE", comment: "")
                     )
                 }
 
                 if let rooms = sun.recommendedRooms, !rooms.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Pièces conseillées")
+                        Text(NSLocalizedString("SUNDETAIL_PLACEMENT_ROOMS_TITLE", comment: ""))
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(.primaryText(for: colorScheme))
 
@@ -238,7 +248,7 @@ struct SoleilDetailView: View {
         SectionCard(
             icon: "lightbulb.max.fill",
             iconColor: Color(hex: "#FDE68A"),
-            title: "Conseils & astuces"
+            title: NSLocalizedString("SUNDETAIL_TIPS_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(tips, id: \.self) { tip in
@@ -254,18 +264,18 @@ struct SoleilDetailView: View {
         SectionCard(
             icon: "wrench.and.screwdriver.fill",
             iconColor: Color(hex: "#38BDF8"),
-            title: "Outils utiles"
+            title: NSLocalizedString("SUNDETAIL_TOOLS_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 ToolRow(
                     systemIcon: "lightbulb.max.fill",
-                    title: "Light meter",
-                    subtitle: "Mesure l’intensité lumineuse à l’endroit exact où tu poses la plante."
+                    title: NSLocalizedString("SUNDETAIL_TOOLS_LIGHTMETER_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("SUNDETAIL_TOOLS_LIGHTMETER_SUBTITLE", comment: "")
                 )
                 ToolRow(
                     systemIcon: "location.north.line",
-                    title: "Boussole",
-                    subtitle: "T’aide à identifier l’orientation des fenêtres (Est, Ouest, Sud, Nord)."
+                    title: NSLocalizedString("SUNDETAIL_TOOLS_COMPASS_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("SUNDETAIL_TOOLS_COMPASS_SUBTITLE", comment: "")
                 )
             }
         }
@@ -279,7 +289,7 @@ struct SoleilDetailView: View {
         }) {
             HStack(spacing: 8) {
                 Image(systemName: "sun.max.trianglebadge.exclamationmark.fill")
-                Text("Tester la lumière de ma pièce")
+                Text(NSLocalizedString("SUNDETAIL_CTA_TEST_LIGHT", comment: ""))
             }
             .font(.system(size: 16, weight: .semibold))
             .foregroundColor(.black)

@@ -1,373 +1,297 @@
 import SwiftUI
-import FirebaseAuth
 
 struct HomeView: View {
-    @ObservedObject var plantService = PlantService()
-    @StateObject var userService = UserService()
-    @EnvironmentObject var themeManager: ThemeManager
+    @State private var projects: [GardenProject] = []
+    @State private var goToQuestionnaire = false
 
-    // MOCKS – à brancher ensuite sur ton backend / services
-    @State private var userName: String = "Hugo"
-    @State private var userError: String? = nil
-    @State private var currentUID: String = ""
-    @State private var profileImageURL: URL? = URL(string:
-        "https://lh3.googleusercontent.com/aida-public/AB6AXuDWmaHAl_C1VSIzZLeaHvIVQY7q_1XPTw4E1bwkpalrEtAoGOdI0CHFIjQhQPPf6GHMZcwxa0gMOdFsuvzbuJ9tjcmxkegeBHpegLpCN9k86jE05YcooVOCcq40CJoT_cdl3Wm3uFEEZgztfDxDF3uaUfon17L2LiN_3wWH7USt2-uOFUQ8GcgeWxKN5RKf51dJGyRpkbnMxSD5MIwJy_sUnENID4G7OLEPSHtF16ljGHVmOepfnUbwBtAH8SdLbbwGrtOVUUrG9AI"
-    )
-
-    @State private var heroImageURL: URL? = URL(string:
-        "https://lh3.googleusercontent.com/aida-public/AB6AXuCe_3do_emvEEcKrzXhX4NPE_KEXqIfqls06OPVJAHBZByFJaHRvcbjgdSaNmzLmjYQZQ9uubbD1w3vLjaAho6PCId_U5a84LblSIhhh438CjGSbqoyRlXAcq0-Ms8AK7sWfGFqJefH8o9krWdE688UHBiWnD81Y1bFpjYP2fCIgDbp0fFcEkVvx4-vwo54HTkTdn4q4tPUL4USXAkri6t6WfOWV24goEy0z5LqQl0AC1NljyVqeMl3Auwh4UmHWECjVq25dlCwFVw"
-    )
-
-    @State private var sponsorLogoURL: URL? = URL(string:
-        "https://lh3.googleusercontent.com/aida-public/AB6AXuB1UhsiroUqp2E8eHgsZtuDXFvcC-Um0gl0Zn9ttiq-NQ3UbkvW_bz4NYs9AN7TiJGkJfm3GNQEg2Pl95t4QnlmokqfBvxaEdddQuL1vsngT1_qgdgEp5J8i1GCxvdpSE_X6_-8kdnutqC30hOKXWdPZ-Gv_UfFaXvoYB2tkeNmQYEr18Grgca-HB8hqetoJVjOOtk530HfjVuvnauGwBC0Wd4q-7Wwpt_cF51NPv2WOUCOCoC5fxZjFFGS_h-6Ues8o5PMBsM27kM"
-    )
-
-    // Données du résumé quotidien
-    @State private var plantCount: Int = 12
-    @State private var weatherTemp: String = "18°"
-    @State private var weatherDesc: String = "Partiellement nuageux"
-    @State private var plantsToWater: Int = 2
-    @State private var healthStatus: String = "Stable"
-
-    // Couleurs du design HTML
-    private let primary = Color(hex: "#13EC5B")
-    private let cardDark = Color(hex: "#28392E")
-    private let cardDarkSoft = Color(hex: "#28392E").opacity(0.5)
+    // Palette proche de ton design HTML
+    private let background = Color(hex: "#F9F9F7")
+    private let primary = Color(hex: "#8DBA8E")
+    private let textDark = Color(hex: "#333333")
+    private let textSubtle = Color(hex: "#63886f")
+    private let cardLight = Color.white
 
     var body: some View {
         NavigationStack {
             ZStack {
-                // Fond noir, comme tu veux
-                Color.black
-                    .ignoresSafeArea()
+                background.ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
+                    VStack(spacing: 24) {
 
-                        profileHeader
-                            .padding(.horizontal, 16)
-                            .padding(.top, 16)
+                        // MARK: - HEADER CENTRÉ
+                        header
 
-                        futureGardenCard
-                            .padding(.horizontal, 16)
-                            .padding(.top, 24)
+                        // MARK: - CARTE "CRÉER UN JARDIN"
+                        createGardenHero
 
-                        // RÉSUMÉ QUOTIDIEN
-                        Text("Résumé Quotidien")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.top, 16)
+                        // MARK: - VOS JARDINS
+                        gardensTitle
 
-                        dailySummaryGrid
-                            .padding(.horizontal, 16)
-                            .padding(.top, 4)
+                        if projects.isEmpty {
+                            emptyState
+                        } else {
+                            gardensList
+                        }
 
-                        // SPONSOR
-                        sponsorBanner
-                            .padding(.horizontal, 16)
-                            .padding(.top, 24)
-                            .padding(.bottom, 32)
+                        Spacer(minLength: 24)
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 32)
                 }
             }
             .navigationBarHidden(true)
             .onAppear {
-                loadUserData()
-                plantService.fetchPlants()
+                loadMockProjectsIfNeeded()   // à remplacer plus tard par ton backend
             }
         }
     }
 }
 
-// MARK: - Header
+// MARK: - Header "Arbore" centré
+private extension HomeView {
+    var header: some View {
+        VStack(spacing: 8) {
+            Text("Arbore")
+                .font(.system(size: 36, weight: .bold, design: .serif))
+                .foregroundColor(textDark)
+                .multilineTextAlignment(.center)
+
+            Text("Imaginez et visualisez\nvotre futur jardin")
+                .font(.system(size: 17, weight: .medium))
+                .foregroundColor(textSubtle)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 8)
+    }
+}
 
 private extension HomeView {
-    var profileHeader: some View {
-        HStack(spacing: 12) {
-            // Image profil
-            AsyncImage(url: profileImageURL) { phase in
-                switch phase {
-                case .empty:
+    var createGardenHero: some View {
+
+        VStack(alignment: .leading, spacing: 16) {
+
+            HStack(spacing: 12) {
+                ZStack {
                     Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: 64, height: 64)
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 64, height: 64)
-                        .clipShape(Circle())
-                case .failure:
-                    Circle()
-                        .fill(Color.gray.opacity(0.3))
-                        .overlay(
-                            Image(systemName: "person.fill")
-                                .foregroundColor(.white.opacity(0.8))
-                        )
-                        .frame(width: 64, height: 64)
-                @unknown default:
-                    EmptyView()
+                        .fill(primary.opacity(0.15))
+                        .frame(width: 48, height: 48)
+
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 22))
+                        .foregroundColor(primary)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Créer un futur jardin")
+                        .font(.system(size: 21, weight: .bold))
+                        .foregroundColor(textDark)
+
+                    Text("Commencez la conception étape par étape.")
+                        .font(.system(size: 15))
+                        .foregroundColor(textSubtle)
                 }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Bonjour \(userName)")
-                    .font(.system(size: 22, weight: .bold))
+            Button {
+                createNewGarden()
+                goToQuestionnaire = true
+            } label: {
+                Text("Commencer")
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
-
-                Text("Vue d’ensemble de ton univers végétal 🌱")
-                    .font(.system(size: 15))
-                    .foregroundColor(Color(hex: "#9DB9A6"))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 48)
+                    .background(primary)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
             }
+            .buttonStyle(.plain)
+
+            NavigationLink(
+                destination: QuestionnaireView(),
+                isActive: $goToQuestionnaire,
+                label: { EmptyView() }
+            )
+            .hidden()
+
+        }
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(cardLight)
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+        )
+    }
+}
+
+// MARK: - Titre "Vos jardins"
+private extension HomeView {
+    var gardensTitle: some View {
+        HStack {
+            Text("Vos jardins")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(textDark)
 
             Spacer()
-        }
-    }
-}
 
-// MARK: - Futur Jardin
-
-private extension HomeView {
-    var futureGardenCard: some View {
-        ZStack(alignment: .bottomLeading) {
-            AsyncImage(url: heroImageURL) { phase in
-                switch phase {
-                case .empty:
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(height: 220)
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(height: 220)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .clipped()
-                        .overlay(
-                            LinearGradient(
-                                colors: [
-                                    Color.black.opacity(0.6),
-                                    Color.black.opacity(0.0)
-                                ],
-                                startPoint: .bottom,
-                                endPoint: .top
-                            )
-                        )
-                case .failure:
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(height: 220)
-                @unknown default:
-                    EmptyView()
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        Text("Jardin japonais")
-                            .font(.system(size: 22, weight: .bold))
-                        Image(systemName: "video.fill")
-                            .font(.system(size: 16))
-                    }
-                    .foregroundColor(.white)
-
-                    Text("Allée en gravier, érables rouges, lanternes en pierre et zone repos.")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.white)
-                }
-
-                HStack(spacing: 8) {
-                    chip(icon: "sun.max.fill", text: "Lumière adaptée")
-                    chip(icon: "drop.fill", text: "Sol drainant")
-                }
-
-                Button {
-                    // TODO: ouvrir la visualisation AR
+            if projects.count > 2 {
+                NavigationLink {
+                    AllGardensView(projects: projects)
                 } label: {
-                    Text("Ouvrir la visualisation")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(Color(hex: "#102216"))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                        .background(primary)
-                        .clipShape(Capsule())
+                    HStack(spacing: 4) {
+                        Text("Voir tout")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(primary)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(primary)
+                    }
                 }
                 .buttonStyle(.plain)
             }
-            .padding(16)
         }
-    }
-
-    func chip(icon: String, text: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 14))
-            Text(text)
-                .font(.system(size: 14, weight: .medium))
-        }
-        .foregroundColor(.white)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Color.white.opacity(0.1))
-        .clipShape(Capsule())
+        .padding(.top, 8)
     }
 }
 
-// MARK: - Résumé Quotidien
-
+// MARK: - État vide (aucun jardin)
 private extension HomeView {
-    var dailySummaryGrid: some View {
-        let columns = [
-            GridItem(.flexible(), spacing: 12),
-            GridItem(.flexible(), spacing: 12)
-        ]
+    var emptyState: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Aucun jardin pour le moment")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(textDark)
 
-        return ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(cardDarkSoft)
-
-            LazyVGrid(columns: columns, spacing: 12) {
-                metricCard(
-                    icon: "leaf.fill",
-                    title: "Dans ton jardin",
-                    value: "\(plantCount)"
-                )
-
-                metricCard(
-                    icon: "cloud.sun.fill",
-                    title: weatherDesc,
-                    value: weatherTemp
-                )
-
-                metricCard(
-                    icon: "drop.fill",
-                    title: "À arroser aujourd'hui",
-                    value: "\(plantsToWater) plantes"
-                )
-
-                metricCard(
-                    icon: "heart.fill",
-                    title: "Aucune alerte",
-                    value: healthStatus
-                )
+                Text("Vos jardins enregistrés apparaîtront ici.\nCommencez par en créer un nouveau.")
+                    .font(.system(size: 14))
+                    .foregroundColor(textSubtle)
             }
-            .padding(8)
-        }
-    }
-
-    func metricCard(icon: String, title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(primary)
-
-            Text(value)
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(.white)
-
-            Text(title)
-                .font(.system(size: 13))
-                .foregroundColor(Color.white.opacity(0.7))
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(cardDark)
-        )
-    }
-}
-
-// MARK: - Sponsor
-
-private extension HomeView {
-    var sponsorBanner: some View {
-        HStack(spacing: 12) {
-            AsyncImage(url: sponsorLogoURL) { phase in
-                switch phase {
-                case .empty:
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.green.opacity(0.3))
-                        .frame(width: 48, height: 48)
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 48, height: 48)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                case .failure:
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.green.opacity(0.3))
-                        .frame(width: 48, height: 48)
-                @unknown default:
-                    EmptyView()
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Green&Co Terreau Premium")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
-
-                Text("Le meilleur pour vos plantes.")
-                    .font(.system(size: 13))
-                    .foregroundColor(Color.white.opacity(0.7))
-            }
-
             Spacer()
-
-            Button {
-                // TODO: ouvrir l’offre sponsorisée
-            } label: {
-                Text("Découvrir")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(primary)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(primary.opacity(0.2))
-                    .clipShape(Capsule())
-            }
-            .buttonStyle(.plain)
+            Image(systemName: "leaf")
+                .font(.system(size: 28))
+                .foregroundColor(primary)
         }
-        .padding(12)
+        .padding(16)
+        .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(cardDarkSoft)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.gray.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
+                .background(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.white.opacity(0.7))
+                )
         )
     }
 }
 
-// MARK: - User
-
+// MARK: - Liste des jardins existants
 private extension HomeView {
-    func loadUserData() {
-        if let uid = Auth.auth().currentUser?.uid {
-            self.currentUID = uid
-            userService.fetchUser(by: uid) { result in
-                DispatchQueue.main.async {
-                    switch result {
-                    case .success(let user):
-                        let first = user.name.components(separatedBy: " ").first
-                        self.userName = first ?? userName
-                        self.userError = nil
-                    case .failure(let error):
-                        self.userError = "Impossible de récupérer l'utilisateur : \(error.localizedDescription)"
-                    }
-                }
+    var gardensList: some View {
+        let displayedProjects = Array(projects.prefix(2))
+
+        return VStack(spacing: 16) {
+            ForEach(displayedProjects, id: \.id) { project in
+                gardenCard(project: project)
             }
-        } else {
-            self.userError = "Utilisateur non connecté."
         }
+    }
+
+    func gardenCard(project: GardenProject) -> some View {
+        Button {
+            // TODO : ouvrir le projet
+        } label: {
+            VStack(spacing: 0) {
+
+                // IMAGE (haut de la carte)
+                LinearGradient(
+                    colors: [Color(hex: "#2F5136"), Color(hex: "#4F7B54")],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .overlay(
+                    Image(systemName: "leaf.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundColor(.white.opacity(0.12))
+                        .padding(30)
+                )
+                .frame(height: 140)
+
+                // CONTENU (bas de la carte)
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(project.name)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(textDark)
+
+                        Text("\(project.plantingZones.count) plantes")
+                            .font(.system(size: 13))
+                            .foregroundColor(textSubtle)
+
+                        Text("Dernière modification : \(project.updatedAt.formatted(date: .abbreviated, time: .omitted))")
+                            .font(.system(size: 12))
+                            .foregroundColor(textSubtle.opacity(0.9))
+                    }
+
+                    Spacer()
+
+                    Text("Ouvrir")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(primary)
+                        .clipShape(Capsule())
+                }
+                .padding(16)
+            }
+            .background(cardLight)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
     }
 }
 
-// MARK: - Preview
+// MARK: - Vue "Tous les jardins"
 
-struct HomeView_Previews: PreviewProvider {
-    static var previews: some View {
-        HomeView()
-            .environmentObject(ThemeManager())
+struct AllGardensView: View {
+    let projects: [GardenProject]
+
+    private let background = Color(hex: "#F9F9F7")
+    private let textDark = Color(hex: "#333333")
+
+    var body: some View {
+        ZStack {
+            background.ignoresSafeArea()
+            List {
+                ForEach(projects, id: \.id) { project in
+                    Text(project.name)
+                        .foregroundColor(textDark)
+                }
+            }
+        }
+        .navigationTitle("Tous les jardins")
+    }
+}
+
+// MARK: - Mock temporaire
+private extension HomeView {
+    func createNewGarden() {
+        let garden = GardenProject(name: "Nouveau jardin")
+        projects.insert(garden, at: 0)
+    }
+
+    func loadMockProjectsIfNeeded() {
+        // Pour tester le design avec des jardins existants,
+        // commente cette ligne pour voir l’état vide.
+        projects = [
+            GardenProject(name: "Terrasse ensoleillée"),
+            GardenProject(name: "Jardin avant fleuri"),
+            GardenProject(name: "Grand jardin familial")
+        ]
     }
 }

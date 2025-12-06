@@ -100,7 +100,7 @@ class PersistenceManager {
     }
 }
 
-struct ARViewContainer: UIViewRepresentable {
+struct ARViewContainerMesure: UIViewRepresentable {
     @ObservedObject var model: ARMeasureModel
     
     func makeUIView(context: Context) -> ARView {

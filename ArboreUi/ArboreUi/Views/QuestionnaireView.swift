@@ -410,9 +410,10 @@ struct FlexibleView<Items: Collection, Content: View>: View where Items.Element:
         var width: CGFloat = 0
         var height: CGFloat = 0
 
+        let itemsArray = Array(items)
         return GeometryReader { geometry in
             ZStack(alignment: Alignment(horizontal: alignment, vertical: .top)) {
-                ForEach(Array(items), id: \.self) { item in
+                ForEach(itemsArray, id: \.self) { item in
                     content(item)
                         .padding(.all, 4)
                         .alignmentGuide(.leading) { dim in
@@ -421,7 +422,7 @@ struct FlexibleView<Items: Collection, Content: View>: View where Items.Element:
                                 height -= dim.height + spacing
                             }
                             let result = width
-                            if item == items.last {
+                            if item == itemsArray.last {
                                 width = 0 // reset
                             } else {
                                 width -= dim.width + spacing
@@ -430,7 +431,7 @@ struct FlexibleView<Items: Collection, Content: View>: View where Items.Element:
                         }
                         .alignmentGuide(.top) { _ in
                             let result = height
-                            if item == items.last {
+                            if item == itemsArray.last {
                                 height = 0 // reset
                             }
                             return result

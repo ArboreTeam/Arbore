@@ -14,7 +14,7 @@ struct ContentView: View {
         ZStack {
             VStack(spacing: 0) {
                 ZStack {
-                    ARViewContainer(model: model)
+                    ARViewContainerMesure(model: model)
                         .edgesIgnoringSafeArea(.all)
                     
                     // Overlay instructions + buttons

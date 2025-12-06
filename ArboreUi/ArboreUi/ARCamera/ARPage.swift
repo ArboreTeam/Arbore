@@ -34,7 +34,7 @@ struct ARViewWrapper: View {
                 modelURL: modelURL,
                 modelConfig: modelConfig
             )
-            .edgesIgnoringSafeArea(.all)
+            .ignoresSafeArea(.all)
 
             // Bouton Retour
             Button(action: {

@@ -1,4 +1,5 @@
-/* import SwiftUI
+// filepath: /Users/hugomichel/Documents/Arbore150/ArboreUi/ArboreUi/ARCamera/ARViewContainer_ARCamera.swift
+import SwiftUI
 import ARKit
 import RealityKit
 
@@ -49,7 +50,7 @@ struct ARViewContainer: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: ARView, context: Context) {
-        // Rien à mettre à jour pour l’instant
+        // Rien à mettre à jour pour l'instant
     }
 
     func makeCoordinator() -> Coordinator {
@@ -72,7 +73,7 @@ struct ARViewContainer: UIViewRepresentable {
         // MARK: - Sélection visuelle
 
         private func selectEntity(_ entity: Entity) {
-            // Retirer l’ancienne box de sélection
+            // Retirer l'ancienne box de sélection
             if let previousEntity = selectedEntity {
                 previousEntity.children.forEach {
                     if $0.name == "selectionBox" { $0.removeFromParent() }
@@ -282,4 +283,3 @@ struct ARViewContainer: UIViewRepresentable {
         }
     }
 }
- */

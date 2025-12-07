@@ -110,7 +110,7 @@ private extension HomeView {
             .buttonStyle(.plain)
 
             NavigationLink(
-                destination: QuestionnaireView(),
+                destination: GardenWizardView { state in print("Garden wizard completed") },
                 isActive: $goToQuestionnaire,
                 label: { EmptyView() }
             )

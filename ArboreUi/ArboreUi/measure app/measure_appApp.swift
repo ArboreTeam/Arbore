@@ -6,7 +6,7 @@ import SwiftUI
 struct measure_appApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            GardenMeasureView()
         }
     }
 }

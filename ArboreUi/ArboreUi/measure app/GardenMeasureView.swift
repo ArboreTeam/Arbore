@@ -1,5 +1,5 @@
 //
-//  ContentView.swift
+//  GardenMeasureView.swift
 //  measure app
 //
 //  Created by hugo rath on 05/12/2025.
@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct ContentView: View {
+struct GardenMeasureView: View {
     @StateObject private var model = ARMeasureModel()
     
     var body: some View {

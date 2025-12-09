@@ -966,6 +966,9 @@ struct WizardSummaryStepView: View {
     @ObservedObject var state: GardenWizardState
     let onFinish: () -> Void
     let onBack: () -> Void
+
+    @State private var goToGardenMeasure = false
+    @State private var goToRoomScan = false
     
     var body: some View {
         ZStack {
@@ -1005,7 +1008,10 @@ struct WizardSummaryStepView: View {
                         RecapRow(emoji: maintenance.emoji, title: "Entretien", value: maintenance.title)
                     }
                     if !state.safetySelections.isEmpty {
-                        let safetyText = state.safetySelections.sorted(by: { $0.rawValue < $1.rawValue }).map { $0.title }.joined(separator: ", ")
+                        let safetyText = state.safetySelections
+                            .sorted(by: { $0.rawValue < $1.rawValue })
+                            .map { $0.title }
+                            .joined(separator: ", ")
                         RecapRow(emoji: "🛡️", title: "Contraintes", value: safetyText)
                     }
                     if let soil = state.soil {
@@ -1022,7 +1028,21 @@ struct WizardSummaryStepView: View {
                 Spacer()
                 
                 VStack(spacing: 12) {
-                    Button(action: onFinish) {
+                    Button(action: {
+                        // Optionnel : persister les réponses
+                        onFinish()
+                        
+                        // Navigation vers la bonne expérience AR
+                        switch state.spaceType {
+                        case .some(.garden):
+                            goToGardenMeasure = true
+                        case .some(.balcony), .some(.interior):
+                            goToRoomScan = true
+                        default:
+                            // fallback : si jamais rien n'est défini, on ouvre le scan pièce
+                            goToRoomScan = true
+                        }
+                    }) {
                         HStack {
                             Text("Scanner mon espace en AR")
                             Image(systemName: "camera.fill")
@@ -1036,6 +1056,21 @@ struct WizardSummaryStepView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 32)
             }
+            
+            // NAVIGATION LINKS CACHÉS
+            NavigationLink(
+                destination: GardenMeasureView(),
+                isActive: $goToGardenMeasure,
+                label: { EmptyView() }
+            )
+            .hidden()
+            
+            NavigationLink(
+                destination: RoomScanListView(),
+                isActive: $goToRoomScan,
+                label: { EmptyView() }
+            )
+            .hidden()
         }
     }
 }

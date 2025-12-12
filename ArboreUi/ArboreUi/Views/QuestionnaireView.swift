@@ -976,6 +976,7 @@ struct WizardSummaryStepView: View {
 
     @State private var goToGardenMeasure = false
     @State private var goToRoomScan = false
+    @State private var showLidarAlert = false   // 🔥 pour les devices sans LiDAR
     
     var body: some View {
         ZStack {
@@ -1039,15 +1040,25 @@ struct WizardSummaryStepView: View {
                         // Optionnel : persister les réponses
                         onFinish()
                         
-                        // Navigation vers la bonne expérience AR
-                        switch state.spaceType {
-                        case .some(.garden):
+                        // 🚀 Choix de la méthode en fonction de scanMethod
+                        switch state.scanMethod {
+                        case .some(.gardenPerimeter):
                             goToGardenMeasure = true
-                        case .some(.balcony), .some(.interior):
-                            goToRoomScan = true
-                        default:
-                            // fallback : si jamais rien n'est défini, on ouvre le scan pièce
-                            goToRoomScan = true
+                            
+                        case .some(.roomScan):
+                            if RoomCaptureSession.isSupported {
+                                goToRoomScan = true
+                            } else {
+                                showLidarAlert = true
+                            }
+                            
+                        case .none:
+                            // Fallback : si l’utilisateur n’a pas choisi
+                            if RoomCaptureSession.isSupported {
+                                goToRoomScan = true
+                            } else {
+                                goToGardenMeasure = true
+                            }
                         }
                     }) {
                         HStack {
@@ -1078,6 +1089,16 @@ struct WizardSummaryStepView: View {
                 label: { EmptyView() }
             )
             .hidden()
+        }
+        .alert("Scan 3D indisponible", isPresented: $showLidarAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("""
+            Cette méthode utilise le scanner LiDAR.
+            Ton appareil ne dispose pas de LiDAR (ex : iPhone Pro / iPad Pro uniquement).
+
+            Tu peux continuer avec la méthode de mesure classique !
+            """)
         }
     }
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import RoomPlan
 
 // MARK: - Theme Colors
 
@@ -10,6 +11,11 @@ extension Color {
 }
 
 // MARK: - Answer Models
+
+enum ScanMethod: String {
+    case gardenPerimeter   // ton GardenMeasureView
+    case roomScan          // LiDAR / RoomPlan
+}
 
 enum GardenStyle: String, CaseIterable, Identifiable {
     case modern = "Moderne & minimaliste"
@@ -188,6 +194,7 @@ final class GardenWizardState: ObservableObject {
     @Published var maintenance: MaintenanceLevel?
     @Published var safetySelections: Set<SafetyOption> = []
     @Published var soil: SoilType?
+    @Published var scanMethod: ScanMethod?   // ⬅️ nouvelle propriété
 }
 
 // MARK: - Wizard Steps
@@ -200,35 +207,37 @@ enum GardenWizardStep: Int, CaseIterable, Identifiable {
     case maintenance
     case safety
     case soil
+    case scanMethod   // ⬅️ nouveau
     case summary
     
     var id: Int { rawValue }
 }
 
-// MARK: - Main Wizard View
-
 struct GardenWizardView: View {
     @StateObject private var state = GardenWizardState()
     @State private var currentStep: GardenWizardStep = .intro
+
     @Environment(\.dismiss) private var dismiss
+    
     let onFinish: (GardenWizardState) -> Void
     
+    // MARK: - Step logic
     var visibleSteps: [GardenWizardStep] {
         var steps: [GardenWizardStep] = [.intro, .style, .spaceType]
-        
+
         guard let spaceType = state.spaceType else {
-            return [.intro, .style, .spaceType, .exposure, .maintenance, .safety, .soil, .summary]
+            return [.intro, .style, .spaceType, .exposure, .maintenance, .safety, .soil, .scanMethod, .summary]
         }
-        
+
         switch spaceType {
         case .interior:
-            steps.append(contentsOf: [.maintenance, .safety, .summary])
+            steps.append(contentsOf: [.maintenance, .safety, .scanMethod, .summary])
         case .balcony:
-            steps.append(contentsOf: [.exposure, .maintenance, .safety, .summary])
+            steps.append(contentsOf: [.exposure, .maintenance, .safety, .scanMethod, .summary])
         case .garden:
-            steps.append(contentsOf: [.exposure, .maintenance, .safety, .soil, .summary])
+            steps.append(contentsOf: [.exposure, .maintenance, .safety, .soil, .scanMethod, .summary])
         }
-        
+
         return steps
     }
     
@@ -256,11 +265,11 @@ struct GardenWizardView: View {
     
     var body: some View {
         ZStack {
-            Color.gardenBackground
-                .ignoresSafeArea()
-            
+            Color.gardenBackground.ignoresSafeArea()
+
             VStack(spacing: 0) {
-                if currentStep != .intro && currentStep != .summary {
+                if currentStep != .intro {
+                    // ⬅️ la barre de progression sera affichée sur TOUTES les étapes sauf l’intro
                     WizardProgressHeader(currentIndex: currentIndex, total: visibleSteps.count)
                         .padding(.horizontal, 24)
                         .padding(.top, 20)
@@ -268,50 +277,48 @@ struct GardenWizardView: View {
                 }
                 
                 TabView(selection: $currentStep) {
+                    // --- steps ---
                     IntroStepView(onNext: goToNext)
                         .tag(GardenWizardStep.intro)
-                    
+
                     StyleStepView(state: state, onNext: goToNext, onBack: goToPrevious)
                         .tag(GardenWizardStep.style)
-                    
+
                     SpaceTypeStepView(state: state, onNext: goToNext, onBack: goToPrevious)
                         .tag(GardenWizardStep.spaceType)
-                    
+
                     if visibleSteps.contains(.exposure) {
                         ExposureStepView(state: state, onNext: goToNext, onBack: goToPrevious)
                             .tag(GardenWizardStep.exposure)
                     }
-                    
+
                     MaintenanceStepView(state: state, onNext: goToNext, onBack: goToPrevious)
                         .tag(GardenWizardStep.maintenance)
-                    
+
                     SafetyStepView(state: state, onNext: goToNext, onBack: goToPrevious)
                         .tag(GardenWizardStep.safety)
-                    
+
                     if visibleSteps.contains(.soil) {
                         SoilStepView(state: state, onNext: goToNext, onBack: goToPrevious)
                             .tag(GardenWizardStep.soil)
                     }
-                    
-                    WizardSummaryStepView(state: state, onFinish: { onFinish(state) }, onBack: goToPrevious)
-                        .tag(GardenWizardStep.summary)
+
+                    // --- NOUVELLE ÉTAPE : choix méthode de scan ---
+                    ScanMethodStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+                        .tag(GardenWizardStep.scanMethod)
+
+                    // --- SUMMARY (écran 🎉) ---
+                    WizardSummaryStepView(
+                        state: state,
+                        onFinish: { onFinish(state) },
+                        onBack: goToPrevious
+                    )
+                    .tag(GardenWizardStep.summary)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
-                .animation(.easeInOut, value: visibleSteps.count)
             }
         }
         .navigationBarBackButtonHidden(true)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                if currentStep != .intro && currentStep != .summary {
-                    Button("Sauter") {
-                        dismiss()
-                    }
-                    .foregroundColor(.secondary)
-                }
-            }
-        }
     }
 }
 

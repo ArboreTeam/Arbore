@@ -1,0 +1,60 @@
+# Configuration pour golangci-lint
+# https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+    - misspell
+    - revive
+    - unconvert
+    - unparam
+    - gocritic
+    - gocyclo
+    - dupl
+    - gosec
+    - prealloc
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+    
+  govet:
+    check-shadowing: true
+    
+  gocyclo:
+    min-complexity: 15
+    
+  dupl:
+    threshold: 100
+    
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+      
+  revive:
+    confidence: 0.8
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  
+output:
+  format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true

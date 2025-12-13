@@ -2,6 +2,9 @@ platform :ios, '13.0'
 use_frameworks!
 inhibit_all_warnings!
 
+# Sources CocoaPods
+source 'https://cdn.cocoapods.org/'
+
 target 'ArboreUi' do
   # --- Firebase (versions modernes) ---
   pod 'FirebaseAuth',        '~> 11.15'

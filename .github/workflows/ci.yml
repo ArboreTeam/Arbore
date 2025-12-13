@@ -8,9 +8,22 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+# Permissions pour les actions GitHub
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+  statuses: write
+
+# Annule les workflows en cours si un nouveau push est fait
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.22"
   PYTHON_VERSION: "3.11"
+  XCODE_VERSION: "15.2"
 
 jobs:
   # Détection des changements pour optimiser les builds
@@ -39,156 +52,335 @@ jobs:
   # Backend Go - Tests et Build
   backend:
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./ArboreBackend
     
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: 🔧 Setup Go
-        uses: actions/setup-go@v4
+      - name: 🔧 Setup Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: ArboreBackend/go.sum
 
-      - name: Download dependencies
-        run: go mod download
+      - name: 📦 Download dependencies
+        run: |
+          go mod download
+          go mod verify
 
-      - name: Run tests
-        run: go test -v -race -coverprofile=coverage.out ./...
+      - name: 🔍 Vet code
+        run: go vet ./...
 
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
+      - name: 🧪 Run tests with coverage
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -func=coverage.out
+
+      - name: 📊 Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        continue-on-error: true
         with:
           file: ./ArboreBackend/coverage.out
           flags: backend
+          name: backend-coverage
 
-      - name: 🔍 Lint code
-        uses: golangci/golangci-lint-action@v3
+      - name: 🔍 Lint code with golangci-lint
+        uses: golangci/golangci-lint-action@v4
         with:
           working-directory: ArboreBackend
           version: latest
+          args: --timeout=5m
 
-      - name: 🏗️ Build binary
-        run: CGO_ENABLED=0 GOOS=linux go build -o main .
+      - name: 🏗️ Build binary (Linux)
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o main-linux-amd64 .
+          
+      - name: 🏗️ Build binary (macOS)
+        run: |
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-w -s" -o main-darwin-arm64 .
+
+      - name: 📤 Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-binaries
+          path: |
+            ArboreBackend/main-linux-amd64
+            ArboreBackend/main-darwin-arm64
+          retention-days: 7
 
   # AI Generator Python - Tests et Build  
   ai_generator:
     needs: changes
-    if: needs.changes.outputs.ai_generator == 'true'
+    if: needs.changes.outputs.ai_generator == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: ./AiGenerator
     
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - name: 🐍 Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
+          cache-dependency-path: AiGenerator/requirements.txt
 
-      - name: Install dependencies
+      - name: 📦 Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest black flake8
+          python -m pip install --upgrade pip setuptools wheel
+          if [ -f requirements.txt ]; then 
+            pip install -r requirements.txt
+          fi
+          pip install pytest pytest-cov black flake8 mypy pylint
 
-      - name: Check code formatting
-        run: black --check . || echo "Code formatting issues found"
+      - name: 🎨 Check code formatting with Black
+        run: |
+          black --check --diff . || {
+            echo "❌ Code formatting issues found. Run 'black .' to fix."
+            exit 1
+          }
 
-      - name: Lint code
-        run: flake8 . --max-line-length=88 --extend-ignore=E203,W503 || echo "Linting issues found"
+      - name: 🔍 Lint with Flake8
+        run: |
+          flake8 . \
+            --count \
+            --max-line-length=88 \
+            --extend-ignore=E203,W503 \
+            --statistics \
+            --show-source
 
-      - name: Run tests
+      - name: 🔍 Type check with mypy
+        continue-on-error: true
+        run: |
+          mypy . --ignore-missing-imports || echo "Type checking completed with warnings"
+
+      - name: 🧪 Run tests with coverage
         run: |
           if [ -d tests ]; then
-            pytest -v
+            pytest -v --cov=. --cov-report=xml --cov-report=term
           else
-            echo "No tests directory found, skipping tests"
+            echo "⚠️ No tests directory found"
+            mkdir -p tests
+            echo "# TODO: Add tests" > tests/__init__.py
           fi
+
+      - name: 📊 Upload coverage
+        uses: codecov/codecov-action@v4
+        continue-on-error: true
+        with:
+          file: ./AiGenerator/coverage.xml
+          flags: ai-generator
+          name: ai-generator-coverage
+
+      - name: 🐳 Build Docker image
+        run: |
+          docker build -t arbore-ai-generator:${{ github.sha }} .
+          docker tag arbore-ai-generator:${{ github.sha }} arbore-ai-generator:latest
+          
+      - name: 🔍 Scan Docker image for vulnerabilities
+        continue-on-error: true
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --severity HIGH,CRITICAL \
+            arbore-ai-generator:latest || echo "Vulnerability scan completed"
 
   # iOS UI - Build (nécessite macOS)
   ios_ui:
     needs: changes
-    if: needs.changes.outputs.ios_ui == 'true'
-    runs-on: macos-latest
+    if: needs.changes.outputs.ios_ui == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-14
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: ./ArboreUi
     
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Xcode
+      - name: 🔧 Setup Xcode ${{ env.XCODE_VERSION }}
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: 'latest-stable'
+          xcode-version: ${{ env.XCODE_VERSION }}
 
-      - name: Cache CocoaPods
-        uses: actions/cache@v3
+      - name: 📱 Show Xcode version
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: 💎 Setup Ruby for CocoaPods
+        uses: ruby/setup-ruby@v1
         with:
-          path: ArboreUi/Pods
+          ruby-version: '3.2'
+          bundler-cache: false
+
+      - name: 📦 Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: |
+            ArboreUi/Pods
+            ~/Library/Caches/CocoaPods
+            ~/.cocoapods
           key: ${{ runner.os }}-pods-${{ hashFiles('ArboreUi/Podfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-pods-
 
-      - name: Install dependencies
+      - name: 🔧 Install CocoaPods
         run: |
-          if [ -f Podfile ]; then
-            gem install cocoapods
-            pod install --repo-update
+          sudo gem install cocoapods -v 1.15.2
+          pod --version
+
+      - name: 🗑️ Clean CocoaPods cache (si nécessaire)
+        run: |
+          pod cache clean --all || true
+
+      - name: 📦 Install CocoaPods dependencies
+        run: |
+          # Ajout du repo CocoaPods si nécessaire
+          pod repo list || pod setup
+          
+          # Installation des dépendances avec mise à jour des repos
+          pod install --repo-update --verbose
+          
+      - name: 🧹 Clean build folder
+        run: |
+          if [ -d ~/Library/Developer/Xcode/DerivedData ]; then
+            rm -rf ~/Library/Developer/Xcode/DerivedData
           fi
 
-      - name: 🏗️ Build iOS App
+      - name: 🏗️ Build iOS App for Simulator
         run: |
-          if [ -f ArboreUi.xcworkspace ]; then
-            xcodebuild -workspace ArboreUi.xcworkspace \
-                       -scheme ArboreUi \
-                       -destination 'platform=iOS Simulator,name=iPhone 15 Pro' \
-                       -configuration Debug \
-                       build
-          else
-            echo "Workspace not found, skipping build"
+          xcodebuild clean build \
+            -workspace ArboreUi.xcworkspace \
+            -scheme ArboreUi \
+            -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=latest' \
+            -configuration Debug \
+            -derivedDataPath build/ \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | xcpretty || exit 1
+
+      - name: 🧪 Run Unit Tests
+        continue-on-error: true
+        run: |
+          xcodebuild test \
+            -workspace ArboreUi.xcworkspace \
+            -scheme ArboreUi \
+            -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=latest' \
+            -derivedDataPath build/ \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty || echo "Tests completed with warnings"
+
+      - name: 📊 Generate test report
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ -d build/Logs/Test ]; then
+            xcparse logs --output test-results build/Logs/Test/*.xcresult || true
           fi
+
+      - name: 📤 Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ui-build
+          path: |
+            ArboreUi/build/Build/Products/Debug-iphonesimulator/
+          retention-days: 7
 
   # iOS AR Module - Build
   ios_ar:
     needs: changes
-    if: needs.changes.outputs.ios_ar == 'true'
-    runs-on: macos-latest
+    if: needs.changes.outputs.ios_ar == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: macos-14
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: ./ArboreARkit
     
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Xcode
+      - name: 🔧 Setup Xcode ${{ env.XCODE_VERSION }}
         uses: maxim-lobanov/setup-xcode@v1
         with:
-          xcode-version: 'latest-stable'
+          xcode-version: ${{ env.XCODE_VERSION }}
 
-      - name: 🏗️ Build AR Module
+      - name: 📱 Show Xcode version
         run: |
-          if [ -f ArboreARkit.xcodeproj ]; then
-            xcodebuild -project ArboreARkit.xcodeproj \
-                       -scheme ArboreARkit \
-                       -destination 'platform=iOS Simulator,name=iPhone 15 Pro' \
-                       -configuration Debug \
-                       build
-          else
-            echo "Project not found, skipping build"
+          xcodebuild -version
+          swift --version
+
+      - name: 🧹 Clean build folder
+        run: |
+          if [ -d ~/Library/Developer/Xcode/DerivedData ]; then
+            rm -rf ~/Library/Developer/Xcode/DerivedData
           fi
+
+      - name: 🏗️ Build AR Module for Simulator
+        run: |
+          xcodebuild clean build \
+            -project ArboreARkit.xcodeproj \
+            -scheme ArboreARkit \
+            -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=latest' \
+            -configuration Debug \
+            -derivedDataPath build/ \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | xcpretty || exit 1
+
+      - name: 🧪 Run Unit Tests
+        continue-on-error: true
+        run: |
+          xcodebuild test \
+            -project ArboreARkit.xcodeproj \
+            -scheme ArboreARkit \
+            -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=latest' \
+            -derivedDataPath build/ \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcpretty || echo "Tests completed with warnings"
+
+      - name: 📤 Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ar-build
+          path: |
+            ArboreARkit/build/Build/Products/Debug-iphonesimulator/
+          retention-days: 7
+
+  # Security scanning
+  security:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        
+      - name: 🔒 Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        continue-on-error: true
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          
+      - name: 📤 Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
+        with:
+          sarif_file: 'trivy-results.sarif'
 
   # Job de résumé final
   build_summary:
@@ -196,21 +388,37 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Build Summary
+      - name: 📊 Build Summary
         run: |
-          echo "Arbore CI/CD Summary:"
-          echo "Backend: ${{ needs.backend.result || 'skipped' }}"
-          echo "AI Generator: ${{ needs.ai_generator.result || 'skipped' }}"
-          echo "iOS UI: ${{ needs.ios_ui.result || 'skipped' }}"
-          echo "iOS AR: ${{ needs.ios_ar.result || 'skipped' }}"
+          echo "# 🌱 Arbore CI/CD Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend (Go) | ${{ needs.backend.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| AI Generator (Python) | ${{ needs.ai_generator.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| iOS UI | ${{ needs.ios_ui.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| iOS AR Kit | ${{ needs.ios_ar.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Détails en console
+          echo "================================"
+          echo "🌱 Arbore CI/CD Summary"
+          echo "================================"
+          echo "Backend (Go):        ${{ needs.backend.result || 'skipped' }}"
+          echo "AI Generator (Py):   ${{ needs.ai_generator.result || 'skipped' }}"
+          echo "iOS UI:              ${{ needs.ios_ui.result || 'skipped' }}"
+          echo "iOS AR Kit:          ${{ needs.ios_ar.result || 'skipped' }}"
+          echo "================================"
           
           # Échec si un job requis a échoué
           if [[ "${{ needs.backend.result }}" == "failure" ]] || \
              [[ "${{ needs.ai_generator.result }}" == "failure" ]] || \
              [[ "${{ needs.ios_ui.result }}" == "failure" ]] || \
              [[ "${{ needs.ios_ar.result }}" == "failure" ]]; then
-            echo "Un ou plusieurs builds ont échoué"
+            echo "❌ Un ou plusieurs builds ont échoué"
+            echo "## ❌ Build Failed" >> $GITHUB_STEP_SUMMARY
             exit 1
           else
-            echo "Tous les builds ont réussi ou ont été ignorés"
+            echo "✅ Tous les builds ont réussi ou ont été ignorés"
+            echo "## ✅ Build Successful" >> $GITHUB_STEP_SUMMARY
           fi

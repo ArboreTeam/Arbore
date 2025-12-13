@@ -1,0 +1,77 @@
+name: "🔒 CodeQL Swift Analysis (Optional)"
+
+# Ce workflow est désactivé par défaut car l'analyse Swift sur iOS
+# nécessite une configuration complexe et des ressources importantes.
+# 
+# Pour l'activer, changez 'workflow_dispatch' en ajoutant d'autres triggers
+# comme 'push' ou 'pull_request'
+
+on:
+  workflow_dispatch:  # Exécution manuelle uniquement
+
+jobs:
+  analyze-swift:
+    name: Analyze Swift
+    runs-on: macos-14
+    timeout-minutes: 90
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: '15.2'
+
+    - name: Setup Ruby for CocoaPods
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.2'
+
+    - name: Install CocoaPods
+      run: |
+        sudo gem install cocoapods -v 1.15.2
+        pod --version
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: swift
+        queries: security-extended
+
+    - name: Install CocoaPods dependencies (ArboreUi)
+      working-directory: ./ArboreUi
+      run: |
+        pod install --repo-update
+
+    - name: Build ArboreUi for CodeQL
+      working-directory: ./ArboreUi
+      run: |
+        xcodebuild clean build \
+          -workspace ArboreUi.xcworkspace \
+          -scheme ArboreUi \
+          -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=latest' \
+          -configuration Debug \
+          CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGN_IDENTITY=""
+
+    - name: Build ArboreARkit for CodeQL
+      working-directory: ./ArboreARkit
+      run: |
+        xcodebuild clean build \
+          -project ArboreARkit.xcodeproj \
+          -scheme ArboreARkit \
+          -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=latest' \
+          -configuration Debug \
+          CODE_SIGNING_ALLOWED=NO \
+          CODE_SIGN_IDENTITY=""
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:swift"

@@ -12,6 +12,7 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ${{ matrix.language == 'swift' && 'macos-14' || 'ubuntu-latest' }}
+    timeout-minutes: ${{ matrix.language == 'swift' && 60 || 30 }}
     permissions:
       actions: read
       contents: read
@@ -25,8 +26,10 @@ jobs:
             build-mode: autobuild
           - language: python
             build-mode: none
-          - language: swift
-            build-mode: manual
+          # Swift est commenté car l'analyse CodeQL sur iOS est complexe
+          # Décommentez si vous souhaitez l'activer (nécessite plus de configuration)
+          # - language: swift
+          #   build-mode: manual
 
     steps:
     - name: Checkout repository
@@ -37,25 +40,6 @@ jobs:
       with:
         languages: ${{ matrix.language }}
         queries: security-extended,security-and-quality
-
-    - name: Build Swift (manual)
-      if: matrix.language == 'swift'
-      working-directory: ./ArboreUi
-      run: |
-        # Setup pour Swift
-        if [ -f Podfile ]; then
-          pod install --repo-update || echo "CocoaPods installation failed"
-        fi
-        
-        # Build Swift
-        if [ -f ArboreUi.xcworkspace ]; then
-          xcodebuild clean build \
-            -workspace ArboreUi.xcworkspace \
-            -scheme ArboreUi \
-            -destination 'platform=iOS Simulator,name=iPhone 15 Pro' \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGN_IDENTITY="" || echo "Build completed with warnings"
-        fi
 
     - name: Autobuild
       if: matrix.build-mode == 'autobuild'

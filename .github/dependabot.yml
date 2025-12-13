@@ -36,14 +36,6 @@ updates:
     commit-message:
       prefix: "deps(ai)"
 
-  # CocoaPods (iOS UI)
-  - package-ecosystem: "cocoapods"
-    directory: "/ArboreUi"
-    schedule:
-      interval: "weekly"
-    labels:
-      - "dependencies"
-      - "ios"
-      - "cocoapods"
-    commit-message:
-      prefix: "deps(ios-ui)"
+  # Note: CocoaPods n'est pas supporté par Dependabot
+  # Les dépendances iOS doivent être mises à jour manuellement
+  # ou via des outils tiers comme Renovate

@@ -8,6 +8,7 @@ struct YourApp: App {
     @AppStorage("selectedLanguage") private var selectedLanguage = "system"
     @State private var showLaunchScreen = true
     @StateObject private var themeManager = ThemeManager()
+    private var roomCaptureController = RoomCaptureController()
 
     var body: some Scene {
         WindowGroup {
@@ -30,6 +31,7 @@ struct YourApp: App {
                 .preferredColorScheme(themeManager.colorScheme)
                 .environment(\.dynamicTypeSize, themeManager.mappedDynamicTypeSize)
                 .accentColor(themeManager.accentColor)
+                .environment(roomCaptureController)
             }
         }
     }

@@ -144,9 +144,9 @@ struct ScanNewRoomView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     // Header avec icône
-                    Image("roomIcon2")
-                        .resizable()
-                        .frame(width: 140, height: 140)
+                    Image(systemName: "cube.transparent")
+                        .font(.system(size: 80))
+                        .foregroundColor(.blue)
                         .padding(.top, 20)
                     
                     Text("Scanner mon jardin")

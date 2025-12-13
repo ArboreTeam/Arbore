@@ -22,7 +22,5 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
-	<key>NSCameraUsageDescription</key>
-	<string>Nous avons besoin d'accéder à la caméra pour scanner votre espace en 3D et créer un plan de votre jardin.</string>
 </dict>
 </plist>

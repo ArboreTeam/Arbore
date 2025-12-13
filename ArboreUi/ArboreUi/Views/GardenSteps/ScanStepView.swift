@@ -444,7 +444,7 @@ struct ScanCreationView: View {
                         .padding(.horizontal)
                     }
                 } else {
-                    RoomScanWrapper()
+                    ScanNewRoomView()
                         .onDisappear {
                             // Scan terminé
                             let scanURL = "scan_\(UUID().uuidString).usdz"

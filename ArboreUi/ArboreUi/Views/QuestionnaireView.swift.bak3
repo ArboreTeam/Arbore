@@ -1085,7 +1085,8 @@ struct WizardSummaryStepView: View {
             .hidden()
             
             NavigationLink(
-                destination: RoomScanListView(),
+                destination: RoomScanListView()
+                    .environment(roomCaptureController),
                 isActive: $goToRoomScan,
                 label: { EmptyView() }
             )

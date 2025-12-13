@@ -1,5 +1,13 @@
-platform :ios, '13.0'
-use_frameworks!
+platform :ios,  # --- Google Sign-In ---
+  pod 'GoogleSignIn', '~> 7.0'
+  # Si tu utilises vraiment les helpers Swift UI :
+  pod 'GoogleSignInSwift', '~> 0.3'
+
+  # --- Facebook Login ---
+  # Note: FacebookLogin v18 n'existe pas, utiliser FBSDKLoginKit à la place
+  pod 'FBSDKLoginKit', '~> 17.0'
+
+  # Ces dépendances transitives ne sont PAS nécessaires à déclarer à la main :se_frameworks!
 inhibit_all_warnings!
 
 # Sources CocoaPods

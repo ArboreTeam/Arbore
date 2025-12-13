@@ -977,7 +977,7 @@ struct WizardSummaryStepView: View {
     @State private var goToGardenMeasure = false
     @State private var goToRoomScan = false
     @State private var showLidarAlert = false   // 🔥 pour les devices sans LiDAR
-
+    @State private var roomCaptureController = RoomCaptureController()
     
     var body: some View {
         ZStack {
@@ -1085,7 +1085,8 @@ struct WizardSummaryStepView: View {
             .hidden()
             
             NavigationLink(
-                destination: RoomScanListView(),
+                destination: RoomScanListView()
+                    .environment(roomCaptureController),
                 isActive: $goToRoomScan,
                 label: { EmptyView() }
             )

@@ -41,7 +41,7 @@ struct RoomScanListView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     // IMPORTANT: pass down the same RoomCaptureController via environment
-                    NavigationLink(destination: ScanNewRoomView()) {
+                    NavigationLink(destination: ScanNewRoomView().environment(captureController)) {
                         Image(systemName: "plus")
                             .foregroundStyle(.white)
                             .padding(.horizontal, 8)

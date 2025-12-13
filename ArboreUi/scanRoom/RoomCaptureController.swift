@@ -39,18 +39,31 @@ class RoomCaptureController: RoomCaptureViewDelegate, RoomCaptureSessionDelegate
     
     func startSession() {
         guard !isSessionRunning else {
-            print("Session is already running. Ignoring start request.")
+            print("[RoomCaptureController] Session is already running. Ignoring start request.")
             return
         }
+
+        // Vérifier que RoomPlan est supporté sur l’appareil
+        guard RoomCaptureSession.isSupported else {
+            print("[RoomCaptureController] RoomCaptureSession.isSupported == false — RoomPlan non supporté sur cet appareil.")
+            return
+        }
+
+        print("[RoomCaptureController] Starting RoomPlan session…")
         isSessionRunning = true
-        roomCaptureView.captureSession.run(configuration: sessionConfig)
+
+        // ARKit / RoomPlan : lancer la session sur le main thread
+        DispatchQueue.main.async {
+            self.roomCaptureView.captureSession.run(configuration: self.sessionConfig)
+        }
     }
     
     func stopSession() {
         guard isSessionRunning else {
-            print("Session is not running. Ignoring stop request.")
+            print("[RoomCaptureController] Session is not running. Ignoring stop request.")
             return
         }
+        print("[RoomCaptureController] Stopping RoomPlan session…")
         isSessionRunning = false
         roomCaptureView.captureSession.stop()
     }

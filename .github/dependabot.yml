@@ -1,0 +1,49 @@
+# Configuration Dependabot pour les mises à jour automatiques
+version: 2
+updates:
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "ci"
+
+  # Go modules (Backend)
+  - package-ecosystem: "gomod"
+    directory: "/ArboreBackend"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "go"
+      - "backend"
+    commit-message:
+      prefix: "deps(backend)"
+
+  # Python pip (AI Generator)
+  - package-ecosystem: "pip"
+    directory: "/AiGenerator"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "python"
+      - "ai"
+    commit-message:
+      prefix: "deps(ai)"
+
+  # CocoaPods (iOS UI)
+  - package-ecosystem: "cocoapods"
+    directory: "/ArboreUi"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "ios"
+      - "cocoapods"
+    commit-message:
+      prefix: "deps(ios-ui)"

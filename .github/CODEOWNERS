@@ -1,0 +1,24 @@
+# Code owners pour Arbore
+# Ces personnes seront automatiquement demandées pour révision
+
+# Global
+* @ArboreTeam
+
+# Backend Go
+/ArboreBackend/ @ArboreTeam
+
+# AI Generator Python
+/AiGenerator/ @ArboreTeam
+
+# iOS Apps
+/ArboreUi/ @ArboreTeam
+/ArboreARkit/ @ArboreTeam
+
+# CI/CD & Infrastructure
+/.github/ @ArboreTeam
+/Dockerfile @ArboreTeam
+*.yml @ArboreTeam
+
+# Documentation
+README.md @ArboreTeam
+/docs/ @ArboreTeam

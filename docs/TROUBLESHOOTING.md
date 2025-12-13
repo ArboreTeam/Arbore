@@ -135,6 +135,28 @@ Swift s'exécute sur macOS, Go et Python sur Ubuntu.
 
 ---
 
+#### ❌ Erreur : `CodeQL detected code written in Swift but could not process any of it`
+
+**Cause :** CodeQL n'a pas pu voir le code Swift être compilé.
+
+**Solution :**
+L'analyse Swift est désactivée par défaut dans `codeql.yml` car elle nécessite :
+- Un build complet des projets iOS
+- Plus de ressources (temps, mémoire)
+- Configuration complexe des dépendances
+
+**Pour activer l'analyse Swift :**
+1. Exécuter manuellement le workflow `codeql-swift-optional.yml`
+2. Ou décommenter la section Swift dans `codeql.yml` :
+   ```yaml
+   - language: swift
+     build-mode: manual
+   ```
+
+**Note :** Le workflow principal analyse déjà Go et Python. Swift est optionnel.
+
+---
+
 ### 🐹 Go / Backend
 
 #### ❌ Erreur : `go.mod` out of sync

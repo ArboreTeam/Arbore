@@ -23,7 +23,7 @@ struct ScanMethodStepView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 24)
-                .padding(.top, 20)
+                .padding(.top, 15)
 
                 // Cartes de choix
                 ScrollView {
@@ -33,6 +33,7 @@ struct ScanMethodStepView: View {
                     }
                     .padding(.horizontal, 24)
                     .padding(.bottom, 40)
+                    .padding(.top, 20)
                 }
 
                 Spacer()

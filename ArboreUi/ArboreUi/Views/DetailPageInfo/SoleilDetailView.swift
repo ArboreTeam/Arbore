@@ -3,6 +3,7 @@ import SwiftUI
 struct SoleilDetailView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
+    @State private var showLightAnalysis = false
 
     /// Infos "Soleil" de la plante courante
     let sun: SunInfo?
@@ -201,7 +202,7 @@ struct SoleilDetailView: View {
                     let distance = (sun.windowDistance ?? "").isEmpty ? nil : sun.windowDistance
                     let subtitle = distance.map { "\(orientation) • \($0)" } ?? orientation
 
-                    InfoRow(
+                    PlacementInfoRow(
                         title: NSLocalizedString("SUNDETAIL_PLACEMENT_WINDOWS_TITLE", comment: ""),
                         subtitle: subtitle,
                         badge: NSLocalizedString("SUNDETAIL_PLACEMENT_BADGE", comment: "")
@@ -285,7 +286,7 @@ struct SoleilDetailView: View {
 
     private var testerLumiereCTA: some View {
         Button(action: {
-            // TODO: déclencher un test de lumière plus tard
+            showLightAnalysis = true
         }) {
             HStack(spacing: 8) {
                 Image(systemName: "sun.max.trianglebadge.exclamationmark.fill")
@@ -307,6 +308,9 @@ struct SoleilDetailView: View {
             )
             .cornerRadius(22)
             .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 6)
+        }
+        .fullScreenCover(isPresented: $showLightAnalysis) {
+            LightDiagnosticScreen()
         }
         .padding(.horizontal, 20)
     }
@@ -398,7 +402,7 @@ private struct KeyValueRow: View {
     }
 }
 
-private struct InfoRow: View {
+private struct PlacementInfoRow: View {
     @Environment(\.colorScheme) private var colorScheme
     let title: String
     let subtitle: String

@@ -39,6 +39,7 @@ struct StyleStepView: View {
                     }
                     .padding(.horizontal, 24)
                     .padding(.bottom, 120) // un peu de marge pour ne pas coller aux boutons
+                    .padding(.top, 15)
                 }
             }
         }

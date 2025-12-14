@@ -39,6 +39,7 @@ enum GardenStyle: String, CaseIterable, Identifiable {
     
     var id: String { rawValue }
     
+    // Gardé pour le récap / autres usages, mais plus utilisé dans la carte
     var emoji: String {
         switch self {
         case .modern: return "🏢"
@@ -63,15 +64,15 @@ enum GardenStyle: String, CaseIterable, Identifiable {
         }
     }
     
-    // Placeholder gradient colors for style cards
-    var gradientColors: [Color] {
+    /// 🔹 Nom de l'image dans tes assets (à adapter à tes fichiers)
+    var imageName: String {
         switch self {
-        case .modern: return [Color(hex: "#4A7C59"), Color(hex: "#2C5530")]
-        case .floral: return [Color(hex: "#FF6B6B"), Color(hex: "#FFE66D")]
-        case .wild: return [Color(hex: "#8B7355"), Color(hex: "#D4A574")]
-        case .zen: return [Color(hex: "#6B8E7D"), Color(hex: "#3D5A47")]
-        case .mediterranean: return [Color(hex: "#E8B55C"), Color(hex: "#D4891D")]
-        case .noPreference: return [Color(hex: "#A8A8A8"), Color(hex: "#6D6D6D")]
+        case .modern:        return "modern"
+        case .floral:        return "fleuri"
+        case .wild:          return "sauvage"
+        case .zen:           return "zen"
+        case .mediterranean: return "mediterraneen"
+        case .noPreference:  return ""  // pas d’image, fond uni
         }
     }
 }
@@ -206,7 +207,7 @@ final class GardenWizardState: ObservableObject {
     @Published var maintenance: MaintenanceLevel?
     @Published var safetySelections: Set<SafetyOption> = []
     @Published var soil: SoilType?
-    @Published var scanMethod: ScanMethod?   // ⬅️ nouvelle propriété
+    @Published var scanMethod: ScanMethod?
 }
 
 // MARK: - Wizard Steps
@@ -219,7 +220,7 @@ enum GardenWizardStep: Int, CaseIterable, Identifiable {
     case maintenance
     case safety
     case soil
-    case scanMethod   // ⬅️ nouveau
+    case scanMethod
     case summary
     
     var id: Int { rawValue }
@@ -333,7 +334,7 @@ struct GardenWizardView: View {
                 .tabViewStyle(.page(indexDisplayMode: .never))
             }
             
-            // --- Bouton de fermeture global (visible sur toutes les étapes) ---
+            // --- Bouton de fermeture global ---
             Button {
                 dismiss()
             } label: {
@@ -343,7 +344,7 @@ struct GardenWizardView: View {
                     .padding(10)
                     .background(
                         Circle()
-                            .fill(closeColor.opacity(0.08))   // léger fond pour le contraste
+                            .fill(closeColor.opacity(0.08))
                     )
             }
             .padding(.top, 16)
@@ -375,12 +376,10 @@ struct WizardProgressHeader: View {
             
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    // Background track
                     Capsule()
                         .fill(Color.black.opacity(0.1))
                         .frame(height: 4)
                     
-                    // Progress fill
                     Capsule()
                         .fill(Color.gardenPrimary)
                         .frame(width: geometry.size.width * progress, height: 4)
@@ -435,7 +434,6 @@ struct ImprovedSelectableCard: View {
     
     @Environment(\.colorScheme) private var colorScheme
     
-    // Init avec valeurs par défaut pour subtitle / gradient
     init(
         isSelected: Bool,
         emoji: String,
@@ -452,14 +450,12 @@ struct ImprovedSelectableCard: View {
         self.action = action
     }
     
-    // Fond de la carte
     private var cardBackground: Color {
         colorScheme == .dark
-        ? Color.white.opacity(0.06)   // carte sombre en dark
-        : Color.white                 // carte blanche en light
+        ? Color.white.opacity(0.06)
+        : Color.white
     }
     
-    // Couleurs de texte
     private var titleColor: Color {
         colorScheme == .dark ? .white : .primary
     }
@@ -468,7 +464,6 @@ struct ImprovedSelectableCard: View {
         colorScheme == .dark ? Color.white.opacity(0.7) : .secondary
     }
     
-    // Fond du carré emoji
     private var iconBackground: Color {
         colorScheme == .dark
         ? Color.white.opacity(0.08)
@@ -478,7 +473,6 @@ struct ImprovedSelectableCard: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 16) {
-                // Icon/Emoji container
                 ZStack {
                     if let gradient = gradient {
                         LinearGradient(
@@ -515,7 +509,6 @@ struct ImprovedSelectableCard: View {
                 
                 Spacer()
                 
-                // Selection indicator
                 ZStack {
                     Circle()
                         .stroke(isSelected ? Color.gardenPrimary : Color.gray.opacity(0.3), lineWidth: 2)
@@ -560,36 +553,91 @@ struct StyleCard: View {
     let isSelected: Bool
     let action: () -> Void
     
+    @Environment(\.colorScheme) private var colorScheme
+    
+    private var isNoPreference: Bool {
+        style == .noPreference
+    }
+    
+    // Fond pour "Sans préférence"
+    private var noPrefBackground: LinearGradient {
+        let top = colorScheme == .dark
+            ? Color.white.opacity(0.06)
+            : Color.white.opacity(0.9)
+        let bottom = colorScheme == .dark
+            ? Color.white.opacity(0.02)
+            : Color.white
+        
+        return LinearGradient(
+            colors: [top, bottom],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+    
+    private var borderColor: Color {
+        if isSelected {
+            return Color.gardenAccent
+        } else if isNoPreference {
+            return Color.white.opacity(colorScheme == .dark ? 0.18 : 0.25)
+        } else {
+            return .clear
+        }
+    }
+    
+    private var borderWidth: CGFloat {
+        if isSelected { return 3 }
+        if isNoPreference { return 1 }
+        return 0          // pas de bordure pour les autres
+    }
+    
     var body: some View {
         Button(action: action) {
             ZStack(alignment: .bottomLeading) {
-                // Background gradient (placeholder for image)
-                LinearGradient(
-                    colors: style.gradientColors,
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .overlay(
-                    LinearGradient(
-                        colors: [Color.black.opacity(0.1), Color.black.opacity(0.4)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
                 
-                // Content
+                // 🔹 Fond : image pour les styles, bloc uni pour "Sans préférence"
+                if !isNoPreference {
+                    Image(style.imageName)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 160, height: 200)
+                        .clipped()
+                        .overlay(
+                            LinearGradient(
+                                colors: [
+                                    Color.black.opacity(0.05),
+                                    Color.black.opacity(0.55)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                } else {
+                    noPrefBackground
+                        .frame(width: 160, height: 200)
+                }
+                
+                // 🔹 Contenu texte (sans emoji)
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(style.emoji)
-                        .font(.system(size: 32))
+                    if isNoPreference {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(
+                                colorScheme == .dark
+                                ? Color.white.opacity(0.65)
+                                : Color.black.opacity(0.45)
+                            )
+                            .padding(.bottom, 4)
+                    }
                     
                     Text(style.title)
                         .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.white)
-                        .shadow(radius: 2)
+                        .shadow(radius: 4)
                 }
-                .padding(20)
+                .padding(16)
                 
-                // Selection indicator
+                // 🔹 Indicateur de sélection
                 if isSelected {
                     VStack {
                         HStack {
@@ -597,31 +645,31 @@ struct StyleCard: View {
                             ZStack {
                                 Circle()
                                     .fill(Color.gardenAccent)
-                                    .frame(width: 32, height: 32)
+                                    .frame(width: 28, height: 28)      // un peu plus petit
                                 
                                 Image(systemName: "checkmark")
-                                    .font(.system(size: 14, weight: .bold))
+                                    .font(.system(size: 13, weight: .bold))
                                     .foregroundColor(.white)
                             }
-                            .padding(12)
+                            .padding(.trailing, 10)
+                            .padding(.top, 14)                        // descendu de quelques points
                         }
                         Spacer()
                     }
                 }
             }
-            .frame(width: 160, height: 200)
-            .cornerRadius(24)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 24)
-                    .stroke(isSelected ? Color.gardenAccent : Color.clear, lineWidth: 3)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(borderColor, lineWidth: borderWidth)
             )
             .shadow(
-                color: isSelected ? Color.gardenAccent.opacity(0.4) : Color.black.opacity(0.1),
-                radius: isSelected ? 12 : 4,
+                color: isSelected
+                    ? Color.gardenAccent.opacity(0.4)
+                    : Color.black.opacity(0.12),
+                radius: isSelected ? 12 : 6,
                 x: 0, y: 4
             )
-            .scaleEffect(isSelected ? 1.02 : 1.0)
-            .animation(.spring(response: 0.3), value: isSelected)
         }
         .buttonStyle(.plain)
     }

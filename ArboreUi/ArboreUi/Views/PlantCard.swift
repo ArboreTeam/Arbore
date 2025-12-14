@@ -2,81 +2,76 @@ import SwiftUI
 
 struct PlantCard: View {
     let plant: Plant
-    @AppStorage("selectedLanguage") private var selectedLanguage = "system"
     @Environment(\.colorScheme) private var colorScheme
 
-    private var translation: PlantTranslation? {
-        plant.translations[selectedLanguage]
-    }
-
     var body: some View {
-        VStack(alignment: .center, spacing: 10) {
-            // ✅ Image réelle ou fallback stylée
-            ZStack {
+        ZStack(alignment: .bottomLeading) {
+            
+            // 1. Image de fond qui remplit tout l'espace
+            GeometryReader { geometry in
                 if let firstURL = plant.imageURLs.first,
                    let url = URL(string: firstURL),
                    !firstURL.isEmpty {
-                    AsyncImage(url: url) { image in
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 130, height: 130)
-                            .clipped()
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                    } placeholder: {
-                        ZStack {
-                            Color(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color(hex: "#F1F5ED"))
-                            ProgressView()
-                                .progressViewStyle(
-                                    CircularProgressViewStyle(
-                                        tint: colorScheme == .dark ? .white : .black
-                                    )
-                                )
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .scaledToFill() // Important : remplit le cadre
+                                .frame(width: geometry.size.width, height: geometry.size.height)
+                                .clipped()
+                        case .failure:
+                            fallbackImage
+                        case .empty:
+                            loadingView
+                        @unknown default:
+                            loadingView
                         }
-                        .frame(width: 130, height: 130)
-                        .clipShape(RoundedRectangle(cornerRadius: 16))
                     }
                 } else {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color(hex: colorScheme == .dark ? "#2A2A2A" : "#EAF1E7"))
-                            .frame(width: 130, height: 130)
-
-                        Image(systemName: "leaf")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 40, height: 40)
-                            .foregroundColor(Color(hex: "#263826"))
-                    }
+                    fallbackImage
                 }
             }
 
-            // ✅ Texte
-            VStack(spacing: 4) {
-                // Nom : on garde celui stocké en base
-                Text(plant.name)
-                    .font(.system(size: 16, weight: .semibold, design: .default))
-                    .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#263826"))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(1)
+            // 2. Dégradé sombre pour lisibilité
+            LinearGradient(
+                gradient: Gradient(colors: [Color.black.opacity(0.8), Color.clear]),
+                startPoint: .bottom,
+                endPoint: .top // Le dégradé monte un peu plus haut
+            )
+            .frame(height: 80) // Limite la hauteur du dégradé au bas de la carte
 
-                // Type : on prend celui de la langue si dispo, sinon le type racine
-                Text(translation?.plantType ?? plant.type)
-                    .font(.system(size: 13))
-                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .gray)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity)
+            // 3. Texte (Nom uniquement)
+            Text(plant.name)
+                .font(.system(size: 16, weight: .bold, design: .default)) // Taille ajustée pour la grille
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
         }
-        .padding(14)
-        .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
-        .cornerRadius(20)
-        .shadow(
-            color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.05),
-            radius: 5,
-            x: 0,
-            y: 2
-        )
+        // ✅ C'EST ICI QUE LA MAGIE OPÈRE
+        .frame(minWidth: 0, maxWidth: .infinity) // Prend toute la largeur de la colonne
+        .aspectRatio(0.8, contentMode: .fit) // Force un ratio portrait (largeur 1 / hauteur 1.25)
+        .clipShape(RoundedRectangle(cornerRadius: 16)) // Arrondit les bords
+        .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 4)
+    }
+
+    // Vues d'aide pour alléger le code principal
+    var loadingView: some View {
+        ZStack {
+            Color(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color(hex: "#EAF1E7"))
+            ProgressView()
+        }
+    }
+
+    var fallbackImage: some View {
+        ZStack {
+            Color(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color(hex: "#EAF1E7"))
+            Image(systemName: "leaf.fill")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 40)
+                .foregroundColor(Color(hex: "#263826").opacity(0.4))
+        }
     }
 }

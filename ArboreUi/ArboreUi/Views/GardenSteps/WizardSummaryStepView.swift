@@ -8,90 +8,103 @@ struct WizardSummaryStepView: View {
 
     @State private var goToGardenMeasure = false
     @State private var goToRoomScan = false
-    @State private var showLidarAlert = false   // 🔥 pour les devices sans LiDAR
-    
+    @State private var showLidarAlert = false
+
     @Environment(\.colorScheme) private var colorScheme
-    
-    // Fond de la carte de récap
-    private var recapBackground: Color {
-        colorScheme == .dark
-        ? Color.white.opacity(0.06)
-        : Color.white
+
+    // Même style de “card” que tes autres écrans
+    private var cardBackground: Color {
+        colorScheme == .dark ? Color.white.opacity(0.06) : Color.white
     }
-    
-    private var recapShadow: Color {
-        colorScheme == .dark
-        ? Color.black.opacity(0.6)
-        : Color.black.opacity(0.05)
+
+    private var cardShadow: Color {
+        colorScheme == .dark ? Color.black.opacity(0.6) : Color.black.opacity(0.05)
     }
-    
+
+    private var subtitleColor: Color {
+        colorScheme == .dark ? Color.white.opacity(0.65) : .secondary
+    }
+
+    private var infoCardBackground: Color {
+        // proche du "black/20" du HTML
+        colorScheme == .dark ? Color.black.opacity(0.22) : Color.black.opacity(0.04)
+    }
+
+    private var iconChipBackground: Color {
+        // proche du "primary/20"
+        colorScheme == .dark
+            ? Color.gardenAccent.opacity(0.18)
+            : Color.gardenPrimary.opacity(0.12)
+    }
+
+    private var iconColor: Color {
+        colorScheme == .dark ? Color.gardenAccent : Color.gardenPrimary
+    }
+
     var body: some View {
         ZStack {
             Color.gardenBackground
                 .ignoresSafeArea()
-            
+
             VStack(spacing: 0) {
                 Spacer()
-                
-                // Titre + emoji
-                VStack(spacing: 24) {
-                    Text("🎉")
-                        .font(.system(size: 100))
-                    
-                    Text("Parfait !")
-                        .font(.system(size: 36, weight: .bold))
-                    
-                    Text("Nous avons toutes les informations nécessaires pour analyser votre espace et vous suggérer les plantes idéales.")
-                        .font(.system(size: 16))
-                        .foregroundColor(.secondary)
+
+                // --- HEADER (comme ton HTML) ---
+                VStack(spacing: 12) {
+                    Text("Mesurons votre espace")
+                        .font(.system(size: 34, weight: .bold))
+                        .foregroundColor(colorScheme == .dark ? .white : .primary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+
+                    Text("Pour créer des plans précis et des visualisations réalistes, nous devons connaître les dimensions de votre jardin.")
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundColor(subtitleColor)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
-                        .lineSpacing(4)
+                        .lineSpacing(3)
                 }
-                
-                // Carte récap
-                VStack(alignment: .leading, spacing: 16) {
-                    if let style = state.style {
-                        RecapRow(emoji: style.emoji, title: "Style", value: style.title)
-                    }
-                    if let spaceType = state.spaceType {
-                        RecapRow(emoji: spaceType.emoji, title: "Espace", value: spaceType.title)
-                    }
-                    if let exposure = state.exposure {
-                        RecapRow(emoji: exposure.emoji, title: "Exposition", value: exposure.title)
-                    }
-                    if let maintenance = state.maintenance {
-                        RecapRow(emoji: maintenance.emoji, title: "Entretien", value: maintenance.title)
-                    }
-                    if !state.safetySelections.isEmpty {
-                        let safetyText = state.safetySelections
-                            .sorted(by: { $0.rawValue < $1.rawValue })
-                            .map { $0.title }
-                            .joined(separator: ", ")
-                        RecapRow(emoji: "🛡️", title: "Contraintes", value: safetyText)
-                    }
-                    if let soil = state.soil {
-                        RecapRow(emoji: soil.emoji, title: "Sol", value: soil.title)
-                    }
+
+                // --- BENEFITS LIST (3 mini-cards) ---
+                VStack(spacing: 12) {
+                    BenefitRow(
+                        systemImage: "ruler",
+                        title: "Proportions précises",
+                        cardBackground: infoCardBackground,
+                        chipBackground: iconChipBackground,
+                        iconColor: iconColor
+                    )
+
+                    BenefitRow(
+                        systemImage: "leaf",
+                        title: "Placement réaliste des plantes",
+                        cardBackground: infoCardBackground,
+                        chipBackground: iconChipBackground,
+                        iconColor: iconColor
+                    )
+
+                    BenefitRow(
+                        systemImage: "viewfinder",
+                        title: "Visualisation AR fidèle",
+                        cardBackground: infoCardBackground,
+                        chipBackground: iconChipBackground,
+                        iconColor: iconColor
+                    )
                 }
-                .padding(24)
-                .background(recapBackground)
-                .cornerRadius(20)
-                .shadow(color: recapShadow, radius: 10, x: 0, y: 4)
+                .padding(.top, 28)
                 .padding(.horizontal, 24)
-                .padding(.top, 32)
-                
+
                 Spacer()
             }
-            
-            // NAVIGATION LINKS CACHÉS
+
+            // NAVIGATION LINKS CACHÉS (inchangé)
             NavigationLink(
                 destination: GardenMeasureView(),
                 isActive: $goToGardenMeasure,
                 label: { EmptyView() }
             )
             .hidden()
-            
+
             NavigationLink(
                 destination: RoomScanListView(),
                 isActive: $goToRoomScan,
@@ -99,27 +112,30 @@ struct WizardSummaryStepView: View {
             )
             .hidden()
         }
-        // Footer boutons + dégradé qui remonte
+        // Footer boutons + dégradé (structure identique)
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 12) {
+
+                Text("Durée : ~30 secondes")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.45))
+                    .padding(.top, 2)
+
                 Button(action: {
-                    // Optionnel : persister les réponses
                     onFinish()
-                    
-                    // 🚀 Choix de la méthode en fonction de scanMethod
+
                     switch state.scanMethod {
                     case .some(.gardenPerimeter):
                         goToGardenMeasure = true
-                        
+
                     case .some(.roomScan):
                         if RoomCaptureSession.isSupported {
                             goToRoomScan = true
                         } else {
                             showLidarAlert = true
                         }
-                        
+
                     case .none:
-                        // Fallback : si l’utilisateur n’a pas choisi
                         if RoomCaptureSession.isSupported {
                             goToRoomScan = true
                         } else {
@@ -133,7 +149,7 @@ struct WizardSummaryStepView: View {
                     }
                 }
                 .buttonStyle(PrimaryWizardButtonStyle(isEnabled: true))
-                
+
                 Button("Retour") { onBack() }
                     .buttonStyle(SecondaryWizardButtonStyle())
             }
@@ -150,7 +166,7 @@ struct WizardSummaryStepView: View {
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: 260)          // ← fait remonter le “flou”
+                .frame(height: 260)
                 .ignoresSafeArea(edges: .bottom)
             )
         }
@@ -164,5 +180,43 @@ struct WizardSummaryStepView: View {
             Tu peux continuer avec la méthode de mesure classique !
             """)
         }
+    }
+}
+
+// MARK: - Benefit Row
+
+private struct BenefitRow: View {
+    let systemImage: String
+    let title: String
+
+    let cardBackground: Color
+    let chipBackground: Color
+    let iconColor: Color
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(chipBackground)
+                    .frame(width: 44, height: 44)
+
+                Image(systemName: systemImage)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(iconColor)
+            }
+
+            Text(title)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.white)
+                .lineLimit(1)
+
+            Spacer()
+        }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(cardBackground)
+        )
     }
 }

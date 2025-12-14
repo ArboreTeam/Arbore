@@ -469,8 +469,9 @@
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ArboreUI/Info.plist;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Cette application utilise la caméra pour afficher des objets en réalité augmentée.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Nous avons besoin d'accéder à la caméra pour scanner votre espace en 3D et créer un plan de votre jardin.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Utiliser Face ID pour vous connecter plus rapidement";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Nécessaire pour calculer la position du soleil par rapport à votre fenêtre.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Cette application utilise le microphone pour capturer l'audio.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -488,7 +489,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = None;
-				PRODUCT_BUNDLE_IDENTIFIER = com.hugomichel.arbore;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hugo.arbore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -513,8 +514,9 @@
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ArboreUI/Info.plist;
-				INFOPLIST_KEY_NSCameraUsageDescription = "Cette application utilise la caméra pour afficher des objets en réalité augmentée.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Nous avons besoin d'accéder à la caméra pour scanner votre espace en 3D et créer un plan de votre jardin.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Utiliser Face ID pour vous connecter plus rapidement";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Nécessaire pour calculer la position du soleil par rapport à votre fenêtre.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Cette application utilise le microphone pour capturer l'audio.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -531,7 +533,7 @@
 					"$(inherited)",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.hugomichel.arbore;
+				PRODUCT_BUNDLE_IDENTIFIER = com.hugo.arbore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

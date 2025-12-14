@@ -85,16 +85,18 @@ struct CatalogueView: View {
                     } else {
                         ScrollView {
                             LazyVGrid(columns: [
+                                // 'spacing: 15' gère l'espace HORIZONTAL entre les colonnes
                                 GridItem(.flexible(), spacing: 15),
                                 GridItem(.flexible(), spacing: 15)
-                            ], spacing: 20) {
+                            ], spacing: 15) { // 'spacing: 15' ici gère l'espace VERTICAL entre les lignes
+                                
                                 ForEach(filteredPlants) { plant in
                                     NavigationLink(destination: PlantDetailView(plantID: plant.id)) {
                                         PlantCard(plant: plant)
                                     }
                                 }
                             }
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, 16) // Marge sur les bords de l'écran
                             .padding(.top, 20)
                             .padding(.bottom, 40)
                         }

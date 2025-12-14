@@ -546,35 +546,34 @@ struct ImprovedSelectableCard: View {
     }
 }
 
-// MARK: - Style Card with Image Background
-
 struct StyleCard: View {
     let style: GardenStyle
     let isSelected: Bool
     let action: () -> Void
-    
+
     @Environment(\.colorScheme) private var colorScheme
-    
+
     private var isNoPreference: Bool {
         style == .noPreference
     }
-    
-    // Fond pour "Sans préférence"
+
+    /// Fond pour "Sans préférence"
     private var noPrefBackground: LinearGradient {
         let top = colorScheme == .dark
             ? Color.white.opacity(0.06)
             : Color.white.opacity(0.9)
+
         let bottom = colorScheme == .dark
             ? Color.white.opacity(0.02)
             : Color.white
-        
+
         return LinearGradient(
             colors: [top, bottom],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
     }
-    
+
     private var borderColor: Color {
         if isSelected {
             return Color.gardenAccent
@@ -584,41 +583,43 @@ struct StyleCard: View {
             return .clear
         }
     }
-    
+
     private var borderWidth: CGFloat {
         if isSelected { return 3 }
         if isNoPreference { return 1 }
-        return 0          // pas de bordure pour les autres
+        return 0
     }
-    
+
     var body: some View {
         Button(action: action) {
             ZStack(alignment: .bottomLeading) {
-                
-                // 🔹 Fond : image pour les styles, bloc uni pour "Sans préférence"
-                if !isNoPreference {
-                    Image(style.imageName)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 160, height: 200)
-                        .clipped()
-                        .overlay(
-                            LinearGradient(
-                                colors: [
-                                    Color.black.opacity(0.05),
-                                    Color.black.opacity(0.55)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
+
+                // --- BACKGROUND ---
+                Group {
+                    if isNoPreference {
+                        noPrefBackground
+                    } else {
+                        Image(style.imageName)
+                            .resizable()
+                            .scaledToFill()
+                            .overlay(
+                                LinearGradient(
+                                    colors: [
+                                        Color.black.opacity(0.05),
+                                        Color.black.opacity(0.55)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
                             )
-                        )
-                } else {
-                    noPrefBackground
-                        .frame(width: 160, height: 200)
+                    }
                 }
-                
-                // 🔹 Contenu texte (sans emoji)
-                VStack(alignment: .leading, spacing: 8) {
+                .frame(width: 160, height: 200)
+                .clipped()
+
+                // --- TEXT AREA ---
+                VStack(alignment: .leading, spacing: isNoPreference ? 6 : 2) {
+
                     if isNoPreference {
                         Image(systemName: "sparkles")
                             .font(.system(size: 18, weight: .medium))
@@ -627,42 +628,37 @@ struct StyleCard: View {
                                 ? Color.white.opacity(0.65)
                                 : Color.black.opacity(0.45)
                             )
-                            .padding(.bottom, 4)
                     }
-                    
+
                     Text(style.title)
                         .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.white)
                         .shadow(radius: 4)
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(2)
                 }
-                .padding(16)
-                
-                // 🔹 Indicateur de sélection
-                if isSelected {
-                    VStack {
-                        HStack {
-                            Spacer()
-                            ZStack {
-                                Circle()
-                                    .fill(Color.gardenAccent)
-                                    .frame(width: 28, height: 28)      // un peu plus petit
-                                
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(.white)
-                            }
-                            .padding(.trailing, 10)
-                            .padding(.top, 14)                        // descendu de quelques points
-                        }
-                        Spacer()
-                    }
-                }
+                .padding(14)
+
             }
+            .frame(width: 160, height: 200)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .stroke(borderColor, lineWidth: borderWidth)
             )
+            .overlay(alignment: .topTrailing) {
+                if isSelected {
+                    ZStack {
+                        Circle()
+                            .fill(Color.gardenAccent)
+                            .frame(width: 26, height: 26)
+                        Image(systemName: "checkmark")
+                            .foregroundColor(.white)
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .padding(10)
+                }
+            }
             .shadow(
                 color: isSelected
                     ? Color.gardenAccent.opacity(0.4)

@@ -38,6 +38,7 @@ struct ExposureStepView: View {
                         }
                     }
                     .padding(.horizontal, 24)
+                    .padding(.top, 15)
                 }
                 
                 Spacer()

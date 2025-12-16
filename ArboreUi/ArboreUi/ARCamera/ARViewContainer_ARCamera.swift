@@ -1,13 +1,7 @@
-// filepath: /Users/hugomichel/Documents/Arbore150/ArboreUi/ArboreUi/ARCamera/ARViewContainer_ARCamera.swift
 import SwiftUI
 import ARKit
 import RealityKit
 
-/// Conteneur AR utilisé par `ARViewWrapper`
-/// - Paramètres :
-///   - arView : ARView partagé (binding) pour pouvoir faire des snapshots depuis ARViewWrapper
-///   - modelURL : URL du modèle 3D local (usdz/usdc/glb…)
-///   - modelConfig : configuration optionnelle (scale, offset…) par plante
 struct ARViewContainer: UIViewRepresentable {
     @Binding var arView: ARView
     let modelURL: URL

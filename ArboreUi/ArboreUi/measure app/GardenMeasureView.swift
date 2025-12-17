@@ -9,6 +9,7 @@ import SwiftUI
 
 struct GardenMeasureView: View {
     @StateObject private var model = ARMeasureModel()
+    @State private var showIntermediate = false   // 👈 AJOUT
     
     var body: some View {
         ZStack {
@@ -17,7 +18,6 @@ struct GardenMeasureView: View {
                     ARViewContainerMesure(model: model)
                         .edgesIgnoringSafeArea(.all)
                     
-                    // Overlay instructions + buttons
                     VStack {
                         HStack {
                             Button(action: { model.clearPoints() }) {
@@ -26,32 +26,59 @@ struct GardenMeasureView: View {
                                     .background(.ultraThinMaterial)
                                     .cornerRadius(8)
                             }
+
                             Spacer()
+
                             Button(action: { model.toggleFinish() }) {
-                                Label(model.isFinished ? "Modifier" : "Terminer", systemImage: model.isFinished ? "pencil" : "checkmark")
-                                    .padding(10)
-                                    .background(.ultraThinMaterial)
-                                    .cornerRadius(8)
+                                Label(
+                                    model.isFinished ? "Modifier" : "Terminer",
+                                    systemImage: model.isFinished ? "pencil" : "checkmark"
+                                )
+                                .padding(10)
+                                .background(.ultraThinMaterial)
+                                .cornerRadius(8)
                             }
                         }
                         .padding()
+
                         Spacer()
+
+                        // 👇 Bouton visible UNIQUEMENT quand terminé
+                        if model.isFinished {
+                            Button(action: {
+                                showIntermediate = true
+                            }) {
+                                Label("Créer mon jardin", systemImage: "leaf")
+                                    .font(.headline)
+                                    .padding()
+                                    .background(Color.green)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                            }
+                            .padding(.bottom, 12)
+                        }
+
                         Text("Tap sur l'écran pour placer les points (périmètre)")
                             .padding(8)
                             .background(.ultraThinMaterial)
                             .cornerRadius(8)
                             .padding(.bottom, 20)
-                    }.foregroundColor(.white)
+                    }
+                    .foregroundColor(.white)
                 }
                 .frame(maxHeight: .infinity)
-                
-                // Plan top-down with interactions
-                PlanTopDownView(points3D: model.points3D, isFinished: model.isFinished, previewPoint: model.previewPoint, model: model)
-                    .frame(height: 320)
-                    .background(Color(white: 0.97))
+
+                PlanTopDownView(
+                    points3D: model.points3D,
+                    isFinished: model.isFinished,
+                    previewPoint: model.previewPoint,
+                    model: model
+                )
+                .frame(height: 320)
+                .background(Color(white: 0.97))
             }
-            
-            // Gallery button (bottom right)
+
+            // bouton galerie inchangé
             VStack {
                 Spacer()
                 HStack {
@@ -66,8 +93,7 @@ struct GardenMeasureView: View {
                     .padding()
                 }
             }
-            
-            // Sheet for saved plans
+
             if model.showSavedPlans {
                 SavedPlansView(model: model)
                     .onDisappear {
@@ -77,6 +103,12 @@ struct GardenMeasureView: View {
         }
         .onAppear {
             model.loadSavedPlans()
+        }
+        // 👇 Navigation vers la page intermédiaire
+        .fullScreenCover(isPresented: $showIntermediate) {
+            IntermediateGardenView(
+                selectedPlants: [] // tu pourras brancher ça plus tard
+            )
         }
     }
 }

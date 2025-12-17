@@ -2,54 +2,61 @@ import SwiftUI
 import RoomPlan
 
 struct WizardSummaryStepView: View {
+    // MARK: - Properties
     @ObservedObject var state: GardenWizardState
-    let onFinish: () -> Void
+    
+    // --- Callbacks (Actions remontées au Parent) ---
+    // C'est grâce à ça que l'écran noir est corrigé :
+    // On demande au parent de lancer la caméra, on ne le fait pas nous-mêmes.
     let onBack: () -> Void
-
-    @State private var goToGardenMeasure = false
-    @State private var goToRoomScan = false
+    let onStartAR: () -> Void
+    let onStartLiDAR: () -> Void
+    let onFinishWizard: () -> Void
+    
     @State private var showLidarAlert = false
-
     @Environment(\.colorScheme) private var colorScheme
 
-    // Même style de “card” que tes autres écrans
+    // MARK: - Styles & Colors
+    // (Repris de ton code original pour conserver le design exact)
+    
     private var cardBackground: Color {
         colorScheme == .dark ? Color.white.opacity(0.06) : Color.white
     }
-
+    
     private var cardShadow: Color {
         colorScheme == .dark ? Color.black.opacity(0.6) : Color.black.opacity(0.05)
     }
-
+    
     private var subtitleColor: Color {
         colorScheme == .dark ? Color.white.opacity(0.65) : .secondary
     }
-
+    
     private var infoCardBackground: Color {
-        // proche du "black/20" du HTML
         colorScheme == .dark ? Color.black.opacity(0.22) : Color.black.opacity(0.04)
     }
-
+    
     private var iconChipBackground: Color {
-        // proche du "primary/20"
         colorScheme == .dark
             ? Color.gardenAccent.opacity(0.18)
             : Color.gardenPrimary.opacity(0.12)
     }
-
+    
     private var iconColor: Color {
         colorScheme == .dark ? Color.gardenAccent : Color.gardenPrimary
     }
 
+    // MARK: - Body
     var body: some View {
         ZStack {
+            // Fond
             Color.gardenBackground
                 .ignoresSafeArea()
 
+            // Contenu Principal
             VStack(spacing: 0) {
                 Spacer()
 
-                // --- HEADER (comme ton HTML) ---
+                // --- HEADER ---
                 VStack(spacing: 12) {
                     Text("Mesurons votre espace")
                         .font(.system(size: 34, weight: .bold))
@@ -96,23 +103,8 @@ struct WizardSummaryStepView: View {
 
                 Spacer()
             }
-
-            // NAVIGATION LINKS CACHÉS (inchangé)
-            NavigationLink(
-                destination: GardenMeasureView(),
-                isActive: $goToGardenMeasure,
-                label: { EmptyView() }
-            )
-            .hidden()
-
-            NavigationLink(
-                destination: RoomScanListView(),
-                isActive: $goToRoomScan,
-                label: { EmptyView() }
-            )
-            .hidden()
         }
-        // Footer boutons + dégradé (structure identique)
+        // --- FOOTER FLOTTANT ---
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 12) {
 
@@ -121,25 +113,31 @@ struct WizardSummaryStepView: View {
                     .foregroundColor(Color.white.opacity(0.45))
                     .padding(.top, 2)
 
+                // BOUTON PRINCIPAL : Scanner
                 Button(action: {
-                    onFinish()
+                    // 1. On sauvegarde l'état
+                    onFinishWizard()
 
+                    // 2. On décide quelle caméra lancer
                     switch state.scanMethod {
                     case .some(.gardenPerimeter):
-                        goToGardenMeasure = true
+                        // On appelle le parent pour lancer l'AR
+                        onStartAR()
 
                     case .some(.roomScan):
+                        // On vérifie le LiDAR
                         if RoomCaptureSession.isSupported {
-                            goToRoomScan = true
+                            onStartLiDAR()
                         } else {
                             showLidarAlert = true
                         }
 
                     case .none:
+                        // Choix par défaut intelligent
                         if RoomCaptureSession.isSupported {
-                            goToRoomScan = true
+                            onStartLiDAR()
                         } else {
-                            goToGardenMeasure = true
+                            onStartAR()
                         }
                     }
                 }) {
@@ -150,12 +148,14 @@ struct WizardSummaryStepView: View {
                 }
                 .buttonStyle(PrimaryWizardButtonStyle(isEnabled: true))
 
+                // BOUTON SECONDAIRE : Retour
                 Button("Retour") { onBack() }
                     .buttonStyle(SecondaryWizardButtonStyle())
             }
             .padding(.horizontal, 24)
             .padding(.top, 12)
             .padding(.bottom, 32)
+            // Dégradé de fond pour le footer
             .background(
                 LinearGradient(
                     colors: [
@@ -170,6 +170,7 @@ struct WizardSummaryStepView: View {
                 .ignoresSafeArea(edges: .bottom)
             )
         }
+        // ALERTE LIDAR
         .alert("Scan 3D indisponible", isPresented: $showLidarAlert) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -183,8 +184,9 @@ struct WizardSummaryStepView: View {
     }
 }
 
-// MARK: - Benefit Row
+// MARK: - Subviews & Helpers
 
+// Ligne de bénéfice (Petite carte avec icône)
 private struct BenefitRow: View {
     let systemImage: String
     let title: String

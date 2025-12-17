@@ -12,7 +12,7 @@ struct GardenARPlacementView: View {
     var body: some View {
         ZStack {
             // AR camera (plein écran)
-            GardenARView()
+            GardenARContainerView()
                 .ignoresSafeArea()
 
             // UI overlay
@@ -152,7 +152,7 @@ struct GardenARPlacementView: View {
 // MARK: - AR View
 //
 
-private struct GardenARView: UIViewRepresentable {
+fileprivate struct GardenARContainerView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)

@@ -16,11 +16,9 @@ struct ShareSheet: UIViewControllerRepresentable {
 }
 
 // MARK: - ARViewWrapper
-
 struct ARViewWrapper: View {
     let modelURL: URL
-    let modelConfig: PlantModel3D?   // config par plante
-    
+
     @Environment(\.presentationMode) var presentationMode
     @State private var showShareSheet = false
     @State private var capturedImage: UIImage?
@@ -31,15 +29,11 @@ struct ARViewWrapper: View {
         ZStack(alignment: .topLeading) {
             ARViewContainer(
                 arView: $arView,
-                modelURL: modelURL,
-                modelConfig: modelConfig
+                modelURL: modelURL
             )
             .ignoresSafeArea(.all)
 
-            // Bouton Retour
-            Button(action: {
-                presentationMode.wrappedValue.dismiss()
-            }) {
+            Button(action: { presentationMode.wrappedValue.dismiss() }) {
                 Image(systemName: "chevron.left")
                     .font(.title)
                     .foregroundColor(.white)
@@ -49,15 +43,12 @@ struct ARViewWrapper: View {
             }
             .padding()
 
-            // Bouton photo
             VStack {
                 Spacer()
                 Button(action: captureARView) {
                     HStack {
-                        Image(systemName: "camera.fill")
-                            .font(.title)
-                        Text("Prendre une photo")
-                            .fontWeight(.bold)
+                        Image(systemName: "camera.fill").font(.title)
+                        Text("Prendre une photo").fontWeight(.bold)
                     }
                     .padding()
                     .background(Color.white.opacity(0.8))
@@ -71,17 +62,11 @@ struct ARViewWrapper: View {
         }
         .onChange(of: isImageReady) { ready in
             if ready {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                    showShareSheet = true
-                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { showShareSheet = true }
             }
         }
-        .sheet(isPresented: $showShareSheet, onDismiss: {
-            isImageReady = false
-        }) {
-            if let image = capturedImage {
-                ShareSheet(items: [image])
-            }
+        .sheet(isPresented: $showShareSheet, onDismiss: { isImageReady = false }) {
+            if let image = capturedImage { ShareSheet(items: [image]) }
         }
     }
 
@@ -98,6 +83,7 @@ struct ARViewWrapper: View {
         }
     }
 }
+
 
 // MARK: - ARPage
 
@@ -245,13 +231,10 @@ struct ARPage: View {
     @ViewBuilder
     private func destinationView() -> some View {
         if let url = plant.localModelURL {
-            // Modèle spécifique à la plante (Guzmania, Monstera, etc.)
-            ARViewWrapper(modelURL: url, modelConfig: plant.model3D)
+            ARViewWrapper(modelURL: url)
         } else if let url = findModelURL() {
-            // Modèle de démo / fallback global
-            ARViewWrapper(modelURL: url, modelConfig: nil)
+            ARViewWrapper(modelURL: url)
         } else {
-            // Si vraiment rien de dispo, on affiche juste un message
             Text("Aucun modèle AR disponible pour cette plante pour le moment.")
                 .padding()
         }

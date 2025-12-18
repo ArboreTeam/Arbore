@@ -306,15 +306,9 @@ struct PlantDetailView: View {
             }
             .fullScreenCover(isPresented: $showARView) {
                 if let modelURL = plant.localModelURL {
-                    ARViewWrapper(
-                        modelURL: modelURL,
-                        modelConfig: plant.model3D
-                    )
+                    ARViewWrapper(modelURL: modelURL)
                 } else if let demoURL = getDemoModelURL() {
-                    ARViewWrapper(
-                        modelURL: demoURL,
-                        modelConfig: nil
-                    )
+                    ARViewWrapper(modelURL: demoURL)
                 } else {
                     ARViewBasic()
                 }

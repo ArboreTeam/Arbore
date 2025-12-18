@@ -22,9 +22,5 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
-	<key>NSCameraUsageDescription</key>
-	<string>Nous avons besoin d'accéder à la caméra pour mesurer votre jardin en réalité augmentée.</string>
-	<key>NSWorldSensingUsageDescription</key>
-	<string>Nous utilisons le scanner LiDAR pour créer un plan 3D précis de votre espace.</string>
 </dict>
 </plist>

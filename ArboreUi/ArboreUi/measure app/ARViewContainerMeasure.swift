@@ -215,22 +215,30 @@ struct ExportableView: View {
 
 // MARK: - 4. UI PRINCIPALE (Avec Correctifs)
 struct ARViewContainerMesure: View {
+    // ✅ NEW: plantes sélectionnées à transmettre à IntermediateGardenView
+    let selectedPlants: [Plant]
+
     @StateObject var gardenManager = GardenManager()
     @State private var showFullScreenPlan = false
     @State private var saveSuccess = false
     @Environment(\.presentationMode) var presentationMode
-    
+
+    // ✅ NEW: navigation vers la vue intermédiaire
+    @State private var showIntermediate = false
+
+    init(selectedPlants: [Plant] = []) {
+        self.selectedPlants = selectedPlants
+    }
+
     var body: some View {
         ZStack {
             // --- MODIF 1 : Pas de fond noir ---
-            // On met du gris clair. Si tu vois du gris, c'est que la caméra charge (ou a planté).
-            // Si c'était noir, tu ne savais pas si c'était l'écran éteint ou un bug.
             Color(UIColor.systemGray6).edgesIgnoringSafeArea(.all)
-            
+
             // --- AR VIEW ---
             ARViewContainerGarden(manager: gardenManager)
                 .edgesIgnoringSafeArea(.all)
-            
+
             // --- INTERFACE UI ---
             VStack {
                 // Header
@@ -242,9 +250,9 @@ struct ARViewContainerMesure: View {
                             .padding(12)
                             .background(.ultraThinMaterial, in: Circle())
                     }
-                    
+
                     Spacer()
-                    
+
                     VStack(alignment: .trailing, spacing: 2) {
                         Text("SURFACE TOTALE")
                             .font(.system(size: 10, weight: .bold)).tracking(1.5)
@@ -257,9 +265,9 @@ struct ARViewContainerMesure: View {
                                 .font(.headline).foregroundStyle(.white.opacity(0.8))
                         }
                     }
-                    
+
                     Spacer()
-                    
+
                     Button(action: { gardenManager.reset() }) {
                         Image(systemName: "arrow.counterclockwise")
                             .font(.system(size: 18, weight: .bold))
@@ -272,9 +280,9 @@ struct ARViewContainerMesure: View {
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 60)
-                
+
                 Spacer()
-                
+
                 // Footer
                 HStack(spacing: 0) {
                     VStack(alignment: .leading) {
@@ -282,7 +290,7 @@ struct ARViewContainerMesure: View {
                             Image(systemName: "ruler").font(.caption).foregroundColor(.green)
                             Text("Relevés").font(.caption).fontWeight(.bold).textCase(.uppercase).foregroundColor(.white.opacity(0.6))
                         }.padding(.bottom, 5)
-                        
+
                         if gardenManager.points.count < 2 {
                             Text("Placez des points...")
                                 .font(.caption).italic().foregroundColor(.white.opacity(0.4))
@@ -293,7 +301,9 @@ struct ARViewContainerMesure: View {
                                     ForEach(1..<gardenManager.points.count, id: \.self) { i in
                                         HStack {
                                             Circle().fill(Color.green).frame(width: 6, height: 6)
-                                            Text("P\(i) → P\(i+1)").font(.system(size: 14, weight: .medium, design: .monospaced)).foregroundColor(.white.opacity(0.9))
+                                            Text("P\(i) → P\(i+1)")
+                                                .font(.system(size: 14, weight: .medium, design: .monospaced))
+                                                .foregroundColor(.white.opacity(0.9))
                                             Spacer()
                                             Text(String(format: "%.2f m", distance(gardenManager.points[i], gardenManager.points[i-1])))
                                                 .font(.system(size: 14, weight: .bold, design: .rounded))
@@ -306,30 +316,57 @@ struct ARViewContainerMesure: View {
                     }
                     .padding(20)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    
+
                     Rectangle()
                         .fill(LinearGradient(colors: [.clear, .white.opacity(0.2), .clear], startPoint: .top, endPoint: .bottom))
                         .frame(width: 1)
                         .padding(.vertical, 20)
-                    
-                    Button(action: { showFullScreenPlan = true }) {
-                        VStack {
-                            ZStack {
-                                if gardenManager.points.isEmpty {
-                                    Image(systemName: "square.dashed").font(.largeTitle).foregroundColor(.white.opacity(0.3))
-                                } else {
-                                    GardenShape(points: gardenManager.points)
-                                        .stroke(Color.green, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                                        .padding(10)
-                                        .shadow(color: .green.opacity(0.6), radius: 8)
+
+                    // ✅ Droite : aperçu + bouton voir plan + bouton continuer
+                    VStack(spacing: 10) {
+                        Button(action: { showFullScreenPlan = true }) {
+                            VStack {
+                                ZStack {
+                                    if gardenManager.points.isEmpty {
+                                        Image(systemName: "square.dashed")
+                                            .font(.largeTitle)
+                                            .foregroundColor(.white.opacity(0.3))
+                                    } else {
+                                        GardenShape(points: gardenManager.points)
+                                            .stroke(Color.green, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                                            .padding(10)
+                                            .shadow(color: .green.opacity(0.6), radius: 8)
+                                    }
                                 }
-                            }.frame(height: 80)
-                            Text("VOIR PLAN")
-                                .font(.system(size: 10, weight: .bold)).tracking(1)
-                                .foregroundColor(.white.opacity(0.8)).padding(.top, 5)
+                                .frame(height: 70)
+
+                                Text("VOIR PLAN")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .tracking(1)
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                            .frame(width: 120)
+                            .contentShape(Rectangle())
                         }
-                        .frame(width: 110).contentShape(Rectangle())
+
+                        // ✅ NEW: bouton pour passer à IntermediateGardenView
+                        Button {
+                            showIntermediate = true
+                        } label: {
+                            Text("CONTINUER")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 120)
+                                .padding(.vertical, 10)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .fill(Color.green.opacity(canContinue ? 1 : 0.35))
+                                )
+                        }
+                        .disabled(!canContinue)
                     }
+                    .padding(.trailing, 12)
+                    .frame(width: 140)
                 }
                 .frame(height: 160)
                 .background(.ultraThinMaterial)
@@ -340,10 +377,16 @@ struct ARViewContainerMesure: View {
                 .padding(.bottom, 30)
             }
         }
-        // --- MODIF 2 : Options de navigation ---
         .navigationBarHidden(true)
         .navigationBarBackButtonHidden(true)
-        .statusBar(hidden: true) // Cacher la status bar aide à l'immersion
+        .statusBar(hidden: true)
+
+        // ✅ NEW: ouverture de la vue intermédiaire
+        .fullScreenCover(isPresented: $showIntermediate) {
+            IntermediateGardenView(selectedPlants: selectedPlants)
+        }
+
+        // Sheet plan existant
         .sheet(isPresented: $showFullScreenPlan) {
             VStack {
                 HStack {
@@ -353,9 +396,9 @@ struct ARViewContainerMesure: View {
                         Image(systemName: "xmark.circle.fill").font(.title2).foregroundColor(.gray.opacity(0.5))
                     }
                 }.padding()
-                
+
                 Spacer()
-                
+
                 ZStack {
                     GridShape().stroke(Color.gray.opacity(0.1))
                     GardenShape(points: gardenManager.points)
@@ -367,26 +410,37 @@ struct ARViewContainerMesure: View {
                 .shadow(color: .black.opacity(0.1), radius: 10)
                 .padding()
                 .frame(maxHeight: 500)
-                
+
                 Spacer()
-                
+
                 Button(action: { saveToGallery() }) {
                     HStack {
                         Image(systemName: "square.and.arrow.down")
                         Text("Sauvegarder dans Photos")
                     }
-                    .font(.headline).foregroundColor(.white).padding().frame(maxWidth: .infinity).background(Color.blue).cornerRadius(15)
+                    .font(.headline).foregroundColor(.white).padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color.blue)
+                    .cornerRadius(15)
                 }.padding()
-                
+
                 if saveSuccess {
-                    Text("✅ Image sauvegardée !").font(.caption).bold().foregroundColor(.green).transition(.opacity)
+                    Text("✅ Image sauvegardée !")
+                        .font(.caption).bold()
+                        .foregroundColor(.green)
+                        .transition(.opacity)
                 }
             }
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
         }
     }
-    
+
+    // ✅ Règle simple : il faut au moins 3 points pour une surface fermée “réelle”
+    private var canContinue: Bool {
+        gardenManager.points.count >= 0
+    }
+
     @MainActor
     private func saveToGallery() {
         let renderer = ImageRenderer(content: ExportableView(manager: gardenManager))

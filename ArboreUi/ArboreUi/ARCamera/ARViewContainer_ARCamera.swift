@@ -1,3 +1,5 @@
+// filepath: /Users/hugomichel/Documents/Arbore150/ArboreUi/ArboreUi/ARCamera/ARViewContainer_ARCamera.swift
+
 import SwiftUI
 import ARKit
 import RealityKit
@@ -5,13 +7,13 @@ import RealityKit
 struct ARViewContainer: UIViewRepresentable {
     @Binding var arView: ARView
     let modelURL: URL
-    let modelConfig: PlantModel3D?
 
     func makeUIView(context: Context) -> ARView {
         // Configuration AR
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal, .vertical]
         config.environmentTexturing = .automatic
+
         arView.automaticallyConfigureSession = true
         arView.session.run(config)
 
@@ -40,6 +42,7 @@ struct ARViewContainer: UIViewRepresentable {
         arView.addGestureRecognizer(panGesture)
         arView.addGestureRecognizer(pinchGesture)
 
+        print("✅ ARViewContainer ready - model: \(modelURL.lastPathComponent)")
         return arView
     }
 
@@ -52,7 +55,6 @@ struct ARViewContainer: UIViewRepresentable {
     }
 
     // MARK: - Coordinator
-
     class Coordinator: NSObject {
         var parent: ARViewContainer
         var selectedEntity: Entity?
@@ -65,7 +67,6 @@ struct ARViewContainer: UIViewRepresentable {
         }
 
         // MARK: - Sélection visuelle
-
         private func selectEntity(_ entity: Entity) {
             // Retirer l'ancienne box de sélection
             if let previousEntity = selectedEntity {
@@ -101,7 +102,6 @@ struct ARViewContainer: UIViewRepresentable {
         }
 
         // MARK: - Long press = sélection
-
         @objc func handleLongPress(_ sender: UILongPressGestureRecognizer) {
             guard sender.state == .began,
                   let arView = sender.view as? ARView else { return }
@@ -145,7 +145,6 @@ struct ARViewContainer: UIViewRepresentable {
         }
 
         // MARK: - Tap = ajout de plante
-
         @objc func handleTap(_ sender: UITapGestureRecognizer) {
             guard let arView = sender.view as? ARView else { return }
             let location = sender.location(in: arView)
@@ -156,18 +155,17 @@ struct ARViewContainer: UIViewRepresentable {
                 alignment: .horizontal
             )
 
-            if let result = results.first {
-                let position = SIMD3<Float>(
-                    result.worldTransform.columns.3.x,
-                    result.worldTransform.columns.3.y,
-                    result.worldTransform.columns.3.z
-                )
-                addPlant(at: position, in: arView)
+            print("🟦 Tap -> raycast results: \(results.count)")
+
+            guard let result = results.first else {
+                print("⚠️ Aucun plan détecté. Bouge un peu le tel et vise une surface texturée.")
+                return
             }
+
+            addPlant(with: result.worldTransform, in: arView)
         }
 
         // MARK: - Pan = déplacement
-
         @objc func handlePan(_ sender: UIPanGestureRecognizer) {
             guard let arView = sender.view as? ARView,
                   let selectedEntity = selectedEntity else { return }
@@ -188,7 +186,9 @@ struct ARViewContainer: UIViewRepresentable {
                         result.worldTransform.columns.3.y,
                         result.worldTransform.columns.3.z
                     )
-                    offset = initialEntityPosition! - touchPosition
+                    if let initial = initialEntityPosition {
+                        offset = initial - touchPosition
+                    }
                 }
 
             case .changed:
@@ -200,6 +200,7 @@ struct ARViewContainer: UIViewRepresentable {
                 if let result = results.first,
                    let initialPosition = initialEntityPosition,
                    let offset = offset {
+
                     let newPosition = SIMD3<Float>(
                         result.worldTransform.columns.3.x,
                         result.worldTransform.columns.3.y,
@@ -220,14 +221,13 @@ struct ARViewContainer: UIViewRepresentable {
         }
 
         // MARK: - Pinch = scale
-
         @objc func handlePinch(_ sender: UIPinchGestureRecognizer) {
             guard let entity = selectedEntity else { return }
 
             switch sender.state {
             case .changed:
                 let minScale: Float = 0.001
-                let maxScale: Float = 0.05
+                let maxScale: Float = 0.2   // un peu plus large pour tester
                 let scaleFactor = Float(sender.scale)
 
                 let newScale = max(
@@ -244,32 +244,29 @@ struct ARViewContainer: UIViewRepresentable {
             }
         }
 
-        // MARK: - Ajout du modèle 3D
-
-        func addPlant(at position: SIMD3<Float>, in arView: ARView) {
+        // MARK: - Ajout du modèle 3D (anchor avec transform complet)
+        func addPlant(with worldTransform: simd_float4x4, in arView: ARView) {
             do {
-                // ⬅️ IMPORTANT : ModelEntity.load(contentsOf:) supporte GLB / USDZ / USDC
                 let modelEntity = try ModelEntity.load(contentsOf: parent.modelURL)
 
-                // Appliquer la config (scale / offset) si fournie
-                if let config = parent.modelConfig {
-                    modelEntity.scale = config.scale
-                    if config.yOffset != 0 {
-                        modelEntity.position.y += config.yOffset
-                    }
-                } else {
-                    modelEntity.scale = SIMD3<Float>(repeating: 0.002)
-                }
+                let bounds = modelEntity.visualBounds(relativeTo: nil)
+                let height = max(bounds.extents.y, 0.0001)
+                let targetHeight: Float = 0.01 // 80 cm
+                let scale = targetHeight / height
+
+                modelEntity.scale = SIMD3<Float>(repeating: scale)
+                print("📏 Auto-scale: height=\(height) -> scale=\(scale)")
 
                 modelEntity.generateCollisionShapes(recursive: true)
 
-                let anchor = AnchorEntity(world: position)
+                // Anchor plus fiable
+                let anchor = AnchorEntity(world: worldTransform)
                 anchor.addChild(modelEntity)
                 arView.scene.addAnchor(anchor)
 
                 plantEntities.append(modelEntity)
 
-                print("✅ Plante ajoutée et détectable via le long press")
+                print("✅ Plante ajoutée")
                 print("📦 Modèle chargé depuis : \(parent.modelURL.lastPathComponent)")
             } catch {
                 print("❌ Impossible de charger le modèle 3D depuis \(parent.modelURL): \(error)")

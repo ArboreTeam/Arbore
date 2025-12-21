@@ -38,6 +38,24 @@ struct Plant: Identifiable, Codable {
         self.translations = try container.decodeIfPresent([String: PlantTranslation].self, forKey: .translations)
             ?? [:]
     }
+
+    // ✅ Helper pour reconstruire une plante minimale au moment du restore
+    static func stubForRestore(id: String, name: String, type: String, modelURL: String) -> Plant {
+        // Astuce: on encode/décode vite fait ou on fait une init privée.
+        // Ici on fait une init "manuelle" via un petit hack : un JSON minimal.
+        let json: [String: Any] = [
+            "id": id,
+            "name": name,
+            "type": type,
+            "imageURLs": [],
+            "description": "",
+            "modelURL": modelURL,
+            "translations": [:]
+        ]
+        let data = try? JSONSerialization.data(withJSONObject: json, options: [])
+        let decoded = (data.flatMap { try? JSONDecoder().decode(Plant.self, from: $0) })
+        return decoded ?? PlantFallback(id: id, name: name, type: type, modelURL: modelURL).asPlant()
+    }
 }
 
 // MARK: - Translations & sub-objects
@@ -121,5 +139,37 @@ extension Plant {
             print("✅ USDZ trouvé: \(name).\(finalExt)")
         }
         return url
+    }
+}
+
+// MARK: - Fallback helper (only for restore safety)
+
+fileprivate struct PlantFallback {
+    let id: String
+    let name: String
+    let type: String
+    let modelURL: String
+
+    func asPlant() -> Plant {
+        let json: [String: Any] = [
+            "id": id,
+            "name": name,
+            "type": type,
+            "imageURLs": [],
+            "description": "",
+            "modelURL": modelURL,
+            "translations": [:]
+        ]
+        let data = try? JSONSerialization.data(withJSONObject: json, options: [])
+        return (data.flatMap { try? JSONDecoder().decode(Plant.self, from: $0) })
+            ?? (try! JSONDecoder().decode(Plant.self, from: try! JSONSerialization.data(withJSONObject: [
+                "id": UUID().uuidString,
+                "name": "Plante",
+                "type": "",
+                "imageURLs": [],
+                "description": "",
+                "modelURL": modelURL,
+                "translations": [:]
+            ])))
     }
 }

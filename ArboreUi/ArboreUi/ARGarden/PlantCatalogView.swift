@@ -1,4 +1,6 @@
 import SwiftUI
+import simd
+import ARKit
 
 struct PlantCatalogARView: View {
     let onSelect: (Plant) -> Void
@@ -54,9 +56,7 @@ struct PlantCatalogARView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // plein écran
                 Color.clear.ignoresSafeArea()
-
                 sheetFullscreen
             }
             .navigationBarHidden(true)
@@ -64,14 +64,11 @@ struct PlantCatalogARView: View {
         }
     }
 
-    // MARK: - Fullscreen “sheet”
-
     private var sheetFullscreen: some View {
         GeometryReader { geo in
             let height = geo.size.height
 
             ZStack(alignment: .top) {
-                // Glass full screen
                 RoundedRectangle(cornerRadius: 28, style: .continuous)
                     .fill(.regularMaterial)
                     .overlay(
@@ -85,14 +82,12 @@ struct PlantCatalogARView: View {
                     .shadow(color: .black.opacity(0.22), radius: 26, x: 0, y: 8)
 
                 VStack(spacing: 0) {
-                    // Handle (tu peux le virer en plein écran si tu veux)
                     Capsule()
                         .fill(Color.white.opacity(0.20))
                         .frame(width: 48, height: 6)
                         .padding(.top, 10)
                         .padding(.bottom, 10)
 
-                    // Header
                     HStack {
                         Text("Select a Plant")
                             .font(.system(size: 32, weight: .bold))
@@ -116,16 +111,13 @@ struct PlantCatalogARView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 12)
 
-                    // Search
                     searchBar
                         .padding(.horizontal, 20)
                         .padding(.bottom, 12)
 
-                    // Chips
                     chipsRow
                         .padding(.bottom, 6)
 
-                    // Content
                     content
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -133,7 +125,6 @@ struct PlantCatalogARView: View {
                 .frame(maxWidth: .infinity)
             }
             .frame(width: geo.size.width, height: height)
-            .padding(.top, 0)
         }
     }
 
@@ -207,8 +198,6 @@ struct PlantCatalogARView: View {
                     LazyVGrid(columns: columns, spacing: 14) {
                         ForEach(filteredPlants) { plant in
                             ZStack(alignment: .topTrailing) {
-
-                                // ✅ Ta carte (image + nom en bas)
                                 PlantCard(plant: plant)
                                     .contentShape(RoundedRectangle(cornerRadius: 16))
                                     .onTapGesture {
@@ -216,7 +205,6 @@ struct PlantCatalogARView: View {
                                         dismiss()
                                     }
 
-                                // ✅ Bouton "i" => page détail
                                 NavigationLink(destination: PlantDetailView(plantID: plant.id)) {
                                     ZStack {
                                         Circle()
@@ -326,7 +314,6 @@ fileprivate struct PlantCardGlass: View {
     var body: some View {
         Button(action: onTap) {
             ZStack {
-                // ✅ image en background, fill & clipped à la carte
                 ZStack {
                     AsyncThumb(urlString: plant.imageURLs.first)
                         .scaledToFill()
@@ -334,14 +321,13 @@ fileprivate struct PlantCardGlass: View {
                         .clipped()
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(ARCatColor.surfaceDark) // fallback si pas d'image
+                .background(ARCatColor.surfaceDark)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .stroke(Color.white.opacity(0.06), lineWidth: 1)
                 )
 
-                // badge AR (top-right)
                 VStack {
                     HStack {
                         Spacer()
@@ -362,7 +348,6 @@ fileprivate struct PlantCardGlass: View {
                     Spacer()
                 }
 
-                // texte (glass)
                 VStack(alignment: .leading, spacing: 8) {
                     Spacer()
 
@@ -460,4 +445,77 @@ fileprivate enum ARCatColor {
     static let backgroundDark = Color(hex: "#102217")
     static let surfaceDark = Color(hex: "#162B1E")
     static let tint = Color(hex: "#102217")
+}
+
+// MARK: - Notifications
+
+extension Notification.Name {
+    static let gardenARSave = Notification.Name("gardenARSave")
+    static let gardenARLoad = Notification.Name("gardenARLoad")
+}
+
+// MARK: - Persisted data
+
+struct PersistedPlant: Codable {
+    let plantID: String
+    let plantName: String
+    let modelURLString: String
+    let transform: [Float] // 16 floats (column-major)
+}
+
+struct PersistedARScene: Codable {
+    let savedAt: Date
+    let plants: [PersistedPlant]
+}
+
+// MARK: - Matrix <-> [Float]
+
+func matrixToFloatArray(_ m: simd_float4x4) -> [Float] {
+    let c0 = m.columns.0
+    let c1 = m.columns.1
+    let c2 = m.columns.2
+    let c3 = m.columns.3
+    return [
+        c0.x, c0.y, c0.z, c0.w,
+        c1.x, c1.y, c1.z, c1.w,
+        c2.x, c2.y, c2.z, c2.w,
+        c3.x, c3.y, c3.z, c3.w
+    ]
+}
+
+func floatArrayToMatrix(_ a: [Float]) -> simd_float4x4? {
+    guard a.count == 16 else { return nil }
+    return simd_float4x4(
+        SIMD4<Float>(a[0], a[1], a[2], a[3]),
+        SIMD4<Float>(a[4], a[5], a[6], a[7]),
+        SIMD4<Float>(a[8], a[9], a[10], a[11]),
+        SIMD4<Float>(a[12], a[13], a[14], a[15])
+    )
+}
+
+// MARK: - Files
+
+func documentsURL(_ fileName: String) -> URL {
+    FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent(fileName)
+}
+
+let worldMapFileURL = documentsURL("garden_worldmap.arexperience")
+let sceneFileURL    = documentsURL("garden_scene.json")
+
+// MARK: - Bundle model lookup (same logic as Plant.localModelURL)
+
+func resourceURLFromModelURLString(_ modelURL: String) -> URL? {
+    let file = modelURL.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !file.isEmpty else { return nil }
+
+    let ext  = (file as NSString).pathExtension
+    let name = (file as NSString).deletingPathExtension
+    let finalExt = ext.isEmpty ? "usdz" : ext
+
+    let url = Bundle.main.url(forResource: name, withExtension: finalExt)
+    if url == nil {
+        print("❌ USDZ introuvable dans le bundle: \(name).\(finalExt)")
+    }
+    return url
 }

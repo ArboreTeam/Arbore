@@ -2,6 +2,8 @@ import SwiftUI
 import RealityKit
 import ARKit
 import Combine
+import Foundation
+import simd
 
 struct GardenARPlacementView: View {
     let selectedPlants: [Plant]
@@ -12,17 +14,14 @@ struct GardenARPlacementView: View {
 
     var body: some View {
         ZStack {
-            // AR camera (plein écran)
             GardenARPlacementContainerView(selectedPlant: $selectedPlantForPlacement)
                 .ignoresSafeArea()
 
-            // ✅ IMPORTANT: on masque le gradient quand la sheet est ouverte
             if !showPicker {
                 bottomGradient
                     .ignoresSafeArea()
             }
 
-            // UI overlay
             VStack(spacing: 0) {
                 topBar
                 Spacer()
@@ -50,29 +49,23 @@ struct GardenARPlacementView: View {
 
     private var topBar: some View {
         HStack {
-            Button {
-                dismiss()
-            } label: {
+            Button { dismiss() } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(width: 40, height: 40)
                     .background(.black.opacity(0.20))
                     .clipShape(Circle())
-                    .overlay(
-                        Circle().stroke(.white.opacity(0.10), lineWidth: 1)
-                    )
+                    .overlay(Circle().stroke(.white.opacity(0.10), lineWidth: 1))
             }
 
             Spacer()
-
             Color.clear.frame(width: 40, height: 40)
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .overlay(alignment: .top) {
-            titlePill
-                .padding(.top, 6)
+            titlePill.padding(.top, 6)
         }
     }
 
@@ -92,9 +85,7 @@ struct GardenARPlacementView: View {
         .padding(.vertical, 10)
         .background(.black.opacity(0.20))
         .clipShape(Capsule())
-        .overlay(
-            Capsule().stroke(.white.opacity(0.10), lineWidth: 1)
-        )
+        .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
     }
 
     // MARK: - Bottom gradient
@@ -137,9 +128,37 @@ struct GardenARPlacementView: View {
                 }
             }
 
-            Button {
-                showPicker = true
-            } label: {
+            // ✅ Save / Load
+            HStack(spacing: 12) {
+                Button {
+                    NotificationCenter.default.post(name: .gardenARSave, object: nil)
+                } label: {
+                    Text("Save")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(Color.black.opacity(0.25))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
+                }
+
+                Button {
+                    NotificationCenter.default.post(name: .gardenARLoad, object: nil)
+                } label: {
+                    Text("Load")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(Color.black.opacity(0.25))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
+                }
+            }
+            .padding(.top, 2)
+
+            Button { showPicker = true } label: {
                 HStack(spacing: 12) {
                     ZStack {
                         Circle()
@@ -158,12 +177,7 @@ struct GardenARPlacementView: View {
                 .frame(height: 64)
                 .background(Color(hex: "#2BEE79"))
                 .clipShape(Capsule())
-                .shadow(
-                    color: Color(hex: "#2BEE79").opacity(0.35),
-                    radius: 18,
-                    x: 0,
-                    y: 10
-                )
+                .shadow(color: Color(hex: "#2BEE79").opacity(0.35), radius: 18, x: 0, y: 10)
             }
         }
         .padding(.horizontal, 20)
@@ -172,7 +186,7 @@ struct GardenARPlacementView: View {
 }
 
 //
-// MARK: - AR View (copié/collé du code qui marche, noms changés)
+// MARK: - AR View
 //
 
 fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
@@ -181,25 +195,40 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     func makeUIView(context: Context) -> ARView {
         let arView = ARView(frame: .zero)
 
-        // Configuration AR (comme ton fichier qui marche)
+        // ✅ Important: on gère nous-mêmes la session (sinon worldMap / relocalisation moins fiable)
+        arView.automaticallyConfigureSession = false
+        arView.session.delegate = context.coordinator
+
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal, .vertical]
         config.environmentTexturing = .automatic
 
-        arView.automaticallyConfigureSession = true
         arView.session.run(config)
 
-        // Gestes (on ne garde QUE tap pour le placement, le reste tu pourras rajouter plus tard)
         let tapGesture = UITapGestureRecognizer(
             target: context.coordinator,
             action: #selector(GardenCoordinator.handleTapPlace(_:))
         )
         arView.addGestureRecognizer(tapGesture)
 
-        // Reticle
         context.coordinator.arView = arView
         context.coordinator.addPlacementReticle()
+        context.coordinator.startReticleUpdates()
         context.coordinator.currentPlant = selectedPlant
+
+        // ✅ Notifications Save/Load
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(GardenCoordinator.handleSaveNotif),
+            name: .gardenARSave,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(GardenCoordinator.handleLoadNotif),
+            name: .gardenARLoad,
+            object: nil
+        )
 
         print("✅ GardenARPlacementContainerView ready")
         return arView
@@ -213,37 +242,99 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         GardenCoordinator(self)
     }
 
-    // MARK: - Coordinator (copié/collé style ARViewContainer, noms changés)
-    final class GardenCoordinator: NSObject {
+    final class GardenCoordinator: NSObject, ARSessionDelegate {
         var parent: GardenARPlacementContainerView
         weak var arView: ARView?
 
         var currentPlant: Plant?
-        var placedEntities: [Entity] = []
 
-        private var reticleEntity: Entity?
+        // ✅ persisté: ce qu’on va écrire dans un fichier JSON
+        private var placedPlants: [PersistedPlant] = []
+
+        private var reticleAnchor: AnchorEntity?
         private var subscriptions = Set<AnyCancellable>()
+
+        // ✅ On stocke le dernier transform du reticle (celui du centre d’écran)
+        private var lastReticleWorldTransform: simd_float4x4?
+
+        // ✅ offset constant (évite z-fighting)
+        private let reticleYOffset: Float = 0.002
 
         init(_ parent: GardenARPlacementContainerView) {
             self.parent = parent
+            super.init()
         }
 
-        // MARK: - Reticle (comme ton ancien code)
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+        }
+
+        // MARK: - ARSessionDelegate (optionnel mais utile pour debug)
+        func session(_ session: ARSession, cameraDidChangeTrackingState camera: ARCamera) {
+            switch camera.trackingState {
+            case .normal:
+                // print("✅ tracking normal")
+                break
+            case .notAvailable:
+                print("⚠️ tracking not available")
+            case .limited(let reason):
+                print("⚠️ tracking limited: \(reason)")
+            }
+        }
+
+        // MARK: - Reticle
         func addPlacementReticle() {
             guard let arView else { return }
 
-            let mesh = MeshResource.generateSphere(radius: 0.008)
-            let mat = SimpleMaterial(
-                color: UIColor(Color(hex: "#2BEE79")),
-                isMetallic: false
-            )
-            let dot = ModelEntity(mesh: mesh, materials: [mat])
-            dot.name = "reticle_dot"
-
             let anchor = AnchorEntity(world: .zero)
-            anchor.addChild(dot)
+            anchor.name = "reticle_anchor"
+
+            if let texturedPlane = makeTexturedReticlePlane() {
+                anchor.addChild(texturedPlane)
+            } else {
+                anchor.addChild(makeFallbackReticlePlane())
+            }
+
             arView.scene.addAnchor(anchor)
-            reticleEntity = dot
+            reticleAnchor = anchor
+        }
+
+        private func makeTexturedReticlePlane() -> ModelEntity? {
+            let texture: TextureResource
+            do {
+                texture = try TextureResource.load(named: "placement_ring")
+            } catch {
+                print("❌ Texture 'placement_ring' introuvable: \(error)")
+                return nil
+            }
+
+            var mat = UnlitMaterial()
+            mat.baseColor = .texture(texture)
+            mat.tintColor = UIColor.white.withAlphaComponent(0.95)
+
+            let plane = ModelEntity(
+                mesh: .generatePlane(width: 0.22, depth: 0.22),
+                materials: [mat]
+            )
+            plane.name = "reticle_plane"
+
+            return plane
+        }
+
+        private func makeFallbackReticlePlane() -> ModelEntity {
+            var mat = UnlitMaterial()
+            mat.color = .init(tint: UIColor.white.withAlphaComponent(0.7), texture: nil)
+
+            let plane = ModelEntity(
+                mesh: .generatePlane(width: 0.22, depth: 0.22),
+                materials: [mat]
+            )
+            plane.name = "reticle_plane"
+            return plane
+        }
+
+        func startReticleUpdates() {
+            guard let arView else { return }
 
             arView.scene
                 .subscribe(to: SceneEvents.Update.self) { [weak self] _ in
@@ -253,7 +344,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         }
 
         private func updatePlacementReticle() {
-            guard let arView, let reticleEntity else { return }
+            guard let arView, let reticleAnchor else { return }
 
             let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
 
@@ -261,73 +352,94 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 .raycast(from: center, allowing: .estimatedPlane, alignment: .horizontal)
                 .first
             {
-                let t = result.worldTransform
-                reticleEntity.position = SIMD3<Float>(t.columns.3.x, t.columns.3.y, t.columns.3.z)
-                reticleEntity.isEnabled = true
+                // ✅ On garde le transform ORIGINAL (sans offset) pour poser la plante
+                lastReticleWorldTransform = result.worldTransform
+
+                // ✅ On applique l’offset AU RING sans l’accumuler
+                var t = result.worldTransform
+                t.columns.3.y += reticleYOffset
+                reticleAnchor.transform.matrix = t
+
+                reticleAnchor.isEnabled = true
+
+                if let plane = reticleAnchor.findEntity(named: "reticle_plane") {
+                    let time = Float(CACurrentMediaTime())
+                    let pulse = 1.0 + 0.05 * sin(time * 3.0)
+                    plane.scale = SIMD3<Float>(repeating: pulse)
+                }
             } else {
-                reticleEntity.isEnabled = false
+                reticleAnchor.isEnabled = false
+                lastReticleWorldTransform = nil
             }
         }
 
-        // MARK: - Tap = ajout de plante (copié/collé de ton code qui marche, noms changés)
+        // MARK: - Tap = ajout de plante
         @objc func handleTapPlace(_ sender: UITapGestureRecognizer) {
             guard let arView = sender.view as? ARView else { return }
-            let location = sender.location(in: arView)
 
-            let results = arView.raycast(
-                from: location,
-                allowing: .estimatedPlane,
-                alignment: .horizontal
+            // ✅ On place SUR LE RETICLE (centre), donc jamais de décalage
+            guard let worldTransform = lastReticleWorldTransform else {
+                print("⚠️ Reticle pas dispo (pas de plan). Bouge un peu le tel.")
+                return
+            }
+
+            guard let plant = currentPlant else {
+                print("⚠️ Aucune plante sélectionnée.")
+                return
+            }
+
+            guard let modelURL = plant.localModelURL else {
+                print("⚠️ Pas de modèle pour \(plant.name). Fallback cylindre.")
+                addFallbackCylinder(at: worldTransform, in: arView)
+                return
+            }
+
+            addPlantAtTransform(
+                worldTransform: worldTransform,
+                in: arView,
+                modelURL: modelURL,
+                plant: plant
             )
-
-            print("🟦 Tap(place) -> raycast results: \(results.count)")
-
-            guard let result = results.first else {
-                print("⚠️ Aucun plan détecté. Bouge un peu le tel et vise une surface texturée.")
-                return
-            }
-
-            // modèle choisi
-            guard let plant = currentPlant, let modelURL = plant.localModelURL else {
-                print("⚠️ Aucune plante sélectionnée (ou pas de modèle). Fallback cylindre.")
-                addFallbackCylinder(at: result.worldTransform, in: arView)
-                return
-            }
-
-            addPlantAtTransform(worldTransform: result.worldTransform, in: arView, modelURL: modelURL, plantName: plant.name)
         }
 
-        // MARK: - Ajout du modèle 3D (copié/collé de ton addPlant, SANS factoriser)
-        func addPlantAtTransform(worldTransform: simd_float4x4, in arView: ARView, modelURL: URL, plantName: String) {
+        // MARK: - Ajout du modèle 3D
+        func addPlantAtTransform(worldTransform: simd_float4x4, in arView: ARView, modelURL: URL, plant: Plant) {
             do {
                 let modelEntity = try ModelEntity.load(contentsOf: modelURL)
 
                 let bounds = modelEntity.visualBounds(relativeTo: nil)
                 let height = max(bounds.extents.y, 0.0001)
 
-                // ⚠️ C'EST LE MÊME QUE TON FICHIER (0.01) => garde-le si c’est ce qui marche chez toi
                 let targetHeight: Float = 0.01
                 let scale = targetHeight / height
 
                 modelEntity.scale = SIMD3<Float>(repeating: scale)
-                print("📏 Auto-scale: height=\(height) -> scale=\(scale) | plant=\(plantName)")
+                print("📏 Auto-scale: height=\(height) -> scale=\(scale) | plant=\(plant.name)")
 
                 modelEntity.generateCollisionShapes(recursive: true)
 
                 let anchor = AnchorEntity(world: worldTransform)
+                anchor.name = "plant_anchor_\(plant.id)"
                 anchor.addChild(modelEntity)
                 arView.scene.addAnchor(anchor)
 
-                placedEntities.append(modelEntity)
+                // ✅ Persist data
+                let persisted = PersistedPlant(
+                    plantID: plant.id,
+                    plantName: plant.name,
+                    modelURLString: plant.modelURL ?? "",
+                    transform: matrixToFloatArray(worldTransform)
+                )
+                placedPlants.append(persisted)
 
-                print("✅ Plante ajoutée")
+                print("✅ Plante ajoutée: \(plant.name) (\(plant.id))")
                 print("📦 Modèle chargé depuis : \(modelURL.lastPathComponent)")
             } catch {
                 print("❌ Impossible de charger le modèle 3D depuis \(modelURL): \(error)")
             }
         }
 
-        // MARK: - Fallback cylindre (si pas de modèle)
+        // MARK: - Fallback cylindre
         func addFallbackCylinder(at worldTransform: simd_float4x4, in arView: ARView) {
             let mesh = MeshResource.generateCylinder(height: 0.18, radius: 0.06)
             let mat = SimpleMaterial(
@@ -343,6 +455,106 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             arView.scene.addAnchor(anchor)
 
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+
+        // MARK: - Save / Load notifications
+        @objc func handleSaveNotif() { saveCurrentExperience() }
+        @objc func handleLoadNotif() { loadSavedExperience() }
+
+        // MARK: - Save / Load (ARWorldMap + plants)
+        func saveCurrentExperience() {
+            guard let arView else { return }
+
+            arView.session.getCurrentWorldMap { [weak self] worldMap, error in
+                guard let self else { return }
+
+                if let error {
+                    print("❌ getCurrentWorldMap error: \(error)")
+                    return
+                }
+                guard let worldMap else {
+                    print("❌ No worldMap available")
+                    return
+                }
+
+                do {
+                    let mapData = try NSKeyedArchiver.archivedData(withRootObject: worldMap, requiringSecureCoding: true)
+                    try mapData.write(to: worldMapFileURL, options: [.atomic])
+
+                    let scene = PersistedARScene(savedAt: Date(), plants: self.placedPlants)
+                    let sceneData = try JSONEncoder().encode(scene)
+                    try sceneData.write(to: sceneFileURL, options: [.atomic])
+
+                    print("✅ Saved worldMap -> \(worldMapFileURL.lastPathComponent)")
+                    print("✅ Saved scene -> \(sceneFileURL.lastPathComponent) plants=\(self.placedPlants.count)")
+
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                } catch {
+                    print("❌ Save failed: \(error)")
+                }
+            }
+        }
+
+        func loadSavedExperience() {
+            guard let arView else { return }
+
+            do {
+                let mapData = try Data(contentsOf: worldMapFileURL)
+                guard let worldMap = try NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData) else {
+                    print("❌ Could not unarchive ARWorldMap")
+                    return
+                }
+
+                let sceneData = try Data(contentsOf: sceneFileURL)
+                let scene = try JSONDecoder().decode(PersistedARScene.self, from: sceneData)
+
+                let config = ARWorldTrackingConfiguration()
+                config.planeDetection = [.horizontal, .vertical]
+                config.environmentTexturing = .automatic
+                config.initialWorldMap = worldMap
+
+                // reset
+                arView.scene.anchors.removeAll()
+                self.placedPlants.removeAll()
+
+                // reticle back
+                addPlacementReticle()
+                startReticleUpdates()
+
+                arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+
+                // Re-place plants (bundle lookup)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    var restoredCount = 0
+
+                    for p in scene.plants {
+                        guard let t = floatArrayToMatrix(p.transform) else { continue }
+
+                        // On retrouve l’URL du modèle dans le Bundle, comme ton Plant.localModelURL
+                        guard let modelURL = resourceURLFromModelURLString(p.modelURLString) else {
+                            print("❌ Restore: modèle introuvable pour \(p.plantName) modelURL=\(p.modelURLString)")
+                            continue
+                        }
+
+                        // On reconstruit un Plant minimal (juste pour réutiliser addPlantAtTransform)
+                        // (Si tu préfères, je peux faire une variante addPlantAtTransform(..., plantID/name/urlString))
+                        let pseudoPlant = Plant.stubForRestore(
+                            id: p.plantID,
+                            name: p.plantName,
+                            type: "",
+                            modelURL: p.modelURLString
+                        )
+
+                        self.addPlantAtTransform(worldTransform: t, in: arView, modelURL: modelURL, plant: pseudoPlant)
+                        restoredCount += 1
+                    }
+
+                    print("✅ Loaded scene: restored=\(restoredCount)/\(scene.plants.count) savedAt=\(scene.savedAt)")
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                }
+            } catch {
+                print("❌ Load failed: \(error)")
+            }
         }
     }
 }

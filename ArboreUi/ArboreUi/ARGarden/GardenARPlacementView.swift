@@ -1,10 +1,11 @@
 import SwiftUI
-import RealityKit
 import ARKit
+import SceneKit // ✅ SceneKit pour la stabilité
 import Combine
 import Foundation
 import simd
 
+// MARK: - Vue Principale (Interface)
 struct GardenARPlacementView: View {
     let selectedPlants: [Plant]
     @Environment(\.dismiss) private var dismiss
@@ -14,6 +15,7 @@ struct GardenARPlacementView: View {
 
     var body: some View {
         ZStack {
+            // ✅ Container SceneKit
             GardenARPlacementContainerView(selectedPlant: $selectedPlantForPlacement)
                 .ignoresSafeArea()
 
@@ -31,6 +33,7 @@ struct GardenARPlacementView: View {
             }
         }
         .sheet(isPresented: $showPicker) {
+            // Assure-toi que cette vue existe dans ton projet
             PlantCatalogARView { plant in
                 selectedPlantForPlacement = plant
             }
@@ -46,7 +49,6 @@ struct GardenARPlacementView: View {
     }
 
     // MARK: - Top bar
-
     private var topBar: some View {
         HStack {
             Button { dismiss() } label: {
@@ -88,25 +90,18 @@ struct GardenARPlacementView: View {
         .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
     }
 
-    // MARK: - Bottom gradient
-
+    // MARK: - Bottom UI
     private var bottomGradient: some View {
         VStack {
             Spacer()
             LinearGradient(
-                colors: [
-                    .black.opacity(0.0),
-                    .black.opacity(0.40),
-                    .black.opacity(0.85)
-                ],
+                colors: [.black.opacity(0.0), .black.opacity(0.40), .black.opacity(0.85)],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .frame(height: 320)
         }
     }
-
-    // MARK: - Bottom content
 
     private var bottomContent: some View {
         VStack(spacing: 14) {
@@ -128,7 +123,7 @@ struct GardenARPlacementView: View {
                 }
             }
 
-            // ✅ Save / Load
+            // Save / Load Buttons
             HStack(spacing: 12) {
                 Button {
                     NotificationCenter.default.post(name: .gardenARSave, object: nil)
@@ -136,8 +131,7 @@ struct GardenARPlacementView: View {
                     Text("Save")
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
+                        .frame(maxWidth: .infinity, maxHeight: 44)
                         .background(Color.black.opacity(0.25))
                         .clipShape(Capsule())
                         .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
@@ -149,8 +143,7 @@ struct GardenARPlacementView: View {
                     Text("Load")
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
+                        .frame(maxWidth: .infinity, maxHeight: 44)
                         .background(Color.black.opacity(0.25))
                         .clipShape(Capsule())
                         .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
@@ -185,50 +178,45 @@ struct GardenARPlacementView: View {
     }
 }
 
-//
-// MARK: - AR View
-//
+// MARK: - AR View Container (SceneKit Version)
 
 fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var selectedPlant: Plant?
 
-    func makeUIView(context: Context) -> ARView {
-        // ✅ FIX CAMetalLayer: Initialiser avec la taille de l'écran pour éviter allocation failed
-        let arView = ARView(frame: UIScreen.main.bounds)
+    func makeUIView(context: Context) -> ARSCNView {
+        let sceneView = ARSCNView(frame: .zero)
 
-        // ✅ Configuration pour éviter l'écran noir et erreurs Metal
-        arView.cameraMode = .ar
-        arView.automaticallyConfigureSession = false
-        arView.session.delegate = context.coordinator
-        arView.renderOptions = [.disableMotionBlur]
+        // Configuration
+        sceneView.autoenablesDefaultLighting = true
+        sceneView.delegate = context.coordinator
+        sceneView.session.delegate = context.coordinator
 
+        // Configuration AR Standard
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal, .vertical]
         config.environmentTexturing = .automatic
-
-        // ⚠️ IMPORTANT: sceneDepth peut provoquer un flux caméra noir sur certains appareils/iOS.
-        // On le désactive par défaut. À réactiver plus tard via un toggle si besoin.
-        // if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
-        //     config.frameSemantics.insert(.sceneDepth)
-        // }
-
-        // ✅ Délai pour laisser la vue s'initialiser correctement avant de lancer la session
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+        
+        // Pas de LiDAR explicite pour éviter les conflits graphiques
+        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+            // config.frameSemantics.insert(.sceneDepth) // Désactivé
         }
 
+        DispatchQueue.main.async {
+            sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+        }
+
+        // Gesture
         let tapGesture = UITapGestureRecognizer(
             target: context.coordinator,
             action: #selector(GardenCoordinator.handleTapPlace(_:))
         )
-        arView.addGestureRecognizer(tapGesture)
+        sceneView.addGestureRecognizer(tapGesture)
 
-        context.coordinator.arView = arView
-        context.coordinator.addPlacementReticle()
-        context.coordinator.startReticleUpdates()
+        context.coordinator.arView = sceneView
+        context.coordinator.setupReticle()
         context.coordinator.currentPlant = selectedPlant
 
-        // ✅ Notifications Save/Load
+        // Notifications
         NotificationCenter.default.addObserver(
             context.coordinator,
             selector: #selector(GardenCoordinator.handleSaveNotif),
@@ -242,342 +230,275 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             object: nil
         )
 
-        print("✅ GardenARPlacementContainerView ready")
-        return arView
+        return sceneView
     }
 
-    func updateUIView(_ uiView: ARView, context: Context) {
+    func updateUIView(_ uiView: ARSCNView, context: Context) {
         context.coordinator.currentPlant = selectedPlant
+    }
+
+    static func dismantleUIView(_ uiView: ARSCNView, coordinator: GardenCoordinator) {
+        uiView.session.pause()
     }
 
     func makeCoordinator() -> GardenCoordinator {
         GardenCoordinator(self)
     }
 
-    final class GardenCoordinator: NSObject, ARSessionDelegate {
+    // MARK: - Coordinator SceneKit
+    final class GardenCoordinator: NSObject, ARSCNViewDelegate, ARSessionDelegate {
         var parent: GardenARPlacementContainerView
-        weak var arView: ARView?
+        weak var arView: ARSCNView?
 
         var currentPlant: Plant?
-
-        // ✅ persisté: ce qu’on va écrire dans un fichier JSON
         private var placedPlants: [PersistedPlant] = []
 
-        private var reticleAnchor: AnchorEntity?
-        private var subscriptions = Set<AnyCancellable>()
-
-        // ✅ On stocke le dernier transform du reticle (celui du centre d’écran)
-        private var lastReticleWorldTransform: simd_float4x4?
-
-        // ✅ offset constant (évite z-fighting)
-        private let reticleYOffset: Float = 0.002
+        // SceneKit Nodes
+        private var reticleNode: SCNNode?
+        private var lastReticleTransform: simd_float4x4?
 
         init(_ parent: GardenARPlacementContainerView) {
             self.parent = parent
             super.init()
         }
-
+        
         deinit {
             NotificationCenter.default.removeObserver(self)
         }
 
-        // ✅ Debug ARSession
+        // MARK: - ARSessionDelegate
         func session(_ session: ARSession, didFailWithError error: Error) {
-            print("❌ [GardenAR] ARSession didFailWithError: \(error)")
+            print("❌ AR Error: \(error.localizedDescription)")
         }
 
         func sessionWasInterrupted(_ session: ARSession) {
-            print("⚠️ [GardenAR] ARSession was interrupted")
+            print("⚠️ AR Interrupted")
         }
 
         func sessionInterruptionEnded(_ session: ARSession) {
-            print("ℹ️ [GardenAR] ARSession interruption ended")
+            print("✅ AR Resumed")
         }
 
-        func session(_ session: ARSession, cameraDidChangeTrackingState camera: ARCamera) {
-            switch camera.trackingState {
-            case .normal:
-                // print("✅ [GardenAR] tracking normal")
-                break
-            case .notAvailable:
-                print("⚠️ [GardenAR] tracking not available")
-            case .limited(let reason):
-                print("⚠️ [GardenAR] tracking limited: \(reason)")
-            }
-        }
-
-        // MARK: - Reticle
-        func addPlacementReticle() {
-            guard let arView else { return }
-
-            let anchor = AnchorEntity(world: .zero)
-            anchor.name = "reticle_anchor"
-
-            if let texturedPlane = makeTexturedReticlePlane() {
-                anchor.addChild(texturedPlane)
+        // MARK: - Reticle Logic (SceneKit)
+        func setupReticle() {
+            let planeGeo = SCNPlane(width: 0.22, height: 0.22)
+            
+            if let image = UIImage(named: "placement_ring") {
+                planeGeo.firstMaterial?.diffuse.contents = image
             } else {
-                anchor.addChild(makeFallbackReticlePlane())
+                planeGeo.firstMaterial?.diffuse.contents = UIColor.white.withAlphaComponent(0.8)
+                planeGeo.cornerRadius = 0.11
             }
-
-            arView.scene.addAnchor(anchor)
-            reticleAnchor = anchor
+            
+            planeGeo.firstMaterial?.lightingModel = .constant
+            planeGeo.firstMaterial?.writesToDepthBuffer = false
+            planeGeo.firstMaterial?.readsFromDepthBuffer = false
+            
+            let node = SCNNode(geometry: planeGeo)
+            node.eulerAngles.x = -.pi / 2
+            node.opacity = 0
+            
+            reticleNode = node
+            arView?.scene.rootNode.addChildNode(node)
         }
 
-        private func makeTexturedReticlePlane() -> ModelEntity? {
-            let texture: TextureResource
-            do {
-                texture = try TextureResource.load(named: "placement_ring")
-            } catch {
-                print("❌ Texture 'placement_ring' introuvable: \(error)")
-                return nil
-            }
-
-            var mat = UnlitMaterial()
-            mat.baseColor = .texture(texture)
-            mat.tintColor = UIColor.white.withAlphaComponent(0.95)
-
-            let plane = ModelEntity(
-                mesh: .generatePlane(width: 0.22, depth: 0.22),
-                materials: [mat]
-            )
-            plane.name = "reticle_plane"
-
-            return plane
-        }
-
-        private func makeFallbackReticlePlane() -> ModelEntity {
-            var mat = UnlitMaterial()
-            mat.color = .init(tint: UIColor.white.withAlphaComponent(0.7), texture: nil)
-
-            let plane = ModelEntity(
-                mesh: .generatePlane(width: 0.22, depth: 0.22),
-                materials: [mat]
-            )
-            plane.name = "reticle_plane"
-            return plane
-        }
-
-        func startReticleUpdates() {
-            guard let arView else { return }
-
-            arView.scene
-                .subscribe(to: SceneEvents.Update.self) { [weak self] _ in
-                    self?.updatePlacementReticle()
-                }
-                .store(in: &subscriptions)
-        }
-
-        private func updatePlacementReticle() {
-            guard let arView, let reticleAnchor else { return }
-
+        func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+            guard let arView = arView, let reticleNode = reticleNode else { return }
+            
             let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
-
-            if let result = arView
-                .raycast(from: center, allowing: .estimatedPlane, alignment: .horizontal)
-                .first
-            {
-                // ✅ On garde le transform ORIGINAL (sans offset) pour poser la plante
-                lastReticleWorldTransform = result.worldTransform
-
-                // ✅ On applique l’offset AU RING sans l’accumuler
-                var t = result.worldTransform
-                t.columns.3.y += reticleYOffset
-                reticleAnchor.transform.matrix = t
-
-                reticleAnchor.isEnabled = true
-
-                if let plane = reticleAnchor.findEntity(named: "reticle_plane") {
-                    let time = Float(CACurrentMediaTime())
-                    let pulse = 1.0 + 0.05 * sin(time * 3.0)
-                    plane.scale = SIMD3<Float>(repeating: pulse)
-                }
+            
+            if let query = arView.raycastQuery(from: center, allowing: .estimatedPlane, alignment: .horizontal),
+               let result = arView.session.raycast(query).first {
+                
+                lastReticleTransform = result.worldTransform
+                
+                reticleNode.simdTransform = result.worldTransform
+                reticleNode.position.y += 0.005
+                
+                let scale = 1.0 + 0.05 * Float(sin(time * 5.0))
+                reticleNode.scale = SCNVector3(scale, scale, scale)
+                
+                if reticleNode.opacity < 1.0 { reticleNode.opacity += 0.1 }
+                
             } else {
-                reticleAnchor.isEnabled = false
-                lastReticleWorldTransform = nil
+                lastReticleTransform = nil
+                if reticleNode.opacity > 0 { reticleNode.opacity -= 0.1 }
             }
         }
 
-        // MARK: - Tap = ajout de plante
+        // MARK: - Tap & Place
         @objc func handleTapPlace(_ sender: UITapGestureRecognizer) {
-            guard let arView = sender.view as? ARView else { return }
-
-            // ✅ On place SUR LE RETICLE (centre), donc jamais de décalage
-            guard let worldTransform = lastReticleWorldTransform else {
-                print("⚠️ Reticle pas dispo (pas de plan). Bouge un peu le tel.")
+            guard let arView = arView, let transform = lastReticleTransform else {
+                print("⚠️ Pas de surface détectée pour placer la plante")
                 return
             }
-
-            guard let plant = currentPlant else {
-                print("⚠️ Aucune plante sélectionnée.")
-                return
-            }
-
-            guard let modelURL = plant.localModelURL else {
-                print("⚠️ Pas de modèle pour \(plant.name). Fallback cylindre.")
-                addFallbackCylinder(at: worldTransform, in: arView)
-                return
-            }
-
-            addPlantAtTransform(
-                worldTransform: worldTransform,
-                in: arView,
-                modelURL: modelURL,
-                plant: plant
-            )
-        }
-
-        // MARK: - Ajout du modèle 3D
-        func addPlantAtTransform(worldTransform: simd_float4x4, in arView: ARView, modelURL: URL, plant: Plant) {
-            do {
-                let modelEntity = try ModelEntity.load(contentsOf: modelURL)
-
-                let bounds = modelEntity.visualBounds(relativeTo: nil)
-                let height = max(bounds.extents.y, 0.0001)
-
-                let targetHeight: Float = 0.01
-                let scale = targetHeight / height
-
-                modelEntity.scale = SIMD3<Float>(repeating: scale)
-                print("📏 Auto-scale: height=\(height) -> scale=\(scale) | plant=\(plant.name)")
-
-                modelEntity.generateCollisionShapes(recursive: true)
-
-                let anchor = AnchorEntity(world: worldTransform)
-                anchor.name = "plant_anchor_\(plant.id)"
-                anchor.addChild(modelEntity)
-                arView.scene.addAnchor(anchor)
-
-                // ✅ Persist data
-                let persisted = PersistedPlant(
-                    plantID: plant.id,
-                    plantName: plant.name,
-                    modelURLString: plant.modelURL ?? "",
-                    transform: matrixToFloatArray(worldTransform)
-                )
-                placedPlants.append(persisted)
-
-                print("✅ Plante ajoutée: \(plant.name) (\(plant.id))")
-                print("📦 Modèle chargé depuis : \(modelURL.lastPathComponent)")
-            } catch {
-                print("❌ Impossible de charger le modèle 3D depuis \(modelURL): \(error)")
+            
+            guard let plant = currentPlant else { return }
+            
+            if let modelURL = plant.localModelURL {
+                addPlantNode(at: transform, modelURL: modelURL, plant: plant)
+            } else {
+                addFallbackCylinder(at: transform)
             }
         }
-
-        // MARK: - Fallback cylindre
-        func addFallbackCylinder(at worldTransform: simd_float4x4, in arView: ARView) {
-            let mesh = MeshResource.generateCylinder(height: 0.18, radius: 0.06)
-            let mat = SimpleMaterial(
-                color: UIColor(Color(hex: "#2BEE79")).withAlphaComponent(0.95),
-                isMetallic: false
-            )
-            let entity = ModelEntity(mesh: mesh, materials: [mat])
-            entity.name = "test_plant"
-            entity.position.y = 0.09
-
-            let anchor = AnchorEntity(world: worldTransform)
-            anchor.addChild(entity)
-            arView.scene.addAnchor(anchor)
-
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        
+        func addPlantNode(at transform: simd_float4x4, modelURL: URL, plant: Plant) {
+                    guard let arView = arView else { return }
+                    
+                    do {
+                        // 1. Chargement de la scène
+                        let scene = try SCNScene(url: modelURL, options: nil)
+                        
+                        // 2. Création d'un wrapper (Conteneur principal)
+                        // C'est lui qu'on va déplacer sur le sol.
+                        let containerNode = SCNNode()
+                        containerNode.name = "plant_\(plant.id)"
+                        
+                        // 3. Création du noeud du modèle (Contenu visuel)
+                        let modelNode = SCNNode()
+                        for child in scene.rootNode.childNodes {
+                            modelNode.addChildNode(child)
+                        }
+                        
+                        // 4. CALCUL DE LA BOITE ENGLOBANTE (Bounding Box)
+                        // Cela nous donne la vraie taille brute du modèle
+                        let (minVec, maxVec) = modelNode.boundingBox
+                        let rawHeight = maxVec.y - minVec.y
+                        
+                        // 5. MISE A L'ECHELLE (SCALE)
+                        // On veut que la plante fasse une taille réaliste (ex: 50cm = 0.5m)
+                        // Si la hauteur brute est 0 (bug modèle), on met 1 par défaut.
+                        let targetHeight: Float = 0.5 // 50 cm
+                        let scaleFactor = (rawHeight > 0) ? (targetHeight / rawHeight) : 1.0
+                        
+                        modelNode.scale = SCNVector3(scaleFactor, scaleFactor, scaleFactor)
+                        
+                        // 6. CORRECTION DU PIVOT (Pivot Point)
+                        // On décale le modèle vers le haut pour que ses pieds (minVec.y) soient à 0
+                        // Sinon, le modèle est centré sur le point d'ancrage (donc à moitié dans le sol)
+                        modelNode.position.y = -minVec.y * scaleFactor
+                        
+                        // 7. Assemblage
+                        containerNode.addChildNode(modelNode)
+                        
+                        // 8. PLACEMENT FINAL
+                        // On applique la position détectée par l'AR (le sol) au conteneur
+                        containerNode.simdTransform = transform
+                        
+                        // On s'assure qu'il est bien vertical (ignore la rotation du sol si le sol est un peu penché)
+                        // On garde juste la position X, Y, Z
+                        let position = SCNVector3(
+                            transform.columns.3.x,
+                            transform.columns.3.y,
+                            transform.columns.3.z
+                        )
+                        containerNode.position = position
+                        // On réinitialise la rotation pour qu'elle soit droite, face caméra si besoin (optionnel)
+                        containerNode.rotation = SCNVector4(0, 1, 0, 0)
+                        
+                        // 9. Ajout à la scène
+                        arView.scene.rootNode.addChildNode(containerNode)
+                        
+                        // 10. Persistence & Feedback
+                        let persisted = PersistedPlant(
+                            plantID: plant.id,
+                            plantName: plant.name,
+                            modelURLString: plant.modelURL ?? "",
+                            transform: matrixToFloatArray(transform)
+                        )
+                        placedPlants.append(persisted)
+                        
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        
+                        print("✅ Plante placée : Hauteur brute \(rawHeight)m -> Redimensionnée à \(targetHeight)m")
+                        
+                    } catch {
+                        print("❌ Erreur chargement USDZ SceneKit: \(error)")
+                    }
+                }
+        
+        func addFallbackCylinder(at transform: simd_float4x4) {
+            let cylinder = SCNCylinder(radius: 0.05, height: 0.2)
+            cylinder.firstMaterial?.diffuse.contents = UIColor(Color(hex: "#2BEE79"))
+            
+            let node = SCNNode(geometry: cylinder)
+            node.simdTransform = transform
+            node.position.y += 0.1
+            
+            arView?.scene.rootNode.addChildNode(node)
         }
 
-        // MARK: - Save / Load notifications
-        @objc func handleSaveNotif() { saveCurrentExperience() }
-        @objc func handleLoadNotif() { loadSavedExperience() }
-
-        // MARK: - Save / Load (ARWorldMap + plants)
-        func saveCurrentExperience() {
-            guard let arView else { return }
-
+        // MARK: - Save / Load Logic
+        
+        @objc func handleSaveNotif() {
+            guard let arView = arView else { return }
+            
             arView.session.getCurrentWorldMap { [weak self] worldMap, error in
-                guard let self else { return }
-
-                if let error {
-                    print("❌ getCurrentWorldMap error: \(error)")
-                    return
-                }
-                guard let worldMap else {
-                    print("❌ No worldMap available")
-                    return
-                }
-
+                guard let self = self, let map = worldMap else { return }
+                
                 do {
-                    let mapData = try NSKeyedArchiver.archivedData(withRootObject: worldMap, requiringSecureCoding: true)
+                    let mapData = try NSKeyedArchiver.archivedData(withRootObject: map, requiringSecureCoding: true)
                     try mapData.write(to: worldMapFileURL, options: [.atomic])
-
-                    let scene = PersistedARScene(savedAt: Date(), plants: self.placedPlants)
-                    let sceneData = try JSONEncoder().encode(scene)
-                    try sceneData.write(to: sceneFileURL, options: [.atomic])
-
-                    print("✅ Saved worldMap -> \(worldMapFileURL.lastPathComponent)")
-                    print("✅ Saved scene -> \(sceneFileURL.lastPathComponent) plants=\(self.placedPlants.count)")
-
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    
+                    let sceneData = PersistedARScene(savedAt: Date(), plants: self.placedPlants)
+                    let json = try JSONEncoder().encode(sceneData)
+                    try json.write(to: sceneFileURL, options: [.atomic])
+                    
+                    print("✅ Sauvegarde SceneKit réussie")
+                    // ✅ CORRECTION ICI : Utilisation de UINotificationFeedbackGenerator
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
                 } catch {
-                    print("❌ Save failed: \(error)")
+                    print("❌ Erreur sauvegarde: \(error)")
                 }
             }
         }
-
-        func loadSavedExperience() {
-            guard let arView else { return }
-
+        
+        @objc func handleLoadNotif() {
+            guard let arView = arView else { return }
+            
             do {
                 let mapData = try Data(contentsOf: worldMapFileURL)
-                guard let worldMap = try NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData) else {
-                    print("❌ Could not unarchive ARWorldMap")
-                    return
-                }
-
-                let sceneData = try Data(contentsOf: sceneFileURL)
-                let scene = try JSONDecoder().decode(PersistedARScene.self, from: sceneData)
-
+                guard let worldMap = try NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData) else { return }
+                
+                let sceneJson = try Data(contentsOf: sceneFileURL)
+                let persistedScene = try JSONDecoder().decode(PersistedARScene.self, from: sceneJson)
+                
                 let config = ARWorldTrackingConfiguration()
                 config.planeDetection = [.horizontal, .vertical]
-                config.environmentTexturing = .automatic
                 config.initialWorldMap = worldMap
-
-                // reset
-                arView.scene.anchors.removeAll()
-                self.placedPlants.removeAll()
-
-                // reticle back
-                addPlacementReticle()
-                startReticleUpdates()
-
+                
                 arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
-
-                // Re-place plants (bundle lookup)
+                
+                arView.scene.rootNode.childNodes.forEach { node in
+                    if node.name?.starts(with: "plant_") == true {
+                        node.removeFromParentNode()
+                    }
+                }
+                self.placedPlants.removeAll()
+                
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    var restoredCount = 0
-
-                    for p in scene.plants {
-                        guard let t = floatArrayToMatrix(p.transform) else { continue }
-
-                        // On retrouve l’URL du modèle dans le Bundle, comme ton Plant.localModelURL
-                        guard let modelURL = resourceURLFromModelURLString(p.modelURLString) else {
-                            print("❌ Restore: modèle introuvable pour \(p.plantName) modelURL=\(p.modelURLString)")
-                            continue
-                        }
-
-                        // On reconstruit un Plant minimal (juste pour réutiliser addPlantAtTransform)
-                        // (Si tu préfères, je peux faire une variante addPlantAtTransform(..., plantID/name/urlString))
-                        let pseudoPlant = Plant.stubForRestore(
+                    for p in persistedScene.plants {
+                        guard let transform = floatArrayToMatrix(p.transform) else { continue }
+                        
+                        let tempPlant = Plant.stubForRestore(
                             id: p.plantID,
                             name: p.plantName,
                             type: "",
                             modelURL: p.modelURLString
                         )
-
-                        self.addPlantAtTransform(worldTransform: t, in: arView, modelURL: modelURL, plant: pseudoPlant)
-                        restoredCount += 1
+                        
+                        if let url = resourceURLFromModelURLString(p.modelURLString) {
+                            self.addPlantNode(at: transform, modelURL: url, plant: tempPlant)
+                        }
                     }
-
-                    print("✅ Loaded scene: restored=\(restoredCount)/\(scene.plants.count) savedAt=\(scene.savedAt)")
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                 }
+                
+                print("✅ Chargement SceneKit réussi")
+                // ✅ CORRECTION ICI : Utilisation de UINotificationFeedbackGenerator
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                
             } catch {
-                print("❌ Load failed: \(error)")
+                print("❌ Erreur chargement: \(error)")
             }
         }
     }

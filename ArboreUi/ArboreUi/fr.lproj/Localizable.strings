@@ -787,3 +787,89 @@
 "ROUTINE_SUCCESS_TITLE" = "Routine créée !";
 "ROUTINE_SUCCESS_MESSAGE" = "Ta routine d'arrosage a été créée avec succès.";
 "ROUTINE_SUCCESS_OK" = "OK";
+
+// Measure Pot Feature
+"MEASURE_POT_TITLE" = "Mesurer mon pot";
+"MEASURE_TAB_AR" = "Réalité augmentée";
+"MEASURE_TAB_MANUAL" = "Saisie manuelle";
+
+// AR Measurement
+"MEASURE_STEP_SCAN_TITLE" = "Scanne la surface";
+"MEASURE_STEP_SCAN_DESC" = "Déplace ton téléphone pour détecter les surfaces autour du pot";
+"MEASURE_STEP_DIAMETER_TITLE" = "Mesure le diamètre";
+"MEASURE_STEP_DIAMETER_DESC" = "Place deux points sur les bords opposés du pot";
+"MEASURE_STEP_HEIGHT_TITLE" = "Mesure la hauteur";
+"MEASURE_STEP_HEIGHT_DESC" = "Place un point en bas et un en haut du pot";
+"MEASURE_STEP_COMPLETE_TITLE" = "Mesure terminée !";
+"MEASURE_STEP_COMPLETE_DESC" = "Consulte les résultats de ta mesure";
+
+"MEASURE_PLACE_POINT" = "Placer un point";
+"MEASURE_VIEW_RESULTS" = "Voir les résultats";
+"MEASURE_DIAMETER" = "Diamètre";
+"MEASURE_HEIGHT" = "Hauteur";
+
+// Manual Input
+"MEASURE_MANUAL_TITLE" = "Mesure manuelle";
+"MEASURE_MANUAL_SUBTITLE" = "Entre les dimensions de ton pot avec une règle";
+"MEASURE_POT_SHAPE" = "Forme du pot";
+"MEASURE_POT_MATERIAL" = "Matériau";
+"MEASURE_DRAINAGE_HOLES" = "Trous de drainage";
+"MEASURE_NOTES" = "Notes";
+"MEASURE_CALCULATE" = "Calculer le volume";
+
+// Pot Shapes
+"POT_SHAPE_ROUND" = "Rond";
+"POT_SHAPE_SQUARE" = "Carré";
+"POT_SHAPE_RECTANGULAR" = "Rectangulaire";
+"POT_SHAPE_CONICAL" = "Conique";
+
+// Pot Materials
+"POT_MATERIAL_TERRACOTTA" = "Terre cuite";
+"POT_MATERIAL_TERRACOTTA_DESC" = "Respirant, évacue l'humidité";
+"POT_MATERIAL_PLASTIC" = "Plastique";
+"POT_MATERIAL_PLASTIC_DESC" = "Léger, retient l'humidité";
+"POT_MATERIAL_CERAMIC" = "Céramique";
+"POT_MATERIAL_CERAMIC_DESC" = "Décoratif, émaillé";
+"POT_MATERIAL_WOOD" = "Bois";
+"POT_MATERIAL_WOOD_DESC" = "Naturel, biodégradable";
+"POT_MATERIAL_METAL" = "Métal";
+"POT_MATERIAL_METAL_DESC" = "Moderne, durable";
+"POT_MATERIAL_CONCRETE" = "Béton";
+"POT_MATERIAL_CONCRETE_DESC" = "Lourd, stable";
+
+// Results
+"MEASURE_RESULTS_TITLE" = "Résultats de mesure";
+"MEASURE_RESULTS_SUCCESS_TITLE" = "Mesure réussie !";
+"MEASURE_RESULTS_FOR_PLANT" = "Pour %@";
+"MEASURE_RESULTS_DIMENSIONS" = "Dimensions";
+"MEASURE_RESULTS_VOLUME" = "Volume";
+"MEASURE_RESULTS_CAPACITY" = "Capacité du pot";
+"MEASURE_RESULTS_HAS_DRAINAGE" = "Avec trous de drainage";
+"MEASURE_RESULTS_RECOMMENDATIONS" = "Recommandations";
+"MEASURE_RESULTS_RECOMMENDED_SIZE" = "Taille recommandée pour le rempotage";
+
+"MEASURE_SAVE_BUTTON" = "Sauvegarder la mesure";
+"MEASURE_DONE_BUTTON" = "Terminé";
+"MEASURE_SAVED_TITLE" = "Sauvegardé !";
+"MEASURE_SAVED_MESSAGE" = "Les dimensions de ton pot ont été enregistrées.";
+
+"MEASURE_SHARE_TITLE" = "Partager";
+"MEASURE_SHARE_MESSAGE" = "Les mesures de ton pot ont été copiées.";
+
+// Recommendations
+"POT_RECOMMENDATION_NEEDS_REPOT" = "Ton pot est un peu petit. Il serait temps de rempoter ta plante dans un contenant plus grand pour lui permettre de s'épanouir.";
+"POT_RECOMMENDATION_SIZE_OK" = "La taille de ton pot est adaptée ! Ta plante a suffisamment d'espace pour bien grandir.";
+
+// Tutorial
+"TUTORIAL_PAGE1_TITLE" = "Bienvenue !";
+"TUTORIAL_PAGE1_DESC" = "Cette fonctionnalité te permet de mesurer précisément les dimensions de ton pot grâce à la réalité augmentée.";
+"TUTORIAL_PAGE2_TITLE" = "Mesure le diamètre";
+"TUTORIAL_PAGE2_DESC" = "Place deux points sur les bords opposés du pot pour mesurer son diamètre.";
+"TUTORIAL_PAGE3_TITLE" = "Mesure la hauteur";
+"TUTORIAL_PAGE3_DESC" = "Place un point en bas du pot et un autre en haut pour obtenir la hauteur.";
+"TUTORIAL_PAGE4_TITLE" = "Ou saisie manuelle";
+"TUTORIAL_PAGE4_DESC" = "Si tu préfères, utilise l'onglet 'Saisie manuelle' et entre les dimensions avec une règle.";
+"TUTORIAL_START_BUTTON" = "Commencer";
+"TUTORIAL_NEXT_BUTTON" = "Suivant";
+
+"COMMON_OK" = "OK";

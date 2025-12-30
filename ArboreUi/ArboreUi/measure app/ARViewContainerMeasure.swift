@@ -1,10 +1,11 @@
 import SwiftUI
-import RealityKit
 import ARKit
+import SceneKit // ✅ On passe à SceneKit pour la stabilité sur iPhone 16/17 Pro
 import Combine
 import PhotosUI
 
 // MARK: - 1. LE CERVEAU (ViewModel)
+// (Inchangé, il fonctionne très bien)
 class GardenManager: ObservableObject {
     @Published var points: [SIMD3<Float>] = []
     @Published var area: Float = 0.0
@@ -44,70 +45,56 @@ class GardenManager: ObservableObject {
         var tempArea: Float = 0.0
         for i in 0..<points.count {
             let j = (i + 1) % points.count
-            tempArea += (points[i].x * points[j].z)
-            tempArea -= (points[i].z * points[j].x)
+            let tempAreaVal = (points[i].x * points[j].z) - (points[i].z * points[j].x)
+            tempArea += tempAreaVal
         }
         self.area = abs(tempArea) / 2.0
     }
 }
 
-// MARK: - 2. LE MOTEUR AR (Fix Écran Noir)
-
-class GardenARView: ARView {
-    required init(frame frameRect: CGRect) {
-        super.init(frame: frameRect)
-    }
-    @MainActor required dynamic init?(coder decoder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    // Force la mise à jour du layout vidéo
-    override func layoutSubviews() {
-        super.layoutSubviews()
-    }
-}
+// MARK: - 2. LE MOTEUR AR (Fix SceneKit)
 
 struct ARViewContainerGarden: UIViewRepresentable {
     @ObservedObject var manager: GardenManager
     
-    func makeUIView(context: Context) -> ARView {
-        // --- CORRECTION CRITIQUE ---
-        // On force la taille de l'écran dès l'initialisation.
-        // Si on laisse .zero, la couche vidéo Metal ne s'initialise pas.
-        let arView = GardenARView(frame: UIScreen.main.bounds)
+    func makeUIView(context: Context) -> ARSCNView {
+        // 1. Initialisation SceneKit (ARSCNView au lieu de ARView)
+        // Cela évite le bug "écran noir" dû aux shaders RealityKit sur les puces A18
+        let sceneView = ARSCNView(frame: .zero)
         
-        // Configuration
-        arView.cameraMode = .ar
-        arView.automaticallyConfigureSession = false
-        // Désactiver le flou de mouvement aide parfois le démarrage
-        arView.renderOptions = [.disableMotionBlur, .disableCameraGrain]
+        // 2. Configuration
+        sceneView.autoenablesDefaultLighting = true
+        sceneView.delegate = context.coordinator
+        sceneView.session.delegate = context.coordinator
         
+        // 3. Configuration AR Standard
         let config = ARWorldTrackingConfiguration()
-        config.planeDetection = [.horizontal]
+        config.planeDetection = [.horizontal] // On garde juste horizontal pour le jardin
         config.environmentTexturing = .automatic
         
-        // ✅ Support amélioré pour iPhone Pro avec LiDAR
+        // On désactive le LiDAR explicite pour alléger
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
-            config.frameSemantics.insert(.sceneDepth)
+            // On ne l'active PAS pour éviter les conflits graphiques
         }
         
-        // Gestion du Tap
+        // 4. Gestion du Tap
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
-        arView.addGestureRecognizer(tapGesture)
+        sceneView.addGestureRecognizer(tapGesture)
         
-        context.coordinator.arView = arView
+        context.coordinator.arView = sceneView
         context.coordinator.setupSubscription()
         
-        // Petit délai de sécurité pour laisser l'animation de transition finir
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+        // 5. Lancement
+        DispatchQueue.main.async {
+            sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
         }
         
-        return arView
+        return sceneView
     }
     
-    func updateUIView(_ uiView: ARView, context: Context) {}
+    func updateUIView(_ uiView: ARSCNView, context: Context) {}
     
-    static func dismantleUIView(_ uiView: ARView, coordinator: Coordinator) {
+    static func dismantleUIView(_ uiView: ARSCNView, coordinator: Coordinator) {
         uiView.session.pause()
     }
     
@@ -115,8 +102,9 @@ struct ARViewContainerGarden: UIViewRepresentable {
         Coordinator(manager: manager)
     }
     
-    class Coordinator: NSObject {
-        var arView: ARView?
+    // MARK: - Coordinator SceneKit
+    class Coordinator: NSObject, ARSCNViewDelegate, ARSessionDelegate {
+        var arView: ARSCNView?
         var manager: GardenManager
         var cancellable: AnyCancellable?
         
@@ -125,8 +113,14 @@ struct ARViewContainerGarden: UIViewRepresentable {
         }
         
         func setupSubscription() {
+            // Reset : On supprime tous les noeuds enfants de la scène
             cancellable = manager.resetSignal.sink { [weak self] in
-                self?.arView?.scene.anchors.removeAll()
+                self?.arView?.scene.rootNode.childNodes.forEach { node in
+                    // On garde les lumières ou caméras par défaut, on supprime juste nos sphères
+                    if node.geometry is SCNSphere {
+                        node.removeFromParentNode()
+                    }
+                }
             }
         }
         
@@ -134,28 +128,43 @@ struct ARViewContainerGarden: UIViewRepresentable {
             guard let arView = self.arView else { return }
             let location = sender.location(in: arView)
             
-            let results = arView.raycast(from: location, allowing: .estimatedPlane, alignment: .horizontal)
+            // Raycast version SceneKit
+            guard let query = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal) else { return }
+            let results = arView.session.raycast(query)
             
             if let firstResult = results.first {
-                // Création du point visuel
-                let anchor = AnchorEntity(world: firstResult.worldTransform)
-                let material = SimpleMaterial(color: .green, isMetallic: false)
-                let sphere = ModelEntity(mesh: .generateSphere(radius: 0.05), materials: [material])
-                sphere.position.y = 0.05
-                anchor.addChild(sphere)
-                arView.scene.addAnchor(anchor)
+                // 1. Création visuelle (Sphère verte) en SceneKit
+                let sphereGeometry = SCNSphere(radius: 0.05)
+                sphereGeometry.firstMaterial?.diffuse.contents = UIColor.green
+                sphereGeometry.firstMaterial?.lightingModel = .physicallyBased
                 
-                // Enregistrement
-                let position = SIMD3<Float>(firstResult.worldTransform.columns.3.x,
-                                            firstResult.worldTransform.columns.3.y,
-                                            firstResult.worldTransform.columns.3.z)
+                let sphereNode = SCNNode(geometry: sphereGeometry)
+                // Positionnement via la matrice de transformation du raycast
+                sphereNode.simdTransform = firstResult.worldTransform
+                
+                // Petit ajustement Y pour que la sphère soit posée "sur" le sol et non "dedans"
+                sphereNode.position.y += 0.05
+                
+                arView.scene.rootNode.addChildNode(sphereNode)
+                
+                // 2. Enregistrement des données
+                let position = SIMD3<Float>(
+                    firstResult.worldTransform.columns.3.x,
+                    firstResult.worldTransform.columns.3.y,
+                    firstResult.worldTransform.columns.3.z
+                )
                 manager.addPoint(position)
             }
+        }
+        
+        // Gestion des erreurs
+        func session(_ session: ARSession, didFailWithError error: Error) {
+            print("❌ Erreur AR: \(error.localizedDescription)")
         }
     }
 }
 
-// MARK: - 3. VISUELS (Shapes)
+// MARK: - 3. VISUELS (Shapes) - INCHANGÉ
 struct GardenShape: Shape {
     var points: [SIMD3<Float>]
     func path(in rect: CGRect) -> Path {
@@ -166,7 +175,12 @@ struct GardenShape: Shape {
         let minX = xs.min() ?? 0; let maxX = xs.max() ?? 1
         let minZ = zs.min() ?? 0; let maxZ = zs.max() ?? 1
         let width = maxX - minX; let height = maxZ - minZ
-        let scale = min(rect.width / (width == 0 ? 1 : width), rect.height / (height == 0 ? 1 : height)) * 0.8
+        
+        // Protection division par zéro
+        let wDenom = width == 0 ? 1 : width
+        let hDenom = height == 0 ? 1 : height
+        
+        let scale = min(rect.width / wDenom, rect.height / hDenom) * 0.8
         let offsetX = (rect.width - width * scale) / 2
         let offsetY = (rect.height - height * scale) / 2
         
@@ -220,27 +234,26 @@ struct ExportableView: View {
 
 // MARK: - 4. UI PRINCIPALE (Avec Correctifs)
 struct ARViewContainerMesure: View {
-    // ✅ NEW: plantes sélectionnées à transmettre à IntermediateGardenView
-    let selectedPlants: [Plant]
+    let selectedPlants: [Plant] // Type Plant doit être défini ailleurs dans ton projet
 
     @StateObject var gardenManager = GardenManager()
     @State private var showFullScreenPlan = false
     @State private var saveSuccess = false
     @Environment(\.presentationMode) var presentationMode
 
-    // ✅ NEW: navigation vers la vue intermédiaire
     @State private var showIntermediate = false
 
+    // Initialiseur simple
     init(selectedPlants: [Plant] = []) {
         self.selectedPlants = selectedPlants
     }
 
     var body: some View {
         ZStack {
-            // --- MODIF 1 : Pas de fond noir ---
+            // Fond gris système
             Color(UIColor.systemGray6).edgesIgnoringSafeArea(.all)
 
-            // --- AR VIEW ---
+            // --- AR VIEW CORRIGÉE (SceneKit) ---
             ARViewContainerGarden(manager: gardenManager)
                 .edgesIgnoringSafeArea(.all)
 
@@ -327,7 +340,7 @@ struct ARViewContainerMesure: View {
                         .frame(width: 1)
                         .padding(.vertical, 20)
 
-                    // ✅ Droite : aperçu + bouton voir plan + bouton continuer
+                    // Droite : aperçu + boutons
                     VStack(spacing: 10) {
                         Button(action: { showFullScreenPlan = true }) {
                             VStack {
@@ -354,7 +367,6 @@ struct ARViewContainerMesure: View {
                             .contentShape(Rectangle())
                         }
 
-                        // ✅ NEW: bouton pour passer à IntermediateGardenView
                         Button {
                             showIntermediate = true
                         } label: {
@@ -386,12 +398,10 @@ struct ARViewContainerMesure: View {
         .navigationBarBackButtonHidden(true)
         .statusBar(hidden: true)
 
-        // ✅ NEW: ouverture de la vue intermédiaire
         .fullScreenCover(isPresented: $showIntermediate) {
             IntermediateGardenView(selectedPlants: selectedPlants)
         }
 
-        // Sheet plan existant
         .sheet(isPresented: $showFullScreenPlan) {
             VStack {
                 HStack {
@@ -441,9 +451,8 @@ struct ARViewContainerMesure: View {
         }
     }
 
-    // ✅ Règle simple : il faut au moins 3 points pour une surface fermée “réelle”
     private var canContinue: Bool {
-        gardenManager.points.count >= 0
+        gardenManager.points.count >= 3 // Corrigé à 3 pour avoir un polygone valide
     }
 
     @MainActor

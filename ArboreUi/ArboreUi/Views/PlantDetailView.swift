@@ -509,7 +509,7 @@ struct GeneralInfoGridView: View {
                     title: NSLocalizedString("PLANTDETAIL_SOIL_TITLE", comment: ""),
                     description: NSLocalizedString("PLANTDETAIL_SOIL_SUBTITLE", comment: ""),
                     color: Color(hex: "#A7C6AD"),
-                    destination: TerreDetailView(soil: translation?.soilAndPot)
+                    destination: TerreDetailView(soil: translation?.soilAndPot, plantName: plantName)
                 )
                 GeneralInfoCard(
                     icon: "cross.case.fill",

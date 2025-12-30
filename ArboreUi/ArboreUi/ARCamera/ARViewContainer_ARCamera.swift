@@ -16,6 +16,7 @@ struct ARViewContainer: UIViewRepresentable {
         arView.cameraMode = .ar
         arView.automaticallyConfigureSession = false
         arView.renderOptions = [.disableMotionBlur]
+        arView.environment.background = .cameraFeed()
 
         // ✅ Debug ARSession
         arView.session.delegate = context.coordinator
@@ -25,7 +26,7 @@ struct ARViewContainer: UIViewRepresentable {
         config.planeDetection = [.horizontal, .vertical]
         config.environmentTexturing = .automatic
 
-        // ⚠️ IMPORTANT: sceneDepth peut provoquer un flux caméra noir sur certains appareils/iOS.
+        // ⚠️ IMPORTANT: sceneDepth peut provoquer un flux caméra noir sur certains appareils/iOS (iPhone 16/17 Pro).
         // On le désactive par défaut. À réactiver plus tard via un toggle si besoin.
         // if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
         //     config.frameSemantics.insert(.sceneDepth)
@@ -34,6 +35,7 @@ struct ARViewContainer: UIViewRepresentable {
         // ✅ Délai pour laisser la vue s'initialiser correctement
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+            print("✅ AR Session started for ARViewContainer_ARCamera")
         }
 
         // Gestes

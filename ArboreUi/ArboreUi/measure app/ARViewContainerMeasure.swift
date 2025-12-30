@@ -85,6 +85,11 @@ struct ARViewContainerGarden: UIViewRepresentable {
         config.planeDetection = [.horizontal]
         config.environmentTexturing = .automatic
         
+        // ✅ Support amélioré pour iPhone Pro avec LiDAR
+        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+            config.frameSemantics.insert(.sceneDepth)
+        }
+        
         // Gestion du Tap
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
         arView.addGestureRecognizer(tapGesture)

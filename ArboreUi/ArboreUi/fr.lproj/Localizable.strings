@@ -757,4 +757,33 @@
 "ENTDETAIL_INFO_UNAVAILABLE_BODY" = "Aucune information d’entretien n’est disponible pour cette plante pour le moment.";
 
 /* CTA */
-"ENTDETAIL_CTA_CREATE_CHECKLIST_TITLE" = "Créer ma checklist d’entretien";
+"ENTDETAIL_CTA_CREATE_CHECKLIST_TITLE" = "Créer ma checklist d'entretien";
+
+// MARK: - Watering Routine Creation
+"ROUTINE_CREATE_TITLE" = "Créer une routine";
+"ROUTINE_CREATE_SUBTITLE" = "Configure les rappels d'arrosage pour ta plante";
+
+"ROUTINE_FREQUENCY_LABEL" = "Fréquence d'arrosage";
+"ROUTINE_FREQUENCY_DAILY" = "Tous les jours";
+"ROUTINE_FREQUENCY_TWICE_WEEKLY" = "2× par semaine";
+"ROUTINE_FREQUENCY_WEEKLY" = "Hebdomadaire";
+"ROUTINE_FREQUENCY_BIWEEKLY" = "Toutes les 2 semaines";
+"ROUTINE_FREQUENCY_MONTHLY" = "Mensuel";
+"ROUTINE_FREQUENCY_CUSTOM" = "Personnalisé";
+
+"ROUTINE_CUSTOM_DAYS_LABEL" = "Nombre de jours";
+"ROUTINE_DAYS_UNIT" = "jours";
+
+"ROUTINE_TIME_LABEL" = "Heure du rappel";
+
+"ROUTINE_AMOUNT_LABEL" = "Quantité d'eau";
+"ROUTINE_AMOUNT_PLACEHOLDER" = "Ex: 200-300ml";
+
+"ROUTINE_NOTES_LABEL" = "Notes (optionnel)";
+"ROUTINE_NOTES_PLACEHOLDER" = "Ajoute des notes personnelles...";
+
+"ROUTINE_CREATE_BUTTON" = "Créer la routine";
+
+"ROUTINE_SUCCESS_TITLE" = "Routine créée !";
+"ROUTINE_SUCCESS_MESSAGE" = "Ta routine d'arrosage a été créée avec succès.";
+"ROUTINE_SUCCESS_OK" = "OK";

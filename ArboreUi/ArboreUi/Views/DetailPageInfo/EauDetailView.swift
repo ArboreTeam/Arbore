@@ -6,6 +6,9 @@ struct EauDetailView: View {
 
     /// Infos "Eau" de la plante courante
     let water: WaterInfo?
+    let plantName: String
+    
+    @State private var showingRoutineCreation = false
 
     var body: some View {
         ZStack {
@@ -311,7 +314,7 @@ struct EauDetailView: View {
 
     private var testerEauCTA: some View {
         Button(action: {
-            // TODO: future feature : checklist d’arrosage
+            showingRoutineCreation = true
         }) {
             HStack(spacing: 8) {
                 Image(systemName: "drop.circle.fill")
@@ -335,6 +338,13 @@ struct EauDetailView: View {
             .shadow(color: Color.black.opacity(0.25), radius: 10, x: 0, y: 6)
         }
         .padding(.horizontal, 20)
+        .sheet(isPresented: $showingRoutineCreation) {
+            CreateWateringRoutineView(
+                plantName: plantName,
+                waterInfo: water
+            )
+            .environmentObject(themeManager)
+        }
     }
 }
 

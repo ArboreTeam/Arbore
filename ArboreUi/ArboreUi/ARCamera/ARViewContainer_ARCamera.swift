@@ -9,13 +9,32 @@ struct ARViewContainer: UIViewRepresentable {
     let modelURL: URL
 
     func makeUIView(context: Context) -> ARView {
+        // ✅ FIX: Initialiser avec la taille de l'écran pour éviter écran noir sur iPhone Pro
+        arView.frame = UIScreen.main.bounds
+
+        // ✅ Configuration pour éviter l'écran noir
+        arView.cameraMode = .ar
+        arView.automaticallyConfigureSession = false
+        arView.renderOptions = [.disableMotionBlur]
+
+        // ✅ Debug ARSession
+        arView.session.delegate = context.coordinator
+
         // Configuration AR
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal, .vertical]
         config.environmentTexturing = .automatic
 
-        arView.automaticallyConfigureSession = true
-        arView.session.run(config)
+        // ⚠️ IMPORTANT: sceneDepth peut provoquer un flux caméra noir sur certains appareils/iOS.
+        // On le désactive par défaut. À réactiver plus tard via un toggle si besoin.
+        // if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+        //     config.frameSemantics.insert(.sceneDepth)
+        // }
+
+        // ✅ Délai pour laisser la vue s'initialiser correctement
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+        }
 
         // Gestes
         let tapGesture = UITapGestureRecognizer(
@@ -55,7 +74,7 @@ struct ARViewContainer: UIViewRepresentable {
     }
 
     // MARK: - Coordinator
-    class Coordinator: NSObject {
+    class Coordinator: NSObject, ARSessionDelegate {
         var parent: ARViewContainer
         var selectedEntity: Entity?
         var plantEntities: [Entity] = []
@@ -64,6 +83,30 @@ struct ARViewContainer: UIViewRepresentable {
 
         init(_ parent: ARViewContainer) {
             self.parent = parent
+        }
+
+        // MARK: - ARSession debug
+        func session(_ session: ARSession, didFailWithError error: Error) {
+            print("❌ ARSession didFailWithError: \(error)")
+        }
+
+        func sessionWasInterrupted(_ session: ARSession) {
+            print("⚠️ ARSession was interrupted")
+        }
+
+        func sessionInterruptionEnded(_ session: ARSession) {
+            print("ℹ️ ARSession interruption ended")
+        }
+
+        func session(_ session: ARSession, cameraDidChangeTrackingState camera: ARCamera) {
+            switch camera.trackingState {
+            case .normal:
+                print("✅ AR tracking: normal")
+            case .notAvailable:
+                print("⚠️ AR tracking: notAvailable")
+            case .limited(let reason):
+                print("⚠️ AR tracking: limited (\(reason))")
+            }
         }
 
         // MARK: - Sélection visuelle

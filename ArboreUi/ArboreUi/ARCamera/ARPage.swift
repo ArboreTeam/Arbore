@@ -1,9 +1,9 @@
 import SwiftUI
 import ARKit
-import RealityKit
+import SceneKit
 import FirebaseAuth
 
-// MARK: - ShareSheet
+// MARK: - ShareSheet (Partage de photo)
 
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
@@ -15,24 +15,198 @@ struct ShareSheet: UIViewControllerRepresentable {
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
-// MARK: - ARViewWrapper
+// MARK: - SinglePlantARContainer (Le Moteur AR)
+
+struct SinglePlantARContainer: UIViewRepresentable {
+    let modelURL: URL
+    @Binding var shouldCapture: Bool
+    @Binding var capturedImage: UIImage?
+    @Binding var isImageReady: Bool
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    func makeUIView(context: Context) -> ARSCNView {
+        // 1. Initialisation SceneKit (Stable sur iPhone 16 Pro)
+        let sceneView = ARSCNView(frame: UIScreen.main.bounds)
+        sceneView.autoenablesDefaultLighting = true
+        
+        // 2. Configuration AR
+        let config = ARWorldTrackingConfiguration()
+        config.planeDetection = [.horizontal] // On cherche le sol
+        config.environmentTexturing = .automatic
+        
+        // Anti-Ecran Noir : on laisse la config standard sans forcer le LiDAR
+        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+            // config.frameSemantics.insert(.sceneDepth) // Désactivé pour stabilité
+        }
+        
+        sceneView.session.delegate = context.coordinator
+        sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+        
+        // 3. Ajout du Geste "Tap" (Pour poser la plante)
+        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
+        sceneView.addGestureRecognizer(tapGesture)
+        
+        // 4. Coaching Overlay (Aide visuelle pour trouver le sol)
+        let coachingOverlay = ARCoachingOverlayView()
+        coachingOverlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        coachingOverlay.goal = .horizontalPlane
+        coachingOverlay.session = sceneView.session
+        coachingOverlay.activatesAutomatically = true
+        sceneView.addSubview(coachingOverlay)
+        
+        // Stockage pour la capture
+        context.coordinator.arView = sceneView
+        
+        return sceneView
+    }
+    
+    func updateUIView(_ uiView: ARSCNView, context: Context) {
+        // Gestion de la capture photo
+        if shouldCapture {
+            DispatchQueue.main.async {
+                let image = uiView.snapshot()
+                self.capturedImage = image
+                self.isImageReady = true
+                self.shouldCapture = false
+            }
+        }
+    }
+    
+    // MARK: - Coordinator (Logique)
+    class Coordinator: NSObject, ARSCNViewDelegate, ARSessionDelegate {
+        var parent: SinglePlantARContainer
+        weak var arView: ARSCNView?
+        
+        // Référence à la plante actuelle pour la déplacer si besoin
+        var currentPlantNode: SCNNode?
+        
+        init(_ parent: SinglePlantARContainer) {
+            self.parent = parent
+        }
+        
+        @objc func handleTap(_ sender: UITapGestureRecognizer) {
+            guard let arView = arView else { return }
+            let location = sender.location(in: arView)
+            
+            // 1. Raycast vers le sol
+            guard let query = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal),
+                  let result = arView.session.raycast(query).first else {
+                print("⚠️ Aucun sol détecté. Bougez l'iPhone.")
+                return
+            }
+            
+            // 2. Placer le modèle
+            placeModel(at: result.worldTransform)
+        }
+        
+        func placeModel(at transform: simd_float4x4) {
+            guard let arView = arView else { return }
+            
+            // A. Si la plante existe déjà, on la déplace
+            if let existingNode = currentPlantNode {
+                SCNTransaction.begin()
+                SCNTransaction.animationDuration = 0.5
+                
+                // Mise à jour de la position
+                existingNode.simdTransform = transform
+                
+                // Force la verticalité (on ignore la rotation du sol si elle est penchée)
+                let pos = SCNVector3(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
+                existingNode.position = pos
+                existingNode.rotation = SCNVector4(0, 1, 0, 0)
+                
+                SCNTransaction.commit()
+                
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                return
+            }
+            
+            // B. Sinon, on charge et on crée la plante
+            do {
+                let scene = try SCNScene(url: parent.modelURL, options: nil)
+                
+                // Conteneur principal
+                let containerNode = SCNNode()
+                
+                // Ajout du contenu 3D
+                let modelNode = SCNNode()
+                for child in scene.rootNode.childNodes {
+                    modelNode.addChildNode(child)
+                }
+                
+                // --- CORRECTION TAILLE ET PIVOT ---
+                
+                // 1. Calculer la taille réelle
+                let (minVec, maxVec) = modelNode.boundingBox
+                let rawHeight = maxVec.y - minVec.y
+                
+                // 2. Mise à l'échelle (Cible : 50 cm)
+                let targetHeight: Float = 0.50
+                let scale = (rawHeight > 0) ? (targetHeight / rawHeight) : 1.0
+                modelNode.scale = SCNVector3(scale, scale, scale)
+                
+                // 3. Correction Pivot (Poser les pieds au sol)
+                // On remonte le modèle de la valeur de son point le plus bas
+                modelNode.position.y = -minVec.y * scale
+                
+                // --- FIN CORRECTION ---
+                
+                containerNode.addChildNode(modelNode)
+                
+                // Placement initial
+                containerNode.simdTransform = transform
+                containerNode.position = SCNVector3(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
+                
+                // Animation d'apparition (Pop)
+                containerNode.scale = SCNVector3(0,0,0)
+                arView.scene.rootNode.addChildNode(containerNode)
+                
+                SCNTransaction.begin()
+                SCNTransaction.animationDuration = 0.5
+                containerNode.scale = SCNVector3(1, 1, 1)
+                SCNTransaction.commit()
+                
+                // Sauvegarde de la référence
+                currentPlantNode = containerNode
+                
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                print("✅ Plante placée avec succès")
+                
+            } catch {
+                print("❌ Erreur chargement modèle: \(error)")
+            }
+        }
+    }
+}
+
+// MARK: - ARViewWrapper (L'interface autour de la caméra)
+
 struct ARViewWrapper: View {
     let modelURL: URL
 
     @Environment(\.presentationMode) var presentationMode
     @State private var showShareSheet = false
     @State private var capturedImage: UIImage?
-    @State private var arView = ARView(frame: UIScreen.main.bounds)
     @State private var isImageReady = false
+    
+    // Trigger pour la capture
+    @State private var captureTrigger = false
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            ARViewContainer(
-                arView: $arView,
-                modelURL: modelURL
+            // Vue AR (utilise le container SceneKit)
+            SinglePlantARContainer(
+                modelURL: modelURL,
+                shouldCapture: $captureTrigger,
+                capturedImage: $capturedImage,
+                isImageReady: $isImageReady
             )
             .ignoresSafeArea(.all)
 
+            // Bouton Retour
             Button(action: { presentationMode.wrappedValue.dismiss() }) {
                 Image(systemName: "chevron.left")
                     .font(.title)
@@ -43,9 +217,22 @@ struct ARViewWrapper: View {
             }
             .padding()
 
+            // Bouton Photo (Bas de l'écran)
             VStack {
                 Spacer()
-                Button(action: captureARView) {
+                
+                // Instruction text
+                Text("Touchez le sol pour placer la plante")
+                    .font(.caption)
+                    .padding(8)
+                    .background(Color.black.opacity(0.5))
+                    .foregroundColor(.white)
+                    .cornerRadius(8)
+                    .padding(.bottom, 10)
+                
+                Button(action: {
+                    captureTrigger = true
+                }) {
                     HStack {
                         Image(systemName: "camera.fill").font(.title)
                         Text("Prendre une photo").fontWeight(.bold)
@@ -60,6 +247,7 @@ struct ARViewWrapper: View {
             }
             .frame(maxWidth: .infinity)
         }
+        // Gestion de l'affichage de la photo prise
         .onChange(of: isImageReady) { ready in
             if ready {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { showShareSheet = true }
@@ -69,23 +257,9 @@ struct ARViewWrapper: View {
             if let image = capturedImage { ShareSheet(items: [image]) }
         }
     }
-
-    private func captureARView() {
-        arView.snapshot(saveToHDR: false) { image in
-            DispatchQueue.main.async {
-                if let image = image {
-                    capturedImage = image
-                    isImageReady = true
-                } else {
-                    print("❌ Erreur lors de la capture de l'ARView")
-                }
-            }
-        }
-    }
 }
 
-
-// MARK: - ARPage
+// MARK: - ARPage (Menu Principal)
 
 struct ARPage: View {
     let plant: Plant
@@ -99,12 +273,15 @@ struct ARPage: View {
                     .edgesIgnoringSafeArea(.all)
 
                 VStack(spacing: 0) {
+                    // Image d'en-tête
                     Image("plantes")
                         .resizable()
+                        .aspectRatio(contentMode: .fill)
                         .frame(height: UIScreen.main.bounds.height * 0.35)
                         .clipped()
                         .frame(height: 180)
 
+                    // Contenu Carte
                     VStack(spacing: 20) {
                         Spacer(minLength: 40)
                         Text("Bonjour, \(userName) \u{1F44B}")
@@ -123,17 +300,18 @@ struct ARPage: View {
                             .fontWeight(.bold)
                             .foregroundColor(.primary)
 
-                        Text("Discover trees in augmented reality")
+                        Text("Découvrez cet arbre en réalité augmentée")
                             .font(.body)
                             .multilineTextAlignment(.center)
                             .foregroundColor(.secondary)
                             .padding(.horizontal)
                         Spacer(minLength: 20)
 
+                        // Bouton Lancer AR
                         NavigationLink(destination: destinationView()) {
                             HStack {
                                 Image(systemName: "camera.viewfinder")
-                                Text("Launch AR")
+                                Text("Lancer l'AR")
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -143,18 +321,22 @@ struct ARPage: View {
                             .shadow(radius: 3)
                         }
 
+                        // Indicateur de compatibilité
                         if ARWorldTrackingConfiguration.isSupported {
                             Text("AR Ready")
                                 .foregroundColor(.green)
+                                .font(.caption)
                         } else {
                             Text("AR Not Supported")
                                 .foregroundColor(.red)
+                                .font(.caption)
                         }
 
+                        // Bouton Déconnexion
                         Button(action: { logout() }) {
-                            Text("Logout")
+                            Text("Déconnexion")
                                 .fontWeight(.bold)
-                                .frame(width: 120, height: 40)
+                                .frame(width: 140, height: 40)
                                 .background(
                                     LinearGradient(
                                         gradient: Gradient(colors: [Color.red, Color.pink]),
@@ -167,8 +349,7 @@ struct ARPage: View {
                                 .shadow(radius: 5)
                         }
                         .padding(.horizontal, 40)
-                        .frame(minHeight: 150, maxHeight: 200)
-                        .transition(.opacity)
+                        .frame(minHeight: 100, maxHeight: 150)
                     }
                     .padding()
                     .background(Color(UIColor.secondarySystemBackground))
@@ -178,9 +359,10 @@ struct ARPage: View {
             }
             .navigationBarBackButtonHidden(true)
             .fullScreenCover(isPresented: $navigateToLogin) {
+                // Remplace par ta vraie vue LoginView()
                 LoginView()
                     .transition(.move(edge: .trailing))
-                    .animation(.easeInOut(duration: 0.5))
+                    .animation(.easeInOut(duration: 0.5), value: navigateToLogin)
             }
             .onAppear {
                 fetchUserName()
@@ -188,7 +370,7 @@ struct ARPage: View {
         }
     }
 
-    // MARK: - User
+    // MARK: - Logic Helpers
 
     private func fetchUserName() {
         if let user = Auth.auth().currentUser {
@@ -197,20 +379,6 @@ struct ARPage: View {
             } else if let email = user.email {
                 userName = email.components(separatedBy: "@").first ?? "Utilisateur"
             }
-        }
-    }
-
-    func deleteCredentials() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Bundle.main.bundleIdentifier!
-        ]
-        
-        let status = SecItemDelete(query as CFDictionary)
-        if status == errSecSuccess {
-            print("🔑 Identifiants supprimés du Keychain.")
-        } else {
-            print("❌ Erreur lors de la suppression des identifiants du Keychain.")
         }
     }
     
@@ -226,7 +394,7 @@ struct ARPage: View {
         }
     }
     
-    // MARK: - Destination AR
+    // MARK: - Destination AR Helper
 
     @ViewBuilder
     private func destinationView() -> some View {
@@ -235,30 +403,33 @@ struct ARPage: View {
         } else if let url = findModelURL() {
             ARViewWrapper(modelURL: url)
         } else {
-            Text("Aucun modèle AR disponible pour cette plante pour le moment.")
-                .padding()
+            VStack {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.largeTitle)
+                    .foregroundColor(.orange)
+                Text("Aucun modèle 3D trouvé.")
+                    .padding()
+                Text("Fichier cherché : \(plant.modelURL ?? "inconnu")")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
         }
     }
     
     private func findModelURL() -> URL? {
-        // Method 1: Try finding in Assets subdirectory
-        if let bundleURL = Bundle.main.url(forResource: "plant2", withExtension: "usdz", subdirectory: "Assets") {
-            print("✅ Found plant2.usdz in Assets subdirectory: \(bundleURL)")
-            return bundleURL
-        }
-        // Method 2: Try finding in main bundle without subdirectory
-        else if let bundleURL = Bundle.main.url(forResource: "plant2", withExtension: "usdz") {
-            print("✅ Found plant2.usdz in main bundle: \(bundleURL)")
-            return bundleURL
-        }
-        // Method 3: Try manual path construction
-        else if let bundlePath = Bundle.main.path(forResource: "plant2", ofType: "usdz", inDirectory: "Assets") {
-            let url = URL(fileURLWithPath: bundlePath)
-            print("✅ Found plant2.usdz via path construction: \(url)")
-            return url
+        // 1. Cherche le modèle spécifique à la plante
+        if let modelName = plant.modelURL {
+            let name = modelName.replacingOccurrences(of: ".usdz", with: "")
+            if let url = Bundle.main.url(forResource: name, withExtension: "usdz") {
+                return url
+            }
         }
         
-        print("❌ Could not find plant2.usdz file - no AR fallback available")
+        // 2. Fallback sur un modèle par défaut (plant2)
+        if let bundleURL = Bundle.main.url(forResource: "plant2", withExtension: "usdz") {
+            return bundleURL
+        }
+        
         return nil
     }
 }

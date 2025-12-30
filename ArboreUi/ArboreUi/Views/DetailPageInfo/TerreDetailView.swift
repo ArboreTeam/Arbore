@@ -6,6 +6,9 @@ struct TerreDetailView: View {
 
     /// Infos "Terre & Pot" de la plante courante
     let soil: SoilAndPotInfo?
+    let plantName: String?
+    
+    @State private var showingMeasurePot = false
 
     var body: some View {
         ZStack {
@@ -55,6 +58,10 @@ struct TerreDetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .navigationTitle(NSLocalizedString("SOILDETAIL_NAV_TITLE", comment: ""))
+        .sheet(isPresented: $showingMeasurePot) {
+            MeasurePotView(plantName: plantName)
+                .environmentObject(themeManager)
+        }
     }
 
     // MARK: - Helpers couleurs
@@ -275,7 +282,7 @@ struct TerreDetailView: View {
 
     private var mesurerPotCTA: some View {
         Button(action: {
-            // TODO: plus tard : lancer un outil de mesure AR ou un guide
+            showingMeasurePot = true
         }) {
             HStack(spacing: 8) {
                 Image(systemName: "ruler.fill")

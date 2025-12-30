@@ -22,7 +22,7 @@ struct ARViewWrapper: View {
     @Environment(\.presentationMode) var presentationMode
     @State private var showShareSheet = false
     @State private var capturedImage: UIImage?
-    @State private var arView = ARView(frame: .zero)
+    @State private var arView = ARView(frame: UIScreen.main.bounds)
     @State private var isImageReady = false
 
     var body: some View {

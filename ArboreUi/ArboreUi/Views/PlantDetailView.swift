@@ -101,7 +101,7 @@ struct PlantDetailView: View {
                                 descriptionSection(t: t, plant: plant)
 
                                 // Cartes Soleil / Eau / Terre / Santé / Cycle / Entretien
-                                GeneralInfoGridView(translation: t)
+                                GeneralInfoGridView(translation: t, plantName: plant.name)
 
                                 arSection(for: plant)
 
@@ -475,6 +475,7 @@ struct PlantDetailView: View {
 struct GeneralInfoGridView: View {
     @Environment(\.colorScheme) private var colorScheme
     let translation: PlantTranslation?   // traduction MongoDB
+    let plantName: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -501,7 +502,7 @@ struct GeneralInfoGridView: View {
                     title: NSLocalizedString("PLANTDETAIL_WATER_TITLE", comment: ""),
                     description: NSLocalizedString("PLANTDETAIL_WATER_SUBTITLE", comment: ""),
                     color: Color(hex: "#A4C3D7"),
-                    destination: EauDetailView(water: translation?.water)
+                    destination: EauDetailView(water: translation?.water, plantName: plantName)
                 )
                 GeneralInfoCard(
                     icon: "leaf.fill",
@@ -577,3 +578,4 @@ struct GeneralInfoCard<Destination: View>: View {
         }
     }
 }
+

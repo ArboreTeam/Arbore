@@ -3,9 +3,9 @@ import ARKit
 import RealityKit
 
 // MARK: - Demo ContentView (optionnelle)
-// Juste pour tester en standalone. Tu peux l’enlever si tu n’en as pas besoin.
+// Juste pour tester en standalone. Tu peux l'enlever si tu n'en as pas besoin.
 struct ContentView: View {
-    @State private var arView = ARView(frame: .zero)
+    @State private var arView = ARView(frame: UIScreen.main.bounds)
 
     var body: some View {
         if let url = Bundle.main.url(forResource: "plant2", withExtension: "usdz") {

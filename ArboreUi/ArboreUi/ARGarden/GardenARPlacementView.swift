@@ -193,17 +193,29 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var selectedPlant: Plant?
 
     func makeUIView(context: Context) -> ARView {
-        let arView = ARView(frame: .zero)
+        // ✅ FIX CAMetalLayer: Initialiser avec la taille de l'écran pour éviter allocation failed
+        let arView = ARView(frame: UIScreen.main.bounds)
 
-        // ✅ Important: on gère nous-mêmes la session (sinon worldMap / relocalisation moins fiable)
+        // ✅ Configuration pour éviter l'écran noir et erreurs Metal
+        arView.cameraMode = .ar
         arView.automaticallyConfigureSession = false
         arView.session.delegate = context.coordinator
+        arView.renderOptions = [.disableMotionBlur]
 
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal, .vertical]
         config.environmentTexturing = .automatic
 
-        arView.session.run(config)
+        // ⚠️ IMPORTANT: sceneDepth peut provoquer un flux caméra noir sur certains appareils/iOS.
+        // On le désactive par défaut. À réactiver plus tard via un toggle si besoin.
+        // if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+        //     config.frameSemantics.insert(.sceneDepth)
+        // }
+
+        // ✅ Délai pour laisser la vue s'initialiser correctement avant de lancer la session
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+        }
 
         let tapGesture = UITapGestureRecognizer(
             target: context.coordinator,
@@ -269,16 +281,28 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             NotificationCenter.default.removeObserver(self)
         }
 
-        // MARK: - ARSessionDelegate (optionnel mais utile pour debug)
+        // ✅ Debug ARSession
+        func session(_ session: ARSession, didFailWithError error: Error) {
+            print("❌ [GardenAR] ARSession didFailWithError: \(error)")
+        }
+
+        func sessionWasInterrupted(_ session: ARSession) {
+            print("⚠️ [GardenAR] ARSession was interrupted")
+        }
+
+        func sessionInterruptionEnded(_ session: ARSession) {
+            print("ℹ️ [GardenAR] ARSession interruption ended")
+        }
+
         func session(_ session: ARSession, cameraDidChangeTrackingState camera: ARCamera) {
             switch camera.trackingState {
             case .normal:
-                // print("✅ tracking normal")
+                // print("✅ [GardenAR] tracking normal")
                 break
             case .notAvailable:
-                print("⚠️ tracking not available")
+                print("⚠️ [GardenAR] tracking not available")
             case .limited(let reason):
-                print("⚠️ tracking limited: \(reason)")
+                print("⚠️ [GardenAR] tracking limited: \(reason)")
             }
         }
 

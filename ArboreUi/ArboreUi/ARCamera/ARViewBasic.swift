@@ -4,7 +4,7 @@ import RealityKit
 
 struct ARViewBasic: View {
     @Environment(\.presentationMode) var presentationMode
-    @State private var arView = ARView(frame: .zero)
+    @State private var arView = ARView(frame: UIScreen.main.bounds)
     @State private var showShareSheet = false
     @State private var capturedImage: UIImage?
     @State private var isImageReady = false
@@ -103,9 +103,31 @@ struct ARViewBasicContainer: UIViewRepresentable {
     @Binding var arView: ARView
 
     func makeUIView(context: Context) -> ARView {
+        // ✅ FIX CAMetalLayer: Initialiser avec la taille de l'écran
+        arView.frame = UIScreen.main.bounds
+
+        // ✅ Configuration pour éviter l'écran noir et erreurs Metal
+        arView.cameraMode = .ar
+        arView.automaticallyConfigureSession = false
+        arView.renderOptions = [.disableMotionBlur]
+
+        // ✅ Debug ARSession
+        arView.session.delegate = context.coordinator
+
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal, .vertical]
-        arView.session.run(config)
+        config.environmentTexturing = .automatic
+
+        // ⚠️ IMPORTANT: sceneDepth peut provoquer un flux caméra noir sur certains appareils/iOS.
+        // On le désactive par défaut.
+        // if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+        //     config.frameSemantics.insert(.sceneDepth)
+        // }
+
+        // ✅ Délai pour laisser la vue s'initialiser correctement
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+        }
 
         // Ajouter un plan simple pour visualiser la détection de surface
         let planeAnchor = AnchorEntity(plane: .horizontal)
@@ -113,11 +135,40 @@ struct ARViewBasicContainer: UIViewRepresentable {
         let planeMaterial = SimpleMaterial(color: .green.withAlphaComponent(0.3), isMetallic: false)
         let planeEntity = ModelEntity(mesh: planeMesh, materials: [planeMaterial])
         planeAnchor.addChild(planeEntity)
-        
+
         arView.scene.addAnchor(planeAnchor)
 
         return arView
     }
 
     func updateUIView(_ uiView: ARView, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    final class Coordinator: NSObject, ARSessionDelegate {
+        func session(_ session: ARSession, didFailWithError error: Error) {
+            print("❌ ARSession didFailWithError: \(error)")
+        }
+
+        func sessionWasInterrupted(_ session: ARSession) {
+            print("⚠️ ARSession was interrupted")
+        }
+
+        func sessionInterruptionEnded(_ session: ARSession) {
+            print("ℹ️ ARSession interruption ended")
+        }
+
+        func session(_ session: ARSession, cameraDidChangeTrackingState camera: ARCamera) {
+            switch camera.trackingState {
+            case .normal:
+                print("✅ AR tracking: normal")
+            case .notAvailable:
+                print("⚠️ AR tracking: notAvailable")
+            case .limited(let reason):
+                print("⚠️ AR tracking: limited (\(reason))")
+            }
+        }
+    }
 }

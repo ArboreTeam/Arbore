@@ -6,7 +6,9 @@ import simd
 final class PlantThumbnailRenderer {
 
     private let arView: ARView
-    private var shadowTexture: TextureResource?
+
+    private var floorTexture: TextureResource?
+    private var wallTexture: TextureResource?
 
     init() {
         self.arView = ThumbnailRenderHost.shared.arView
@@ -16,8 +18,13 @@ final class PlantThumbnailRenderer {
         // Neutralise le "boost" qui peut cramer les verts
         self.arView.environment.lighting.intensityExponent = 1.0
 
-        // Précharge la texture d'ombre (Assets.xcassets: "soft_shadow")
-        self.shadowTexture = try? TextureResource.load(named: "soft_shadow")
+        // Assets.xcassets
+        self.floorTexture = try? TextureResource.load(named: "studio_floor")
+        self.wallTexture  = try? TextureResource.load(named: "studio_wall")
+
+        // Debug (à laisser 2 runs)
+        print("🧱 floorTexture:", floorTexture == nil ? "nil" : "ok")
+        print("🧱 wallTexture :", wallTexture  == nil ? "nil" : "ok")
     }
 
     func render(usdzURL: URL, completion: @escaping (UIImage?) -> Void) {
@@ -28,7 +35,7 @@ final class PlantThumbnailRenderer {
 
                 let model = try await ModelEntity.loadModel(contentsOf: usdzURL)
 
-                // --- 1) NORMALISATION (tes valeurs inchangées)
+                // --- 1) NORMALISATION (inchangée)
                 let targetHeight: Float = 0.02
 
                 var b = model.visualBounds(relativeTo: nil)
@@ -47,59 +54,82 @@ final class PlantThumbnailRenderer {
 
                 model.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
 
-                // --- 2) Studio: sol + backdrop (inchangé)
-                let floor = ModelEntity(mesh: .generatePlane(width: 3.0, depth: 3.0))
+                // --- 2) Studio: sol + mur (textures + tiling)
+                let floorMesh = Self.makeTiledPlane(
+                    width: 3.0,
+                    depth: 3.0,
+                    uScale: 3.0,
+                    vScale: 3.0
+                )
+                let floor = ModelEntity(mesh: floorMesh)
+
                 var floorMat = PhysicallyBasedMaterial()
-                floorMat.baseColor = .init(tint: UIColor(white: 0.92, alpha: 1.0))
+                if let floorTexture {
+                    floorMat.baseColor = .init(tint: .white, texture: .init(floorTexture))
+                } else {
+                    floorMat.baseColor = .init(tint: UIColor(white: 0.78, alpha: 1.0))
+                }
                 floorMat.roughness = .init(floatLiteral: 0.95)
                 floorMat.metallic  = .init(floatLiteral: 0.0)
                 floor.model?.materials = [floorMat]
                 floor.position = [0, -0.001, 0]
 
-                let backdrop = ModelEntity(mesh: .generatePlane(width: 3.6, depth: 3.6))
-                backdrop.model?.materials = [UnlitMaterial(color: UIColor(white: 0.96, alpha: 1.0))]
+                let wallMesh = Self.makeTiledPlane(
+                    width: 3.6,
+                    depth: 3.6,
+                    uScale: 2.0,
+                    vScale: 2.0
+                )
+                let backdrop = ModelEntity(mesh: wallMesh)
+
+                var wallMat = UnlitMaterial(color: .white)
+                if let wallTexture {
+                    wallMat.color = .init(tint: .white, texture: .init(wallTexture))
+                } else {
+                    wallMat.color = .init(tint: UIColor(white: 0.93, alpha: 1.0))
+                }
+                backdrop.model?.materials = [wallMat]
                 backdrop.position = [0, 1.1, -1.3]
                 backdrop.orientation = simd_quatf(angle: .pi/2, axis: [1, 0, 0])
 
-                // ✅ Ombre ronde via texture (compatible toutes versions)
-                // plane horizontal avec texture alpha
-                let contactShadow = ModelEntity(mesh: .generatePlane(width: 0.75, depth: 0.75))
-                var shadowMat = UnlitMaterial()
-
-                if let shadowTexture {
-                    shadowMat.color = .init(tint: .white, texture: .init(shadowTexture))
-                } else {
-                    // Fallback si l'asset n'est pas trouvé
-                    shadowMat.color = .init(tint: UIColor.black.withAlphaComponent(0.12))
-                }
-
-                contactShadow.model?.materials = [shadowMat]
-                contactShadow.position = [0, 0.0005, 0]
-
-                // --- 3) Lumière (tes valeurs inchangées) + fill douce
+                // --- 3) Lumières (POINT 1 APPLIQUÉ ICI)
                 let light = DirectionalLight()
                 light.light.intensity = 70000
-                light.shadow = DirectionalLightComponent.Shadow(maximumDistance: 6, depthBias: 1e-4)
+                light.shadow = DirectionalLightComponent.Shadow(
+                    maximumDistance: 3,
+                    depthBias: 3e-4
+                )
                 light.orientation =
                     simd_quatf(angle: -.pi/3, axis: [1, 0, 0]) *
                     simd_quatf(angle: .pi/6, axis: [0, 1, 0])
 
+                // 🔽 Fill light volontairement plus faible et plus neutre
+                // => verts moins flashy
                 let fill = PointLight()
-                fill.light.intensity = 1200
-                fill.light.color = .white
+                fill.light.intensity = 350          // ⬅️ AVANT: 500
+                fill.light.color = UIColor(white: 0.92, alpha: 1.0)
                 fill.position = [0.6, 1.2, 1.0]
 
-                // --- 4) Caméra FIXE (tes valeurs inchangées)
+                let rim = PointLight()
+                rim.light.intensity = 350
+                rim.light.color = UIColor(white: 0.92, alpha: 1.0)
+                rim.position = [-0.7, 1.1, -1.0]
+
+                // --- 4) Caméra (POINT 3 : micro-ajustement)
                 let camera = PerspectiveCamera()
-                camera.position = [0, 0.75, 2.0]
-                camera.look(at: [0, 0.75, 0], from: camera.position, relativeTo: nil)
+                camera.position = [0, 0.8, 2.05]     // ⬅️ un poil plus haut / plus loin
+                camera.look(
+                    at: [0, 0.7, 0],                 // ⬅️ regard légèrement abaissé
+                    from: camera.position,
+                    relativeTo: nil
+                )
 
                 anchor.addChild(floor)
                 anchor.addChild(backdrop)
-                anchor.addChild(contactShadow)
                 anchor.addChild(model)
                 anchor.addChild(light)
                 anchor.addChild(fill)
+                anchor.addChild(rim)
                 anchor.addChild(camera)
 
                 arView.scene.addAnchor(anchor)
@@ -117,6 +147,52 @@ final class PlantThumbnailRenderer {
                 print("❌ Render error:", error.localizedDescription)
                 completion(nil)
             }
+        }
+    }
+
+    // MARK: - Tiled Plane (UVs qui se répètent)
+
+    private static func makeTiledPlane(
+        width: Float,
+        depth: Float,
+        uScale: Float,
+        vScale: Float
+    ) -> MeshResource {
+
+        let hw = width / 2
+        let hd = depth / 2
+
+        var desc = MeshDescriptor()
+        desc.positions = .init([
+            SIMD3(-hw, 0, -hd),
+            SIMD3( hw, 0, -hd),
+            SIMD3(-hw, 0,  hd),
+            SIMD3( hw, 0,  hd)
+        ])
+
+        desc.normals = .init([
+            SIMD3(0, 1, 0),
+            SIMD3(0, 1, 0),
+            SIMD3(0, 1, 0),
+            SIMD3(0, 1, 0)
+        ])
+
+        desc.textureCoordinates = .init([
+            SIMD2(0, 0),
+            SIMD2(uScale, 0),
+            SIMD2(0, vScale),
+            SIMD2(uScale, vScale)
+        ])
+
+        desc.primitives = .triangles([
+            0, 2, 1,
+            1, 2, 3
+        ])
+
+        do {
+            return try MeshResource.generate(from: [desc])
+        } catch {
+            return .generatePlane(width: width, depth: depth)
         }
     }
 }

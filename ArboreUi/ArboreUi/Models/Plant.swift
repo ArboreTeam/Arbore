@@ -115,6 +115,7 @@ struct LifeCycleInfo: Codable {
 }
 
 struct CareInfo: Codable {
+    let difficulty: String?
     let weekly: [String]?
     let monthly: [String]?
     let yearly: [String]?

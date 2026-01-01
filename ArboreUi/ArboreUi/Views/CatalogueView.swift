@@ -15,6 +15,10 @@ struct CatalogueView: View {
     @State private var isLoading = true
     @State private var errorMessage: String?
     
+    // Filtres
+    @State private var filters = PlantFilters()
+    @State private var showFilters = false
+    
     // Focus pour le clavier (optionnel mais recommandé pour l'UX)
     @FocusState private var isSearchFocused: Bool
 
@@ -34,6 +38,10 @@ struct CatalogueView: View {
                 }
             }
             .navigationBarHidden(true) // On cache la nav bar native pour utiliser la nôtre
+            .sheet(isPresented: $showFilters) {
+                FilterView(filters: $filters)
+                    .environmentObject(themeManager)
+            }
             .onAppear {
                 thumbGenerator.onThumbnailGenerated = {
                     thumbRefreshTick += 1
@@ -89,10 +97,20 @@ struct CatalogueView: View {
                     .frame(height: 20)
                 
                 // Bouton Filtre
-                NavigationLink(destination: FilterView()) {
-                    Image(systemName: "slider.horizontal.3")
-                        .foregroundColor(themeManager.adjust(Color(hex: "#263826"))) // Couleur accentuée
-                        .font(.system(size: 20))
+                Button(action: { showFilters = true }) {
+                    ZStack {
+                        Image(systemName: "slider.horizontal.3")
+                            .foregroundColor(themeManager.adjust(Color(hex: "#263826")))
+                            .font(.system(size: 20))
+                        
+                        // Badge de notification si des filtres sont actifs
+                        if filters.isActive {
+                            Circle()
+                                .fill(Color.red)
+                                .frame(width: 8, height: 8)
+                                .offset(x: 10, y: -10)
+                        }
+                    }
                 }
             }
             .padding(.vertical, 12)
@@ -179,11 +197,22 @@ struct CatalogueView: View {
     }
 
     var filteredPlants: [Plant] {
-        if searchText.isEmpty {
-            return plants
-        } else {
-            return plants.filter { $0.name.lowercased().contains(searchText.lowercased()) }
+        var result = plants
+        
+        // Filtre par recherche texte
+        if !searchText.isEmpty {
+            result = result.filter { $0.name.lowercased().contains(searchText.lowercased()) }
         }
+        
+        // Filtre par critères (lumière, eau, difficulté)
+        if filters.isActive {
+            let locale = Locale.current.language.languageCode?.identifier ?? "fr"
+            result = result.filter { plant in
+                filters.matches(plant: plant, locale: locale)
+            }
+        }
+        
+        return result
     }
 
     func fetchPlants() {

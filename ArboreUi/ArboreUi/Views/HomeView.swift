@@ -1,10 +1,14 @@
 import SwiftUI
 
 struct HomeView: View {
-    @State private var projects: [GardenProject] = []
+    @State private var gardens: [GardenDTO] = []
     @State private var goToQuestionnaire = false
 
-    // Palette proche de ton design HTML
+    // ✅ On présente l’AR UNIQUEMENT si on a un jardin à ouvrir
+    @State private var gardenToOpen: GardenDTO? = nil
+
+    private let uid = "TEST_UID"
+
     private let background = Color(hex: "#F9F9F7")
     private let primary = Color(hex: "#8DBA8E")
     private let textDark = Color(hex: "#333333")
@@ -18,17 +22,11 @@ struct HomeView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 24) {
-
-                        // MARK: - HEADER CENTRÉ
                         header
-
-                        // MARK: - CARTE "CRÉER UN JARDIN"
                         createGardenHero
-
-                        // MARK: - VOS JARDINS
                         gardensTitle
 
-                        if projects.isEmpty {
+                        if gardens.isEmpty {
                             emptyState
                         } else {
                             gardensList
@@ -43,13 +41,48 @@ struct HomeView: View {
             }
             .navigationBarHidden(true)
             .onAppear {
-                loadMockProjectsIfNeeded()   // à remplacer plus tard par ton backend
+                Task { await fetchGardens() }
+            }
+            // ✅ Présentation fiable (pas d’écran noir si gardenToOpen = nil)
+            .fullScreenCover(item: $gardenToOpen) { g in
+                GardenARPlacementView(
+                    selectedPlants: [],
+                    uid: g.uid,
+                    wizard: g.wizard,
+                    gardenName: g.name,
+                    thumbnailKey: g.thumbnailKey,
+
+                    // ✅ reopen
+                    existingGardenId: g.id,     // si ton id est nil, ça ne chargera pas la worldmap
+                    mode: .reopen,
+
+                    onValidated: {
+                        // ferme l’AR
+                        gardenToOpen = nil
+                        // refresh la home si besoin
+                        Task { await fetchGardens() }
+                    }
+                )
             }
         }
     }
 }
 
-// MARK: - Header "Arbore" centré
+// MARK: - API
+private extension HomeView {
+    func fetchGardens() async {
+        do {
+            let list = try await GardenAPI.shared.listGardens(uid: uid)
+            await MainActor.run {
+                self.gardens = list
+            }
+        } catch {
+            print("❌ fetchGardens failed:", error)
+        }
+    }
+}
+
+// MARK: - Header
 private extension HomeView {
     var header: some View {
         VStack(spacing: 8) {
@@ -70,9 +103,7 @@ private extension HomeView {
 
 private extension HomeView {
     var createGardenHero: some View {
-
         VStack(alignment: .leading, spacing: 16) {
-
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
@@ -96,7 +127,6 @@ private extension HomeView {
             }
 
             Button {
-                createNewGarden()
                 goToQuestionnaire = true
             } label: {
                 Text("Commencer")
@@ -111,19 +141,14 @@ private extension HomeView {
 
             NavigationLink(
                 destination: GardenWizardView(
-                    uid: "TEST_UID",
-                    onGardenCreated: { created in
-                        print("✅ Garden créé en Mongo:", created.id ?? "nil")
-                    },
-                    onFinish: { state in
-                        print("Garden wizard completed")
-                    }
+                    uid: uid,
+                    selectedPlants: [],
+                    onFinish: { _ in }
                 ),
                 isActive: $goToQuestionnaire,
                 label: { EmptyView() }
             )
             .hidden()
-
         }
         .padding(20)
         .background(
@@ -134,37 +159,19 @@ private extension HomeView {
     }
 }
 
-// MARK: - Titre "Vos jardins"
+// MARK: - "Vos jardins"
 private extension HomeView {
     var gardensTitle: some View {
         HStack {
             Text("Vos jardins")
                 .font(.system(size: 22, weight: .bold))
                 .foregroundColor(textDark)
-
             Spacer()
-
-            if projects.count > 2 {
-                NavigationLink {
-                    AllGardensView(projects: projects)
-                } label: {
-                    HStack(spacing: 4) {
-                        Text("Voir tout")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(primary)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(primary)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
         }
         .padding(.top, 8)
     }
 }
 
-// MARK: - État vide (aucun jardin)
 private extension HomeView {
     var emptyState: some View {
         HStack {
@@ -198,22 +205,19 @@ private extension HomeView {
 // MARK: - Liste des jardins existants
 private extension HomeView {
     var gardensList: some View {
-        let displayedProjects = Array(projects.prefix(2))
-
-        return VStack(spacing: 16) {
-            ForEach(displayedProjects, id: \.id) { project in
-                gardenCard(project: project)
+        VStack(spacing: 16) {
+            ForEach(gardens.indices, id: \.self) { idx in
+                gardenCard(garden: gardens[idx])
             }
         }
     }
 
-    func gardenCard(project: GardenProject) -> some View {
+    func gardenCard(garden: GardenDTO) -> some View {
         Button {
-            // TODO : ouvrir le projet
+            // ✅ ça ouvre directement l’AR, sans bool séparé
+            gardenToOpen = garden
         } label: {
             VStack(spacing: 0) {
-
-                // IMAGE (haut de la carte)
                 LinearGradient(
                     colors: [Color(hex: "#2F5136"), Color(hex: "#4F7B54")],
                     startPoint: .topLeading,
@@ -228,20 +232,21 @@ private extension HomeView {
                 )
                 .frame(height: 140)
 
-                // CONTENU (bas de la carte)
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(project.name)
+                        Text(garden.name)
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(textDark)
 
-                        Text("\(project.plantingZones.count) plantes")
+                        Text("\(garden.plants.count) plantes")
                             .font(.system(size: 13))
                             .foregroundColor(textSubtle)
 
-                        Text("Dernière modification : \(project.updatedAt.formatted(date: .abbreviated, time: .omitted))")
-                            .font(.system(size: 12))
-                            .foregroundColor(textSubtle.opacity(0.9))
+                        if let d = garden.updatedAt {
+                            Text("Dernière modification : \(d.formatted(date: .abbreviated, time: .omitted))")
+                                .font(.system(size: 12))
+                                .foregroundColor(textSubtle.opacity(0.9))
+                        }
                     }
 
                     Spacer()
@@ -261,45 +266,5 @@ private extension HomeView {
             .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Vue "Tous les jardins"
-
-struct AllGardensView: View {
-    let projects: [GardenProject]
-
-    private let background = Color(hex: "#F9F9F7")
-    private let textDark = Color(hex: "#333333")
-
-    var body: some View {
-        ZStack {
-            background.ignoresSafeArea()
-            List {
-                ForEach(projects, id: \.id) { project in
-                    Text(project.name)
-                        .foregroundColor(textDark)
-                }
-            }
-        }
-        .navigationTitle("Tous les jardins")
-    }
-}
-
-// MARK: - Mock temporaire
-private extension HomeView {
-    func createNewGarden() {
-        let garden = GardenProject(name: "Nouveau jardin")
-        projects.insert(garden, at: 0)
-    }
-
-    func loadMockProjectsIfNeeded() {
-        // Pour tester le design avec des jardins existants,
-        // commente cette ligne pour voir l’état vide.
-        projects = [
-            GardenProject(name: "Terrasse ensoleillée"),
-            GardenProject(name: "Jardin avant fleuri"),
-            GardenProject(name: "Grand jardin familial")
-        ]
     }
 }

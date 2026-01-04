@@ -28,7 +28,7 @@ final class GardenAPI {
     }()
 
     // MARK: - Create
-    func createGarden(_ garden: GardenDTO) async throws -> GardenDTO {
+    func createGarden(_ garden: GardenCreateDTO) async throws -> GardenDTO {
         guard let url = URL(string: "\(baseURL)/gardens") else { throw APIError.invalidURL }
 
         var req = URLRequest(url: url)

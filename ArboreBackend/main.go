@@ -1,5 +1,4 @@
 // main.go
-
 package main
 
 import (
@@ -11,7 +10,9 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -84,14 +85,14 @@ type CareInfo struct {
 }
 
 type LanguageData struct {
-	Description string        `json:"description" bson:"description"`
-	PlantType   string        `json:"plantType" bson:"plantType"`
-	Sun         SunInfo       `json:"sun" bson:"sun"`
-	Water       WaterInfo     `json:"water" bson:"water"`
-	SoilAndPot  SoilAndPotInfo`json:"soilAndPot" bson:"soilAndPot"`
-	Health      HealthInfo    `json:"health" bson:"health"`
-	LifeCycle   LifeCycleInfo `json:"lifeCycle" bson:"lifeCycle"`
-	Care        CareInfo      `json:"care" bson:"care"`
+	Description string         `json:"description" bson:"description"`
+	PlantType   string         `json:"plantType" bson:"plantType"`
+	Sun         SunInfo        `json:"sun" bson:"sun"`
+	Water       WaterInfo      `json:"water" bson:"water"`
+	SoilAndPot  SoilAndPotInfo `json:"soilAndPot" bson:"soilAndPot"`
+	Health      HealthInfo     `json:"health" bson:"health"`
+	LifeCycle   LifeCycleInfo  `json:"lifeCycle" bson:"lifeCycle"`
+	Care        CareInfo       `json:"care" bson:"care"`
 }
 
 type Plant struct {
@@ -113,6 +114,45 @@ type AIResponse struct {
 	EN LanguageData `json:"en"`
 	ES LanguageData `json:"es"`
 	DE LanguageData `json:"de"`
+}
+
+// ---------- GARDENS (NEW) ----------
+
+type GardenWizardData struct {
+	Style       string   `json:"style" bson:"style"`
+	SpaceType   string   `json:"spaceType" bson:"spaceType"`
+	Exposure    string   `json:"exposure,omitempty" bson:"exposure,omitempty"`
+	Maintenance string   `json:"maintenance,omitempty" bson:"maintenance,omitempty"`
+	Safety      []string `json:"safety,omitempty" bson:"safety,omitempty"`
+	Soil        string   `json:"soil,omitempty" bson:"soil,omitempty"`
+	ScanMethod  string   `json:"scanMethod,omitempty" bson:"scanMethod,omitempty"`
+}
+
+type PlacedPlant struct {
+	PlantID primitive.ObjectID `json:"plantId" bson:"plantId"`
+
+	// Optionnel (si tu veux déjà stocker une position simple)
+	X float64 `json:"x,omitempty" bson:"x,omitempty"`
+	Y float64 `json:"y,omitempty" bson:"y,omitempty"`
+	Z float64 `json:"z,omitempty" bson:"z,omitempty"`
+
+	Note string `json:"note,omitempty" bson:"note,omitempty"`
+}
+
+type Garden struct {
+	ID primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+
+	UID  string `json:"uid" bson:"uid"`
+	Name string `json:"name" bson:"name"`
+
+	Wizard GardenWizardData `json:"wizard" bson:"wizard"`
+	Plants []PlacedPlant    `json:"plants" bson:"plants"`
+
+	// Pour ta Home: image selon type/style (ex: "modern", "zen", ...)
+	ThumbnailKey string `json:"thumbnailKey,omitempty" bson:"thumbnailKey,omitempty"`
+
+	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
 }
 
 // ---------- USERS ----------
@@ -279,8 +319,6 @@ func generateAndInsertPlant(ctx context.Context, name string) (Plant, bool, erro
 		},
 	}
 
-	// plant.SetDefaults() // si tu remets ça plus tard
-
 	_, err = collection.InsertOne(ctx, plant)
 	if err != nil {
 		log.Println("❌ Erreur lors de l'insertion MongoDB :", err)
@@ -436,10 +474,159 @@ func getUserPhoto(c *gin.Context) {
 	c.Data(http.StatusOK, contentType, data)
 }
 
+// ---------- GARDENS HANDLERS (NEW) ----------
+
+func createGarden(c *gin.Context) {
+	var garden Garden
+	if err := c.ShouldBindJSON(&garden); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	garden.ID = primitive.NewObjectID()
+	now := time.Now()
+	garden.CreatedAt = now
+	garden.UpdatedAt = now
+
+	collection := client.Database("arbore").Collection("gardens")
+	_, err := collection.InsertOne(context.Background(), garden)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur insertion garden"})
+		return
+	}
+
+	c.JSON(http.StatusOK, garden)
+}
+
+func listGardens(c *gin.Context) {
+	uid := c.Query("uid")
+	if uid == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "uid manquant"})
+		return
+	}
+
+	collection := client.Database("arbore").Collection("gardens")
+	opts := options.Find().SetSort(bson.M{"updatedAt": -1})
+
+	cursor, err := collection.Find(context.Background(), bson.M{"uid": uid}, opts)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur find gardens"})
+		return
+	}
+	defer cursor.Close(context.Background())
+
+	var gardens []Garden
+	if err := cursor.All(context.Background(), &gardens); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur decode gardens"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gardens)
+}
+
+func getGardenByID(c *gin.Context) {
+	idParam := c.Param("id")
+
+	objectID, err := primitive.ObjectIDFromHex(idParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID invalide"})
+		return
+	}
+
+	collection := client.Database("arbore").Collection("gardens")
+	var garden Garden
+
+	err = collection.FindOne(context.Background(), bson.M{"_id": objectID}).Decode(&garden)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{"message": "Garden non trouvé"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lecture garden"})
+		return
+	}
+
+	c.JSON(http.StatusOK, garden)
+}
+
+func updateGarden(c *gin.Context) {
+	idParam := c.Param("id")
+	objectID, err := primitive.ObjectIDFromHex(idParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID invalide"})
+		return
+	}
+
+	// PATCH style (champs optionnels)
+	var payload struct {
+		Name         *string           `json:"name"`
+		Wizard       *GardenWizardData `json:"wizard"`
+		Plants       *[]PlacedPlant    `json:"plants"`
+		ThumbnailKey *string           `json:"thumbnailKey"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	set := bson.M{"updatedAt": time.Now()}
+	if payload.Name != nil {
+		set["name"] = *payload.Name
+	}
+	if payload.Wizard != nil {
+		set["wizard"] = *payload.Wizard
+	}
+	if payload.Plants != nil {
+		set["plants"] = *payload.Plants
+	}
+	if payload.ThumbnailKey != nil {
+		set["thumbnailKey"] = *payload.ThumbnailKey
+	}
+
+	collection := client.Database("arbore").Collection("gardens")
+	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": objectID}, bson.M{"$set": set})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur update garden"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Garden mis à jour"})
+}
+
+func deleteGarden(c *gin.Context) {
+	idParam := c.Param("id")
+	objectID, err := primitive.ObjectIDFromHex(idParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID invalide"})
+		return
+	}
+
+	collection := client.Database("arbore").Collection("gardens")
+	res, err := collection.DeleteOne(context.Background(), bson.M{"_id": objectID})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur delete garden"})
+		return
+	}
+	if res.DeletedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"message": "Garden non trouvé"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Garden supprimé"})
+}
+
 // ---------- MAIN ----------
 
 func main() {
-	uri := "mongodb+srv://hugorath1234:hugopapa@arbore.cew6l.mongodb.net/arbore?retryWrites=true&w=majority&appName=Arbore"
+	// ✅ Recommandé: passe l'URI via env
+	// export MONGODB_URI="mongodb+srv://..."
+	uri := os.Getenv("MONGODB_URI")
+
+	// ⚠️ Fallback (si tu veux garder ton test local):
+	if uri == "" {
+		uri = "mongodb+srv://hugorath1234:hugopapa@arbore.cew6l.mongodb.net/arbore?retryWrites=true&w=majority&appName=Arbore"
+	}
+
 	clientOptions := options.Client().ApplyURI(uri)
 
 	var err error
@@ -478,7 +665,6 @@ func main() {
 
 	router.POST("/users/:uid/photo", uploadUserPhoto)
 	router.GET("/users/:uid/photo", getUserPhoto)
-
 	router.DELETE("/users/:uid", deleteUser)
 
 	// Plants
@@ -487,6 +673,13 @@ func main() {
 	router.GET("/plants/:id", getPlantByID)
 	router.POST("/plants/generate", generatePlantWithAI)
 	router.POST("/plants/generate-multiple", generateMultiplePlantsHandler)
+
+	// Gardens (NEW)
+	router.POST("/gardens", createGarden)
+	router.GET("/gardens", listGardens)         // /gardens?uid=...
+	router.GET("/gardens/:id", getGardenByID)
+	router.PUT("/gardens/:id", updateGarden)    // PATCH-like payload
+	router.DELETE("/gardens/:id", deleteGarden)
 
 	fmt.Println("🚀 Serveur démarré sur http://localhost:8080")
 	if err := router.Run(":8080"); err != nil {

@@ -110,7 +110,15 @@ private extension HomeView {
             .buttonStyle(.plain)
 
             NavigationLink(
-                destination: GardenWizardView { state in print("Garden wizard completed") },
+                destination: GardenWizardView(
+                    uid: "TEST_UID",
+                    onGardenCreated: { created in
+                        print("✅ Garden créé en Mongo:", created.id ?? "nil")
+                    },
+                    onFinish: { state in
+                        print("Garden wizard completed")
+                    }
+                ),
                 isActive: $goToQuestionnaire,
                 label: { EmptyView() }
             )

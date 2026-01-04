@@ -4,43 +4,34 @@ import RoomPlan
 struct WizardSummaryStepView: View {
     // MARK: - Properties
     @ObservedObject var state: GardenWizardState
-    
+
     // --- Callbacks (Actions remontées au Parent) ---
-    // C'est grâce à ça que l'écran noir est corrigé :
-    // On demande au parent de lancer la caméra, on ne le fait pas nous-mêmes.
     let onBack: () -> Void
     let onStartAR: () -> Void
     let onStartLiDAR: () -> Void
     let onFinishWizard: () -> Void
-    
+
+    // ✅ Nouveau: affichage "Sauvegarde..."
+    let isSaving: Bool
+
     @State private var showLidarAlert = false
     @Environment(\.colorScheme) private var colorScheme
 
     // MARK: - Styles & Colors
-    // (Repris de ton code original pour conserver le design exact)
-    
-    private var cardBackground: Color {
-        colorScheme == .dark ? Color.white.opacity(0.06) : Color.white
-    }
-    
-    private var cardShadow: Color {
-        colorScheme == .dark ? Color.black.opacity(0.6) : Color.black.opacity(0.05)
-    }
-    
     private var subtitleColor: Color {
         colorScheme == .dark ? Color.white.opacity(0.65) : .secondary
     }
-    
+
     private var infoCardBackground: Color {
         colorScheme == .dark ? Color.black.opacity(0.22) : Color.black.opacity(0.04)
     }
-    
+
     private var iconChipBackground: Color {
         colorScheme == .dark
-            ? Color.gardenAccent.opacity(0.18)
-            : Color.gardenPrimary.opacity(0.12)
+        ? Color.gardenAccent.opacity(0.18)
+        : Color.gardenPrimary.opacity(0.12)
     }
-    
+
     private var iconColor: Color {
         colorScheme == .dark ? Color.gardenAccent : Color.gardenPrimary
     }
@@ -48,11 +39,9 @@ struct WizardSummaryStepView: View {
     // MARK: - Body
     var body: some View {
         ZStack {
-            // Fond
             Color.gardenBackground
                 .ignoresSafeArea()
 
-            // Contenu Principal
             VStack(spacing: 0) {
                 Spacer()
 
@@ -72,7 +61,7 @@ struct WizardSummaryStepView: View {
                         .lineSpacing(3)
                 }
 
-                // --- BENEFITS LIST (3 mini-cards) ---
+                // --- BENEFITS LIST ---
                 VStack(spacing: 12) {
                     BenefitRow(
                         systemImage: "ruler",
@@ -104,28 +93,26 @@ struct WizardSummaryStepView: View {
                 Spacer()
             }
         }
-        // --- FOOTER FLOTTANT ---
+        // --- FOOTER ---
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 12) {
 
-                Text("Durée : ~30 secondes")
+                Text(isSaving ? "Sauvegarde du jardin..." : "Durée : ~30 secondes")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Color.white.opacity(0.45))
                     .padding(.top, 2)
 
-                // BOUTON PRINCIPAL : Scanner
+                // BOUTON PRINCIPAL
                 Button(action: {
-                    // 1. On sauvegarde l'état
+                    // 1) Sauvegarde (le parent déclenche la requête)
                     onFinishWizard()
 
-                    // 2. On décide quelle caméra lancer
+                    // 2) On décide quelle caméra lancer
                     switch state.scanMethod {
                     case .some(.gardenPerimeter):
-                        // On appelle le parent pour lancer l'AR
                         onStartAR()
 
                     case .some(.roomScan):
-                        // On vérifie le LiDAR
                         if RoomCaptureSession.isSupported {
                             onStartLiDAR()
                         } else {
@@ -133,7 +120,6 @@ struct WizardSummaryStepView: View {
                         }
 
                     case .none:
-                        // Choix par défaut intelligent
                         if RoomCaptureSession.isSupported {
                             onStartLiDAR()
                         } else {
@@ -142,20 +128,20 @@ struct WizardSummaryStepView: View {
                     }
                 }) {
                     HStack {
-                        Text("Scanner mon espace en AR")
-                        Image(systemName: "camera.fill")
+                        Text(isSaving ? "Sauvegarde..." : "Scanner mon espace en AR")
+                        Image(systemName: isSaving ? "arrow.triangle.2.circlepath" : "camera.fill")
                     }
                 }
                 .buttonStyle(PrimaryWizardButtonStyle(isEnabled: true))
+                // Option: bloque double-tap pendant save
+                .disabled(isSaving)
 
-                // BOUTON SECONDAIRE : Retour
                 Button("Retour") { onBack() }
                     .buttonStyle(SecondaryWizardButtonStyle())
             }
             .padding(.horizontal, 24)
             .padding(.top, 12)
             .padding(.bottom, 32)
-            // Dégradé de fond pour le footer
             .background(
                 LinearGradient(
                     colors: [
@@ -170,7 +156,6 @@ struct WizardSummaryStepView: View {
                 .ignoresSafeArea(edges: .bottom)
             )
         }
-        // ALERTE LIDAR
         .alert("Scan 3D indisponible", isPresented: $showLidarAlert) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -184,9 +169,8 @@ struct WizardSummaryStepView: View {
     }
 }
 
-// MARK: - Subviews & Helpers
+// MARK: - Subviews
 
-// Ligne de bénéfice (Petite carte avec icône)
 private struct BenefitRow: View {
     let systemImage: String
     let title: String

@@ -12,7 +12,7 @@ struct GardenWizardDTO: Codable {
 
 struct PlacedPlantDTO: Codable, Identifiable {
     // Identifiable pour SwiftUI si besoin
-    var id: UUID = UUID()
+    var id: String { plantId }
 
     var plantId: String
 

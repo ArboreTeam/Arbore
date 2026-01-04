@@ -1,5 +1,5 @@
 //
-//  NewMyGardenView.swift
+//  ManageGardenView.swift
 //  ArboreUi
 //
 //  Created on November 25, 2025.
@@ -9,7 +9,7 @@
 
 import SwiftUI
 
-struct NewMyGardenView: View {
+struct ManageGardenView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @StateObject private var projectService = GardenProjectService()
     @State private var showingNewProjectSheet = false
@@ -32,6 +32,6 @@ struct NewMyGardenView: View {
 }
 
 #Preview {
-    NewMyGardenView()
+    ManageGardenView()
         .environmentObject(ThemeManager())
 }

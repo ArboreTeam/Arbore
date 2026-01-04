@@ -228,167 +228,55 @@ enum GardenWizardStep: Int, CaseIterable, Identifiable {
 
 struct GardenWizardView: View {
     @StateObject private var state = GardenWizardState()
-    @State private var currentStep: GardenWizardStep = .intro
+    @State private var showPlacementAR = false
 
-    // --- NAVIGATION AR ---
-    @State private var showARMeasure = false
-    @State private var showRoomPlan = false
+    // ✅ router tab
+    @EnvironmentObject private var tabRouter: TabRouter
 
-    // --- SAVE STATE ---
-    @State private var isSavingGarden = false
-    @State private var saveErrorMessage: String? = nil
-    @State private var showSaveErrorAlert = false
-
-    @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var colorScheme
-
-    /// ✅ UID (pour sauvegarder dans Mongo)
     let uid: String
-
-    /// ✅ optionnel : récupérer le Garden créé
-    let onGardenCreated: ((GardenDTO) -> Void)?
-
-    /// ✅ ton callback existant
+    let selectedPlants: [Plant]
     let onFinish: (GardenWizardState) -> Void
 
-    var visibleSteps: [GardenWizardStep] {
-        var steps: [GardenWizardStep] = [.intro, .style, .spaceType]
-        guard let spaceType = state.spaceType else {
-            return [.intro, .style, .spaceType, .exposure, .maintenance, .safety, .soil, .scanMethod, .summary]
-        }
-        switch spaceType {
-        case .interior: steps.append(contentsOf: [.maintenance, .safety, .scanMethod, .summary])
-        case .balcony: steps.append(contentsOf: [.exposure, .maintenance, .safety, .scanMethod, .summary])
-        case .garden: steps.append(contentsOf: [.exposure, .maintenance, .safety, .soil, .scanMethod, .summary])
-        }
-        return steps
-    }
-
-    var currentIndex: Int { visibleSteps.firstIndex(of: currentStep) ?? 0 }
-
-    func goToNext() {
-        let nextIndex = currentIndex + 1
-        if nextIndex < visibleSteps.count {
-            withAnimation(.easeInOut) { currentStep = visibleSteps[nextIndex] }
-        }
-    }
-
-    func goToPrevious() {
-        let prevIndex = currentIndex - 1
-        if prevIndex >= 0 {
-            withAnimation(.easeInOut) { currentStep = visibleSteps[prevIndex] }
-        }
-    }
-
-    // MARK: - Mapping state -> GardenDTO
-
-    private func makeGardenDTO() -> GardenDTO {
-        GardenDTO(
-            id: nil,
-            uid: uid,
-            name: "Mon jardin",
-            wizard: GardenWizardDTO(
-                style: state.style?.rawValue ?? "",
-                spaceType: state.spaceType?.rawValue ?? "",
-                exposure: state.exposure?.rawValue,
-                maintenance: state.maintenance?.rawValue,
-                safety: state.safetySelections.map { $0.rawValue },
-                soil: state.soil?.rawValue,
-                scanMethod: state.scanMethod?.rawValue
-            ),
-            plants: [],
-            thumbnailKey: state.style?.imageName, // "modern" / "zen" / etc.
-            createdAt: nil,
-            updatedAt: nil
+    private var wizardDTO: GardenWizardDTO {
+        GardenWizardDTO(
+            style: state.style?.rawValue ?? "",
+            spaceType: state.spaceType?.rawValue ?? "",
+            exposure: state.exposure?.rawValue,
+            maintenance: state.maintenance?.rawValue,
+            safety: state.safetySelections.map { $0.rawValue },
+            soil: state.soil?.rawValue,
+            scanMethod: state.scanMethod?.rawValue
         )
     }
 
-    private func saveGarden() async {
-        guard !uid.isEmpty else {
-            saveErrorMessage = "UID manquant (impossible de sauvegarder le jardin)."
-            showSaveErrorAlert = true
-            return
-        }
-
-        isSavingGarden = true
-        defer { isSavingGarden = false }
-
-        do {
-            let created = try await GardenAPI.shared.createGarden(makeGardenDTO())
-            onGardenCreated?(created)
-        } catch {
-            saveErrorMessage = "Erreur réseau : \(error)"
-            showSaveErrorAlert = true
-        }
-    }
+    private var gardenName: String { "Mon jardin" }
+    private var thumbnailKey: String? { state.style?.rawValue }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            Color.gardenBackground.ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                if currentStep != .intro {
-                    WizardProgressHeader(currentIndex: currentIndex, total: visibleSteps.count)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 60)
-                        .padding(.bottom, 12)
-                }
-
-                TabView(selection: $currentStep) {
-                    IntroStepView(onNext: goToNext).tag(GardenWizardStep.intro)
-                    StyleStepView(state: state, onNext: goToNext, onBack: goToPrevious).tag(GardenWizardStep.style)
-                    SpaceTypeStepView(state: state, onNext: goToNext, onBack: goToPrevious).tag(GardenWizardStep.spaceType)
-                    if visibleSteps.contains(.exposure) {
-                        ExposureStepView(state: state, onNext: goToNext, onBack: goToPrevious).tag(GardenWizardStep.exposure)
-                    }
-                    MaintenanceStepView(state: state, onNext: goToNext, onBack: goToPrevious).tag(GardenWizardStep.maintenance)
-                    SafetyStepView(state: state, onNext: goToNext, onBack: goToPrevious).tag(GardenWizardStep.safety)
-                    if visibleSteps.contains(.soil) {
-                        SoilStepView(state: state, onNext: goToNext, onBack: goToPrevious).tag(GardenWizardStep.soil)
-                    }
-                    ScanMethodStepView(state: state, onNext: goToNext, onBack: goToPrevious).tag(GardenWizardStep.scanMethod)
-
-                    WizardSummaryStepView(
-                        state: state,
-                        onBack: goToPrevious,
-                        onStartAR: { showARMeasure = true },
-                        onStartLiDAR: { showRoomPlan = true },
-                        onFinishWizard: {
-                            // Ton callback existant
-                            onFinish(state)
-                            // ✅ Save Mongo
-                            Task { await saveGarden() }
-                        },
-                        isSaving: isSavingGarden
-                    )
-                    .tag(GardenWizardStep.summary)
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
+        VStack {
+            Text("Wizard terminé")
+            Button("Lancer l’AR") {
+                showPlacementAR = true
             }
-
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
-                    .padding(10)
-                    .background(
-                        Circle().fill((colorScheme == .dark ? Color.white : Color.black).opacity(0.08))
-                    )
-            }
-            .padding(.top, 16)
-            .padding(.leading, 20)
         }
-        .navigationBarBackButtonHidden(true)
-        .toolbar(.hidden, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
+        .fullScreenCover(isPresented: $showPlacementAR) {
+            GardenARPlacementView(
+                selectedPlants: selectedPlants,
+                uid: uid,
+                wizard: wizardDTO,
+                gardenName: gardenName,
+                thumbnailKey: thumbnailKey,
 
-        .fullScreenCover(isPresented: $showARMeasure) { ARViewContainerMesure() }
-        .fullScreenCover(isPresented: $showRoomPlan) { RoomScanListView() }
+                // ✅ AJOUT OBLIGATOIRE
+                existingGardenId: nil,
+                mode: .create,
 
-        .alert("Sauvegarde impossible", isPresented: $showSaveErrorAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(saveErrorMessage ?? "Une erreur est survenue.")
+                onValidated: {
+                    // ✅ ferme AR + switch tab sur Jardin
+                    showPlacementAR = false
+                    tabRouter.selectedTab = .garden
+                }
+            )
         }
     }
 }
@@ -739,9 +627,10 @@ struct QuestionnaireView_Previews: PreviewProvider {
         NavigationView {
             GardenWizardView(
                 uid: "TEST_UID",
-                onGardenCreated: { _ in },
+                selectedPlants: [],
                 onFinish: { _ in print("Wizard completed") }
             )
+            .environmentObject(TabRouter()) // ✅ preview
         }
     }
 }

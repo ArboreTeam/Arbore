@@ -228,7 +228,13 @@ enum GardenWizardStep: Int, CaseIterable, Identifiable {
 
 struct GardenWizardView: View {
     @StateObject private var state = GardenWizardState()
+    @State private var currentStep: GardenWizardStep = .intro
+
+    // ouvre l’AR à la fin
     @State private var showPlacementAR = false
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
 
     // ✅ router tab
     @EnvironmentObject private var tabRouter: TabRouter
@@ -237,6 +243,32 @@ struct GardenWizardView: View {
     let selectedPlants: [Plant]
     let onFinish: (GardenWizardState) -> Void
 
+    // ✅ Steps visibles (logique simple = tous les steps)
+    // Si tu avais une logique conditionnelle (interior/balcony/garden), je te la remets juste après.
+    private var visibleSteps: [GardenWizardStep] {
+        // Version "tous les steps"
+        [.intro, .style, .spaceType, .exposure, .maintenance, .safety, .soil, .scanMethod, .summary]
+    }
+
+    private var currentIndex: Int {
+        visibleSteps.firstIndex(of: currentStep) ?? 0
+    }
+
+    private func goToNext() {
+        let nextIndex = currentIndex + 1
+        if nextIndex < visibleSteps.count {
+            withAnimation(.easeInOut) { currentStep = visibleSteps[nextIndex] }
+        }
+    }
+
+    private func goToPrevious() {
+        let prevIndex = currentIndex - 1
+        if prevIndex >= 0 {
+            withAnimation(.easeInOut) { currentStep = visibleSteps[prevIndex] }
+        }
+    }
+
+    // ✅ state -> DTO pour AR + backend
     private var wizardDTO: GardenWizardDTO {
         GardenWizardDTO(
             style: state.style?.rawValue ?? "",
@@ -250,15 +282,81 @@ struct GardenWizardView: View {
     }
 
     private var gardenName: String { "Mon jardin" }
-    private var thumbnailKey: String? { state.style?.rawValue }
+
+    /// Si tu veux une clé d’image cohérente: utilise imageName
+    private var thumbnailKey: String? { state.style?.imageName }
 
     var body: some View {
-        VStack {
-            Text("Wizard terminé")
-            Button("Lancer l’AR") {
-                showPlacementAR = true
+        ZStack(alignment: .topLeading) {
+            Color.gardenBackground.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+
+                // Progress header (pas sur intro)
+                if currentStep != .intro {
+                    WizardProgressHeader(currentIndex: currentIndex, total: visibleSteps.count)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 60)
+                        .padding(.bottom, 12)
+                }
+
+                TabView(selection: $currentStep) {
+
+                    IntroStepView(onNext: goToNext)
+                        .tag(GardenWizardStep.intro)
+
+                    StyleStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+                        .tag(GardenWizardStep.style)
+
+                    SpaceTypeStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+                        .tag(GardenWizardStep.spaceType)
+
+                    ExposureStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+                        .tag(GardenWizardStep.exposure)
+
+                    MaintenanceStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+                        .tag(GardenWizardStep.maintenance)
+
+                    SafetyStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+                        .tag(GardenWizardStep.safety)
+
+                    SoilStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+                        .tag(GardenWizardStep.soil)
+
+                    ScanMethodStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+                        .tag(GardenWizardStep.scanMethod)
+
+                    WizardSummaryStepView(
+                        state: state,
+                        onBack: goToPrevious,
+                        onStartAR: { showPlacementAR = true },
+                        onStartLiDAR: { showPlacementAR = true },
+                        onFinishWizard: { onFinish(state) },
+                        isSaving: false
+                    )
+                    .tag(GardenWizardStep.summary)
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
             }
+
+            // bouton close
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                    .padding(10)
+                    .background(
+                        Circle().fill((colorScheme == .dark ? Color.white : Color.black).opacity(0.08))
+                    )
+            }
+            .padding(.top, 16)
+            .padding(.leading, 20)
         }
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .tabBar)
+
+        // ✅ AR placement (create)
         .fullScreenCover(isPresented: $showPlacementAR) {
             GardenARPlacementView(
                 selectedPlants: selectedPlants,
@@ -266,17 +364,20 @@ struct GardenWizardView: View {
                 wizard: wizardDTO,
                 gardenName: gardenName,
                 thumbnailKey: thumbnailKey,
-
-                // ✅ AJOUT OBLIGATOIRE
                 existingGardenId: nil,
                 mode: .create,
-
                 onValidated: {
-                    // ✅ ferme AR + switch tab sur Jardin
                     showPlacementAR = false
                     tabRouter.selectedTab = .garden
+                    dismiss()
                 }
             )
+        }
+        // ✅ super important: quand tu ré-ouvres un wizard, on repart de 0
+        .onAppear {
+            currentStep = .intro
+            // si tu veux reset TOTAL du state à chaque nouvelle création :
+            // state.style = nil; state.spaceType = nil; etc...
         }
     }
 }

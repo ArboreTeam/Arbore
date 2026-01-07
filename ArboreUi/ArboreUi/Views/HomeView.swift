@@ -218,19 +218,21 @@ private extension HomeView {
             gardenToOpen = garden
         } label: {
             VStack(spacing: 0) {
-                LinearGradient(
-                    colors: [Color(hex: "#2F5136"), Color(hex: "#4F7B54")],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .overlay(
-                    Image(systemName: "leaf.fill")
+                ZStack {
+                    Image(garden.homeImageName)
                         .resizable()
-                        .scaledToFit()
-                        .foregroundColor(.white.opacity(0.12))
-                        .padding(30)
-                )
+                        .scaledToFill()
+                        .allowsHitTesting(false) // ⚠️ OBLIGATOIRE
+
+                    LinearGradient(
+                        colors: [Color.black.opacity(0.1), Color.black.opacity(0.45)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .allowsHitTesting(false)
+                }
                 .frame(height: 140)
+                .clipped()
 
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
@@ -266,5 +268,21 @@ private extension HomeView {
             .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
         }
         .buttonStyle(.plain)
+    }
+}
+
+private extension GardenDTO {
+    var homeImageName: String {
+        let s = wizard.style
+            .folding(options: .diacriticInsensitive, locale: .current)
+            .lowercased()
+
+        if s.contains("moderne") { return "modern-home" }
+        if s.contains("fleuri") || s.contains("floral") { return "fleuri-home" }
+        if s.contains("champetre") || s.contains("sauvage") { return "sauvage-home" }
+        if s.contains("zen") || s.contains("japon") { return "zen-home" }
+        if s.contains("mediterr") { return "mediterraneen-home" }
+
+        return "modern-home"
     }
 }

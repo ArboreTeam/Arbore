@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @State private var gardens: [GardenDTO] = []
     @State private var goToQuestionnaire = false
+    @State private var goToAllGardens = false
 
     // ✅ On présente l’AR UNIQUEMENT si on a un jardin à ouvrir
     @State private var gardenToOpen: GardenDTO? = nil
@@ -21,9 +22,13 @@ struct HomeView: View {
                 background.ignoresSafeArea()
 
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 24) {
+                    VStack(spacing: 18) {
                         header
                         createGardenHero
+
+                        // ✅ (Changement #2) : un peu plus d’air entre la card verte et "Vos jardins"
+                        Spacer(minLength: 6)
+
                         gardensTitle
 
                         if gardens.isEmpty {
@@ -38,6 +43,13 @@ struct HomeView: View {
                     .padding(.top, 16)
                     .padding(.bottom, 32)
                 }
+
+                NavigationLink(
+                    destination: AllGardensView(uid: uid),
+                    isActive: $goToAllGardens,
+                    label: { EmptyView() }
+                )
+                .hidden()
             }
             .navigationBarHidden(true)
             .onAppear {
@@ -82,60 +94,60 @@ private extension HomeView {
     }
 }
 
-// MARK: - Header
+// MARK: - Header (refonte)
 private extension HomeView {
     var header: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             Text("Arbore")
-                .font(.system(size: 36, weight: .bold, design: .serif))
+                .font(.system(size: 34, weight: .bold, design: .serif))
                 .foregroundColor(textDark)
-                .multilineTextAlignment(.center)
 
-            Text("Imaginez et visualisez\nvotre futur jardin")
-                .font(.system(size: 17, weight: .medium))
-                .foregroundColor(textSubtle)
-                .multilineTextAlignment(.center)
+            Text("votre futur jardin")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(textSubtle.opacity(0.9))
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 8)
+        .padding(.top, 6)
     }
 }
 
+// MARK: - Card "Créer un futur jardin" (style Stitch)
 private extension HomeView {
     var createGardenHero: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(primary.opacity(0.15))
-                        .frame(width: 48, height: 48)
+        VStack(alignment: .leading, spacing: 12) { // ✅ (Changement #1) : spacing un peu réduit
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.18))
+                    .frame(width: 44, height: 44)
 
-                    Image(systemName: "leaf.fill")
-                        .font(.system(size: 22))
-                        .foregroundColor(primary)
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Créer un futur jardin")
-                        .font(.system(size: 21, weight: .bold))
-                        .foregroundColor(textDark)
-
-                    Text("Commencez la conception étape par étape.")
-                        .font(.system(size: 15))
-                        .foregroundColor(textSubtle)
-                }
+                Image(systemName: "leaf.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
             }
+
+            Text("Créer un futur jardin")
+                .font(.system(size: 22, weight: .bold, design: .serif))
+                .foregroundColor(.white)
+
+            Text("Commencez la conception étape par étape\npour donner vie à vos idées.")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.white.opacity(0.85))
+                .lineSpacing(2)
 
             Button {
                 goToQuestionnaire = true
             } label: {
-                Text("Commencer")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .background(primary)
-                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                HStack(spacing: 10) {
+                    Text("Commencer")
+                        .font(.system(size: 15, weight: .bold))
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 14, weight: .bold))
+                }
+                .foregroundColor(textSubtle) // effet “vert sombre”
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(Color.white)
+                .clipShape(Capsule())
             }
             .buttonStyle(.plain)
 
@@ -150,28 +162,40 @@ private extension HomeView {
             )
             .hidden()
         }
-        .padding(20)
+        .padding(.vertical, 18) // ✅ (Changement #1) : padding vertical réduit (moins “massif”)
+        .padding(.horizontal, 20)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 20)
-                .fill(cardLight)
-                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(primary)
+                .shadow(color: primary.opacity(0.18), radius: 18, x: 0, y: 10)
         )
     }
 }
 
-// MARK: - "Vos jardins"
+// MARK: - "Vos jardins" + Voir tout si > 2
 private extension HomeView {
     var gardensTitle: some View {
-        HStack {
+        HStack(alignment: .lastTextBaseline) {
             Text("Vos jardins")
-                .font(.system(size: 22, weight: .bold))
+                .font(.system(size: 22, weight: .bold, design: .serif))
                 .foregroundColor(textDark)
+
             Spacer()
+
+            if gardens.count > 2 {
+                Button("Voir tout") {
+                    goToAllGardens = true
+                }
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(textSubtle)
+            }
         }
-        .padding(.top, 8)
+        .padding(.top, 4)
     }
 }
 
+// MARK: - Empty state (inchangé)
 private extension HomeView {
     var emptyState: some View {
         HStack {
@@ -192,7 +216,7 @@ private extension HomeView {
         .padding(16)
         .frame(maxWidth: .infinity)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .strokeBorder(Color.gray.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
@@ -202,19 +226,20 @@ private extension HomeView {
     }
 }
 
-// MARK: - Liste des jardins existants
+// MARK: - Liste des jardins existants (limite à 2)
 private extension HomeView {
     var gardensList: some View {
-        VStack(spacing: 16) {
-            ForEach(gardens.indices, id: \.self) { idx in
-                gardenCard(garden: gardens[idx])
+        let preview = Array(gardens.prefix(2))
+        return VStack(spacing: 16) {
+            ForEach(preview.indices, id: \.self) { idx in
+                gardenCard(garden: preview[idx])
             }
         }
     }
 
     func gardenCard(garden: GardenDTO) -> some View {
         Button {
-            // ✅ ça ouvre directement l’AR, sans bool séparé
+            // ✅ ouvre directement l’AR
             gardenToOpen = garden
         } label: {
             VStack(spacing: 0) {
@@ -225,13 +250,13 @@ private extension HomeView {
                         .allowsHitTesting(false) // ⚠️ OBLIGATOIRE
 
                     LinearGradient(
-                        colors: [Color.black.opacity(0.1), Color.black.opacity(0.45)],
+                        colors: [Color.black.opacity(0.08), Color.black.opacity(0.25)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                     .allowsHitTesting(false)
                 }
-                .frame(height: 140)
+                .frame(height: 220)
                 .clipped()
 
                 HStack(alignment: .center, spacing: 12) {
@@ -253,18 +278,19 @@ private extension HomeView {
 
                     Spacer()
 
+                    // ✅ (Changement #3) : bouton "Ouvrir" un poil plus discret/premium
                     Text("Ouvrir")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
-                        .padding(.horizontal, 14)
+                        .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(primary)
+                        .background(primary.opacity(0.92))
                         .clipShape(Capsule())
                 }
                 .padding(16)
             }
             .background(cardLight)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
             .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
         }
         .buttonStyle(.plain)

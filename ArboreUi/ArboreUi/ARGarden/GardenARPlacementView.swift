@@ -301,33 +301,60 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 let scene = try SCNScene(url: url, options: nil)
                 let container = SCNNode()
                 container.name = "plant_\(plant.id)_\(plant.name)"
-                for child in scene.rootNode.childNodes { container.addChildNode(child) }
                 
-                // --- FIX ÉCHELLE GÉANTE ---
-                // 1. Calculer la hauteur réelle brute du modèle chargé
+                // On récupère le contenu du modèle
+                for child in scene.rootNode.childNodes {
+                    container.addChildNode(child)
+                }
+                
+                // --- ÉTAPE 1 : POSITIONNER D'ABORD (CRITIQUE) ---
+                // C'est ici que l'erreur se produisait. On applique la position ARKit AVANT de toucher à l'échelle.
+                container.simdTransform = transform
+                
+                // --- ÉTAPE 2 : CALCULER ET APPLIQUER L'ÉCHELLE ---
                 let (minVec, maxVec) = container.boundingBox
                 let rawHeight = maxVec.y - minVec.y
                 
-                // 2. Définir une hauteur cible raisonnable (ex: 40cm = 0.4m)
-                let targetHeight: Float = 0.4
+                // On vise 20 cm de haut (0.2m)
+                let targetHeight: Float = 0.8
                 
                 if rawHeight > 0 {
                     let scaleFactor = targetHeight / rawHeight
+                    
+                    // On applique l'échelle MAINTENANT. Comme la position est déjà définie,
+                    // cette ligne ne sera pas écrasée.
                     container.scale = SCNVector3(scaleFactor, scaleFactor, scaleFactor)
                     
-                    // 3. Ajuster le pivot pour que la base soit à Y=0 (le sol)
+                    // Ajustement du pivot pour que ça touche le sol
                     container.pivot = SCNMatrix4MakeTranslation(0, minVec.y, 0)
+                    
+                    print("DEBUG: Hauteur originale: \(rawHeight), Facteur appliqué: \(scaleFactor)")
+                } else {
+                    // Si la bounding box échoue (ce qui arrive avec certains .usdz mal formés),
+                    // on force une échelle minuscule par sécurité (1%).
+                    print("DEBUG: Impossible de calculer la hauteur, application échelle de sécurité.")
+                    container.scale = SCNVector3(0.01, 0.01, 0.01)
                 }
                 
-                container.simdTransform = transform
+                // Ajouter à la scène
                 arView.scene.rootNode.addChildNode(container)
                 
-                let p = PersistedPlant(plantID: plant.id, plantName: plant.name, modelURLString: plant.modelURL ?? "", transform: matrixToFloatArray(transform))
+                // Persistance
+                let p = PersistedPlant(
+                    plantID: plant.id,
+                    plantName: plant.name,
+                    modelURLString: plant.modelURL ?? "",
+                    // Attention: on sauvegarde la transform APRES mise à l'échelle
+                    transform: matrixToFloatArray(container.simdTransform)
+                )
                 placedPlants.append(p)
-                selectNode(container)
                 
+                selectNode(container)
                 UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            } catch { print("Erreur spawn: \(error)") }
+                
+            } catch {
+                print("Erreur spawn: \(error)")
+            }
         }
 
         func selectNode(_ node: SCNNode) {

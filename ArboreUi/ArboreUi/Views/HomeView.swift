@@ -10,11 +10,49 @@ struct HomeView: View {
 
     private let uid = "TEST_UID"
 
-    private let background = Color(hex: "#F9F9F7")
-    private let primary = Color(hex: "#8DBA8E")
-    private let textDark = Color(hex: "#333333")
-    private let textSubtle = Color(hex: "#63886f")
-    private let cardLight = Color.white
+    // ✅ couleurs dynamiques (Light applique ta palette White)
+    private let background = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+        ? UIColor(red: 0.10, green: 0.10, blue: 0.10, alpha: 1.0)
+        : UIColor(red: 0.956, green: 0.953, blue: 0.937, alpha: 1.0) // #F4F3EF
+    })
+
+    private let cardLight = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+        ? UIColor(red: 0.13, green: 0.14, blue: 0.13, alpha: 1.0)
+        : UIColor.white // #FFFFFF
+    })
+
+    private let separators = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+        ? UIColor(red: 0.18, green: 0.19, blue: 0.18, alpha: 1.0)
+        : UIColor(red: 0.898, green: 0.890, blue: 0.867, alpha: 1.0) // #E5E3DD
+    })
+
+    private let textDark = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+        ? UIColor(white: 0.95, alpha: 1.0)
+        : UIColor(red: 0.184, green: 0.184, blue: 0.184, alpha: 1.0) // #2F2F2F
+    })
+
+    private let textSubtle = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+        ? UIColor(white: 0.70, alpha: 1.0)
+        : UIColor(red: 0.478, green: 0.478, blue: 0.478, alpha: 1.0) // #7A7A7A
+    })
+
+    private let primary = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+        ? UIColor(red: 0.173, green: 0.333, blue: 0.188, alpha: 1.0) // #2C5530
+        : UIColor(red: 0.553, green: 0.729, blue: 0.557, alpha: 1.0) // #8DBA8E
+    })
+
+    // ✅ MODIF: vert utilisé pour le texte sur bouton blanc ("Commencer")
+    private let brandGreenTextOnWhite = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+        ? UIColor(red: 0.173, green: 0.333, blue: 0.188, alpha: 1.0) // #2C5530 (très lisible sur blanc)
+        : UIColor(red: 0.388, green: 0.533, blue: 0.435, alpha: 1.0) // #63886F (ton ancien "textSubtle" vert)
+    })
 
     var body: some View {
         NavigationStack {
@@ -117,13 +155,19 @@ private extension HomeView {
         VStack(alignment: .leading, spacing: 12) { // ✅ (Changement #1) : spacing un peu réduit
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.18))
-                    .frame(width: 44, height: 44)
+                    .fill(Color.white.opacity(0.14)) // ✅ Option 2 : plus doux en dark
+                    .overlay(
+                        Circle().stroke(Color.white.opacity(0.22), lineWidth: 1)
+                    )
+                    .frame(width: 34, height: 34)
 
                 Image(systemName: "leaf.fill")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white)
             }
+            // ✅ Option 1 : effet “badge” légèrement aligné au bord
+            .padding(.top, -4)
+            .padding(.leading, -2)
 
             Text("Créer un futur jardin")
                 .font(.system(size: 22, weight: .bold, design: .serif))

@@ -4,6 +4,22 @@ import SceneKit
 import Foundation
 import simd
 
+// MARK: - Modèles de Données (DÉFINIS UNE SEULE FOIS ICI)
+struct PersistedARScene: Codable {
+    let savedAt: Date
+    let plants: [PersistedPlant]
+}
+
+struct PersistedPlant: Codable {
+    let plantID: String
+    let plantName: String
+    let modelURLString: String
+    let position: [Float]
+    let rotation: [Float]
+    let scale: [Float]
+    let transform: [Float]
+}
+
 // MARK: - Mode & Notifications
 enum GardenARMode {
     case create
@@ -14,9 +30,12 @@ extension Notification.Name {
     static let gardenARValidate = Notification.Name("gardenARValidate")
     static let gardenARUndo = Notification.Name("gardenARUndo")
     static let gardenARDelete = Notification.Name("gardenARDelete")
+    static let gardenARRotate = Notification.Name("gardenARRotate")
+    static let gardenARScaleUp = Notification.Name("gardenARScaleUp")
+    static let gardenARScaleDown = Notification.Name("gardenARScaleDown")
 }
 
-// MARK: - Local store
+// MARK: - Stockage Local
 fileprivate enum GardenLocalStore {
     static func worldMapURL(for gardenId: String) -> URL {
         documentsURL().appendingPathComponent("worldmap_\(gardenId).bin")
@@ -29,7 +48,7 @@ fileprivate enum GardenLocalStore {
     }
 }
 
-// MARK: - Vue Principale
+// MARK: - Vue Principale SwiftUI
 struct GardenARPlacementView: View {
     let selectedPlants: [Plant]
     let uid: String
@@ -94,17 +113,6 @@ struct GardenARPlacementView: View {
                 Image(systemName: "arrow.left").modifier(GlassButtonStyle())
             }
             Spacer()
-            HStack(spacing: 0) {
-                Button { NotificationCenter.default.post(name: .gardenARUndo, object: nil) } label: {
-                    Image(systemName: "arrow.uturn.backward").frame(width: 44, height: 44)
-                }
-                Divider().frame(height: 24).background(.white.opacity(0.2))
-                Button { /* Redo logic if needed */ } label: {
-                    Image(systemName: "arrow.uturn.forward").frame(width: 44, height: 44)
-                }
-            }
-            .background(.black.opacity(0.5)).clipShape(Capsule()).foregroundColor(.white)
-            Spacer()
             Button { NotificationCenter.default.post(name: .gardenARValidate, object: nil) } label: {
                 Image(systemName: "checkmark").modifier(GlassButtonStyle(isGreen: true))
             }
@@ -117,10 +125,16 @@ struct GardenARPlacementView: View {
             if let name = selectedNodeName {
                 Text(name).font(.system(size: 14, weight: .bold)).foregroundColor(.white).padding(.horizontal, 16).padding(.vertical, 8).background(.black.opacity(0.7)).clipShape(Capsule())
             }
-            HStack(spacing: 15) {
-                ActionButton(icon: "360.75", active: true)
-                ActionButton(icon: "arrow.up.and.down.and.arrow.left.and.right", active: false)
-                ActionButton(icon: "arrow.up.and.down", active: false)
+            HStack(spacing: 12) {
+                Button { NotificationCenter.default.post(name: .gardenARRotate, object: nil) } label: {
+                    ActionButton(icon: "rotate.right", active: false)
+                }
+                Button { NotificationCenter.default.post(name: .gardenARScaleUp, object: nil) } label: {
+                    ActionButton(icon: "plus.magnifyingglass", active: false)
+                }
+                Button { NotificationCenter.default.post(name: .gardenARScaleDown, object: nil) } label: {
+                    ActionButton(icon: "minus.magnifyingglass", active: false)
+                }
                 Button { NotificationCenter.default.post(name: .gardenARDelete, object: nil) } label: {
                     Image(systemName: "trash").foregroundColor(.white).frame(width: 48, height: 48).background(.red.opacity(0.7)).clipShape(Circle())
                 }
@@ -132,11 +146,7 @@ struct GardenARPlacementView: View {
     }
 
     private var bottomDock: some View {
-        HStack(alignment: .bottom) {
-            VStack(spacing: 4) {
-                Image(systemName: "layers").modifier(GlassButtonStyle())
-                Text("Layers").font(.system(size: 10, weight: .medium)).foregroundColor(.white.opacity(0.8))
-            }
+        HStack {
             Spacer()
             Button { showPicker = true } label: {
                 ZStack {
@@ -144,14 +154,9 @@ struct GardenARPlacementView: View {
                     Image(systemName: "plus").font(.system(size: 30, weight: .bold)).foregroundColor(.black)
                 }
             }
-            .offset(y: -10)
             Spacer()
-            VStack(spacing: 4) {
-                Image(systemName: "camera").modifier(GlassButtonStyle())
-                Text("Snap").font(.system(size: 10, weight: .medium)).foregroundColor(.white.opacity(0.8))
-            }
         }
-        .padding(.horizontal, 40).padding(.bottom, 20)
+        .padding(.bottom, 20)
     }
 }
 
@@ -180,24 +185,23 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         config.environmentTexturing = .automatic
         sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
 
-        // GESTURES
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTapToPlace(_:)))
         let longPress = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPressToSelect(_:)))
         longPress.minimumPressDuration = 0.4
         let pan = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
-        let pinch = UIPinchGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePinch(_:)))
-        let rotate = UIRotationGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleRotate(_:)))
         
-        pan.delegate = context.coordinator
-        [tap, longPress, pan, pinch, rotate].forEach { sceneView.addGestureRecognizer($0) }
+        [tap, longPress, pan].forEach { sceneView.addGestureRecognizer($0) }
 
         context.coordinator.arView = sceneView
         context.coordinator.setupReticle()
         context.coordinator.parentProps = self
         
-        NotificationCenter.default.addObserver(context.coordinator, selector: #selector(Coordinator.handleValidateNotif), name: .gardenARValidate, object: nil)
-        NotificationCenter.default.addObserver(context.coordinator, selector: #selector(Coordinator.handleDelete), name: .gardenARDelete, object: nil)
-        NotificationCenter.default.addObserver(context.coordinator, selector: #selector(Coordinator.handleUndo), name: .gardenARUndo, object: nil)
+        let nc = NotificationCenter.default
+        nc.addObserver(context.coordinator, selector: #selector(Coordinator.handleValidateNotif), name: .gardenARValidate, object: nil)
+        nc.addObserver(context.coordinator, selector: #selector(Coordinator.handleDelete), name: .gardenARDelete, object: nil)
+        nc.addObserver(context.coordinator, selector: #selector(Coordinator.handleRotateAction), name: .gardenARRotate, object: nil)
+        nc.addObserver(context.coordinator, selector: #selector(Coordinator.handleScaleUpAction), name: .gardenARScaleUp, object: nil)
+        nc.addObserver(context.coordinator, selector: #selector(Coordinator.handleScaleDownAction), name: .gardenARScaleDown, object: nil)
 
         if mode == .reopen, let id = existingGardenId {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -216,8 +220,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         private var reticleNode: SCNNode?
         private var lastReticleTransform: simd_float4x4?
         private var selectedNode: SCNNode?
-        private var placedPlants: [PersistedPlant] = []
-        private var lastTransform: SCNMatrix4?
+        private var isRestoring = false
 
         init(_ parent: GardenARPlacementContainerView) { self.parentProps = parent }
 
@@ -232,8 +235,6 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
             guard let arView = arView, let reticle = reticleNode else { return }
             let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
-            
-            // On cherche uniquement sur les plans détectés réels pour éviter le "spawn sur soi"
             if let query = arView.raycastQuery(from: center, allowing: .existingPlaneGeometry, alignment: .horizontal),
                let result = arView.session.raycast(query).first {
                 lastReticleTransform = result.worldTransform
@@ -245,18 +246,32 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             }
         }
 
+        // MARK: - Actions de Transformation
+        @objc func handleRotateAction() {
+            guard let node = selectedNode else { return }
+            node.runAction(SCNAction.rotateBy(x: 0, y: .pi/4, z: 0, duration: 0.2))
+        }
+
+        @objc func handleScaleUpAction() {
+            guard let node = selectedNode else { return }
+            node.runAction(SCNAction.scale(by: 1.1, duration: 0.2))
+        }
+
+        @objc func handleScaleDownAction() {
+            guard let node = selectedNode else { return }
+            node.runAction(SCNAction.scale(by: 0.9, duration: 0.2))
+        }
+
+        @objc func handleDelete() {
+            selectedNode?.removeFromParentNode()
+            deselectAll()
+        }
+
         @objc func handleTapToPlace(_ gesture: UITapGestureRecognizer) {
-            // SECURITÉ : On n'autorise le placement QUE si le réticule est actif (sol détecté)
             guard let transform = lastReticleTransform, let plant = parentProps?.selectedPlant else {
                 deselectAll()
                 return
             }
-            
-            // Évite le spawn trop proche de la caméra
-            let cameraPos = arView?.pointOfView?.simdPosition ?? simd_float3(0,0,0)
-            let spawnPos = simd_float3(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
-            if distance(cameraPos, spawnPos) < 0.25 { return }
-            
             addPlant(at: transform, plant: plant)
         }
 
@@ -272,7 +287,6 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
 
         @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
             guard let node = selectedNode, let arView = arView else { return }
-            if gesture.state == .began { lastTransform = node.transform }
             let location = gesture.location(in: arView)
             if let query = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal),
                let result = arView.session.raycast(query).first {
@@ -280,118 +294,64 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             }
         }
 
-        @objc func handlePinch(_ gesture: UIPinchGestureRecognizer) {
-            guard let node = selectedNode else { return }
-            let s = Float(gesture.scale)
-            node.scale = SCNVector3(node.scale.x * s, node.scale.y * s, node.scale.z * s)
-            gesture.scale = 1.0
-        }
-
-        @objc func handleRotate(_ gesture: UIRotationGestureRecognizer) {
-            guard let node = selectedNode else { return }
-            node.eulerAngles.y -= Float(gesture.rotation)
-            gesture.rotation = 0
-        }
-
-        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool { true }
-
         func addPlant(at transform: simd_float4x4, plant: Plant) {
             guard let arView = arView, let url = plant.localModelURL else { return }
             do {
                 let scene = try SCNScene(url: url, options: nil)
                 let container = SCNNode()
-                container.name = "plant_\(plant.id)_\(plant.name)"
-                
-                // On récupère le contenu du modèle
-                for child in scene.rootNode.childNodes {
-                    container.addChildNode(child)
-                }
-                
-                // --- ÉTAPE 1 : POSITIONNER D'ABORD (CRITIQUE) ---
-                // C'est ici que l'erreur se produisait. On applique la position ARKit AVANT de toucher à l'échelle.
+                // FIX: .alphanumerics au lieu de .alphanumeric
+                let encodedURL = plant.modelURL?.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
+                container.name = "plant_\(plant.id)_\(plant.name)_\(encodedURL)"
+
+                for child in scene.rootNode.childNodes { container.addChildNode(child) }
                 container.simdTransform = transform
-                
-                // --- ÉTAPE 2 : CALCULER ET APPLIQUER L'ÉCHELLE ---
-                let (minVec, maxVec) = container.boundingBox
-                let rawHeight = maxVec.y - minVec.y
-                
-                // On vise 20 cm de haut (0.2m)
-                let targetHeight: Float = 0.8
-                
-                if rawHeight > 0 {
-                    let scaleFactor = targetHeight / rawHeight
-                    
-                    // On applique l'échelle MAINTENANT. Comme la position est déjà définie,
-                    // cette ligne ne sera pas écrasée.
-                    container.scale = SCNVector3(scaleFactor, scaleFactor, scaleFactor)
-                    
-                    // Ajustement du pivot pour que ça touche le sol
-                    container.pivot = SCNMatrix4MakeTranslation(0, minVec.y, 0)
-                    
-                    print("DEBUG: Hauteur originale: \(rawHeight), Facteur appliqué: \(scaleFactor)")
-                } else {
-                    // Si la bounding box échoue (ce qui arrive avec certains .usdz mal formés),
-                    // on force une échelle minuscule par sécurité (1%).
-                    print("DEBUG: Impossible de calculer la hauteur, application échelle de sécurité.")
-                    container.scale = SCNVector3(0.01, 0.01, 0.01)
+
+                if !isRestoring {
+                    let (minVec, maxVec) = container.boundingBox
+                    let rawHeight = maxVec.y - minVec.y
+                    if rawHeight > 0 {
+                        let scaleFactor = 0.8 / rawHeight
+                        container.scale = SCNVector3(scaleFactor, scaleFactor, scaleFactor)
+                        container.pivot = SCNMatrix4MakeTranslation(0, minVec.y, 0)
+                    }
                 }
-                
-                // Ajouter à la scène
                 arView.scene.rootNode.addChildNode(container)
-                
-                // Persistance
-                let p = PersistedPlant(
-                    plantID: plant.id,
-                    plantName: plant.name,
-                    modelURLString: plant.modelURL ?? "",
-                    // Attention: on sauvegarde la transform APRES mise à l'échelle
-                    transform: matrixToFloatArray(container.simdTransform)
-                )
-                placedPlants.append(p)
-                
                 selectNode(container)
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                
-            } catch {
-                print("Erreur spawn: \(error)")
-            }
+            } catch { print(error) }
         }
-
-        func selectNode(_ node: SCNNode) {
-            deselectAll()
-            selectedNode = node
-            parentProps?.hasSelectedNode = true
-            parentProps?.selectedNodeName = node.name?.components(separatedBy: "_").last ?? "Plante"
-        }
-
-        func deselectAll() {
-            selectedNode = nil
-            parentProps?.hasSelectedNode = false
-        }
-
-        @objc func handleDelete() { selectedNode?.removeFromParentNode(); deselectAll() }
-        @objc func handleUndo() { if let n = selectedNode, let old = lastTransform { n.transform = old } }
 
         @objc func handleValidateNotif() {
             guard let arView = arView, let props = parentProps else { return }
-            let placed: [PlacedPlantDTO] = arView.scene.rootNode.childNodes
-                .filter { $0.name?.starts(with: "plant_") == true }
-                .map { node in
-                    let parts = node.name?.components(separatedBy: "_") ?? []
-                    return PlacedPlantDTO(plantId: parts.count > 1 ? parts[1] : "", x: Double(node.position.x), y: Double(node.position.y), z: Double(node.position.z), note: parts.last ?? "")
-                }
-            let payload = GardenCreateDTO(uid: props.uid, name: props.gardenName, wizard: props.wizard, plants: placed, thumbnailKey: props.thumbnailKey)
+            let plantNodes = arView.scene.rootNode.childNodes.filter { $0.name?.starts(with: "plant_") == true }
+
+            let placedDTOs = plantNodes.map { node -> PlacedPlantDTO in
+                let parts = node.name?.components(separatedBy: "_") ?? []
+                return PlacedPlantDTO(plantId: parts[safe: 1] ?? "", x: Double(node.position.x), y: Double(node.position.y), z: Double(node.position.z), note: parts[safe: 2] ?? "")
+            }
+
+            let persistedPlants = plantNodes.map { node -> PersistedPlant in
+                let parts = node.name?.components(separatedBy: "_") ?? []
+                return PersistedPlant(
+                    plantID: parts[safe: 1] ?? "",
+                    plantName: parts[safe: 2] ?? "",
+                    modelURLString: (parts[safe: 3] ?? "").removingPercentEncoding ?? "",
+                    position: [node.position.x, node.position.y, node.position.z],
+                    rotation: [node.eulerAngles.x, node.eulerAngles.y, node.eulerAngles.z],
+                    scale: [node.scale.x, node.scale.y, node.scale.z],
+                    transform: matrixToFloatArray(node.simdTransform)
+                )
+            }
+
             Task {
                 do {
-                    let created = try await GardenAPI.shared.createGarden(payload)
-                    guard let id = created.id else { return }
+                    let created = try await GardenAPI.shared.createGarden(GardenCreateDTO(uid: props.uid, name: props.gardenName, wizard: props.wizard, plants: placedDTOs, thumbnailKey: props.thumbnailKey))
+                    let finalId = props.existingGardenId ?? created.id ?? UUID().uuidString
                     arView.session.getCurrentWorldMap { map, _ in
                         guard let map = map else { return }
                         let mapData = try? NSKeyedArchiver.archivedData(withRootObject: map, requiringSecureCoding: true)
-                        try? mapData?.write(to: GardenLocalStore.worldMapURL(for: id))
-                        let sceneData = PersistedARScene(savedAt: Date(), plants: self.placedPlants)
-                        let json = try? JSONEncoder().encode(sceneData)
-                        try? json?.write(to: GardenLocalStore.sceneURL(for: id))
+                        try? mapData?.write(to: GardenLocalStore.worldMapURL(for: finalId))
+                        let sceneData = PersistedARScene(savedAt: Date(), plants: persistedPlants)
+                        if let json = try? JSONEncoder().encode(sceneData) { try? json.write(to: GardenLocalStore.sceneURL(for: finalId)) }
                         DispatchQueue.main.async { props.onValidated() }
                     }
                 } catch { print(error) }
@@ -400,23 +360,49 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
 
         func loadGardenFromDisk(gardenId: String) {
             guard let arView = arView else { return }
+            isRestoring = true
             do {
                 let mapData = try Data(contentsOf: GardenLocalStore.worldMapURL(for: gardenId))
                 let worldMap = try NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData)
+                
                 let sceneJson = try Data(contentsOf: GardenLocalStore.sceneURL(for: gardenId))
                 let scene = try JSONDecoder().decode(PersistedARScene.self, from: sceneJson)
+
                 let config = ARWorldTrackingConfiguration()
                 config.initialWorldMap = worldMap
                 config.planeDetection = [.horizontal]
                 arView.session.run(config)
+
                 for p in scene.plants {
-                    guard let transform = floatArrayToMatrix(p.transform) else { continue }
-                    let stub = Plant.stubForRestore(id: p.plantID, name: p.plantName, type: "", modelURL: p.modelURLString)
-                    addPlant(at: transform, plant: stub)
+                    // CORRECTION ICI : on utilise directement p.transform car ce n'est pas un optionnel
+                    // Mais floatArrayToMatrix, elle, retourne un optionnel donc on garde le if let pour elle.
+                    if let transform = floatArrayToMatrix(p.transform) {
+                        let stub = Plant.stubForRestore(id: p.plantID, name: p.plantName, type: "", modelURL: p.modelURLString)
+                        addPlant(at: transform, plant: stub)
+                        
+                        // On réapplique l'échelle sauvegardée sur le dernier nœud ajouté
+                        if let node = arView.scene.rootNode.childNodes.last {
+                            node.scale = SCNVector3(p.scale[0], p.scale[1], p.scale[2])
+                        }
+                    }
                 }
-            } catch { print(error) }
+            } catch {
+                print("Erreur chargement disque : \(error)")
+            }
+            isRestoring = false
         }
 
+        private func selectNode(_ node: SCNNode) {
+            deselectAll()
+            selectedNode = node
+            parentProps?.hasSelectedNode = true
+            parentProps?.selectedNodeName = node.name?.components(separatedBy: "_")[safe: 2] ?? "Plante"
+        }
+        private func deselectAll() {
+            selectedNode = nil
+            parentProps?.hasSelectedNode = false
+            parentProps?.selectedNodeName = nil
+        }
         private func isPlantNode(_ node: SCNNode) -> Bool {
             var current: SCNNode? = node
             while current != nil { if current?.name?.starts(with: "plant_") == true { return true }; current = current?.parent }
@@ -430,14 +416,13 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     }
 }
 
-// MARK: - UI Style
-struct GlassButtonStyle: ViewModifier {
-    var isGreen: Bool = false
-    func body(content: Content) -> some View {
-        content.font(.system(size: 18, weight: .bold)).foregroundColor(.white).frame(width: 44, height: 44)
-            .background(isGreen ? Color(hex: "#2BEE79") : .black.opacity(0.35)).clipShape(Circle())
-            .overlay(Circle().stroke(.white.opacity(0.15), lineWidth: 1))
-    }
+// MARK: - Fonctions Globales Utilitaires
+func matrixToFloatArray(_ m: simd_float4x4) -> [Float] { [m.columns.0.x, m.columns.0.y, m.columns.0.z, m.columns.0.w, m.columns.1.x, m.columns.1.y, m.columns.1.z, m.columns.1.w, m.columns.2.x, m.columns.2.y, m.columns.2.z, m.columns.2.w, m.columns.3.x, m.columns.3.y, m.columns.3.z, m.columns.3.w] }
+func floatArrayToMatrix(_ a: [Float]) -> simd_float4x4? { guard a.count == 16 else { return nil }; return simd_float4x4(simd_float4(a[0], a[1], a[2], a[3]), simd_float4(a[4], a[5], a[6], a[7]), simd_float4(a[8], a[9], a[10], a[11]), simd_float4(a[12], a[13], a[14], a[15])) }
+
+// MARK: - Extensions Secours
+extension Array {
+    subscript(safe index: Index) -> Element? { indices.contains(index) ? self[index] : nil }
 }
 
 struct ActionButton: View {
@@ -449,3 +434,11 @@ struct ActionButton: View {
     }
 }
 
+struct GlassButtonStyle: ViewModifier {
+    var isGreen: Bool = false
+    func body(content: Content) -> some View {
+        content.font(.system(size: 18, weight: .bold)).foregroundColor(.white).frame(width: 44, height: 44)
+            .background(isGreen ? Color(hex: "#2BEE79") : .black.opacity(0.35)).clipShape(Circle())
+            .overlay(Circle().stroke(.white.opacity(0.15), lineWidth: 1))
+    }
+}

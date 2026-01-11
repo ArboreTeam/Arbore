@@ -454,44 +454,8 @@ extension Notification.Name {
     static let gardenARLoad = Notification.Name("gardenARLoad")
 }
 
-// MARK: - Persisted data
-
-struct PersistedPlant: Codable {
-    let plantID: String
-    let plantName: String
-    let modelURLString: String
-    let transform: [Float] // 16 floats (column-major)
-}
-
-struct PersistedARScene: Codable {
-    let savedAt: Date
-    let plants: [PersistedPlant]
-}
-
 // MARK: - Matrix <-> [Float]
 
-func matrixToFloatArray(_ m: simd_float4x4) -> [Float] {
-    let c0 = m.columns.0
-    let c1 = m.columns.1
-    let c2 = m.columns.2
-    let c3 = m.columns.3
-    return [
-        c0.x, c0.y, c0.z, c0.w,
-        c1.x, c1.y, c1.z, c1.w,
-        c2.x, c2.y, c2.z, c2.w,
-        c3.x, c3.y, c3.z, c3.w
-    ]
-}
-
-func floatArrayToMatrix(_ a: [Float]) -> simd_float4x4? {
-    guard a.count == 16 else { return nil }
-    return simd_float4x4(
-        SIMD4<Float>(a[0], a[1], a[2], a[3]),
-        SIMD4<Float>(a[4], a[5], a[6], a[7]),
-        SIMD4<Float>(a[8], a[9], a[10], a[11]),
-        SIMD4<Float>(a[12], a[13], a[14], a[15])
-    )
-}
 
 // MARK: - Files
 

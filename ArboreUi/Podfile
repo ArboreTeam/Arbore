@@ -1,23 +1,17 @@
-platform :ios,  # --- Google Sign-In ---
-  pod 'GoogleSignIn', '~> 7.0'
-  # Si tu utilises vraiment les helpers Swift UI :
-  pod 'GoogleSignInSwift', '~> 0.3'
-
-  # --- Facebook Login ---
-  # Note: FacebookLogin v18 n'existe pas, utiliser FBSDKLoginKit à la place
-  pod 'FBSDKLoginKit', '~> 17.0'
-
-  # Ces dépendances transitives ne sont PAS nécessaires à déclarer à la main :se_frameworks!
-inhibit_all_warnings!
-
 # Sources CocoaPods
 source 'https://cdn.cocoapods.org/'
+
+# Platform iOS minimum
+platform :ios, '13.0'
+
+use_frameworks!
+inhibit_all_warnings!
 
 target 'ArboreUi' do
   # --- Firebase (versions modernes) ---
   pod 'FirebaseAuth',        '~> 11.15'
   pod 'FirebaseFirestore',   '~> 11.15'
-  # Analytics (optionnel). Prends la version sans Ad ID pour éviter AppTrackingTransparency si tu n’en as pas besoin.
+  # Analytics (optionnel). Prends la version sans Ad ID pour eviter AppTrackingTransparency si tu n'en as pas besoin.
   # pod 'FirebaseAnalyticsWithoutAdIdSupport', '~> 11.15'
 
   # --- Google Sign-In ---
@@ -26,18 +20,18 @@ target 'ArboreUi' do
   pod 'GoogleSignInSwift', '~> 0.3'
 
   # --- Facebook Login ---
-  pod 'FacebookLogin', '~> 18.0'   # remplace l’ancien FBSDKLoginKit
+  pod 'FBSDKLoginKit', '~> 18.0'
 
-  # Ces dépendances transitives ne sont PAS nécessaires à déclarer à la main :
+  # Ces dependances transitives ne sont PAS necessaires a declarer a la main :
   # ❌ GTMSessionFetcher/Core
 end
 
-# post_install minimal et sûr
+# post_install minimal et sur
 post_install do |installer|
   installer.pods_project.targets.each do |t|
     t.build_configurations.each do |config|
       config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-      # Si simulateur Apple Silicon pose souci, décommente :
+      # Si simulateur Apple Silicon pose souci, decommente :
       # config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"
     end
   end

@@ -4,10 +4,13 @@ struct PrivacySettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) var dismiss
 
-    @State private var profilePublic: Bool = true
-    @State private var showActivity: Bool = true
-    @State private var shareData: Bool = false
+    // Consentements persistés localement avec AppStorage
+    @AppStorage("privacy_profilePublic") private var profilePublic: Bool = true
+    @AppStorage("privacy_showActivity") private var showActivity: Bool = true
+    @AppStorage("privacy_shareData") private var shareData: Bool = false
+
     @State private var showPrivacyPolicy: Bool = false
+    @State private var isSyncing: Bool = false
 
     var body: some View {
         ZStack {
@@ -58,6 +61,9 @@ struct PrivacySettingsView: View {
                                     subtitle: NSLocalizedString("PRIVACYSETTINGS_PUBLICPROFILE_SUB", comment: ""),
                                     isOn: $profilePublic
                                 )
+                                .onChange(of: profilePublic) { _, newValue in
+                                    recordConsentChange(type: "profilePublic", granted: newValue)
+                                }
                             },
                             themeManager: themeManager
                         )
@@ -73,6 +79,9 @@ struct PrivacySettingsView: View {
                                     subtitle: NSLocalizedString("PRIVACYSETTINGS_ACTIVITY_SUB", comment: ""),
                                     isOn: $showActivity
                                 )
+                                .onChange(of: showActivity) { _, newValue in
+                                    recordConsentChange(type: "showActivity", granted: newValue)
+                                }
                             },
                             themeManager: themeManager
                         )
@@ -88,6 +97,9 @@ struct PrivacySettingsView: View {
                                     subtitle: NSLocalizedString("PRIVACYSETTINGS_DATASHARING_SUB", comment: ""),
                                     isOn: $shareData
                                 )
+                                .onChange(of: shareData) { _, newValue in
+                                    recordConsentChange(type: "analytics", granted: newValue)
+                                }
                             },
                             themeManager: themeManager
                         )
@@ -156,6 +168,49 @@ struct PrivacySettingsView: View {
                 .environmentObject(themeManager)
                 .interactiveDismissDisabled()
         }
+    }
+
+    // MARK: - Consent Management
+
+    /// Enregistre localement la modification d'un consentement avec horodatage
+    private func recordConsentChange(type: String, granted: Bool) {
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let key = "consent_\(type)_lastChanged"
+
+        // Sauvegarder la date de dernière modification
+        UserDefaults.standard.set(timestamp, forKey: key)
+
+        // Sauvegarder l'historique (pour traçabilité RGPD)
+        var history = UserDefaults.standard.array(forKey: "consent_history") as? [[String: String]] ?? []
+        history.append([
+            "type": type,
+            "granted": String(granted),
+            "timestamp": timestamp,
+            "version": "1.0" // Version de la politique de confidentialité
+        ])
+        UserDefaults.standard.set(history, forKey: "consent_history")
+
+        print("✅ Consent recorded: \(type) = \(granted) at \(timestamp)")
+
+        // TODO: Synchroniser avec le backend (POST /consents) quand l'endpoint sera créé
+        // syncConsentToBackend(type: type, granted: granted, timestamp: timestamp)
+    }
+
+    /// À implémenter plus tard : synchronisation avec le backend
+    private func syncConsentToBackend(type: String, granted: Bool, timestamp: String) {
+        // guard let uid = Auth.auth().currentUser?.uid else { return }
+        //
+        // let consentData: [String: Any] = [
+        //     "uid": uid,
+        //     "consentType": type,
+        //     "granted": granted,
+        //     "version": "1.0",
+        //     "timestamp": timestamp
+        // ]
+        //
+        // APIService.recordConsent(consentData) { result in
+        //     // Handle result
+        // }
     }
 }
 

@@ -23,7 +23,7 @@ concurrency:
 env:
   GO_VERSION: "1.22"
   PYTHON_VERSION: "3.11"
-  XCODE_VERSION: "15.2"
+  XCODE_VERSION: "16.2"
 
 jobs:
   # Détection des changements pour optimiser les builds

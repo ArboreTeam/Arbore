@@ -4,6 +4,8 @@ source 'https://cdn.cocoapods.org/'
 # Platform iOS minimum
 platform :ios, '13.0'
 
+# Updated 2026-01-18: Fixed CocoaPods version sync (1.16.2)
+
 use_frameworks!
 inhibit_all_warnings!
 

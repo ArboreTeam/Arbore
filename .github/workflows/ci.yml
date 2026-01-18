@@ -234,10 +234,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pods-
 
-      - name: 🔧 Install CocoaPods
+      - name: 🔧 Install CocoaPods and xcpretty
         run: |
-          sudo gem install cocoapods -v 1.15.2
+          sudo gem install cocoapods -v 1.16.2
+          sudo gem install xcpretty
           pod --version
+          xcpretty --version
 
       - name: 🗑️ Clean CocoaPods cache (si nécessaire)
         run: |

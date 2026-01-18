@@ -7,6 +7,15 @@ on:
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
+    inputs:
+      clean_pods_cache:
+        description: 'Clean CocoaPods cache before build'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 # Permissions pour les actions GitHub
 permissions:
@@ -241,17 +250,19 @@ jobs:
           pod --version
           xcpretty --version
 
-      - name: 🗑️ Clean CocoaPods cache (si nécessaire)
+      - name: 🗑️ Clean CocoaPods cache (si demandé manuellement)
+        if: github.event.inputs.clean_pods_cache == 'true'
         run: |
-          pod cache clean --all || true
+          echo "🧹 Nettoyage du cache CocoaPods demandé..."
+          pod cache clean --all
+          rm -rf ~/Library/Caches/CocoaPods
+          rm -rf ~/.cocoapods
 
       - name: 📦 Install CocoaPods dependencies
         run: |
-          # Ajout du repo CocoaPods si nécessaire
-          pod repo list || pod setup
-          
-          # Installation des dépendances avec mise à jour des repos
-          pod install --repo-update --verbose
+          # Utilise le CDN (source 'https://cdn.cocoapods.org/' dans Podfile)
+          # Pas besoin de --repo-update grâce au cache et au CDN
+          pod install --verbose
           
       - name: 🧹 Clean build folder
         run: |
@@ -264,7 +275,7 @@ jobs:
           xcodebuild clean build \
             -workspace ArboreUi.xcworkspace \
             -scheme ArboreUi \
-            -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
             -configuration Debug \
             -derivedDataPath build/ \
             CODE_SIGNING_ALLOWED=NO \
@@ -277,7 +288,7 @@ jobs:
           xcodebuild test \
             -workspace ArboreUi.xcworkspace \
             -scheme ArboreUi \
-            -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
             -derivedDataPath build/ \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty || echo "Tests completed with warnings"
@@ -334,7 +345,7 @@ jobs:
           xcodebuild clean build \
             -project ArboreARkit.xcodeproj \
             -scheme ArboreARkit \
-            -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
             -configuration Debug \
             -derivedDataPath build/ \
             CODE_SIGNING_ALLOWED=NO \
@@ -347,7 +358,7 @@ jobs:
           xcodebuild test \
             -project ArboreARkit.xcodeproj \
             -scheme ArboreARkit \
-            -destination 'platform=iOS Simulator,name=iPhone 15 Pro,OS=latest' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
             -derivedDataPath build/ \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty || echo "Tests completed with warnings"

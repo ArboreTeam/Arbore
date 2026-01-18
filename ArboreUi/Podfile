@@ -4,7 +4,7 @@ source 'https://cdn.cocoapods.org/'
 # Platform iOS minimum
 platform :ios, '13.0'
 
-# Updated 2026-01-18: CocoaPods 1.16.2 + Xcode 16.2 (CI sync)
+# Updated 2026-01-18: CocoaPods 1.16.2 + Xcode 16.2 + iPhone 16 Pro simulator
 
 use_frameworks!
 inhibit_all_warnings!

@@ -272,6 +272,7 @@ jobs:
 
       - name: 🏗️ Build iOS App for Simulator
         run: |
+          set -o pipefail
           xcodebuild clean build \
             -workspace ArboreUi.xcworkspace \
             -scheme ArboreUi \
@@ -280,18 +281,19 @@ jobs:
             -derivedDataPath build/ \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
-            | xcpretty || exit 1
+            | xcpretty
 
       - name: 🧪 Run Unit Tests
         continue-on-error: true
         run: |
+          set -o pipefail
           xcodebuild test \
             -workspace ArboreUi.xcworkspace \
             -scheme ArboreUi \
             -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
             -derivedDataPath build/ \
             CODE_SIGNING_ALLOWED=NO \
-            | xcpretty || echo "Tests completed with warnings"
+            | xcpretty
 
       - name: 📊 Generate test report
         if: always()
@@ -342,6 +344,7 @@ jobs:
 
       - name: 🏗️ Build AR Module for Simulator
         run: |
+          set -o pipefail
           xcodebuild clean build \
             -project ArboreARkit.xcodeproj \
             -scheme ArboreARkit \
@@ -350,18 +353,19 @@ jobs:
             -derivedDataPath build/ \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
-            | xcpretty || exit 1
+            | xcpretty
 
       - name: 🧪 Run Unit Tests
         continue-on-error: true
         run: |
+          set -o pipefail
           xcodebuild test \
             -project ArboreARkit.xcodeproj \
             -scheme ArboreARkit \
             -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
             -derivedDataPath build/ \
             CODE_SIGNING_ALLOWED=NO \
-            | xcpretty || echo "Tests completed with warnings"
+            | xcpretty
 
       - name: 📤 Upload build artifacts
         if: always()

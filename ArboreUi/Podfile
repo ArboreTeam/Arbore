@@ -10,22 +10,11 @@ use_frameworks!
 inhibit_all_warnings!
 
 target 'ArboreUi' do
-  # --- Firebase (versions modernes) ---
-  pod 'FirebaseAuth',        '~> 11.15'
-  pod 'FirebaseFirestore',   '~> 11.15'
-  # Analytics (optionnel). Prends la version sans Ad ID pour eviter AppTrackingTransparency si tu n'en as pas besoin.
-  # pod 'FirebaseAnalyticsWithoutAdIdSupport', '~> 11.15'
-
-  # --- Google Sign-In ---
-  pod 'GoogleSignIn', '~> 7.0'
-  # Si tu utilises vraiment les helpers Swift UI :
-  pod 'GoogleSignInSwift', '~> 0.3'
+  # Firebase et GoogleSignIn sont gérés via Swift Package Manager (voir project.pbxproj)
+  # Seul Facebook SDK reste dans CocoaPods (pas disponible via SPM)
 
   # --- Facebook Login ---
   pod 'FBSDKLoginKit', '~> 18.0'
-
-  # Ces dependances transitives ne sont PAS necessaires a declarer a la main :
-  # ❌ GTMSessionFetcher/Core
 end
 
 # post_install minimal et sur

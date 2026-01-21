@@ -12,6 +12,7 @@ struct PrivacySettingsView: View {
 
     @State private var showPrivacyPolicy: Bool = false
     @State private var isSyncing: Bool = false
+    @State private var hasLoadedFromBackend: Bool = false
 
     var body: some View {
         ZStack {
@@ -169,6 +170,12 @@ struct PrivacySettingsView: View {
                 .environmentObject(themeManager)
                 .interactiveDismissDisabled()
         }
+        .onAppear {
+            if !hasLoadedFromBackend {
+                loadConsentsFromBackend()
+                hasLoadedFromBackend = true
+            }
+        }
     }
 
     // MARK: - Consent Management
@@ -236,6 +243,60 @@ struct PrivacySettingsView: View {
             }
         }.resume()
     }
+
+    /// Charge les consentements depuis le backend au démarrage (synchronisation multi-appareils)
+    private func loadConsentsFromBackend() {
+        guard let uid = Auth.auth().currentUser?.uid else {
+            print("⚠️ No user logged in, skipping backend load")
+            return
+        }
+
+        guard let url = URL(string: "\(AppConfig.consentsEndpoint)/\(uid)/latest") else { return }
+
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            if let error = error {
+                print("⚠️ Error loading consents from backend: \(error)")
+                return
+            }
+
+            guard let data = data,
+                  let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                print("⚠️ Backend returned non-200 status when loading consents")
+                return
+            }
+
+            do {
+                let consents = try JSONDecoder().decode([BackendConsent].self, from: data)
+
+                DispatchQueue.main.async {
+                    for consent in consents {
+                        switch consent.consentType {
+                            case "profilePublic":
+                                self.profilePublic = consent.granted
+                            case "showActivity":
+                                self.showActivity = consent.granted
+                            case "analytics":
+                                self.shareData = consent.granted
+                            default:
+                                break
+                        }
+                    }
+                    print("✅ Consents loaded from backend: \(consents.count) items")
+                }
+            } catch {
+                print("❌ Error decoding consents: \(error)")
+            }
+        }.resume()
+    }
+}
+
+// MARK: - Backend Consent Model
+private struct BackendConsent: Codable {
+    let consentType: String
+    let granted: Bool
+    let timestamp: String
+    let version: String
 }
 
 // MARK: - Section Card

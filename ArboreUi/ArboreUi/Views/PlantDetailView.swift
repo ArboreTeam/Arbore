@@ -424,7 +424,7 @@ struct PlantDetailView: View {
     // MARK: - NETWORKING
 
     private func fetchPlantDetails() {
-        guard let url = URL(string: "http://79.137.92.154:8080/plants/\(plantID)") else {
+        guard let url = URL(string: "\(AppConfig.plantsEndpoint)/\(plantID)") else {
             self.errorMessage = NSLocalizedString("PLANTDETAIL_ERROR_URL_INVALID", comment: "")
             self.isLoading = false
             return

@@ -4,7 +4,7 @@ class PlantService: ObservableObject {
     @Published var plants: [Plant] = []
     
     func fetchPlants() {
-        guard let url = URL(string: "http://79.137.92.154:8080/plants") else {
+        guard let url = URL(string: AppConfig.plantsEndpoint) else {
             print("❌ URL invalide")
             return
         }

@@ -9,9 +9,8 @@ enum APIError: Error {
 final class GardenAPI {
     static let shared = GardenAPI()
 
-    /// ✅ Mets l'URL publique de ton serveur (VPS)
-    /// Si tu mets un domaine + HTTPS plus tard, tu changes juste ici.
-    private let baseURL = "http://79.137.92.154:8080"
+    /// URL du serveur backend (centralisée dans AppConfig)
+    private let baseURL = AppConfig.baseURL
 
     private let jsonDecoder: JSONDecoder = {
         let d = JSONDecoder()

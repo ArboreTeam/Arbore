@@ -217,7 +217,7 @@ struct CatalogueView: View {
 
     func fetchPlants() {
         self.isLoading = true // Reset loading state when retrying
-        guard let url = URL(string: "http://79.137.92.154:8080/plants") else {
+        guard let url = URL(string: AppConfig.plantsEndpoint) else {
             self.errorMessage = NSLocalizedString("CATALOG_ERROR_URL_INVALID", comment: "Invalid URL")
             self.isLoading = false
             return

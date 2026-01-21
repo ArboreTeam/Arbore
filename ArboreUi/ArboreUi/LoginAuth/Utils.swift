@@ -2,7 +2,7 @@ import SwiftUI
 import FirebaseAuth
 
 func deleteUserFromMongo(uid: String, completion: @escaping () -> Void) {
-    guard let url = URL(string: "http://79.137.92.154:8080/users/\(uid)") else {
+    guard let url = URL(string: "\(AppConfig.usersEndpoint)/\(uid)") else {
         completion()
         return
     }

@@ -192,25 +192,50 @@ struct PrivacySettingsView: View {
 
         print("✅ Consent recorded: \(type) = \(granted) at \(timestamp)")
 
-        // TODO: Synchroniser avec le backend (POST /consents) quand l'endpoint sera créé
-        // syncConsentToBackend(type: type, granted: granted, timestamp: timestamp)
+        syncConsentToBackend(type: type, granted: granted, timestamp: timestamp)
     }
 
-    /// À implémenter plus tard : synchronisation avec le backend
+    /// Synchronisation avec le backend (POST /consents)
     private func syncConsentToBackend(type: String, granted: Bool, timestamp: String) {
-        // guard let uid = Auth.auth().currentUser?.uid else { return }
-        //
-        // let consentData: [String: Any] = [
-        //     "uid": uid,
-        //     "consentType": type,
-        //     "granted": granted,
-        //     "version": "1.0",
-        //     "timestamp": timestamp
-        // ]
-        //
-        // APIService.recordConsent(consentData) { result in
-        //     // Handle result
-        // }
+        private let baseURL = "http://79.137.92.154:8080"
+
+        guard let uid = Auth.auth().currentUser?.uid else {
+            print("⚠️ No user logged in, skipping backend sync")
+            return
+        }
+
+        let consentData: [String: Any] = [
+            "uid": uid,
+            "consentType": type,
+            "granted": granted,
+            "version": "1.0",
+            "timestamp": timestamp
+        ]
+
+        guard let url = URL(string: "\(baseURL)/consents") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: consentData)
+        } catch {
+            print("❌ Error serializing consent data: \(error)")
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("❌ Error syncing consent to backend: \(error)")
+                return
+            }
+
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 {
+                print("✅ Consent synced to backend successfully")
+            } else {
+                print("⚠️ Backend sync returned non-201 status")
+            }
+        }.resume()
     }
 }
 

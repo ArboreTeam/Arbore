@@ -11,7 +11,7 @@ class UserService: ObservableObject {
     @Published var fetchError: String? = nil
 
     func fetchUser(by uid: String, completion: @escaping (Result<User, Error>) -> Void) {
-        guard let url = URL(string: "http://79.137.92.154:8080/users/\(uid)") else {
+        guard let url = URL(string: "\(AppConfig.usersEndpoint)/\(uid)") else {
             completion(.failure(URLError(.badURL)))
             return
         }

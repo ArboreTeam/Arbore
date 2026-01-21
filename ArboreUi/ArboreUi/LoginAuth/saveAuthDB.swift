@@ -3,7 +3,7 @@ import Firebase
 
 /// Envoie un utilisateur vers MongoDB via ton backend
 func saveUserToBackend(uid: String, email: String, name: String, createdAt: Date) {
-    guard let url = URL(string: "http://79.137.92.154:8080/users") else { return }
+    guard let url = URL(string: AppConfig.usersEndpoint) else { return }
 
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
@@ -42,7 +42,7 @@ func saveUserToBackend(uid: String, email: String, name: String, createdAt: Date
 
 /// Vérifie si un utilisateur existe déjà côté MongoDB
 func checkIfUserExists(uid: String, completion: @escaping (Bool) -> Void) {
-    guard let url = URL(string: "http://79.137.92.154:8080/users/\(uid)") else { return }
+    guard let url = URL(string: "\(AppConfig.usersEndpoint)/\(uid)") else { return }
 
     var request = URLRequest(url: url)
     request.httpMethod = "GET"

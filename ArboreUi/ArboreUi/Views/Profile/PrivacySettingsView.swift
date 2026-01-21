@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseAuth
 
 struct PrivacySettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
@@ -186,7 +187,7 @@ struct PrivacySettingsView: View {
             "type": type,
             "granted": String(granted),
             "timestamp": timestamp,
-            "version": "1.0" // Version de la politique de confidentialité
+            "version": AppConfig.privacyPolicyVersion
         ])
         UserDefaults.standard.set(history, forKey: "consent_history")
 
@@ -197,8 +198,6 @@ struct PrivacySettingsView: View {
 
     /// Synchronisation avec le backend (POST /consents)
     private func syncConsentToBackend(type: String, granted: Bool, timestamp: String) {
-        private let baseURL = "http://79.137.92.154:8080"
-
         guard let uid = Auth.auth().currentUser?.uid else {
             print("⚠️ No user logged in, skipping backend sync")
             return
@@ -208,11 +207,11 @@ struct PrivacySettingsView: View {
             "uid": uid,
             "consentType": type,
             "granted": granted,
-            "version": "1.0",
+            "version": AppConfig.privacyPolicyVersion,
             "timestamp": timestamp
         ]
 
-        guard let url = URL(string: "\(baseURL)/consents") else { return }
+        guard let url = URL(string: AppConfig.consentsEndpoint) else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

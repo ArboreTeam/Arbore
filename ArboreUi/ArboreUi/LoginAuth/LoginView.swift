@@ -294,7 +294,7 @@ struct LoginView: View {
 }
 
 func checkAndDeleteIfExpired(uid: String) {
-    guard let url = URL(string: "http://79.137.92.154:8080/users/\(uid)") else { return }
+    guard let url = URL(string: "\(AppConfig.usersEndpoint)/\(uid)") else { return }
 
     URLSession.shared.dataTask(with: url) { data, response, error in
         guard let data = data, error == nil else { return }
@@ -330,7 +330,7 @@ func deleteAccount() {
         }
 
         // Supprime de MongoDB
-        if let url = URL(string: "http://79.137.92.154:8080/users/\(user.uid)") {
+        if let url = URL(string: "\(AppConfig.usersEndpoint)/\(user.uid)") {
             var request = URLRequest(url: url)
             request.httpMethod = "DELETE"
 

@@ -32,6 +32,19 @@ type User struct {
 	PhotoContentType string `json:"photoContentType,omitempty" bson:"photoContentType,omitempty"`
 }
 
+// ---------- CONSENT STRUCTS (RGPD) ----------
+
+type ConsentRecord struct {
+	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	UID         string             `json:"uid" bson:"uid"`
+	ConsentType string             `json:"consentType" bson:"consentType"`
+	Version     string             `json:"version" bson:"version"`
+	Granted     bool               `json:"granted" bson:"granted"`
+	Timestamp   time.Time          `json:"timestamp" bson:"timestamp"`
+	IPAddress   string             `json:"ipAddress,omitempty" bson:"ipAddress,omitempty"`
+	UserAgent   string             `json:"userAgent,omitempty" bson:"userAgent,omitempty"`
+}
+
 // ---------- PLANTS & AI STRUCTS ----------
 
 type SunInfo struct {
@@ -191,6 +204,114 @@ func deleteUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Utilisateur supprimé avec succès"})
+}
+
+// ---------- CONSENTS (RGPD) ----------
+
+func recordConsent(c *gin.Context) {
+	var consent ConsentRecord
+	if err := c.ShouldBindJSON(&consent); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if consent.UID == "" || consent.ConsentType == "" || consent.Version == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "UID, consentType et version sont requis"})
+		return
+	}
+
+	consent.ID = primitive.NewObjectID()
+	if consent.Timestamp.IsZero() {
+		consent.Timestamp = time.Now()
+	}
+
+	if consent.IPAddress == "" {
+		consent.IPAddress = c.ClientIP()
+	}
+	if consent.UserAgent == "" {
+		consent.UserAgent = c.GetHeader("User-Agent")
+	}
+
+	collection := client.Database("arbore").Collection("consents")
+	_, err := collection.InsertOne(context.Background(), consent)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de l'enregistrement du consentement"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, consent)
+}
+
+func getUserConsents(c *gin.Context) {
+	uid := c.Param("uid")
+
+	collection := client.Database("arbore").Collection("consents")
+
+	findOptions := options.Find().SetSort(bson.D{{Key: "timestamp", Value: -1}})
+
+	cursor, err := collection.Find(
+		context.Background(),
+		bson.M{"uid": uid},
+		findOptions,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération des consentements"})
+		return
+	}
+	defer cursor.Close(context.Background())
+
+	var consents []ConsentRecord
+	if err = cursor.All(context.Background(), &consents); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors du décodage des consentements"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"uid":      uid,
+		"count":    len(consents),
+		"consents": consents,
+	})
+}
+
+func getLatestUserConsents(c *gin.Context) {
+	uid := c.Param("uid")
+
+	collection := client.Database("arbore").Collection("consents")
+
+	findOptions := options.Find().SetSort(bson.D{{Key: "timestamp", Value: -1}})
+	cursor, err := collection.Find(
+		context.Background(),
+		bson.M{"uid": uid},
+		findOptions,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération"})
+		return
+	}
+	defer cursor.Close(context.Background())
+
+	var allConsents []ConsentRecord
+	if err = cursor.All(context.Background(), &allConsents); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur de décodage"})
+		return
+	}
+
+	latestByType := make(map[string]ConsentRecord)
+	for _, consent := range allConsents {
+		if _, exists := latestByType[consent.ConsentType]; !exists {
+			latestByType[consent.ConsentType] = consent
+		}
+	}
+
+	var latestConsents []ConsentRecord
+	for _, consent := range latestByType {
+		latestConsents = append(latestConsents, consent)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"uid":      uid,
+		"consents": latestConsents,
+	})
 }
 
 // ---------- PLANTS CRUD ----------
@@ -680,6 +801,11 @@ func main() {
 	router.GET("/gardens/:id", getGardenByID)
 	router.PUT("/gardens/:id", updateGarden)    // PATCH-like payload
 	router.DELETE("/gardens/:id", deleteGarden)
+
+	// Consents (RGPD)
+	router.POST("/consents", recordConsent)                        // Enregistrer un consentement
+	router.GET("/consents/:uid", getUserConsents)                  // Historique complet
+	router.GET("/consents/:uid/latest", getLatestUserConsents)     // Derniers consentements (un par type)
 
 	fmt.Println("🚀 Serveur démarré sur http://localhost:8080")
 	if err := router.Run(":8080"); err != nil {

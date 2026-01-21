@@ -6,13 +6,13 @@ struct PrivacySettingsView: View {
     @Environment(\.dismiss) var dismiss
 
     // Consentements persistés localement avec AppStorage
-    @AppStorage("privacy_profilePublic") private var profilePublic: Bool = true
-    @AppStorage("privacy_showActivity") private var showActivity: Bool = true
-    @AppStorage("privacy_shareData") private var shareData: Bool = false
+    @AppStorage("privacy_profilePublic") internal var profilePublic: Bool = true
+    @AppStorage("privacy_showActivity") internal var showActivity: Bool = true
+    @AppStorage("privacy_shareData") internal var shareData: Bool = false
 
-    @State private var showPrivacyPolicy: Bool = false
-    @State private var isSyncing: Bool = false
-    @State private var hasLoadedFromBackend: Bool = false
+    @State internal var showPrivacyPolicy: Bool = false
+    @State internal var isSyncing: Bool = false
+    @State internal var hasLoadedFromBackend: Bool = false
 
     var body: some View {
         ZStack {
@@ -181,7 +181,7 @@ struct PrivacySettingsView: View {
     // MARK: - Consent Management
 
     /// Enregistre localement la modification d'un consentement avec horodatage
-    private func recordConsentChange(type: String, granted: Bool) {
+    internal func recordConsentChange(type: String, granted: Bool) {
         let timestamp = ISO8601DateFormatter().string(from: Date())
         let key = "consent_\(type)_lastChanged"
 
@@ -204,7 +204,7 @@ struct PrivacySettingsView: View {
     }
 
     /// Synchronisation avec le backend (POST /consents)
-    private func syncConsentToBackend(type: String, granted: Bool, timestamp: String) {
+    internal func syncConsentToBackend(type: String, granted: Bool, timestamp: String) {
         guard let uid = Auth.auth().currentUser?.uid else {
             print("⚠️ No user logged in, skipping backend sync")
             return
@@ -245,7 +245,7 @@ struct PrivacySettingsView: View {
     }
 
     /// Charge les consentements depuis le backend au démarrage (synchronisation multi-appareils)
-    private func loadConsentsFromBackend() {
+    internal func loadConsentsFromBackend() {
         guard let uid = Auth.auth().currentUser?.uid else {
             print("⚠️ No user logged in, skipping backend load")
             return
@@ -267,10 +267,11 @@ struct PrivacySettingsView: View {
             }
 
             do {
-                let consents = try JSONDecoder().decode([BackendConsent].self, from: data)
+                // Le backend retourne {"uid": "...", "consents": [...]}
+                let response = try JSONDecoder().decode(BackendConsentsResponse.self, from: data)
 
                 DispatchQueue.main.async {
-                    for consent in consents {
+                    for consent in response.consents {
                         switch consent.consentType {
                             case "profilePublic":
                                 self.profilePublic = consent.granted
@@ -282,7 +283,7 @@ struct PrivacySettingsView: View {
                                 break
                         }
                     }
-                    print("✅ Consents loaded from backend: \(consents.count) items")
+                    print("✅ Consents loaded from backend: \(response.consents.count) items")
                 }
             } catch {
                 print("❌ Error decoding consents: \(error)")
@@ -291,12 +292,17 @@ struct PrivacySettingsView: View {
     }
 }
 
-// MARK: - Backend Consent Model
-private struct BackendConsent: Codable {
+// MARK: - Backend Consent Models
+struct BackendConsent: Codable {
     let consentType: String
     let granted: Bool
     let timestamp: String
     let version: String
+}
+
+struct BackendConsentsResponse: Codable {
+    let uid: String
+    let consents: [BackendConsent]
 }
 
 // MARK: - Section Card

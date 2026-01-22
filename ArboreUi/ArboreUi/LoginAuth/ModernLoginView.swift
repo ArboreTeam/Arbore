@@ -5,18 +5,18 @@ import GoogleSignIn
 import GoogleSignInSwift
 
 struct ModernLoginView: View {
-    @StateObject private var authViewModel = AuthenticationView()
+    @StateObject internal var authViewModel = AuthenticationView()
     @EnvironmentObject var themeManager: ThemeManager
-    
-    @State private var showSignUp = false
-    @State private var showReset = false
-    @State private var email = ""
-    @State private var password = ""
-    @State private var isPasswordVisible = false
-    @State private var errorMessage = ""
-    @State private var isLoading = false
+
+    @State internal var showSignUp = false
+    @State internal var showReset = false
+    @State internal var email = ""
+    @State internal var password = ""
+    @State internal var isPasswordVisible = false
+    @State internal var errorMessage = ""
+    @State internal var isLoading = false
     @AppStorage("isLoggedIn") var isLoggedIn = false
-    @FocusState private var focusedField: Field?
+    @FocusState internal var focusedField: Field?
 
     enum Field {
         case email, password

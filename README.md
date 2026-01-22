@@ -63,8 +63,12 @@ cd ArboreBackend
 go mod tidy
 
 # Configuration des variables d'environnement
-export MONGODB_URI="your_mongodb_connection_string"
-export UNSPLASH_ACCESS_KEY="your_unsplash_key"
+cp .env.example .env
+# Éditer .env et remplir les valeurs:
+# - ARBORE_API_KEY (clé pour sécuriser l'API)
+# - MONGODB_URI (connexion MongoDB)
+# - OPENAI_API_KEY (pour génération IA)
+# - UNSPLASH_ACCESS_KEY (pour images de plantes)
 
 # Lancement du serveur
 go run .
@@ -87,10 +91,22 @@ python main.py
 
 ### 📱 Configuration de l'application iOS
 
-1. Ouvrez `ArboreUi.xcworkspace` dans Xcode
-2. Configurez votre fichier `GoogleService-Info.plist` Firebase
-3. Assurez-vous que les permissions caméra sont configurées dans `Info.plist`
-4. Compilez et lancez sur un appareil iOS physique (requis pour ARKit)
+1. **Configuration des secrets**
+   ```bash
+   cd ArboreUi
+
+   # Copier le template de secrets
+   cp Secrets.xcconfig.example Secrets.xcconfig
+
+   # Éditer Secrets.xcconfig et remplir les valeurs
+   # ARBORE_API_KEY = votre_clé_api_backend
+   # ARBORE_BACKEND_URL = http://79.137.92.154:8080
+   ```
+
+2. Ouvrez `ArboreUi.xcworkspace` dans Xcode
+3. Configurez votre fichier `GoogleService-Info.plist` Firebase
+4. Assurez-vous que les permissions caméra sont configurées dans `Info.plist`
+5. Compilez et lancez sur un appareil iOS physique (requis pour ARKit)
 
 ## 🎯 Utilisation
 

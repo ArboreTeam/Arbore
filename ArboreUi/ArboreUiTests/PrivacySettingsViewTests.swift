@@ -599,6 +599,7 @@ class PrivacySettingsIntegrationTests: XCTestCase {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
 
         let userData: [String: Any] = [
             "uid": uid,
@@ -638,6 +639,7 @@ class PrivacySettingsIntegrationTests: XCTestCase {
 
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
+        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
 
         URLSession.shared.dataTask(with: request) { _, response, error in
             if let error = error {
@@ -829,7 +831,8 @@ class PrivacySettingsIntegrationTests: XCTestCase {
             return
         }
 
-        let request = URLRequest(url: url, timeoutInterval: 5.0)
+        var request = URLRequest(url: url, timeoutInterval: 5.0)
+        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
 
         URLSession.shared.dataTask(with: request) { _, response, error in
             if let error = error {
@@ -846,11 +849,11 @@ class PrivacySettingsIntegrationTests: XCTestCase {
     }
 
     func testBackendHealth_BaseURL_ShouldBeReachable() {
-        // Test que le backend principal est accessible
+        // Test que le backend principal est accessible via l'endpoint /health (public)
 
         let expectation = XCTestExpectation(description: "Base URL health check")
 
-        guard let url = URL(string: AppConfig.baseURL) else {
+        guard let url = URL(string: "\(AppConfig.baseURL)/health") else {
             XCTFail("Invalid base URL")
             return
         }
@@ -863,7 +866,13 @@ class PrivacySettingsIntegrationTests: XCTestCase {
                 print("⚠️ Make sure backend is running on \(AppConfig.baseURL)")
             }
 
-            XCTAssertNil(error, "Backend should be reachable at \(AppConfig.baseURL)")
+            XCTAssertNil(error, "Backend should be reachable at \(AppConfig.baseURL)/health")
+
+            // Vérifier le status code 200
+            if let httpResponse = response as? HTTPURLResponse {
+                XCTAssertEqual(httpResponse.statusCode, 200, "Health endpoint should return 200")
+            }
+
             expectation.fulfill()
         }.resume()
 

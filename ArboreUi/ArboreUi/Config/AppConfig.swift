@@ -26,10 +26,18 @@ struct AppConfig {
     /// URL de base du serveur backend
     /// Chargée depuis Secrets.xcconfig via Info.plist (ou valeur par défaut)
     static let baseURL: String = {
-        if let url = Bundle.main.object(forInfoDictionaryKey: "ARBORE_BACKEND_URL") as? String,
-           !url.isEmpty,
-           url != "$(ARBORE_BACKEND_URL)" {
-            return url
+        // Lire le protocole et le host depuis Info.plist
+        let protocolScheme = Bundle.main.object(forInfoDictionaryKey: "ARBORE_BACKEND_PROTOCOL") as? String
+        let host = Bundle.main.object(forInfoDictionaryKey: "ARBORE_BACKEND_HOST") as? String
+
+        // Vérifier que les valeurs sont valides (pas vides, pas les placeholders)
+        if let protocolScheme = protocolScheme,
+           let host = host,
+           !protocolScheme.isEmpty,
+           !host.isEmpty,
+           protocolScheme != "$(ARBORE_BACKEND_PROTOCOL)",
+           host != "$(ARBORE_BACKEND_HOST)" {
+            return "\(protocolScheme)://\(host)"
         }
 
         #if DEBUG

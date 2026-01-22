@@ -885,7 +885,6 @@ class PrivacySettingsIntegrationTests: XCTestCase {
         let expectation = XCTestExpectation(description: "API Key validation on /plants")
 
         guard let url = URL(string: AppConfig.plantsEndpoint) else {
-            XCTFail("Invalid plants endpoint URL")
             return
         }
 

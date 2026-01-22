@@ -24,7 +24,9 @@
 	</dict>
 	<key>ARBORE_API_KEY</key>
 	<string>$(ARBORE_API_KEY)</string>
-	<key>ARBORE_BACKEND_URL</key>
-	<string>$(ARBORE_BACKEND_URL)</string>
+	<key>ARBORE_BACKEND_PROTOCOL</key>
+	<string>$(ARBORE_BACKEND_PROTOCOL)</string>
+	<key>ARBORE_BACKEND_HOST</key>
+	<string>$(ARBORE_BACKEND_HOST)</string>
 </dict>
 </plist>

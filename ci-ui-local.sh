@@ -200,12 +200,24 @@ main() {
                 grep -E "(Test Suite|Test Case|passed|failed|Executed|TEST FAILED|TEST SUCCEEDED)" || true
             cd "$SCRIPT_DIR"
 
-            if grep -q "TEST SUCCEEDED" /tmp/arbore_test_output.log; then
-                failed=0
+            # Parser le résultat "Executed X tests, with Y failures"
+            if grep -q "Executed.*tests" /tmp/arbore_test_output.log; then
+                total=$(grep "Executed.*tests" /tmp/arbore_test_output.log | sed -E 's/.*Executed ([0-9]+) tests.*/\1/')
+                failed=$(grep "Executed.*tests" /tmp/arbore_test_output.log | sed -E 's/.*with ([0-9]+) failure.*/\1/')
+
+                # Si pas de failures dans la sortie, c'est que tous ont réussi
+                if ! grep -q "failure" /tmp/arbore_test_output.log; then
+                    failed=0
+                fi
             else
-                failed=1
+                # Fallback si le format n'est pas trouvé
+                if grep -q "TEST SUCCEEDED" /tmp/arbore_test_output.log; then
+                    failed=0
+                else
+                    failed=1
+                fi
+                total=1
             fi
-            total=1
             ;;
         6)
             print_info "Annulé par l'utilisateur"

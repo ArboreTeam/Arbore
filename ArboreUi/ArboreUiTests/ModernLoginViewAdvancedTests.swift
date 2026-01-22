@@ -4,8 +4,6 @@ import Firebase
 import FirebaseAuth
 @testable import ArboreUi
 
-/*
-TESTS DÉSACTIVÉS: Dépendent de ModernLoginView qui a des propriétés @State privées.
 
 // MARK: - Email Validation Tests
 class EmailValidationTests: XCTestCase {
@@ -208,62 +206,11 @@ class ThemeConsistencyTests: XCTestCase {
     override func setUpWithError() throws {
         mockThemeManager = MockThemeManager()
     }
-    
-    func testDarkTheme_AllComponentsConsistent() {
-        mockThemeManager.colorScheme = .dark
-        let view = ModernLoginView().environmentObject(mockThemeManager)
-        
-        // Test main view colors
-        XCTAssertEqual(view.backgroundColor, Color.black)
-        XCTAssertEqual(view.textColor, Color.white)
-        XCTAssertEqual(view.fieldBackgroundColor, Color(hex: "#1C1C1E"))
-        
-        // Test text field colors
-        let textBinding = Binding.constant("")
-        let focusBinding = FocusState<ModernLoginView.Field?>().projectedValue
-        
-        let textField = ModernTextField(
-            text: textBinding,
-            placeholder: "Test",
-            systemImage: "envelope.fill",
-            keyboardType: .default,
-            isSecure: false,
-            focusedField: focusBinding,
-            fieldType: .email,
-            themeManager: mockThemeManager
-        )
-        
-        XCTAssertEqual(textField.textColor, Color.white)
-        XCTAssertEqual(textField.fieldBackgroundColor, Color(hex: "#1C1C1E"))
-    }
-    
-    func testLightTheme_AllComponentsConsistent() {
-        mockThemeManager.colorScheme = .light
-        let view = ModernLoginView().environmentObject(mockThemeManager)
-        
-        // Test main view colors
-        XCTAssertEqual(view.backgroundColor, Color.white)
-        XCTAssertEqual(view.textColor, Color(hex: "#1C1C1E"))
-        XCTAssertEqual(view.fieldBackgroundColor, Color.white)
-        
-        // Test text field colors
-        let textBinding = Binding.constant("")
-        let focusBinding = FocusState<ModernLoginView.Field?>().projectedValue
-        
-        let textField = ModernTextField(
-            text: textBinding,
-            placeholder: "Test",
-            systemImage: "envelope.fill",
-            keyboardType: .default,
-            isSecure: false,
-            focusedField: focusBinding,
-            fieldType: .email,
-            themeManager: mockThemeManager
-        )
-        
-        XCTAssertEqual(textField.textColor, Color(hex: "#1C1C1E"))
-        XCTAssertEqual(textField.fieldBackgroundColor, Color.white)
-    }
+
+    // MARK: - Theme Tests Removed
+    // Note: Tests des couleurs de thème supprimés car les propriétés computed
+    // de View ne sont pas accessibles directement dans les tests.
+    // Pour tester le thème, utiliser des tests UI ou ViewInspector.
 }
 
 // MARK: - Error Message Tests
@@ -422,19 +369,9 @@ class LoginPerformanceTests: XCTestCase {
         }
     }
     
-    func testThemeColorCalculation_Performance() {
-        let mockThemeManager = MockThemeManager()
-        let view = ModernLoginView().environmentObject(mockThemeManager)
-        
-        measure {
-            for _ in 0..<1000 {
-                _ = view.backgroundColor
-                _ = view.textColor
-                _ = view.fieldBackgroundColor
-                _ = view.secondaryTextColor
-            }
-        }
-    }
+    // MARK: - Performance Test Removed
+    // Note: Test de performance des couleurs supprimé car les propriétés computed
+    // de View ne sont pas accessibles directement dans les tests.
 }
 
 // MARK: - Integration Tests
@@ -493,4 +430,3 @@ class EdgeCaseTests: XCTestCase {
         XCTAssertFalse(view.isFormValid, "Should be invalid after trimming whitespace")
     }
 }
-*/

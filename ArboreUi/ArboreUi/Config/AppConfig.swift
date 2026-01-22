@@ -8,17 +8,36 @@
 import Foundation
 
 struct AppConfig {
+    // MARK: - Security Configuration
+
+    /// Clé API pour authentifier l'application iOS auprès du backend
+    /// Chargée depuis Secrets.xcconfig via Info.plist
+    static let apiKey: String = {
+        guard let key = Bundle.main.object(forInfoDictionaryKey: "ARBORE_API_KEY") as? String,
+              !key.isEmpty,
+              key != "$(ARBORE_API_KEY)" else {
+            fatalError("❌ ARBORE_API_KEY non configurée dans Secrets.xcconfig")
+        }
+        return key
+    }()
+
     // MARK: - Backend Configuration
 
     /// URL de base du serveur backend
+    /// Chargée depuis Secrets.xcconfig via Info.plist (ou valeur par défaut)
     static let baseURL: String = {
+        if let url = Bundle.main.object(forInfoDictionaryKey: "ARBORE_BACKEND_URL") as? String,
+           !url.isEmpty,
+           url != "$(ARBORE_BACKEND_URL)" {
+            return url
+        }
+
         #if DEBUG
-        // En développement, utiliser l'IP du serveur
+        // Fallback en développement
         return "http://79.137.92.154:8080"
         #else
-        // En production, utiliser l'URL de production
+        // Fallback en production
         return "http://79.137.92.154:8080"
-        // return "https://api.arbore.app" // À configurer plus tard
         #endif
     }()
 

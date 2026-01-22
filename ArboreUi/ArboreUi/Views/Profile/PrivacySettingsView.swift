@@ -222,6 +222,7 @@ struct PrivacySettingsView: View {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
 
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: consentData)
@@ -252,8 +253,10 @@ struct PrivacySettingsView: View {
         }
 
         guard let url = URL(string: "\(AppConfig.consentsEndpoint)/\(uid)/latest") else { return }
+        var request = URLRequest(url: url)
+        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
 
-        URLSession.shared.dataTask(with: url) { data, response, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
                 print("⚠️ Error loading consents from backend: \(error)")
                 return

@@ -19,6 +19,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"ArboreBackend/middleware"
 )
 
 var client *mongo.Client
@@ -763,6 +765,19 @@ func main() {
 	fmt.Println("✅ Connecté à MongoDB!")
 
 	router := gin.Default()
+
+	// === ROUTE PUBLIQUE (Health Check) ===
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"status":  "ok",
+			"service": "arbore-backend",
+			"version": "1.0.0",
+		})
+	})
+
+	// === PROTECTION PAR CLÉ API ===
+	// Toutes les routes suivantes nécessitent une clé API valide
+	router.Use(middleware.APIKeyMiddleware())
 
 	// Users
 	router.POST("/users", createUser)

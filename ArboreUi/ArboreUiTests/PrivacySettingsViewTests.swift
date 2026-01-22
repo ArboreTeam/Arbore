@@ -878,6 +878,84 @@ class PrivacySettingsIntegrationTests: XCTestCase {
 
         wait(for: [expectation], timeout: 10.0)
     }
+
+    func testAPIKey_PlantsEndpoint_ShouldReturn200() {
+        // Test que la clé API fonctionne sur un endpoint protégé
+
+        let expectation = XCTestExpectation(description: "API Key validation on /plants")
+
+        guard let url = URL(string: AppConfig.plantsEndpoint) else {
+            XCTFail("Invalid plants endpoint URL")
+            return
+        }
+
+        var request = URLRequest(url: url, timeoutInterval: 5.0)
+        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                XCTFail("Request failed: \(error.localizedDescription)")
+                expectation.fulfill()
+                return
+            }
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                XCTFail("No HTTP response")
+                expectation.fulfill()
+                return
+            }
+
+            // Vérifier que la clé API fonctionne (200 OK, pas 401 Unauthorized)
+            XCTAssertEqual(httpResponse.statusCode, 200,
+                          "Plants endpoint should return 200 with valid API key (got \(httpResponse.statusCode))")
+
+            // Vérifier qu'on reçoit bien du JSON
+            if let data = data {
+                do {
+                    let json = try JSONSerialization.jsonObject(with: data, options: [])
+                    XCTAssertNotNil(json, "Response should be valid JSON")
+                    print("✅ API Key works! Received plants data")
+                } catch {
+                    XCTFail("Invalid JSON response: \(error)")
+                }
+            }
+
+            expectation.fulfill()
+        }.resume()
+
+        wait(for: [expectation], timeout: 10.0)
+    }
+
+    func testAPIKey_WithoutKey_ShouldReturn401() {
+        // Test que sans clé API, on reçoit bien une erreur 401
+
+        let expectation = XCTestExpectation(description: "No API Key should return 401")
+
+        guard let url = URL(string: AppConfig.plantsEndpoint) else {
+            XCTFail("Invalid plants endpoint URL")
+            return
+        }
+
+        // Requête SANS clé API
+        let request = URLRequest(url: url, timeoutInterval: 5.0)
+
+        URLSession.shared.dataTask(with: request) { _, response, error in
+            guard let httpResponse = response as? HTTPURLResponse else {
+                XCTFail("No HTTP response")
+                expectation.fulfill()
+                return
+            }
+
+            // Vérifier qu'on reçoit bien 401 Unauthorized
+            XCTAssertEqual(httpResponse.statusCode, 401,
+                          "Request without API key should return 401 (got \(httpResponse.statusCode))")
+
+            print("✅ API protection works! Request without key was rejected")
+            expectation.fulfill()
+        }.resume()
+
+        wait(for: [expectation], timeout: 10.0)
+    }
 }
 
 // MARK: - Helper Extensions for Testing

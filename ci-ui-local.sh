@@ -146,10 +146,11 @@ main() {
     echo "1) Tests Privacy Settings (Unit + Integration)"
     echo "2) Tests Privacy Settings - Unit uniquement"
     echo "3) Tests Privacy Settings - Integration uniquement"
-    echo "4) Tous les tests de l'app"
-    echo "5) Quitter"
+    echo "4) Tests API Key Protection"
+    echo "5) Tous les tests de l'app"
+    echo "6) Quitter"
     echo ""
-    read -p "Votre choix (1-5): " choice
+    read -p "Votre choix (1-6): " choice
 
     local failed=0
     local total=0
@@ -178,6 +179,16 @@ main() {
             total=1
             ;;
         4)
+            print_header "Tests API Key Protection"
+            run_tests "ArboreUiTests/PrivacySettingsIntegrationTests/testAPIKey_PlantsEndpoint_ShouldReturn200" "API Key avec clé"
+            failed=$((failed + $?))
+            total=$((total + 1))
+
+            run_tests "ArboreUiTests/PrivacySettingsIntegrationTests/testAPIKey_WithoutKey_ShouldReturn401" "API Key sans clé"
+            failed=$((failed + $?))
+            total=$((total + 1))
+            ;;
+        5)
             print_header "Tous les tests de l'app"
             cd "$UI_DIR"
             xcodebuild test \
@@ -196,7 +207,7 @@ main() {
             fi
             total=1
             ;;
-        5)
+        6)
             print_info "Annulé par l'utilisateur"
             exit 0
             ;;

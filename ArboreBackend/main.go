@@ -32,6 +32,7 @@ type User struct {
 	CreatedAt        string `json:"createdAt" bson:"createdAt"`
 	PhotoData        string `json:"photoData,omitempty" bson:"photoData,omitempty"`
 	PhotoContentType string `json:"photoContentType,omitempty" bson:"photoContentType,omitempty"`
+	Banned           bool   `json:"banned" bson:"banned"` // Ban status for user moderation
 }
 
 // ---------- CONSENT STRUCTS (RGPD) ----------
@@ -168,6 +169,26 @@ type Garden struct {
 
 	CreatedAt time.Time `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" bson:"updatedAt"`
+}
+
+// ---------- HELPER FUNCTIONS ----------
+
+// checkUserBannedFromDB vérifie si l'utilisateur est banni dans MongoDB
+func checkUserBannedFromDB(uid string) (bool, error) {
+	collection := client.Database("arbore").Collection("users")
+
+	var user User
+	err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
+
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			// Utilisateur n'existe pas → pas banni
+			return false, nil
+		}
+		return false, err
+	}
+
+	return user.Banned, nil
 }
 
 // ---------- USERS ----------
@@ -764,6 +785,14 @@ func main() {
 	}
 	fmt.Println("✅ Connecté à MongoDB!")
 
+	// Initialiser Firebase Admin SDK
+	if err := middleware.InitFirebase(); err != nil {
+		log.Fatal("❌ Erreur initialisation Firebase:", err)
+	}
+
+	// Configurer la fonction de vérification ban pour le middleware
+	middleware.CheckUserBannedFunc = checkUserBannedFromDB
+
 	router := gin.Default()
 
 	// === ROUTE PUBLIQUE (Health Check) ===
@@ -775,52 +804,55 @@ func main() {
 		})
 	})
 
-	// === PROTECTION PAR CLÉ API ===
-	// Toutes les routes suivantes nécessitent une clé API valide
-	router.Use(middleware.APIKeyMiddleware())
+	// === ROUTES PROTÉGÉES (API Key + Firebase Auth) ===
+	// Ordre important: API Key PUIS Firebase Auth
+	protected := router.Group("/")
+	protected.Use(middleware.APIKeyMiddleware())
+	protected.Use(middleware.FirebaseAuthMiddleware())
+	{
+		// Users
+		protected.POST("/users", createUser)
+		protected.GET("/users/:uid", func(c *gin.Context) {
+			uid := c.Param("uid")
 
-	// Users
-	router.POST("/users", createUser)
-	router.GET("/users/:uid", func(c *gin.Context) {
-		uid := c.Param("uid")
-
-		var user User
-		collection := client.Database("arbore").Collection("users")
-		err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
-		if err != nil {
-			if err == mongo.ErrNoDocuments {
-				c.JSON(http.StatusNotFound, gin.H{"message": "Utilisateur non trouvé"})
+			var user User
+			collection := client.Database("arbore").Collection("users")
+			err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
+			if err != nil {
+				if err == mongo.ErrNoDocuments {
+					c.JSON(http.StatusNotFound, gin.H{"message": "Utilisateur non trouvé"})
+					return
+				}
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
 			}
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
 
-		c.JSON(http.StatusOK, gin.H{"user": user})
-	})
+			c.JSON(http.StatusOK, gin.H{"user": user})
+		})
 
-	router.POST("/users/:uid/photo", uploadUserPhoto)
-	router.GET("/users/:uid/photo", getUserPhoto)
-	router.DELETE("/users/:uid", deleteUser)
+		protected.POST("/users/:uid/photo", uploadUserPhoto)
+		protected.GET("/users/:uid/photo", getUserPhoto)
+		protected.DELETE("/users/:uid", deleteUser)
 
-	// Plants
-	router.POST("/plants", createPlant)
-	router.GET("/plants", getPlants)
-	router.GET("/plants/:id", getPlantByID)
-	router.POST("/plants/generate", generatePlantWithAI)
-	router.POST("/plants/generate-multiple", generateMultiplePlantsHandler)
+		// Plants
+		protected.POST("/plants", createPlant)
+		protected.GET("/plants", getPlants)
+		protected.GET("/plants/:id", getPlantByID)
+		protected.POST("/plants/generate", generatePlantWithAI)
+		protected.POST("/plants/generate-multiple", generateMultiplePlantsHandler)
 
-	// Gardens (NEW)
-	router.POST("/gardens", createGarden)
-	router.GET("/gardens", listGardens)         // /gardens?uid=...
-	router.GET("/gardens/:id", getGardenByID)
-	router.PUT("/gardens/:id", updateGarden)    // PATCH-like payload
-	router.DELETE("/gardens/:id", deleteGarden)
+		// Gardens
+		protected.POST("/gardens", createGarden)
+		protected.GET("/gardens", listGardens)
+		protected.GET("/gardens/:id", getGardenByID)
+		protected.PUT("/gardens/:id", updateGarden)
+		protected.DELETE("/gardens/:id", deleteGarden)
 
-	// Consents (RGPD)
-	router.POST("/consents", recordConsent)                        // Enregistrer un consentement
-	router.GET("/consents/:uid", getUserConsents)                  // Historique complet
-	router.GET("/consents/:uid/latest", getLatestUserConsents)     // Derniers consentements (un par type)
+		// Consents (RGPD)
+		protected.POST("/consents", recordConsent)
+		protected.GET("/consents/:uid", getUserConsents)
+		protected.GET("/consents/:uid/latest", getLatestUserConsents)
+	}
 
 	fmt.Println("🚀 Serveur démarré sur http://localhost:8080")
 	if err := router.Run(":8080"); err != nil {

@@ -160,6 +160,8 @@ $RECYCLE.BIN/
 **/GoogleService-Info.plist
 firebase-debug.log
 .firebase/
+arbore-firebase-adminsdk.json
+*-firebase-adminsdk-*.json
 
 # Certificates & Keys
 *.p12

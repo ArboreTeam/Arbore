@@ -232,18 +232,26 @@ func deleteUser(c *gin.Context) {
 // ---------- CONSENTS (RGPD) ----------
 
 func recordConsent(c *gin.Context) {
+	authenticatedUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	var consent ConsentRecord
 	if err := c.ShouldBindJSON(&consent); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if consent.UID == "" || consent.ConsentType == "" || consent.Version == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "UID, consentType et version sont requis"})
+	if consent.ConsentType == "" || consent.Version == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "consentType et version sont requis"})
 		return
 	}
 
+	consent.UID = authenticatedUID.(string)
 	consent.ID = primitive.NewObjectID()
+
 	if consent.Timestamp.IsZero() {
 		consent.Timestamp = time.Now()
 	}
@@ -266,7 +274,13 @@ func recordConsent(c *gin.Context) {
 }
 
 func getUserConsents(c *gin.Context) {
-	uid := c.Param("uid")
+	authenticatedUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	uid := authenticatedUID.(string)
 
 	collection := client.Database("arbore").Collection("consents")
 
@@ -297,7 +311,13 @@ func getUserConsents(c *gin.Context) {
 }
 
 func getLatestUserConsents(c *gin.Context) {
-	uid := c.Param("uid")
+	authenticatedUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	uid := authenticatedUID.(string)
 
 	collection := client.Database("arbore").Collection("consents")
 
@@ -850,8 +870,8 @@ func main() {
 
 		// Consents (RGPD)
 		protected.POST("/consents", recordConsent)
-		protected.GET("/consents/:uid", getUserConsents)
-		protected.GET("/consents/:uid/latest", getLatestUserConsents)
+		protected.GET("/consents", getUserConsents)
+		protected.GET("/consents/latest", getLatestUserConsents)
 	}
 
 	fmt.Println("🚀 Serveur démarré sur http://localhost:8080")

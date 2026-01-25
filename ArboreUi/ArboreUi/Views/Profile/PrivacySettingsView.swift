@@ -205,93 +205,68 @@ struct PrivacySettingsView: View {
 
     /// Synchronisation avec le backend (POST /consents)
     internal func syncConsentToBackend(type: String, granted: Bool, timestamp: String) {
-        guard let uid = Auth.auth().currentUser?.uid else {
+        guard Auth.auth().currentUser != nil else {
             print("⚠️ No user logged in, skipping backend sync")
             return
         }
 
-        let consentData: [String: Any] = [
-            "uid": uid,
-            "consentType": type,
-            "granted": granted,
-            "version": AppConfig.privacyPolicyVersion,
-            "timestamp": timestamp
-        ]
+        Task {
+            do {
+                // Le UID n'est plus envoyé dans le body - il vient du token Firebase
+                let consentData: [String: Any] = [
+                    "consentType": type,
+                    "granted": granted,
+                    "version": AppConfig.privacyPolicyVersion,
+                    "timestamp": timestamp
+                ]
 
-        guard let url = URL(string: AppConfig.consentsEndpoint) else { return }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
+                try await NetworkManager.shared.requestNoResponse(
+                    endpoint: "/consents",
+                    method: .POST,
+                    body: consentData
+                )
 
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: consentData)
-        } catch {
-            print("❌ Error serializing consent data: \(error)")
-            return
-        }
-
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("❌ Error syncing consent to backend: \(error)")
-                return
-            }
-
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 {
                 print("✅ Consent synced to backend successfully")
-            } else {
-                print("⚠️ Backend sync returned non-201 status")
+            } catch {
+                print("❌ Error syncing consent to backend: \(error)")
             }
-        }.resume()
+        }
     }
 
     /// Charge les consentements depuis le backend au démarrage (synchronisation multi-appareils)
     internal func loadConsentsFromBackend() {
-        guard let uid = Auth.auth().currentUser?.uid else {
+        guard Auth.auth().currentUser != nil else {
             print("⚠️ No user logged in, skipping backend load")
             return
         }
 
-        guard let url = URL(string: "\(AppConfig.consentsEndpoint)/\(uid)/latest") else { return }
-        var request = URLRequest(url: url)
-        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
-
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                print("⚠️ Error loading consents from backend: \(error)")
-                return
-            }
-
-            guard let data = data,
-                  let httpResponse = response as? HTTPURLResponse,
-                  httpResponse.statusCode == 200 else {
-                print("⚠️ Backend returned non-200 status when loading consents")
-                return
-            }
-
+        Task {
             do {
-                // Le backend retourne {"uid": "...", "consents": [...]}
-                let response = try JSONDecoder().decode(BackendConsentsResponse.self, from: data)
+                // Le UID n'est plus dans l'URL - il vient du token Firebase
+                let response: BackendConsentsResponse = try await NetworkManager.shared.request(
+                    endpoint: "/consents/latest",
+                    method: .GET
+                )
 
-                DispatchQueue.main.async {
+                await MainActor.run {
                     for consent in response.consents {
                         switch consent.consentType {
-                            case "profilePublic":
-                                self.profilePublic = consent.granted
-                            case "showActivity":
-                                self.showActivity = consent.granted
-                            case "analytics":
-                                self.shareData = consent.granted
-                            default:
-                                break
+                        case "profilePublic":
+                            self.profilePublic = consent.granted
+                        case "showActivity":
+                            self.showActivity = consent.granted
+                        case "analytics":
+                            self.shareData = consent.granted
+                        default:
+                            break
                         }
                     }
                     print("✅ Consents loaded from backend: \(response.consents.count) items")
                 }
             } catch {
-                print("❌ Error decoding consents: \(error)")
+                print("⚠️ Error loading consents from backend: \(error)")
             }
-        }.resume()
+        }
     }
 }
 

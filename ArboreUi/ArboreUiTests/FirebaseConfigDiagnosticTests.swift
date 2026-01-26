@@ -20,15 +20,15 @@ class FirebaseConfigDiagnosticTests: XCTestCase {
         print("========================================")
         
         // Check API Key
-        print("📝 API Key: \(AppConfig.shared.apiKey.prefix(10))... (length: \(AppConfig.shared.apiKey.count))")
-        XCTAssertFalse(AppConfig.shared.apiKey.isEmpty, "API Key should not be empty")
-        XCTAssertFalse(AppConfig.shared.apiKey.contains("$("), "API Key should not contain placeholder")
-        XCTAssertGreaterThan(AppConfig.shared.apiKey.count, 10, "API Key seems too short")
+        print("📝 API Key: \(AppConfig.apiKey.prefix(10))... (length: \(AppConfig.apiKey.count))")
+        XCTAssertFalse(AppConfig.apiKey.isEmpty, "API Key should not be empty")
+        XCTAssertFalse(AppConfig.apiKey.contains("$("), "API Key should not contain placeholder")
+        XCTAssertGreaterThan(AppConfig.apiKey.count, 10, "API Key seems too short")
         
         // Check Base URL
-        print("📝 Base URL: \(AppConfig.shared.baseURL)")
-        XCTAssertFalse(AppConfig.shared.baseURL.isEmpty, "Base URL should not be empty")
-        XCTAssertTrue(AppConfig.shared.baseURL.hasPrefix("http://") || AppConfig.shared.baseURL.hasPrefix("https://"),
+        print("📝 Base URL: \(AppConfig.baseURL)")
+        XCTAssertFalse(AppConfig.baseURL.isEmpty, "Base URL should not be empty")
+        XCTAssertTrue(AppConfig.baseURL.hasPrefix("http://") || AppConfig.baseURL.hasPrefix("https://"),
                      "Base URL should start with http:// or https://")
         
         print("✅ AppConfig secrets are properly loaded")
@@ -55,16 +55,15 @@ class FirebaseConfigDiagnosticTests: XCTestCase {
         // Check Firebase options
         if let firebaseApp = FirebaseApp.app() {
             print("📝 Firebase App Name: \(firebaseApp.name)")
-            if let options = firebaseApp.options {
-                print("📝 Firebase API Key: \(options.apiKey?.prefix(10) ?? "nil")...")
-                print("📝 Firebase Project ID: \(options.projectID ?? "nil")")
-                print("📝 Firebase App ID: \(options.googleAppID?.prefix(20) ?? "nil")...")
-                print("📝 Firebase Client ID: \(options.clientID?.prefix(20) ?? "nil")...")
-                
-                XCTAssertNotNil(options.apiKey, "Firebase API Key should exist")
-                XCTAssertNotNil(options.projectID, "Firebase Project ID should exist")
-                XCTAssertNotNil(options.googleAppID, "Firebase App ID should exist")
-            }
+            let options = firebaseApp.options
+            print("📝 Firebase API Key: \(options.apiKey?.prefix(10) ?? "nil")...")
+            print("📝 Firebase Project ID: \(options.projectID ?? "nil")")
+            print("📝 Firebase App ID: \(options.googleAppID?.prefix(20) ?? "nil")...")
+            print("📝 Firebase Client ID: \(options.clientID?.prefix(20) ?? "nil")...")
+            
+            XCTAssertNotNil(options.apiKey, "Firebase API Key should exist")
+            XCTAssertNotNil(options.projectID, "Firebase Project ID should exist")
+            XCTAssertNotNil(options.googleAppID, "Firebase App ID should exist")
         }
         
         // Check Auth instance
@@ -138,12 +137,12 @@ class FirebaseConfigDiagnosticTests: XCTestCase {
         print("🔍 DIAGNOSTIC: Testing Backend Connection")
         print("========================================")
         
-        print("📝 Backend URL: \(AppConfig.shared.baseURL)")
+        print("📝 Backend URL: \(AppConfig.baseURL)")
         
         let expectation = XCTestExpectation(description: "Backend health check")
         let startTime = Date()
         
-        guard let url = URL(string: "\(AppConfig.shared.baseURL)/health") else {
+        guard let url = URL(string: "\(AppConfig.baseURL)/health") else {
             XCTFail("Invalid backend URL")
             return
         }
@@ -152,7 +151,7 @@ class FirebaseConfigDiagnosticTests: XCTestCase {
         
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
-        request.setValue(AppConfig.shared.apiKey, forHTTPHeaderField: "X-API-Key")
+        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
         request.timeoutInterval = 10.0
         
         URLSession.shared.dataTask(with: request) { data, response, error in

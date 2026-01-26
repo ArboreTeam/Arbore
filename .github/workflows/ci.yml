@@ -243,12 +243,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pods-
 
-      - name: 🔧 Install CocoaPods and xcpretty
+      - name: 🔧 Install CocoaPods, xcpretty and xcparse
         run: |
           sudo gem install cocoapods -v 1.16.2
           sudo gem install xcpretty
+          brew install chargepoint/xcparse/xcparse
           pod --version
           xcpretty --version
+          xcparse version
 
       - name: 🗑️ Clean CocoaPods cache (si demandé manuellement)
         if: github.event.inputs.clean_pods_cache == 'true'
@@ -311,7 +313,6 @@ jobs:
             | xcpretty
 
       - name: 🧪 Run Unit Tests
-        continue-on-error: true
         run: |
           set -o pipefail
           xcodebuild test \
@@ -319,16 +320,40 @@ jobs:
             -scheme ArboreUi \
             -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
             -derivedDataPath build/ \
+            -resultBundlePath build/TestResults.xcresult \
             CODE_SIGNING_ALLOWED=NO \
-            | xcpretty
+            | xcpretty --report html --output build/test-report.html
 
-      - name: 📊 Generate test report
+      - name: 📊 Parse test results
         if: always()
-        continue-on-error: true
         run: |
-          if [ -d build/Logs/Test ]; then
-            xcparse logs --output test-results build/Logs/Test/*.xcresult || true
+          if [ -f build/TestResults.xcresult ]; then
+            echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+
+            # Extract test summary using xcparse
+            xcparse summary build/TestResults.xcresult --output build/test-summary.txt
+
+            # Display in summary
+            cat build/test-summary.txt >> $GITHUB_STEP_SUMMARY
+
+            # Also print to console
+            echo "================================"
+            echo "📊 Test Summary"
+            echo "================================"
+            cat build/test-summary.txt
           fi
+
+      - name: 📤 Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ui-test-results
+          path: |
+            ArboreUi/build/TestResults.xcresult
+            ArboreUi/build/test-report.html
+            ArboreUi/build/test-summary.txt
+          retention-days: 30
 
       - name: 📤 Upload build artifacts
         if: always()

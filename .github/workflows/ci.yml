@@ -341,7 +341,13 @@ jobs:
             ARBORE_API_KEY="${{ secrets.ARBORE_API_KEY }}" \
             ARBORE_BACKEND_PROTOCOL="${{ secrets.ARBORE_BACKEND_PROTOCOL }}" \
             ARBORE_BACKEND_HOST="${{ secrets.ARBORE_BACKEND_HOST }}" \
-            | xcpretty --report html --output build/test-report.html
+            2>&1 | tee build/test-output.log | xcpretty --report html --output build/test-report.html
+          
+          # Show test output for debugging
+          echo "================================"
+          echo "📊 Searching for diagnostic logs..."
+          echo "================================"
+          grep -E "🔍|📝|✅|❌|⚠️" build/test-output.log || echo "No diagnostic logs found"
 
       - name: 📊 Parse test results
         if: always()
@@ -361,6 +367,17 @@ jobs:
             echo "📊 Test Summary"
             echo "================================"
             cat build/test-summary.txt
+            
+            # Show diagnostic logs
+            echo ""
+            echo "================================"
+            echo "🔍 Diagnostic Test Logs"
+            echo "================================"
+            if [ -f build/test-output.log ]; then
+              grep -A 10 "FirebaseConfigDiagnosticTests" build/test-output.log || echo "No diagnostic test logs found"
+              echo ""
+              grep -E "🔍|📝|✅|❌|⚠️" build/test-output.log | tail -100 || echo "No emoji logs found"
+            fi
           fi
 
       - name: 📤 Upload test results
@@ -372,6 +389,7 @@ jobs:
             ArboreUi/build/TestResults.xcresult
             ArboreUi/build/test-report.html
             ArboreUi/build/test-summary.txt
+            ArboreUi/build/test-output.log
           retention-days: 30
 
       - name: 📤 Upload build artifacts

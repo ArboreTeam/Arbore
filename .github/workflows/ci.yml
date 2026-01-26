@@ -321,6 +321,8 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
             -derivedDataPath build/ \
             -resultBundlePath build/TestResults.xcresult \
+            -parallel-testing-enabled YES \
+            -maximum-concurrent-test-simulator-destinations 4 \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty --report html --output build/test-report.html
 

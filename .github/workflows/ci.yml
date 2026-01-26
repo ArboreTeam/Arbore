@@ -321,6 +321,9 @@ jobs:
             -derivedDataPath build/ \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
+            ARBORE_API_KEY="${{ secrets.ARBORE_API_KEY }}" \
+            ARBORE_BACKEND_PROTOCOL="${{ secrets.ARBORE_BACKEND_PROTOCOL }}" \
+            ARBORE_BACKEND_HOST="${{ secrets.ARBORE_BACKEND_HOST }}" \
             | xcpretty
 
       - name: 🧪 Run Unit Tests
@@ -335,6 +338,9 @@ jobs:
             -parallel-testing-enabled YES \
             -maximum-concurrent-test-simulator-destinations 4 \
             CODE_SIGNING_ALLOWED=NO \
+            ARBORE_API_KEY="${{ secrets.ARBORE_API_KEY }}" \
+            ARBORE_BACKEND_PROTOCOL="${{ secrets.ARBORE_BACKEND_PROTOCOL }}" \
+            ARBORE_BACKEND_HOST="${{ secrets.ARBORE_BACKEND_HOST }}" \
             | xcpretty --report html --output build/test-report.html
 
       - name: 📊 Parse test results

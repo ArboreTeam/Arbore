@@ -350,38 +350,63 @@ class NetworkManagerIntegrationTests: XCTestCase {
     var testUserUID: String?
 
     override func setUpWithError() throws {
+        print("\n🔍 [NetworkManagerIntegrationTests] Starting setUp...")
+        
         // Configuration Firebase
         if FirebaseApp.app() == nil {
+            print("📝 [Firebase] Configuring Firebase...")
             FirebaseApp.configure()
+            print("✅ [Firebase] Configuration complete")
+        } else {
+            print("✅ [Firebase] Already configured")
         }
 
         // Créer un user de test
         let timestamp = Int(Date().timeIntervalSince1970)
         testEmail = "test-network-\(timestamp)@arbore.test"
+        print("📝 [Test User] Email: \(testEmail!)")
 
         let createExpectation = XCTestExpectation(description: "Create test user")
+        let startTime = Date()
+        
+        print("📝 [Firebase Auth] Attempting to create user...")
 
         Auth.auth().createUser(withEmail: testEmail, password: testPassword) { result, error in
+            let elapsed = Date().timeIntervalSince(startTime)
+            
             if let error = error {
+                let nsError = error as NSError
+                print("❌ [Firebase Auth] User creation failed after \(String(format: "%.2f", elapsed))s")
+                print("📝 [Firebase Auth] Error domain: \(nsError.domain)")
+                print("📝 [Firebase Auth] Error code: \(nsError.code)")
+                print("📝 [Firebase Auth] Error: \(error.localizedDescription)")
                 XCTFail("Failed to create test user: \(error.localizedDescription)")
                 createExpectation.fulfill()
                 return
             }
 
             self.testUserUID = result?.user.uid
-            print("✅ Test user created (Firebase): \(self.testUserUID ?? "nil")")
+            print("✅ [Firebase Auth] User created in \(String(format: "%.2f", elapsed))s - UID: \(self.testUserUID ?? "nil")")
 
             // Sign in pour obtenir un token Firebase valide
+            print("📝 [Firebase Auth] Signing in user...")
+            let signInTime = Date()
+            
             Auth.auth().signIn(withEmail: self.testEmail, password: self.testPassword) { _, signInError in
+                let signInElapsed = Date().timeIntervalSince(signInTime)
+                
                 if let signInError = signInError {
+                    print("❌ [Firebase Auth] Sign in failed after \(String(format: "%.2f", signInElapsed))s")
+                    print("📝 [Firebase Auth] Error: \(signInError.localizedDescription)")
                     XCTFail("Failed to sign in test user: \(signInError.localizedDescription)")
                     createExpectation.fulfill()
                     return
                 }
 
-                print("✅ Test user signed in")
+                print("✅ [Firebase Auth] User signed in after \(String(format: "%.2f", signInElapsed))s")
 
                 // Créer le user dans MongoDB avec NetworkManager (qui ajoute le token Firebase)
+                print("📝 [Backend] Creating user in MongoDB...")
                 Task {
                     do {
                         let formatter = ISO8601DateFormatter()
@@ -399,17 +424,19 @@ class NetworkManagerIntegrationTests: XCTestCase {
                             body: userData
                         )
 
-                        print("✅ Test user created in MongoDB backend")
+                        print("✅ [Backend] Test user created in MongoDB")
                         createExpectation.fulfill()
                     } catch {
-                        print("⚠️ Failed to create user in backend: \(error)")
+                        print("⚠️ [Backend] Failed to create user in backend: \(error)")
                         createExpectation.fulfill()
                     }
                 }
             }
         }
 
-        wait(for: [createExpectation], timeout: 15.0)
+        print("📝 [Test] Waiting up to 30s for user creation...")
+        wait(for: [createExpectation], timeout: 30.0)
+        print("✅ [Test] setUp complete\n")
     }
 
     override func tearDownWithError() throws {

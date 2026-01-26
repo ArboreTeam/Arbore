@@ -503,46 +503,67 @@ class PrivacySettingsIntegrationTests: XCTestCase {
     var testUserUID: String?
 
     override func setUpWithError() throws {
+        print("\n🔍 [PrivacySettingsIntegrationTests] Starting setUp...")
+        
         // Configuration Firebase
         if FirebaseApp.app() == nil {
+            print("📝 [Firebase] Configuring Firebase...")
             FirebaseApp.configure()
+            print("✅ [Firebase] Configuration complete")
+        } else {
+            print("✅ [Firebase] Already configured")
         }
 
         // Générer un email unique pour éviter les conflits
         let timestamp = Int(Date().timeIntervalSince1970)
         testEmail = "test-rgpd-\(timestamp)@arbore.test"
+        print("📝 [Test User] Email: \(testEmail!)")
 
         // Créer le user dans Firebase Auth
         let createExpectation = XCTestExpectation(description: "Create test user")
+        let startTime = Date()
+        
+        print("📝 [Firebase Auth] Attempting to create user...")
 
         Auth.auth().createUser(withEmail: testEmail, password: testPassword) { result, error in
+            let elapsed = Date().timeIntervalSince(startTime)
+            
             if let error = error {
+                let nsError = error as NSError
+                print("❌ [Firebase Auth] User creation failed after \(String(format: "%.2f", elapsed))s")
+                print("📝 [Firebase Auth] Error domain: \(nsError.domain)")
+                print("📝 [Firebase Auth] Error code: \(nsError.code)")
+                print("📝 [Firebase Auth] Error: \(error.localizedDescription)")
                 XCTFail("Failed to create test user in Firebase: \(error.localizedDescription)")
                 createExpectation.fulfill()
                 return
             }
 
             guard let uid = result?.user.uid else {
+                print("❌ [Firebase Auth] No UID returned after \(String(format: "%.2f", elapsed))s")
                 XCTFail("No UID returned after user creation")
                 createExpectation.fulfill()
                 return
             }
 
             self.testUserUID = uid
-            print("✅ Test user created in Firebase: \(uid)")
+            print("✅ [Firebase Auth] User created in \(String(format: "%.2f", elapsed))s - UID: \(uid)")
 
             // Créer le user dans MongoDB via backend
+            print("📝 [Backend] Creating user in MongoDB...")
             self.createUserInBackend(uid: uid, email: self.testEmail) { success in
                 if success {
-                    print("✅ Test user created in MongoDB")
+                    print("✅ [Backend] Test user created in MongoDB")
                 } else {
-                    print("⚠️ Failed to create user in MongoDB (non-fatal)")
+                    print("⚠️ [Backend] Failed to create user in MongoDB (non-fatal)")
                 }
                 createExpectation.fulfill()
             }
         }
 
-        wait(for: [createExpectation], timeout: 10.0)
+        print("📝 [Test] Waiting up to 30s for user creation...")
+        wait(for: [createExpectation], timeout: 30.0)
+        print("✅ [Test] setUp complete\n")
 
         // Nettoyer les données locales
         clearUserDefaults()

@@ -227,8 +227,8 @@ main() {
 
             # Parser le résultat "Executed X tests, with Y failures"
             if grep -q "Executed.*tests" /tmp/arbore_test_output.log; then
-                total=$(grep "Executed.*tests" /tmp/arbore_test_output.log | sed -E 's/.*Executed ([0-9]+) tests.*/\1/')
-                failed=$(grep "Executed.*tests" /tmp/arbore_test_output.log | sed -E 's/.*with ([0-9]+) failure.*/\1/')
+                total=$(grep "Executed.*tests" /tmp/arbore_test_output.log | tail -1 | sed -E 's/.*Executed ([0-9]+) tests.*/\1/')
+                failed=$(grep "Executed.*tests" /tmp/arbore_test_output.log | tail -1 | sed -E 's/.*with ([0-9]+) failure(s)?.*/\1/')
 
                 # Si pas de failures dans la sortie, c'est que tous ont réussi
                 if ! grep -q "failure" /tmp/arbore_test_output.log; then
@@ -258,7 +258,7 @@ main() {
     show_summary $total $failed
 
     # Code de sortie
-    if [ $failed -eq 0 ]; then
+    if [ "$failed" -eq 0 ]; then
         exit 0
     else
         exit 1

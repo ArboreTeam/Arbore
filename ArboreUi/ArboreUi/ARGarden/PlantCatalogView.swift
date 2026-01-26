@@ -243,34 +243,27 @@ struct PlantCatalogARView: View {
     }
 
     private func fetchPlants() {
-        guard let url = URL(string: AppConfig.plantsEndpoint) else{
-            self.errorMessage = "URL invalide"
-            self.isLoading = false
-            return
-        }
-
         isLoading = true
         errorMessage = nil
 
-        URLSession.shared.dataTask(with: url) { data, _, error in
-            DispatchQueue.main.async {
-                self.isLoading = false
+        Task {
+            do {
+                let plants: [Plant] = try await NetworkManager.shared.request(
+                    endpoint: "/plants",
+                    method: .GET
+                )
 
-                if let error {
-                    self.errorMessage = "Erreur réseau: \(error.localizedDescription)"
-                    return
+                await MainActor.run {
+                    self.plants = plants
+                    self.isLoading = false
                 }
-                guard let data else {
-                    self.errorMessage = "Données invalides"
-                    return
-                }
-                do {
-                    self.plants = try JSONDecoder().decode([Plant].self, from: data)
-                } catch {
-                    self.errorMessage = "Erreur décodage JSON"
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Erreur: \(error.localizedDescription)"
+                    self.isLoading = false
                 }
             }
-        }.resume()
+        }
     }
 }
 

@@ -5,4 +5,7 @@ struct User: Codable {
     let email: String
     let name: String
     let createdAt: Date
+    let photoData: String?
+    let photoContentType: String?
+    let banned: Bool?
 }

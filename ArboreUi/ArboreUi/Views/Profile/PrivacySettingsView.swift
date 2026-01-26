@@ -249,38 +249,29 @@ struct PrivacySettingsView: View {
                 )
 
                 await MainActor.run {
-                    for consent in response.consents {
-                        switch consent.consentType {
-                        case "profilePublic":
-                            self.profilePublic = consent.granted
-                        case "showActivity":
-                            self.showActivity = consent.granted
-                        case "analytics":
-                            self.shareData = consent.granted
-                        default:
-                            break
+                    if let consents = response.consents {
+                        for consent in consents {
+                            switch consent.consentType {
+                            case "profilePublic":
+                                self.profilePublic = consent.granted
+                            case "showActivity":
+                                self.showActivity = consent.granted
+                            case "analytics":
+                                self.shareData = consent.granted
+                            default:
+                                break
+                            }
                         }
+                        print("✅ Consents loaded from backend: \(consents.count) items")
+                    } else {
+                        print("ℹ️ No consents found in backend (first time user)")
                     }
-                    print("✅ Consents loaded from backend: \(response.consents.count) items")
                 }
             } catch {
                 print("⚠️ Error loading consents from backend: \(error)")
             }
         }
     }
-}
-
-// MARK: - Backend Consent Models
-struct BackendConsent: Codable {
-    let consentType: String
-    let granted: Bool
-    let timestamp: String
-    let version: String
-}
-
-struct BackendConsentsResponse: Codable {
-    let uid: String
-    let consents: [BackendConsent]
 }
 
 // MARK: - Section Card

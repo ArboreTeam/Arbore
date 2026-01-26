@@ -146,11 +146,14 @@ main() {
     echo "1) Tests Privacy Settings (Unit + Integration)"
     echo "2) Tests Privacy Settings - Unit uniquement"
     echo "3) Tests Privacy Settings - Integration uniquement"
-    echo "4) Tests API Key Protection"
-    echo "5) Tous les tests de l'app"
-    echo "6) Quitter"
+    echo "4) Tests NetworkManager (Unit + Integration)"
+    echo "5) Tests NetworkManager - Unit uniquement"
+    echo "6) Tests NetworkManager - Integration uniquement"
+    echo "7) Tests API Key Protection"
+    echo "8) Tous les tests de l'app"
+    echo "9) Quitter"
     echo ""
-    read -p "Votre choix (1-6): " choice
+    read -p "Votre choix (1-9): " choice
 
     local failed=0
     local total=0
@@ -179,8 +182,30 @@ main() {
             total=1
             ;;
         4)
+            print_header "Tests NetworkManager Complets"
+            run_tests "ArboreUiTests/NetworkManagerTests" "NetworkManager Unit Tests"
+            failed=$((failed + $?))
+            total=$((total + 1))
+
+            run_tests "ArboreUiTests/NetworkManagerIntegrationTests" "NetworkManager Integration Tests"
+            failed=$((failed + $?))
+            total=$((total + 1))
+            ;;
+        5)
+            print_header "Tests NetworkManager - Unit Tests"
+            run_tests "ArboreUiTests/NetworkManagerTests" "Unit Tests"
+            failed=$?
+            total=1
+            ;;
+        6)
+            print_header "Tests NetworkManager - Integration Tests"
+            run_tests "ArboreUiTests/NetworkManagerIntegrationTests" "Integration Tests"
+            failed=$?
+            total=1
+            ;;
+        7)
             print_header "Tests API Key Protection"
-            run_tests "ArboreUiTests/PrivacySettingsIntegrationTests/testAPIKey_PlantsEndpoint_ShouldReturn200" "API Key avec clé"
+            run_tests "ArboreUiTests/PrivacySettingsIntegrationTests/testAPIKey_PlantsEndpoint_ShouldRequireFirebaseToken" "Firebase Token requis"
             failed=$((failed + $?))
             total=$((total + 1))
 
@@ -188,7 +213,7 @@ main() {
             failed=$((failed + $?))
             total=$((total + 1))
             ;;
-        5)
+        8)
             print_header "Tous les tests de l'app"
             cd "$UI_DIR"
             xcodebuild test \
@@ -219,7 +244,7 @@ main() {
                 total=1
             fi
             ;;
-        6)
+        9)
             print_info "Annulé par l'utilisateur"
             exit 0
             ;;

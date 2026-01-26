@@ -816,15 +816,15 @@ class PrivacySettingsIntegrationTests: XCTestCase {
 
     // MARK: - Backend API Health Tests
 
-    func testBackendHealth_ConsentsEndpoint_ShouldBeReachable() {
-        // Test que l'endpoint /consents/:uid est accessible
+    func testBackendHealth_ConsentsEndpoint_OldRouteRemoved() {
+        // Test que l'ancienne route /consents/:uid n'existe plus (sécurité)
 
         guard let uid = testUserUID else {
             XCTFail("Test user not logged in")
             return
         }
 
-        let expectation = XCTestExpectation(description: "Backend health check")
+        let expectation = XCTestExpectation(description: "Old consents route should be removed")
 
         guard let url = URL(string: "\(AppConfig.consentsEndpoint)/\(uid)") else {
             XCTFail("Invalid consents endpoint URL")
@@ -835,12 +835,11 @@ class PrivacySettingsIntegrationTests: XCTestCase {
         request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
 
         URLSession.shared.dataTask(with: request) { _, response, error in
-            if let error = error {
-                XCTFail("Backend not reachable: \(error.localizedDescription)")
-            } else if let httpResponse = response as? HTTPURLResponse {
-                // GET sur /consents/:uid devrait retourner 200 (même si vide, c'est un array vide)
-                XCTAssertTrue([200, 201].contains(httpResponse.statusCode),
-                             "Backend should respond with 200 (got \(httpResponse.statusCode))")
+            if let httpResponse = response as? HTTPURLResponse {
+                // L'ancienne route /consents/:uid devrait retourner 404
+                XCTAssertEqual(httpResponse.statusCode, 404,
+                             "Old route /consents/:uid should return 404 (got \(httpResponse.statusCode))")
+                print("✅ Old insecure route correctly removed")
             }
             expectation.fulfill()
         }.resume()
@@ -879,46 +878,31 @@ class PrivacySettingsIntegrationTests: XCTestCase {
         wait(for: [expectation], timeout: 10.0)
     }
 
-    func testAPIKey_PlantsEndpoint_ShouldReturn200() {
-        // Test que la clé API fonctionne sur un endpoint protégé
+    func testAPIKey_PlantsEndpoint_ShouldRequireFirebaseToken() {
+        // Test que /plants requiert maintenant Firebase token (pas juste API Key)
 
-        let expectation = XCTestExpectation(description: "API Key validation on /plants")
+        let expectation = XCTestExpectation(description: "Plants endpoint requires Firebase token")
 
         guard let url = URL(string: AppConfig.plantsEndpoint) else {
             return
         }
 
         var request = URLRequest(url: url, timeoutInterval: 5.0)
+        // Seulement API Key, pas de Firebase token
         request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
 
         URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                XCTFail("Request failed: \(error.localizedDescription)")
-                expectation.fulfill()
-                return
-            }
-
             guard let httpResponse = response as? HTTPURLResponse else {
                 XCTFail("No HTTP response")
                 expectation.fulfill()
                 return
             }
 
-            // Vérifier que la clé API fonctionne (200 OK, pas 401 Unauthorized)
-            XCTAssertEqual(httpResponse.statusCode, 200,
-                          "Plants endpoint should return 200 with valid API key (got \(httpResponse.statusCode))")
+            // Devrait retourner 401 car Firebase token manquant
+            XCTAssertEqual(httpResponse.statusCode, 401,
+                          "Plants endpoint should return 401 without Firebase token (got \(httpResponse.statusCode))")
 
-            // Vérifier qu'on reçoit bien du JSON
-            if let data = data {
-                do {
-                    let json = try JSONSerialization.jsonObject(with: data, options: [])
-                    XCTAssertNotNil(json, "Response should be valid JSON")
-                    print("✅ API Key works! Received plants data")
-                } catch {
-                    XCTFail("Invalid JSON response: \(error)")
-                }
-            }
-
+            print("✅ Firebase token protection works! /plants correctly rejects requests without token")
             expectation.fulfill()
         }.resume()
 

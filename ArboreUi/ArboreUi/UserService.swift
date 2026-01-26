@@ -2,76 +2,46 @@ import FirebaseAuth
 import Foundation
 import Firebase
 
-struct UserResponse: Decodable {
-    let user: User
-}
-
 class UserService: ObservableObject {
     @Published var currentUser: User? = nil
     @Published var fetchError: String? = nil
 
-    func fetchUser(by uid: String, completion: @escaping (Result<User, Error>) -> Void) {
-        guard let url = URL(string: "\(AppConfig.usersEndpoint)/\(uid)") else {
-            completion(.failure(URLError(.badURL)))
-            return
+    func fetchUser(by uid: String) async throws -> User {
+        let response: UserResponse = try await NetworkManager.shared.request(
+            endpoint: "/users/\(uid)",
+            method: .GET
+        )
+
+        guard let user = response.user else {
+            print("❌ Utilisateur absent dans la réponse")
+            throw NetworkError.serverError("User not found")
         }
 
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            if let error = error {
-                print("❌ Erreur réseau: \(error.localizedDescription)")
-                completion(.failure(error))
-                return
-            }
+        await MainActor.run {
+            self.currentUser = user
+        }
 
-            guard let httpResponse = response as? HTTPURLResponse else {
-                print("❌ Réponse invalide du serveur")
-                completion(.failure(URLError(.badServerResponse)))
-                return
-            }
-
-            guard let data = data else {
-                print("❌ Données vides reçues du serveur")
-                completion(.failure(URLError(.badServerResponse)))
-                return
-            }
-
-            if httpResponse.statusCode == 404 {
-                print("❌ Utilisateur non trouvé")
-                completion(.failure(URLError(.fileDoesNotExist)))
-                return
-            }
-
-            do {
-                print("✅ Réponse brute du serveur :", String(data: data, encoding: .utf8) ?? "nil")
-                let decoder = JSONDecoder()
-                decoder.dateDecodingStrategy = .iso8601
-                let wrapper = try decoder.decode(UserResponse.self, from: data)
-                let user = wrapper.user
-                DispatchQueue.main.async {
-                    self.currentUser = user
-                }
-                completion(.success(user))
-            } catch {
-                print("❌ Erreur de décodage: \(error.localizedDescription)")
-                completion(.failure(error))
-            }
-        }.resume()
+        return user
     }
 
     func fetchCurrentUser() {
-        if let uid = Auth.auth().currentUser?.uid {
-            fetchUser(by: uid) { result in
-                DispatchQueue.main.async {
-                    switch result {
-                    case .success(let user):
-                        self.currentUser = user
-                    case .failure(let error):
-                        self.fetchError = error.localizedDescription
-                    }
+        guard let uid = Auth.auth().currentUser?.uid else {
+            self.fetchError = "Utilisateur non connecté."
+            return
+        }
+
+        Task {
+            do {
+                let user = try await fetchUser(by: uid)
+                await MainActor.run {
+                    self.currentUser = user
+                    self.fetchError = nil
+                }
+            } catch {
+                await MainActor.run {
+                    self.fetchError = error.localizedDescription
                 }
             }
-        } else {
-            self.fetchError = "Utilisateur non connecté."
         }
     }
 }

@@ -2,22 +2,19 @@ import SwiftUI
 import FirebaseAuth
 
 func deleteUserFromMongo(uid: String, completion: @escaping () -> Void) {
-    guard let url = URL(string: "\(AppConfig.usersEndpoint)/\(uid)") else {
-        completion()
-        return
-    }
-
-    var request = URLRequest(url: url)
-    request.httpMethod = "DELETE"
-
-    URLSession.shared.dataTask(with: request) { _, response, error in
-        if let error = error {
-            print("❌ MongoDB deletion error: \(error.localizedDescription)")
-        } else {
+    Task {
+        do {
+            try await NetworkManager.shared.requestWithoutAuthNoResponse(
+                endpoint: "/users/\(uid)",
+                method: .DELETE
+            )
             print("✅ User deleted from MongoDB")
+        } catch {
+            print("❌ MongoDB deletion error: \(error.localizedDescription)")
         }
-        DispatchQueue.main.async {
+
+        await MainActor.run {
             completion()
         }
-    }.resume()
+    }
 }

@@ -181,6 +181,80 @@ class NetworkManager {
             throw NetworkError.serverError("Status code: \(httpResponse.statusCode)")
         }
     }
+
+    // MARK: - Request without Firebase Auth (API Key only)
+
+    /// Requête avec API Key uniquement (sans token Firebase)
+    /// Utilisé pour les endpoints publics protégés par API Key uniquement
+    func requestWithoutAuth<T: Decodable>(
+        endpoint: String,
+        method: HTTPMethod = .GET,
+        body: [String: Any]? = nil
+    ) async throws -> T {
+
+        guard let url = URL(string: AppConfig.baseURL + endpoint) else {
+            throw NetworkError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method.rawValue
+
+        // SEULEMENT l'API Key, pas de Firebase token
+        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
+
+        if let body = body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            do {
+                request.httpBody = try JSONSerialization.data(withJSONObject: body)
+            } catch {
+                throw NetworkError.serverError("Erreur sérialisation JSON: \(error.localizedDescription)")
+            }
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NetworkError.serverError("Réponse invalide")
+        }
+
+        switch httpResponse.statusCode {
+        case 200...299:
+            do {
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                let decoded = try decoder.decode(T.self, from: data)
+                return decoded
+            } catch {
+                print("❌ Erreur décodage:", error)
+                print("📄 Data reçue:", String(data: data, encoding: .utf8) ?? "nil")
+                throw NetworkError.decodingError(error)
+            }
+
+        case 401:
+            print("❌ 401 Unauthorized - API Key invalide ou manquante")
+            throw NetworkError.unauthorized
+
+        case 403:
+            print("❌ 403 Forbidden - Accès refusé")
+            throw NetworkError.forbidden
+
+        default:
+            if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let errorMessage = errorData["error"] as? String {
+                throw NetworkError.serverError(errorMessage)
+            }
+            throw NetworkError.serverError("Status code: \(httpResponse.statusCode)")
+        }
+    }
+
+    /// Requête sans réponse attendue (API Key uniquement)
+    func requestWithoutAuthNoResponse(
+        endpoint: String,
+        method: HTTPMethod = .GET,
+        body: [String: Any]? = nil
+    ) async throws {
+        let _: EmptyResponse = try await requestWithoutAuth(endpoint: endpoint, method: method, body: body)
+    }
 }
 
 // MARK: - Helper Models

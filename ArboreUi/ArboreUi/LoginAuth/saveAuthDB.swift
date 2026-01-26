@@ -1,21 +1,6 @@
 import Foundation
 import Firebase
 
-// MARK: - Response Models
-
-struct UserResponse: Codable {
-    let user: UserData?
-    let message: String?
-}
-
-struct UserData: Codable {
-    let uid: String
-    let email: String
-    let name: String
-    let createdAt: String
-    let banned: Bool?
-}
-
 // MARK: - User Management Functions
 
 /// Envoie un utilisateur vers MongoDB via ton backend

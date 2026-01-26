@@ -343,13 +343,15 @@ jobs:
             ARBORE_API_KEY="${{ secrets.ARBORE_API_KEY }}" \
             ARBORE_BACKEND_PROTOCOL="${{ secrets.ARBORE_BACKEND_PROTOCOL }}" \
             ARBORE_BACKEND_HOST="${{ secrets.ARBORE_BACKEND_HOST }}" \
-            2>&1 | tee build/test-output.log | xcpretty --report html --output build/test-report.html
+            2>&1 | tee build/test-output.log
           
-          # Show test output for debugging
+          # Show diagnostic logs
           echo "================================"
           echo "📊 Searching for diagnostic logs..."
           echo "================================"
-          grep -E "🔍|📝|✅|❌|⚠️" build/test-output.log || echo "No diagnostic logs found"
+          if [ -f build/test-output.log ]; then
+            grep -E "🔍|📝|✅|❌|⚠️" build/test-output.log | tail -50 || echo "No diagnostic logs found"
+          fi
 
       - name: 📊 Parse test results
         if: always()

@@ -216,35 +216,27 @@ struct CatalogueView: View {
     }
 
     func fetchPlants() {
-        self.isLoading = true // Reset loading state when retrying
-        guard let url = URL(string: AppConfig.plantsEndpoint) else {
-            self.errorMessage = NSLocalizedString("CATALOG_ERROR_URL_INVALID", comment: "Invalid URL")
-            self.isLoading = false
-            return
-        }
+        self.isLoading = true
 
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            DispatchQueue.main.async {
-                self.isLoading = false
+        Task {
+            do {
+                let plants: [Plant] = try await NetworkManager.shared.request(
+                    endpoint: "/plants",
+                    method: .GET
+                )
 
-                if let error = error {
+                await MainActor.run {
+                    self.plants = plants
+                    self.errorMessage = nil
+                    self.isLoading = false
+                }
+            } catch {
+                await MainActor.run {
                     let format = NSLocalizedString("CATALOG_ERROR_CONNECTION_FORMAT", comment: "Connection error")
                     self.errorMessage = String(format: format, error.localizedDescription)
-                    return
-                }
-
-                guard let data = data else {
-                    self.errorMessage = NSLocalizedString("CATALOG_ERROR_INVALID_DATA", comment: "Invalid data")
-                    return
-                }
-
-                do {
-                    self.plants = try JSONDecoder().decode([Plant].self, from: data)
-                    self.errorMessage = nil // Clear error on success
-                } catch {
-                    self.errorMessage = NSLocalizedString("CATALOG_ERROR_DECODING", comment: "Decoding error")
+                    self.isLoading = false
                 }
             }
-        }.resume()
+        }
     }
 }

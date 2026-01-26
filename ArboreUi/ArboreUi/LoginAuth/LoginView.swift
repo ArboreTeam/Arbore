@@ -294,15 +294,17 @@ struct LoginView: View {
 }
 
 func checkAndDeleteIfExpired(uid: String) {
-    guard let url = URL(string: "\(AppConfig.usersEndpoint)/\(uid)") else { return }
-
-    URLSession.shared.dataTask(with: url) { data, response, error in
-        guard let data = data, error == nil else { return }
-
+    Task {
         do {
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let user = try decoder.decode(User.self, from: data)
+            let response: UserResponse = try await NetworkManager.shared.requestWithoutAuth(
+                endpoint: "/users/\(uid)",
+                method: .GET
+            )
+
+            guard let user = response.user else {
+                print("⚠️ User not found in MongoDB")
+                return
+            }
 
             let now = Date()
             let hoursSinceCreation = now.timeIntervalSince(user.createdAt) / 3600
@@ -314,13 +316,14 @@ func checkAndDeleteIfExpired(uid: String) {
                 print("⏱ Account still within time window")
             }
         } catch {
-            print("❌ Error decoding user from MongoDB: \(error)")
+            print("❌ Error checking user expiration: \(error)")
         }
-    }.resume()
+    }
 }
 
 func deleteAccount() {
     guard let user = Auth.auth().currentUser else { return }
+    let uid = user.uid
 
     // Supprime de Firebase
     user.delete { error in
@@ -329,14 +332,17 @@ func deleteAccount() {
             return
         }
 
-        // Supprime de MongoDB
-        if let url = URL(string: "\(AppConfig.usersEndpoint)/\(user.uid)") {
-            var request = URLRequest(url: url)
-            request.httpMethod = "DELETE"
-
-            URLSession.shared.dataTask(with: request) { _, _, _ in
+        // Supprime de MongoDB avec API Key
+        Task {
+            do {
+                try await NetworkManager.shared.requestWithoutAuthNoResponse(
+                    endpoint: "/users/\(uid)",
+                    method: .DELETE
+                )
                 print("✅ Account deleted from MongoDB and Firebase")
-            }.resume()
+            } catch {
+                print("❌ Error deleting from MongoDB: \(error)")
+            }
         }
     }
 }

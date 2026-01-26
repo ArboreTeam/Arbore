@@ -369,6 +369,12 @@ struct ModernLoginView: View {
                     }
                     return
                 }
+                
+                Task {
+                    if let token = try? await Auth.auth().currentUser?.getIDToken() {
+                        print("🔑 Firebase Token:", token)
+                    }
+                }
 
                 guard let user = result?.user else { return }
 

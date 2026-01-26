@@ -40,8 +40,15 @@ class EmailValidationTests: XCTestCase {
     }
     
     private func isValidEmail(_ email: String) -> Bool {
-        let emailRegex = "^[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$"
+        // Updated regex to disallow consecutive dots
+        let emailRegex = "^[A-Z0-9a-z._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}$"
         let emailPredicate = NSPredicate(format: "SELF MATCHES %@", emailRegex)
+
+        // Additional check for consecutive dots
+        if email.contains("..") {
+            return false
+        }
+
         return emailPredicate.evaluate(with: email)
     }
 }
@@ -162,39 +169,42 @@ class SecurityTests: XCTestCase {
 
 // MARK: - Input Sanitization Tests
 class InputSanitizationTests: XCTestCase {
-    
+
+    @MainActor
     func testEmailInput_ShouldTrimWhitespace() {
-        var view = ModernLoginView()
+        let viewModel = ModernLoginViewModel()
         let emailWithWhitespace = "  test@example.com  "
-        view.email = emailWithWhitespace
-        view.password = "validPassword123"
-        
-        // Test the trimming logic used in loginUser
-        let trimmedEmail = view.email.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+        viewModel.email = emailWithWhitespace
+        viewModel.password = "validPassword123"
+
+        // Test the trimming logic
+        let trimmedEmail = viewModel.trimmedEmail
+
         XCTAssertEqual(trimmedEmail, "test@example.com", "Email should be trimmed of whitespace")
-        XCTAssertTrue(view.isFormValid, "Form should be valid after trimming")
+        XCTAssertTrue(viewModel.isFormValid, "Form should be valid after trimming")
     }
-    
+
+    @MainActor
     func testPasswordInput_ShouldTrimWhitespace() {
-        var view = ModernLoginView()
-        view.email = "test@example.com"
+        let viewModel = ModernLoginViewModel()
+        viewModel.email = "test@example.com"
         let passwordWithWhitespace = "  validPassword123  "
-        view.password = passwordWithWhitespace
-        
-        // Test the trimming logic used in loginUser
-        let trimmedPassword = view.password.trimmingCharacters(in: .whitespacesAndNewlines)
-        
+        viewModel.password = passwordWithWhitespace
+
+        // Test the trimming logic
+        let trimmedPassword = viewModel.trimmedPassword
+
         XCTAssertEqual(trimmedPassword, "validPassword123", "Password should be trimmed of whitespace")
-        XCTAssertTrue(view.isFormValid, "Form should be valid after trimming")
+        XCTAssertTrue(viewModel.isFormValid, "Form should be valid after trimming")
     }
-    
+
+    @MainActor
     func testSpecialCharacters_ShouldBeHandledCorrectly() {
-        var view = ModernLoginView()
-        view.email = "test+special@example.com"
-        view.password = "P@ssw0rd!#$%"
-        
-        XCTAssertTrue(view.isFormValid, "Form should handle special characters correctly")
+        let viewModel = ModernLoginViewModel()
+        viewModel.email = "test+special@example.com"
+        viewModel.password = "P@ssw0rd!#$%"
+
+        XCTAssertTrue(viewModel.isFormValid, "Form should handle special characters correctly")
     }
 }
 
@@ -232,59 +242,59 @@ class ErrorMessageTests: XCTestCase {
         }
     }
     
-    func testEmptyFieldsError_ShouldShowCorrectMessage() {
-        var view = ModernLoginView()
-        view.loginUser()
-        
-        let expectation = XCTestExpectation(description: "Error message set")
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            XCTAssertEqual(view.errorMessage, "Veuillez saisir votre email et mot de passe.")
-            expectation.fulfill()
-        }
-        
-        wait(for: [expectation], timeout: 1.0)
+    @MainActor
+    func testEmptyFieldsError_ShouldShowCorrectMessage() async {
+        let viewModel = ModernLoginViewModel()
+        viewModel.loginUser()
+
+        // Wait for async operation
+        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
+
+        XCTAssertEqual(viewModel.errorMessage, "Veuillez saisir votre email et mot de passe.")
     }
 }
 
 // MARK: - UI State Tests
 class UIStateTests: XCTestCase {
-    
+
+    @MainActor
     func testLoadingState_ShouldDisableButton() {
-        var view = ModernLoginView()
-        view.email = "test@example.com"
-        view.password = "validPassword123"
-        
+        let viewModel = ModernLoginViewModel()
+        viewModel.email = "test@example.com"
+        viewModel.password = "validPassword123"
+
         // Simulate loading state
-        view.isLoading = true
-        
-        XCTAssertTrue(view.isLoading, "Should be in loading state")
+        viewModel.isLoading = true
+
+        XCTAssertTrue(viewModel.isLoading, "Should be in loading state")
         // In a real scenario, the button would be disabled when isLoading is true
     }
-    
+
+    @MainActor
     func testFormValidation_ShouldControlButtonState() {
-        var view = ModernLoginView()
-        
+        let viewModel = ModernLoginViewModel()
+
         // Invalid form
-        XCTAssertFalse(view.isFormValid, "Button should be disabled with invalid form")
-        
+        XCTAssertFalse(viewModel.isFormValid, "Button should be disabled with invalid form")
+
         // Valid form
-        view.email = "test@example.com"
-        view.password = "validPassword123"
-        XCTAssertTrue(view.isFormValid, "Button should be enabled with valid form")
+        viewModel.email = "test@example.com"
+        viewModel.password = "validPassword123"
+        XCTAssertTrue(viewModel.isFormValid, "Button should be enabled with valid form")
     }
-    
+
+    @MainActor
     func testNavigationStates_ShouldControlViewPresentation() {
-        var view = ModernLoginView()
-        
-        XCTAssertFalse(view.showSignUp, "Sign up view should not be shown initially")
-        XCTAssertFalse(view.showReset, "Reset password view should not be shown initially")
-        
-        view.showSignUp = true
-        XCTAssertTrue(view.showSignUp, "Sign up view should be shown when toggled")
-        
-        view.showReset = true
-        XCTAssertTrue(view.showReset, "Reset password view should be shown when toggled")
+        let viewModel = ModernLoginViewModel()
+
+        XCTAssertFalse(viewModel.showSignUp, "Sign up view should not be shown initially")
+        XCTAssertFalse(viewModel.showReset, "Reset password view should not be shown initially")
+
+        viewModel.showSignUp = true
+        XCTAssertTrue(viewModel.showSignUp, "Sign up view should be shown when toggled")
+
+        viewModel.showReset = true
+        XCTAssertTrue(viewModel.showReset, "Reset password view should be shown when toggled")
     }
 }
 
@@ -376,57 +386,62 @@ class LoginPerformanceTests: XCTestCase {
 
 // MARK: - Integration Tests
 class LoginIntegrationTests: XCTestCase {
-    
+
+    @MainActor
     func testCompleteLoginFlow_WithValidData_ShouldSucceed() {
-        var view = ModernLoginView()
-        view.email = "test@example.com"
-        view.password = "validPassword123"
-        
-        XCTAssertTrue(view.isFormValid, "Form should be valid with correct data")
-        XCTAssertFalse(view.isLoading, "Should not be loading initially")
-        XCTAssertEqual(view.errorMessage, "", "Should have no error message initially")
+        let viewModel = ModernLoginViewModel()
+        viewModel.email = "test@example.com"
+        viewModel.password = "validPassword123"
+
+        XCTAssertTrue(viewModel.isFormValid, "Form should be valid with correct data")
+        XCTAssertFalse(viewModel.isLoading, "Should not be loading initially")
+        XCTAssertEqual(viewModel.errorMessage, "", "Should have no error message initially")
     }
-    
+
+    @MainActor
     func testNavigationFlow_ShouldMaintainState() {
-        var view = ModernLoginView()
-        
+        let viewModel = ModernLoginViewModel()
+
         // Test sign up navigation
-        view.showSignUp = true
-        XCTAssertTrue(view.showSignUp, "Sign up navigation should be triggered")
-        
+        viewModel.showSignUp = true
+        XCTAssertTrue(viewModel.showSignUp, "Sign up navigation should be triggered")
+
         // Test reset password navigation
-        view.showReset = true
-        XCTAssertTrue(view.showReset, "Reset password navigation should be triggered")
+        viewModel.showReset = true
+        XCTAssertTrue(viewModel.showReset, "Reset password navigation should be triggered")
     }
 }
 
 // MARK: - Edge Cases Tests
 class EdgeCaseTests: XCTestCase {
-    
+
+    @MainActor
     func testVeryLongInputs_ShouldBeHandledCorrectly() {
-        var view = ModernLoginView()
+        let viewModel = ModernLoginViewModel()
         let veryLongEmail = String(repeating: "a", count: 1000) + "@example.com"
         let veryLongPassword = String(repeating: "p", count: 1000)
-        
-        view.email = veryLongEmail
-        view.password = veryLongPassword
-        
-        XCTAssertTrue(view.isFormValid, "Should handle very long inputs")
+
+        viewModel.email = veryLongEmail
+        viewModel.password = veryLongPassword
+
+        XCTAssertTrue(viewModel.isFormValid, "Should handle very long inputs")
     }
-    
+
+    @MainActor
     func testUnicodeCharacters_ShouldBeHandledCorrectly() {
-        var view = ModernLoginView()
-        view.email = "tëst@éxämplé.com"
-        view.password = "pässwörd123"
-        
-        XCTAssertTrue(view.isFormValid, "Should handle unicode characters")
+        let viewModel = ModernLoginViewModel()
+        viewModel.email = "tëst@éxämplé.com"
+        viewModel.password = "pässwörd123"
+
+        XCTAssertTrue(viewModel.isFormValid, "Should handle unicode characters")
     }
-    
+
+    @MainActor
     func testEmptyAfterTrimming_ShouldBeInvalid() {
-        var view = ModernLoginView()
-        view.email = "   "
-        view.password = "   "
-        
-        XCTAssertFalse(view.isFormValid, "Should be invalid after trimming whitespace")
+        let viewModel = ModernLoginViewModel()
+        viewModel.email = "   "
+        viewModel.password = "   "
+
+        XCTAssertFalse(viewModel.isFormValid, "Should be invalid after trimming whitespace")
     }
 }

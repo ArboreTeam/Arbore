@@ -424,37 +424,25 @@ struct PlantDetailView: View {
     // MARK: - NETWORKING
 
     private func fetchPlantDetails() {
-        guard let url = URL(string: "\(AppConfig.plantsEndpoint)/\(plantID)") else {
-            self.errorMessage = NSLocalizedString("PLANTDETAIL_ERROR_URL_INVALID", comment: "")
-            self.isLoading = false
-            return
-        }
+        Task {
+            do {
+                let plant: Plant = try await NetworkManager.shared.request(
+                    endpoint: "/plants/\(plantID)",
+                    method: .GET
+                )
 
-        URLSession.shared.dataTask(with: url) { data, _, error in
-            DispatchQueue.main.async {
-                isLoading = false
-
-                if let error = error {
+                await MainActor.run {
+                    self.plant = plant
+                    self.isLoading = false
+                }
+            } catch {
+                await MainActor.run {
                     let format = NSLocalizedString("PLANTDETAIL_ERROR_CONNECTION_FORMAT", comment: "")
-                    errorMessage = String(format: format, error.localizedDescription)
-                    return
-                }
-
-                guard let data = data else {
-                    errorMessage = NSLocalizedString("PLANTDETAIL_ERROR_INVALID_DATA", comment: "")
-                    return
-                }
-
-                do {
-                    plant = try JSONDecoder().decode(Plant.self, from: data)
-                } catch {
-                    let format = NSLocalizedString("PLANTDETAIL_ERROR_DECODING_FORMAT", comment: "")
-                    errorMessage = String(format: format, "\(error)")
-                    print("❌ Décodage PlantDetailView :", error)
+                    self.errorMessage = String(format: format, error.localizedDescription)
+                    self.isLoading = false
                 }
             }
         }
-        .resume()
     }
 
     // MARK: - AR FALLBACK

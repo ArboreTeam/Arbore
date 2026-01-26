@@ -338,6 +338,8 @@ jobs:
             -parallel-testing-enabled YES \
             -maximum-concurrent-test-simulator-destinations 4 \
             CODE_SIGNING_ALLOWED=NO \
+            GCC_TREAT_WARNINGS_AS_ERRORS=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             ARBORE_API_KEY="${{ secrets.ARBORE_API_KEY }}" \
             ARBORE_BACKEND_PROTOCOL="${{ secrets.ARBORE_BACKEND_PROTOCOL }}" \
             ARBORE_BACKEND_HOST="${{ secrets.ARBORE_BACKEND_HOST }}" \

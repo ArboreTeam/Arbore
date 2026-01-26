@@ -287,6 +287,15 @@ jobs:
           EOF
           echo "✅ Secrets.xcconfig created"
 
+      - name: 🔑 Setup Keychain for CI
+        run: |
+          # Create a temporary keychain for CI
+          security create-keychain -p "" ci.keychain
+          security default-keychain -s ci.keychain
+          security unlock-keychain -p "" ci.keychain
+          security set-keychain-settings -t 3600 -u ci.keychain
+          security list-keychains -d user -s ci.keychain
+
       - name: 📦 Install CocoaPods dependencies
         run: |
           # Utilise le CDN (source 'https://cdn.cocoapods.org/' dans Podfile)
@@ -365,6 +374,11 @@ jobs:
           path: |
             ArboreUi/build/Build/Products/Debug-iphonesimulator/
           retention-days: 7
+
+      - name: 🧹 Cleanup Keychain
+        if: always()
+        run: |
+          security delete-keychain ci.keychain || true
 
   # iOS AR Module - Build
   ios_ar:

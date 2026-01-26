@@ -185,8 +185,7 @@ class ModernTextFieldTests: XCTestCase {
         // Arrange
         let textBinding = Binding.constant("")
         let focusBinding = FocusState<ModernLoginView.Field?>().projectedValue
-        let passwordVisibleBinding = Binding.constant(false)
-        
+
         // Act
         let textField = ModernTextField(
             text: textBinding,
@@ -198,7 +197,7 @@ class ModernTextFieldTests: XCTestCase {
             fieldType: .email,
             themeManager: mockThemeManager
         )
-        
+
         // Assert
         XCTAssertEqual(textField.placeholder, "Test Placeholder")
         XCTAssertEqual(textField.systemImage, "envelope.fill")
@@ -258,9 +257,8 @@ class SocialLoginButtonTests: XCTestCase {
     
     func testSocialLoginButton_Initialization_ShouldSetCorrectProperties() {
         // Arrange
-        var actionCalled = false
-        let action = { actionCalled = true }
-        
+        let action = {}
+
         // Act
         let button = SocialLoginButton(
             title: "Test Button",
@@ -269,7 +267,7 @@ class SocialLoginButtonTests: XCTestCase {
             foregroundColor: .white,
             action: action
         )
-        
+
         // Assert
         XCTAssertEqual(button.title, "Test Button")
         XCTAssertEqual(button.icon, "apple.logo")
@@ -341,9 +339,6 @@ class ModernLoginViewIntegrationTests: XCTestCase {
 class AccessibilityTests: XCTestCase {
     
     func testModernLoginView_ShouldHaveAccessibilityElements() {
-        // Arrange
-        let view = ModernLoginView()
-        
         // Act & Assert
         // Tests d'accessibilité nécessitent des outils SwiftUI spécialisés
         XCTAssertTrue(true, "Placeholder for accessibility testing")

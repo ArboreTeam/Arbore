@@ -56,14 +56,16 @@ class FirebaseConfigDiagnosticTests: XCTestCase {
         if let firebaseApp = FirebaseApp.app() {
             print("📝 Firebase App Name: \(firebaseApp.name)")
             let options = firebaseApp.options
-            print("📝 Firebase API Key: \(options.apiKey.prefix(10))...")
+            print("📝 Firebase API Key: \(options.apiKey?.prefix(10) ?? "nil")...")
             print("📝 Firebase Project ID: \(options.projectID ?? "nil")")
-            print("📝 Firebase App ID: \(options.googleAppID.prefix(20))...")
+            print("📝 Firebase App ID: \(options.googleAppID?.prefix(20) ?? "nil")...")
             print("📝 Firebase Client ID: \(options.clientID?.prefix(20) ?? "nil")...")
             
-            XCTAssertFalse(options.apiKey.isEmpty, "Firebase API Key should exist")
+            XCTAssertNotNil(options.apiKey, "Firebase API Key should exist")
+            XCTAssertFalse(options.apiKey?.isEmpty ?? true, "Firebase API Key should not be empty")
             XCTAssertNotNil(options.projectID, "Firebase Project ID should exist")
-            XCTAssertFalse(options.googleAppID.isEmpty, "Firebase App ID should exist")
+            XCTAssertNotNil(options.googleAppID, "Firebase App ID should exist")
+            XCTAssertFalse(options.googleAppID?.isEmpty ?? true, "Firebase App ID should not be empty")
         }
         
         // Check Auth instance

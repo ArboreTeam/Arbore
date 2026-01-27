@@ -625,7 +625,7 @@ class PrivacySettingsIntegrationTests: XCTestCase {
             return
         }
 
-        URLSession.shared.dataTask(with: request) { _, response, error in
+        URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
                 NSLog("❌ Error creating user in backend: \(error)")
                 completion(false)
@@ -633,6 +633,10 @@ class PrivacySettingsIntegrationTests: XCTestCase {
             }
 
             if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode != 201 {
+                    let bodyString = data.flatMap { String(data: $0, encoding: .utf8) } ?? "No response body"
+                    NSLog("⚠️ Backend returned status \(httpResponse.statusCode) when creating user. Response: \(bodyString)")
+                }
                 completion(httpResponse.statusCode == 201)
             } else {
                 completion(false)

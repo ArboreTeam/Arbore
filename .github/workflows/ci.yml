@@ -337,7 +337,9 @@ jobs:
             -resultBundlePath build/TestResults.xcresult \
             -parallel-testing-enabled YES \
             -maximum-concurrent-test-simulator-destinations 4 \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGNING_REQUIRED=NO \
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             ARBORE_API_KEY="${{ secrets.ARBORE_API_KEY }}" \

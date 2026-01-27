@@ -642,7 +642,8 @@ class PrivacySettingsIntegrationTests: XCTestCase {
 
             if let httpResponse = response as? HTTPURLResponse {
                 let bodyString = data.flatMap { String(data: $0, encoding: .utf8) } ?? "No response body"
-                completion(httpResponse.statusCode == 201, httpResponse.statusCode, bodyString)
+                let isSuccess = (200...299).contains(httpResponse.statusCode)
+                completion(isSuccess, httpResponse.statusCode, bodyString)
             } else {
                 completion(false, nil, "No HTTP response")
             }

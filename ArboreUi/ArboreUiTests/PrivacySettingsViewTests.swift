@@ -543,9 +543,9 @@ class PrivacySettingsIntegrationTests: XCTestCase {
             self.testUserUID = uid
 
             // Créer le user dans MongoDB via backend
-            self.createUserInBackend(uid: uid, email: self.testEmail) { success in
+            self.createUserInBackend(uid: uid, email: self.testEmail) { success, statusCode, responseBody in
                 if !success {
-                    XCTFail("⚠️ PrivacySettingsIntegrationTests setUp - Failed to create user in MongoDB")
+                    XCTFail("⚠️ PrivacySettingsIntegrationTests setUp - Failed to create user in MongoDB\n📝 HTTP Status: \(statusCode ?? -1)\n📝 Response: \(responseBody ?? "No response")")
                 }
                 createExpectation.fulfill()
             }
@@ -599,9 +599,9 @@ class PrivacySettingsIntegrationTests: XCTestCase {
 
     // MARK: - Helper Methods
 
-    private func createUserInBackend(uid: String, email: String, completion: @escaping (Bool) -> Void) {
+    private func createUserInBackend(uid: String, email: String, completion: @escaping (Bool, Int?, String?) -> Void) {
         guard let url = URL(string: AppConfig.usersEndpoint) else {
-            completion(false)
+            completion(false, nil, "Invalid URL")
             return
         }
 
@@ -620,26 +620,21 @@ class PrivacySettingsIntegrationTests: XCTestCase {
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: userData)
         } catch {
-            NSLog("❌ Error serializing user data: \(error)")
-            completion(false)
+            completion(false, nil, "Serialization error: \(error.localizedDescription)")
             return
         }
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
-                NSLog("❌ Error creating user in backend: \(error)")
-                completion(false)
+                completion(false, nil, "Network error: \(error.localizedDescription)")
                 return
             }
 
             if let httpResponse = response as? HTTPURLResponse {
-                if httpResponse.statusCode != 201 {
-                    let bodyString = data.flatMap { String(data: $0, encoding: .utf8) } ?? "No response body"
-                    NSLog("⚠️ Backend returned status \(httpResponse.statusCode) when creating user. Response: \(bodyString)")
-                }
-                completion(httpResponse.statusCode == 201)
+                let bodyString = data.flatMap { String(data: $0, encoding: .utf8) } ?? "No response body"
+                completion(httpResponse.statusCode == 201, httpResponse.statusCode, bodyString)
             } else {
-                completion(false)
+                completion(false, nil, "No HTTP response")
             }
         }.resume()
     }

@@ -503,67 +503,55 @@ class PrivacySettingsIntegrationTests: XCTestCase {
     var testUserUID: String?
 
     override func setUpWithError() throws {
-        NSLog("\n🔍 [PrivacySettingsIntegrationTests] Starting setUp...")
-        
         // Configuration Firebase
         if FirebaseApp.app() == nil {
-            NSLog("📝 [Firebase] Configuring Firebase...")
             FirebaseApp.configure()
-            NSLog("✅ [Firebase] Configuration complete")
-        } else {
-            NSLog("✅ [Firebase] Already configured")
         }
 
         // Générer un email unique pour éviter les conflits
         let timestamp = Int(Date().timeIntervalSince1970)
         testEmail = "test-rgpd-\(timestamp)@arbore.test"
-        NSLog("📝 [Test User] Email: \(testEmail!)")
 
         // Créer le user dans Firebase Auth
         let createExpectation = XCTestExpectation(description: "Create test user")
         let startTime = Date()
-        
-        NSLog("📝 [Firebase Auth] Attempting to create user...")
 
         Auth.auth().createUser(withEmail: testEmail, password: testPassword) { result, error in
             let elapsed = Date().timeIntervalSince(startTime)
             
             if let error = error {
                 let nsError = error as NSError
-                NSLog("❌ [Firebase Auth] User creation failed after \(String(format: "%.2f", elapsed))s")
-                NSLog("📝 [Firebase Auth] Error domain: \(nsError.domain)")
-                NSLog("📝 [Firebase Auth] Error code: \(nsError.code)")
-                NSLog("📝 [Firebase Auth] Error: \(error.localizedDescription)")
-                XCTFail("Failed to create test user in Firebase: \(error.localizedDescription)")
+                let errorMsg = """
+                ❌ PrivacySettingsIntegrationTests setUp FAILED
+                📝 Firebase createUser failed after \(String(format: "%.2f", elapsed))s
+                📝 Error domain: \(nsError.domain)
+                📝 Error code: \(nsError.code)
+                📝 Description: \(error.localizedDescription)
+                📝 UserInfo: \(nsError.userInfo)
+                """
+                XCTFail(errorMsg)
                 createExpectation.fulfill()
                 return
             }
 
             guard let uid = result?.user.uid else {
-                NSLog("❌ [Firebase Auth] No UID returned after \(String(format: "%.2f", elapsed))s")
-                XCTFail("No UID returned after user creation")
+                XCTFail("❌ PrivacySettingsIntegrationTests setUp - No UID returned after user creation")
                 createExpectation.fulfill()
                 return
             }
 
             self.testUserUID = uid
-            NSLog("✅ [Firebase Auth] User created in \(String(format: "%.2f", elapsed))s - UID: \(uid)")
 
             // Créer le user dans MongoDB via backend
-            NSLog("📝 [Backend] Creating user in MongoDB...")
             self.createUserInBackend(uid: uid, email: self.testEmail) { success in
-                if success {
-                    NSLog("✅ [Backend] Test user created in MongoDB")
-                } else {
-                    NSLog("⚠️ [Backend] Failed to create user in MongoDB (non-fatal)")
+                if !success {
+                    XCTFail("⚠️ PrivacySettingsIntegrationTests setUp - Failed to create user in MongoDB")
                 }
                 createExpectation.fulfill()
             }
         }
 
-        NSLog("📝 [Test] Waiting up to 30s for user creation...")
         wait(for: [createExpectation], timeout: 30.0)
-        NSLog("✅ [Test] setUp complete\n")
 
         // Nettoyer les données locales
         clearUserDefaults()

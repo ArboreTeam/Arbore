@@ -89,58 +89,48 @@ class FirebaseConfigDiagnosticTests: XCTestCase {
     
     /// Test 3: Test Firebase network connectivity
     func testDiagnostic_Firebase_NetworkConnectivity() {
-        NSLog("\n========================================")
-        NSLog("🔍 DIAGNOSTIC: Testing Firebase Network")
-        NSLog("========================================")
-        
-        // Configure Firebase if needed
-        if FirebaseApp.app() == nil {
-            FirebaseApp.configure()
-        }
-        
-        let expectation = XCTestExpectation(description: "Test Firebase connectivity")
-        let startTime = Date()
-        
-        NSLog("📝 Attempting to create test user...")
-        NSLog("📝 Timeout: 30 seconds")
-        
-        let testEmail = "diagnostic-test-\(Int(Date().timeIntervalSince1970))@arbore.test"
-        let testPassword = "DiagnosticTest2026!"
-        
-        Auth.auth().createUser(withEmail: testEmail, password: testPassword) { result, error in
-            let elapsed = Date().timeIntervalSince(startTime)
-            
-            if let error = error {
-                let nsError = error as NSError
-                NSLog("❌ Firebase createUser failed after \(String(format: "%.2f", elapsed))s")
-                NSLog("📝 Error domain: \(nsError.domain)")
-                NSLog("📝 Error code: \(nsError.code)")
-                NSLog("📝 Error description: \(error.localizedDescription)")
-                NSLog("📝 Error userInfo: \(nsError.userInfo)")
-                
-                // Fail the test but with diagnostic info
-                XCTFail("Firebase user creation failed: \(error.localizedDescription)")
-            } else {
-                NSLog("✅ Firebase createUser succeeded in \(String(format: "%.2f", elapsed))s")
-                NSLog("📝 User UID: \(result?.user.uid ?? "nil")")
-                
-                // Clean up: delete the test user
-                result?.user.delete { deleteError in
-                    if let deleteError = deleteError {
-                        NSLog("⚠️ Failed to delete diagnostic user: \(deleteError.localizedDescription)")
-                    } else {
-                        NSLog("✅ Diagnostic user deleted")
-                    }
-                    expectation.fulfill()
-                }
-                return
+        XCTContext.runActivity(named: "🔍 DIAGNOSTIC: Testing Firebase Network") { _ in
+            // Configure Firebase if needed
+            if FirebaseApp.app() == nil {
+                FirebaseApp.configure()
             }
             
-            expectation.fulfill()
+            let expectation = XCTestExpectation(description: "Test Firebase connectivity")
+            let startTime = Date()
+            
+            let testEmail = "diagnostic-test-\(Int(Date().timeIntervalSince1970))@arbore.test"
+            let testPassword = "DiagnosticTest2026!"
+            
+            Auth.auth().createUser(withEmail: testEmail, password: testPassword) { result, error in
+                let elapsed = Date().timeIntervalSince(startTime)
+                
+                if let error = error {
+                    let nsError = error as NSError
+                    // Use XCTFail which appears in logs
+                    let errorMsg = """
+                    ❌ Firebase createUser FAILED after \(String(format: "%.2f", elapsed))s
+                    📝 Error domain: \(nsError.domain)
+                    📝 Error code: \(nsError.code)
+                    📝 Description: \(error.localizedDescription)
+                    📝 UserInfo: \(nsError.userInfo)
+                    """
+                    XCTFail(errorMsg)
+                } else {
+                    // Clean up: delete the test user
+                    result?.user.delete { deleteError in
+                        if let deleteError = deleteError {
+                            XCTFail("⚠️ Failed to delete diagnostic user: \(deleteError.localizedDescription)")
+                        }
+                        expectation.fulfill()
+                    }
+                    return
+                }
+                
+                expectation.fulfill()
+            }
+            
+            wait(for: [expectation], timeout: 30.0)
         }
-        
-        wait(for: [expectation], timeout: 30.0)
-        NSLog("========================================\n")
     }
     
     /// Test 4: Verify backend connectivity

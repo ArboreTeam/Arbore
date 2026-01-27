@@ -542,12 +542,21 @@ class PrivacySettingsIntegrationTests: XCTestCase {
 
             self.testUserUID = uid
 
-            // Créer le user dans MongoDB via backend
-            self.createUserInBackend(uid: uid, email: self.testEmail) { success, statusCode, responseBody in
-                if !success {
-                    XCTFail("⚠️ PrivacySettingsIntegrationTests setUp - Failed to create user in MongoDB\n📝 HTTP Status: \(statusCode ?? -1)\n📝 Response: \(responseBody ?? "No response")")
+            // Obtenir le token Firebase
+            result?.user.getIDToken { token, error in
+                guard let firebaseToken = token else {
+                    XCTFail("❌ Failed to get Firebase token: \(error?.localizedDescription ?? "Unknown error")")
+                    createExpectation.fulfill()
+                    return
                 }
-                createExpectation.fulfill()
+                
+                // Créer le user dans MongoDB via backend avec le token
+                self.createUserInBackend(uid: uid, email: self.testEmail, firebaseToken: firebaseToken) { success, statusCode, responseBody in
+                    if !success {
+                        XCTFail("⚠️ PrivacySettingsIntegrationTests setUp - Failed to create user in MongoDB\n📝 HTTP Status: \(statusCode ?? -1)\n📝 Response: \(responseBody ?? "No response")")
+                    }
+                    createExpectation.fulfill()
+                }
             }
         }
 
@@ -599,7 +608,7 @@ class PrivacySettingsIntegrationTests: XCTestCase {
 
     // MARK: - Helper Methods
 
-    private func createUserInBackend(uid: String, email: String, completion: @escaping (Bool, Int?, String?) -> Void) {
+    private func createUserInBackend(uid: String, email: String, firebaseToken: String, completion: @escaping (Bool, Int?, String?) -> Void) {
         guard let url = URL(string: AppConfig.usersEndpoint) else {
             completion(false, nil, "Invalid URL")
             return
@@ -609,6 +618,7 @@ class PrivacySettingsIntegrationTests: XCTestCase {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
+        request.setValue("Bearer \(firebaseToken)", forHTTPHeaderField: "Authorization")
 
         let userData: [String: Any] = [
             "uid": uid,

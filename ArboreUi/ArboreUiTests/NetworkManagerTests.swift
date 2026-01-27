@@ -350,63 +350,59 @@ class NetworkManagerIntegrationTests: XCTestCase {
     var testUserUID: String?
 
     override func setUpWithError() throws {
-        NSLog("\n🔍 [NetworkManagerIntegrationTests] Starting setUp...")
-        
         // Configuration Firebase
         if FirebaseApp.app() == nil {
-            NSLog("📝 [Firebase] Configuring Firebase...")
             FirebaseApp.configure()
-            NSLog("✅ [Firebase] Configuration complete")
-        } else {
-            NSLog("✅ [Firebase] Already configured")
         }
 
         // Créer un user de test
         let timestamp = Int(Date().timeIntervalSince1970)
         testEmail = "test-network-\(timestamp)@arbore.test"
-        NSLog("📝 [Test User] Email: \(testEmail!)")
 
         let createExpectation = XCTestExpectation(description: "Create test user")
         let startTime = Date()
-        
-        NSLog("📝 [Firebase Auth] Attempting to create user...")
 
         Auth.auth().createUser(withEmail: testEmail, password: testPassword) { result, error in
             let elapsed = Date().timeIntervalSince(startTime)
             
             if let error = error {
                 let nsError = error as NSError
-                NSLog("❌ [Firebase Auth] User creation failed after \(String(format: "%.2f", elapsed))s")
-                NSLog("📝 [Firebase Auth] Error domain: \(nsError.domain)")
-                NSLog("📝 [Firebase Auth] Error code: \(nsError.code)")
-                NSLog("📝 [Firebase Auth] Error: \(error.localizedDescription)")
-                XCTFail("Failed to create test user: \(error.localizedDescription)")
+                let errorMsg = """
+                ❌ NetworkManagerIntegrationTests setUp FAILED
+                📝 Firebase createUser failed after \(String(format: "%.2f", elapsed))s
+                📝 Error domain: \(nsError.domain)
+                📝 Error code: \(nsError.code)
+                📝 Description: \(error.localizedDescription)
+                📝 UserInfo: \(nsError.userInfo)
+                """
+                XCTFail(errorMsg)
                 createExpectation.fulfill()
                 return
             }
 
             self.testUserUID = result?.user.uid
-            NSLog("✅ [Firebase Auth] User created in \(String(format: "%.2f", elapsed))s - UID: \(self.testUserUID ?? "nil")")
 
             // Sign in pour obtenir un token Firebase valide
-            NSLog("📝 [Firebase Auth] Signing in user...")
             let signInTime = Date()
             
             Auth.auth().signIn(withEmail: self.testEmail, password: self.testPassword) { _, signInError in
                 let signInElapsed = Date().timeIntervalSince(signInTime)
                 
                 if let signInError = signInError {
-                    NSLog("❌ [Firebase Auth] Sign in failed after \(String(format: "%.2f", signInElapsed))s")
-                    NSLog("📝 [Firebase Auth] Error: \(signInError.localizedDescription)")
-                    XCTFail("Failed to sign in test user: \(signInError.localizedDescription)")
+                    let nsError = signInError as NSError
+                    let errorMsg = """
+                    ❌ NetworkManagerIntegrationTests setUp - signIn FAILED
+                    📝 Firebase signIn failed after \(String(format: "%.2f", signInElapsed))s
+                    📝 Error domain: \(nsError.domain)
+                    📝 Error code: \(nsError.code)
+                    📝 Description: \(signInError.localizedDescription)
+                    """
+                    XCTFail(errorMsg)
                     createExpectation.fulfill()
                     return
                 }
 
-                NSLog("✅ [Firebase Auth] User signed in after \(String(format: "%.2f", signInElapsed))s")
-
                 // Créer le user dans MongoDB avec NetworkManager (qui ajoute le token Firebase)
-                NSLog("📝 [Backend] Creating user in MongoDB...")
                 Task {
                     do {
                         let formatter = ISO8601DateFormatter()
@@ -424,19 +420,21 @@ class NetworkManagerIntegrationTests: XCTestCase {
                             body: userData
                         )
 
-                        NSLog("✅ [Backend] Test user created in MongoDB")
                         createExpectation.fulfill()
                     } catch {
-                        NSLog("⚠️ [Backend] Failed to create user in backend: \(error)")
+                        let errorMsg = """
+                        ❌ NetworkManagerIntegrationTests setUp - Backend user creation FAILED
+                        📝 Backend POST /users failed
+                        📝 Error: \(error)
+                        """
+                        XCTFail(errorMsg)
                         createExpectation.fulfill()
                     }
                 }
             }
         }
 
-        NSLog("📝 [Test] Waiting up to 30s for user creation...")
         wait(for: [createExpectation], timeout: 30.0)
-        NSLog("✅ [Test] setUp complete\n")
     }
 
     override func tearDownWithError() throws {

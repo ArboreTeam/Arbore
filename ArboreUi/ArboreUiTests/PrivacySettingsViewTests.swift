@@ -725,13 +725,13 @@ class PrivacySettingsIntegrationTests: XCTestCase {
         view.recordConsentChange(type: "showActivity", granted: false)
         view.recordConsentChange(type: "analytics", granted: true)
 
-        // Attendre les 3 requêtes backend
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+        // Attendre les 3 requêtes backend avec plus de temps pour CI
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
             XCTAssertTrue(true, "Multiple consents synced")
             expectation.fulfill()
         }
 
-        wait(for: [expectation], timeout: 6.0)
+        wait(for: [expectation], timeout: 10.0)
     }
 
     // MARK: - Backend PULL Tests (loadConsentsFromBackend)

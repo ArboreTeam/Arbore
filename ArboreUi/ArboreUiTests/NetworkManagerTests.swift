@@ -484,8 +484,18 @@ class NetworkManagerIntegrationTests: XCTestCase {
 
         request.httpBody = try? JSONSerialization.data(withJSONObject: userData)
 
-        URLSession.shared.dataTask(with: request) { _, response, _ in
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                NSLog("❌ NetworkManagerTests: Error creating user in backend: \(error)")
+                completion(false)
+                return
+            }
+            
             if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode != 201 {
+                    let bodyString = data.flatMap { String(data: $0, encoding: .utf8) } ?? "No response body"
+                    NSLog("⚠️ NetworkManagerTests: Backend returned status \(httpResponse.statusCode) when creating user. Response: \(bodyString)")
+                }
                 completion(httpResponse.statusCode == 201)
             } else {
                 completion(false)

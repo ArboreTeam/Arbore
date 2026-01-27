@@ -503,67 +503,67 @@ class PrivacySettingsIntegrationTests: XCTestCase {
     var testUserUID: String?
 
     override func setUpWithError() throws {
-        print("\n🔍 [PrivacySettingsIntegrationTests] Starting setUp...")
+        NSLog("\n🔍 [PrivacySettingsIntegrationTests] Starting setUp...")
         
         // Configuration Firebase
         if FirebaseApp.app() == nil {
-            print("📝 [Firebase] Configuring Firebase...")
+            NSLog("📝 [Firebase] Configuring Firebase...")
             FirebaseApp.configure()
-            print("✅ [Firebase] Configuration complete")
+            NSLog("✅ [Firebase] Configuration complete")
         } else {
-            print("✅ [Firebase] Already configured")
+            NSLog("✅ [Firebase] Already configured")
         }
 
         // Générer un email unique pour éviter les conflits
         let timestamp = Int(Date().timeIntervalSince1970)
         testEmail = "test-rgpd-\(timestamp)@arbore.test"
-        print("📝 [Test User] Email: \(testEmail!)")
+        NSLog("📝 [Test User] Email: \(testEmail!)")
 
         // Créer le user dans Firebase Auth
         let createExpectation = XCTestExpectation(description: "Create test user")
         let startTime = Date()
         
-        print("📝 [Firebase Auth] Attempting to create user...")
+        NSLog("📝 [Firebase Auth] Attempting to create user...")
 
         Auth.auth().createUser(withEmail: testEmail, password: testPassword) { result, error in
             let elapsed = Date().timeIntervalSince(startTime)
             
             if let error = error {
                 let nsError = error as NSError
-                print("❌ [Firebase Auth] User creation failed after \(String(format: "%.2f", elapsed))s")
-                print("📝 [Firebase Auth] Error domain: \(nsError.domain)")
-                print("📝 [Firebase Auth] Error code: \(nsError.code)")
-                print("📝 [Firebase Auth] Error: \(error.localizedDescription)")
+                NSLog("❌ [Firebase Auth] User creation failed after \(String(format: "%.2f", elapsed))s")
+                NSLog("📝 [Firebase Auth] Error domain: \(nsError.domain)")
+                NSLog("📝 [Firebase Auth] Error code: \(nsError.code)")
+                NSLog("📝 [Firebase Auth] Error: \(error.localizedDescription)")
                 XCTFail("Failed to create test user in Firebase: \(error.localizedDescription)")
                 createExpectation.fulfill()
                 return
             }
 
             guard let uid = result?.user.uid else {
-                print("❌ [Firebase Auth] No UID returned after \(String(format: "%.2f", elapsed))s")
+                NSLog("❌ [Firebase Auth] No UID returned after \(String(format: "%.2f", elapsed))s")
                 XCTFail("No UID returned after user creation")
                 createExpectation.fulfill()
                 return
             }
 
             self.testUserUID = uid
-            print("✅ [Firebase Auth] User created in \(String(format: "%.2f", elapsed))s - UID: \(uid)")
+            NSLog("✅ [Firebase Auth] User created in \(String(format: "%.2f", elapsed))s - UID: \(uid)")
 
             // Créer le user dans MongoDB via backend
-            print("📝 [Backend] Creating user in MongoDB...")
+            NSLog("📝 [Backend] Creating user in MongoDB...")
             self.createUserInBackend(uid: uid, email: self.testEmail) { success in
                 if success {
-                    print("✅ [Backend] Test user created in MongoDB")
+                    NSLog("✅ [Backend] Test user created in MongoDB")
                 } else {
-                    print("⚠️ [Backend] Failed to create user in MongoDB (non-fatal)")
+                    NSLog("⚠️ [Backend] Failed to create user in MongoDB (non-fatal)")
                 }
                 createExpectation.fulfill()
             }
         }
 
-        print("📝 [Test] Waiting up to 30s for user creation...")
+        NSLog("📝 [Test] Waiting up to 30s for user creation...")
         wait(for: [createExpectation], timeout: 30.0)
-        print("✅ [Test] setUp complete\n")
+        NSLog("✅ [Test] setUp complete\n")
 
         // Nettoyer les données locales
         clearUserDefaults()
@@ -579,9 +579,9 @@ class PrivacySettingsIntegrationTests: XCTestCase {
 
             deleteUserFromBackend(uid: uid) { success in
                 if success {
-                    print("✅ Test user deleted from MongoDB")
+                    NSLog("✅ Test user deleted from MongoDB")
                 } else {
-                    print("⚠️ Failed to delete user from MongoDB")
+                    NSLog("⚠️ Failed to delete user from MongoDB")
                 }
                 deleteBackendExpectation.fulfill()
             }
@@ -595,9 +595,9 @@ class PrivacySettingsIntegrationTests: XCTestCase {
 
             currentUser.delete { error in
                 if let error = error {
-                    print("⚠️ Failed to delete user from Firebase: \(error.localizedDescription)")
+                    NSLog("⚠️ Failed to delete user from Firebase: \(error.localizedDescription)")
                 } else {
-                    print("✅ Test user deleted from Firebase")
+                    NSLog("✅ Test user deleted from Firebase")
                 }
                 deleteFirebaseExpectation.fulfill()
             }
@@ -632,14 +632,14 @@ class PrivacySettingsIntegrationTests: XCTestCase {
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: userData)
         } catch {
-            print("❌ Error serializing user data: \(error)")
+            NSLog("❌ Error serializing user data: \(error)")
             completion(false)
             return
         }
 
         URLSession.shared.dataTask(with: request) { _, response, error in
             if let error = error {
-                print("❌ Error creating user in backend: \(error)")
+                NSLog("❌ Error creating user in backend: \(error)")
                 completion(false)
                 return
             }
@@ -664,7 +664,7 @@ class PrivacySettingsIntegrationTests: XCTestCase {
 
         URLSession.shared.dataTask(with: request) { _, response, error in
             if let error = error {
-                print("❌ Error deleting user from backend: \(error)")
+                NSLog("❌ Error deleting user from backend: \(error)")
                 completion(false)
                 return
             }
@@ -860,7 +860,7 @@ class PrivacySettingsIntegrationTests: XCTestCase {
                 // L'ancienne route /consents/:uid devrait retourner 404
                 XCTAssertEqual(httpResponse.statusCode, 404,
                              "Old route /consents/:uid should return 404 (got \(httpResponse.statusCode))")
-                print("✅ Old insecure route correctly removed")
+                NSLog("✅ Old insecure route correctly removed")
             }
             expectation.fulfill()
         }.resume()
@@ -882,8 +882,8 @@ class PrivacySettingsIntegrationTests: XCTestCase {
 
         URLSession.shared.dataTask(with: request) { _, response, error in
             if let error = error {
-                print("⚠️ Backend not reachable: \(error.localizedDescription)")
-                print("⚠️ Make sure backend is running on \(AppConfig.baseURL)")
+                NSLog("⚠️ Backend not reachable: \(error.localizedDescription)")
+                NSLog("⚠️ Make sure backend is running on \(AppConfig.baseURL)")
             }
 
             XCTAssertNil(error, "Backend should be reachable at \(AppConfig.baseURL)/health")
@@ -923,7 +923,7 @@ class PrivacySettingsIntegrationTests: XCTestCase {
             XCTAssertEqual(httpResponse.statusCode, 401,
                           "Plants endpoint should return 401 without Firebase token (got \(httpResponse.statusCode))")
 
-            print("✅ Firebase token protection works! /plants correctly rejects requests without token")
+            NSLog("✅ Firebase token protection works! /plants correctly rejects requests without token")
             expectation.fulfill()
         }.resume()
 
@@ -954,7 +954,7 @@ class PrivacySettingsIntegrationTests: XCTestCase {
             XCTAssertEqual(httpResponse.statusCode, 401,
                           "Request without API key should return 401 (got \(httpResponse.statusCode))")
 
-            print("✅ API protection works! Request without key was rejected")
+            NSLog("✅ API protection works! Request without key was rejected")
             expectation.fulfill()
         }.resume()
 

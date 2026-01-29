@@ -243,14 +243,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pods-
 
-      - name: 🔧 Install CocoaPods, xcpretty and xcparse
+      - name: 🔧 Install CocoaPods, xcpretty and xcresultparser
         run: |
           sudo gem install cocoapods -v 1.16.2
           sudo gem install xcpretty
-          brew install chargepoint/xcparse/xcparse
+          brew install a7ex/formulae/xcresultparser
           pod --version
           xcpretty --version
-          xcparse version
+          xcresultparser --version
 
       - name: 🗑️ Clean CocoaPods cache (si demandé manuellement)
         if: github.event.inputs.clean_pods_cache == 'true'
@@ -362,18 +362,26 @@ jobs:
             echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 
-            # Extract test summary using xcparse
-            xcparse summary build/TestResults.xcresult --output build/test-summary.txt
+            # Extract test summary using xcresultparser (colored CLI output)
+            echo "================================"
+            echo "📊 Test Summary (xcresultparser)"
+            echo "================================"
+            xcresultparser --output-format cli build/TestResults.xcresult | tee build/test-summary-cli.txt
 
-            # Display in summary
+            # Generate text summary for GitHub Actions Summary
+            xcresultparser --output-format txt build/TestResults.xcresult > build/test-summary.txt
+
+            # Generate HTML report
+            xcresultparser --output-format html build/TestResults.xcresult > build/test-report.html
+
+            # Generate JUnit XML for CI integration
+            xcresultparser --output-format junit build/TestResults.xcresult > build/test-results-junit.xml
+
+            # Display text summary in GitHub Actions Summary
+            echo '```' >> $GITHUB_STEP_SUMMARY
             cat build/test-summary.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
 
-            # Also print to console
-            echo "================================"
-            echo "📊 Test Summary"
-            echo "================================"
-            cat build/test-summary.txt
-            
             # Show diagnostic logs
             echo ""
             echo "================================"
@@ -395,6 +403,8 @@ jobs:
             ArboreUi/build/TestResults.xcresult
             ArboreUi/build/test-report.html
             ArboreUi/build/test-summary.txt
+            ArboreUi/build/test-summary-cli.txt
+            ArboreUi/build/test-results-junit.xml
             ArboreUi/build/test-output.log
           retention-days: 30
 

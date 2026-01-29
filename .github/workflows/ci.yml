@@ -357,6 +357,7 @@ jobs:
 
       - name: 📊 Parse test results
         if: always()
+        shell: bash {0}
         run: |
           set +e  # Disable exit on error for parsing
           if [ -f build/TestResults.xcresult ]; then

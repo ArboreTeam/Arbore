@@ -358,6 +358,7 @@ jobs:
       - name: 📊 Parse test results
         if: always()
         run: |
+          set +e  # Disable exit on error for parsing
           if [ -f build/TestResults.xcresult ]; then
             echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -366,21 +367,41 @@ jobs:
             echo "================================"
             echo "📊 Test Summary (xcresultparser)"
             echo "================================"
-            xcresultparser --output-format cli build/TestResults.xcresult | tee build/test-summary-cli.txt
+            if xcresultparser --output-format cli build/TestResults.xcresult | tee build/test-summary-cli.txt; then
+              echo "✅ CLI summary generated successfully"
+            else
+              echo "⚠️  xcresultparser CLI failed with exit code $?"
+            fi
 
             # Generate text summary for GitHub Actions Summary
-            xcresultparser --output-format txt build/TestResults.xcresult > build/test-summary.txt
+            if xcresultparser --output-format txt build/TestResults.xcresult > build/test-summary.txt; then
+              echo "✅ TXT summary generated successfully"
+            else
+              echo "⚠️  xcresultparser TXT failed with exit code $?"
+            fi
 
             # Generate HTML report
-            xcresultparser --output-format html build/TestResults.xcresult > build/test-report.html
+            if xcresultparser --output-format html build/TestResults.xcresult > build/test-report.html; then
+              echo "✅ HTML report generated successfully"
+            else
+              echo "⚠️  xcresultparser HTML failed with exit code $?"
+            fi
 
             # Generate JUnit XML for CI integration
-            xcresultparser --output-format junit build/TestResults.xcresult > build/test-results-junit.xml
+            if xcresultparser --output-format junit build/TestResults.xcresult > build/test-results-junit.xml; then
+              echo "✅ JUnit XML generated successfully"
+            else
+              echo "⚠️  xcresultparser JUnit failed with exit code $?"
+            fi
 
             # Display text summary in GitHub Actions Summary
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat build/test-summary.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
+            if [ -f build/test-summary.txt ]; then
+              echo '```' >> $GITHUB_STEP_SUMMARY
+              cat build/test-summary.txt >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+            else
+              echo "⚠️ test-summary.txt not found, skipping GitHub Actions Summary" >> $GITHUB_STEP_SUMMARY
+            fi
 
             # Show diagnostic logs
             echo ""
@@ -393,6 +414,7 @@ jobs:
               grep -E "🔍|📝|✅|❌|⚠️" build/test-output.log | tail -100 || echo "No emoji logs found"
             fi
           fi
+          set -e  # Re-enable exit on error
 
       - name: 📤 Upload test results
         if: always()
@@ -515,6 +537,14 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
+      - name: 📥 Download iOS test results
+        if: needs.ios_ui.result != 'skipped'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: ios-ui-test-results
+          path: ios-test-results
+
       - name: 📊 Build Summary
         run: |
           echo "# 🌱 Arbore CI/CD Summary" >> $GITHUB_STEP_SUMMARY
@@ -526,7 +556,19 @@ jobs:
           echo "| iOS UI | ${{ needs.ios_ui.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| iOS AR Kit | ${{ needs.ios_ar.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
+          # Afficher les résultats des tests iOS si disponibles
+          if [ -f ios-test-results/test-summary.txt ]; then
+            echo "## 📱 iOS UI Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            head -20 ios-test-results/test-summary.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "📄 [Full test report available in artifacts](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
           # Détails en console
           echo "================================"
           echo "🌱 Arbore CI/CD Summary"
@@ -536,7 +578,17 @@ jobs:
           echo "iOS UI:              ${{ needs.ios_ui.result || 'skipped' }}"
           echo "iOS AR Kit:          ${{ needs.ios_ar.result || 'skipped' }}"
           echo "================================"
-          
+
+          # Afficher les résultats des tests iOS en console
+          if [ -f ios-test-results/test-summary.txt ]; then
+            echo ""
+            echo "================================"
+            echo "📱 iOS UI Test Summary"
+            echo "================================"
+            head -20 ios-test-results/test-summary.txt
+            echo "================================"
+          fi
+
           # Échec si un job requis a échoué
           if [[ "${{ needs.backend.result }}" == "failure" ]] || \
              [[ "${{ needs.ai_generator.result }}" == "failure" ]] || \

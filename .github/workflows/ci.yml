@@ -369,7 +369,7 @@ jobs:
           echo "🔍 DEBUG: Checking for TestResults.xcresult:"
           ls -la build/TestResults.xcresult 2>&1 || echo "build/TestResults.xcresult not found"
 
-          if [ -f build/TestResults.xcresult ]; then
+          if [ -d build/TestResults.xcresult ]; then
             echo "✅ TestResults.xcresult exists, parsing..."
             echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY

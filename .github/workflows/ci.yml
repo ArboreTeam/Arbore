@@ -360,7 +360,17 @@ jobs:
         shell: bash {0}
         run: |
           set +e  # Disable exit on error for parsing
+
+          echo "🔍 DEBUG: Current directory: $(pwd)"
+          echo "🔍 DEBUG: Listing current directory:"
+          ls -la
+          echo "🔍 DEBUG: Checking for build directory:"
+          ls -la build/ 2>&1 || echo "build/ directory not found"
+          echo "🔍 DEBUG: Checking for TestResults.xcresult:"
+          ls -la build/TestResults.xcresult 2>&1 || echo "build/TestResults.xcresult not found"
+
           if [ -f build/TestResults.xcresult ]; then
+            echo "✅ TestResults.xcresult exists, parsing..."
             echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
 

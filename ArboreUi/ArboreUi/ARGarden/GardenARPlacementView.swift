@@ -4,23 +4,10 @@ import SceneKit
 import Foundation
 import simd
 
-// MARK: - Modèles de Données pour la Persistance
-struct PersistedARScene: Codable {
-    let savedAt: Date
-    let plants: [PersistedPlant]
-}
+// NOTE: Les modèles de données (PersistedARScene, PersistedPlant)
+// et GardenLocalStore doivent être présents dans le fichier "GardenDataModels.swift".
 
-struct PersistedPlant: Codable {
-    let plantID: String
-    let plantName: String
-    let modelURLString: String // L'URL ou le nom du fichier .usdz
-    let position: [Float]      // [x, y, z]
-    let rotation: [Float]      // [x, y, z] (Euler angles)
-    let scale: [Float]         // [x, y, z]
-    let transform: [Float]     // Matrice 4x4 aplatie (16 floats)
-}
-
-// MARK: - Mode & Notifications
+// MARK: - 1. Extensions & Utilitaires
 enum GardenARMode {
     case create
     case reopen
@@ -36,27 +23,14 @@ extension Notification.Name {
     static let gardenARScaleDown = Notification.Name("gardenARScaleDown")
 }
 
-// MARK: - Stockage Local (Gestionnaire de Fichiers)
-fileprivate enum GardenLocalStore {
-    static func worldMapURL(for gardenId: String) -> URL {
-        documentsURL().appendingPathComponent("worldmap_\(gardenId).arexperience")
-    }
-    static func sceneURL(for gardenId: String) -> URL {
-        documentsURL().appendingPathComponent("scene_\(gardenId).json")
-    }
-    private static func documentsURL() -> URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-    }
-}
-
-// MARK: - Vue Principale SwiftUI
+// MARK: - 2. Vue Principale SwiftUI
 struct GardenARPlacementView: View {
     let selectedPlants: [Plant]
     let uid: String
     let wizard: GardenWizardDTO
     let gardenName: String
     let thumbnailKey: String?
-    let existingGardenId: String? // Important pour la sauvegarde/restauration
+    let existingGardenId: String?
     let mode: GardenARMode
     let onValidated: () -> Void
     
@@ -65,11 +39,11 @@ struct GardenARPlacementView: View {
     @State private var selectedPlantForPlacement: Plant? = nil
     @State private var hasSelectedNode = false
     @State private var selectedNodeName: String? = nil
-    @State private var isSaving = false // Feedback visuel
+    @State private var isSaving = false
 
     var body: some View {
         ZStack {
-            // Vue AR
+            // --- Vue AR ---
             GardenARPlacementContainerView(
                 selectedPlant: $selectedPlantForPlacement,
                 hasSelectedNode: $hasSelectedNode,
@@ -88,18 +62,24 @@ struct GardenARPlacementView: View {
             )
             .ignoresSafeArea()
             
-            // Interface Utilisateur (HUD)
+            // --- HUD Interface ---
             VStack(spacing: 0) {
+                // 1. Barre du haut
                 topBar
+                
                 Spacer()
                 
+                // 2. Indicateur de sauvegarde
                 if isSaving {
                     savingIndicator
                 }
                 
+                // 3. Menu d'édition (si une plante est sélectionnée)
                 if hasSelectedNode {
                     editingHUD.transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+                
+                // 4. Dock du bas (Bouton Ajouter)
                 bottomDock
             }
         }
@@ -126,7 +106,6 @@ struct GardenARPlacementView: View {
             }
             Spacer()
             
-            // Undo / Redo
             HStack(spacing: 20) {
                 Button { NotificationCenter.default.post(name: .gardenARUndo, object: nil) } label: {
                     Image(systemName: "arrow.uturn.backward").modifier(GlassButtonStyle())
@@ -138,9 +117,7 @@ struct GardenARPlacementView: View {
             
             Spacer()
             
-            // Bouton Valider (Sauvegarder)
             Button {
-                // Déclenche la notification de sauvegarde
                 NotificationCenter.default.post(name: .gardenARValidate, object: nil)
             } label: {
                 Image(systemName: "checkmark").modifier(GlassButtonStyle(isGreen: true))
@@ -221,12 +198,12 @@ struct GardenARPlacementView: View {
     }
 }
 
-// MARK: - Container AR (Logique SceneKit/ARKit)
+// MARK: - 3. Container AR
 fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var selectedPlant: Plant?
     @Binding var hasSelectedNode: Bool
     @Binding var selectedNodeName: String?
-    @Binding var isSaving: Bool // Bind pour afficher le loader
+    @Binding var isSaving: Bool
     
     let uid: String
     let wizard: GardenWizardDTO
@@ -242,16 +219,12 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         sceneView.delegate = context.coordinator
         sceneView.session.delegate = context.coordinator
         
-        // Configuration AR
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal]
         config.environmentTexturing = .automatic
         
-        // Si on rouvre, on essaiera de charger la WorldMap plus tard,
-        // mais on lance une config clean d'abord.
         sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
 
-        // Gestes
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTapToPlace(_:)))
         let longPress = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPressToSelect(_:)))
         longPress.minimumPressDuration = 0.4
@@ -264,7 +237,6 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         context.coordinator.parentProps = self
         context.coordinator.setupObservers()
 
-        // Chargement différé si mode "reopen"
         if mode == .reopen, let id = existingGardenId {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 context.coordinator.loadGardenFromDisk(gardenId: id)
@@ -276,435 +248,440 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     func updateUIView(_ uiView: ARSCNView, context: Context) {}
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
-    // MARK: - Coordinator (Le cerveau)
-    final class Coordinator: NSObject, ARSCNViewDelegate, ARSessionDelegate, UIGestureRecognizerDelegate {
-        var parentProps: GardenARPlacementContainerView?
-        weak var arView: ARSCNView?
-        
-        private var reticleNode: SCNNode?
-        private var lastReticleTransform: simd_float4x4?
-        private var selectedNode: SCNNode?
-        private var isRestoring = false // Pour éviter de déclencher des sélections pendant le chargement
-
-        // Undo/Redo Stacks
-        private var undoStack: [[PersistedPlant]] = []
-        private var redoStack: [[PersistedPlant]] = []
-
-        init(_ parent: GardenARPlacementContainerView) { self.parentProps = parent }
-
-        func setupObservers() {
-            let nc = NotificationCenter.default
-            nc.addObserver(self, selector: #selector(handleValidateNotif), name: .gardenARValidate, object: nil)
-            nc.addObserver(self, selector: #selector(handleDelete), name: .gardenARDelete, object: nil)
-            nc.addObserver(self, selector: #selector(handleRotateAction), name: .gardenARRotate, object: nil)
-            nc.addObserver(self, selector: #selector(handleScaleUpAction), name: .gardenARScaleUp, object: nil)
-            nc.addObserver(self, selector: #selector(handleScaleDownAction), name: .gardenARScaleDown, object: nil)
-            nc.addObserver(self, selector: #selector(handleUndo), name: .gardenARUndo, object: nil)
-            nc.addObserver(self, selector: #selector(handleRedo), name: .gardenARRedo, object: nil)
-        }
-        
-        func setupReticle() {
-            let ring = SCNNode(geometry: SCNTorus(ringRadius: 0.08, pipeRadius: 0.005))
-            ring.geometry?.firstMaterial?.diffuse.contents = UIColor(hex: "#2BEE79")
-            ring.opacity = 0
-            reticleNode = ring
-            arView?.scene.rootNode.addChildNode(ring)
-        }
-
-        // Boucle de rendu (60 fps)
-        func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
-            guard let arView = arView, let reticle = reticleNode else { return }
+    // MARK: - Coordinator
+        final class Coordinator: NSObject, ARSCNViewDelegate, ARSessionDelegate, UIGestureRecognizerDelegate {
+            var parentProps: GardenARPlacementContainerView?
+            weak var arView: ARSCNView?
             
-            // Raycast au centre de l'écran pour le placement
-            let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
-            if let query = arView.raycastQuery(from: center, allowing: .existingPlaneGeometry, alignment: .horizontal),
-               let result = arView.session.raycast(query).first {
-                lastReticleTransform = result.worldTransform
-                reticle.simdTransform = result.worldTransform
-                reticle.opacity = 1
-            } else {
-                lastReticleTransform = nil
-                reticle.opacity = 0
+            private var reticleNode: SCNNode?
+            private var lastReticleTransform: simd_float4x4?
+            private var selectedNode: SCNNode?
+            private var isRestoring = false
+
+            private var undoStack: [[PersistedPlant]] = []
+            private var redoStack: [[PersistedPlant]] = []
+
+            init(_ parent: GardenARPlacementContainerView) { self.parentProps = parent }
+
+            func setupObservers() {
+                let nc = NotificationCenter.default
+                nc.addObserver(self, selector: #selector(handleValidateNotif), name: .gardenARValidate, object: nil)
+                nc.addObserver(self, selector: #selector(handleDelete), name: .gardenARDelete, object: nil)
+                nc.addObserver(self, selector: #selector(handleRotateAction), name: .gardenARRotate, object: nil)
+                nc.addObserver(self, selector: #selector(handleScaleUpAction), name: .gardenARScaleUp, object: nil)
+                nc.addObserver(self, selector: #selector(handleScaleDownAction), name: .gardenARScaleDown, object: nil)
+                nc.addObserver(self, selector: #selector(handleUndo), name: .gardenARUndo, object: nil)
+                nc.addObserver(self, selector: #selector(handleRedo), name: .gardenARRedo, object: nil)
             }
-        }
-        
-        // MARK: - Capture & Restauration (Le cœur de la sauvegarde)
-        
-        // 1. Capture l'état actuel de la scène
-        private func captureCurrentState() -> [PersistedPlant] {
-            guard let arView = arView else { return [] }
             
-            // Filtrer uniquement les nœuds qui sont des plantes (identifiés par leur nom)
-            let plantNodes = arView.scene.rootNode.childNodes.filter { $0.name?.starts(with: "plant_") == true }
-            
-            return plantNodes.map { node -> PersistedPlant in
-                // Le nom est formaté : plant_{id}_{name}_{url}
-                let parts = node.name?.components(separatedBy: "_") ?? []
+            func setupReticle() {
+                let ring = SCNNode(geometry: SCNTorus(ringRadius: 0.08, pipeRadius: 0.005))
+                ring.geometry?.firstMaterial?.diffuse.contents = UIColor(hex: "#2BEE79")
+                ring.opacity = 0
+                reticleNode = ring
+                arView?.scene.rootNode.addChildNode(ring)
+            }
+
+            func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+                guard let arView = arView, let reticle = reticleNode else { return }
                 
-                return PersistedPlant(
-                    plantID: parts[safe: 1] ?? "unknown",
-                    plantName: parts[safe: 2] ?? "Plante",
-                    modelURLString: (parts[safe: 3] ?? "").removingPercentEncoding ?? "",
-                    position: [node.position.x, node.position.y, node.position.z],
-                    rotation: [node.eulerAngles.x, node.eulerAngles.y, node.eulerAngles.z],
-                    scale: [node.scale.x, node.scale.y, node.scale.z],
-                    transform: matrixToFloatArray(node.simdTransform) // On sauve aussi la matrice complète
-                )
-            }
-        }
-
-        // 2. Gestion de la sauvegarde au clic sur "Valider"
-        @objc func handleValidateNotif() {
-            guard let arView = arView, let props = parentProps else { return }
-            
-            // --- DIAGNOSTIC DEBOGAGE ---
-            // On vérifie si ARKit a assez de données pour créer une map
-            if let frame = arView.session.currentFrame {
-                switch frame.worldMappingStatus {
-                case .notAvailable, .limited:
-                    print("⚠️ [AR DEBUG] Status: LIMITED. ARKit ne connait pas assez l'environnement.")
-                    print("👉 Conseil : Bougez le téléphone latéralement pour scanner la zone avant de sauvegarder.")
-                case .extending:
-                    print("ℹ️ [AR DEBUG] Status: EXTENDING. La carte s'agrandit, c'est bon.")
-                case .mapped:
-                    print("✅ [AR DEBUG] Status: MAPPED. Environnement bien scanné.")
-                @unknown default:
-                    break
+                let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+                if let query = arView.raycastQuery(from: center, allowing: .existingPlaneGeometry, alignment: .horizontal),
+                   let result = arView.session.raycast(query).first {
+                    lastReticleTransform = result.worldTransform
+                    reticle.simdTransform = result.worldTransform
+                    reticle.opacity = 1
+                } else {
+                    lastReticleTransform = nil
+                    reticle.opacity = 0
                 }
             }
-            // ---------------------------
-
-            props.isSaving = true // Active le loader visuel
             
-            // 1. Capturer les plantes
-            let plantsForSave = captureCurrentState()
-            
-            // 2. Préparer les DTO pour l'API
-            let placedDTOs = plantsForSave.map { p in
-                PlacedPlantDTO(plantId: p.plantID, x: Double(p.position[0]), y: Double(p.position[1]), z: Double(p.position[2]), note: p.plantName)
+            // MARK: - Capture Précise (Crucial pour la Map 2D)
+            private func captureCurrentState() -> [PersistedPlant] {
+                guard let arView = arView else { return [] }
+                let plantNodes = arView.scene.rootNode.childNodes.filter { $0.name?.starts(with: "plant_") == true }
+                
+                return plantNodes.map { node -> PersistedPlant in
+                    // Découpage du nom: plant_{id}_{name}_{url}_{uuid}
+                    let parts = node.name?.components(separatedBy: "_") ?? []
+                    
+                    // On capture précisément les coordonnées X, Y, Z du monde AR.
+                    // X = Gauche/Droite sur la map 2D
+                    // Z = Haut/Bas sur la map 2D (Profondeur AR)
+                    // Y = Altitude (souvent 0 si au sol)
+                    return PersistedPlant(
+                        plantID: parts[safe: 1] ?? "unknown",
+                        plantName: parts[safe: 2] ?? "Plante",
+                        modelURLString: (parts[safe: 3] ?? "").removingPercentEncoding ?? "",
+                        position: [node.position.x, node.position.y, node.position.z],
+                        rotation: [node.eulerAngles.x, node.eulerAngles.y, node.eulerAngles.z],
+                        scale: [node.scale.x, node.scale.y, node.scale.z],
+                        transform: matrixToFloatArray(node.simdTransform)
+                    )
+                }
             }
 
-            // 3. Processus de sauvegarde (API + Local)
-            Task {
-                // A. Gestion de l'ID (Création ou Mise à jour API)
-                var finalId: String
+            // MARK: - SAUVEGARDE ET VALIDATION
+            @objc func handleValidateNotif() {
+                        guard let arView = arView, let props = parentProps else { return }
+                        props.isSaving = true
+                        
+                        let plantsForSave = captureCurrentState()
+                        
+                        // 1. Sauvegarde TEMPORAIRE avec l'ID qu'on connait actuellement
+                        let tempID = props.existingGardenId ?? UUID().uuidString
+                        print("💾 Sauvegarde locale initiale (ID: \(tempID))")
+                        self.saveToDisk(id: tempID, plants: plantsForSave, arView: arView)
+                        
+                        let placedDTOs = plantsForSave.map { p in
+                            PlacedPlantDTO(plantId: p.plantID, x: Double(p.position[0]), y: Double(p.position[1]), z: Double(p.position[2]), note: p.plantName)
+                        }
+                        
+                        Task {
+                            var finalServerID: String = tempID
+                            
+                            // 2. Appel API
+                            do {
+                                // PEU IMPORTE si c'est une création ou une update,
+                                // on récupère TOUJOURS l'ID que le serveur nous renvoie.
+                                let created = try await GardenAPI.shared.createGarden(
+                                    GardenCreateDTO(
+                                        uid: props.uid,
+                                        name: props.gardenName,
+                                        wizard: props.wizard,
+                                        plants: placedDTOs,
+                                        thumbnailKey: props.thumbnailKey
+                                    )
+                                )
+                                
+                                // Si le serveur nous donne un ID, c'est LUI qui a raison.
+                                if let newId = created.id {
+                                    finalServerID = newId
+                                }
+                                
+                                print("✅ API Réponse. ID final serveur : \(finalServerID)")
+                                
+                            } catch {
+                                print("⚠️ API Erreur: \(error). On garde l'ID local par sécurité.")
+                            }
+                            
+                            // 3. SYNCHRONISATION FICHIERS
+                            // Si le serveur a changé l'ID (ex: 67 -> 68), on doit copier les fichiers
+                            if finalServerID != tempID {
+                                print("🔄 Changement d'ID détecté (\(tempID) -> \(finalServerID)). Migration des fichiers...")
+                                
+                                // A. Réécriture du JSON avec le bon nom
+                                self.saveToDisk(id: finalServerID, plants: plantsForSave, arView: arView)
+                                
+                                // B. Copie de la Map vers le bon nom
+                                let oldMap = GardenLocalStore.worldMapURL(for: tempID)
+                                let newMap = GardenLocalStore.worldMapURL(for: finalServerID)
+                                
+                                if FileManager.default.fileExists(atPath: oldMap.path) {
+                                    do {
+                                        if FileManager.default.fileExists(atPath: newMap.path) {
+                                            try FileManager.default.removeItem(at: newMap)
+                                        }
+                                        try FileManager.default.copyItem(at: oldMap, to: newMap)
+                                        print("✅ Fichiers migrés vers l'ID \(finalServerID)")
+                                        
+                                        // (Optionnel) Nettoyage des vieux fichiers pour ne pas polluer le téléphone
+                                        // try? FileManager.default.removeItem(at: oldMap)
+                                        // try? FileManager.default.removeItem(at: GardenLocalStore.sceneURL(for: tempID))
+                                        
+                                    } catch {
+                                        print("❌ Erreur copie Map: \(error)")
+                                    }
+                                }
+                            }
+                            
+                            DispatchQueue.main.async {
+                                props.isSaving = false
+                                props.onValidated()
+                            }
+                        }
+                    }
+            
+            // Fonction d'écriture disque
+            private func saveToDisk(id: String, plants: [PersistedPlant], arView: ARSCNView) {
+                // 1. JSON (Synchrone, facile)
                 do {
-                    if let existing = props.existingGardenId {
-                        finalId = existing
-                        // Si tu as une route update, mets-la ici. Sinon on recrée/écrase via create si l'API le permet.
-                         _ = try await GardenAPI.shared.createGarden(GardenCreateDTO(uid: props.uid, name: props.gardenName, wizard: props.wizard, plants: placedDTOs, thumbnailKey: props.thumbnailKey))
-                    } else {
-                        let created = try await GardenAPI.shared.createGarden(GardenCreateDTO(uid: props.uid, name: props.gardenName, wizard: props.wizard, plants: placedDTOs, thumbnailKey: props.thumbnailKey))
-                        finalId = created.id ?? UUID().uuidString
-                    }
+                    let sceneData = PersistedARScene(savedAt: Date(), plants: plants)
+                    let jsonData = try JSONEncoder().encode(sceneData)
+                    try jsonData.write(to: GardenLocalStore.sceneURL(for: id))
+                    print("📄 JSON sauvegardé : scene_\(id).json")
                 } catch {
-                    print("⚠️ [API ERROR] Le serveur a échoué, mais on continue en local : \(error)")
-                    finalId = props.existingGardenId ?? UUID().uuidString
+                    print("❌ Erreur écriture JSON: \(error)")
                 }
                 
-                // B. Sauvegarde LOCALE (Critique pour la persistance AR)
-                await arView.session.getCurrentWorldMap { worldMap, error in
-                    
-                    // Gestion des erreurs ARKit
-                    if let error = error {
-                        print("❌ [AR ERROR] Impossible de générer la WorldMap : \(error.localizedDescription)")
-                    }
-                    
-                    // Sauvegarde de la WorldMap (.arexperience)
+                // 2. WorldMap (Asynchrone via ARKit)
+                arView.session.getCurrentWorldMap { worldMap, error in
                     if let map = worldMap {
                         do {
                             let mapData = try NSKeyedArchiver.archivedData(withRootObject: map, requiringSecureCoding: true)
-                            try mapData.write(to: GardenLocalStore.worldMapURL(for: finalId))
-                            
-                            let size = ByteCountFormatter.string(fromByteCount: Int64(mapData.count), countStyle: .file)
-                            print("💾 [DISK SUCCESS] WorldMap sauvegardée (\(size)) pour ID: \(finalId)")
+                            try mapData.write(to: GardenLocalStore.worldMapURL(for: id))
+                            // print("🌍 WorldMap sauvegardée")
                         } catch {
-                            print("❌ [DISK ERROR] Échec écriture fichier Map : \(error)")
+                            print("❌ Erreur écriture Map: \(error)")
                         }
+                    }
+                }
+            }
+            
+            // MARK: - Restauration (Chargement)
+            func loadGardenFromDisk(gardenId: String) {
+                guard let arView = arView else { return }
+                print("📂 Chargement ID: \(gardenId)")
+                
+                DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                    guard let self = self else { return }
+                    
+                    // 1. World Map
+                    let mapUrl = GardenLocalStore.worldMapURL(for: gardenId)
+                    var worldMap: ARWorldMap? = nil
+                    
+                    if FileManager.default.fileExists(atPath: mapUrl.path) {
+                        do {
+                            let mapData = try Data(contentsOf: mapUrl)
+                            worldMap = try NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData)
+                        } catch { print("⚠️ Map ignorée (version incompatible)") }
+                    }
+                    
+                    // 2. Scene JSON
+                    let sceneUrl = GardenLocalStore.sceneURL(for: gardenId)
+                    var persistedPlants: [PersistedPlant] = []
+                    
+                    if FileManager.default.fileExists(atPath: sceneUrl.path) {
+                        do {
+                            let sceneJson = try Data(contentsOf: sceneUrl)
+                            let sceneData = try JSONDecoder().decode(PersistedARScene.self, from: sceneJson)
+                            persistedPlants = sceneData.plants
+                            print("✅ JSON chargé : \(persistedPlants.count) plantes")
+                        } catch { print("❌ JSON illisible: \(error)") }
                     } else {
-                        print("⚠️ [AR WARNING] Map est nil. L'environnement n'a pas été scanné suffisamment ou le tracking est perdu.")
+                        print("⚠️ FICHIER JSON ABSENT: \(sceneUrl.path)")
                     }
                     
-                    // Sauvegarde du JSON (Positions des plantes)
-                    // On le fait même si la map échoue, pour avoir au moins les plantes (même si elles flottent mal)
-                    do {
-                        let sceneData = PersistedARScene(savedAt: Date(), plants: plantsForSave)
-                        let jsonData = try JSONEncoder().encode(sceneData)
-                        try jsonData.write(to: GardenLocalStore.sceneURL(for: finalId))
-                        print("📄 [DISK SUCCESS] Fichier JSON de scène sauvegardé.")
-                    } catch {
-                        print("❌ [DISK ERROR] Échec écriture JSON : \(error)")
-                    }
-                    
-                    // C. Finalisation UI
                     DispatchQueue.main.async {
-                        props.isSaving = false
-                        props.onValidated()
+                        self.isRestoring = true
+                        
+                        if let map = worldMap {
+                            let config = ARWorldTrackingConfiguration()
+                            config.initialWorldMap = map
+                            config.planeDetection = [.horizontal]
+                            arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+                        }
+                        
+                        if !persistedPlants.isEmpty {
+                            self.restoreScene(from: persistedPlants)
+                        }
+                        
+                        self.isRestoring = false
                     }
                 }
             }
-        }
-        
-        // 3. Chargement depuis le disque
-        func loadGardenFromDisk(gardenId: String) {
-            guard let arView = arView else { return }
-            print("📂 Chargement du jardin: \(gardenId)")
             
-            isRestoring = true // Bloque les sélections
-            
-            do {
-                // a. Charger la WorldMap AR
-                let mapUrl = GardenLocalStore.worldMapURL(for: gardenId)
-                if FileManager.default.fileExists(atPath: mapUrl.path) {
-                    let mapData = try Data(contentsOf: mapUrl)
-                    if let worldMap = try NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData) as? ARWorldMap {
-                        print("🌍 WorldMap trouvée et chargée")
-                        let config = ARWorldTrackingConfiguration()
-                        config.initialWorldMap = worldMap
-                        config.planeDetection = [.horizontal]
-                        arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+            private func restoreScene(from plants: [PersistedPlant]) {
+                guard let arView = arView else { return }
+                
+                // Nettoyage
+                arView.scene.rootNode.childNodes.forEach { node in
+                    if node.name?.starts(with: "plant_") == true {
+                        node.removeFromParentNode()
                     }
-                } else {
-                    print("⚠️ Pas de WorldMap trouvée, on charge juste les positions relatives.")
                 }
-                
-                // b. Charger les plantes (JSON)
-                let sceneUrl = GardenLocalStore.sceneURL(for: gardenId)
-                if FileManager.default.fileExists(atPath: sceneUrl.path) {
-                    let sceneJson = try Data(contentsOf: sceneUrl)
-                    let sceneData = try JSONDecoder().decode(PersistedARScene.self, from: sceneJson)
-                    
-                    // Restauration visuelle
-                    restoreScene(from: sceneData.plants)
-                    print("🌱 \(sceneData.plants.count) plantes restaurées.")
-                }
-                
-            } catch {
-                print("❌ Erreur chargement disque : \(error)")
-            }
-            
-            isRestoring = false
-        }
-        
-        // 4. Recréation des noeuds 3D
-        private func restoreScene(from plants: [PersistedPlant]) {
-            guard let arView = arView else { return }
-            
-            // Nettoyer la scène existante
-            arView.scene.rootNode.childNodes.forEach { node in
-                if node.name?.starts(with: "plant_") == true {
-                    node.removeFromParentNode()
-                }
-            }
-            deselectAll()
-            
-            // Re-créer chaque plante
-            for p in plants {
-                // Reconstruire la matrice de position
-                if let transform = floatArrayToMatrix(p.transform) {
-                    // Créer un "faux" objet Plant pour réutiliser la fonction addPlant
-                    // Note: assure-toi que p.modelURLString est valide
-                    let stub = Plant.stubForRestore(id: p.plantID, name: p.plantName, type: "", modelURL: p.modelURLString)
-                    
-                    isRestoring = true
-                    // On passe l'échelle sauvegardée pour qu'elle soit identique
-                    addPlant(at: transform, plant: stub, finalScale: SCNVector3(p.scale[0], p.scale[1], p.scale[2]))
-                    isRestoring = false
-                }
-            }
-        }
-        
-        // MARK: - Gestion Undo / Redo
-        private func saveStateForUndo() {
-            let currentState = captureCurrentState()
-            undoStack.append(currentState)
-            redoStack.removeAll() // Nouvelle action casse le redo futur
-            
-            // Limite la taille de la pile (optionnel)
-            if undoStack.count > 10 { undoStack.removeFirst() }
-        }
-        
-        @objc func handleUndo() {
-            guard let previousState = undoStack.popLast() else { return }
-            let currentState = captureCurrentState()
-            redoStack.append(currentState)
-            restoreScene(from: previousState)
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        }
-        
-        @objc func handleRedo() {
-            guard let nextState = redoStack.popLast() else { return }
-            let currentState = captureCurrentState()
-            undoStack.append(currentState)
-            restoreScene(from: nextState)
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        }
-
-        // MARK: - Actions de Transformation (Rotate, Scale, Delete)
-        @objc func handleRotateAction() {
-            guard let node = selectedNode else { return }
-            saveStateForUndo()
-            node.runAction(SCNAction.rotateBy(x: 0, y: .pi/4, z: 0, duration: 0.2))
-        }
-
-        @objc func handleScaleUpAction() {
-            guard let node = selectedNode else { return }
-            saveStateForUndo()
-            node.runAction(SCNAction.scale(by: 1.1, duration: 0.2))
-        }
-
-        @objc func handleScaleDownAction() {
-            guard let node = selectedNode else { return }
-            saveStateForUndo()
-            node.runAction(SCNAction.scale(by: 0.9, duration: 0.2))
-        }
-
-        @objc func handleDelete() {
-            guard let node = selectedNode else { return }
-            saveStateForUndo()
-            node.removeFromParentNode()
-            deselectAll()
-        }
-
-        // MARK: - Interactions (Tap, Long Press, Pan)
-        @objc func handleTapToPlace(_ gesture: UITapGestureRecognizer) {
-            guard let transform = lastReticleTransform, let plant = parentProps?.selectedPlant else {
                 deselectAll()
-                return
-            }
-            saveStateForUndo()
-            addPlant(at: transform, plant: plant)
-        }
-
-        @objc func handleLongPressToSelect(_ gesture: UILongPressGestureRecognizer) {
-            guard gesture.state == .began, let arView = arView else { return }
-            let location = gesture.location(in: arView)
-            let hits = arView.hitTest(location, options: [.searchMode: SCNHitTestSearchMode.all.rawValue])
-            
-            if let result = hits.first(where: { isPlantNode($0.node) }) {
-                selectNode(findPlantRoot(result.node))
-                UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
-            }
-        }
-
-        @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
-            guard let node = selectedNode, let arView = arView else { return }
-            
-            if gesture.state == .began {
-                saveStateForUndo()
-            }
-            
-            let location = gesture.location(in: arView)
-            // On déplace l'objet sur le plan horizontal détecté
-            if let query = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal),
-               let result = arView.session.raycast(query).first {
-                // On met à jour seulement la position (colonnes.3), on garde la rotation/scale
-                node.simdWorldPosition = simd_float3(result.worldTransform.columns.3.x, result.worldTransform.columns.3.y, result.worldTransform.columns.3.z)
-            }
-        }
-
-        // Fonction générique pour ajouter une plante
-        func addPlant(at transform: simd_float4x4, plant: Plant, finalScale: SCNVector3? = nil) {
-            guard let arView = arView, let url = plant.localModelURL else {
-                print("⚠️ Impossible de charger le modèle pour: \(plant.name)")
-                return
-            }
-            
-            do {
-                let scene = try SCNScene(url: url, options: nil)
-                let container = SCNNode()
-                // Encodage de l'URL dans le nom pour la persistance
-                let encodedURL = plant.modelURL?.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "default"
-                container.name = "plant_\(plant.id)_\(plant.name)_\(encodedURL)"
-
-                for child in scene.rootNode.childNodes { container.addChildNode(child) }
-                container.simdTransform = transform
-
-                // Gestion de l'échelle (soit restaurée, soit calculée par défaut)
-                if let scale = finalScale {
-                    container.scale = scale
-                } else if !isRestoring {
-                    // Calcul auto de la taille pour que ça ne soit pas géant
-                    let (minVec, maxVec) = container.boundingBox
-                    let rawHeight = maxVec.y - minVec.y
-                    if rawHeight > 0 {
-                        let targetHeight: Float = 0.5 // 50cm par défaut
-                        let scaleFactor = targetHeight / rawHeight
-                        container.scale = SCNVector3(scaleFactor, scaleFactor, scaleFactor)
-                        // Ajuster le pivot pour que la base soit au sol
-                        container.pivot = SCNMatrix4MakeTranslation(0, minVec.y, 0)
+                
+                for p in plants {
+                    guard let transform = floatArrayToMatrix(p.transform), !p.modelURLString.isEmpty else { continue }
+                    
+                    var finalURL: URL? = URL(string: p.modelURLString)
+                    
+                    // Correction chemin Sandbox
+                    if let savedURL = finalURL, savedURL.isFileURL {
+                        let fileName = savedURL.lastPathComponent
+                        let currentDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                        let correctedURL = currentDocuments.appendingPathComponent(fileName)
+                        
+                        if FileManager.default.fileExists(atPath: correctedURL.path) {
+                            finalURL = correctedURL
+                        }
+                    }
+                    
+                    if let url = finalURL {
+                        placeObject(at: transform, modelURL: url, id: p.plantID, name: p.plantName, finalScale: SCNVector3(p.scale[0], p.scale[1], p.scale[2]))
                     }
                 }
-                
-                arView.scene.rootNode.addChildNode(container)
-                
-                if !isRestoring {
-                    selectNode(container)
-                }
-            } catch {
-                print("❌ Erreur chargement modèle 3D: \(error)")
             }
-        }
+            
+            // MARK: - Actions Standards
+            private func saveStateForUndo() {
+                let currentState = captureCurrentState()
+                undoStack.append(currentState)
+                redoStack.removeAll()
+                if undoStack.count > 10 { undoStack.removeFirst() }
+            }
+            
+            @objc func handleUndo() {
+                guard let previousState = undoStack.popLast() else { return }
+                let currentState = captureCurrentState()
+                redoStack.append(currentState)
+                restoreScene(from: previousState)
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            }
+            
+            @objc func handleRedo() {
+                guard let nextState = redoStack.popLast() else { return }
+                let currentState = captureCurrentState()
+                undoStack.append(currentState)
+                restoreScene(from: nextState)
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            }
 
-        // Helpers de sélection
-        private func selectNode(_ node: SCNNode) {
-            deselectAll()
-            selectedNode = node
-            parentProps?.hasSelectedNode = true
-            parentProps?.selectedNodeName = node.name?.components(separatedBy: "_")[safe: 2] ?? "Plante"
-            
-            // Petit effet visuel de sélection (ex: bounding box jaune)
-            let box = SCNBox(width: 0.3, height: 0.01, length: 0.3, chamferRadius: 0)
-            let boxNode = SCNNode(geometry: box)
-            boxNode.geometry?.firstMaterial?.diffuse.contents = UIColor.yellow.withAlphaComponent(0.3)
-            boxNode.position = SCNVector3(0, 0.01, 0)
-            boxNode.name = "selection_indicator"
-            // node.addChildNode(boxNode) // Décommenter si tu veux un highlight visuel
-        }
-        
-        private func deselectAll() {
-            // Nettoyer indicateurs visuels si besoin
-            selectedNode?.childNode(withName: "selection_indicator", recursively: false)?.removeFromParentNode()
-            
-            selectedNode = nil
-            parentProps?.hasSelectedNode = false
-            parentProps?.selectedNodeName = nil
-        }
-        
-        private func isPlantNode(_ node: SCNNode) -> Bool {
-            var current: SCNNode? = node
-            while current != nil {
-                if current?.name?.starts(with: "plant_") == true { return true }
-                current = current?.parent
+            @objc func handleRotateAction() {
+                guard let node = selectedNode else { return }
+                saveStateForUndo()
+                node.runAction(SCNAction.rotateBy(x: 0, y: .pi/4, z: 0, duration: 0.2))
             }
-            return false
+
+            @objc func handleScaleUpAction() {
+                guard let node = selectedNode else { return }
+                saveStateForUndo()
+                node.runAction(SCNAction.scale(by: 1.1, duration: 0.2))
+            }
+
+            @objc func handleScaleDownAction() {
+                guard let node = selectedNode else { return }
+                saveStateForUndo()
+                node.runAction(SCNAction.scale(by: 0.9, duration: 0.2))
+            }
+
+            @objc func handleDelete() {
+                guard let node = selectedNode else { return }
+                saveStateForUndo()
+                node.removeFromParentNode()
+                deselectAll()
+            }
+
+            @objc func handleTapToPlace(_ gesture: UITapGestureRecognizer) {
+                guard let transform = lastReticleTransform, let plant = parentProps?.selectedPlant, let url = plant.localModelURL else {
+                    deselectAll()
+                    return
+                }
+                saveStateForUndo()
+                placeObject(at: transform, modelURL: url, id: plant.id, name: plant.name)
+            }
+
+            @objc func handleLongPressToSelect(_ gesture: UILongPressGestureRecognizer) {
+                guard gesture.state == .began, let arView = arView else { return }
+                let location = gesture.location(in: arView)
+                let hits = arView.hitTest(location, options: [.searchMode: SCNHitTestSearchMode.all.rawValue])
+                if let result = hits.first(where: { isPlantNode($0.node) }) {
+                    selectNode(findPlantRoot(result.node))
+                    UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+                }
+            }
+
+            @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
+                guard let node = selectedNode, let arView = arView else { return }
+                if gesture.state == .began { saveStateForUndo() }
+                let location = gesture.location(in: arView)
+                if let query = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal),
+                   let result = arView.session.raycast(query).first {
+                    node.simdWorldPosition = simd_float3(result.worldTransform.columns.3.x, result.worldTransform.columns.3.y, result.worldTransform.columns.3.z)
+                }
+            }
+
+            func placeObject(at transform: simd_float4x4, modelURL: URL, id: String, name: String, finalScale: SCNVector3? = nil) {
+                guard let arView = arView else { return }
+                
+                if modelURL.isFileURL && !FileManager.default.fileExists(atPath: modelURL.path) {
+                    print("❌ Fichier introuvable : \(modelURL.path)")
+                    return
+                }
+                
+                do {
+                    let scene = try SCNScene(url: modelURL, options: nil)
+                    let container = SCNNode()
+                    let encodedURL = modelURL.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "default"
+                    
+                    // UUID unique pour éviter les conflits dans la Map
+                    let uniqueID = UUID().uuidString
+                    container.name = "plant_\(id)_\(name)_\(encodedURL)_\(uniqueID)"
+
+                    for child in scene.rootNode.childNodes { container.addChildNode(child) }
+                    container.simdTransform = transform
+
+                    if let scale = finalScale {
+                        container.scale = scale
+                    } else if !isRestoring {
+                        let (minVec, maxVec) = container.boundingBox
+                        let rawHeight = maxVec.y - minVec.y
+                        if rawHeight > 0 {
+                            let targetHeight: Float = 0.5
+                            let scaleFactor = targetHeight / rawHeight
+                            container.scale = SCNVector3(scaleFactor, scaleFactor, scaleFactor)
+                            container.pivot = SCNMatrix4MakeTranslation(0, minVec.y, 0)
+                        }
+                    }
+                    arView.scene.rootNode.addChildNode(container)
+                    if !isRestoring { selectNode(container) }
+                } catch {
+                    print("❌ Erreur chargement modèle: \(error)")
+                }
+            }
+
+            private func selectNode(_ node: SCNNode) {
+                deselectAll()
+                selectedNode = node
+                parentProps?.hasSelectedNode = true
+                parentProps?.selectedNodeName = node.name?.components(separatedBy: "_")[safe: 2] ?? "Plante"
+                
+                let box = SCNBox(width: 0.3, height: 0.01, length: 0.3, chamferRadius: 0)
+                let boxNode = SCNNode(geometry: box)
+                boxNode.geometry?.firstMaterial?.diffuse.contents = UIColor.yellow.withAlphaComponent(0.3)
+                boxNode.position = SCNVector3(0, 0.01, 0)
+                boxNode.name = "selection_indicator"
+                node.addChildNode(boxNode)
+            }
+            
+            private func deselectAll() {
+                selectedNode?.childNode(withName: "selection_indicator", recursively: false)?.removeFromParentNode()
+                selectedNode = nil
+                parentProps?.hasSelectedNode = false
+                parentProps?.selectedNodeName = nil
+            }
+            
+            private func isPlantNode(_ node: SCNNode) -> Bool {
+                var current: SCNNode? = node
+                while current != nil {
+                    if current?.name?.starts(with: "plant_") == true { return true }
+                    current = current?.parent
+                }
+                return false
+            }
+            
+            private func findPlantRoot(_ node: SCNNode) -> SCNNode {
+                var curr = node
+                while let p = curr.parent, p.name?.starts(with: "plant_") == false { curr = p }
+                return curr.parent?.name?.starts(with: "plant_") == true ? curr.parent! : curr
+            }
         }
-        
-        private func findPlantRoot(_ node: SCNNode) -> SCNNode {
-            var curr = node
-            while let p = curr.parent, p.name?.starts(with: "plant_") == false { curr = p }
-            return curr.parent?.name?.starts(with: "plant_") == true ? curr.parent! : curr
-        }
-    }
 }
 
-// MARK: - Extensions & Utilitaires Manquants
-
-// 1. Extension pour l'accès sécurisé aux tableaux (évite les crashs "Index out of range")
+// MARK: - 4. Helpers & Styling
 extension Array {
     subscript(safe index: Index) -> Element? {
         return indices.contains(index) ? self[index] : nil
     }
 }
 
-// 2. Fonctions de conversion Matrice <-> Tableau de Float (pour le JSON)
 func matrixToFloatArray(_ m: simd_float4x4) -> [Float] {
-    [
-        m.columns.0.x, m.columns.0.y, m.columns.0.z, m.columns.0.w,
-        m.columns.1.x, m.columns.1.y, m.columns.1.z, m.columns.1.w,
-        m.columns.2.x, m.columns.2.y, m.columns.2.z, m.columns.2.w,
-        m.columns.3.x, m.columns.3.y, m.columns.3.z, m.columns.3.w
-    ]
+    [m.columns.0.x, m.columns.0.y, m.columns.0.z, m.columns.0.w,
+     m.columns.1.x, m.columns.1.y, m.columns.1.z, m.columns.1.w,
+     m.columns.2.x, m.columns.2.y, m.columns.2.z, m.columns.2.w,
+     m.columns.3.x, m.columns.3.y, m.columns.3.z, m.columns.3.w]
 }
 
 func floatArrayToMatrix(_ a: [Float]) -> simd_float4x4? {
@@ -717,27 +694,21 @@ func floatArrayToMatrix(_ a: [Float]) -> simd_float4x4? {
     )
 }
 
-// 3. Style des boutons (HUD)
 struct ActionButton: View {
     let icon: String
     let active: Bool
-    
     var body: some View {
         Image(systemName: icon)
             .font(.system(size: 18, weight: .bold))
             .foregroundColor(active ? .black : .white)
             .frame(width: 48, height: 48)
-            // Assure-toi d'avoir ton extension Color(hex:) quelque part dans le projet,
-            // sinon remplace Color(hex: "#2BEE79") par Color.green
             .background(active ? Color(hex: "#2BEE79") : .white.opacity(0.15))
             .clipShape(Circle())
     }
 }
 
-// 4. Modifier pour les boutons "Glass" (Retour, Undo, Validate)
 struct GlassButtonStyle: ViewModifier {
     var isGreen: Bool = false
-    
     func body(content: Content) -> some View {
         content
             .font(.system(size: 18, weight: .bold))

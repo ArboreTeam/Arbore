@@ -14,6 +14,7 @@
 		974EF1EB2EC2AFC900565B6A /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 974EF1EA2EC2AFC900565B6A /* FirebaseFirestore */; };
 		974EF1ED2EC2B48F00565B6A /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 974EF1EC2EC2B48F00565B6A /* GoogleSignIn */; };
 		974EF1EF2EC2B48F00565B6A /* GoogleSignInSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 974EF1EE2EC2B48F00565B6A /* GoogleSignInSwift */; };
+		D73309844F7F54501C390F79 /* Pods_ArboreUi.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F904A447DB0F4EC63402B2F7 /* Pods_ArboreUi.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -47,11 +48,18 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		3F862A6CC5CF6C38133DDCA2 /* Pods-ArboreUi.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUi.debug.xcconfig"; path = "Target Support Files/Pods-ArboreUi/Pods-ArboreUi.debug.xcconfig"; sourceTree = "<group>"; };
+		7705C1382F38EAFE00C457F4 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		7705C13A2F38EB0700C457F4 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		7705C6522F38ECDE00C457F4 /* Untitled.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Untitled.swift; sourceTree = "<group>"; };
+		7705C6532F38ED0300C457F4 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		77DD7ADD2D84270700A6F6F1 /* ArboreUi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ArboreUi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		77DD7AED2D84270800A6F6F1 /* ArboreUiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ArboreUiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		77DD7AF72D84270800A6F6F1 /* ArboreUiUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ArboreUiUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		77F4355C2D86E1AC00E8E78D /* RealityKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = RealityKit.framework; path = System/Library/Frameworks/RealityKit.framework; sourceTree = SDKROOT; };
 		77F4355E2D86E1B400E8E78D /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
+		8A86C1D02FDE68088598D900 /* Pods-ArboreUi.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUi.release.xcconfig"; path = "Target Support Files/Pods-ArboreUi/Pods-ArboreUi.release.xcconfig"; sourceTree = "<group>"; };
+		F904A447DB0F4EC63402B2F7 /* Pods_ArboreUi.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_ArboreUi.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -102,6 +110,7 @@
 				974EF1EB2EC2AFC900565B6A /* FirebaseFirestore in Frameworks */,
 				77F4355D2D86E1AC00E8E78D /* RealityKit.framework in Frameworks */,
 				974EF1ED2EC2B48F00565B6A /* GoogleSignIn in Frameworks */,
+				D73309844F7F54501C390F79 /* Pods_ArboreUi.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -127,6 +136,7 @@
 			children = (
 				77F4355E2D86E1B400E8E78D /* ARKit.framework */,
 				77F4355C2D86E1AC00E8E78D /* RealityKit.framework */,
+				F904A447DB0F4EC63402B2F7 /* Pods_ArboreUi.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -140,6 +150,11 @@
 				77DD7AFA2D84270800A6F6F1 /* ArboreUiUITests */,
 				774B710A2D84BE8D002595B2 /* Frameworks */,
 				77DD7ADE2D84270700A6F6F1 /* Products */,
+				B4012D635235ACCBAC3DEDC7 /* Pods */,
+				7705C1382F38EAFE00C457F4 /* Release.xcconfig */,
+				7705C13A2F38EB0700C457F4 /* Debug.xcconfig */,
+				7705C6532F38ED0300C457F4 /* Secrets.xcconfig */,
+				7705C6522F38ECDE00C457F4 /* Untitled.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -153,6 +168,15 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		B4012D635235ACCBAC3DEDC7 /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				3F862A6CC5CF6C38133DDCA2 /* Pods-ArboreUi.debug.xcconfig */,
+				8A86C1D02FDE68088598D900 /* Pods-ArboreUi.release.xcconfig */,
+			);
+			path = Pods;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -160,10 +184,12 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 77DD7B012D84270800A6F6F1 /* Build configuration list for PBXNativeTarget "ArboreUi" */;
 			buildPhases = (
+				5E4D8539310479CE5B15F858 /* [CP] Check Pods Manifest.lock */,
 				77DD7AD92D84270700A6F6F1 /* Sources */,
 				77DD7ADA2D84270700A6F6F1 /* Frameworks */,
 				77DD7ADB2D84270700A6F6F1 /* Resources */,
 				774B710D2D84BE8E002595B2 /* Embed Frameworks */,
+				FBF6C8B756B8B7ADCBA34CB5 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -228,7 +254,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1620;
-				LastUpgradeCheck = 1620;
+				LastUpgradeCheck = 2620;
 				TargetAttributes = {
 					77DD7ADC2D84270700A6F6F1 = {
 						CreatedOnToolsVersion = 16.2;
@@ -296,6 +322,52 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		5E4D8539310479CE5B15F858 /* [CP] Check Pods Manifest.lock */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"${PODS_PODFILE_DIR_PATH}/Podfile.lock",
+				"${PODS_ROOT}/Manifest.lock",
+			);
+			name = "[CP] Check Pods Manifest.lock";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(DERIVED_FILE_DIR)/Pods-ArboreUi-checkManifestLockResult.txt",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
+			showEnvVarsInLog = 0;
+		};
+		FBF6C8B756B8B7ADCBA34CB5 /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-ArboreUi/Pods-ArboreUi-frameworks-${CONFIGURATION}-input-files.xcfilelist",
+			);
+			inputPaths = (
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputFileListPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-ArboreUi/Pods-ArboreUi-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-ArboreUi/Pods-ArboreUi-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		77DD7AD92D84270700A6F6F1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -339,6 +411,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -369,6 +442,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 4BKX9ANKAW;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -392,6 +466,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -402,6 +477,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -432,6 +508,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 4BKX9ANKAW;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
@@ -448,6 +525,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
 			};
@@ -455,6 +533,7 @@
 		};
 		77DD7B022D84270800A6F6F1 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7705C13A2F38EB0700C457F4 /* Debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -463,11 +542,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ArboreUi/Preview Content\"";
-				DEVELOPMENT_TEAM = 4BKX9ANKAW;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ArboreUI/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "L'application a besoin d'accéder à la caméra pour placer des plantes en réalité augmentée.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Utiliser Face ID pour vous connecter plus rapidement";
@@ -501,6 +579,7 @@
 		};
 		77DD7B032D84270800A6F6F1 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7705C1382F38EAFE00C457F4 /* Release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -509,11 +588,10 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"ArboreUi/Preview Content\"";
-				DEVELOPMENT_TEAM = 4BKX9ANKAW;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = ArboreUI/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "L'application a besoin d'accéder à la caméra pour placer des plantes en réalité augmentée.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Utiliser Face ID pour vous connecter plus rapidement";
@@ -549,8 +627,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4BKX9ANKAW;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ArboreUiTests;
@@ -568,8 +645,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4BKX9ANKAW;
-				GENERATE_INFOPLIST_FILE = YES;
+				GENERATE_INFOPLIST_FILE = NO;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ArboreUiTests;
@@ -586,7 +662,6 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4BKX9ANKAW;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ArboreUiUITests;
@@ -603,7 +678,6 @@
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 4BKX9ANKAW;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ArboreUiUITests;

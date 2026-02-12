@@ -32,6 +32,13 @@ struct GardenARPlacementView: View {
     let thumbnailKey: String?
     let existingGardenId: String?
     let mode: GardenARMode
+    
+    // 🆕 Données de mesure du jardin
+    let boundaryPoints: [SIMD3<Float>]
+    let area: Float
+    let perimeter: Float
+    let measurementWorldMapId: String?  // 🆕 ID pour charger la WorldMap de mesure
+    
     let onValidated: () -> Void
     
     @Environment(\.dismiss) private var dismiss
@@ -55,6 +62,10 @@ struct GardenARPlacementView: View {
                 thumbnailKey: thumbnailKey,
                 existingGardenId: existingGardenId,
                 mode: mode,
+                boundaryPoints: boundaryPoints,
+                area: area,
+                perimeter: perimeter,
+                measurementWorldMapId: measurementWorldMapId,  // 🆕
                 onValidated: {
                     dismiss()
                     onValidated()
@@ -211,6 +222,13 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     let thumbnailKey: String?
     let existingGardenId: String?
     let mode: GardenARMode
+    
+    // 🆕 Données de mesure du jardin
+    let boundaryPoints: [SIMD3<Float>]
+    let area: Float
+    let perimeter: Float
+    let measurementWorldMapId: String?  // 🆕 ID pour charger la WorldMap de mesure
+    
     let onValidated: () -> Void
 
     func makeUIView(context: Context) -> ARSCNView {
@@ -222,6 +240,24 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal]
         config.environmentTexturing = .automatic
+        
+        // 🆕 Charger la WorldMap de mesure si disponible
+        if let mapId = measurementWorldMapId {
+            let mapURL = GardenLocalStore.worldMapURL(for: mapId)
+            if FileManager.default.fileExists(atPath: mapURL.path) {
+                do {
+                    let mapData = try Data(contentsOf: mapURL)
+                    if let worldMap = try NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData) {
+                        config.initialWorldMap = worldMap
+                        print("✅ WorldMap de mesure chargée (ID: \(mapId))")
+                    }
+                } catch {
+                    print("⚠️ Erreur chargement WorldMap mesure: \(error)")
+                }
+            } else {
+                print("⚠️ WorldMap de mesure introuvable: \(mapId)")
+            }
+        }
         
         sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
 
@@ -405,12 +441,59 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             
             // Fonction d'écriture disque
             private func saveToDisk(id: String, plants: [PersistedPlant], arView: ARSCNView) {
+                guard let props = parentProps else { return }
+                
                 // 1. JSON (Synchrone, facile)
                 do {
-                    let sceneData = PersistedARScene(savedAt: Date(), plants: plants)
+                    // 🆕 Convertir les SIMD3<Float> en tableaux [[Float]] pour la sérialisation
+                    var boundaryPointsArray = props.boundaryPoints.map { [$0.x, $0.y, $0.z] }
+                    var normalizedPlants = plants
+                    
+                    // 🔧 NORMALISATION : Si on a des bordures, normaliser tout par rapport au centroïd
+                    if !boundaryPointsArray.isEmpty {
+                        // Calculer le centroïd des bordures
+                        let sumX = props.boundaryPoints.reduce(0.0) { $0 + $1.x }
+                        let sumZ = props.boundaryPoints.reduce(0.0) { $0 + $1.z }
+                        let centroidX = sumX / Float(props.boundaryPoints.count)
+                        let centroidZ = sumZ / Float(props.boundaryPoints.count)
+                        
+                        print("🎯 Centroïd bordures: x=\(centroidX), z=\(centroidZ)")
+                        
+                        // Normaliser les bordures (soustraire le centroïd)
+                        boundaryPointsArray = boundaryPointsArray.map { point in
+                            [point[0] - centroidX, point[1], point[2] - centroidZ]
+                        }
+                        
+                        // Normaliser les plantes (soustraire le centroïd)
+                        normalizedPlants = plants.map { plant in
+                            PersistedPlant(
+                                plantID: plant.plantID,
+                                plantName: plant.plantName,
+                                modelURLString: plant.modelURLString,
+                                position: [
+                                    plant.position[0] - centroidX,
+                                    plant.position[1],
+                                    plant.position[2] - centroidZ
+                                ],
+                                rotation: plant.rotation,
+                                scale: plant.scale,
+                                transform: plant.transform
+                            )
+                        }
+                        
+                        print("✅ Coordonnées normalisées: \(normalizedPlants.count) plantes + \(boundaryPointsArray.count) bordures")
+                    }
+                    
+                    let sceneData = PersistedARScene(
+                        savedAt: Date(),
+                        plants: normalizedPlants,
+                        boundaryPoints: boundaryPointsArray,
+                        area: props.area,
+                        perimeter: props.perimeter
+                    )
                     let jsonData = try JSONEncoder().encode(sceneData)
                     try jsonData.write(to: GardenLocalStore.sceneURL(for: id))
-                    print("📄 JSON sauvegardé : scene_\(id).json")
+                    print("📄 JSON sauvegardé : scene_\(id).json (avec bordures: \(boundaryPointsArray.count) points)")
                 } catch {
                     print("❌ Erreur écriture JSON: \(error)")
                 }

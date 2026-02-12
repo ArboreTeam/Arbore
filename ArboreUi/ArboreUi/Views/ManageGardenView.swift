@@ -260,6 +260,41 @@ struct GardenDetailsPage: View {
                                     .cornerRadius(24)
                                     .shadow(radius: 5)
                                 
+                                // 🆕 Statistiques du jardin (surface et périmètre)
+                                if mapViewModel.area > 0 {
+                                    HStack(spacing: 20) {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: "square.dashed")
+                                                .foregroundColor(Color(hex: "#2BEE79"))
+                                                .font(.system(size: 16))
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text("Surface")
+                                                    .font(.system(size: 10, weight: .medium))
+                                                    .foregroundStyle(.secondary)
+                                                Text("\(String(format: "%.2f", mapViewModel.area)) m²")
+                                                    .font(.system(size: 14, weight: .bold))
+                                            }
+                                        }
+                                        
+                                        HStack(spacing: 8) {
+                                            Image(systemName: "arrow.triangle.turn.up.right.diamond")
+                                                .foregroundColor(Color(hex: "#2BEE79"))
+                                                .font(.system(size: 16))
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text("Périmètre")
+                                                    .font(.system(size: 10, weight: .medium))
+                                                    .foregroundStyle(.secondary)
+                                                Text("\(String(format: "%.2f", mapViewModel.perimeter)) m")
+                                                    .font(.system(size: 14, weight: .bold))
+                                            }
+                                        }
+                                    }
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 12)
+                                    .background(CardContainer(isDark: isDark, cornerRadius: 16))
+                                    .padding(.top, 8)
+                                }
+                                
                                 // Info sélection plante
                                 if let selected = mapViewModel.selectedPlant {
                                     HStack(spacing: 14) {
@@ -455,6 +490,14 @@ class Garden2DViewModel: ObservableObject {
     @Published var displayPlants: [DisplayPlant] = []
     @Published var selectedPlant: DisplayPlant? = nil
     
+    // 🆕 Données des bordures du jardin
+    @Published var boundaryPoints: [[Float]] = []
+    @Published var area: Float = 0
+    @Published var perimeter: Float = 0
+    
+    // 🆕 Centroïd des bordures (pour normalisation)
+    private var boundaryCentroid: (x: Float, z: Float) = (0, 0)
+    
     func loadGarden(gardenId: String) {
         let url = GardenLocalStore.sceneURL(for: gardenId)
         if FileManager.default.fileExists(atPath: url.path) {
@@ -463,6 +506,36 @@ class Garden2DViewModel: ObservableObject {
                 let scene = try JSONDecoder().decode(PersistedARScene.self, from: data)
                 DispatchQueue.main.async {
                     self.displayPlants = scene.plants.map { DisplayPlant(data: $0) }
+                    
+                    // 🆕 Charger les bordures du jardin si disponibles
+                    self.boundaryPoints = scene.boundaryPoints ?? []
+                    self.area = scene.area ?? 0
+                    self.perimeter = scene.perimeter ?? 0
+                    
+                    // 🔧 Calculer le centroïd des bordures pour normalisation
+                    if !self.boundaryPoints.isEmpty {
+                        let sumX = self.boundaryPoints.reduce(0.0) { $0 + $1[0] }
+                        let sumZ = self.boundaryPoints.reduce(0.0) { $0 + $1[2] }
+                        self.boundaryCentroid = (
+                            x: sumX / Float(self.boundaryPoints.count),
+                            z: sumZ / Float(self.boundaryPoints.count)
+                        )
+                    }
+                    
+                    print("🗺️ Jardin chargé: \(self.displayPlants.count) plantes, \(self.boundaryPoints.count) points de bordure")
+                    print("📍 Centroïd bordures: x=\(self.boundaryCentroid.x), z=\(self.boundaryCentroid.z)")
+                    
+                    // 🐛 Debug: Afficher les coordonnées
+                    if !self.displayPlants.isEmpty {
+                        let firstPlant = self.displayPlants[0].data
+                        print("🌱 Première plante: x=\(firstPlant.position[0]), z=\(firstPlant.position[2])")
+                    }
+                    if !self.boundaryPoints.isEmpty {
+                        print("📐 Bordures:")
+                        for (i, point) in self.boundaryPoints.enumerated() {
+                            print("   Point \(i): x=\(point[0]), z=\(point[2])")
+                        }
+                    }
                 }
             } catch { print("Error loading JSON: \(error)") }
         }
@@ -484,39 +557,79 @@ struct GardenPlanInteractiveMap: View {
                     .stroke(Color.white.opacity(0.1), lineWidth: 1)
                     .offset(x: offset.width, y: offset.height)
                 
-                ZStack {
-                    Circle().fill(Color.white.opacity(0.2)).frame(width: 8, height: 8)
-                    ForEach(viewModel.displayPlants) { plantWrapper in
-                        let p = plantWrapper.data
-                        let x = CGFloat(p.position[0]) * scale
-                        let y = CGFloat(p.position[2]) * scale
-                        
-                        VStack(spacing: 0) {
-                            ZStack {
-                                if viewModel.selectedPlant?.id == plantWrapper.id {
-                                    Circle().stroke(Color.white, lineWidth: 2)
-                                        .frame(width: 36, height: 36)
-                                        .background(Circle().fill(Color.white.opacity(0.2)))
+                // 🎯 SOLUTION DÉFINITIVE : Tout dessiner avec GeometryReader en coordonnées absolues
+                GeometryReader { innerGeo in
+                    let centerX = innerGeo.size.width / 2
+                    let centerY = innerGeo.size.height / 2
+                    
+                    ZStack {
+                        // Bordures du jardin
+                        if !viewModel.boundaryPoints.isEmpty {
+                            // Remplissage
+                            Path { path in
+                                for (index, point) in viewModel.boundaryPoints.enumerated() {
+                                    let x = centerX + CGFloat(point[0]) * scale + offset.width
+                                    let z = centerY + CGFloat(point[2]) * scale + offset.height
+                                    
+                                    if index == 0 {
+                                        path.move(to: CGPoint(x: x, y: z))
+                                    } else {
+                                        path.addLine(to: CGPoint(x: x, y: z))
+                                    }
                                 }
-                                Circle().fill(Color(red: 43/255, green: 238/255, blue: 121/255))
-                                    .frame(width: 20, height: 20)
-                                    .shadow(radius: 2)
+                                path.closeSubpath()
                             }
-                            if scale > 60 || viewModel.selectedPlant?.id == plantWrapper.id {
-                                Text(p.plantName)
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .padding(3)
-                                    .background(Color.black.opacity(0.5))
-                                    .cornerRadius(4)
-                                    .offset(y: 4)
+                            .fill(Color(hex: "#2BEE79").opacity(0.1))
+                            
+                            // Contour
+                            Path { path in
+                                for (index, point) in viewModel.boundaryPoints.enumerated() {
+                                    let x = centerX + CGFloat(point[0]) * scale + offset.width
+                                    let z = centerY + CGFloat(point[2]) * scale + offset.height
+                                    
+                                    if index == 0 {
+                                        path.move(to: CGPoint(x: x, y: z))
+                                    } else {
+                                        path.addLine(to: CGPoint(x: x, y: z))
+                                    }
+                                }
+                                path.closeSubpath()
                             }
+                            .stroke(Color(hex: "#2BEE79"), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                         }
-                        .offset(x: x, y: y)
-                        .onTapGesture { withAnimation { viewModel.selectedPlant = plantWrapper } }
+                        
+                        // Plantes - EXACTEMENT la même formule que les bordures
+                        ForEach(viewModel.displayPlants) { plantWrapper in
+                            let p = plantWrapper.data
+                            let x = centerX + CGFloat(p.position[0]) * scale + offset.width
+                            let y = centerY + CGFloat(p.position[2]) * scale + offset.height
+                            
+                            VStack(spacing: 0) {
+                                ZStack {
+                                    if viewModel.selectedPlant?.id == plantWrapper.id {
+                                        Circle().stroke(Color.white, lineWidth: 2)
+                                            .frame(width: 36, height: 36)
+                                            .background(Circle().fill(Color.white.opacity(0.2)))
+                                    }
+                                    Circle().fill(Color(red: 43/255, green: 238/255, blue: 121/255))
+                                        .frame(width: 20, height: 20)
+                                        .shadow(radius: 2)
+                                }
+                                if scale > 60 || viewModel.selectedPlant?.id == plantWrapper.id {
+                                    Text(p.plantName)
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .padding(3)
+                                        .background(Color.black.opacity(0.5))
+                                        .cornerRadius(4)
+                                        .offset(y: 4)
+                                }
+                            }
+                            .position(x: x, y: y)
+                            .onTapGesture { withAnimation { viewModel.selectedPlant = plantWrapper } }
+                        }
                     }
                 }
-                .offset(x: geo.size.width / 2 + offset.width, y: geo.size.height / 2 + offset.height)
                 
                 VStack {
                     Spacer()
@@ -540,24 +653,48 @@ struct GardenPlanInteractiveMap: View {
     }
     
     private func fitContent(geo: GeometryProxy) {
-        guard !viewModel.displayPlants.isEmpty else { return }
-        let positionsX = viewModel.displayPlants.map { CGFloat($0.data.position[0]) }
-        let positionsY = viewModel.displayPlants.map { CGFloat($0.data.position[2]) }
-        let minX = positionsX.min() ?? 0
-        let maxX = positionsX.max() ?? 0
-        let minY = positionsY.min() ?? 0
-        let maxY = positionsY.max() ?? 0
-        let centerX = (minX + maxX) / 2
-        let centerY = (minY + maxY) / 2
+        // Collecter toutes les coordonnées (plantes ET bordures) pour calculer la taille
+        var allX: [CGFloat] = []
+        var allZ: [CGFloat] = []
+        
+        // Ajouter les plantes
+        if !viewModel.displayPlants.isEmpty {
+            allX += viewModel.displayPlants.map { CGFloat($0.data.position[0]) }
+            allZ += viewModel.displayPlants.map { CGFloat($0.data.position[2]) }
+        }
+        
+        // Ajouter les bordures
+        if !viewModel.boundaryPoints.isEmpty {
+            allX += viewModel.boundaryPoints.map { CGFloat($0[0]) }
+            allZ += viewModel.boundaryPoints.map { CGFloat($0[2]) }
+        }
+        
+        // Si aucune donnée, ne rien faire
+        guard !allX.isEmpty && !allZ.isEmpty else { return }
+        
+        let minX = allX.min() ?? 0
+        let maxX = allX.max() ?? 0
+        let minZ = allZ.min() ?? 0
+        let maxZ = allZ.max() ?? 0
+        
+        // 🔧 CORRECTION : Puisque les données sont normalisées par le centroïd,
+        // le centre devrait TOUJOURS être (0, 0) !
+        // On ne calcule plus (min+max)/2 qui peut être décalé si la distribution n'est pas uniforme
+        let centerX: CGFloat = 0  // 🆕 Centre sur l'origine
+        let centerZ: CGFloat = 0  // 🆕 Centre sur l'origine
+        
         let spanX = max(maxX - minX, 1.0)
-        let spanY = max(maxY - minY, 1.0)
+        let spanZ = max(maxZ - minZ, 1.0)
         let scaleX = (geo.size.width - 100) / spanX
-        let scaleY = (geo.size.height - 100) / spanY
-        let newScale = min(scaleX, scaleY, 150.0)
+        let scaleZ = (geo.size.height - 100) / spanZ
+        let newScale = min(scaleX, scaleZ, 150.0)
         self.scale = newScale
         self.lastScale = newScale
-        self.offset = CGSize(width: -centerX * newScale, height: -centerY * newScale)
+        self.offset = CGSize(width: -centerX * newScale, height: -centerZ * newScale)  // = (0, 0)
         self.lastOffset = self.offset
+        
+        print("📏 FitContent: scale=\(newScale), centerX=\(centerX), centerZ=\(centerZ)")
+        print("📏 BBox: X[\(minX)...\(maxX)], Z[\(minZ)...\(maxZ)]")
     }
 }
 
@@ -589,6 +726,86 @@ struct GridPattern: Shape {
             i += safeSpacing
         }
         return path
+    }
+}
+
+// 🆕 Shape pour dessiner les bordures du jardin
+struct BoundaryShape: Shape {
+    let points: [[Float]]  // Points [x, y, z]
+    let scale: CGFloat
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        guard points.count > 1 else { return path }
+        
+        // Utiliser X et Z (on ignore Y qui est l'altitude)
+        // Les coordonnées sont déjà multipliées par le scale dans l'offset du parent
+        // On dessine juste les points relatifs à l'origine (0,0)
+        
+        // Premier point - coordonnées directes scalées
+        let firstX = CGFloat(points[0][0]) * scale
+        let firstZ = CGFloat(points[0][2]) * scale
+        path.move(to: CGPoint(x: firstX, y: firstZ))
+        
+        // Tracer les lignes vers chaque point suivant
+        for i in 1..<points.count {
+            let x = CGFloat(points[i][0]) * scale
+            let z = CGFloat(points[i][2]) * scale
+            path.addLine(to: CGPoint(x: x, y: z))
+        }
+        
+        // Fermer le polygone
+        path.closeSubpath()
+        
+        return path
+    }
+}
+
+// 🆕 Vue pour dessiner le remplissage du polygone dans le même système que les plantes
+struct BoundaryPolygonFill: View {
+    let points: [[Float]]
+    let scale: CGFloat
+    
+    var body: some View {
+        if points.count > 2 {
+            Path { path in
+                let firstX = CGFloat(points[0][0]) * scale
+                let firstZ = CGFloat(points[0][2]) * scale
+                path.move(to: CGPoint(x: firstX, y: firstZ))
+                
+                for i in 1..<points.count {
+                    let x = CGFloat(points[i][0]) * scale
+                    let z = CGFloat(points[i][2]) * scale
+                    path.addLine(to: CGPoint(x: x, y: z))
+                }
+                path.closeSubpath()
+            }
+            .fill(Color(hex: "#2BEE79").opacity(0.1))
+        }
+    }
+}
+
+// 🆕 Vue pour dessiner le contour du polygone dans le même système que les plantes
+struct BoundaryPolygonStroke: View {
+    let points: [[Float]]
+    let scale: CGFloat
+    
+    var body: some View {
+        if points.count > 1 {
+            Path { path in
+                let firstX = CGFloat(points[0][0]) * scale
+                let firstZ = CGFloat(points[0][2]) * scale
+                path.move(to: CGPoint(x: firstX, y: firstZ))
+                
+                for i in 1..<points.count {
+                    let x = CGFloat(points[i][0]) * scale
+                    let z = CGFloat(points[i][2]) * scale
+                    path.addLine(to: CGPoint(x: x, y: z))
+                }
+                path.closeSubpath()
+            }
+            .stroke(Color(hex: "#2BEE79"), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+        }
     }
 }
 

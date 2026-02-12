@@ -4,6 +4,11 @@ import SceneKit // ✅ On passe à SceneKit pour la stabilité sur iPhone 16/17 
 import Combine
 import PhotosUI
 
+// 🆕 Extension pour les notifications
+extension Notification.Name {
+    static let saveWorldMapForMeasurement = Notification.Name("saveWorldMapForMeasurement")
+}
+
 // MARK: - 1. LE CERVEAU (ViewModel)
 // (Inchangé, il fonctionne très bien)
 class GardenManager: ObservableObject {
@@ -67,15 +72,19 @@ struct ARViewContainerGarden: UIViewRepresentable {
         sceneView.delegate = context.coordinator
         sceneView.session.delegate = context.coordinator
         
-        // 3. Configuration AR Standard
+        // 3. Configuration AR Standard (Optimisée)
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal] // On garde juste horizontal pour le jardin
-        config.environmentTexturing = .automatic
         
-        // On désactive le LiDAR explicite pour alléger
-        if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
-            // On ne l'active PAS pour éviter les conflits graphiques
-        }
+        // 🔧 Optimisations pour réduire la charge
+        config.isAutoFocusEnabled = true
+        config.environmentTexturing = .none  // Désactivé pour alléger
+        config.frameSemantics = []  // Pas de depth/segmentation
+        
+        // Ne pas activer le LiDAR explicitement
+        // if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {
+        //     config.frameSemantics.insert(.sceneDepth)
+        // }
         
         // 4. Gestion du Tap
         let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
@@ -107,9 +116,55 @@ struct ARViewContainerGarden: UIViewRepresentable {
         var arView: ARSCNView?
         var manager: GardenManager
         var cancellable: AnyCancellable?
+        var worldMapObserver: NSObjectProtocol?
         
         init(manager: GardenManager) {
             self.manager = manager
+            super.init()
+            
+            // 🆕 Observer pour sauvegarder la WorldMap
+            worldMapObserver = NotificationCenter.default.addObserver(
+                forName: .saveWorldMapForMeasurement,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                guard let gardenId = notification.object as? String else { return }
+                self?.saveWorldMap(for: gardenId)
+            }
+        }
+        
+        deinit {
+            if let observer = worldMapObserver {
+                NotificationCenter.default.removeObserver(observer)
+            }
+        }
+        
+        // 🆕 Fonction pour sauvegarder la WorldMap
+        private func saveWorldMap(for gardenId: String) {
+            print("🗺️ saveWorldMap appelée pour: \(gardenId)")
+            guard let arView = arView else {
+                print("❌ arView est nil!")
+                return
+            }
+            
+            print("🗺️ Sauvegarde WorldMap pour mesure (ID: \(gardenId))...")
+            arView.session.getCurrentWorldMap { worldMap, error in
+                if let map = worldMap {
+                    do {
+                        let mapData = try NSKeyedArchiver.archivedData(withRootObject: map, requiringSecureCoding: true)
+                        let url = GardenLocalStore.worldMapURL(for: gardenId)
+                        try mapData.write(to: url)
+                        print("✅ WorldMap sauvegardée pour mesure: \(gardenId)")
+                        print("📁 Fichier: \(url.path)")
+                    } catch {
+                        print("❌ Erreur sauvegarde WorldMap mesure: \(error)")
+                    }
+                } else if let error = error {
+                    print("❌ Erreur récupération WorldMap: \(error)")
+                } else {
+                    print("⚠️ WorldMap est nil sans erreur")
+                }
+            }
         }
         
         func setupSubscription() {
@@ -160,6 +215,12 @@ struct ARViewContainerGarden: UIViewRepresentable {
         // Gestion des erreurs
         func session(_ session: ARSession, didFailWithError error: Error) {
             print("❌ Erreur AR: \(error.localizedDescription)")
+        }
+        
+        // 🆕 Détecter quand l'AR est prêt (plane détectée)
+        func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
+            guard anchor is ARPlaneAnchor else { return }
+            print("✅ Plan AR détecté - L'AR est prête!")
         }
     }
 }
@@ -234,18 +295,56 @@ struct ExportableView: View {
 
 // MARK: - 4. UI PRINCIPALE (Avec Correctifs)
 struct ARViewContainerMesure: View {
-    let selectedPlants: [Plant] // Type Plant doit être défini ailleurs dans ton projet
+    let selectedPlants: [Plant]
+    
+    // 🆕 Paramètres du wizard
+    let uid: String
+    let wizard: GardenWizardDTO
+    let gardenName: String
+    let thumbnailKey: String?
 
     @StateObject var gardenManager = GardenManager()
     @State private var showFullScreenPlan = false
     @State private var saveSuccess = false
+    @State private var showIntermediate = false
+    @State private var arIsReady = false  // 🆕 Indicateur AR
+    
+    // 🆕 ID temporaire pour la WorldMap
+    @State private var tempGardenId = UUID().uuidString
+    
     @Environment(\.presentationMode) var presentationMode
 
-    @State private var showIntermediate = false
-
-    // Initialiseur simple
-    init(selectedPlants: [Plant] = []) {
+    // Initialiseur avec valeurs par défaut pour compatibilité
+    init(
+        selectedPlants: [Plant] = [],
+        uid: String = "TEST_UID",
+        wizard: GardenWizardDTO = GardenWizardDTO(
+            style: "",
+            spaceType: "",
+            exposure: nil,
+            maintenance: nil,
+            safety: [],
+            soil: nil,
+            scanMethod: nil
+        ),
+        gardenName: String = "Mon jardin",
+        thumbnailKey: String? = nil
+    ) {
         self.selectedPlants = selectedPlants
+        self.uid = uid
+        self.wizard = wizard
+        self.gardenName = gardenName
+        self.thumbnailKey = thumbnailKey
+    }
+    
+    // 🆕 Fonction pour sauvegarder la WorldMap
+    private func saveWorldMapForPlacement() {
+        // Note: Cette fonction sera appelée depuis le button handler
+        // La sauvegarde réelle se fera via une notification ou callback vers ARViewContainerGarden
+        print("🗺️ Demande de sauvegarde WorldMap pour: \(tempGardenId)")
+        print("📢 Envoi notification .saveWorldMapForMeasurement")
+        NotificationCenter.default.post(name: .saveWorldMapForMeasurement, object: tempGardenId)
+        print("📢 Notification envoyée")
     }
 
     var body: some View {
@@ -269,6 +368,32 @@ struct ARViewContainerMesure: View {
                             .background(.ultraThinMaterial, in: Circle())
                     }
 
+                    Spacer()
+                    
+                    // 🆕 Indicateur AR Status
+                    VStack(spacing: 4) {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color.green)
+                                .frame(width: 8, height: 8)
+                            Text("AR Active")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.white)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(20)
+                        
+                        Text("Touchez le sol pour placer des points")
+                            .font(.system(size: 10))
+                            .foregroundColor(.white.opacity(0.8))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(.black.opacity(0.4))
+                            .cornerRadius(6)
+                    }
+                    
                     Spacer()
 
                     VStack(alignment: .trailing, spacing: 2) {
@@ -368,7 +493,15 @@ struct ARViewContainerMesure: View {
                         }
 
                         Button {
-                            showIntermediate = true
+                            // 🆕 Sauvegarder la WorldMap avant de continuer
+                            print("🎯 Bouton CONTINUER cliqué - Sauvegarde WorldMap...")
+                            saveWorldMapForPlacement()
+                            
+                            // Délai pour laisser le temps à la WorldMap de se sauvegarder
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                print("🎯 Ouverture IntermediateGardenView avec ID: \(tempGardenId)")
+                                showIntermediate = true
+                            }
                         } label: {
                             Text("CONTINUER")
                                 .font(.system(size: 12, weight: .bold))
@@ -397,9 +530,23 @@ struct ARViewContainerMesure: View {
         .navigationBarHidden(true)
         .navigationBarBackButtonHidden(true)
         .statusBar(hidden: true)
+        .onAppear {
+            print("🎯 ARViewContainerMesure: Vue chargée - AR devrait démarrer")
+            print("🎯 Points actuels: \(gardenManager.points.count)")
+        }
 
         .fullScreenCover(isPresented: $showIntermediate) {
-            IntermediateGardenView(selectedPlants: selectedPlants)
+            IntermediateGardenView(
+                selectedPlants: selectedPlants,
+                uid: uid,
+                wizard: wizard,
+                gardenName: gardenName,
+                thumbnailKey: thumbnailKey,
+                boundaryPoints: gardenManager.points,
+                area: gardenManager.area,
+                perimeter: gardenManager.perimeter,
+                measurementWorldMapId: tempGardenId  // 🆕 Passer l'ID pour charger la WorldMap
+            )
         }
 
         .sheet(isPresented: $showFullScreenPlan) {

@@ -103,11 +103,17 @@ struct HomeView: View {
                     thumbnailKey: g.thumbnailKey,
 
                     // ✅ reopen
-                    existingGardenId: g.id,     // si ton id est nil, ça ne chargera pas la worldmap
+                    existingGardenId: g.id,
                     mode: .reopen,
+                    
+                    // Boundary data will be loaded from saved garden
+                    boundaryPoints: [],
+                    area: 0,
+                    perimeter: 0,
+                    measurementWorldMapId: nil,  // Pas de mesure pour reopen
 
                     onValidated: {
-                        // ferme l’AR
+                        // ferme l'AR
                         gardenToOpen = nil
                         // refresh la home si besoin
                         Task { await fetchGardens() }

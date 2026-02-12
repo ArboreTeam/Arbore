@@ -32,6 +32,18 @@ struct GardenLocalStore {
 struct PersistedARScene: Codable {
     let savedAt: Date
     let plants: [PersistedPlant]
+    let boundaryPoints: [[Float]]?  // Points de bordure du jardin [x, y, z]
+    let area: Float?                 // Surface du jardin en m²
+    let perimeter: Float?            // Périmètre du jardin en m
+    
+    // Initializer pour rétro-compatibilité avec les anciens jardins
+    init(savedAt: Date, plants: [PersistedPlant], boundaryPoints: [[Float]]? = nil, area: Float? = nil, perimeter: Float? = nil) {
+        self.savedAt = savedAt
+        self.plants = plants
+        self.boundaryPoints = boundaryPoints
+        self.area = area
+        self.perimeter = perimeter
+    }
 }
 
 struct PersistedPlant: Codable {

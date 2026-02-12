@@ -57,6 +57,10 @@ struct AllGardensView: View {
                 thumbnailKey: g.thumbnailKey,
                 existingGardenId: g.id,
                 mode: .reopen,
+                boundaryPoints: [],  // Will be loaded from saved data
+                area: 0,
+                perimeter: 0,
+                measurementWorldMapId: nil,  // Pas de mesure pour reopen
                 onValidated: {
                     gardenToOpen = nil
                     Task { await fetchGardens() }

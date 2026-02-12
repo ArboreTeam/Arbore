@@ -232,6 +232,12 @@ struct GardenWizardView: View {
 
     // ouvre l’AR à la fin
     @State private var showPlacementAR = false
+    @State private var showMeasurementApp = false  // 🆕 Pour lancer l'app de mesure
+    
+    // 🆕 Stocker les données de mesure
+    @State private var measuredBoundaryPoints: [SIMD3<Float>] = []
+    @State private var measuredArea: Float = 0.0
+    @State private var measuredPerimeter: Float = 0.0
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -329,7 +335,14 @@ struct GardenWizardView: View {
                     WizardSummaryStepView(
                         state: state,
                         onBack: goToPrevious,
-                        onStartAR: { showPlacementAR = true },
+                        onStartAR: {
+                            // 🆕 Si gardenPerimeter, lancer d'abord l'app de mesure
+                            if state.scanMethod == .gardenPerimeter {
+                                showMeasurementApp = true
+                            } else {
+                                showPlacementAR = true
+                            }
+                        },
                         onStartLiDAR: { showPlacementAR = true },
                         onFinishWizard: { onFinish(state) },
                         isSaving: false
@@ -356,7 +369,18 @@ struct GardenWizardView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
 
-        // ✅ AR placement (create)
+        // 🆕 Lancer l'app de mesure d'abord si gardenPerimeter
+        .fullScreenCover(isPresented: $showMeasurementApp) {
+            ARViewContainerMesure(
+                selectedPlants: selectedPlants,
+                uid: uid,
+                wizard: wizardDTO,
+                gardenName: gardenName,
+                thumbnailKey: thumbnailKey
+            )
+        }
+
+        // ✅ AR placement (create) - maintenant avec les données de mesure
         .fullScreenCover(isPresented: $showPlacementAR) {
             GardenARPlacementView(
                 selectedPlants: selectedPlants,
@@ -366,9 +390,13 @@ struct GardenWizardView: View {
                 thumbnailKey: thumbnailKey,
                 existingGardenId: nil,
                 mode: .create,
+                boundaryPoints: [],  // No boundaries in direct create mode
+                area: 0,
+                perimeter: 0,
+                measurementWorldMapId: nil,  // Pas de mesure en mode direct
                 onValidated: {
                     showPlacementAR = false
-                    tabRouter.selectedTab = .garden
+                    tabRouter.selectedTab = .home
                     dismiss()
                 }
             )

@@ -299,6 +299,13 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
 
             init(_ parent: GardenARPlacementContainerView) { self.parentProps = parent }
 
+            private func dumpNodeTree(_ node: SCNNode, indent: String = "") {
+                let name = node.name ?? "<no name>"
+                let geo = (node.geometry != nil) ? " (geo)" : ""
+                print("\(indent)- \(name)\(geo)")
+                node.childNodes.forEach { dumpNodeTree($0, indent: indent + "  ") }
+            }
+
             func setupObservers() {
                 let nc = NotificationCenter.default
                 nc.addObserver(self, selector: #selector(handleValidateNotif), name: .gardenARValidate, object: nil)
@@ -648,10 +655,22 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             }
 
             @objc func handleTapToPlace(_ gesture: UITapGestureRecognizer) {
-                guard let transform = lastReticleTransform, let plant = parentProps?.selectedPlant, let url = plant.localModelURL else {
+                guard let transform = lastReticleTransform else {
+                    print("⚠️ Pas de reticle transform (pas de surface détectée)")
                     deselectAll()
                     return
                 }
+                guard let plant = parentProps?.selectedPlant else {
+                    print("⚠️ Aucune plante sélectionnée")
+                    deselectAll()
+                    return
+                }
+                guard let url = plant.localModelURL else {
+                    print("❌ localModelURL nil pour: \(plant.name) | modelURL: \(plant.modelURL ?? "nil")")
+                    deselectAll()
+                    return
+                }
+
                 saveStateForUndo()
                 placeObject(at: transform, modelURL: url, id: plant.id, name: plant.name)
             }
@@ -686,6 +705,10 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 
                 do {
                     let scene = try SCNScene(url: modelURL, options: nil)
+
+                    print("🌿 DEBUG NODE TREE for \(modelURL.lastPathComponent)")
+                    dumpNodeTree(scene.rootNode)
+
                     let container = SCNNode()
                     let encodedURL = modelURL.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "default"
                     
@@ -694,6 +717,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     container.name = "plant_\(id)_\(name)_\(encodedURL)_\(uniqueID)"
 
                     for child in scene.rootNode.childNodes { container.addChildNode(child) }
+                    stripPotIfNeeded(from: container)
                     container.simdTransform = transform
 
                     if let scale = finalScale {
@@ -712,6 +736,62 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     if !isRestoring { selectNode(container) }
                 } catch {
                     print("❌ Erreur chargement modèle: \(error)")
+                }
+            }
+
+            private func stripPotIfNeeded(from root: SCNNode) {
+                guard let props = parentProps else { return }
+                let isOutdoor = props.wizard.spaceType == GardenSpaceType.garden.rawValue
+                guard isOutdoor else { return }
+
+                // --- keywords pot/support ---
+                let removeKeywords = ["pot", "planter", "cachepot", "vase", "container", "stand", "legs"]
+
+                func looksLikePot(_ node: SCNNode) -> Bool {
+                    let n = (node.name ?? "").lowercased()
+                    return removeKeywords.contains(where: { n.contains($0) })
+                }
+
+                // 1) Cas Livistona: ne pas supprimer le container, juste les sous-mesh planter
+                var planterTerraBase: SCNNode?
+                root.enumerateChildNodes { node, _ in
+                    if node.name == "PLANTER_TERRA_BASE" { planterTerraBase = node }
+                }
+                if let base = planterTerraBase {
+                    var toRemove: [SCNNode] = []
+                    base.enumerateChildNodes { node, _ in
+                        let n = (node.name ?? "").lowercased()
+                        if n.contains("livistona") { return }
+                        if n.contains("planter") && node.geometry != nil { toRemove.append(node) }
+                    }
+                    toRemove.forEach { $0.removeFromParentNode() }
+                    return
+                }
+
+                // 2) Collecte des nodes "pot-like"
+                var potNodes: [SCNNode] = []
+                root.enumerateChildNodes { node, _ in
+                    if looksLikePot(node) { potNodes.append(node) }
+                }
+
+                // 3) Pour chaque pot node:
+                // - si ça contient des enfants "non-pot" -> on remonte ces enfants (cas où la plante est dedans)
+                // - sinon -> on supprime juste le node (cas Pothos / pots classiques)
+                for pot in potNodes {
+                    guard let parent = pot.parent else { continue }
+
+                    let nonPotChildren = pot.childNodes.filter { !looksLikePot($0) }
+
+                    if !nonPotChildren.isEmpty {
+                        for child in nonPotChildren {
+                            let worldT = child.simdWorldTransform
+                            child.removeFromParentNode()
+                            parent.addChildNode(child)
+                            child.simdWorldTransform = worldT
+                        }
+                    }
+
+                    pot.removeFromParentNode()
                 }
             }
 

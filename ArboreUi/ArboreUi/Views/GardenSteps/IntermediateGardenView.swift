@@ -13,13 +13,16 @@ struct IntermediateGardenView: View {
     let boundaryPoints: [SIMD3<Float>]
     let area: Float
     let perimeter: Float
-    let measurementWorldMapId: String?  // 🆕 ID de la WorldMap sauvegardée lors de la mesure
+    let measurementWorldMapId: String?
+
+    // 🆕 Callback optionnel: appelé après validation AR pour fermer toute la pile
+    var onCompleted: (() -> Void)? = nil
 
     @State private var showAR = false
 
     // permet de changer d'onglet après validation
     @EnvironmentObject private var tabRouter: TabRouter
-    @Environment(\.presentationMode) private var presentationMode  // 🆕 Pour fermer la vue
+    @Environment(\.presentationMode) private var presentationMode
 
     init(
         selectedPlants: [Plant] = [],
@@ -38,7 +41,8 @@ struct IntermediateGardenView: View {
         boundaryPoints: [SIMD3<Float>] = [],
         area: Float = 0.0,
         perimeter: Float = 0.0,
-        measurementWorldMapId: String? = nil
+        measurementWorldMapId: String? = nil,
+        onCompleted: (() -> Void)? = nil
     ) {
         self.selectedPlants = selectedPlants
         self.uid = uid
@@ -49,6 +53,7 @@ struct IntermediateGardenView: View {
         self.area = area
         self.perimeter = perimeter
         self.measurementWorldMapId = measurementWorldMapId
+        self.onCompleted = onCompleted
     }
 
     var body: some View {
@@ -112,12 +117,17 @@ struct IntermediateGardenView: View {
                     // 1) fermer l'AR
                     showAR = false
 
-                    // 2) fermer IntermediateGardenView  
+                    // 2) fermer IntermediateGardenView
                     presentationMode.wrappedValue.dismiss()
-                    
-                    // 3) attendre un peu puis aller sur l'onglet Accueil
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        tabRouter.selectedTab = .home
+
+                    // 3) Si un callback parent existe (ex: fermer ARViewContainerMesure aussi)
+                    //    on l'appelle avec un léger délai pour laisser le dismiss se propager
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        onCompleted?()
+                        // 4) Aller sur l'onglet Accueil
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            tabRouter.selectedTab = .home
+                        }
                     }
                 }
             )

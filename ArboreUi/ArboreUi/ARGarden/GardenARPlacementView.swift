@@ -349,14 +349,20 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     // Découpage du nom: plant_{id}_{name}_{url}_{uuid}
                     let parts = node.name?.components(separatedBy: "_") ?? []
                     
-                    // On capture précisément les coordonnées X, Y, Z du monde AR.
-                    // X = Gauche/Droite sur la map 2D
-                    // Z = Haut/Bas sur la map 2D (Profondeur AR)
-                    // Y = Altitude (souvent 0 si au sol)
+                    let rawURLString = (parts[safe: 3] ?? "").removingPercentEncoding ?? ""
+                    // Stocker uniquement le nom de fichier (ex: "Pothos.usdz")
+                    // pour éviter les chemins absolus invalides après recompilation
+                    let modelFileName: String = {
+                        if let url = URL(string: rawURLString) {
+                            return url.lastPathComponent
+                        }
+                        return (rawURLString as NSString).lastPathComponent
+                    }()
+
                     return PersistedPlant(
                         plantID: parts[safe: 1] ?? "unknown",
                         plantName: parts[safe: 2] ?? "Plante",
-                        modelURLString: (parts[safe: 3] ?? "").removingPercentEncoding ?? "",
+                        modelURLString: modelFileName,
                         position: [node.position.x, node.position.y, node.position.z],
                         rotation: [node.eulerAngles.x, node.eulerAngles.y, node.eulerAngles.z],
                         scale: [node.scale.x, node.scale.y, node.scale.z],
@@ -386,25 +392,38 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                             
                             // 2. Appel API
                             do {
-                                // PEU IMPORTE si c'est une création ou une update,
-                                // on récupère TOUJOURS l'ID que le serveur nous renvoie.
-                                let created = try await GardenAPI.shared.createGarden(
-                                    GardenCreateDTO(
-                                        uid: props.uid,
-                                        name: props.gardenName,
-                                        wizard: props.wizard,
-                                        plants: placedDTOs,
-                                        thumbnailKey: props.thumbnailKey
+                                if props.mode == .reopen, let existingId = props.existingGardenId {
+                                    // Mise à jour d'un jardin existant
+                                    try await GardenAPI.shared.updateGarden(
+                                        id: existingId,
+                                        patch: GardenAPI.GardenPatch(
+                                            name: props.gardenName,
+                                            wizard: props.wizard,
+                                            plants: placedDTOs,
+                                            thumbnailKey: props.thumbnailKey
+                                        )
                                     )
-                                )
-                                
-                                // Si le serveur nous donne un ID, c'est LUI qui a raison.
-                                if let newId = created.id {
-                                    finalServerID = newId
+                                    finalServerID = existingId
+                                    print("✅ API: Jardin mis à jour (ID: \(existingId))")
+                                } else {
+                                    // Création d'un nouveau jardin
+                                    let created = try await GardenAPI.shared.createGarden(
+                                        GardenCreateDTO(
+                                            uid: props.uid,
+                                            name: props.gardenName,
+                                            wizard: props.wizard,
+                                            plants: placedDTOs,
+                                            thumbnailKey: props.thumbnailKey
+                                        )
+                                    )
+                                    
+                                    // Si le serveur nous donne un ID, c'est LUI qui a raison.
+                                    if let newId = created.id {
+                                        finalServerID = newId
+                                    }
+                                    
+                                    print("✅ API Réponse. ID final serveur : \(finalServerID)")
                                 }
-                                
-                                print("✅ API Réponse. ID final serveur : \(finalServerID)")
-                                
                             } catch {
                                 print("⚠️ API Erreur: \(error). On garde l'ID local par sécurité.")
                             }
@@ -429,13 +448,16 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                         try FileManager.default.copyItem(at: oldMap, to: newMap)
                                         print("✅ Fichiers migrés vers l'ID \(finalServerID)")
                                         
-                                        // (Optionnel) Nettoyage des vieux fichiers pour ne pas polluer le téléphone
-                                        // try? FileManager.default.removeItem(at: oldMap)
-                                        // try? FileManager.default.removeItem(at: GardenLocalStore.sceneURL(for: tempID))
+                                        // Supprimer les fichiers temporaires pour éviter les doublons
+                                        try? FileManager.default.removeItem(at: oldMap)
+                                        try? FileManager.default.removeItem(at: GardenLocalStore.sceneURL(for: tempID))
                                         
                                     } catch {
                                         print("❌ Erreur copie Map: \(error)")
                                     }
+                                } else {
+                                    // Pas de WorldMap à migrer, supprimer quand même le JSON temp
+                                    try? FileManager.default.removeItem(at: GardenLocalStore.sceneURL(for: tempID))
                                 }
                             }
                             
@@ -452,13 +474,33 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 
                 // 1. JSON (Synchrone, facile)
                 do {
-                    // 🆕 Convertir les SIMD3<Float> en tableaux [[Float]] pour la sérialisation
-                    var boundaryPointsArray = props.boundaryPoints.map { [$0.x, $0.y, $0.z] }
+                    // 🔄 En mode reopen, props.boundaryPoints est vide.
+                    // On recharge les bordures depuis le JSON existant pour les préserver.
+                    var boundaryPointsArray: [[Float]]
+                    var savedArea: Float = props.area
+                    var savedPerimeter: Float = props.perimeter
+
+                    if !props.boundaryPoints.isEmpty {
+                        // Mode création : on utilise les bordures fraîchement mesurées
+                        boundaryPointsArray = props.boundaryPoints.map { [$0.x, $0.y, $0.z] }
+                    } else {
+                        // Mode reopen : on relit les bordures déjà sauvegardées dans le JSON
+                        let existingURL = GardenLocalStore.sceneURL(for: id)
+                        if let existingData = try? Data(contentsOf: existingURL),
+                           let existingScene = try? JSONDecoder().decode(PersistedARScene.self, from: existingData) {
+                            boundaryPointsArray = existingScene.boundaryPoints ?? []
+                            savedArea = existingScene.area ?? props.area
+                            savedPerimeter = existingScene.perimeter ?? props.perimeter
+                            print("🔄 Bordures rechargées depuis JSON existant: \(boundaryPointsArray.count) points")
+                        } else {
+                            boundaryPointsArray = []
+                        }
+                    }
+
                     var normalizedPlants = plants
                     
-                    // 🔧 NORMALISATION : Si on a des bordures, normaliser tout par rapport au centroïd
-                    if !boundaryPointsArray.isEmpty {
-                        // Calculer le centroïd des bordures
+                    // 🔧 NORMALISATION : Si on a des bordures fraîches (création), normaliser
+                    if !props.boundaryPoints.isEmpty {
                         let sumX = props.boundaryPoints.reduce(0.0) { $0 + $1.x }
                         let sumZ = props.boundaryPoints.reduce(0.0) { $0 + $1.z }
                         let centroidX = sumX / Float(props.boundaryPoints.count)
@@ -495,8 +537,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         savedAt: Date(),
                         plants: normalizedPlants,
                         boundaryPoints: boundaryPointsArray,
-                        area: props.area,
-                        perimeter: props.perimeter
+                        area: savedArea,
+                        perimeter: savedPerimeter
                     )
                     let jsonData = try JSONEncoder().encode(sceneData)
                     try jsonData.write(to: GardenLocalStore.sceneURL(for: id))
@@ -586,25 +628,53 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 for p in plants {
                     guard let transform = floatArrayToMatrix(p.transform), !p.modelURLString.isEmpty else { continue }
                     
-                    var finalURL: URL? = URL(string: p.modelURLString)
-                    
-                    // Correction chemin Sandbox
-                    if let savedURL = finalURL, savedURL.isFileURL {
-                        let fileName = savedURL.lastPathComponent
-                        let currentDocuments = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                        let correctedURL = currentDocuments.appendingPathComponent(fileName)
-                        
-                        if FileManager.default.fileExists(atPath: correctedURL.path) {
-                            finalURL = correctedURL
-                        }
-                    }
+                    let finalURL: URL? = resolveModelURL(p.modelURLString)
                     
                     if let url = finalURL {
                         placeObject(at: transform, modelURL: url, id: p.plantID, name: p.plantName, finalScale: SCNVector3(p.scale[0], p.scale[1], p.scale[2]))
+                    } else {
+                        print("❌ Impossible de résoudre le modèle : \(p.modelURLString)")
                     }
                 }
             }
             
+            /// Résout un modelURLString en URL utilisable, quelle que soit sa forme :
+            /// - Nom de fichier seul : "Pothos.usdz"     → Bundle.main lookup
+            /// - URL absolue bundle  : "file:///...app/Pothos.usdz" → extrait le filename → Bundle
+            /// - URL absolue Documents : "file:///...Documents/foo.usdz" → Documents lookup
+            private func resolveModelURL(_ raw: String) -> URL? {
+                // 1. Extraire le nom de fichier (gère les anciens chemins absolus)
+                let fileName: String
+                if let url = URL(string: raw), url.isFileURL {
+                    fileName = url.lastPathComponent          // ex: "Pothos.usdz"
+                } else {
+                    fileName = (raw as NSString).lastPathComponent
+                }
+
+                guard !fileName.isEmpty else { return nil }
+
+                let ext  = (fileName as NSString).pathExtension
+                let name = (fileName as NSString).deletingPathExtension
+                let finalExt = ext.isEmpty ? "usdz" : ext
+
+                // 2. Chercher dans le bundle (valide après toute recompilation)
+                if let bundleURL = Bundle.main.url(forResource: name, withExtension: finalExt) {
+                    print("✅ Modèle résolu depuis le bundle : \(fileName)")
+                    return bundleURL
+                }
+
+                // 3. Fallback : Documents directory (fichiers téléchargés runtime)
+                let docsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    .appendingPathComponent(fileName)
+                if FileManager.default.fileExists(atPath: docsURL.path) {
+                    print("✅ Modèle résolu depuis Documents : \(fileName)")
+                    return docsURL
+                }
+
+                print("❌ Fichier introuvable : \(fileName)")
+                return nil
+            }
+
             // MARK: - Actions Standards
             private func saveStateForUndo() {
                 let currentState = captureCurrentState()

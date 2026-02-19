@@ -4,18 +4,19 @@ import SwiftUI
 /// et ouvre directement l’AR au tap sur une carte.
 struct AllGardensView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var themeManager: ThemeManager
 
     @State private var gardens: [GardenDTO] = []
     @State private var gardenToOpen: GardenDTO? = nil
 
     private let uid: String
 
-    // Style (aligné Home)
-    private let background = Color(hex: "#F9F9F7")
-    private let primary = Color(hex: "#8DBA8E")
-    private let textDark = Color(hex: "#333333")
-    private let textSubtle = Color(hex: "#63886f")
-    private let cardLight = Color.white
+    // Style dynamique via themeManager
+    private var background: Color { themeManager.backgroundColor }
+    private var primary: Color { themeManager.accentColor }
+    private var textDark: Color { themeManager.textColor }
+    private var textSubtle: Color { themeManager.secondaryTextColor }
+    private var cardLight: Color { themeManager.cardBackgroundColor }
 
     // Arrondis (aligné Home “moelleux”)
     private let cardCorner: CGFloat = 28
@@ -48,6 +49,7 @@ struct AllGardensView: View {
         }
         .navigationBarHidden(true)
         .onAppear { Task { await fetchGardens() } }
+        .preferredColorScheme(themeManager.colorScheme)
         .fullScreenCover(item: $gardenToOpen) { g in
             GardenARPlacementView(
                 selectedPlants: [],
@@ -93,7 +95,7 @@ private extension AllGardensView {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(textDark)
                     .frame(width: 40, height: 40)
-                    .background(Color.white.opacity(0.9))
+                    .background(themeManager.cardBackgroundColor.opacity(0.9))
                     .clipShape(Circle())
                     .shadow(color: .black.opacity(0.04), radius: 10, x: 0, y: 6)
             }
@@ -136,7 +138,7 @@ private extension AllGardensView {
                 .strokeBorder(Color.gray.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.white.opacity(0.7))
+                        .fill(themeManager.cardBackgroundColor.opacity(0.7))
                 )
         )
     }

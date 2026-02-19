@@ -11,6 +11,7 @@ struct MyGardenView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+
                 // Header avec statistiques
                 headerSection
                 
@@ -41,6 +42,7 @@ struct MyGardenView: View {
             .navigationBarBackButtonHidden(true)
             .searchable(text: $searchText, prompt: "Rechercher dans mon jardin")
         }
+        .preferredColorScheme(themeManager.colorScheme)
     }
     
     // MARK: - Header Section
@@ -66,7 +68,7 @@ struct MyGardenView: View {
                 }) {
                     Image(systemName: "plus.circle.fill")
                         .font(.title2)
-                        .foregroundColor(.green)
+                        .foregroundColor(themeManager.accentColor)
                 }
             }
             .padding(.horizontal)
@@ -77,21 +79,21 @@ struct MyGardenView: View {
                     title: "Mes Plantes",
                     value: "\(myPlants.count)",
                     icon: "leaf.fill",
-                    color: .green
+                    color: themeManager.systemGreen
                 )
                 
                 StatCard(
                     title: "À Arroser",
                     value: "3",
                     icon: "drop.fill",
-                    color: .blue
+                    color: themeManager.systemBlue
                 )
                 
                 StatCard(
                     title: "En Santé",
                     value: "95%",
                     icon: "heart.fill",
-                    color: .red
+                    color: themeManager.systemRed
                 )
             }
             .padding(.horizontal)
@@ -157,7 +159,7 @@ struct MyGardenView: View {
                     HStack {
                         VStack {
                             Circle()
-                                .fill(Color.green)
+                                .fill(themeManager.systemGreen)
                                 .frame(width: 60, height: 60)
                                 .overlay(
                                     Text("95%")
@@ -173,9 +175,9 @@ struct MyGardenView: View {
                         Spacer()
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            HealthBarItem(label: "Bien hydratées", percentage: 0.9, color: .blue)
-                            HealthBarItem(label: "Bien exposées", percentage: 0.85, color: .orange)
-                            HealthBarItem(label: "Bien nourries", percentage: 0.95, color: .green)
+                            HealthBarItem(label: "Bien hydratées", percentage: 0.9, color: themeManager.systemBlue)
+                            HealthBarItem(label: "Bien exposées", percentage: 0.85, color: themeManager.adjust(.orange))
+                            HealthBarItem(label: "Bien nourries", percentage: 0.95, color: themeManager.systemGreen)
                         }
                     }
                 }
@@ -194,19 +196,19 @@ struct MyGardenView: View {
                             icon: "drop.fill",
                             text: "Monstera arrosée",
                             time: "Il y a 2h",
-                            color: .blue
+                            color: themeManager.systemBlue
                         )
                         ActivityItem(
                             icon: "leaf.fill",
                             text: "Nouvelle pousse sur le Ficus",
                             time: "Hier",
-                            color: .green
+                            color: themeManager.systemGreen
                         )
                         ActivityItem(
                             icon: "plus.circle.fill",
                             text: "Pothos ajouté au jardin",
                             time: "Il y a 3 jours",
-                            color: .purple
+                            color: themeManager.adjust(.purple)
                         )
                     }
                 }
@@ -223,7 +225,7 @@ struct MyGardenView: View {
         VStack(spacing: 20) {
             Image(systemName: "leaf.circle")
                 .font(.system(size: 60))
-                .foregroundColor(.green.opacity(0.6))
+                .foregroundColor(themeManager.accentColor.opacity(0.6))
             
             VStack(spacing: 8) {
                 Text(title)
@@ -241,7 +243,7 @@ struct MyGardenView: View {
                     .font(.headline)
                     .foregroundColor(.white)
                     .padding()
-                    .background(Color.green)
+                    .background(themeManager.accentColor)
                     .cornerRadius(12)
             }
         }
@@ -301,10 +303,10 @@ struct PlantGardenCard: View {
                     .aspectRatio(contentMode: .fill)
             } placeholder: {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.gray.opacity(0.3))
+                    .fill(themeManager.cardBackgroundColor)
                     .overlay(
                         Image(systemName: "leaf.fill")
-                            .foregroundColor(.gray)
+                            .foregroundColor(themeManager.secondaryTextColor)
                     )
             }
             .frame(width: 60, height: 60)
@@ -325,7 +327,7 @@ struct PlantGardenCard: View {
             VStack {
                 // Indicateur de santé
                 Circle()
-                    .fill(Color.green)
+                    .fill(themeManager.systemGreen)
                     .frame(width: 12, height: 12)
                 
                 Text("Bonne")
@@ -352,10 +354,10 @@ struct WishlistPlantCard: View {
                     .aspectRatio(contentMode: .fill)
             } placeholder: {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.gray.opacity(0.3))
+                    .fill(themeManager.cardBackgroundColor)
                     .overlay(
                         Image(systemName: "heart.fill")
-                            .foregroundColor(.red)
+                            .foregroundColor(themeManager.systemRed)
                     )
             }
             .frame(width: 60, height: 60)
@@ -378,7 +380,7 @@ struct WishlistPlantCard: View {
             }) {
                 Image(systemName: "plus.circle.fill")
                     .font(.title2)
-                    .foregroundColor(.green)
+                    .foregroundColor(themeManager.accentColor)
             }
         }
         .padding()

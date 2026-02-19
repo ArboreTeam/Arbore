@@ -545,7 +545,12 @@ struct ARViewContainerMesure: View {
                 boundaryPoints: gardenManager.points,
                 area: gardenManager.area,
                 perimeter: gardenManager.perimeter,
-                measurementWorldMapId: tempGardenId  // 🆕 Passer l'ID pour charger la WorldMap
+                measurementWorldMapId: tempGardenId,
+                onCompleted: {
+                    // Fermer ARViewContainerMesure pour revenir au wizard
+                    // (IntermediateGardenView s'occupe de naviguer vers Home via tabRouter)
+                    presentationMode.wrappedValue.dismiss()
+                }
             )
         }
 

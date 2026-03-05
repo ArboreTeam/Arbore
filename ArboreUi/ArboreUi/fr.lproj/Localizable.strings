@@ -34,7 +34,12 @@
 "PROFILE_CHANGE_PASSWORD" = "Changer le mot de passe";
 "PROFILE_PRIVACY_POLICY" = "Politique de confidentialité";
 "PROFILE_TERMS" = "Conditions générales";
+"PROFILE_DOWNLOAD_DATA" = "Télécharger mes données";
 "PROFILE_CLOSE_ACCOUNT" = "Fermer le compte";
+
+// Data Export
+"DATA_EXPORT_TITLE" = "Télécharger mes données";
+"DATA_EXPORT_DESCRIPTION" = "Exporte toutes tes données en un seul fichier JSON. Cela inclut ton profil, tes jardins, tes plantes et ton historique de consentements.";
 
 "PROFILE_PRIVACY_SECTION" = "Confidentialité";
 "PROFILE_PRIVACY_SETTINGS" = "Paramètres de confidentialité";

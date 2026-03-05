@@ -202,14 +202,109 @@ struct CloseAccountView: View {
     }
 
     private func deleteAccount() {
-        guard let user = Auth.auth().currentUser else { return }
-        user.delete { error in
-            if let error = error {
-                self.deletionError = error.localizedDescription
+        Task {
+            await performCompleteAccountDeletion()
+        }
+    }
+
+    private func performCompleteAccountDeletion() async {
+        guard let user = Auth.auth().currentUser else {
+            deletionError = "User not authenticated"
+            return
+        }
+
+        let uid = user.uid
+
+        // 1. Get Firebase token
+        guard let token = await getFirebaseToken() else {
+            deletionError = "Failed to get authentication token"
+            return
+        }
+
+        // 2. Call backend to delete all MongoDB data
+        let endpoint = "\(AppConfig.baseURL)/users/\(uid)"
+        guard let url = URL(string: endpoint) else {
+            deletionError = "Invalid URL"
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                deletionError = "Invalid response from server"
                 return
             }
-            isLoggedIn = false
+
+            if httpResponse.statusCode != 200 {
+                let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+                deletionError = "Backend deletion failed: \(errorMessage)"
+                return
+            }
+
+            // 3. Clean local data
+            cleanLocalData()
+
+            // 4. Delete Firebase Auth account
+            do {
+                try await user.delete()
+
+                // 5. Sign out and update login state
+                DispatchQueue.main.async {
+                    self.isLoggedIn = false
+                }
+            } catch {
+                deletionError = "Failed to delete Firebase account: \(error.localizedDescription)"
+            }
+
+        } catch {
+            deletionError = "Network error: \(error.localizedDescription)"
         }
+    }
+
+    private func getFirebaseToken() async -> String? {
+        guard let user = Auth.auth().currentUser else { return nil }
+
+        do {
+            let token = try await user.getIDToken()
+            return token
+        } catch {
+            print("Error getting Firebase token: \(error)")
+            return nil
+        }
+    }
+
+    private func cleanLocalData() {
+        // Clean UserDefaults - all privacy and consent data
+        let defaults = UserDefaults.standard
+
+        // Remove privacy settings
+        defaults.removeObject(forKey: "privacy_profilePublic")
+        defaults.removeObject(forKey: "privacy_showActivity")
+        defaults.removeObject(forKey: "privacy_shareData")
+
+        // Remove consent history
+        defaults.removeObject(forKey: "consent_history")
+
+        // Remove all consent timestamps
+        let allKeys = defaults.dictionaryRepresentation().keys
+        for key in allKeys {
+            if key.hasPrefix("consent_") || key.hasPrefix("privacy_") {
+                defaults.removeObject(forKey: key)
+            }
+        }
+
+        // Clean FileManager cache (if exists)
+        // Note: PlantThumbnailCache needs to be implemented if you have image caching
+
+        defaults.synchronize()
+
+        print("✅ Local data cleaned")
     }
 }
 

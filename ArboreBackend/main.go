@@ -193,6 +193,83 @@ func checkUserBannedFromDB(uid string) (bool, error) {
 
 // ---------- USERS ----------
 
+// exportUserData retourne toutes les données d'un utilisateur (RGPD Article 20 - Portabilité)
+func exportUserData(c *gin.Context) {
+	authenticatedUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	uid := authenticatedUID.(string)
+	ctx := context.Background()
+
+	// 1. Récupérer les données utilisateur
+	var user User
+	userCollection := client.Database("arbore").Collection("users")
+	err := userCollection.FindOne(ctx, bson.M{"uid": uid}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Utilisateur non trouvé"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération de l'utilisateur"})
+		return
+	}
+
+	// 2. Récupérer tous les gardens
+	var gardens []Garden
+	gardensCollection := client.Database("arbore").Collection("gardens")
+	gardensCursor, err := gardensCollection.Find(ctx, bson.M{"uid": uid})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération des gardens"})
+		return
+	}
+	defer gardensCursor.Close(ctx)
+
+	if err = gardensCursor.All(ctx, &gardens); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors du décodage des gardens"})
+		return
+	}
+
+	// 3. Récupérer tous les consentements
+	var consents []ConsentRecord
+	consentsCollection := client.Database("arbore").Collection("consents")
+	consentsCursor, err := consentsCollection.Find(ctx, bson.M{"uid": uid})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération des consentements"})
+		return
+	}
+	defer consentsCursor.Close(ctx)
+
+	if err = consentsCursor.All(ctx, &consents); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors du décodage des consentements"})
+		return
+	}
+
+	// 4. Construire la réponse avec toutes les données
+	exportData := gin.H{
+		"exportDate": time.Now().Format(time.RFC3339),
+		"user": gin.H{
+			"uid":       user.UID,
+			"email":     user.Email,
+			"name":      user.Name,
+			"createdAt": user.CreatedAt,
+			"banned":    user.Banned,
+		},
+		"gardens":  gardens,
+		"consents": consents,
+		"metadata": gin.H{
+			"totalGardens":  len(gardens),
+			"totalConsents": len(consents),
+			"format":        "JSON",
+			"version":       "1.0",
+		},
+	}
+
+	c.JSON(http.StatusOK, exportData)
+}
+
 func createUser(c *gin.Context) {
 	var user User
 	if err := c.ShouldBindJSON(&user); err != nil {
@@ -213,20 +290,59 @@ func createUser(c *gin.Context) {
 }
 
 func deleteUser(c *gin.Context) {
-	uid := c.Param("uid")
-	collection := client.Database("arbore").Collection("users")
-	res, err := collection.DeleteOne(context.Background(), bson.M{"uid": uid})
+	authenticatedUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
+	uid := authenticatedUID.(string)
+	ctx := context.Background()
+	db := client.Database("arbore")
+
+	// 1. Supprimer tous les gardens de l'utilisateur
+	gardensCollection := db.Collection("gardens")
+	gardensResult, err := gardensCollection.DeleteMany(ctx, bson.M{"uid": uid})
 	if err != nil {
+		log.Println("❌ Erreur lors de la suppression des gardens:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la suppression des gardens"})
+		return
+	}
+	log.Printf("✅ %d garden(s) supprimé(s)", gardensResult.DeletedCount)
+
+	// 2. Supprimer tous les consentements de l'utilisateur
+	consentsCollection := db.Collection("consents")
+	consentsResult, err := consentsCollection.DeleteMany(ctx, bson.M{"uid": uid})
+	if err != nil {
+		log.Println("❌ Erreur lors de la suppression des consents:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la suppression des consentements"})
+		return
+	}
+	log.Printf("✅ %d consentement(s) supprimé(s)", consentsResult.DeletedCount)
+
+	// 3. Supprimer l'utilisateur
+	usersCollection := db.Collection("users")
+	userResult, err := usersCollection.DeleteOne(ctx, bson.M{"uid": uid})
+	if err != nil {
+		log.Println("❌ Erreur lors de la suppression de l'utilisateur:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la suppression de l'utilisateur"})
 		return
 	}
 
-	if res.DeletedCount == 0 {
+	if userResult.DeletedCount == 0 {
 		c.JSON(http.StatusNotFound, gin.H{"message": "Aucun utilisateur trouvé avec ce UID"})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Utilisateur supprimé avec succès"})
+	// 4. Logger la suppression complète (audit trail pour RGPD)
+	log.Printf("✅ Utilisateur %s supprimé complètement - Gardens: %d, Consents: %d, User: 1",
+		uid, gardensResult.DeletedCount, consentsResult.DeletedCount)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":        "Utilisateur supprimé avec succès",
+		"gardensDeleted": gardensResult.DeletedCount,
+		"consentsDeleted": consentsResult.DeletedCount,
+	})
 }
 
 // ---------- CONSENTS (RGPD) ----------
@@ -852,6 +968,7 @@ func main() {
 
 		protected.POST("/users/:uid/photo", uploadUserPhoto)
 		protected.GET("/users/:uid/photo", getUserPhoto)
+		protected.GET("/users/:uid/export", exportUserData)
 		protected.DELETE("/users/:uid", deleteUser)
 
 		// Plants

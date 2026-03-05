@@ -213,6 +213,7 @@ struct ProfileView: View {
                     SettingRowItem(icon: "key.fill", label: NSLocalizedString("PROFILE_CHANGE_PASSWORD", comment: ""), destination: ChangePasswordView().environmentObject(themeManager), iconColor: .orange),
                     SettingRowItem(icon: "lock.shield.fill", label: NSLocalizedString("PROFILE_PRIVACY_POLICY", comment: ""), destination: PrivacyPolicyView().environmentObject(themeManager), iconColor: .blue),
                     SettingRowItem(icon: "scroll.fill", label: NSLocalizedString("PROFILE_TERMS", comment: ""), destination: TermsConditionsView().environmentObject(themeManager), iconColor: .purple),
+                    SettingRowItem(icon: "square.and.arrow.down.fill", label: NSLocalizedString("PROFILE_DOWNLOAD_DATA", comment: "Download My Data"), destination: DataExportView().environmentObject(themeManager), iconColor: .blue),
                     SettingRowItem(icon: "trash.fill", label: NSLocalizedString("PROFILE_CLOSE_ACCOUNT", comment: ""), destination: CloseAccountView().environmentObject(themeManager), iconColor: .red)
                 ])
             }

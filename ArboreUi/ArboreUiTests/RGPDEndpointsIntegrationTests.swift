@@ -48,9 +48,9 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
 
     // MARK: - Helper Methods
 
-    private func createTestUser() async throws -> User {
+    private func createTestUser() async throws -> FirebaseAuth.User {
         let expectation = self.expectation(description: "Create test user")
-        var createdUser: User?
+        var createdUser: FirebaseAuth.User?
         var authError: Error?
 
         Auth.auth().createUser(withEmail: testUserEmail, password: testUserPassword) { result, error in
@@ -76,9 +76,9 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
         return user
     }
 
-    private func signInTestUser() async throws -> User {
+    private func signInTestUser() async throws -> FirebaseAuth.User {
         let expectation = self.expectation(description: "Sign in test user")
-        var signedInUser: User?
+        var signedInUser: FirebaseAuth.User?
         var authError: Error?
 
         Auth.auth().signIn(withEmail: testUserEmail, password: testUserPassword) { result, error in

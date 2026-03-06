@@ -102,7 +102,7 @@ jobs:
         uses: golangci/golangci-lint-action@v4
         with:
           working-directory: ArboreBackend
-          version: latest
+          version: v2
           args: --timeout=5m
 
       - name: 🏗️ Build binary (Linux)

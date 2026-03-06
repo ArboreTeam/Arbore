@@ -150,10 +150,11 @@ main() {
     echo "5) Tests NetworkManager - Unit uniquement"
     echo "6) Tests NetworkManager - Integration uniquement"
     echo "7) Tests API Key Protection"
-    echo "8) Tous les tests de l'app"
-    echo "9) Quitter"
+    echo "8) Tests RGPD Endpoints (Data Export + Account Deletion)"
+    echo "9) Tous les tests de l'app"
+    echo "10) Quitter"
     echo ""
-    read -p "Votre choix (1-9): " choice
+    read -p "Votre choix (1-10): " choice
 
     local failed=0
     local total=0
@@ -214,6 +215,24 @@ main() {
             total=$((total + 1))
             ;;
         8)
+            print_header "Tests RGPD Endpoints"
+            run_tests "ArboreUiTests/RGPDEndpointsIntegrationTests/testDataExport_WithValidUser_ShouldReturnCompleteData" "Data Export - Valid User"
+            failed=$((failed + $?))
+            total=$((total + 1))
+
+            run_tests "ArboreUiTests/RGPDEndpointsIntegrationTests/testDataExport_WithoutAuthentication_ShouldReturn401" "Data Export - No Auth"
+            failed=$((failed + $?))
+            total=$((total + 1))
+
+            run_tests "ArboreUiTests/RGPDEndpointsIntegrationTests/testAccountDeletion_WithValidUser_ShouldDeleteAllData" "Account Deletion - Valid User"
+            failed=$((failed + $?))
+            total=$((total + 1))
+
+            run_tests "ArboreUiTests/RGPDEndpointsIntegrationTests/testAccountDeletion_WithoutAuthentication_ShouldReturn401" "Account Deletion - No Auth"
+            failed=$((failed + $?))
+            total=$((total + 1))
+            ;;
+        9)
             print_header "Tous les tests de l'app"
             cd "$UI_DIR"
             xcodebuild test \
@@ -244,7 +263,7 @@ main() {
                 total=1
             fi
             ;;
-        9)
+        10)
             print_info "Annulé par l'utilisateur"
             exit 0
             ;;

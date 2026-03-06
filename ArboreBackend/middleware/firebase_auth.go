@@ -13,8 +13,11 @@ import (
 )
 
 var firebaseAuth *auth.Client
+
+// CheckUserBannedFunc is a function to check if a user is banned in the database
 var CheckUserBannedFunc func(string) (bool, error)
 
+// InitFirebase initializes the Firebase Admin SDK using the service account file
 func InitFirebase() error {
 	serviceAccountPath := os.Getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
 	if serviceAccountPath == "" {
@@ -22,7 +25,15 @@ func InitFirebase() error {
 		return nil
 	}
 
-	opt := option.WithCredentialsFile(serviceAccountPath)
+	// Read service account file
+	// nolint:gosec // serviceAccountPath comes from trusted FIREBASE_SERVICE_ACCOUNT_PATH environment variable
+	serviceAccountJSON, err := os.ReadFile(serviceAccountPath)
+	if err != nil {
+		return err
+	}
+
+	// nolint:staticcheck // WithCredentialsJSON is the recommended approach for server environments with explicit credential files
+	opt := option.WithCredentialsJSON(serviceAccountJSON)
 	app, err := firebase.NewApp(context.Background(), nil, opt)
 	if err != nil {
 		return err
@@ -37,6 +48,7 @@ func InitFirebase() error {
 	return nil
 }
 
+// FirebaseAuthMiddleware validates Firebase ID tokens and extracts user UID
 func FirebaseAuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")

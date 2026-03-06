@@ -213,8 +213,6 @@ struct CloseAccountView: View {
             return
         }
 
-        let uid = user.uid
-
         // 1. Get Firebase token
         guard let token = await getFirebaseToken() else {
             deletionError = "Failed to get authentication token"
@@ -222,7 +220,7 @@ struct CloseAccountView: View {
         }
 
         // 2. Call backend to delete all MongoDB data
-        let endpoint = "\(AppConfig.baseURL)/users/\(uid)"
+        let endpoint = "\(AppConfig.baseURL)/users"
         guard let url = URL(string: endpoint) else {
             deletionError = "Invalid URL"
             return

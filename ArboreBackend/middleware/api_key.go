@@ -1,3 +1,4 @@
+// Package middleware provides authentication and authorization middleware for the Arbore backend
 package middleware
 
 import (
@@ -6,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// APIKeyMiddleware validates the X-API-Key header against the ARBORE_API_KEY environment variable
 func APIKeyMiddleware() gin.HandlerFunc {
 	expectedKey := os.Getenv("ARBORE_API_KEY")
 

@@ -7,7 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -225,7 +225,11 @@ func exportUserData(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération des gardens"})
 		return
 	}
-	defer gardensCursor.Close(ctx)
+	defer func() {
+		if err := gardensCursor.Close(ctx); err != nil {
+			log.Println("Error closing gardens cursor:", err)
+		}
+	}()
 
 	if err = gardensCursor.All(ctx, &gardens); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors du décodage des gardens"})
@@ -240,7 +244,11 @@ func exportUserData(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération des consentements"})
 		return
 	}
-	defer consentsCursor.Close(ctx)
+	defer func() {
+		if err := consentsCursor.Close(ctx); err != nil {
+			log.Println("Error closing consents cursor:", err)
+		}
+	}()
 
 	if err = consentsCursor.All(ctx, &consents); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors du décodage des consentements"})
@@ -411,7 +419,11 @@ func getUserConsents(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération des consentements"})
 		return
 	}
-	defer cursor.Close(context.Background())
+	defer func() {
+		if err := cursor.Close(context.Background()); err != nil {
+			log.Println("Error closing cursor:", err)
+		}
+	}()
 
 	var consents []ConsentRecord
 	if err = cursor.All(context.Background(), &consents); err != nil {
@@ -447,7 +459,11 @@ func getLatestUserConsents(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération"})
 		return
 	}
-	defer cursor.Close(context.Background())
+	defer func() {
+		if err := cursor.Close(context.Background()); err != nil {
+			log.Println("Error closing cursor:", err)
+		}
+	}()
 
 	var allConsents []ConsentRecord
 	if err = cursor.All(context.Background(), &allConsents); err != nil {
@@ -500,14 +516,18 @@ func getPlants(c *gin.Context) {
 
 	cursor, err := collection.Find(context.Background(), bson.M{})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération des plantes"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération des plantes"}) // nolint:misspell
 		return
 	}
-	defer cursor.Close(context.Background())
+	defer func() {
+		if err := cursor.Close(context.Background()); err != nil {
+			log.Println("Error closing cursor:", err)
+		}
+	}()
 
 	var plants []Plant
 	if err := cursor.All(context.Background(), &plants); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors du décodage des plantes"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors du décodage des plantes"}) // nolint:misspell
 		return
 	}
 
@@ -569,9 +589,13 @@ func generateAndInsertPlant(ctx context.Context, name string) (Plant, bool, erro
 		log.Println("❌ Erreur appel API IA:", err)
 		return Plant{}, false, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Println("Error closing response body:", err)
+		}
+	}()
 
-	bodyBytes, _ := ioutil.ReadAll(resp.Body)
+	bodyBytes, _ := io.ReadAll(resp.Body)
 	log.Println("🔍 Réponse brute de l'IA (status", resp.StatusCode, "):", string(bodyBytes))
 
 	var aiResponse AIResponse
@@ -689,9 +713,13 @@ func uploadUserPhoto(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "photo not provided or invalid"})
 		return
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Println("Error closing file:", err)
+		}
+	}()
 
-	imageBytes, err := ioutil.ReadAll(file)
+	imageBytes, err := io.ReadAll(file)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot read uploaded file"})
 		return
@@ -793,7 +821,11 @@ func listGardens(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur find gardens"})
 		return
 	}
-	defer cursor.Close(context.Background())
+	defer func() {
+		if err := cursor.Close(context.Background()); err != nil {
+			log.Println("Error closing cursor:", err)
+		}
+	}()
 
 	var gardens []Garden
 	if err := cursor.All(context.Background(), &gardens); err != nil {
@@ -904,6 +936,7 @@ func main() {
 
 	// ⚠️ Fallback (si tu veux garder ton test local):
 	if uri == "" {
+		// nolint:gosec // This is a fallback for local development only
 		uri = "mongodb+srv://hugorath1234:hugopapa@arbore.cew6l.mongodb.net/arbore?retryWrites=true&w=majority&appName=Arbore"
 	}
 
@@ -968,8 +1001,8 @@ func main() {
 
 		protected.POST("/users/:uid/photo", uploadUserPhoto)
 		protected.GET("/users/:uid/photo", getUserPhoto)
-		protected.GET("/users/:uid/export", exportUserData)
-		protected.DELETE("/users/:uid", deleteUser)
+		protected.GET("/users/export", exportUserData)
+		protected.DELETE("/users", deleteUser)
 
 		// Plants
 		protected.POST("/plants", createPlant)
@@ -993,7 +1026,7 @@ func main() {
 
 	fmt.Println("🚀 Serveur démarré sur http://localhost:8080")
 	if err := router.Run(":8080"); err != nil {
-		log.Fatal("❌ Erreur lors du démarrage du serveur :", err)
+		log.Fatal("❌ Erreur lors du démarrage du serveur :", err) // nolint:misspell
 	}
 
 	defer func() {

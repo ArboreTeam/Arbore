@@ -155,19 +155,13 @@ struct DataExportView: View {
         exportError = nil
         exportSuccess = false
 
-        guard let uid = Auth.auth().currentUser?.uid else {
-            exportError = "User not authenticated"
-            isExporting = false
-            return
-        }
-
         guard let token = await getFirebaseToken() else {
             exportError = "Failed to get authentication token"
             isExporting = false
             return
         }
 
-        let endpoint = "\(AppConfig.baseURL)/users/\(uid)/export"
+        let endpoint = "\(AppConfig.baseURL)/users/export"
 
         guard let url = URL(string: endpoint) else {
             exportError = "Invalid URL"

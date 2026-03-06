@@ -21,12 +21,12 @@ func fetchUnsplashImageURLs(query string, count int) []string {
 		encodedQuery := url.QueryEscape(query)
 		apiURL := fmt.Sprintf("https://api.unsplash.com/photos/random?query=%s&client_id=%s", encodedQuery, accessKey)
 
+		// nolint:gosec // Dynamic URL is required for Unsplash API with user query
 		resp, err := http.Get(apiURL)
 		if err != nil {
 			log.Println("❌ Erreur requête Unsplash:", err)
 			continue
 		}
-		defer resp.Body.Close()
 
 		var result struct {
 			Urls struct {
@@ -35,7 +35,13 @@ func fetchUnsplashImageURLs(query string, count int) []string {
 		}
 		if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 			log.Println("❌ Erreur parsing JSON Unsplash:", err)
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				log.Println("Error closing response body:", closeErr)
+			}
 			continue
+		}
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			log.Println("Error closing response body:", closeErr)
 		}
 		urls = append(urls, result.Urls.Regular)
 	}

@@ -167,3 +167,6 @@ arbore-firebase-adminsdk.json
 *.p12
 *.mobileprovision
 *.certSigningRequest
+
+# Deepl translations
+.deepl_api

@@ -17,6 +17,8 @@ struct SignUpView: View {
     @State private var verificationMessage = ""
     @State private var showVerificationScreen = false
     @State private var registeredEmail: String = ""
+    @State private var acceptedTerms = false
+    @State private var acceptedPrivacy = false
     @StateObject private var authViewModel = AuthenticationView()
     @FocusState private var focusedField: Field?
 
@@ -28,7 +30,9 @@ struct SignUpView: View {
         !firstName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !lastName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        acceptedTerms &&
+        acceptedPrivacy
     }
 
     var body: some View {
@@ -178,16 +182,52 @@ struct SignUpView: View {
                             .transition(.opacity)
                     }
 
-                    HStack(spacing: 0) {
-                        Text("By signing up, you agree to our ")
-                            .foregroundColor(.gray)
-                        NavigationLink(destination: TermsOfServiceView()) {
-                            Text("Terms of Service.")
-                                .foregroundColor(Color(hex: "#263826"))
-                                .underline()
+                    VStack(alignment: .leading, spacing: 12) {
+                        // Terms of Service checkbox
+                        HStack(alignment: .top, spacing: 8) {
+                            Button(action: {
+                                acceptedTerms.toggle()
+                            }) {
+                                Image(systemName: acceptedTerms ? "checkmark.square.fill" : "square")
+                                    .foregroundColor(acceptedTerms ? Color(hex: "#263826") : Color.gray)
+                                    .font(.system(size: 20))
+                            }
+
+                            HStack(spacing: 2) {
+                                Text(NSLocalizedString("SIGNUP_ACCEPT", comment: "I accept the"))
+                                    .foregroundColor(.gray)
+                                NavigationLink(destination: TermsConditionsView()) {
+                                    Text(NSLocalizedString("SIGNUP_TERMS", comment: "Terms of Service"))
+                                        .foregroundColor(Color(hex: "#263826"))
+                                        .underline()
+                                }
+                            }
+                            .font(.footnote)
+                        }
+
+                        // Privacy Policy checkbox
+                        HStack(alignment: .top, spacing: 8) {
+                            Button(action: {
+                                acceptedPrivacy.toggle()
+                            }) {
+                                Image(systemName: acceptedPrivacy ? "checkmark.square.fill" : "square")
+                                    .foregroundColor(acceptedPrivacy ? Color(hex: "#263826") : Color.gray)
+                                    .font(.system(size: 20))
+                            }
+
+                            HStack(spacing: 2) {
+                                Text(NSLocalizedString("SIGNUP_ACCEPT", comment: "I accept the"))
+                                    .foregroundColor(.gray)
+                                NavigationLink(destination: PrivacyPolicyView()) {
+                                    Text(NSLocalizedString("SIGNUP_PRIVACY", comment: "Privacy Policy"))
+                                        .foregroundColor(Color(hex: "#263826"))
+                                        .underline()
+                                }
+                            }
+                            .font(.footnote)
                         }
                     }
-                    .font(.footnote)
+                    .padding(.horizontal, 30)
 
                     HStack {
                         Rectangle().fill(Color.gray.opacity(0.4)).frame(height: 1)
@@ -308,6 +348,9 @@ struct SignUpView: View {
 
             // Enregistre l'utilisateur dans ta DB uniquement si tu veux malgré tout
             saveUserToBackend(uid: user.uid, email: user.email ?? "", name: fullName, createdAt: Date())
+
+            // Enregistre les consentements initiaux (RGPD)
+            recordInitialConsents(uid: user.uid, acceptedTerms: self.acceptedTerms, acceptedPrivacy: self.acceptedPrivacy)
 
             // Ne connecte pas l'utilisateur tout de suite
             self.isLoggedIn = false

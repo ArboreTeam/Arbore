@@ -9,6 +9,10 @@ struct PrivacySettingsView: View {
     @AppStorage("privacy_profilePublic") internal var profilePublic: Bool = true
     @AppStorage("privacy_showActivity") internal var showActivity: Bool = true
     @AppStorage("privacy_shareData") internal var shareData: Bool = false
+    @AppStorage("privacy_marketing") internal var marketingConsent: Bool = false
+    @AppStorage("privacy_camera") internal var cameraConsent: Bool = true
+    @AppStorage("privacy_ai") internal var aiConsent: Bool = true
+    @AppStorage("privacy_notifications") internal var notificationsConsent: Bool = true
 
     @State internal var showPrivacyPolicy: Bool = false
     @State internal var isSyncing: Bool = false
@@ -101,6 +105,78 @@ struct PrivacySettingsView: View {
                                 )
                                 .onChange(of: shareData) { _, newValue in
                                     recordConsentChange(type: "analytics", granted: newValue)
+                                }
+                            },
+                            themeManager: themeManager
+                        )
+
+                        // Marketing Communications
+                        PrivacySectionCard(
+                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_MARKETING", comment: ""),
+                            icon: "envelope.fill",
+                            content: {
+                                ToggleRow(
+                                    icon: "megaphone.fill",
+                                    title: NSLocalizedString("PRIVACYSETTINGS_MARKETING_TITLE", comment: ""),
+                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_MARKETING_SUB", comment: ""),
+                                    isOn: $marketingConsent
+                                )
+                                .onChange(of: marketingConsent) { _, newValue in
+                                    recordConsentChange(type: "marketing", granted: newValue)
+                                }
+                            },
+                            themeManager: themeManager
+                        )
+
+                        // Camera/AR Usage
+                        PrivacySectionCard(
+                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_CAMERA", comment: ""),
+                            icon: "camera.fill",
+                            content: {
+                                ToggleRow(
+                                    icon: "arkit",
+                                    title: NSLocalizedString("PRIVACYSETTINGS_CAMERA_TITLE", comment: ""),
+                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_CAMERA_SUB", comment: ""),
+                                    isOn: $cameraConsent
+                                )
+                                .onChange(of: cameraConsent) { _, newValue in
+                                    recordConsentChange(type: "camera", granted: newValue)
+                                }
+                            },
+                            themeManager: themeManager
+                        )
+
+                        // AI Processing
+                        PrivacySectionCard(
+                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_AI", comment: ""),
+                            icon: "brain.head.profile",
+                            content: {
+                                ToggleRow(
+                                    icon: "sparkles",
+                                    title: NSLocalizedString("PRIVACYSETTINGS_AI_TITLE", comment: ""),
+                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_AI_SUB", comment: ""),
+                                    isOn: $aiConsent
+                                )
+                                .onChange(of: aiConsent) { _, newValue in
+                                    recordConsentChange(type: "ai", granted: newValue)
+                                }
+                            },
+                            themeManager: themeManager
+                        )
+
+                        // Push Notifications
+                        PrivacySectionCard(
+                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_NOTIFICATIONS", comment: ""),
+                            icon: "bell.fill",
+                            content: {
+                                ToggleRow(
+                                    icon: "bell.badge.fill",
+                                    title: NSLocalizedString("PRIVACYSETTINGS_NOTIFICATIONS_TITLE", comment: ""),
+                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_NOTIFICATIONS_SUB", comment: ""),
+                                    isOn: $notificationsConsent
+                                )
+                                .onChange(of: notificationsConsent) { _, newValue in
+                                    recordConsentChange(type: "notifications", granted: newValue)
                                 }
                             },
                             themeManager: themeManager
@@ -258,6 +334,14 @@ struct PrivacySettingsView: View {
                                 self.showActivity = consent.granted
                             case "analytics":
                                 self.shareData = consent.granted
+                            case "marketing":
+                                self.marketingConsent = consent.granted
+                            case "camera":
+                                self.cameraConsent = consent.granted
+                            case "ai":
+                                self.aiConsent = consent.granted
+                            case "notifications":
+                                self.notificationsConsent = consent.granted
                             default:
                                 break
                             }

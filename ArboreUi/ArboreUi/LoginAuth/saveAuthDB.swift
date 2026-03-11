@@ -61,3 +61,74 @@ func saveUserToBackendIfNeeded(uid: String, email: String, name: String, created
         }
     }
 }
+
+/// Enregistre les consentements initiaux (Terms + Privacy) lors de l'inscription
+func recordInitialConsents(uid: String, acceptedTerms: Bool, acceptedPrivacy: Bool) {
+    Task {
+        do {
+            // Get user's IP address and user agent
+            let ipAddress = await getUserIPAddress()
+            let userAgent = "ArboreApp/iOS"
+
+            // Record Terms of Service consent
+            if acceptedTerms {
+                let termsConsent: [String: Any] = [
+                    "uid": uid,
+                    "consentType": "terms",
+                    "consentGiven": true,
+                    "consentDate": ISO8601DateFormatter().string(from: Date()),
+                    "ipAddress": ipAddress,
+                    "userAgent": userAgent
+                ]
+
+                let _: ConsentResponse = try await NetworkManager.shared.request(
+                    endpoint: "/consents",
+                    method: .POST,
+                    body: termsConsent
+                )
+                print("✅ Terms consent recorded")
+            }
+
+            // Record Privacy Policy consent
+            if acceptedPrivacy {
+                let privacyConsent: [String: Any] = [
+                    "uid": uid,
+                    "consentType": "privacy",
+                    "consentGiven": true,
+                    "consentDate": ISO8601DateFormatter().string(from: Date()),
+                    "ipAddress": ipAddress,
+                    "userAgent": userAgent
+                ]
+
+                let _: ConsentResponse = try await NetworkManager.shared.request(
+                    endpoint: "/consents",
+                    method: .POST,
+                    body: privacyConsent
+                )
+                print("✅ Privacy consent recorded")
+            }
+        } catch {
+            print("❌ Error recording consents:", error.localizedDescription)
+        }
+    }
+}
+
+/// Récupère l'adresse IP de l'utilisateur
+private func getUserIPAddress() async -> String {
+    do {
+        let (data, _) = try await URLSession.shared.data(from: URL(string: "https://api.ipify.org?format=json")!)
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: String],
+           let ip = json["ip"] {
+            return ip
+        }
+    } catch {
+        print("❌ Failed to get IP address:", error.localizedDescription)
+    }
+    return "unknown"
+}
+
+// MARK: - Response Models
+
+struct ConsentResponse: Codable {
+    let message: String?
+}

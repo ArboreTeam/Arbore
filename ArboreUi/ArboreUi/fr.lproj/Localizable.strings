@@ -878,3 +878,28 @@
 "TUTORIAL_NEXT_BUTTON" = "Suivant";
 
 "COMMON_OK" = "OK";
+
+// Signup Consents
+"SIGNUP_ACCEPT" = "J'accepte ";
+"SIGNUP_TERMS" = "les Conditions Générales d'Utilisation";
+"SIGNUP_PRIVACY" = "la Politique de Confidentialité";
+
+// Privacy Settings - Marketing
+"PRIVACYSETTINGS_SECTION_MARKETING" = "Communications marketing";
+"PRIVACYSETTINGS_MARKETING_TITLE" = "Recevoir des offres";
+"PRIVACYSETTINGS_MARKETING_SUB" = "Newsletters, promotions et actualités Arbore";
+
+// Privacy Settings - Camera/AR
+"PRIVACYSETTINGS_SECTION_CAMERA" = "Caméra et réalité augmentée";
+"PRIVACYSETTINGS_CAMERA_TITLE" = "Accès caméra/AR";
+"PRIVACYSETTINGS_CAMERA_SUB" = "Pour scanner les plantes et mesurer les pots";
+
+// Privacy Settings - AI
+"PRIVACYSETTINGS_SECTION_AI" = "Intelligence artificielle";
+"PRIVACYSETTINGS_AI_TITLE" = "Traitement IA";
+"PRIVACYSETTINGS_AI_SUB" = "Génération de plantes avec OpenAI";
+
+// Privacy Settings - Notifications
+"PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notifications";
+"PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Push notifications";
+"PRIVACYSETTINGS_NOTIFICATIONS_SUB" = "Rappels d'arrosage et alertes";

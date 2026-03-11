@@ -734,3 +734,125 @@
 
 /* CTA */
 "ENTDETAIL_CTA_CREATE_CHECKLIST_TITLE" = "Crear mi lista de cuidados";
+
+// Profile
+"PROFILE_DOWNLOAD_DATA" = "Descargar mis datos";
+
+// Data Export
+"DATA_EXPORT_TITLE" = "Descargar mis datos";
+"DATA_EXPORT_DESCRIPTION" = "Exporta todos tus datos en un solo archivo JSON. Esto incluye tu perfil, tus jardines, tus plantas y tu historial de consentimientos.";
+
+// Signup Consents
+"SIGNUP_ACCEPT" = "Acepto ";
+"SIGNUP_TERMS" = "los Términos de Servicio";
+"SIGNUP_PRIVACY" = "la Política de Privacidad";
+
+// Privacy Settings - Marketing
+"PRIVACYSETTINGS_SECTION_MARKETING" = "Comunicaciones de marketing";
+"PRIVACYSETTINGS_MARKETING_TITLE" = "Recibir ofertas";
+"PRIVACYSETTINGS_MARKETING_SUB" = "Boletines, promociones y noticias de Arbore";
+
+// Privacy Settings - Camera/AR
+"PRIVACYSETTINGS_SECTION_CAMERA" = "Cámara y realidad aumentada";
+"PRIVACYSETTINGS_CAMERA_TITLE" = "Acceso a cámara/RA";
+"PRIVACYSETTINGS_CAMERA_SUB" = "Para escanear plantas y medir macetas";
+
+// Privacy Settings - AI
+"PRIVACYSETTINGS_SECTION_AI" = "Inteligencia artificial";
+"PRIVACYSETTINGS_AI_TITLE" = "Procesamiento IA";
+"PRIVACYSETTINGS_AI_SUB" = "Generación de plantas con OpenAI";
+
+// Privacy Settings - Notifications
+"PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notificaciones";
+"PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Notificaciones push";
+"PRIVACYSETTINGS_NOTIFICATIONS_SUB" = "Recordatorios de riego y alertas";
+
+// Auto-translated with DeepL
+"MEASURE_RESULTS_TITLE" = "Resultados de las mediciones";
+"MEASURE_RESULTS_VOLUME" = "Volumen";
+"MEASURE_SAVED_MESSAGE" = "Se han registrado las dimensiones de tu olla.";
+"MEASURE_SAVED_TITLE" = "¡Salvados!";
+"MEASURE_SAVE_BUTTON" = "Guardar medida";
+"MEASURE_SHARE_MESSAGE" = "Se han copiado las medidas de tu olla.";
+"MEASURE_SHARE_TITLE" = "Comparte";
+"MEASURE_STEP_COMPLETE_DESC" = "Ver los resultados de tu medición";
+"MEASURE_STEP_COMPLETE_TITLE" = "¡Medición completada!";
+"MEASURE_STEP_DIAMETER_DESC" = "Coloca dos puntos en lados opuestos de la olla";
+"MEASURE_STEP_DIAMETER_TITLE" = "Mide el diámetro";
+"MEASURE_STEP_HEIGHT_DESC" = "Coloca un punto en el fondo y otro en la parte superior de la maceta";
+"MEASURE_STEP_HEIGHT_TITLE" = "Medir la altura";
+"MEASURE_STEP_SCAN_DESC" = "Mueve tu teléfono para detectar las superficies alrededor de la olla";
+"MEASURE_STEP_SCAN_TITLE" = "Escanea la superficie";
+"MEASURE_TAB_AR" = "Realidad aumentada";
+"MEASURE_TAB_MANUAL" = "Entrada manual";
+"MEASURE_VIEW_RESULTS" = "Ver los resultados";
+"POT_MATERIAL_CERAMIC" = "Cerámica";
+"POT_MATERIAL_CERAMIC_DESC" = "Decorativo, esmaltado";
+"POT_MATERIAL_CONCRETE" = "Hormigón";
+"POT_MATERIAL_CONCRETE_DESC" = "Pesado, estable";
+"POT_MATERIAL_METAL" = "Metal";
+"POT_MATERIAL_METAL_DESC" = "Moderno, sostenible";
+"POT_MATERIAL_PLASTIC" = "Plástico";
+"POT_MATERIAL_PLASTIC_DESC" = "Ligero, retiene la humedad";
+"POT_MATERIAL_TERRACOTTA" = "Terracota";
+"POT_MATERIAL_TERRACOTTA_DESC" = "Transpirable, absorbe la humedad";
+"POT_MATERIAL_WOOD" = "Madera";
+"POT_MATERIAL_WOOD_DESC" = "Natural, biodegradable";
+"POT_RECOMMENDATION_NEEDS_REPOT" = "Tu maceta es un poco pequeña. Es hora de trasplantar tu planta a una maceta más grande para que pueda florecer.";
+"POT_RECOMMENDATION_SIZE_OK" = "Tu maceta tiene el tamaño adecuado Tu planta tiene espacio suficiente para crecer adecuadamente.";
+"POT_SHAPE_CONICAL" = "Cónica";
+"POT_SHAPE_RECTANGULAR" = "Rectangular";
+"POT_SHAPE_ROUND" = "Redonda";
+"POT_SHAPE_SQUARE" = "Cuadrado";
+"ROUTINE_AMOUNT_LABEL" = "Cantidad de agua";
+"ROUTINE_AMOUNT_PLACEHOLDER" = "Ej: 200-300 ml";
+"ROUTINE_CREATE_BUTTON" = "Crear la rutina";
+"ROUTINE_CREATE_SUBTITLE" = "Programa recordatorios de riego para tu planta";
+"ROUTINE_CREATE_TITLE" = "Crea una rutina";
+"ROUTINE_CUSTOM_DAYS_LABEL" = "Número de días";
+"ROUTINE_DAYS_UNIT" = "días";
+"ROUTINE_FREQUENCY_BIWEEKLY" = "Cada 2 semanas";
+"ROUTINE_FREQUENCY_CUSTOM" = "Personalizado";
+"ROUTINE_FREQUENCY_DAILY" = "Todos los días";
+"ROUTINE_FREQUENCY_LABEL" = "Frecuencia de riego";
+"ROUTINE_FREQUENCY_MONTHLY" = "Mensualmente";
+"ROUTINE_FREQUENCY_TWICE_WEEKLY" = "2× por semana";
+"ROUTINE_FREQUENCY_WEEKLY" = "Semanalmente";
+"ROUTINE_NOTES_LABEL" = "Notas (opcional)";
+"ROUTINE_NOTES_PLACEHOLDER" = "Añade notas personales...";
+"ROUTINE_SUCCESS_MESSAGE" = "Tu rutina de riego se ha creado correctamente.";
+"ROUTINE_SUCCESS_OK" = "OK";
+"ROUTINE_SUCCESS_TITLE" = "¡Rutina creada!";
+"ROUTINE_TIME_LABEL" = "Tiempo de respuesta";
+"TUTORIAL_NEXT_BUTTON" = "Siguiente";
+"TUTORIAL_PAGE1_DESC" = "Esta función te permite medir las dimensiones exactas de tu maceta utilizando la realidad aumentada.";
+"TUTORIAL_PAGE1_TITLE" = "¡Bienvenido/a!";
+"TUTORIAL_PAGE2_DESC" = "Coloca dos puntos en lados opuestos de la olla para medir su diámetro.";
+"TUTORIAL_PAGE2_TITLE" = "Mide el diámetro";
+"TUTORIAL_PAGE3_DESC" = "Coloca un punto en el fondo de la maceta y otro en la parte superior para obtener la altura.";
+"TUTORIAL_PAGE3_TITLE" = "Medir la altura";
+"TUTORIAL_PAGE4_DESC" = "Si lo prefieres, utiliza la pestaña \"Entrada manual\" e introduce las dimensiones utilizando una regla.";
+"TUTORIAL_PAGE4_TITLE" = "O entrada manual";
+"TUTORIAL_START_BUTTON" = "Comienza";
+
+// Auto-translated with DeepL
+"COMMON_OK" = "OK";
+"MEASURE_CALCULATE" = "Calcula el volumen";
+"MEASURE_DIAMETER" = "Diámetro";
+"MEASURE_DONE_BUTTON" = "Completado";
+"MEASURE_DRAINAGE_HOLES" = "Agujeros de drenaje";
+"MEASURE_HEIGHT" = "Altura";
+"MEASURE_MANUAL_SUBTITLE" = "Introduce las dimensiones de tu maceta con una regla";
+"MEASURE_MANUAL_TITLE" = "Medición manual";
+"MEASURE_NOTES" = "Notas";
+"MEASURE_PLACE_POINT" = "Colocar un punto";
+"MEASURE_POT_MATERIAL" = "Material";
+"MEASURE_POT_SHAPE" = "Forma de la olla";
+"MEASURE_POT_TITLE" = "Medir mi olla";
+"MEASURE_RESULTS_CAPACITY" = "Capacidad de la olla";
+"MEASURE_RESULTS_DIMENSIONS" = "Dimensiones";
+"MEASURE_RESULTS_FOR_PLANT" = "Para %@";
+"MEASURE_RESULTS_HAS_DRAINAGE" = "Con orificios de drenaje";
+"MEASURE_RESULTS_RECOMMENDATIONS" = "Recomendaciones";
+"MEASURE_RESULTS_RECOMMENDED_SIZE" = "Tamaño recomendado para macetas";
+"MEASURE_RESULTS_SUCCESS_TITLE" = "¡Medición con éxito!";

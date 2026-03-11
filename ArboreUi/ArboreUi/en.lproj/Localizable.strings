@@ -763,3 +763,116 @@
 
 /* CTA */
 "ENTDETAIL_CTA_CREATE_CHECKLIST_TITLE" = "Create my care checklist";
+
+// Signup Consents
+"SIGNUP_ACCEPT" = "I accept the ";
+"SIGNUP_TERMS" = "Terms of Service";
+"SIGNUP_PRIVACY" = "Privacy Policy";
+
+// Privacy Settings - Marketing
+"PRIVACYSETTINGS_SECTION_MARKETING" = "Marketing communications";
+"PRIVACYSETTINGS_MARKETING_TITLE" = "Receive offers";
+"PRIVACYSETTINGS_MARKETING_SUB" = "Newsletters, promotions and Arbore news";
+
+// Privacy Settings - Camera/AR
+"PRIVACYSETTINGS_SECTION_CAMERA" = "Camera and augmented reality";
+"PRIVACYSETTINGS_CAMERA_TITLE" = "Camera/AR access";
+"PRIVACYSETTINGS_CAMERA_SUB" = "To scan plants and measure pots";
+
+// Privacy Settings - AI
+"PRIVACYSETTINGS_SECTION_AI" = "Artificial intelligence";
+"PRIVACYSETTINGS_AI_TITLE" = "AI processing";
+"PRIVACYSETTINGS_AI_SUB" = "Plant generation with OpenAI";
+
+// Privacy Settings - Notifications
+"PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notifications";
+"PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Push notifications";
+"PRIVACYSETTINGS_NOTIFICATIONS_SUB" = "Watering reminders and alerts";
+
+// Auto-translated with DeepL
+"COMMON_OK" = "OK";
+"MEASURE_CALCULATE" = "Calculate volume";
+"MEASURE_DIAMETER" = "Diameter";
+"MEASURE_DONE_BUTTON" = "Completed";
+"MEASURE_DRAINAGE_HOLES" = "Drain holes";
+"MEASURE_HEIGHT" = "Height";
+"MEASURE_MANUAL_SUBTITLE" = "Enter the dimensions of your pot with a ruler";
+"MEASURE_MANUAL_TITLE" = "Manual measurement";
+"MEASURE_NOTES" = "Notes";
+"MEASURE_PLACE_POINT" = "Placing a point";
+"MEASURE_POT_MATERIAL" = "Material";
+"MEASURE_POT_SHAPE" = "Pot shape";
+"MEASURE_POT_TITLE" = "Measuring my pot";
+"MEASURE_RESULTS_CAPACITY" = "Pot capacity";
+"MEASURE_RESULTS_DIMENSIONS" = "Dimensions";
+"MEASURE_RESULTS_FOR_PLANT" = "For %@";
+"MEASURE_RESULTS_HAS_DRAINAGE" = "With drainage holes";
+"MEASURE_RESULTS_RECOMMENDATIONS" = "Recommendations";
+"MEASURE_RESULTS_RECOMMENDED_SIZE" = "Recommended size for potting";
+"MEASURE_RESULTS_SUCCESS_TITLE" = "Successful measurement!";
+"MEASURE_RESULTS_TITLE" = "Measurement results";
+"MEASURE_RESULTS_VOLUME" = "Volume";
+"MEASURE_SAVED_MESSAGE" = "The dimensions of your pot have been recorded.";
+"MEASURE_SAVED_TITLE" = "Saved!";
+"MEASURE_SAVE_BUTTON" = "Save measurement";
+"MEASURE_SHARE_MESSAGE" = "The measurements of your pot have been copied.";
+"MEASURE_SHARE_TITLE" = "Share";
+"MEASURE_STEP_COMPLETE_DESC" = "View your measurement results";
+"MEASURE_STEP_COMPLETE_TITLE" = "Measurement complete!";
+"MEASURE_STEP_DIAMETER_DESC" = "Place two points on opposite edges of the pot";
+"MEASURE_STEP_DIAMETER_TITLE" = "Measures diameter";
+"MEASURE_STEP_HEIGHT_DESC" = "Place one dot at the bottom and one at the top of the pot";
+"MEASURE_STEP_HEIGHT_TITLE" = "Measure height";
+"MEASURE_STEP_SCAN_DESC" = "Move your phone to detect surfaces around the pot";
+"MEASURE_STEP_SCAN_TITLE" = "Scans the surface";
+"MEASURE_TAB_AR" = "Augmented reality";
+"MEASURE_TAB_MANUAL" = "Manual input";
+"MEASURE_VIEW_RESULTS" = "See results";
+"POT_MATERIAL_CERAMIC" = "Ceramics";
+"POT_MATERIAL_CERAMIC_DESC" = "Decorative, enamelled";
+"POT_MATERIAL_CONCRETE" = "Concrete";
+"POT_MATERIAL_CONCRETE_DESC" = "Heavy, stable";
+"POT_MATERIAL_METAL" = "Metal";
+"POT_MATERIAL_METAL_DESC" = "Modern, durable";
+"POT_MATERIAL_PLASTIC" = "Plastic";
+"POT_MATERIAL_PLASTIC_DESC" = "Lightweight, moisture-retaining";
+"POT_MATERIAL_TERRACOTTA" = "Terracotta";
+"POT_MATERIAL_TERRACOTTA_DESC" = "Breathable, moisture-wicking";
+"POT_MATERIAL_WOOD" = "Wood";
+"POT_MATERIAL_WOOD_DESC" = "Natural, biodegradable";
+"POT_RECOMMENDATION_NEEDS_REPOT" = "Your pot is a bit small. It's time to repot your plant in a larger container to allow it to flourish.";
+"POT_RECOMMENDATION_SIZE_OK" = "Your pot is the right size! Your plant has enough room to grow.";
+"POT_SHAPE_CONICAL" = "Conical";
+"POT_SHAPE_RECTANGULAR" = "Rectangular";
+"POT_SHAPE_ROUND" = "Round";
+"POT_SHAPE_SQUARE" = "Square";
+"ROUTINE_AMOUNT_LABEL" = "Water quantity";
+"ROUTINE_AMOUNT_PLACEHOLDER" = "Ex: 200-300ml";
+"ROUTINE_CREATE_BUTTON" = "Create the routine";
+"ROUTINE_CREATE_SUBTITLE" = "Set watering reminders for your plant";
+"ROUTINE_CREATE_TITLE" = "Create a routine";
+"ROUTINE_CUSTOM_DAYS_LABEL" = "Number of days";
+"ROUTINE_DAYS_UNIT" = "days";
+"ROUTINE_FREQUENCY_BIWEEKLY" = "Every 2 weeks";
+"ROUTINE_FREQUENCY_CUSTOM" = "Personalized";
+"ROUTINE_FREQUENCY_DAILY" = "Every day";
+"ROUTINE_FREQUENCY_LABEL" = "Watering frequency";
+"ROUTINE_FREQUENCY_MONTHLY" = "Monthly";
+"ROUTINE_FREQUENCY_TWICE_WEEKLY" = "2× per week";
+"ROUTINE_FREQUENCY_WEEKLY" = "Weekly";
+"ROUTINE_NOTES_LABEL" = "Notes (optional)";
+"ROUTINE_NOTES_PLACEHOLDER" = "Add personal notes...";
+"ROUTINE_SUCCESS_MESSAGE" = "Your watering routine has been successfully created.";
+"ROUTINE_SUCCESS_OK" = "OK";
+"ROUTINE_SUCCESS_TITLE" = "Routine created!";
+"ROUTINE_TIME_LABEL" = "Callback time";
+"TUTORIAL_NEXT_BUTTON" = "Next";
+"TUTORIAL_PAGE1_DESC" = "This feature lets you measure the exact dimensions of your pot using augmented reality.";
+"TUTORIAL_PAGE1_TITLE" = "Welcome!";
+"TUTORIAL_PAGE2_DESC" = "Place two points on opposite edges of the pot to measure its diameter.";
+"TUTORIAL_PAGE2_TITLE" = "Measures diameter";
+"TUTORIAL_PAGE3_DESC" = "Place one point at the bottom of the pot and another at the top to obtain the height.";
+"TUTORIAL_PAGE3_TITLE" = "Measure height";
+"TUTORIAL_PAGE4_DESC" = "If you prefer, use the 'Manual entry' tab and enter the dimensions with a ruler.";
+"TUTORIAL_PAGE4_TITLE" = "Or manual entry";
+"TUTORIAL_START_BUTTON" = "Start";

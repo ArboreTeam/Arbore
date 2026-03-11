@@ -738,3 +738,125 @@
 
 /* CTA */
 "ENTDETAIL_CTA_CREATE_CHECKLIST_TITLE" = "Meine Pflegeliste erstellen";
+
+// Profile
+"PROFILE_DOWNLOAD_DATA" = "Meine Daten herunterladen";
+
+// Data Export
+"DATA_EXPORT_TITLE" = "Meine Daten herunterladen";
+"DATA_EXPORT_DESCRIPTION" = "Exportiere alle deine Daten in eine einzige JSON-Datei. Dies umfasst dein Profil, deine Gärten, deine Pflanzen und deinen Zustimmungsverlauf.";
+
+// Signup Consents
+"SIGNUP_ACCEPT" = "Ich akzeptiere ";
+"SIGNUP_TERMS" = "die Nutzungsbedingungen";
+"SIGNUP_PRIVACY" = "die Datenschutzerklärung";
+
+// Privacy Settings - Marketing
+"PRIVACYSETTINGS_SECTION_MARKETING" = "Marketing-Kommunikation";
+"PRIVACYSETTINGS_MARKETING_TITLE" = "Angebote erhalten";
+"PRIVACYSETTINGS_MARKETING_SUB" = "Newsletter, Werbeaktionen und Arbore-Neuigkeiten";
+
+// Privacy Settings - Camera/AR
+"PRIVACYSETTINGS_SECTION_CAMERA" = "Kamera und Augmented Reality";
+"PRIVACYSETTINGS_CAMERA_TITLE" = "Kamera-/AR-Zugriff";
+"PRIVACYSETTINGS_CAMERA_SUB" = "Zum Scannen von Pflanzen und Messen von Töpfen";
+
+// Privacy Settings - AI
+"PRIVACYSETTINGS_SECTION_AI" = "Künstliche Intelligenz";
+"PRIVACYSETTINGS_AI_TITLE" = "KI-Verarbeitung";
+"PRIVACYSETTINGS_AI_SUB" = "Pflanzengenerierung mit OpenAI";
+
+// Privacy Settings - Notifications
+"PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Benachrichtigungen";
+"PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Push-Benachrichtigungen";
+"PRIVACYSETTINGS_NOTIFICATIONS_SUB" = "Gießerinnerungen und Warnungen";
+
+// Auto-translated with DeepL
+"COMMON_OK" = "OK";
+"MEASURE_CALCULATE" = "Berechne das Volumen";
+"MEASURE_DIAMETER" = "Durchmesser";
+"MEASURE_DONE_BUTTON" = "Beendet";
+"MEASURE_DRAINAGE_HOLES" = "Drainagelöcher";
+"MEASURE_HEIGHT" = "Höhe";
+"MEASURE_MANUAL_SUBTITLE" = "Gib die Maße deines Topfes mit einem Lineal ein";
+"MEASURE_MANUAL_TITLE" = "Manuelle Messung";
+"MEASURE_NOTES" = "Anmerkungen";
+"MEASURE_PLACE_POINT" = "Einen Punkt setzen";
+"MEASURE_POT_MATERIAL" = "Material";
+"MEASURE_POT_SHAPE" = "Form des Topfes";
+"MEASURE_POT_TITLE" = "Meinen Topf abmessen";
+"MEASURE_RESULTS_CAPACITY" = "Fassungsvermögen des Topfes";
+"MEASURE_RESULTS_DIMENSIONS" = "Abmessungen";
+"MEASURE_RESULTS_FOR_PLANT" = "Für %@";
+"MEASURE_RESULTS_HAS_DRAINAGE" = "Mit Drainagelöchern";
+"MEASURE_RESULTS_RECOMMENDATIONS" = "Empfehlungen";
+"MEASURE_RESULTS_RECOMMENDED_SIZE" = "Empfohlene Größe zum Umtopfen";
+"MEASURE_RESULTS_SUCCESS_TITLE" = "Erfolgreiche Maßnahme!";
+"MEASURE_RESULTS_TITLE" = "Messergebnisse";
+"MEASURE_RESULTS_VOLUME" = "Volumen";
+"MEASURE_SAVED_MESSAGE" = "Die Maße deines Topfes wurden gespeichert.";
+"MEASURE_SAVED_TITLE" = "Gespeichert!";
+"MEASURE_SAVE_BUTTON" = "Messung speichern";
+
+// Auto-translated with DeepL
+"MEASURE_SHARE_MESSAGE" = "Die Maße deines Topfes wurden kopiert.";
+"MEASURE_SHARE_TITLE" = "Teilen";
+"MEASURE_STEP_COMPLETE_DESC" = "Sieh dir die Ergebnisse deiner Messung an";
+"MEASURE_STEP_COMPLETE_TITLE" = "Messung abgeschlossen!";
+"MEASURE_STEP_DIAMETER_DESC" = "Setze zwei Punkte auf gegenüberliegende Kanten des Topfes.";
+"MEASURE_STEP_DIAMETER_TITLE" = "Misst den Durchmesser";
+"MEASURE_STEP_HEIGHT_DESC" = "Setze einen Punkt an den unteren und einen an den oberen Rand des Topfes.";
+"MEASURE_STEP_HEIGHT_TITLE" = "Misst die Höhe";
+"MEASURE_STEP_SCAN_DESC" = "Bewege dein Handy, um die Oberflächen um den Topf herum zu erkennen.";
+"MEASURE_STEP_SCAN_TITLE" = "Scanne die Oberfläche";
+"MEASURE_TAB_AR" = "Erweiterte Realität";
+"MEASURE_TAB_MANUAL" = "Manuelle Eingabe";
+"MEASURE_VIEW_RESULTS" = "Ergebnisse anzeigen";
+"POT_MATERIAL_CERAMIC" = "Keramik";
+"POT_MATERIAL_CERAMIC_DESC" = "Dekorativ, emailliert";
+"POT_MATERIAL_CONCRETE" = "Beton";
+"POT_MATERIAL_CONCRETE_DESC" = "Schwer, stabil";
+"POT_MATERIAL_METAL" = "Metall";
+"POT_MATERIAL_METAL_DESC" = "Modern, nachhaltig";
+"POT_MATERIAL_PLASTIC" = "Kunststoff";
+"POT_MATERIAL_PLASTIC_DESC" = "Leicht, hält Feuchtigkeit zurück";
+"POT_MATERIAL_TERRACOTTA" = "Terrakotta";
+"POT_MATERIAL_TERRACOTTA_DESC" = "Atmungsaktiv, feuchtigkeitsableitend";
+"POT_MATERIAL_WOOD" = "Holz";
+"POT_MATERIAL_WOOD_DESC" = "Natürlich, biologisch abbaubar";
+"POT_RECOMMENDATION_NEEDS_REPOT" = "Dein Topf ist etwas zu klein. Es ist an der Zeit, deine Pflanze in einen größeren Behälter umzutopfen, damit sie besser gedeihen kann.";
+"POT_RECOMMENDATION_SIZE_OK" = "Die Größe deines Topfes passt! Deine Pflanze hat genug Platz, um gut zu wachsen.";
+"POT_SHAPE_CONICAL" = "Konisch";
+"POT_SHAPE_RECTANGULAR" = "Rechteckig";
+"POT_SHAPE_ROUND" = "Rund";
+"POT_SHAPE_SQUARE" = "Quadrat";
+"ROUTINE_AMOUNT_LABEL" = "Wassermenge";
+"ROUTINE_AMOUNT_PLACEHOLDER" = "z.B.: 200-300ml";
+"ROUTINE_CREATE_BUTTON" = "Routine schaffen";
+"ROUTINE_CREATE_SUBTITLE" = "Richte Gießerinnerungen für deine Pflanze ein";
+"ROUTINE_CREATE_TITLE" = "Eine Routine schaffen";
+"ROUTINE_CUSTOM_DAYS_LABEL" = "Anzahl der Tage";
+"ROUTINE_DAYS_UNIT" = "Tage";
+"ROUTINE_FREQUENCY_BIWEEKLY" = "Alle 2 Wochen";
+"ROUTINE_FREQUENCY_CUSTOM" = "Persönlich";
+"ROUTINE_FREQUENCY_DAILY" = "Jeden Tag";
+"ROUTINE_FREQUENCY_LABEL" = "Bewässerungsfrequenz";
+"ROUTINE_FREQUENCY_MONTHLY" = "Monatlich";
+"ROUTINE_FREQUENCY_TWICE_WEEKLY" = "2× pro Woche";
+"ROUTINE_FREQUENCY_WEEKLY" = "Wöchentlich";
+"ROUTINE_NOTES_LABEL" = "Notizen (optional)";
+"ROUTINE_NOTES_PLACEHOLDER" = "Füge persönliche Notizen hinzu...";
+"ROUTINE_SUCCESS_MESSAGE" = "Deine Bewässerungsroutine wurde erfolgreich erstellt.";
+"ROUTINE_SUCCESS_OK" = "OK";
+"ROUTINE_SUCCESS_TITLE" = "Routine erstellt!";
+"ROUTINE_TIME_LABEL" = "Uhrzeit der Erinnerung";
+"TUTORIAL_NEXT_BUTTON" = "Weiter zu";
+"TUTORIAL_PAGE1_DESC" = "Diese Funktion ermöglicht es dir, die Maße deines Topfes mithilfe von Augmented Reality genau zu messen.";
+"TUTORIAL_PAGE1_TITLE" = "Willkommen!";
+"TUTORIAL_PAGE2_DESC" = "Setze zwei Punkte auf gegenüberliegende Kanten des Topfes, um seinen Durchmesser zu messen.";
+"TUTORIAL_PAGE2_TITLE" = "Misst den Durchmesser";
+"TUTORIAL_PAGE3_DESC" = "Setze einen Punkt an den unteren Rand des Topfes und einen weiteren an den oberen Rand, um die Höhe zu erhalten.";
+"TUTORIAL_PAGE3_TITLE" = "Misst die Höhe";
+"TUTORIAL_PAGE4_DESC" = "Wenn du es vorziehst, benutze den Reiter \"Manuelle Eingabe\" und gib die Maße mit einem Lineal ein.";
+"TUTORIAL_PAGE4_TITLE" = "Oder manuelle Eingabe";
+"TUTORIAL_START_BUTTON" = "Beginne";

@@ -110,7 +110,7 @@ jobs:
           name: backend-coverage
 
       - name: 🔍 Lint code with golangci-lint
-          uses: golangci/golangci-lint-action@v9
+        uses: golangci/golangci-lint-action@v9
         with:
           working-directory: ArboreBackend
           version: v2.11.3

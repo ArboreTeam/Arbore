@@ -1,7 +1,7 @@
-// Package middleware provides authentication and authorization middleware for the Arbore backend
 package middleware
 
 import (
+	"crypto/subtle"
 	"os"
 
 	"github.com/gin-gonic/gin"
@@ -27,7 +27,7 @@ func APIKeyMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		if apiKey != expectedKey {
+		if subtle.ConstantTimeCompare([]byte(apiKey), []byte(expectedKey)) != 1 {
 			c.JSON(401, gin.H{
 				"error": "Invalid API key",
 				"code":  "INVALID_API_KEY",

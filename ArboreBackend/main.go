@@ -766,7 +766,13 @@ func uploadUserPhoto(c *gin.Context) {
 }
 
 func getUserPhoto(c *gin.Context) {
-	uid := c.Param("uid")
+	uidParam := c.Param("uid")
+	tokenUID, exists := c.Get("uid")
+	if !exists || tokenUID.(string) != uidParam {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
+		return
+	}
+	uid := uidParam
 	collection := client.Database("arbore").Collection("users")
 
 	var user User
@@ -831,9 +837,9 @@ func createGarden(c *gin.Context) {
 }
 
 func listGardens(c *gin.Context) {
-	uid := c.Query("uid")
-	if uid == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "uid manquant"})
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
 
@@ -893,6 +899,12 @@ func updateGarden(c *gin.Context) {
 		return
 	}
 
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	// PATCH style (champs optionnels)
 	var payload struct {
 		Name         *string           `json:"name"`
@@ -920,9 +932,13 @@ func updateGarden(c *gin.Context) {
 	}
 
 	collection := client.Database("arbore").Collection("gardens")
-	_, err = collection.UpdateOne(context.Background(), bson.M{"_id": objectID}, bson.M{"$set": set})
+	res, err := collection.UpdateOne(context.Background(), bson.M{"_id": objectID, "uid": uid}, bson.M{"$set": set})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur update garden"})
+		return
+	}
+	if res.MatchedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"message": "Garden non trouvé ou accès refusé"})
 		return
 	}
 
@@ -1012,11 +1028,16 @@ func main() {
 		// Users
 		protected.POST("/users", createUser)
 		protected.GET("/users/:uid", func(c *gin.Context) {
-			uid := c.Param("uid")
+			uidParam := c.Param("uid")
+			tokenUID, exists := c.Get("uid")
+			if !exists || tokenUID.(string) != uidParam {
+				c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden"})
+				return
+			}
 
 			var user User
 			collection := client.Database("arbore").Collection("users")
-			err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
+			err := collection.FindOne(context.Background(), bson.M{"uid": uidParam}).Decode(&user)
 			if err != nil {
 				if err == mongo.ErrNoDocuments {
 					c.JSON(http.StatusNotFound, gin.H{"message": "Utilisateur non trouvé"})

@@ -701,6 +701,195 @@ func TestDeleteGarden_NonExistentID_ShouldReturn404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code, "Non-existent garden should return 404")
 }
 
+// MARK: - Garden Update Ownership Tests
+
+// setupUpdateOwnershipTestRouter mirrors PUT /gardens/:id with JWT ownership check.
+func setupUpdateOwnershipTestRouter(t *testing.T) *gin.Engine {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+
+	multiUserFirebase := func(c *gin.Context) {
+		switch c.GetHeader("Authorization") {
+		case "Bearer " + gardenOwnerToken:
+			c.Set("uid", gardenOwnerUID)
+		case "Bearer " + gardenNonOwnerToken:
+			c.Set("uid", gardenNonOwnerUID)
+		default:
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.Abort()
+		}
+		c.Next()
+	}
+
+	mockAPIKey := func(c *gin.Context) {
+		if c.GetHeader("X-API-Key") != testAPIKey {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid API Key"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+
+	protected := router.Group("/")
+	protected.Use(mockAPIKey)
+	protected.Use(multiUserFirebase)
+	{
+		protected.PUT("/gardens/:id", func(c *gin.Context) {
+			idParam := c.Param("id")
+			if len(idParam) != 24 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "ID invalide"})
+				return
+			}
+			uid, _ := c.Get("uid")
+			if idParam != ownerGardenID || uid != gardenOwnerUID {
+				c.JSON(http.StatusNotFound, gin.H{"message": "Garden non trouvé ou accès refusé"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Garden mis à jour"})
+		})
+	}
+
+	return router
+}
+
+func TestUpdateGarden_Owner_ShouldReturn200(t *testing.T) {
+	router := setupUpdateOwnershipTestRouter(t)
+	body, _ := json.Marshal(map[string]string{"name": "New Name"})
+	req, _ := http.NewRequest("PUT", "/gardens/"+ownerGardenID, bytes.NewBuffer(body))
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+gardenOwnerToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code, "Owner should be able to update their garden")
+}
+
+func TestUpdateGarden_NonOwner_ShouldReturn404(t *testing.T) {
+	router := setupUpdateOwnershipTestRouter(t)
+	body, _ := json.Marshal(map[string]string{"name": "Hacked"})
+	req, _ := http.NewRequest("PUT", "/gardens/"+ownerGardenID, bytes.NewBuffer(body))
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+gardenNonOwnerToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code, "Non-owner should not be able to update another user's garden")
+}
+
+func TestUpdateGarden_WithoutAuth_ShouldReturn401(t *testing.T) {
+	router := setupUpdateOwnershipTestRouter(t)
+	body, _ := json.Marshal(map[string]string{"name": "No Auth"})
+	req, _ := http.NewRequest("PUT", "/gardens/"+ownerGardenID, bytes.NewBuffer(body))
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// MARK: - List Gardens Tests
+
+// setupListGardensTestRouter mirrors GET /gardens with JWT-based uid filtering.
+func setupListGardensTestRouter(t *testing.T) *gin.Engine {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+
+	multiUserFirebase := func(c *gin.Context) {
+		switch c.GetHeader("Authorization") {
+		case "Bearer " + gardenOwnerToken:
+			c.Set("uid", gardenOwnerUID)
+		case "Bearer " + gardenNonOwnerToken:
+			c.Set("uid", gardenNonOwnerUID)
+		default:
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.Abort()
+		}
+		c.Next()
+	}
+
+	mockAPIKey := func(c *gin.Context) {
+		if c.GetHeader("X-API-Key") != testAPIKey {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid API Key"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+
+	// Simulated in-memory gardens: only the owner has one.
+	type gardenRecord struct{ Name string }
+	ownerGardens := []gardenRecord{{Name: "My Garden"}}
+	nonOwnerGardens := []gardenRecord{}
+
+	protected := router.Group("/")
+	protected.Use(mockAPIKey)
+	protected.Use(multiUserFirebase)
+	{
+		protected.GET("/gardens", func(c *gin.Context) {
+			uid, _ := c.Get("uid")
+			var result []gardenRecord
+			if uid == gardenOwnerUID {
+				result = ownerGardens
+			} else {
+				result = nonOwnerGardens
+			}
+			c.JSON(http.StatusOK, result)
+		})
+	}
+
+	return router
+}
+
+func TestListGardens_OwnerSeesTheirGardens(t *testing.T) {
+	router := setupListGardensTestRouter(t)
+	req, _ := http.NewRequest("GET", "/gardens", nil)
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+gardenOwnerToken)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var result []map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &result)
+	assert.Len(t, result, 1, "Owner should see 1 garden")
+}
+
+func TestListGardens_NonOwnerSeesOnlyTheirOwn(t *testing.T) {
+	router := setupListGardensTestRouter(t)
+	req, _ := http.NewRequest("GET", "/gardens", nil)
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+gardenNonOwnerToken)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	// Non-owner has no gardens — importantly they cannot see the owner's garden
+	assert.Equal(t, http.StatusOK, w.Code)
+	var result []map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &result)
+	assert.Len(t, result, 0, "Non-owner should see 0 gardens (cannot see other users' gardens)")
+}
+
+func TestListGardens_WithoutAuth_ShouldReturn401(t *testing.T) {
+	router := setupListGardensTestRouter(t)
+	req, _ := http.NewRequest("GET", "/gardens", nil)
+	req.Header.Set("X-API-Key", testAPIKey)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
 // MARK: - Benchmark Tests
 
 func BenchmarkModelsEndpoint_ValidRequest(b *testing.B) {

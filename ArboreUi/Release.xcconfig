@@ -2,14 +2,7 @@
 // Configuration Release qui combine Pods et Secrets
 
 // Inclure la configuration Pods (CocoaPods)
-<<<<<<< HEAD
 #include "./Pods/Target Support Files/Pods-ArboreUi/Pods-ArboreUi.release.xcconfig"
 
 // Inclure les secrets (API keys, URLs, etc.)
 #include? "./Secrets.xcconfig"
-=======
-#include "../Pods/Target Support Files/Pods-ArboreUi/Pods-ArboreUi.release.xcconfig"
-
-// Inclure les secrets (API keys, URLs, etc.)
-#include? "../Secrets.xcconfig"
->>>>>>> 3333afb954a5b27656644edc68b5a5a36b7ab9a4

@@ -1,3 +1,4 @@
+// Package middleware provides HTTP middleware for the Arbore API.
 package middleware
 
 import (

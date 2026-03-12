@@ -23,7 +23,7 @@ const (
 )
 
 // setupTestRouter configure un router Gin pour les tests
-func setupTestRouter(t *testing.T) *gin.Engine {
+func setupTestRouter(_ *testing.T) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.Default()
 
@@ -266,14 +266,15 @@ func TestModelsEndpoint_NonExistentFile_ShouldReturn404(t *testing.T) {
 func TestModelsEndpoint_ValidFile_ShouldReturn200(t *testing.T) {
 	// Arrange - Créer un fichier de test
 	modelsDir := "./models"
-	os.MkdirAll(modelsDir, 0755)
+	if err := os.MkdirAll(modelsDir, 0755); err != nil {
+		t.Fatalf("Failed to create models dir: %v", err)
+	}
 	testFilePath := filepath.Join(modelsDir, "Test.usdz")
 	testContent := []byte("test usdz content")
-	err := os.WriteFile(testFilePath, testContent, 0644)
-	if err != nil {
+	if err := os.WriteFile(testFilePath, testContent, 0600); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
-	defer os.Remove(testFilePath)
+	defer func() { _ = os.Remove(testFilePath) }()
 
 	router := setupTestRouter(t)
 	req, _ := http.NewRequest("GET", "/models/Test.usdz", nil)
@@ -361,13 +362,14 @@ func TestModelsEndpoint_CaseSensitivity_ShouldRespectFileSystem(t *testing.T) {
 
 	// Créer un fichier de test avec un nom spécifique
 	modelsDir := "./models"
-	os.MkdirAll(modelsDir, 0755)
+	if err := os.MkdirAll(modelsDir, 0755); err != nil {
+		t.Fatalf("Failed to create models dir: %v", err)
+	}
 	testFilePath := filepath.Join(modelsDir, "TestCase.usdz")
-	err := os.WriteFile(testFilePath, []byte("test"), 0644)
-	if err != nil {
+	if err := os.WriteFile(testFilePath, []byte("test"), 0600); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
-	defer os.Remove(testFilePath)
+	defer func() { _ = os.Remove(testFilePath) }()
 
 	router := setupTestRouter(t)
 
@@ -486,8 +488,12 @@ func multipartBody(t *testing.T) (*bytes.Buffer, string) {
 	if err != nil {
 		t.Fatalf("failed to create form file: %v", err)
 	}
-	part.Write([]byte("fake-image-data"))
-	writer.Close()
+	if _, err := part.Write([]byte("fake-image-data")); err != nil {
+		t.Fatalf("failed to write form file content: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("failed to close multipart writer: %v", err)
+	}
 	return body, writer.FormDataContentType()
 }
 
@@ -859,7 +865,7 @@ func TestListGardens_OwnerSeesTheirGardens(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	var result []map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &result)
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
 	assert.Len(t, result, 1, "Owner should see 1 garden")
 }
 
@@ -875,7 +881,7 @@ func TestListGardens_NonOwnerSeesOnlyTheirOwn(t *testing.T) {
 	// Non-owner has no gardens — importantly they cannot see the owner's garden
 	assert.Equal(t, http.StatusOK, w.Code)
 	var result []map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &result)
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &result))
 	assert.Len(t, result, 0, "Non-owner should see 0 gardens (cannot see other users' gardens)")
 }
 
@@ -895,11 +901,11 @@ func TestListGardens_WithoutAuth_ShouldReturn401(t *testing.T) {
 func BenchmarkModelsEndpoint_ValidRequest(b *testing.B) {
 	// Créer un fichier de test
 	modelsDir := "./models"
-	os.MkdirAll(modelsDir, 0755)
+	_ = os.MkdirAll(modelsDir, 0755)
 	testFilePath := filepath.Join(modelsDir, "Benchmark.usdz")
 	testContent := make([]byte, 1024*1024) // 1 MB
-	os.WriteFile(testFilePath, testContent, 0644)
-	defer os.Remove(testFilePath)
+	_ = os.WriteFile(testFilePath, testContent, 0600)
+	defer func() { _ = os.Remove(testFilePath) }()
 
 	router := setupTestRouter(nil)
 

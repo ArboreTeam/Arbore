@@ -51,12 +51,16 @@ jobs:
           filters: |
             backend:
               - 'ArboreBackend/**'
+              - '.github/workflows/ci.yml'
             ai_generator:
               - 'AiGenerator/**'
+              - '.github/workflows/ci.yml'
             ios_ui:
               - 'ArboreUi/**'
+              - '.github/workflows/ci.yml'
             ios_ar:
               - 'ArboreARkit/**'
+              - '.github/workflows/ci.yml'
 
   # Backend Go - Tests et Build
   backend:

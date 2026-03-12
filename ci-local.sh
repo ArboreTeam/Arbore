@@ -3,7 +3,7 @@
 # 🌱 Script de test CI local pour Arbore
 # Ce script simule les vérifications CI en local avant de push
 
-set -e  # Arrêt en cas d'erreur
+set -euo pipefail  # Arrêt en cas d'erreur, y compris dans les pipelines
 
 # Couleurs pour l'affichage
 RED='\033[0;31m'
@@ -59,7 +59,7 @@ check_dependencies() {
     
     # golangci-lint
     if command -v golangci-lint &> /dev/null; then
-        print_success "golangci-lint installé"
+        print_success "golangci-lint installé: $(golangci-lint version 2>/dev/null | head -n 1)"
     else
         print_warning "golangci-lint n'est pas installé (optionnel pour le backend)"
     fi
@@ -115,7 +115,7 @@ test_backend() {
     
     if command -v golangci-lint &> /dev/null; then
         print_info "Linting avec golangci-lint..."
-        golangci-lint run ./... || { print_error "Linting Go échoué"; cd ..; return 1; }
+        golangci-lint run --config=../.golangci.yml --timeout=5m ./... || { print_error "Linting Go échoué"; cd ..; return 1; }
     fi
     
     print_info "Build du backend..."
@@ -139,8 +139,8 @@ test_ai_generator() {
     cd AiGenerator
     
     print_info "Installation des dépendances Python..."
-    pip install -q -r requirements.txt 2>/dev/null || print_warning "Erreur lors de l'installation des dépendances"
-    pip install -q pytest pytest-cov black flake8 2>/dev/null || print_warning "Erreur lors de l'installation des outils de dev"
+    python3 -m pip install -q -r requirements.txt 2>/dev/null || print_warning "Erreur lors de l'installation des dépendances"
+    python3 -m pip install -q pytest pytest-cov black flake8 mypy pylint 2>/dev/null || print_warning "Erreur lors de l'installation des outils de dev"
     
     if command -v black &> /dev/null; then
         print_info "Vérification du formatage avec Black..."
@@ -149,7 +149,7 @@ test_ai_generator() {
     
     if command -v flake8 &> /dev/null; then
         print_info "Linting avec Flake8..."
-        flake8 . --max-line-length=88 --extend-ignore=E203,W503 || { print_warning "Problèmes de linting détectés"; }
+        flake8 . --count --max-line-length=88 --extend-ignore=E203,W503,E501 --statistics --show-source || { print_warning "Problèmes de linting détectés"; }
     fi
     
     if [ -d "tests" ]; then
@@ -190,11 +190,11 @@ test_ios_ui() {
         xcodebuild clean build \
             -workspace ArboreUi.xcworkspace \
             -scheme ArboreUi \
-            -destination 'platform=iOS Simulator,name=iPhone 15 Pro' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
-            | grep -E "Build|error|warning" || { print_error "Build iOS échoué"; cd ..; return 1; }
+            || { print_error "Build iOS échoué"; cd ..; return 1; }
     fi
     
     cd ..
@@ -223,11 +223,11 @@ test_ios_ar() {
         xcodebuild clean build \
             -project ArboreARkit.xcodeproj \
             -scheme ArboreARkit \
-            -destination 'platform=iOS Simulator,name=iPhone 15 Pro' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -configuration Debug \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGN_IDENTITY="" \
-            | grep -E "Build|error|warning" || { print_error "Build iOS AR échoué"; cd ..; return 1; }
+            || { print_error "Build iOS AR échoué"; cd ..; return 1; }
     fi
     
     cd ..

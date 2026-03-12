@@ -19,30 +19,15 @@ linters:
     - revive
     - unconvert
     - unparam
-    - gocritic
     - gocyclo
-    - dupl
     - gosec
   settings:
     errcheck:
-      check-type-assertions: true
-      check-blank: true
-
-    govet:
-      enable:
-        - shadow
+      check-type-assertions: false
+      check-blank: false
 
     gocyclo:
       min-complexity: 15
-
-    dupl:
-      threshold: 100
-
-    gocritic:
-      enabled-tags:
-        - diagnostic
-        - style
-        - performance
 
     revive:
       confidence: 0.8

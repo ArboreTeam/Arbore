@@ -327,8 +327,12 @@ jobs:
             | xcpretty
 
       - name: 🧪 Run Unit Tests
+        timeout-minutes: 20
         run: |
           set -o pipefail
+
+          echo "🧪 Running all tests (including integration tests with backend)"
+
           xcodebuild test \
             -workspace ArboreUi.xcworkspace \
             -scheme ArboreUi \

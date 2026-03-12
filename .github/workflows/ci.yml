@@ -87,8 +87,15 @@ jobs:
 
       - name: 🧪 Run tests with coverage
         run: |
+          echo "🧪 Running all backend tests (including /models endpoint)..."
           go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
-          go tool cover -func=coverage.out
+
+          echo ""
+          echo "📊 Coverage summary:"
+          go tool cover -func=coverage.out | grep "total:" || go tool cover -func=coverage.out
+
+          echo ""
+          echo "✅ All backend tests passed (including model streaming tests)"
 
       - name: 📊 Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -352,11 +359,13 @@ jobs:
             2>&1 | tee build/test-output.log
           
           # Show diagnostic logs
+          echo ""
           echo "================================"
-          echo "📊 Searching for diagnostic logs..."
+          echo "📊 Test execution completed"
           echo "================================"
           if [ -f build/test-output.log ]; then
-            grep -E "🔍|📝|✅|❌|⚠️" build/test-output.log | tail -50 || echo "No diagnostic logs found"
+            echo "Diagnostic logs (last 50 lines):"
+            grep -E "🔍|📝|✅|❌|⚠️|Test Suite|Test Case|passed|failed" build/test-output.log | tail -50 || echo "No diagnostic logs found"
           fi
 
       - name: 📊 Parse test results

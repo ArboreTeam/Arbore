@@ -9,11 +9,10 @@ func saveUserToBackend(uid: String, email: String, name: String, createdAt: Date
         do {
             let formatter = ISO8601DateFormatter()
             let userData: [String: Any] = [
-                "uid": uid,
                 "email": email,
                 "name": name,
                 "createdAt": formatter.string(from: createdAt),
-                "banned": false  // Nouveau champ requis par le backend
+                "banned": false
             ]
 
             if let jsonData = try? JSONSerialization.data(withJSONObject: userData, options: .prettyPrinted),
@@ -73,7 +72,6 @@ func recordInitialConsents(uid: String, acceptedTerms: Bool, acceptedPrivacy: Bo
             // Record Terms of Service consent
             if acceptedTerms {
                 let termsConsent: [String: Any] = [
-                    "uid": uid,
                     "consentType": "terms",
                     "consentGiven": true,
                     "consentDate": ISO8601DateFormatter().string(from: Date()),
@@ -92,7 +90,6 @@ func recordInitialConsents(uid: String, acceptedTerms: Bool, acceptedPrivacy: Bo
             // Record Privacy Policy consent
             if acceptedPrivacy {
                 let privacyConsent: [String: Any] = [
-                    "uid": uid,
                     "consentType": "privacy",
                     "consentGiven": true,
                     "consentDate": ISO8601DateFormatter().string(from: Date()),

@@ -452,7 +452,6 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                     // Création d'un nouveau jardin
                                     let created = try await GardenAPI.shared.createGarden(
                                         GardenCreateDTO(
-                                            uid: props.uid,
                                             name: props.gardenName,
                                             wizard: props.wizard,
                                             plants: placedDTOs,

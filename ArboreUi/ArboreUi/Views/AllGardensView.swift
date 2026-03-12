@@ -9,8 +9,6 @@ struct AllGardensView: View {
     @State private var gardens: [GardenDTO] = []
     @State private var gardenToOpen: GardenDTO? = nil
 
-    private let uid: String
-
     // Style dynamique via themeManager
     private var background: Color { themeManager.backgroundColor }
     private var primary: Color { themeManager.accentColor }
@@ -21,10 +19,6 @@ struct AllGardensView: View {
     // Arrondis (aligné Home “moelleux”)
     private let cardCorner: CGFloat = 28
     private let imageCorner: CGFloat = 24
-
-    init(uid: String) {
-        self.uid = uid
-    }
 
     var body: some View {
         ZStack {
@@ -76,7 +70,7 @@ struct AllGardensView: View {
 private extension AllGardensView {
     func fetchGardens() async {
         do {
-            let list = try await GardenAPI.shared.listGardens(uid: uid)
+            let list = try await GardenAPI.shared.listGardens()
             await MainActor.run { self.gardens = list }
         } catch {
             print("❌ fetchGardens failed:", error)

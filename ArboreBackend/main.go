@@ -285,6 +285,13 @@ func createUser(c *gin.Context) {
 		return
 	}
 
+	tokenUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	user.UID = tokenUID.(string)
+
 	fmt.Printf("✅ Donnée reçue dans createUser : %+v\n", user)
 
 	collection := client.Database("arbore").Collection("users")
@@ -347,8 +354,8 @@ func deleteUser(c *gin.Context) {
 		uid, gardensResult.DeletedCount, consentsResult.DeletedCount)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":        "Utilisateur supprimé avec succès",
-		"gardensDeleted": gardensResult.DeletedCount,
+		"message":         "Utilisateur supprimé avec succès",
+		"gardensDeleted":  gardensResult.DeletedCount,
 		"consentsDeleted": consentsResult.DeletedCount,
 	})
 }
@@ -706,7 +713,17 @@ func generateMultiplePlantsHandler(c *gin.Context) {
 // ---------- USER PHOTOS ----------
 
 func uploadUserPhoto(c *gin.Context) {
-	uid := c.Param("uid")
+	uidParam := c.Param("uid")
+
+	tokenUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	if tokenUID != uidParam {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: vous ne pouvez modifier que votre propre photo"})
+		return
+	}
 
 	file, header, err := c.Request.FormFile("photo")
 	if err != nil {
@@ -732,7 +749,7 @@ func uploadUserPhoto(c *gin.Context) {
 	}
 
 	collection := client.Database("arbore").Collection("users")
-	filter := bson.M{"uid": uid}
+	filter := bson.M{"uid": uidParam}
 	update := bson.M{"$set": bson.M{
 		"photoData":        encoded,
 		"photoContentType": contentType,
@@ -790,6 +807,13 @@ func createGarden(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	tokenUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	garden.UID = tokenUID.(string)
 
 	garden.ID = primitive.NewObjectID()
 	now := time.Now()
@@ -913,14 +937,20 @@ func deleteGarden(c *gin.Context) {
 		return
 	}
 
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	collection := client.Database("arbore").Collection("gardens")
-	res, err := collection.DeleteOne(context.Background(), bson.M{"_id": objectID})
+	res, err := collection.DeleteOne(context.Background(), bson.M{"_id": objectID, "uid": uid})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur delete garden"})
 		return
 	}
 	if res.DeletedCount == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"message": "Garden non trouvé"})
+		c.JSON(http.StatusNotFound, gin.H{"message": "Garden non trouvé ou accès refusé"})
 		return
 	}
 

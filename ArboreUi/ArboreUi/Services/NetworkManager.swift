@@ -48,6 +48,26 @@ class NetworkManager {
 
     private init() {}
 
+    // MARK: - Public Properties
+
+    /// URL de base du backend (exposée pour ModelCacheManager)
+    var baseURL: String {
+        AppConfig.baseURL
+    }
+
+    /// Clé API (exposée pour ModelCacheManager)
+    var apiKey: String {
+        AppConfig.apiKey
+    }
+
+    /// Obtient le token Firebase du user actuel
+    func getFirebaseToken() async throws -> String {
+        guard let currentUser = Auth.auth().currentUser else {
+            throw NetworkError.noUser
+        }
+        return try await currentUser.getIDToken()
+    }
+
     func request<T: Decodable>(
         endpoint: String,
         method: HTTPMethod = .GET,

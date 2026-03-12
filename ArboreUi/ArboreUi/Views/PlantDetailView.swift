@@ -18,6 +18,10 @@ struct PlantDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
 
+    // Model download state
+    @State private var downloadedModelURL: URL? = nil
+    @State private var isDownloadingModel = false
+
     // MARK: - Langue effective (UI + traductions)
     private var effectiveLanguageCode: String {
         // normalisation d’un code ("es-ES" -> "es")
@@ -295,17 +299,42 @@ struct PlantDetailView: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(height: 180)
 
-            Button(action: { showARView = true }) {
-                Text(NSLocalizedString("PLANTDETAIL_AR_CTA", comment: ""))
-                    .foregroundColor(.white)
-                    .fontWeight(.semibold)
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color(hex: "#263826"))
-                    .cornerRadius(12)
+            Button(action: {
+                // Pré-télécharger le modèle 3D avant d'ouvrir la vue AR
+                Task {
+                    isDownloadingModel = true
+                    do {
+                        let url = try await plant.getModelURL()
+                        downloadedModelURL = url
+                        print("✅ Model downloaded for AR view: \(plant.name)")
+                    } catch {
+                        print("❌ Failed to download model: \(error)")
+                        // Fallback to bundle if download fails
+                        downloadedModelURL = plant.localModelURL
+                    }
+                    isDownloadingModel = false
+                    showARView = true
+                }
+            }) {
+                HStack(spacing: 8) {
+                    if isDownloadingModel {
+                        ProgressView()
+                            .tint(.white)
+                        Text("Chargement...")
+                    } else {
+                        Text(NSLocalizedString("PLANTDETAIL_AR_CTA", comment: ""))
+                    }
+                }
+                .foregroundColor(.white)
+                .fontWeight(.semibold)
+                .padding()
+                .frame(maxWidth: .infinity)
+                .background(Color(hex: "#263826"))
+                .cornerRadius(12)
             }
+            .disabled(isDownloadingModel)
             .fullScreenCover(isPresented: $showARView) {
-                if let modelURL = plant.localModelURL {
+                if let modelURL = downloadedModelURL {
                     ARViewWrapper(modelURL: modelURL)
                 } else if let demoURL = getDemoModelURL() {
                     ARViewWrapper(modelURL: demoURL)

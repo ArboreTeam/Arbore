@@ -47,7 +47,7 @@ final class PlantThumbnailRenderer {
                 arView.scene.anchors.removeAll()
                 let anchor = AnchorEntity(world: .zero)
 
-                let model = try await ModelEntity.loadModel(contentsOf: usdzURL)
+                let model = try await ModelEntity(contentsOf: usdzURL)
 
                 // ✅ Nom du modèle basé sur le nom de fichier (sans extension)
                 let modelKey = usdzURL.deletingPathExtension().lastPathComponent

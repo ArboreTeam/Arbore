@@ -48,11 +48,17 @@ struct GardenARPlacementView: View {
     @State private var selectedNodeName: String? = nil
     @State private var isSaving = false
 
+    // Model download state
+    @State private var downloadedModelURL: URL? = nil
+    @State private var isDownloadingModel = false
+
     var body: some View {
         ZStack {
             // --- Vue AR ---
             GardenARPlacementContainerView(
                 selectedPlant: $selectedPlantForPlacement,
+                downloadedModelURL: $downloadedModelURL,
+                isDownloadingModel: $isDownloadingModel,
                 hasSelectedNode: $hasSelectedNode,
                 selectedNodeName: $selectedNodeName,
                 isSaving: $isSaving,
@@ -97,6 +103,21 @@ struct GardenARPlacementView: View {
         .sheet(isPresented: $showPicker) {
             PlantCatalogARView { plant in
                 selectedPlantForPlacement = plant
+                // Pré-télécharger le modèle 3D de la plante sélectionnée
+                Task {
+                    isDownloadingModel = true
+                    downloadedModelURL = nil
+                    do {
+                        let url = try await plant.getModelURL()
+                        downloadedModelURL = url
+                        print("✅ Model pre-downloaded for: \(plant.name)")
+                    } catch {
+                        print("❌ Failed to pre-download model for \(plant.name): \(error)")
+                        // Fallback to bundle if download fails
+                        downloadedModelURL = plant.localModelURL
+                    }
+                    isDownloadingModel = false
+                }
             }
             .presentationDetents([.large])
             .presentationBackground(.clear)
@@ -104,6 +125,19 @@ struct GardenARPlacementView: View {
         .onAppear {
             if selectedPlantForPlacement == nil {
                 selectedPlantForPlacement = selectedPlants.first
+                // Pré-télécharger le premier modèle
+                if let first = selectedPlants.first {
+                    Task {
+                        isDownloadingModel = true
+                        do {
+                            let url = try await first.getModelURL()
+                            downloadedModelURL = url
+                        } catch {
+                            downloadedModelURL = first.localModelURL
+                        }
+                        isDownloadingModel = false
+                    }
+                }
             }
         }
     }
@@ -184,11 +218,18 @@ struct GardenARPlacementView: View {
                     Circle().fill(Color(hex: "#2BEE79"))
                         .frame(width: 68, height: 68)
                         .shadow(color: Color(hex: "#2BEE79").opacity(0.4), radius: 15)
-                    Image(systemName: "plus")
-                        .font(.system(size: 30, weight: .bold))
-                        .foregroundColor(.black)
+
+                    if isDownloadingModel {
+                        ProgressView()
+                            .tint(.black)
+                    } else {
+                        Image(systemName: "plus")
+                            .font(.system(size: 30, weight: .bold))
+                            .foregroundColor(.black)
+                    }
                 }
             }
+            .disabled(isDownloadingModel)
             Spacer()
         }
         .padding(.bottom, 20)
@@ -212,10 +253,12 @@ struct GardenARPlacementView: View {
 // MARK: - 3. Container AR
 fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var selectedPlant: Plant?
+    @Binding var downloadedModelURL: URL?
+    @Binding var isDownloadingModel: Bool
     @Binding var hasSelectedNode: Bool
     @Binding var selectedNodeName: String?
     @Binding var isSaving: Bool
-    
+
     let uid: String
     let wizard: GardenWizardDTO
     let gardenName: String
@@ -735,8 +778,10 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     deselectAll()
                     return
                 }
-                guard let url = plant.localModelURL else {
-                    print("❌ localModelURL nil pour: \(plant.name) | modelURL: \(plant.modelURL ?? "nil")")
+
+                // Utiliser l'URL pré-téléchargée si disponible, sinon fallback au bundle
+                guard let url = parentProps?.downloadedModelURL ?? plant.localModelURL else {
+                    print("❌ Model URL nil pour: \(plant.name) | modelURL: \(plant.modelURL ?? "nil")")
                     deselectAll()
                     return
                 }

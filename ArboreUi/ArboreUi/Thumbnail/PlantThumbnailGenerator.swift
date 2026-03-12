@@ -23,22 +23,25 @@ final class PlantThumbnailGenerator: ObservableObject {
         let plant = queue.removeFirst()
         print("🎬 rendering:", plant.name, "id:", plant.id)
         print("🎬 modelURL:", plant.modelURL ?? "nil")
-        print("🎬 localModelURL:", plant.localModelURL?.path ?? "nil")
-
-        guard let url = plant.localModelURL else {
-            processNext()
-            return
-        }
 
         isRendering = true
 
-        renderer.render(usdzURL: url) { image in
-            if let image {
-                PlantThumbnailCache.save(image, plantID: plant.id)
-                self.onThumbnailGenerated?()
+        Task {
+            do {
+                let url = try await plant.getModelURL()
+                renderer.render(usdzURL: url) { image in
+                    if let image {
+                        PlantThumbnailCache.save(image, plantID: plant.id)
+                        self.onThumbnailGenerated?()
+                    }
+                    self.isRendering = false
+                    self.processNext()
+                }
+            } catch {
+                print("⚠️ Failed to get model URL for thumbnail:", plant.name, error)
+                self.isRendering = false
+                self.processNext()
             }
-            self.isRendering = false
-            self.processNext()
         }
     }
 }

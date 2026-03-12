@@ -2,6 +2,13 @@ import SwiftUI
 import ARKit
 import RealityKit
 
+// MARK: - PlantModel3D stub
+// Configuration optionnelle pour personnaliser l'affichage d'un modèle 3D.
+struct PlantModel3D {
+    var scale: Float = 1.0
+    var name: String = ""
+}
+
 // MARK: - Demo ContentView (optionnelle)
 // Juste pour tester en standalone. Tu peux l'enlever si tu n'en as pas besoin.
 struct ContentView: View {

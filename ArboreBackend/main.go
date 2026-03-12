@@ -1022,6 +1022,34 @@ func main() {
 		protected.POST("/consents", recordConsent)
 		protected.GET("/consents", getUserConsents)
 		protected.GET("/consents/latest", getLatestUserConsents)
+
+		// Models 3D (USDZ files) - Protected endpoint
+		protected.GET("/models/:filename", func(c *gin.Context) {
+			filename := c.Param("filename")
+
+			// Sécurité: empêcher les path traversal attacks
+			if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid filename"})
+				return
+			}
+
+			// Vérifier que c'est bien un fichier .usdz
+			if !strings.HasSuffix(strings.ToLower(filename), ".usdz") {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Only .usdz files are allowed"})
+				return
+			}
+
+			filePath := fmt.Sprintf("./models/%s", filename)
+
+			// Vérifier si le fichier existe
+			if _, err := os.Stat(filePath); os.IsNotExist(err) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Model not found"})
+				return
+			}
+
+			c.Header("Content-Type", "model/vnd.usdz+zip")
+			c.File(filePath)
+		})
 	}
 
 	fmt.Println("🚀 Serveur démarré sur http://localhost:8080")

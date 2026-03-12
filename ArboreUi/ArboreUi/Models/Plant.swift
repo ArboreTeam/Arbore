@@ -124,6 +124,20 @@ struct CareInfo: Codable {
 
 extension Plant {
 
+    /// Obtient l'URL locale du modèle 3D (télécharge depuis le backend si nécessaire)
+    /// - Returns: L'URL locale du fichier USDZ
+    func getModelURL() async throws -> URL {
+        guard let modelURL, !modelURL.isEmpty else {
+            throw ModelCacheError.invalidModelURL
+        }
+
+        // Utiliser le ModelCacheManager pour obtenir le modèle (cache ou téléchargement)
+        return try await ModelCacheManager.shared.getModelURL(for: modelURL)
+    }
+
+    /// URL locale du modèle (ancienne version synchrone - deprecated)
+    /// Fallback vers le bundle iOS pour compatibilité
+    @available(*, deprecated, message: "Use getModelURL() async instead")
     var localModelURL: URL? {
         guard let modelURL, !modelURL.isEmpty else { return nil }
 

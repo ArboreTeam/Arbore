@@ -51,6 +51,7 @@ jobs:
           filters: |
             backend:
               - 'ArboreBackend/**'
+              - '.golangci.yml'
               - '.github/workflows/ci.yml'
             ai_generator:
               - 'AiGenerator/**'

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -17,7 +18,7 @@ import (
 
 // Test configuration
 const (
-	testAPIKey      = "test_api_key_12345"
+	testAPIKey         = "test_api_key_12345"
 	validFirebaseToken = "mock_firebase_token" // Pour les tests, on va mocker Firebase
 )
 
@@ -97,7 +98,7 @@ func setupTestRouter(t *testing.T) *gin.Engine {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) &&
 		(s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-		bytes.Contains([]byte(s), []byte(substr))))
+			bytes.Contains([]byte(s), []byte(substr))))
 }
 
 func hasSuffix(s, suffix string) bool {
@@ -396,10 +397,10 @@ func TestModelsEndpoint_SpecialCharacters_ShouldBeRejected(t *testing.T) {
 
 	router := setupTestRouter(t)
 	testCases := []string{
-		"file name.usdz",  // Espace
-		"file;name.usdz",  // Point-virgule
-		"file&name.usdz",  // Esperluette
-		"file|name.usdz",  // Pipe
+		"file name.usdz", // Espace
+		"file;name.usdz", // Point-virgule
+		"file&name.usdz", // Esperluette
+		"file|name.usdz", // Pipe
 	}
 
 	for _, testCase := range testCases {
@@ -416,6 +417,288 @@ func TestModelsEndpoint_SpecialCharacters_ShouldBeRejected(t *testing.T) {
 				"Special characters should be rejected or not found")
 		})
 	}
+}
+
+// MARK: - Photo Upload Ownership Tests
+
+// setupPhotoOwnershipTestRouter creates a router that mocks POST /users/:uid/photo
+// with the same ownership check as the real handler (JWT uid must match URL uid).
+func setupPhotoOwnershipTestRouter(t *testing.T) *gin.Engine {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+
+	multiUserFirebase := func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		switch authHeader {
+		case "Bearer " + gardenOwnerToken:
+			c.Set("uid", gardenOwnerUID)
+		case "Bearer " + gardenNonOwnerToken:
+			c.Set("uid", gardenNonOwnerUID)
+		default:
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+
+	mockAPIKey := func(c *gin.Context) {
+		if c.GetHeader("X-API-Key") != testAPIKey {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid API Key"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+
+	protected := router.Group("/")
+	protected.Use(mockAPIKey)
+	protected.Use(multiUserFirebase)
+	{
+		// Mirror the real uploadUserPhoto ownership logic without MongoDB.
+		protected.POST("/users/:uid/photo", func(c *gin.Context) {
+			uidParam := c.Param("uid")
+			tokenUID, _ := c.Get("uid")
+			if tokenUID != uidParam {
+				c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: vous ne pouvez modifier que votre propre photo"})
+				return
+			}
+			// Verify the multipart field is present (mirrors real handler).
+			_, _, err := c.Request.FormFile("photo")
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "photo not provided or invalid"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Photo enregistrée avec succès"})
+		})
+	}
+
+	return router
+}
+
+// multipartBody builds a minimal multipart/form-data body with a "photo" field.
+func multipartBody(t *testing.T) (*bytes.Buffer, string) {
+	t.Helper()
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreateFormFile("photo", "test.jpg")
+	if err != nil {
+		t.Fatalf("failed to create form file: %v", err)
+	}
+	part.Write([]byte("fake-image-data"))
+	writer.Close()
+	return body, writer.FormDataContentType()
+}
+
+func TestUploadPhoto_Owner_ShouldReturn200(t *testing.T) {
+	router := setupPhotoOwnershipTestRouter(t)
+	body, ct := multipartBody(t)
+	req, _ := http.NewRequest("POST", "/users/"+gardenOwnerUID+"/photo", body)
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+gardenOwnerToken)
+	req.Header.Set("Content-Type", ct)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code, "Owner should be able to upload their own photo")
+}
+
+func TestUploadPhoto_NonOwner_ShouldReturn403(t *testing.T) {
+	router := setupPhotoOwnershipTestRouter(t)
+	body, ct := multipartBody(t)
+	// gardenNonOwnerToken holder tries to upload to gardenOwnerUID's profile
+	req, _ := http.NewRequest("POST", "/users/"+gardenOwnerUID+"/photo", body)
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+gardenNonOwnerToken)
+	req.Header.Set("Content-Type", ct)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusForbidden, w.Code, "Non-owner should not be able to overwrite another user's photo")
+}
+
+func TestUploadPhoto_WithoutAuth_ShouldReturn401(t *testing.T) {
+	router := setupPhotoOwnershipTestRouter(t)
+	body, ct := multipartBody(t)
+	req, _ := http.NewRequest("POST", "/users/"+gardenOwnerUID+"/photo", body)
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Content-Type", ct)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestUploadPhoto_MissingPhotoField_ShouldReturn400(t *testing.T) {
+	router := setupPhotoOwnershipTestRouter(t)
+	// Send an empty body — no "photo" multipart field
+	req, _ := http.NewRequest("POST", "/users/"+gardenOwnerUID+"/photo", bytes.NewBuffer(nil))
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+gardenOwnerToken)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, "Request without photo field should return 400")
+}
+
+// MARK: - Garden Delete Ownership Tests
+
+// gardenOwnerToken / gardenNonOwnerToken are separate mock tokens mapping to
+// two different UIDs so we can exercise the ownership-check logic without a
+// real MongoDB connection.
+const (
+	gardenOwnerToken    = "mock_owner_token"
+	gardenOwnerUID      = "owner_uid_123"
+	gardenNonOwnerToken = "mock_nonowner_token"
+	gardenNonOwnerUID   = "other_uid_456"
+	ownerGardenID       = "507f1f77bcf86cd799439011" // fake Mongo ObjectID
+)
+
+// setupOwnershipTestRouter creates a router that mocks the DELETE /gardens/:id
+// ownership check: a garden is "owned" by gardenOwnerUID only.
+// It mirrors the real deleteGarden logic (filter by _id AND uid) without
+// requiring a live MongoDB connection.
+func setupOwnershipTestRouter(t *testing.T) *gin.Engine {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+
+	// Two-user mock Firebase middleware
+	multiUserFirebase := func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		switch authHeader {
+		case "Bearer " + gardenOwnerToken:
+			c.Set("uid", gardenOwnerUID)
+		case "Bearer " + gardenNonOwnerToken:
+			c.Set("uid", gardenNonOwnerUID)
+		default:
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+
+	mockAPIKey := func(c *gin.Context) {
+		if c.GetHeader("X-API-Key") != testAPIKey {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid API Key"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+
+	protected := router.Group("/")
+	protected.Use(mockAPIKey)
+	protected.Use(multiUserFirebase)
+	{
+		// Mock handler that mirrors the real deleteGarden ownership logic:
+		// only the garden owner (gardenOwnerUID) can delete it.
+		protected.DELETE("/gardens/:id", func(c *gin.Context) {
+			idParam := c.Param("id")
+			// Validate ObjectID format (same as real handler)
+			if len(idParam) != 24 {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "ID invalide"})
+				return
+			}
+
+			uid, _ := c.Get("uid")
+
+			// The "database" only has one garden owned by gardenOwnerUID
+			if idParam != ownerGardenID || uid != gardenOwnerUID {
+				c.JSON(http.StatusNotFound, gin.H{"message": "Garden non trouvé ou accès refusé"})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{"message": "Garden supprimé"})
+		})
+	}
+
+	return router
+}
+
+func TestDeleteGarden_Owner_ShouldReturn200(t *testing.T) {
+	router := setupOwnershipTestRouter(t)
+	req, _ := http.NewRequest("DELETE", "/gardens/"+ownerGardenID, nil)
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+gardenOwnerToken)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code, "Garden owner should be able to delete their garden")
+
+	var response map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Equal(t, "Garden supprimé", response["message"])
+}
+
+func TestDeleteGarden_NonOwner_ShouldReturn404(t *testing.T) {
+	router := setupOwnershipTestRouter(t)
+	req, _ := http.NewRequest("DELETE", "/gardens/"+ownerGardenID, nil)
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+gardenNonOwnerToken)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	// Returns 404 (not 403) to avoid leaking whether the garden ID is valid
+	assert.Equal(t, http.StatusNotFound, w.Code, "Non-owner should not be able to delete another user's garden")
+}
+
+func TestDeleteGarden_WithoutAuth_ShouldReturn401(t *testing.T) {
+	router := setupOwnershipTestRouter(t)
+	req, _ := http.NewRequest("DELETE", "/gardens/"+ownerGardenID, nil)
+	req.Header.Set("X-API-Key", testAPIKey)
+	// No Authorization header
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code, "Unauthenticated request should be rejected")
+}
+
+func TestDeleteGarden_WithoutAPIKey_ShouldReturn401(t *testing.T) {
+	router := setupOwnershipTestRouter(t)
+	req, _ := http.NewRequest("DELETE", "/gardens/"+ownerGardenID, nil)
+	// No X-API-Key header
+	req.Header.Set("Authorization", "Bearer "+gardenOwnerToken)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code, "Request without API key should be rejected")
+}
+
+func TestDeleteGarden_InvalidID_ShouldReturn400(t *testing.T) {
+	router := setupOwnershipTestRouter(t)
+	req, _ := http.NewRequest("DELETE", "/gardens/not-a-valid-object-id", nil)
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+gardenOwnerToken)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, "Invalid ObjectID should return 400")
+}
+
+func TestDeleteGarden_NonExistentID_ShouldReturn404(t *testing.T) {
+	router := setupOwnershipTestRouter(t)
+	// Valid ObjectID format but not in the "database"
+	req, _ := http.NewRequest("DELETE", "/gardens/aabbccddeeff001122334455", nil)
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+gardenOwnerToken)
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code, "Non-existent garden should return 404")
 }
 
 // MARK: - Benchmark Tests

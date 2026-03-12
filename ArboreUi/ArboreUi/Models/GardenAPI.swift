@@ -25,13 +25,9 @@ final class GardenAPI {
     }
 
     // MARK: - List (Home)
-    func listGardens(uid: String) async throws -> [GardenDTO] {
-        guard let encodedUID = uid.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-            throw APIError.invalidURL
-        }
-
+    func listGardens() async throws -> [GardenDTO] {
         return try await NetworkManager.shared.request(
-            endpoint: "/gardens?uid=\(encodedUID)",
+            endpoint: "/gardens",
             method: .GET
         )
     }

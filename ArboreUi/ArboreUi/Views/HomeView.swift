@@ -83,7 +83,7 @@ struct HomeView: View {
                 }
 
                 NavigationLink(
-                    destination: AllGardensView(uid: uid),
+                    destination: AllGardensView(),
                     isActive: $goToAllGardens,
                     label: { EmptyView() }
                 )
@@ -128,7 +128,7 @@ struct HomeView: View {
 private extension HomeView {
     func fetchGardens() async {
         do {
-            let list = try await GardenAPI.shared.listGardens(uid: uid)
+            let list = try await GardenAPI.shared.listGardens()
             await MainActor.run {
                 self.gardens = list
             }

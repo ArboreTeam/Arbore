@@ -146,15 +146,16 @@ main() {
     echo "1) Tests Privacy Settings (Unit + Integration)"
     echo "2) Tests Privacy Settings - Unit uniquement"
     echo "3) Tests Privacy Settings - Integration uniquement"
-    echo "4) Tests NetworkManager (Unit + Integration)"
-    echo "5) Tests NetworkManager - Unit uniquement"
-    echo "6) Tests NetworkManager - Integration uniquement"
-    echo "7) Tests API Key Protection"
-    echo "8) Tests RGPD Endpoints (Data Export + Account Deletion)"
-    echo "9) Tous les tests de l'app"
-    echo "10) Quitter"
+    echo "4) Tests NetworkManager"
+    echo "5) Tests ModelCacheManager"
+    echo "6) Tests Login (ModernLoginViewTests + Advanced)"
+    echo "7) Tests Firebase Config Diagnostic"
+    echo "8) Tests API Key Protection"
+    echo "9) Tests RGPD Endpoints (Data Export + Account Deletion)"
+    echo "10) Tous les tests de l'app"
+    echo "11) Quitter"
     echo ""
-    read -p "Votre choix (1-10): " choice
+    read -p "Votre choix (1-11): " choice
 
     local failed=0
     local total=0
@@ -183,28 +184,34 @@ main() {
             total=1
             ;;
         4)
-            print_header "Tests NetworkManager Complets"
+            print_header "Tests NetworkManager"
             run_tests "ArboreUiTests/NetworkManagerTests" "NetworkManager Unit Tests"
-            failed=$((failed + $?))
-            total=$((total + 1))
-
-            run_tests "ArboreUiTests/NetworkManagerIntegrationTests" "NetworkManager Integration Tests"
-            failed=$((failed + $?))
-            total=$((total + 1))
+            failed=$?
+            total=1
             ;;
         5)
-            print_header "Tests NetworkManager - Unit Tests"
-            run_tests "ArboreUiTests/NetworkManagerTests" "Unit Tests"
+            print_header "Tests ModelCacheManager"
+            run_tests "ArboreUiTests/ModelCacheManagerTests" "ModelCacheManager Tests"
             failed=$?
             total=1
             ;;
         6)
-            print_header "Tests NetworkManager - Integration Tests"
-            run_tests "ArboreUiTests/NetworkManagerIntegrationTests" "Integration Tests"
+            print_header "Tests Login"
+            run_tests "ArboreUiTests/ModernLoginViewTests" "ModernLoginView Tests"
+            failed=$((failed + $?))
+            total=$((total + 1))
+
+            run_tests "ArboreUiTests/ModernLoginViewAdvancedTests" "ModernLoginView Advanced Tests"
+            failed=$((failed + $?))
+            total=$((total + 1))
+            ;;
+        7)
+            print_header "Tests Firebase Config Diagnostic"
+            run_tests "ArboreUiTests/FirebaseConfigDiagnosticTests" "Firebase Config Diagnostic"
             failed=$?
             total=1
             ;;
-        7)
+        8)
             print_header "Tests API Key Protection"
             run_tests "ArboreUiTests/PrivacySettingsIntegrationTests/testAPIKey_PlantsEndpoint_ShouldRequireFirebaseToken" "Firebase Token requis"
             failed=$((failed + $?))
@@ -214,7 +221,7 @@ main() {
             failed=$((failed + $?))
             total=$((total + 1))
             ;;
-        8)
+        9)
             print_header "Tests RGPD Endpoints"
             run_tests "ArboreUiTests/RGPDEndpointsIntegrationTests/testDataExport_WithValidUser_ShouldReturnCompleteData" "Data Export - Valid User"
             failed=$((failed + $?))
@@ -232,7 +239,7 @@ main() {
             failed=$((failed + $?))
             total=$((total + 1))
             ;;
-        9)
+        10)
             print_header "Tous les tests de l'app"
             cd "$UI_DIR"
             xcodebuild test \
@@ -263,7 +270,7 @@ main() {
                 total=1
             fi
             ;;
-        10)
+        11)
             print_info "Annulé par l'utilisateur"
             exit 0
             ;;

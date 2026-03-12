@@ -266,7 +266,7 @@ func TestModelsEndpoint_NonExistentFile_ShouldReturn404(t *testing.T) {
 func TestModelsEndpoint_ValidFile_ShouldReturn200(t *testing.T) {
 	// Arrange - Créer un fichier de test
 	modelsDir := "./models"
-	if err := os.MkdirAll(modelsDir, 0755); err != nil {
+	if err := os.MkdirAll(modelsDir, 0750); err != nil {
 		t.Fatalf("Failed to create models dir: %v", err)
 	}
 	testFilePath := filepath.Join(modelsDir, "Test.usdz")
@@ -362,7 +362,7 @@ func TestModelsEndpoint_CaseSensitivity_ShouldRespectFileSystem(t *testing.T) {
 
 	// Créer un fichier de test avec un nom spécifique
 	modelsDir := "./models"
-	if err := os.MkdirAll(modelsDir, 0755); err != nil {
+	if err := os.MkdirAll(modelsDir, 0750); err != nil {
 		t.Fatalf("Failed to create models dir: %v", err)
 	}
 	testFilePath := filepath.Join(modelsDir, "TestCase.usdz")
@@ -901,7 +901,7 @@ func TestListGardens_WithoutAuth_ShouldReturn401(t *testing.T) {
 func BenchmarkModelsEndpoint_ValidRequest(b *testing.B) {
 	// Créer un fichier de test
 	modelsDir := "./models"
-	_ = os.MkdirAll(modelsDir, 0755)
+	_ = os.MkdirAll(modelsDir, 0750)
 	testFilePath := filepath.Join(modelsDir, "Benchmark.usdz")
 	testContent := make([]byte, 1024*1024) // 1 MB
 	_ = os.WriteFile(testFilePath, testContent, 0600)

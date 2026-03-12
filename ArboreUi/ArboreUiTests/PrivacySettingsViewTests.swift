@@ -621,7 +621,6 @@ class PrivacySettingsIntegrationTests: XCTestCase {
         request.setValue("Bearer \(firebaseToken)", forHTTPHeaderField: "Authorization")
 
         let userData: [String: Any] = [
-            "uid": uid,
             "email": email,
             "firstName": "Test",
             "lastName": "RGPD"

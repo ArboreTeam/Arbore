@@ -5,7 +5,8 @@ import RealityKit
 // MARK: - PlantModel3D stub
 // Configuration optionnelle pour personnaliser l'affichage d'un modèle 3D.
 struct PlantModel3D {
-    var scale: Float = 1.0
+    var scale: SIMD3<Float> = SIMD3<Float>(repeating: 0.002)
+    var yOffset: Float = 0.0
     var name: String = ""
 }
 

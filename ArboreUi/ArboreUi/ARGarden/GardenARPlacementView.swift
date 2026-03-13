@@ -71,31 +71,31 @@ struct GardenARPlacementView: View {
                 boundaryPoints: boundaryPoints,
                 area: area,
                 perimeter: perimeter,
-                measurementWorldMapId: measurementWorldMapId,  // 🆕
+                measurementWorldMapId: measurementWorldMapId,
                 onValidated: {
                     dismiss()
                     onValidated()
                 }
             )
             .ignoresSafeArea()
-            
+
             // --- HUD Interface ---
             VStack(spacing: 0) {
                 // 1. Barre du haut
                 topBar
-                
+
                 Spacer()
-                
+
                 // 2. Indicateur de sauvegarde
                 if isSaving {
                     savingIndicator
                 }
-                
+
                 // 3. Menu d'édition (si une plante est sélectionnée)
                 if hasSelectedNode {
                     editingHUD.transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                
+
                 // 4. Dock du bas (Bouton Ajouter)
                 bottomDock
             }
@@ -370,7 +370,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
 
             func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
                 guard let arView = arView, let reticle = reticleNode else { return }
-                
+
                 let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
                 if let query = arView.raycastQuery(from: center, allowing: .existingPlaneGeometry, alignment: .horizontal),
                    let result = arView.session.raycast(query).first {

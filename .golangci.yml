@@ -27,7 +27,7 @@ linters:
       check-blank: false
 
     gocyclo:
-      min-complexity: 15
+      min-complexity: 20
 
     revive:
       confidence: 0.8

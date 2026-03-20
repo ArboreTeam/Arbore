@@ -1019,6 +1019,36 @@ func main() {
 		})
 	})
 
+	router.GET("/models/thumbnails/:filename", func(c *gin.Context) {
+		filename := c.Param("filename")
+
+		if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid filename"})
+			return
+		}
+
+		if !strings.HasSuffix(strings.ToLower(filename), ".png") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Only .png files are allowed"})
+			return
+		}
+
+		filePath := fmt.Sprintf("/home/fedora/Arbore/ArboreBackend/models/thumbnails/%s", filename)
+
+		fmt.Println("📂 Looking for:", filePath)
+
+		info, err := os.Stat(filePath)
+		if err != nil {
+			fmt.Println("❌ stat error:", err)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Thumbnail not found"})
+			return
+		}
+
+		fmt.Println("✅ found file, size:", info.Size())
+
+		c.Header("Content-Type", "image/png")
+		c.File(filePath)
+	})
+
 	// === ROUTES PROTÉGÉES (API Key + Firebase Auth) ===
 	// Ordre important: API Key PUIS Firebase Auth
 	protected := router.Group("/")

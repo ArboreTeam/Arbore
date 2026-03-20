@@ -705,7 +705,16 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     return bundleURL
                 }
 
-                // 3. Fallback : Documents directory (fichiers téléchargés runtime)
+                // 3. Chercher dans le cache Models (Documents/Models/) — lazy download
+                let modelsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+                    .appendingPathComponent("Models")
+                    .appendingPathComponent(fileName)
+                if FileManager.default.fileExists(atPath: modelsURL.path) {
+                    print("✅ Modèle résolu depuis cache Models : \(fileName)")
+                    return modelsURL
+                }
+
+                // 4. Fallback : Documents directory root (fichiers téléchargés runtime)
                 let docsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
                     .appendingPathComponent(fileName)
                 if FileManager.default.fileExists(atPath: docsURL.path) {

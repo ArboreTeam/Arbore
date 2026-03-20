@@ -73,28 +73,29 @@ Affiche (instantané)
 ```
 RELEASE build (App Store)
 ├── #if DEBUG → NON COMPILÉ
-├── Triple-tap code → ABSENT
+├── Debug bouton → ABSENT
 ├── DebugView → ABSENT
 └── Footprint → ZÉRO
 
 DEBUG build (Xcode)
 ├── #if DEBUG → COMPILÉ
-├── Triple-tap code → PRÉSENT
+├── Debug bouton → PRÉSENT dans Profile
 ├── DebugView → PRÉSENT
 └── Footprint → Minimal (dev only)
 ```
 
 ---
 
-## 🎯 Trigger Secret
+## 🎯 Accès au Mode Debug
 
 ```
-Écran any
+Profile tab (dernière tab en bas)
         ↓
-Cherche le petit texte "v1.0" en haut à gauche
-└─ Opacity: 0.3 (très léger, presque invisible)
+Scroll vers le bas
         ↓
-Tap × 3 fois rapidement sur ce texte
+Vois la section "🔧 Debug Tools"
+        ↓
+Tap sur "Thumbnail Generator"
         ↓
 isDebugModeActive = true
         ↓

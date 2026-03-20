@@ -19,10 +19,10 @@ Le **mode debug caché** permet de générer les thumbnails des plantes **unique
 
 1. Ouvre ArboreUi en Xcode avec la configuration **Debug**
 2. Lance l'app sur ton iPhone
-3. **Triple-tap** sur le petit texte **"v1.0"** en haut à gauche de l'écran
-   - Ce geste est **invisible** pour les utilisateurs (opacity: 0.3)
-   - Impossible à déclencher par hasard
-4. Une sheet s'ouvre avec le contrôle d'accès
+3. Tap l'onglet **Profil** en bas à droite de l'écran
+4. Scroll vers le bas jusqu'à voir la section **"🔧 Debug Tools"**
+5. Tap sur le bouton **"Thumbnail Generator"**
+6. Une sheet s'ouvre avec le contrôle d'accès
 
 ---
 
@@ -65,11 +65,13 @@ Last generated: 2:34:22 PM
 ### Étape 1 : Générer les thumbnails sur ton téléphone
 
 ```
-1. Triple-tap sur v1.0 → Mode debug s'ouvre
-2. Clique "Generate Missing Thumbnails"
-3. Liste affiche "Generating 6 thumbnails..."
-4. L'app génère une par une (peut prendre ~1-2 min par 6 plantes)
-5. Statut passe à ✓ à mesure
+1. Lance l'app en Debug (Xcode)
+2. Onglet Profil → Scroll → Debug Tools → Tap "Thumbnail Generator"
+3. Mode debug s'ouvre
+4. Clique "Generate Missing Thumbnails"
+5. Liste affiche "Generating X thumbnails..."
+6. L'app génère une par une (peut prendre ~1-2 min par 6 plantes)
+7. Statut passe à ✓ à mesure
 ```
 
 ### Étape 2 : Exporter les fichiers PNG

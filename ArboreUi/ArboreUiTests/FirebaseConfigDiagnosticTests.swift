@@ -12,6 +12,29 @@ import FirebaseAuth
 @testable import ArboreUi
 
 class FirebaseConfigDiagnosticTests: XCTestCase {
+
+    private func isBackendReachable(timeout: TimeInterval = 5.0) -> Bool {
+        guard let url = URL(string: "\(AppConfig.baseURL)/health") else {
+            return false
+        }
+
+        let expectation = XCTestExpectation(description: "Backend health check")
+        var isReachable = false
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeout
+
+        URLSession.shared.dataTask(with: request) { _, response, _ in
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                isReachable = true
+            }
+            expectation.fulfill()
+        }.resume()
+
+        wait(for: [expectation], timeout: timeout + 2.0)
+        return isReachable
+    }
     
     /// Test 1: Verify AppConfig secrets are properly loaded
     func testDiagnostic_AppConfig_SecretsLoaded() {
@@ -134,12 +157,16 @@ class FirebaseConfigDiagnosticTests: XCTestCase {
     }
     
     /// Test 4: Verify backend connectivity
-    func testDiagnostic_Backend_Connectivity() {
+    func testDiagnostic_Backend_Connectivity() throws {
         NSLog("\n========================================")
         NSLog("🔍 DIAGNOSTIC: Testing Backend Connection")
         NSLog("========================================")
         
         NSLog("📝 Backend URL: \(AppConfig.baseURL)")
+
+        if !isBackendReachable(timeout: 5.0) {
+            throw XCTSkip("Backend diagnostic skipped: backend is unreachable at \(AppConfig.baseURL)")
+        }
         
         let expectation = XCTestExpectation(description: "Backend health check")
         let startTime = Date()

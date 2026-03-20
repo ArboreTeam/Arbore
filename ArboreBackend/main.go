@@ -1019,6 +1019,34 @@ func main() {
 		})
 	})
 
+	// === ROUTE PUBLIQUE THUMBNAILS PNG ===
+	router.GET("/models/thumbnails/:filename", func(c *gin.Context) {
+		filename := c.Param("filename")
+
+		// sécurité simple
+		if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid filename"})
+			return
+		}
+
+		// on n'accepte que les PNG
+		if !strings.HasSuffix(strings.ToLower(filename), ".png") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Only .png files are allowed"})
+			return
+		}
+
+		filePath := fmt.Sprintf("./models/thumbnails/%s", filename)
+
+		// vérifier que le fichier existe
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Thumbnail not found"})
+			return
+		}
+
+		c.Header("Content-Type", "image/png")
+		c.File(filePath)
+	})
+
 	// === ROUTES PROTÉGÉES (API Key + Firebase Auth) ===
 	// Ordre important: API Key PUIS Firebase Auth
 	protected := router.Group("/")

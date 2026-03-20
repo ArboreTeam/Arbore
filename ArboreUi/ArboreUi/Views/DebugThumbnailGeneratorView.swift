@@ -132,15 +132,13 @@ struct DebugThumbnailGeneratorView: View {
                     generationProgress = "Generated at \(Date().formatted(date: .omitted, time: .standard))"
                 }
             }
-            .alert("Export Location", isPresented: $showFileExportInfo) {
-                Alert(
-                    title: Text("Thumbnails Location"),
-                    message: Text(
-                        "Generated PNGs are in iOS app cache:\n\n" +
-                        "Library/Caches/PlantThumbs/\n\n" +
-                        "Use Xcode File Inspector or macOS Finder to export."
-                    ),
-                    dismissButton: .default(Text("OK"))
+            .alert("Thumbnails Location", isPresented: $showFileExportInfo) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text(
+                    "Generated PNGs are in iOS app cache:\n\n" +
+                    "Library/Caches/PlantThumbs/\n\n" +
+                    "Use Xcode File Inspector or macOS Finder to export."
                 )
             }
         }

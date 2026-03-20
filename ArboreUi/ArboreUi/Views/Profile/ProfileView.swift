@@ -12,6 +12,10 @@ struct ProfileView: View {
     @State private var userNameFetchError: String? = nil
     @State private var showUpgradeSheet = false
 
+    #if DEBUG
+    @State private var showDebugThumbnailGenerator = false
+    #endif
+
     // Variable brute simulée pour le plan actuel (Changer pour tester)
     @State private var currentSubscriptionPlan: String = "Ultra"
 
@@ -65,6 +69,12 @@ struct ProfileView: View {
                 }
             }
         }
+
+        #if DEBUG
+        .sheet(isPresented: $showDebugThumbnailGenerator) {
+            DebugThumbnailGeneratorView()
+        }
+        #endif
     }
 
     // MARK: - Header (single line name + editable photo)
@@ -252,6 +262,61 @@ struct ProfileView: View {
                     SettingRowItem(icon: "info.circle.fill", label: NSLocalizedString("PROFILE_ABOUT", comment: ""), destination: AboutUsView().environmentObject(themeManager), iconColor: .gray)
                 ])
             }
+
+            #if DEBUG
+            VStack(alignment: .leading, spacing: 8) {
+                Text("🔧 Debug Tools")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.red)
+                    .padding(.horizontal, 4)
+
+                Button(action: { showDebugThumbnailGenerator = true }) {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.red.opacity(0.18))
+                                .frame(width: 40, height: 40)
+
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.red)
+                        }
+
+                        Text("Thumbnail Generator")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(themeManager.textColor)
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
+                    }
+                    .padding(.vertical, 14)
+                    .padding(.horizontal, 16)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .background(
+                    ZStack {
+                        Color.gray.opacity(0.12)
+                        RoundedRectangle(cornerRadius: 18)
+                            .stroke(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.white.opacity(0.15),
+                                        Color.white.opacity(0.05)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    }
+                )
+                .cornerRadius(18)
+            }
+            #endif
         }
     }
 

@@ -14,7 +14,7 @@
 
 #### 2. **Nouveau fichier : `DebugModeManager.swift`** (optionnel)
    - **Localisation** : `/ArboreUi/ArboreUi/Config/DebugModeManager.swift`
-   - **Contenu** : Gestionnaire d'état pour le mode debug (actuellement remplacé par @State mais utile pour future expansion)
+   - **Contenu** : ~~Gestionnaire d'état pour le mode debug~~ **SUPPRIMÉ** - on utilise juste @State dans ProfileView
 
 #### 3. **Modifié : `MainView.swift`**
    - **Changements** :
@@ -33,12 +33,13 @@
 ## 🎯 Architecture
 
 ```
-MainView (DEBUG build)
-├── Normal TabView (Home, Catalogue, Garden, Profile)
+ProfileView (DEBUG build)
+├── Normal settings sections
 └── #if DEBUG
-    ├── @State isDebugModeActive
-    ├── .sheet(isPresented: $isDebugModeActive) → DebugThumbnailGeneratorView
-    └── .overlay() → Triple-tap gesture on "v1.0"
+    ├── @State showDebugThumbnailGenerator
+    ├── "🔧 Debug Tools" section
+    ├── Tap "Thumbnail Generator" → sets state
+    └── .sheet(isPresented: $showDebugThumbnailGenerator) → DebugThumbnailGeneratorView
 
 DebugThumbnailGeneratorView
 ├── Loads all plants via NetworkManager
@@ -55,20 +56,48 @@ PlantThumbnailGenerator (existing - REUSED)
 
 ## ✅ Points clés de l'implémentation
 
-### 1. **Compile-time Safety**
+### 1. **Compile-time Safety avec #if DEBUG**
 ```swift
+// ProfileView.swift
 #if DEBUG
-// Code compiled ONLY in Debug builds
-// ZERO footprint in Release builds
+@State private var showDebugThumbnailGenerator = false
+#endif
+
+#if DEBUG
+.sheet(isPresented: $showDebugThumbnailGenerator) {
+    DebugThumbnailGeneratorView()
+}
+#endif
+
+#if DEBUG
+VStack {
+    Text("🔧 Debug Tools")
+    Button(action: { showDebugThumbnailGenerator = true }) {
+        // Debug button UI
+    }
+}
 #endif
 ```
+- Code compiled ONLY in Debug builds
+- ZERO footprint in Release builds
+- Bouton complètement absent en production
 
-### 2. **Invisible Trigger**
+### 2. **Accès simple dans le Profile Tab**
 ```swift
-Text("v1.0")
-    .opacity(0.3)  // Nearly invisible
-    .onTapGesture(count: 3)  // Triple-tap required
+ProfileView() {
+    // ... sections normales
+    
+    #if DEBUG
+    "[🔧 Debug Tools]" section
+    Button("Thumbnail Generator") {
+        showDebugThumbnailGenerator = true
+    }
+    #endif
+}
 ```
+- Visible seulement en Debug build
+- Facile à trouver : Profile → Scroll → tap button
+- Élimine les gestes secrets complexes
 
 ### 3. **Réutilisation du code existant**
 ```swift
@@ -92,15 +121,17 @@ PlantThumbnailCache.save(image, plantID: plant.id)
 
 ```
 1. Lance ArboreUi en Xcode (Debug config)
-2. Triple-tap "v1.0" en haut à gauche
-3. Mode debug s'ouvre
-4. Clique "Generate Missing Thumbnails"
-5. Attends que tout se génère (~1-2 min)
-6. Clique "Export Thumbnails to Files"
-7. Connecte à Mac + Xcode → Devices → Download Container
-8. Copie les .png de Library/Caches/PlantThumbs/
-9. Mets dans ArboreBackend/models/Thumbnail/
-10. Commit + push
+2. Onglet Profil (bas de l'écran)
+3. Scroll vers le bas → vois "🔧 Debug Tools"
+4. Tap "Thumbnail Generator"
+5. Mode debug s'ouvre
+6. Clique "Generate Missing Thumbnails"
+7. Attends que tout se génère (~1-2 min)
+8. Clique "Export Thumbnails to Files"
+9. Connecte à Mac + Xcode → Devices → Download Container
+10. Copie les .png de Library/Caches/PlantThumbs/
+11. Mets dans ArboreBackend/models/Thumbnail/
+12. Commit + push
 ```
 
 ### Pour les utilisateurs finaux

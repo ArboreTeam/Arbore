@@ -12,10 +12,10 @@ Ton mode debug est maintenant **invisible en production** et prêt à l'emploi.
 
 ```
 1. Lance ArboreUi en Xcode (target Debug)
-2. Trouve le petit texte "v1.0" en haut à gauche
-3. Triple-tap rapidement sur ce texte
-   └─ (il est très discret, opacity: 0.3)
-4. La sheet du mode debug s'ouvre
+2. Va dans l'onglet Profil (dernier onglet en bas)
+3. Scroll vers le bas → Vois la section "🔧 Debug Tools"
+4. Tap sur "Thumbnail Generator"
+5. La sheet du mode debug s'ouvre
 ```
 
 ---
@@ -48,7 +48,7 @@ Cactus ✗
 ## 🏃 Workflow ultra-rapide
 
 ```
-Triple-tap "v1.0"
+Onglet Profil → Scroll → Debug Tools → Tap Thumbnail Generator
     ↓
 Clique "Generate Missing Thumbnails"
     ↓

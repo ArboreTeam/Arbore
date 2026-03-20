@@ -19,6 +19,8 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
 
+        try ensureBackendIsReachableOrSkip()
+
         // Configure Firebase
         if FirebaseApp.app() == nil {
             FirebaseApp.configure()
@@ -28,6 +30,32 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
         let timestamp = Int(Date().timeIntervalSince1970)
         testUserEmail = "test.rgpd.\(timestamp)@arbore.test"
         testUserPassword = "TestPassword123!"
+    }
+
+    private func ensureBackendIsReachableOrSkip() throws {
+        guard let url = URL(string: "\(AppConfig.baseURL)/health") else {
+            throw XCTSkip("RGPD integration tests skipped: invalid backend URL \(AppConfig.baseURL)")
+        }
+
+        let expectation = self.expectation(description: "Backend health check")
+        var isReachable = false
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 5
+
+        URLSession.shared.dataTask(with: request) { _, response, _ in
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                isReachable = true
+            }
+            expectation.fulfill()
+        }.resume()
+
+        wait(for: [expectation], timeout: 7.0)
+
+        if !isReachable {
+            throw XCTSkip("RGPD integration tests skipped: backend is unreachable at \(AppConfig.baseURL)")
+        }
     }
 
     override func tearDownWithError() throws {

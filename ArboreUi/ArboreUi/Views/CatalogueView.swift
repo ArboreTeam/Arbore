@@ -2,8 +2,6 @@ import SwiftUI
 
 struct CatalogueView: View {
     // MARK: - Propriétés
-    @StateObject private var thumbGenerator = PlantThumbnailGenerator()
-    @State private var thumbRefreshTick = 0
 
     @State private var showArticleDetail = false
     @State private var selectedPlant: Plant?
@@ -43,14 +41,7 @@ struct CatalogueView: View {
                     .environmentObject(themeManager)
             }
             .onAppear {
-                thumbGenerator.onThumbnailGenerated = {
-                    thumbRefreshTick += 1
-                }
                 fetchPlants()
-            }
-            .onChange(of: plants.map(\.id)) { _ in
-                print("📦 plants received:", plants.count)
-                thumbGenerator.enqueue(plants: plants)
             }
         }
     }
@@ -175,7 +166,6 @@ struct CatalogueView: View {
                             .buttonStyle(PlainButtonStyle()) // Évite l'effet bleu par défaut
                         }
                     }
-                    .id(thumbRefreshTick)
                     .padding(.horizontal, 20)
                     .padding(.top, 10)
                     .padding(.bottom, 40) // Marge pour le bas de l'écran

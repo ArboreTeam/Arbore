@@ -125,14 +125,15 @@ struct CareInfo: Codable {
 extension Plant {
 
     /// Obtient l'URL locale du modèle 3D (télécharge depuis le backend si nécessaire)
+    /// - Parameter forceDownload: Si true, force un nouveau téléchargement depuis le backend
     /// - Returns: L'URL locale du fichier USDZ
-    func getModelURL() async throws -> URL {
+    func getModelURL(forceDownload: Bool = false) async throws -> URL {
         guard let modelURL, !modelURL.isEmpty else {
             throw ModelCacheError.invalidModelURL
         }
 
         // Utiliser le ModelCacheManager pour obtenir le modèle (cache ou téléchargement)
-        return try await ModelCacheManager.shared.getModelURL(for: modelURL)
+        return try await ModelCacheManager.shared.getModelURL(for: modelURL, forceDownload: forceDownload)
     }
 
     /// URL locale du modèle (ancienne version synchrone - deprecated)

@@ -17,9 +17,11 @@ actor ModelCacheManager {
     }
 
     /// Obtient l'URL locale d'un modèle (le télécharge si nécessaire)
-    /// - Parameter modelURL: Le nom du fichier du modèle (ex: "Monstera_Deliciosa.usdz")
+    /// - Parameters:
+    ///   - modelURL: Le nom du fichier du modèle (ex: "Monstera_Deliciosa.usdz")
+    ///   - forceDownload: Si true, forcer un nouveau téléchargement même si un cache existe
     /// - Returns: L'URL locale du fichier téléchargé
-    func getModelURL(for modelURL: String) async throws -> URL {
+    func getModelURL(for modelURL: String, forceDownload: Bool = false) async throws -> URL {
         guard !modelURL.isEmpty else {
             throw ModelCacheError.invalidModelURL
         }
@@ -28,14 +30,27 @@ actor ModelCacheManager {
         let filename = (modelURL as NSString).lastPathComponent
         let localURL = cacheDirectory.appendingPathComponent(filename)
 
-        // Vérifier si le fichier existe déjà en cache
-        if FileManager.default.fileExists(atPath: localURL.path) {
+        let fileExists = FileManager.default.fileExists(atPath: localURL.path)
+
+        // Chemin forcé : on ignore la lecture cache et on tente un nouveau download
+        if forceDownload {
+            if fileExists {
+                // Supprimer pour éviter un conflit de moveItem plus tard (best-effort)
+                try? FileManager.default.removeItem(at: localURL)
+                print("♻️ Forced re-download, cache cleared for: \(filename)")
+            }
+        } else if fileExists {
             print("✅ Model found in cache: \(filename)")
             return localURL
         }
 
+        let taskKey = forceDownload ? "force:\(filename)" : filename
+        if forceDownload {
+            print("⬇️ Forcing download for: \(filename)")
+        }
+
         // Vérifier si un téléchargement est déjà en cours pour ce modèle
-        if let existingTask = downloadTasks[filename] {
+        if let existingTask = downloadTasks[taskKey] {
             print("⏳ Download already in progress for: \(filename)")
             return try await existingTask.value
         }
@@ -45,14 +60,14 @@ actor ModelCacheManager {
             try await downloadModel(filename: filename, to: localURL)
         }
 
-        downloadTasks[filename] = task
+        downloadTasks[taskKey] = task
 
         do {
             let result = try await task.value
-            downloadTasks[filename] = nil
+            downloadTasks[taskKey] = nil
             return result
         } catch {
-            downloadTasks[filename] = nil
+            downloadTasks[taskKey] = nil
             throw error
         }
     }

@@ -108,7 +108,7 @@ struct GardenARPlacementView: View {
                     isDownloadingModel = true
                     downloadedModelURL = nil
                     do {
-                        let url = try await plant.getModelURL()
+                        let url = try await plant.getModelURL(forceDownload: true)
                         downloadedModelURL = url
                         print("✅ Model pre-downloaded for: \(plant.name)")
                     } catch {
@@ -130,7 +130,7 @@ struct GardenARPlacementView: View {
                     Task {
                         isDownloadingModel = true
                         do {
-                            let url = try await first.getModelURL()
+                            let url = try await first.getModelURL(forceDownload: true)
                             downloadedModelURL = url
                         } catch {
                             downloadedModelURL = first.localModelURL
@@ -649,16 +649,19 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         
                         if !persistedPlants.isEmpty {
                             self.restoreScene(from: persistedPlants)
+                        } else {
+                            self.isRestoring = false
                         }
-                        
-                        self.isRestoring = false
                     }
                 }
             }
             
             private func restoreScene(from plants: [PersistedPlant]) {
-                guard let arView = arView else { return }
-                
+                guard let arView = arView else {
+                    isRestoring = false
+                    return
+                }
+
                 // Nettoyage
                 arView.scene.rootNode.childNodes.forEach { node in
                     if node.name?.starts(with: "plant_") == true {
@@ -666,16 +669,31 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     }
                 }
                 deselectAll()
-                
-                for p in plants {
-                    guard let transform = floatArrayToMatrix(p.transform), !p.modelURLString.isEmpty else { continue }
-                    
-                    let finalURL: URL? = resolveModelURL(p.modelURLString)
-                    
-                    if let url = finalURL {
-                        placeObject(at: transform, modelURL: url, id: p.plantID, name: p.plantName, finalScale: SCNVector3(p.scale[0], p.scale[1], p.scale[2]))
-                    } else {
-                        print("❌ Impossible de résoudre le modèle : \(p.modelURLString)")
+
+                Task {
+                    for p in plants {
+                        guard let transform = floatArrayToMatrix(p.transform), !p.modelURLString.isEmpty else { continue }
+                        let finalScale = SCNVector3(p.scale[0], p.scale[1], p.scale[2])
+
+                        do {
+                            let remoteURL = try await ModelCacheManager.shared.getModelURL(for: p.modelURLString, forceDownload: true)
+                            await MainActor.run {
+                                self.placeObject(at: transform, modelURL: remoteURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString)
+                            }
+                        } catch {
+                            print("⚠️ Impossible de télécharger le modèle \(p.modelURLString): \(error)")
+                            if let fallbackURL = resolveLocalModelURL(p.modelURLString) {
+                                await MainActor.run {
+                                    self.placeObject(at: transform, modelURL: fallbackURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString)
+                                }
+                            } else {
+                                print("❌ Impossible de résoudre le modèle : \(p.modelURLString)")
+                            }
+                        }
+                    }
+
+                    await MainActor.run {
+                        self.isRestoring = false
                     }
                 }
             }
@@ -684,7 +702,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             /// - Nom de fichier seul : "Pothos.usdz"     → Bundle.main lookup
             /// - URL absolue bundle  : "file:///...app/Pothos.usdz" → extrait le filename → Bundle
             /// - URL absolue Documents : "file:///...Documents/foo.usdz" → Documents lookup
-            private func resolveModelURL(_ raw: String) -> URL? {
+            private func resolveLocalModelURL(_ raw: String) -> URL? {
                 // 1. Extraire le nom de fichier (gère les anciens chemins absolus)
                 let fileName: String
                 if let url = URL(string: raw), url.isFileURL {
@@ -705,16 +723,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     return bundleURL
                 }
 
-                // 3. Chercher dans le cache Models (Documents/Models/) — lazy download
-                let modelsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                    .appendingPathComponent("Models")
-                    .appendingPathComponent(fileName)
-                if FileManager.default.fileExists(atPath: modelsURL.path) {
-                    print("✅ Modèle résolu depuis cache Models : \(fileName)")
-                    return modelsURL
-                }
-
-                // 4. Fallback : Documents directory root (fichiers téléchargés runtime)
+                // 3. Fallback : Documents directory (fichiers téléchargés runtime)
                 let docsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
                     .appendingPathComponent(fileName)
                 if FileManager.default.fileExists(atPath: docsURL.path) {
@@ -795,7 +804,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
 
                 saveStateForUndo()
-                placeObject(at: transform, modelURL: url, id: plant.id, name: plant.name)
+                placeObject(at: transform, modelURL: url, id: plant.id, name: plant.name, modelURLString: plant.modelURL)
             }
 
             @objc func handleLongPressToSelect(_ gesture: UILongPressGestureRecognizer) {
@@ -818,7 +827,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
             }
 
-            func placeObject(at transform: simd_float4x4, modelURL: URL, id: String, name: String, finalScale: SCNVector3? = nil) {
+            func placeObject(at transform: simd_float4x4, modelURL: URL, id: String, name: String, finalScale: SCNVector3? = nil, modelURLString: String? = nil, allowRetry: Bool = true) {
                 guard let arView = arView else { return }
                 
                 if modelURL.isFileURL && !FileManager.default.fileExists(atPath: modelURL.path) {
@@ -859,6 +868,19 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     if !isRestoring { selectNode(container) }
                 } catch {
                     print("❌ Erreur chargement modèle: \(error)")
+                    // Retry once by forcing a redownload in case the cached file is corrupted
+                    if allowRetry, let raw = modelURLString {
+                        Task { [weak self] in
+                            do {
+                                let freshURL = try await ModelCacheManager.shared.getModelURL(for: raw, forceDownload: true)
+                                await MainActor.run {
+                                    self?.placeObject(at: transform, modelURL: freshURL, id: id, name: name, finalScale: finalScale, modelURLString: raw, allowRetry: false)
+                                }
+                            } catch {
+                                print("⚠️ Retry download failed for \(raw): \(error)")
+                            }
+                        }
+                    }
                 }
             }
 

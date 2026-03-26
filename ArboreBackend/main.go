@@ -617,6 +617,10 @@ func generateAndInsertPlant(ctx context.Context, name string) (Plant, bool, erro
 
 	// Images Unsplash
 	imageURLs := fetchUnsplashImageURLs(name, 3)
+	modelFile := resolveModelFilename(name)
+	if modelFile == "" {
+		log.Println("⚠️ Aucun modèle USDZ trouvé pour:", name)
+	}
 
 	plant := Plant{
 		ID:          primitive.NewObjectID(),
@@ -624,7 +628,7 @@ func generateAndInsertPlant(ctx context.Context, name string) (Plant, bool, erro
 		Type:        aiResponse.FR.PlantType,
 		ImageURLs:   imageURLs,
 		Description: aiResponse.FR.Description,
-		ModelURL:    "",
+		ModelURL:    modelFile,
 		Translations: map[string]LanguageData{
 			"fr": aiResponse.FR,
 			"en": aiResponse.EN,
@@ -640,6 +644,39 @@ func generateAndInsertPlant(ctx context.Context, name string) (Plant, bool, erro
 	}
 
 	return plant, false, nil
+}
+
+func normalizeModelNameKey(input string) string {
+	input = strings.ToLower(strings.TrimSpace(input))
+	replacer := strings.NewReplacer(" ", "", "_", "", "-", "")
+	return replacer.Replace(input)
+}
+
+func resolveModelFilename(plantName string) string {
+	entries, err := os.ReadDir("./models")
+	if err != nil {
+		log.Println("⚠️ Impossible de lire ./models:", err)
+		return ""
+	}
+
+	target := normalizeModelNameKey(plantName)
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		filename := entry.Name()
+		if !strings.HasSuffix(strings.ToLower(filename), ".usdz") {
+			continue
+		}
+
+		basename := strings.TrimSuffix(filename, filepath.Ext(filename))
+		if normalizeModelNameKey(basename) == target {
+			return filename
+		}
+	}
+
+	return ""
 }
 
 // ---------- AI GENERATION : single ----------

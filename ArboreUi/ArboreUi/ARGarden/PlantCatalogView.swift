@@ -308,7 +308,7 @@ fileprivate struct PlantCardGlass: View {
         Button(action: onTap) {
             ZStack {
                 ZStack {
-                    AsyncThumb(urlString: plant.imageURLs.first)
+                    AsyncThumb(plant: plant)
                         .scaledToFill()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .clipped()
@@ -394,30 +394,23 @@ fileprivate struct PlantCardGlass: View {
 // MARK: - Async thumb
 
 fileprivate struct AsyncThumb: View {
-    let urlString: String?
+    let plant: Plant
+
+    @State private var fetchedImage: UIImage?
+    @State private var didFailLoading = false
 
     var body: some View {
         Group {
-            if let urlString, let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .empty:
-                        ZStack {
-                            Color.white.opacity(0.06)
-                            ProgressView().tint(.white.opacity(0.7))
-                        }
-                    case .success(let image):
-                        image.resizable()
-                    case .failure:
-                        ZStack {
-                            Color.white.opacity(0.06)
-                            Image(systemName: "leaf")
-                                .font(.system(size: 22, weight: .bold))
-                                .foregroundColor(.white.opacity(0.5))
-                        }
-                    @unknown default:
-                        Color.white.opacity(0.06)
-                    }
+            if let cached = PlantThumbnailCache.load(for: plant.id) {
+                Image(uiImage: cached)
+                    .resizable()
+            } else if let fetchedImage {
+                Image(uiImage: fetchedImage)
+                    .resizable()
+            } else if plant.imageURLs.first != nil, !didFailLoading {
+                ZStack {
+                    Color.white.opacity(0.06)
+                    ProgressView().tint(.white.opacity(0.7))
                 }
             } else {
                 ZStack {
@@ -426,6 +419,53 @@ fileprivate struct AsyncThumb: View {
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(.white.opacity(0.5))
                 }
+            }
+        }
+        .task(id: taskKey) {
+            await loadRemoteThumbnailIfNeeded()
+        }
+    }
+
+    private var taskKey: String {
+        "\(plant.id)|\(plant.imageURLs.first ?? "")"
+    }
+
+    private func loadRemoteThumbnailIfNeeded() async {
+        await MainActor.run {
+            didFailLoading = false
+        }
+
+        guard fetchedImage == nil else { return }
+
+        if PlantThumbnailCache.load(for: plant.id) != nil {
+            return
+        }
+
+        guard let urlString = plant.imageURLs.first,
+              let url = URL(string: urlString) else { return }
+
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .returnCacheDataElseLoad
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode),
+                  let image = UIImage(data: data) else {
+                await MainActor.run {
+                    didFailLoading = true
+                }
+                return
+            }
+
+            await MainActor.run {
+                fetchedImage = image
+                didFailLoading = false
+                PlantThumbnailCache.save(image, plantID: plant.id)
+            }
+        } catch {
+            await MainActor.run {
+                didFailLoading = true
             }
         }
     }

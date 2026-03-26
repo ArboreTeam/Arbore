@@ -11,6 +11,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -24,6 +26,7 @@ import (
 )
 
 var client *mongo.Client
+var thumbnailPlantIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 type User struct {
 	UID              string `json:"uid" bson:"uid"`
@@ -805,6 +808,92 @@ func getUserPhoto(c *gin.Context) {
 	c.Data(http.StatusOK, contentType, data)
 }
 
+func canUploadThumbnails(uid string) bool {
+	allowed := strings.TrimSpace(os.Getenv("THUMBNAIL_UPLOAD_ALLOWED_UIDS"))
+	if allowed == "" {
+		return false
+	}
+
+	for _, candidate := range strings.Split(allowed, ",") {
+		if strings.TrimSpace(candidate) == uid {
+			return true
+		}
+	}
+
+	return false
+}
+
+func uploadPlantThumbnail(c *gin.Context) {
+	uidValue, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	uid := uidValue.(string)
+
+	if !canUploadThumbnails(uid) {
+		log.Printf("❌ Thumbnail upload forbidden for uid=%s (set THUMBNAIL_UPLOAD_ALLOWED_UIDS)", uid)
+		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: thumbnail upload not allowed for this account"})
+		return
+	}
+
+	plantID := strings.TrimSpace(c.Param("plantId"))
+	if !thumbnailPlantIDRegex.MatchString(plantID) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plant ID"})
+		return
+	}
+
+	file, _, err := c.Request.FormFile("thumbnail")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "thumbnail file is required"})
+		return
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Println("Error closing thumbnail file:", err)
+		}
+	}()
+
+	maxUploadBytes := int64(100 << 20) // 100MB
+	imageBytes, err := io.ReadAll(io.LimitReader(file, maxUploadBytes+1))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot read uploaded thumbnail"})
+		return
+	}
+	if int64(len(imageBytes)) > maxUploadBytes {
+		log.Printf("❌ Thumbnail too large: %d bytes (max %d)", len(imageBytes), maxUploadBytes)
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "thumbnail too large (max 100MB)"})
+		return
+	}
+
+	if ct := http.DetectContentType(imageBytes); ct != "image/png" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only PNG thumbnails are supported"})
+		return
+	}
+
+	thumbnailsDir := strings.TrimSpace(os.Getenv("THUMBNAILS_DIR"))
+	if thumbnailsDir == "" {
+		thumbnailsDir = "/home/fedora/Arbore/ArboreBackend/models/thumbnails"
+	}
+
+	if err := os.MkdirAll(thumbnailsDir, 0o755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot create thumbnails directory"})
+		return
+	}
+
+	targetPath := filepath.Join(thumbnailsDir, plantID+".png")
+	if err := os.WriteFile(targetPath, imageBytes, 0o644); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save thumbnail"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Thumbnail uploaded",
+		"plantId":  plantID,
+		"filePath": targetPath,
+	})
+}
+
 // ---------- GARDENS HANDLERS (NEW) ----------
 
 func createGarden(c *gin.Context) {
@@ -973,9 +1062,49 @@ func deleteGarden(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Garden supprimé"})
 }
 
+// ---------- LOAD ENV ----------
+
+func loadDotEnv(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		log.Printf("ℹ️ .env not loaded (%s): %v", path, err)
+		return
+	}
+
+	for _, rawLine := range strings.Split(string(data), "\n") {
+		line := strings.TrimSpace(rawLine)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		value = strings.Trim(value, "\"")
+
+		if key == "" {
+			continue
+		}
+
+		if _, exists := os.LookupEnv(key); !exists {
+			if err := os.Setenv(key, value); err != nil {
+				log.Printf("⚠️ Failed to set env %s: %v", key, err)
+			}
+		}
+	}
+
+	log.Printf("✅ Loaded .env from %s", path)
+}
+
 // ---------- MAIN ----------
 
 func main() {
+	loadDotEnv(".env")
+
 	// ✅ Recommandé: passe l'URI via env
 	// export MONGODB_URI="mongodb+srv://..."
 	uri := os.Getenv("MONGODB_URI")
@@ -1009,6 +1138,9 @@ func main() {
 	middleware.CheckUserBannedFunc = checkUserBannedFromDB
 
 	router := gin.Default()
+
+	// Augmenter la limite de taille pour les uploads de fichiers (1GB max)
+	router.MaxMultipartMemory = 1 << 30 // 1 GB
 
 	// === ROUTE PUBLIQUE (Health Check) ===
 	router.GET("/health", func(c *gin.Context) {
@@ -1131,6 +1263,7 @@ func main() {
 			c.Header("Content-Type", "model/vnd.usdz+zip")
 			c.File(filePath)
 		})
+		protected.POST("/models/thumbnails/:plantId", uploadPlantThumbnail)
 	}
 
 	fmt.Println("🚀 Serveur démarré sur http://localhost:8080")

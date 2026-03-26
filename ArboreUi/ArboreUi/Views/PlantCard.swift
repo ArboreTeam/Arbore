@@ -3,6 +3,8 @@ import SwiftUI
 struct PlantCard: View {
     let plant: Plant
     @Environment(\.colorScheme) private var colorScheme
+    @State private var fetchedImage: UIImage?
+    @State private var didFailLoading = false
 
     private let cardHeight: CGFloat = 220
 
@@ -24,24 +26,13 @@ struct PlantCard: View {
                             .resizable()
                             .scaledToFill()
 
-                    } else if let url = thumbnailURL {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .scaledToFill()
+                    } else if let fetchedImage {
+                        Image(uiImage: fetchedImage)
+                            .resizable()
+                            .scaledToFill()
 
-                            case .failure:
-                                fallbackImage
-
-                            case .empty:
-                                loadingView
-
-                            @unknown default:
-                                loadingView
-                            }
-                        }
+                    } else if let url = thumbnailURL, !didFailLoading {
+                        loadingView
 
                     } else {
                         fallbackImage
@@ -69,6 +60,45 @@ struct PlantCard: View {
         .frame(height: cardHeight)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 4)
+        .task(id: plant.id) {
+            await loadRemoteThumbnailIfNeeded()
+        }
+    }
+
+    private func loadRemoteThumbnailIfNeeded() async {
+        await MainActor.run {
+            didFailLoading = false
+        }
+
+        guard fetchedImage == nil else { return }
+        guard PlantThumbnailCache.load(for: plant.id) == nil else { return }
+
+        guard let url = thumbnailURL else { return }
+
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .returnCacheDataElseLoad
+            let (data, response) = try await URLSession.shared.data(for: request)
+
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode),
+                  let image = UIImage(data: data) else {
+                await MainActor.run {
+                    didFailLoading = true
+                }
+                return
+            }
+
+            await MainActor.run {
+                fetchedImage = image
+                didFailLoading = false
+                PlantThumbnailCache.save(image, plantID: plant.id)
+            }
+        } catch {
+            await MainActor.run {
+                didFailLoading = true
+            }
+        }
     }
 
     var loadingView: some View {

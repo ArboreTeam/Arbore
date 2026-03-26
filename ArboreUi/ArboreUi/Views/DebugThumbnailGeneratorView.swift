@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 #if DEBUG
 
@@ -86,6 +87,18 @@ struct DebugThumbnailGeneratorView: View {
                         .cornerRadius(8)
                     }
                     .disabled(isUploading || plants.filter { PlantThumbnailCache.exists(for: $0.id) }.isEmpty)
+
+                    Button(action: copyFirebaseTokenToClipboard) {
+                        HStack {
+                            Image(systemName: "doc.on.doc")
+                            Text("Copy Firebase ID Token")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(10)
+                        .background(Color.purple.opacity(0.8))
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
 
                     Button(action: cacheClear) {
                         HStack {
@@ -249,6 +262,19 @@ struct DebugThumbnailGeneratorView: View {
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
             throw NetworkError.serverError("Upload failed for \(plantID)")
+        }
+    }
+
+    private func copyFirebaseTokenToClipboard() {
+        Task {
+            do {
+                let token = try await NetworkManager.shared.getFirebaseToken()
+                UIPasteboard.general.string = token
+                generationProgress = "Firebase ID token copied"
+            } catch {
+                generationProgress = "Token copy failed"
+                print("❌ Failed to copy Firebase ID token:", error)
+            }
         }
     }
 

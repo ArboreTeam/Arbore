@@ -10,13 +10,16 @@ final class PlantThumbnailRenderer {
     private var floorTexture: TextureResource?
     private var wallTexture: TextureResource?
 
-    private let perModelScaleMultiplier: [String: Float] = [
-        "Pothos": 0.5,
-        "Monstera_Deliciosa": 0.8,
-        "Cactus": 0.8,
-        "Dyspis_Lutescens": 0.8,
-        "Livistona_Chinensis": 0.8,
-        "Pilea": 0.5,
+    private let defaultTargetHeight: Float = 0.02
+
+    // Height in scene units per plant. Tune these values plant-by-plant.
+    private let perModelTargetHeight: [String: Float] = [
+        "pothos": 0.01,
+        "monstera_deliciosa": 0.016,
+        "cactus": 0.016,
+        "dyspis_lutescens": 0.016,
+        "livistona_chinensis": 0.016,
+        "pilea": 0.01
     ]
 
     init() {
@@ -52,18 +55,15 @@ final class PlantThumbnailRenderer {
                 // ✅ Nom du modèle basé sur le nom de fichier (sans extension)
                 let modelKey = usdzURL.deletingPathExtension().lastPathComponent
 
-                // --- 1) NORMALISATION
-                let targetHeight: Float = 0.02
+                // --- 1) NORMALISATION + CALIBRATION PAR MODELE
+                let normalizedModelKey = normalizeModelKey(modelKey)
+                let targetHeight = perModelTargetHeight[normalizedModelKey] ?? defaultTargetHeight
 
                 var b = model.visualBounds(relativeTo: nil)
                 let currentHeight = max(b.extents.y, 0.0001)
 
                 let s = targetHeight / currentHeight
                 model.scale = SIMD3(repeating: s)
-
-                // ✅ Ajustement manuel par modèle (par défaut = 1.0)
-                let manualMultiplier = perModelScaleMultiplier[modelKey] ?? 1.0
-                model.scale *= SIMD3(repeating: manualMultiplier)
 
                 b = model.visualBounds(relativeTo: nil)
                 model.position.y = -b.min.y
@@ -75,8 +75,8 @@ final class PlantThumbnailRenderer {
 
                 model.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
 
-                // (optionnel) petit log pour vérifier les clés utilisées
-                print("🌿 Thumbnail modelKey:", modelKey, "| manualMultiplier:", manualMultiplier)
+                // Debug calibration key/size
+                print("🌿 Thumbnail modelKey:", modelKey, "| normalized:", normalizedModelKey, "| targetHeight:", targetHeight)
 
                 // --- 2) Studio: sol + mur (textures + tiling)
                 let floorMesh = Self.makeTiledPlane(
@@ -176,6 +176,14 @@ final class PlantThumbnailRenderer {
                 completion(nil)
             }
         }
+    }
+
+    private func normalizeModelKey(_ key: String) -> String {
+        key
+            .folding(options: .diacriticInsensitive, locale: .current)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
     }
 
     // MARK: - Tiled Plane (UVs qui se répètent)

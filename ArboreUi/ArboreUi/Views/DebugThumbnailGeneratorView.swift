@@ -10,6 +10,7 @@ struct DebugThumbnailGeneratorView: View {
     @State private var selectedPlants: Set<String> = []
     @State private var generationProgress = ""
     @State private var showFileExportInfo = false
+    @State private var isUploading = false
 
     var body: some View {
         NavigationView {
@@ -72,6 +73,19 @@ struct DebugThumbnailGeneratorView: View {
                         .foregroundColor(.white)
                         .cornerRadius(8)
                     }
+
+                    Button(action: uploadCachedToBackend) {
+                        HStack {
+                            Image(systemName: "icloud.and.arrow.up")
+                            Text(isUploading ? "Uploading..." : "Upload Cached Thumbnails to Backend")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(10)
+                        .background(Color.green)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
+                    .disabled(isUploading || plants.filter { PlantThumbnailCache.exists(for: $0.id) }.isEmpty)
 
                     Button(action: cacheClear) {
                         HStack {
@@ -173,6 +187,68 @@ struct DebugThumbnailGeneratorView: View {
         generationProgress = "Cache cleared"
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             loadPlants()
+        }
+    }
+
+    private func uploadCachedToBackend() {
+        Task {
+            isUploading = true
+
+            let cachedPlants = plants.filter { PlantThumbnailCache.exists(for: $0.id) }
+            generationProgress = "Uploading 0/\(cachedPlants.count)..."
+
+            var uploaded = 0
+            var failed = 0
+
+            for (index, plant) in cachedPlants.enumerated() {
+                do {
+                    try await uploadThumbnail(plantID: plant.id)
+                    uploaded += 1
+                } catch {
+                    failed += 1
+                    print("❌ Upload thumbnail failed for \(plant.id):", error)
+                }
+
+                generationProgress = "Uploading \(index + 1)/\(cachedPlants.count)..."
+            }
+
+            generationProgress = "Upload done. Success: \(uploaded), Failed: \(failed)"
+            isUploading = false
+        }
+    }
+
+    private func uploadThumbnail(plantID: String) async throws {
+        guard let image = PlantThumbnailCache.load(for: plantID),
+              let pngData = image.pngData() else {
+            throw NetworkError.serverError("Missing local thumbnail for \(plantID)")
+        }
+
+        guard let url = URL(string: NetworkManager.shared.baseURL + "/models/thumbnails/\(plantID)") else {
+            throw NetworkError.invalidURL
+        }
+
+        let token = try await NetworkManager.shared.getFirebaseToken()
+        let boundary = "Boundary-\(UUID().uuidString)"
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue(NetworkManager.shared.apiKey, forHTTPHeaderField: "X-API-Key")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"thumbnail\"; filename=\"\(plantID).png\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: image/png\r\n\r\n".data(using: .utf8)!)
+        body.append(pngData)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+
+        request.httpBody = body
+
+        let (_, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw NetworkError.serverError("Upload failed for \(plantID)")
         }
     }
 

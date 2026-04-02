@@ -2,6 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>ARBORE_API_KEY</key>
+	<string>$(ARBORE_API_KEY)</string>
+	<key>ARBORE_BACKEND_HOST</key>
+	<string>$(ARBORE_BACKEND_HOST)</string>
+	<key>ARBORE_BACKEND_PROTOCOL</key>
+	<string>$(ARBORE_BACKEND_PROTOCOL)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleExecutable</key>
@@ -16,17 +22,47 @@
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.66927287937-6ljb2r2ig6098ikonfnistc7097jgovj</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>FirebaseAutomaticScreenReportingEnabled</key>
+	<true/>
+	<key>GIDClientID</key>
+	<string>66927287937-6ljb2r2ig6098ikonfnistc7097jgovj.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
-	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>L'application a besoin d'accéder à la caméra pour placer des plantes en réalité augmentée.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Utiliser Face ID pour vous connecter plus rapidement</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Nécessaire pour calculer la position du soleil par rapport à votre fenêtre.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>L'application a besoin d'accéder au microphone pour certaines fonctionnalités.</string>
+	<key>NSWorldSensingUsageDescription</key>
+	<string>Nous utilisons le scanner LiDAR pour créer un plan 3D précis de votre espace.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>
@@ -40,41 +76,5 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
-	<key>NSCameraUsageDescription</key>
-	<string>L'application a besoin d'accéder à la caméra pour placer des plantes en réalité augmentée.</string>
-	<key>NSFaceIDUsageDescription</key>
-	<string>Utiliser Face ID pour vous connecter plus rapidement</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Nécessaire pour calculer la position du soleil par rapport à votre fenêtre.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>L'application a besoin d'accéder au microphone pour certaines fonctionnalités.</string>
-	<key>NSWorldSensingUsageDescription</key>
-	<string>Nous utilisons le scanner LiDAR pour créer un plan 3D précis de votre espace.</string>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>com.googleusercontent.apps.66927287937-6ljb2r2ig6098ikonfnistc7097jgovj</string>
-			</array>
-		</dict>
-	</array>
-	<key>FirebaseAutomaticScreenReportingEnabled</key>
-	<true/>
-	<key>GIDClientID</key>
-	<string>66927287937-6ljb2r2ig6098ikonfnistc7097jgovj.apps.googleusercontent.com</string>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
-	<key>ARBORE_API_KEY</key>
-	<string>$(ARBORE_API_KEY)</string>
-	<key>ARBORE_BACKEND_PROTOCOL</key>
-	<string>$(ARBORE_BACKEND_PROTOCOL)</string>
-	<key>ARBORE_BACKEND_HOST</key>
-	<string>$(ARBORE_BACKEND_HOST)</string>
 </dict>
 </plist>

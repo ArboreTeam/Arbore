@@ -101,7 +101,7 @@ struct GardenARPlacementView: View {
             }
         }
         .sheet(isPresented: $showPicker) {
-            PlantCatalogARView { plant in
+            PlantCatalogARView(wizardFilter: wizard) { plant in
                 selectedPlantForPlacement = plant
                 // Pré-télécharger le modèle 3D de la plante sélectionnée
                 Task {

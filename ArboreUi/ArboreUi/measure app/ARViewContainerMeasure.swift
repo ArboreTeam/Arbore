@@ -302,17 +302,19 @@ struct ARViewContainerMesure: View {
     let wizard: GardenWizardDTO
     let gardenName: String
     let thumbnailKey: String?
+    let onSuccess: () -> Void
 
     @StateObject var gardenManager = GardenManager()
     @State private var showFullScreenPlan = false
     @State private var saveSuccess = false
-    @State private var showIntermediate = false
+    @State private var showARPlacement = false
     @State private var arIsReady = false  // 🆕 Indicateur AR
     
     // 🆕 ID temporaire pour la WorldMap
     @State private var tempGardenId = UUID().uuidString
     
     @Environment(\.presentationMode) var presentationMode
+    @EnvironmentObject private var tabRouter: TabRouter
 
     // Initialiseur avec valeurs par défaut pour compatibilité
     init(
@@ -328,13 +330,15 @@ struct ARViewContainerMesure: View {
             scanMethod: nil
         ),
         gardenName: String = "Mon jardin",
-        thumbnailKey: String? = nil
+        thumbnailKey: String? = nil,
+        onSuccess: @escaping () -> Void = {}
     ) {
         self.selectedPlants = selectedPlants
         self.uid = uid
         self.wizard = wizard
         self.gardenName = gardenName
         self.thumbnailKey = thumbnailKey
+        self.onSuccess = onSuccess
     }
     
     // 🆕 Fonction pour sauvegarder la WorldMap
@@ -499,8 +503,8 @@ struct ARViewContainerMesure: View {
                             
                             // Délai pour laisser le temps à la WorldMap de se sauvegarder
                             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                                print("🎯 Ouverture IntermediateGardenView avec ID: \(tempGardenId)")
-                                showIntermediate = true
+                                print("🎯 Ouverture GardenARPlacementView avec ID: \(tempGardenId)")
+                                showARPlacement = true
                             }
                         } label: {
                             Text("CONTINUER")
@@ -535,21 +539,26 @@ struct ARViewContainerMesure: View {
             print("🎯 Points actuels: \(gardenManager.points.count)")
         }
 
-        .fullScreenCover(isPresented: $showIntermediate) {
-            IntermediateGardenView(
+        .fullScreenCover(isPresented: $showARPlacement) {
+            GardenARPlacementView(
                 selectedPlants: selectedPlants,
                 uid: uid,
                 wizard: wizard,
                 gardenName: gardenName,
                 thumbnailKey: thumbnailKey,
+                existingGardenId: nil,
+                mode: .create,
                 boundaryPoints: gardenManager.points,
                 area: gardenManager.area,
                 perimeter: gardenManager.perimeter,
                 measurementWorldMapId: tempGardenId,
-                onCompleted: {
-                    // Fermer ARViewContainerMesure pour revenir au wizard
-                    // (IntermediateGardenView s'occupe de naviguer vers Home via tabRouter)
+                onValidated: {
+                    showARPlacement = false
+                    tabRouter.selectedTab = .home
                     presentationMode.wrappedValue.dismiss()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        onSuccess()
+                    }
                 }
             )
         }

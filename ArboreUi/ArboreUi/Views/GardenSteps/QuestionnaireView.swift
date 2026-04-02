@@ -233,6 +233,7 @@ struct GardenWizardView: View {
     // ouvre l’AR à la fin
     @State private var showPlacementAR = false
     @State private var showMeasurementApp = false  // 🆕 Pour lancer l'app de mesure
+    @State private var showLiDARScan = false // 🆕 Pour lancer le LiDAR
     
     // 🆕 Stocker les données de mesure
     @State private var measuredBoundaryPoints: [SIMD3<Float>] = []
@@ -343,7 +344,7 @@ struct GardenWizardView: View {
                                 showPlacementAR = true
                             }
                         },
-                        onStartLiDAR: { showPlacementAR = true },
+                        onStartLiDAR: { showLiDARScan = true },
                         onFinishWizard: { onFinish(state) },
                         isSaving: false
                     )
@@ -376,7 +377,20 @@ struct GardenWizardView: View {
                 uid: uid,
                 wizard: wizardDTO,
                 gardenName: gardenName,
-                thumbnailKey: thumbnailKey
+                thumbnailKey: thumbnailKey,
+                onSuccess: { dismiss() }
+            )
+        }
+        
+        // 🆕 Lancer l'app LiDAR si roomScan
+        .fullScreenCover(isPresented: $showLiDARScan) {
+            LiDARScanWizardView(
+                uid: uid,
+                selectedPlants: selectedPlants,
+                wizard: wizardDTO,
+                gardenName: gardenName,
+                thumbnailKey: thumbnailKey,
+                onSuccess: { dismiss() }
             )
         }
 

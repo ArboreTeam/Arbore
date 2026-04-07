@@ -17,6 +17,7 @@ struct PlantDetailView: View {
     @AppStorage("selectedLanguage") private var selectedLanguage = "system"
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject var themeManager: ThemeManager
 
     // Model download state
     @State private var downloadedModelURL: URL? = nil
@@ -95,7 +96,7 @@ struct PlantDetailView: View {
 
                         ZStack(alignment: .top) {
                             RoundedRectangle(cornerRadius: 32)
-                                .fill(colorScheme == .dark ? Color(hex: "#1A1A1A") : Color(hex: "#F1F5ED"))
+                                .fill(themeManager.backgroundColor)
                                 .padding(.top, -32)
                                 .padding(.bottom, -200)
 
@@ -131,7 +132,7 @@ struct PlantDetailView: View {
 
     private var topBar: some View {
         ZStack(alignment: .bottom) {
-            Color(hex: "#263826")
+            themeManager.brandPrimary
                 .ignoresSafeArea(edges: .top)
                 .frame(height: 75)
 
@@ -216,8 +217,8 @@ struct PlantDetailView: View {
                 .fontWeight(.semibold)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-                .background(isAddedToGarden ? Color(hex: "#B5D3B2") : Color(hex: "#263826"))
-                .foregroundColor(isAddedToGarden ? Color(hex: "#263826") : .white)
+                .background(isAddedToGarden ? themeManager.brandPrimaryLight : themeManager.brandPrimary)
+                .foregroundColor(isAddedToGarden ? themeManager.brandPrimary : .white)
                 .cornerRadius(20)
                 .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
             }
@@ -239,19 +240,19 @@ struct PlantDetailView: View {
                     Image("description_icon")
                         .resizable()
                         .renderingMode(.template)
-                        .foregroundColor(Color(hex: "#263826"))
+                        .foregroundColor(themeManager.brandPrimary)
                         .frame(width: 25, height: 25)
 
                     Text(NSLocalizedString("PLANTDETAIL_SECTION_DESCRIPTION", comment: ""))
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#2C2F24"))
+                        .foregroundColor(themeManager.textColor)
 
                     Spacer()
                 }
 
                 Text(descriptionText)
                     .font(.system(size: 15))
-                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.8) : Color(hex: "#2C2F24"))
+                    .foregroundColor(themeManager.textColor.opacity(0.9))
                     .lineLimit(showFullDescription ? nil : 2)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -266,14 +267,14 @@ struct PlantDetailView: View {
                         )
                         .font(.subheadline)
                         .fontWeight(.semibold)
-                        .foregroundColor(Color(hex: "#263826"))
+                        .foregroundColor(themeManager.brandPrimary)
                     }
                 }
             }
             .padding(20)
-            .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color(hex: "#D9E0D2"))
+            .background(themeManager.cardBackgroundColor)
             .cornerRadius(20)
-            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.1), radius: 8, x: 0, y: 4)
+            .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
         }
         .frame(maxWidth: 380)
         .frame(maxWidth: .infinity)
@@ -286,11 +287,11 @@ struct PlantDetailView: View {
         VStack(spacing: 12) {
             Text(NSLocalizedString("PLANTDETAIL_AR_TITLE", comment: ""))
                 .font(.headline)
-                .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#263826"))
+                .foregroundColor(themeManager.brandPrimary)
 
             Text(NSLocalizedString("PLANTDETAIL_AR_SUBTITLE", comment: ""))
                 .font(.subheadline)
-                .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .gray)
+                .foregroundColor(themeManager.secondaryTextColor)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
@@ -329,7 +330,7 @@ struct PlantDetailView: View {
                 .fontWeight(.semibold)
                 .padding()
                 .frame(maxWidth: .infinity)
-                .background(Color(hex: "#263826"))
+                .background(themeManager.brandPrimary)
                 .cornerRadius(12)
             }
             .disabled(isDownloadingModel)
@@ -344,7 +345,7 @@ struct PlantDetailView: View {
             }
         }
         .padding()
-        .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
+        .background(themeManager.cardBackgroundColor)
         .cornerRadius(20)
     }
 
@@ -357,15 +358,15 @@ struct PlantDetailView: View {
                     HStack(spacing: 12) {
                         ZStack {
                             Circle()
-                                .fill(Color(hex: "#263826").opacity(0.1))
+                                .fill(themeManager.brandPrimaryLight)
                                 .frame(width: 32, height: 32)
                             Image(systemName: "photo.on.rectangle")
-                                .foregroundColor(Color(hex: "#263826"))
+                                .foregroundColor(themeManager.brandPrimary)
                         }
 
                         Text(NSLocalizedString("PLANTDETAIL_GALLERY_TITLE", comment: ""))
                             .font(.headline)
-                            .foregroundColor(colorScheme == .dark ? .white : Color(hex: "#263826"))
+                            .foregroundColor(themeManager.brandPrimary)
 
                         Spacer()
 
@@ -406,7 +407,7 @@ struct PlantDetailView: View {
                     }
                 }
                 .padding()
-                .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
+                .background(themeManager.cardBackgroundColor)
                 .cornerRadius(20)
             }
         }
@@ -491,18 +492,19 @@ struct PlantDetailView: View {
 
 struct GeneralInfoGridView: View {
     @Environment(\.colorScheme) private var colorScheme
-    let translation: PlantTranslation?   // traduction MongoDB
+    @EnvironmentObject var themeManager: ThemeManager
+    let translation: PlantTranslation?
     let plantName: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Image(systemName: "doc.text.below.ecg.fill")
-                    .foregroundColor(Color(hex: "#263826"))
+                    .foregroundColor(themeManager.brandPrimary)
                 Text(NSLocalizedString("PLANTDETAIL_GENERALINFO_TITLE", comment: ""))
                     .font(.title3)
                     .fontWeight(.semibold)
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                    .foregroundColor(themeManager.textColor)
             }
             .padding(.horizontal)
 
@@ -562,6 +564,7 @@ struct GeneralInfoCard<Destination: View>: View {
     let color: Color
     let destination: Destination
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
         NavigationLink(destination: destination) {
@@ -586,12 +589,12 @@ struct GeneralInfoCard<Destination: View>: View {
 
                 Spacer()
                 Image(systemName: "chevron.right")
-                    .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .gray)
+                    .foregroundColor(themeManager.secondaryTextColor)
             }
             .padding()
-            .background(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color.white)
+            .background(themeManager.cardBackgroundColor)
             .cornerRadius(16)
-            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.04), radius: 4, x: 0, y: 2)
+            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
         }
     }
 }

@@ -56,6 +56,10 @@
 	<string>L'application a besoin d'accéder au microphone pour certaines fonctionnalités.</string>
 	<key>NSWorldSensingUsageDescription</key>
 	<string>Nous utilisons le scanner LiDAR pour créer un plan 3D précis de votre espace.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Arbore utilise ton calendrier pour planifier les rappels d'arrosage de tes plantes.</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Arbore utilise ton calendrier pour planifier les rappels d'arrosage de tes plantes.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

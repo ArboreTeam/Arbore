@@ -13,6 +13,7 @@ struct WateringRoutine: Identifiable, Codable {
     var isActive: Bool
     var nextWateringDate: Date
     var createdAt: Date
+    var calendarEventId: String?
     
     init(
         id: String = UUID().uuidString,
@@ -22,7 +23,8 @@ struct WateringRoutine: Identifiable, Codable {
         amount: String = "",
         notes: String = "",
         isActive: Bool = true,
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        calendarEventId: String? = nil
     ) {
         self.id = id
         self.plantName = plantName
@@ -33,6 +35,7 @@ struct WateringRoutine: Identifiable, Codable {
         self.isActive = isActive
         self.createdAt = createdAt
         self.nextWateringDate = frequency.calculateNextDate(from: Date())
+        self.calendarEventId = calendarEventId
     }
 }
 

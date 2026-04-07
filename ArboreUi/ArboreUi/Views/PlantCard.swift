@@ -3,6 +3,7 @@ import SwiftUI
 struct PlantCard: View {
     let plant: Plant
     @Environment(\.colorScheme) private var colorScheme
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var fetchedImage: UIImage?
     @State private var didFailLoading = false
 
@@ -103,19 +104,19 @@ struct PlantCard: View {
 
     var loadingView: some View {
         ZStack {
-            Color(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color(hex: "#EAF1E7"))
+            themeManager.cardBackgroundColor
             ProgressView()
         }
     }
 
     var fallbackImage: some View {
         ZStack {
-            Color(colorScheme == .dark ? Color(hex: "#2A2A2A") : Color(hex: "#EAF1E7"))
+            themeManager.cardBackgroundColor
             Image(systemName: "leaf.fill")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 40)
-                .foregroundColor(Color(hex: "#263826").opacity(0.4))
+                .foregroundColor(themeManager.brandPrimary.opacity(0.4))
         }
     }
 }

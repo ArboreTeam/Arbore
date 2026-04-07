@@ -91,13 +91,12 @@ struct CatalogueView: View {
                 Button(action: { showFilters = true }) {
                     ZStack {
                         Image(systemName: "slider.horizontal.3")
-                            .foregroundColor(themeManager.adjust(Color(hex: "#263826")))
+                            .foregroundColor(themeManager.brandPrimary)
                             .font(.system(size: 20))
                         
-                        // Badge de notification si des filtres sont actifs
                         if filters.isActive {
                             Circle()
-                                .fill(Color.red)
+                                .fill(themeManager.systemRed)
                                 .frame(width: 8, height: 8)
                                 .offset(x: 10, y: -10)
                         }

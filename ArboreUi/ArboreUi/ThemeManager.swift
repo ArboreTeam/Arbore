@@ -87,8 +87,60 @@ class ThemeManager: ObservableObject {
     var secondaryTextColor: Color { adjust(Color(.secondaryLabel)) }
     var tertiaryTextColor: Color { adjust(Color(.tertiaryLabel)) }
     var placeholderTextColor: Color { adjust(Color(.placeholderText)) }
-    var accentColor: Color { adjust(.green) }
-    
+    var accentColor: Color { brandPrimary }
+
+    // MARK: - Brand Design Tokens
+    // Couleur verte primaire de la marque Arbore — à utiliser dans TOUTES les vues
+    var brandPrimary: Color {
+        adjust(Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0.173, green: 0.333, blue: 0.188, alpha: 1.0) // #2C5530
+            : UIColor(red: 0.149, green: 0.220, blue: 0.149, alpha: 1.0) // #263826
+        }))
+    }
+
+    // Version plus claire pour les fonds de cartes, badges, highlights
+    var brandPrimaryLight: Color {
+        adjust(Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0.173, green: 0.333, blue: 0.188, alpha: 0.25)
+            : UIColor(red: 0.149, green: 0.220, blue: 0.149, alpha: 0.10)
+        }))
+    }
+
+    // Version héro / card hero (plus saturée, pour les grandes cartes en light mode)
+    var brandPrimaryHero: Color {
+        adjust(Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0.173, green: 0.333, blue: 0.188, alpha: 1.0) // #2C5530
+            : UIColor(red: 0.345, green: 0.533, blue: 0.384, alpha: 1.0) // #588562
+        }))
+    }
+
+    // MARK: - Design Tokens — Spacing & Shape
+    /// Corner radius standard pour les cartes
+    var cardCornerRadius: CGFloat { 20 }
+    /// Corner radius pour les grandes sections héro
+    var heroCornerRadius: CGFloat { 28 }
+
+    // MARK: - Design Tokens — Typography
+    /// Font pour les titres de page (grandes sections)
+    func pageTitle(size: CGFloat = 34) -> Font {
+        .system(size: size, weight: .bold, design: .rounded)
+    }
+    /// Font pour les titres de section
+    func sectionTitle(size: CGFloat = 22) -> Font {
+        .system(size: size, weight: .bold, design: .rounded)
+    }
+    /// Font pour les titres de carte
+    func cardTitle(size: CGFloat = 17) -> Font {
+        .system(size: size, weight: .semibold)
+    }
+    /// Font pour les sous-titres / corps
+    func bodyText(size: CGFloat = 15) -> Font {
+        .system(size: size, weight: .regular)
+    }
+
     // System colors adjusted for color blindness
     var systemBlue: Color { adjust(.blue) }
     var systemGreen: Color { adjust(.green) }

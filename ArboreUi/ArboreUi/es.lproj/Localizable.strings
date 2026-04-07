@@ -823,7 +823,17 @@
 "ROUTINE_SUCCESS_MESSAGE" = "Tu rutina de riego se ha creado correctamente.";
 "ROUTINE_SUCCESS_OK" = "OK";
 "ROUTINE_SUCCESS_TITLE" = "¡Rutina creada!";
-"ROUTINE_TIME_LABEL" = "Tiempo de respuesta";
+"ROUTINE_TIME_LABEL" = "Hora del recordatorio";
+
+/* Calendario de Apple */
+"ROUTINE_CALENDAR_TOGGLE" = "Añadir al calendario de Apple";
+"ROUTINE_CALENDAR_TOGGLE_SUBTITLE" = "Crea un recordatorio recurrente en tu calendario";
+"ROUTINE_CALENDAR_DENIED_TITLE" = "Acceso al calendario denegado";
+"ROUTINE_CALENDAR_DENIED_MESSAGE" = "Para añadir recordatorios al calendario, autoriza el acceso en Ajustes > Arbore > Calendario.";
+"ROUTINE_CALENDAR_DENIED_SETTINGS" = "Abrir Ajustes";
+"ROUTINE_SUCCESS_WITH_CALENDAR" = "Tu rutina de riego se ha creado y añadido a tu calendario de Apple.";
+"ROUTINE_CALENDAR_ERROR" = "Error del calendario";
+"ROUTINE_CREATING" = "Creando…";
 "TUTORIAL_NEXT_BUTTON" = "Siguiente";
 "TUTORIAL_PAGE1_DESC" = "Esta función te permite medir las dimensiones exactas de tu maceta utilizando la realidad aumentada.";
 "TUTORIAL_PAGE1_TITLE" = "¡Bienvenido/a!";

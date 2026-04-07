@@ -281,7 +281,7 @@ struct GardenDetailsPage: View {
                                     HStack(spacing: 20) {
                                         HStack(spacing: 8) {
                                             Image(systemName: "square.dashed")
-                                                .foregroundColor(Color(hex: "#2BEE79"))
+                                                .foregroundColor(themeManager.accentColor)
                                                 .font(.system(size: 16))
                                             VStack(alignment: .leading, spacing: 2) {
                                                 Text("Surface")
@@ -293,7 +293,7 @@ struct GardenDetailsPage: View {
                                         }
                                         HStack(spacing: 8) {
                                             Image(systemName: "arrow.triangle.turn.up.right.diamond")
-                                                .foregroundColor(Color(hex: "#2BEE79"))
+                                                .foregroundColor(themeManager.accentColor)
                                                 .font(.system(size: 16))
                                             VStack(alignment: .leading, spacing: 2) {
                                                 Text("Périmètre")

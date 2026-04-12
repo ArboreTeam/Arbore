@@ -259,9 +259,20 @@ struct CloseAccountView: View {
 
                 try await user.delete()
 
-                // 5. Update login state
+                // 5. Dismiss all UIKit-presented VCs (CloseAccountView, ReAuthView, etc.)
+                //    before flipping isLoggedIn. If we flip first, SwiftUI replaces
+                //    MainView() while UIKit still holds those VCs as "presented" —
+                //    any GIDSignIn call immediately after would land on a zombie VC.
                 DispatchQueue.main.async {
-                    self.isLoggedIn = false
+                    if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let rootVC = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController,
+                       rootVC.presentedViewController != nil {
+                        rootVC.dismiss(animated: false) {
+                            self.isLoggedIn = false
+                        }
+                    } else {
+                        self.isLoggedIn = false
+                    }
                 }
             } catch {
                 deletionError = "Failed to delete Firebase account: \(error.localizedDescription)"

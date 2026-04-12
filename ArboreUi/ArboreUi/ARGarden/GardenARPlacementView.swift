@@ -130,7 +130,7 @@ struct GardenARPlacementView: View {
                     Task {
                         isDownloadingModel = true
                         do {
-                            let url = try await first.getModelURL(forceDownload: true)
+                            let url = try await first.getModelURL(forceDownload: false)
                             downloadedModelURL = url
                         } catch {
                             downloadedModelURL = first.localModelURL
@@ -284,25 +284,30 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         config.planeDetection = [.horizontal]
         config.environmentTexturing = .automatic
         
-        // 🆕 Charger la WorldMap de mesure si disponible
+        sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+
+        // Load WorldMap on a background thread so main thread is not blocked.
+        // Once loaded, restart the session with the world map.
         if let mapId = measurementWorldMapId {
             let mapURL = GardenLocalStore.worldMapURL(for: mapId)
-            if FileManager.default.fileExists(atPath: mapURL.path) {
-                do {
-                    let mapData = try Data(contentsOf: mapURL)
-                    if let worldMap = try NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData) {
-                        config.initialWorldMap = worldMap
-                        print("✅ WorldMap de mesure chargée (ID: \(mapId))")
-                    }
-                } catch {
-                    print("⚠️ Erreur chargement WorldMap mesure: \(error)")
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard FileManager.default.fileExists(atPath: mapURL.path),
+                      let mapData = try? Data(contentsOf: mapURL),
+                      let worldMap = try? NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData)
+                else {
+                    print("⚠️ WorldMap de mesure introuvable ou illisible: \(mapId)")
+                    return
                 }
-            } else {
-                print("⚠️ WorldMap de mesure introuvable: \(mapId)")
+                DispatchQueue.main.async {
+                    let restartConfig = ARWorldTrackingConfiguration()
+                    restartConfig.planeDetection = [.horizontal]
+                    restartConfig.environmentTexturing = .automatic
+                    restartConfig.initialWorldMap = worldMap
+                    sceneView.session.run(restartConfig, options: [.resetTracking, .removeExistingAnchors])
+                    print("✅ WorldMap de mesure chargée (ID: \(mapId))")
+                }
             }
         }
-        
-        sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
 
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTapToPlace(_:)))
         let longPress = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPressToSelect(_:)))
@@ -317,7 +322,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         context.coordinator.setupObservers()
 
         if mode == .reopen, let id = existingGardenId {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 context.coordinator.loadGardenFromDisk(gardenId: id)
             }
         }
@@ -671,23 +676,27 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 deselectAll()
 
                 Task {
-                    for p in plants {
-                        guard let transform = floatArrayToMatrix(p.transform), !p.modelURLString.isEmpty else { continue }
-                        let finalScale = SCNVector3(p.scale[0], p.scale[1], p.scale[2])
-
-                        do {
-                            let remoteURL = try await ModelCacheManager.shared.getModelURL(for: p.modelURLString, forceDownload: true)
-                            await MainActor.run {
-                                self.placeObject(at: transform, modelURL: remoteURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString)
-                            }
-                        } catch {
-                            print("⚠️ Impossible de télécharger le modèle \(p.modelURLString): \(error)")
-                            if let fallbackURL = resolveLocalModelURL(p.modelURLString) {
-                                await MainActor.run {
-                                    self.placeObject(at: transform, modelURL: fallbackURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString)
+                    // Download all models concurrently instead of sequentially.
+                    await withTaskGroup(of: Void.self) { group in
+                        for p in plants {
+                            guard let transform = floatArrayToMatrix(p.transform), !p.modelURLString.isEmpty else { continue }
+                            let finalScale = SCNVector3(p.scale[0], p.scale[1], p.scale[2])
+                            group.addTask {
+                                do {
+                                    let remoteURL = try await ModelCacheManager.shared.getModelURL(for: p.modelURLString, forceDownload: false)
+                                    await MainActor.run {
+                                        self.placeObject(at: transform, modelURL: remoteURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString)
+                                    }
+                                } catch {
+                                    print("⚠️ Impossible de télécharger le modèle \(p.modelURLString): \(error)")
+                                    if let fallbackURL = self.resolveLocalModelURL(p.modelURLString) {
+                                        await MainActor.run {
+                                            self.placeObject(at: transform, modelURL: fallbackURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString)
+                                        }
+                                    } else {
+                                        print("❌ Impossible de résoudre le modèle : \(p.modelURLString)")
+                                    }
                                 }
-                            } else {
-                                print("❌ Impossible de résoudre le modèle : \(p.modelURLString)")
                             }
                         }
                     }

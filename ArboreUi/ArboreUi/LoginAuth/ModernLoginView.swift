@@ -493,13 +493,11 @@ struct ModernTextField: View {
             
             if showPasswordToggle {
                 Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isPasswordVisible.toggle()
-                    }
+                    isPasswordVisible.toggle()
                 }) {
                     Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(iconColor)
+                        .foregroundColor(.gray)
                 }
             }
         }
@@ -520,7 +518,6 @@ struct ModernTextField: View {
                 )
         )
         .padding(.horizontal, 24)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: focusedField == fieldType)
     }
 }
 

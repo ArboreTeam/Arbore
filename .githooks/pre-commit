@@ -1,0 +1,19 @@
+#!/bin/sh
+# Lock DEVELOPMENT_TEAM and PRODUCT_BUNDLE_IDENTIFIER in project.pbxproj
+
+PBXPROJ="ArboreUi/ArboreUi.xcodeproj/project.pbxproj"
+EXPECTED_TEAM="582QH9652J"
+EXPECTED_BUNDLE="com.arboreteam.arbore"
+
+if git diff --cached --name-only | grep -q "$PBXPROJ"; then
+  if git show :$PBXPROJ | grep "DEVELOPMENT_TEAM" | grep -qv "$EXPECTED_TEAM"; then
+    echo "❌ DEVELOPMENT_TEAM must be $EXPECTED_TEAM"
+    exit 1
+  fi
+  if git show :$PBXPROJ | grep "PRODUCT_BUNDLE_IDENTIFIER" | grep -qv "ArboreUiTests\|ArboreUiUITests\|$EXPECTED_BUNDLE"; then
+    echo "❌ PRODUCT_BUNDLE_IDENTIFIER must be $EXPECTED_BUNDLE"
+    exit 1
+  fi
+fi
+
+exit 0

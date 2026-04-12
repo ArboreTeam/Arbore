@@ -58,7 +58,7 @@ struct CloseAccountView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 18)
                                 .fill(Color.gray.opacity(0.12))
-                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1))
                         )
                         .cornerRadius(18)
 
@@ -134,7 +134,7 @@ struct CloseAccountView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 18)
                                 .fill(Color.gray.opacity(0.12))
-                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1))
                         )
                         .cornerRadius(18)
 
@@ -181,7 +181,7 @@ struct CloseAccountView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 18)
                                 .fill(Color.gray.opacity(0.12))
-                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1))
                         )
                         .cornerRadius(18)
 

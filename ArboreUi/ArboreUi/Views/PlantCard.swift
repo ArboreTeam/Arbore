@@ -4,6 +4,7 @@ struct PlantCard: View {
     let plant: Plant
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject var themeManager: ThemeManager
+    @State private var cachedThumbnail: UIImage?
     @State private var fetchedImage: UIImage?
     @State private var didFailLoading = false
 
@@ -22,7 +23,7 @@ struct PlantCard: View {
                 let size = geometry.size
 
                 Group {
-                    if let img = PlantThumbnailCache.load(for: plant.id) {
+                    if let img = cachedThumbnail {
                         Image(uiImage: img)
                             .resizable()
                             .scaledToFill()
@@ -32,7 +33,7 @@ struct PlantCard: View {
                             .resizable()
                             .scaledToFill()
 
-                    } else if let url = thumbnailURL, !didFailLoading {
+                    } else if thumbnailURL != nil, !didFailLoading {
                         loadingView
 
                     } else {
@@ -67,14 +68,19 @@ struct PlantCard: View {
     }
 
     private func loadRemoteThumbnailIfNeeded() async {
-        await MainActor.run {
-            didFailLoading = false
+        await MainActor.run { didFailLoading = false }
+
+        // Read the disk cache off the main thread so rendering is never blocked.
+        let diskImage = await Task.detached(priority: .userInitiated) {
+            PlantThumbnailCache.load(for: plant.id)
+        }.value
+
+        if let img = diskImage {
+            await MainActor.run { cachedThumbnail = img }
+            return
         }
 
-        guard fetchedImage == nil else { return }
-        guard PlantThumbnailCache.load(for: plant.id) == nil else { return }
-
-        guard let url = thumbnailURL else { return }
+        guard fetchedImage == nil, let url = thumbnailURL else { return }
 
         do {
             var request = URLRequest(url: url)
@@ -84,21 +90,20 @@ struct PlantCard: View {
             guard let httpResponse = response as? HTTPURLResponse,
                   (200...299).contains(httpResponse.statusCode),
                   let image = UIImage(data: data) else {
-                await MainActor.run {
-                    didFailLoading = true
-                }
+                await MainActor.run { didFailLoading = true }
                 return
             }
 
-            await MainActor.run {
-                fetchedImage = image
-                didFailLoading = false
+            await Task.detached(priority: .utility) {
                 PlantThumbnailCache.save(image, plantID: plant.id)
+            }.value
+
+            await MainActor.run {
+                cachedThumbnail = image
+                didFailLoading = false
             }
         } catch {
-            await MainActor.run {
-                didFailLoading = true
-            }
+            await MainActor.run { didFailLoading = true }
         }
     }
 

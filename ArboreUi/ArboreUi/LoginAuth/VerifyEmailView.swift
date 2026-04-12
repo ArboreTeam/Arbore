@@ -6,8 +6,8 @@ struct VerifyEmailView: View {
     var onResend: () -> Void
     var onBackToLogin: () -> Void
 
+    @AppStorage("isLoggedIn") var isLoggedIn = false
     @Environment(\.dismiss) var dismiss
-    @State private var isVerified = false
     @State private var resendMessage = ""
     @State private var isLoading = false
 
@@ -81,9 +81,6 @@ struct VerifyEmailView: View {
         .onAppear {
             sendInitialEmail()
         }
-        .fullScreenCover(isPresented: $isVerified) {
-            LoginView() // Ou ta vue principale
-        }
     }
 
     func sendInitialEmail() {
@@ -120,8 +117,8 @@ struct VerifyEmailView: View {
                 print("❌ Error reloading user: \(error.localizedDescription)")
             } else {
                 if Auth.auth().currentUser?.isEmailVerified == true {
-                    print("✅ Email verified")
-                    isVerified = true
+                    print("✅ Email verified — logging in")
+                    isLoggedIn = true
                 } else {
                     resendMessage = "Email not verified yet."
                 }

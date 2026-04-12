@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseAuth
+import GoogleSignIn
 
 struct CloseAccountView: View {
     @AppStorage("isLoggedIn") var isLoggedIn = false
@@ -250,9 +251,15 @@ struct CloseAccountView: View {
 
             // 4. Delete Firebase Auth account
             do {
+                // Sign out from Google and Firebase first so tokens don't linger.
+                // Without this, a subsequent Google sign-in reuses the stale token
+                // against the now-deleted Firebase account, causing a crash.
+                GIDSignIn.sharedInstance.signOut()
+                try? Auth.auth().signOut()
+
                 try await user.delete()
 
-                // 5. Sign out and update login state
+                // 5. Update login state
                 DispatchQueue.main.async {
                     self.isLoggedIn = false
                 }

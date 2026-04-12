@@ -63,7 +63,7 @@ struct AboutUsView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 18)
                                 .fill(Color.gray.opacity(0.12))
-                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1))
                         )
                         .cornerRadius(18)
                         .padding(.horizontal, 16)
@@ -90,7 +90,7 @@ struct AboutUsView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 18)
                                 .fill(Color.gray.opacity(0.12))
-                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1))
                         )
                         .cornerRadius(18)
                         .padding(.horizontal, 16)
@@ -126,7 +126,7 @@ struct AboutUsView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 18)
                                 .fill(Color.gray.opacity(0.12))
-                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1))
                         )
                         .cornerRadius(18)
                         .padding(.horizontal, 16)
@@ -153,17 +153,17 @@ struct AboutUsView: View {
                                     Text(NSLocalizedString("CONTACT_BUTTON", comment: "Contact button"))
                                 }
                                 .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(.black)
+                                .foregroundColor(themeManager.textColor)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
-                                .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+                                .background(RoundedRectangle(cornerRadius: 14).fill(themeManager.cardBackgroundColor))
                             }
                         }
                         .padding(18)
                         .background(
                             RoundedRectangle(cornerRadius: 18)
                                 .fill(Color.gray.opacity(0.12))
-                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1))
                         )
                         .cornerRadius(18)
                         .padding(.horizontal, 16)

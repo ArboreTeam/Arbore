@@ -190,7 +190,7 @@ struct PrivacyPolicyView: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
         .overlay(
             RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                .stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1)
         )
     }
 
@@ -217,16 +217,16 @@ struct PrivacyPolicyView: View {
                     Text(contactEmail)
                 }
                 .font(.system(size: 15, weight: .bold))
-                .foregroundColor(.black)
+                .foregroundColor(themeManager.textColor)
                 .padding(.vertical, 12)
                 .frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 14).fill(Color.white))
+                .background(RoundedRectangle(cornerRadius: 14).fill(themeManager.cardBackgroundColor))
             }
         }
         .padding(18)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
         .overlay(
-            RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18).stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1)
         )
     }
 
@@ -245,7 +245,7 @@ struct PrivacyPolicyView: View {
         .padding(18)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
         .overlay(
-            RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18).stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1)
         )
         .padding(.top, 4)
     }
@@ -289,7 +289,7 @@ struct PolicyCard: View {
         .padding(18)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
         .overlay(
-            RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 18).stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1)
         )
     }
 }

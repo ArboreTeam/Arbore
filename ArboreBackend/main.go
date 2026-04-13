@@ -594,7 +594,11 @@ func generateAndInsertPlant(ctx context.Context, name string) (Plant, bool, erro
 
 	// Appel du microservice IA
 	jsonData, _ := json.Marshal(AIRequest{Name: name})
-	resp, err := http.Post("http://localhost:8001/generate", "application/json", bytes.NewBuffer(jsonData))
+	aiGeneratorURL := os.Getenv("AI_GENERATOR_URL")
+	if aiGeneratorURL == "" {
+		aiGeneratorURL = "http://localhost:8001"
+	}
+	resp, err := http.Post(aiGeneratorURL+"/generate", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		log.Println("❌ Erreur appel API IA:", err)
 		return Plant{}, false, err
@@ -1168,7 +1172,7 @@ func main() {
 
 	// Initialiser Firebase Admin SDK
 	if err := middleware.InitFirebase(); err != nil {
-		log.Fatal("❌ Erreur initialisation Firebase:", err)
+		log.Println("⚠️  Firebase non initialisé (auth désactivée):", err)
 	}
 
 	// Configurer la fonction de vérification ban pour le middleware
@@ -1201,7 +1205,11 @@ func main() {
 			return
 		}
 
-		filePath := fmt.Sprintf("/home/fedora/Arbore/ArboreBackend/models/thumbnails/%s", filename)
+		thumbnailsBaseDir := strings.TrimSpace(os.Getenv("THUMBNAILS_DIR"))
+		if thumbnailsBaseDir == "" {
+			thumbnailsBaseDir = "./models/thumbnails"
+		}
+		filePath := filepath.Join(thumbnailsBaseDir, filename)
 
 		fmt.Println("📂 Looking for:", filePath)
 

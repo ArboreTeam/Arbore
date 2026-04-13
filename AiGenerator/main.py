@@ -12,6 +12,11 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 app = FastAPI()
 
 
+@app.get("/health")
+async def health():
+    return {"status": "ok", "service": "arbore-ai-generator"}
+
+
 class PlantRequest(BaseModel):
     name: str
 

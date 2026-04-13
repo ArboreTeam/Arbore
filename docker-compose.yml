@@ -6,6 +6,7 @@ services:
     build:
       context: ./AiGenerator
       dockerfile: Dockerfile
+    platform: linux/amd64
     container_name: arbore-ai-generator
     restart: unless-stopped
     env_file:
@@ -31,6 +32,7 @@ services:
     build:
       context: ./ArboreBackend
       dockerfile: Dockerfile
+    platform: linux/amd64
     container_name: arbore-backend
     restart: unless-stopped
     env_file:

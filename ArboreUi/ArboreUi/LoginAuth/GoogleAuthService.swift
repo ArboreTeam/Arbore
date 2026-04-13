@@ -12,9 +12,11 @@ class AuthenticationView: ObservableObject {
     // Returns the topmost visible UIViewController that is not being dismissed,
     // so GIDSignIn never tries to present on a transitioning controller.
     private func topVisibleViewController() -> UIViewController? {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootVC = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
         else { return nil }
+        // Prefer the key window, fall back to the first available window.
+        let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first
+        guard let rootVC = window?.rootViewController else { return nil }
         var top = rootVC
         while let presented = top.presentedViewController, !presented.isBeingDismissed {
             top = presented

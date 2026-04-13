@@ -29,7 +29,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.googleusercontent.apps.66927287937-6ljb2r2ig6098ikonfnistc7097jgovj</string>
+				<string>com.googleusercontent.apps.66927287937-72cn4i6cjliekvs01mr0i0ac3tdm7fsp</string>
 			</array>
 		</dict>
 	</array>
@@ -38,7 +38,7 @@
 	<key>FirebaseAutomaticScreenReportingEnabled</key>
 	<true/>
 	<key>GIDClientID</key>
-	<string>66927287937-6ljb2r2ig6098ikonfnistc7097jgovj.apps.googleusercontent.com</string>
+	<string>66927287937-72cn4i6cjliekvs01mr0i0ac3tdm7fsp.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>
@@ -46,6 +46,10 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Arbore utilise ton calendrier pour planifier les rappels d'arrosage de tes plantes.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>Arbore utilise ton calendrier pour planifier les rappels d'arrosage de tes plantes.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>L'application a besoin d'accéder à la caméra pour placer des plantes en réalité augmentée.</string>
 	<key>NSFaceIDUsageDescription</key>
@@ -56,10 +60,6 @@
 	<string>L'application a besoin d'accéder au microphone pour certaines fonctionnalités.</string>
 	<key>NSWorldSensingUsageDescription</key>
 	<string>Nous utilisons le scanner LiDAR pour créer un plan 3D précis de votre espace.</string>
-	<key>NSCalendarsUsageDescription</key>
-	<string>Arbore utilise ton calendrier pour planifier les rappels d'arrosage de tes plantes.</string>
-	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Arbore utilise ton calendrier pour planifier les rappels d'arrosage de tes plantes.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

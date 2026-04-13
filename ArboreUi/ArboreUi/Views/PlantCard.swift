@@ -70,7 +70,7 @@ struct PlantCard: View {
     private func loadRemoteThumbnailIfNeeded() async {
         await MainActor.run { didFailLoading = false }
 
-        // Read the disk cache off the main thread so rendering is never blocked.
+        // 1. Vérifie le cache disque local
         let diskImage = await Task.detached(priority: .userInitiated) {
             PlantThumbnailCache.load(for: plant.id)
         }.value
@@ -80,32 +80,47 @@ struct PlantCard: View {
             return
         }
 
-        guard fetchedImage == nil, let url = thumbnailURL else { return }
+        // 2. Essaie de télécharger depuis le backend
+        if let url = thumbnailURL {
+            do {
+                var request = URLRequest(url: url)
+                request.cachePolicy = .returnCacheDataElseLoad
+                let (data, response) = try await URLSession.shared.data(for: request)
 
-        do {
-            var request = URLRequest(url: url)
-            request.cachePolicy = .returnCacheDataElseLoad
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode),
-                  let image = UIImage(data: data) else {
-                await MainActor.run { didFailLoading = true }
-                return
+                if let httpResponse = response as? HTTPURLResponse,
+                   (200...299).contains(httpResponse.statusCode),
+                   let image = UIImage(data: data) {
+                    await Task.detached(priority: .utility) {
+                        PlantThumbnailCache.save(image, plantID: plant.id)
+                    }.value
+                    await MainActor.run {
+                        cachedThumbnail = image
+                        didFailLoading = false
+                    }
+                    return
+                }
+                // 404 ou autre erreur → passe au générateur local
+            } catch {
+                // Réseau indisponible → passe au générateur local
             }
+        }
 
-            await Task.detached(priority: .utility) {
-                PlantThumbnailCache.save(image, plantID: plant.id)
-            }.value
-
-            await MainActor.run {
-                cachedThumbnail = image
-                didFailLoading = false
+        // 3. Génère le thumbnail localement depuis le modèle USDZ
+        await withCheckedContinuation { continuation in
+            PlantThumbnailGenerator.shared.generateIfNeeded(plant: plant) { image in
+                Task { @MainActor in
+                    if let image {
+                        self.cachedThumbnail = image
+                        self.didFailLoading = false
+                    } else {
+                        self.didFailLoading = true
+                    }
+                    continuation.resume()
+                }
             }
-        } catch {
-            await MainActor.run { didFailLoading = true }
         }
     }
+
 
     var loadingView: some View {
         ZStack {

@@ -84,6 +84,14 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 
 		idToken := parts[1]
 
+		// Si Firebase n'est pas initialisé (fichier credentials absent), l'auth est désactivée
+		if firebaseAuth == nil {
+			log.Println("⚠️  Firebase non initialisé — token non vérifié, auth désactivée")
+			c.Set("uid", "unauthenticated")
+			c.Next()
+			return
+		}
+
 		token, err := firebaseAuth.VerifyIDToken(context.Background(), idToken)
 		if err != nil {
 			log.Printf("❌ Token validation failed: %v", err)

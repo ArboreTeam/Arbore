@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -17,22 +18,39 @@ var firebaseAuth *auth.Client
 // CheckUserBannedFunc is a function to check if a user is banned in the database
 var CheckUserBannedFunc func(string) (bool, error)
 
-// InitFirebase initializes the Firebase Admin SDK using the service account file
+// isReleaseMode reports whether the server runs in production.
+// In release mode Firebase auth is REQUIRED — any missing credential must fail fast.
+func isReleaseMode() bool {
+	return os.Getenv("GIN_MODE") == "release"
+}
+
+// InitFirebase initializes the Firebase Admin SDK using the service account file.
+// In release mode, any credential problem is fatal: the backend must refuse to
+// start rather than running with authentication disabled.
 func InitFirebase() error {
 	serviceAccountPath := os.Getenv("FIREBASE_SERVICE_ACCOUNT_PATH")
 	if serviceAccountPath == "" {
-		log.Println("⚠️  FIREBASE_SERVICE_ACCOUNT_PATH non défini, auth Firebase désactivée")
+		if isReleaseMode() {
+			return fmt.Errorf("FIREBASE_SERVICE_ACCOUNT_PATH is required in release mode")
+		}
+		log.Println("⚠️  FIREBASE_SERVICE_ACCOUNT_PATH non défini, auth Firebase désactivée (dev only)")
 		return nil
 	}
 
 	// Check that the file exists and is a regular file (not a directory)
 	info, err := os.Stat(serviceAccountPath)
 	if err != nil {
-		log.Printf("⚠️  Fichier Firebase introuvable (%s): %v — auth Firebase désactivée", serviceAccountPath, err)
+		if isReleaseMode() {
+			return fmt.Errorf("firebase credentials file unreadable in release mode (%s): %w", serviceAccountPath, err)
+		}
+		log.Printf("⚠️  Fichier Firebase introuvable (%s): %v — auth Firebase désactivée (dev only)", serviceAccountPath, err)
 		return nil
 	}
 	if info.IsDir() {
-		log.Printf("⚠️  FIREBASE_SERVICE_ACCOUNT_PATH pointe vers un dossier, pas un fichier (%s) — auth Firebase désactivée", serviceAccountPath)
+		if isReleaseMode() {
+			return fmt.Errorf("FIREBASE_SERVICE_ACCOUNT_PATH points to a directory in release mode: %s", serviceAccountPath)
+		}
+		log.Printf("⚠️  FIREBASE_SERVICE_ACCOUNT_PATH pointe vers un dossier, pas un fichier (%s) — auth Firebase désactivée (dev only)", serviceAccountPath)
 		return nil
 	}
 
@@ -84,9 +102,21 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 
 		idToken := parts[1]
 
-		// Si Firebase n'est pas initialisé (fichier credentials absent), l'auth est désactivée
+		// Si Firebase n'est pas initialisé, fail-closed en prod, fail-open en dev.
+		// En release mode, InitFirebase() aurait dû empêcher le démarrage du backend,
+		// donc atteindre ce point signifie qu'un bug ou une race a laissé firebaseAuth nil
+		// — on refuse la requête au lieu de laisser passer sans authentification.
 		if firebaseAuth == nil {
-			log.Println("⚠️  Firebase non initialisé — token non vérifié, auth désactivée")
+			if isReleaseMode() {
+				log.Println("❌ Firebase non initialisé en release mode — requête refusée")
+				c.JSON(503, gin.H{
+					"error": "Authentication service unavailable",
+					"code":  "AUTH_UNAVAILABLE",
+				})
+				c.Abort()
+				return
+			}
+			log.Println("⚠️  Firebase non initialisé — token non vérifié, auth désactivée (dev only)")
 			c.Set("uid", "unauthenticated")
 			c.Next()
 			return

@@ -1170,9 +1170,11 @@ func main() {
 	}
 	fmt.Println("✅ Connecté à MongoDB!")
 
-	// Initialiser Firebase Admin SDK
+	// Initialiser Firebase Admin SDK.
+	// En release mode, toute erreur est fatale : le backend refuse de démarrer
+	// sans authentification pour éviter d'exposer les endpoints sans token.
 	if err := middleware.InitFirebase(); err != nil {
-		log.Println("⚠️  Firebase non initialisé (auth désactivée):", err)
+		log.Fatalf("❌ Firebase init failed: %v", err)
 	}
 
 	// Configurer la fonction de vérification ban pour le middleware

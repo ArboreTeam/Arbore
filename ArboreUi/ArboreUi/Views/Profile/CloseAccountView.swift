@@ -124,7 +124,7 @@ struct CloseAccountView: View {
                                 )
 
                                 ConsequenceRow(
-                                    icon: "cloud.slash.fill",
+                                    icon: "icloud.slash.fill",
                                     text: NSLocalizedString("CLOSE_ACCOUNT_CONSEQUENCE_CLOUD", comment: ""),
                                     iconColor: .blue
                                 )

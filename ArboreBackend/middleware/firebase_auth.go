@@ -25,6 +25,17 @@ func InitFirebase() error {
 		return nil
 	}
 
+	// Check that the file exists and is a regular file (not a directory)
+	info, err := os.Stat(serviceAccountPath)
+	if err != nil {
+		log.Printf("⚠️  Fichier Firebase introuvable (%s): %v — auth Firebase désactivée", serviceAccountPath, err)
+		return nil
+	}
+	if info.IsDir() {
+		log.Printf("⚠️  FIREBASE_SERVICE_ACCOUNT_PATH pointe vers un dossier, pas un fichier (%s) — auth Firebase désactivée", serviceAccountPath)
+		return nil
+	}
+
 	// Read service account file
 	// nolint:gosec // serviceAccountPath comes from trusted FIREBASE_SERVICE_ACCOUNT_PATH environment variable
 	serviceAccountJSON, err := os.ReadFile(serviceAccountPath)

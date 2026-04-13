@@ -53,8 +53,8 @@ services:
     volumes:
       # Fichiers 3D USDZ (lecture seule)
       - ./ArboreBackend/models:/root/models:ro
-      # Thumbnails générés dans un volume dédié, chemin indépendant
-      - thumbnails_data:/root/thumbnails
+      # Thumbnails : bind mount sur le dossier existant de la VM (conserve les anciens thumbnails)
+      - ./ArboreBackend/models/thumbnails:/root/thumbnails
       # Firebase service account JSON (le vrai fichier du projet)
       - ./arbore-firebase-adminsdk.json:/root/firebase-adminsdk.json:ro
     depends_on:
@@ -70,12 +70,6 @@ services:
       - arbore-net
 
 
-# ─────────────────────────────────────────────
-# 📦  Volumes
-# ─────────────────────────────────────────────
-volumes:
-  thumbnails_data:
-    driver: local
 
 # ─────────────────────────────────────────────
 # 🔌  Réseau interne

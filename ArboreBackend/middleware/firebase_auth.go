@@ -37,12 +37,14 @@ func InitFirebase() error {
 		return nil
 	}
 
-	// Check that the file exists and is a regular file (not a directory)
+	// Check that the file exists and is a regular file (not a directory).
+	// nolint:gosec // serviceAccountPath comes from trusted FIREBASE_SERVICE_ACCOUNT_PATH environment variable
 	info, err := os.Stat(serviceAccountPath)
 	if err != nil {
 		if isReleaseMode() {
 			return fmt.Errorf("firebase credentials file unreadable in release mode (%s): %w", serviceAccountPath, err)
 		}
+		// nolint:gosec // serviceAccountPath comes from trusted environment variable
 		log.Printf("⚠️  Fichier Firebase introuvable (%s): %v — auth Firebase désactivée (dev only)", serviceAccountPath, err)
 		return nil
 	}
@@ -50,6 +52,7 @@ func InitFirebase() error {
 		if isReleaseMode() {
 			return fmt.Errorf("FIREBASE_SERVICE_ACCOUNT_PATH points to a directory in release mode: %s", serviceAccountPath)
 		}
+		// nolint:gosec // serviceAccountPath comes from trusted environment variable
 		log.Printf("⚠️  FIREBASE_SERVICE_ACCOUNT_PATH pointe vers un dossier, pas un fichier (%s) — auth Firebase désactivée (dev only)", serviceAccountPath)
 		return nil
 	}
@@ -103,7 +106,7 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 		idToken := parts[1]
 
 		// Si Firebase n'est pas initialisé, fail-closed en prod, fail-open en dev.
-		// En release mode, InitFirebase() aurait dû empêcher le démarrage du backend,
+		// En release mode, InitFirebase() aurait dû empêcher le lancement du backend,
 		// donc atteindre ce point signifie qu'un bug ou une race a laissé firebaseAuth nil
 		// — on refuse la requête au lieu de laisser passer sans authentification.
 		if firebaseAuth == nil {

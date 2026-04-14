@@ -1,4 +1,5 @@
 import SwiftUI
+import FirebaseAuth
 
 struct HomeView: View {
     @State private var gardens: [GardenDTO] = []
@@ -8,7 +9,9 @@ struct HomeView: View {
 
     @State private var gardenToOpen: GardenDTO? = nil
 
-    private let uid = "TEST_UID"
+    // Real Firebase UID — used when starting the garden creation wizard so
+    // the created garden is scoped to the currently signed-in user.
+    private var currentUID: String { Auth.auth().currentUser?.uid ?? "" }
 
     // Fond beige signature de la Home (conservé intentionnellement pour l'identité de page)
     private let homeBackground = Color(UIColor { trait in
@@ -156,7 +159,7 @@ private extension HomeView {
 
             NavigationLink(
                 destination: GardenWizardView(
-                    uid: uid,
+                    uid: currentUID,
                     selectedPlants: [],
                     onFinish: { _ in }
                 ),

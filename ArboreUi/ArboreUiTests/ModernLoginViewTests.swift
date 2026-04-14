@@ -187,7 +187,7 @@ class ModernTextFieldTests: XCTestCase {
         let focusBinding = FocusState<ModernLoginView.Field?>().projectedValue
 
         // Act
-        let textField = ModernTextField(
+        let textField = ArborTextField(
             text: textBinding,
             placeholder: "Test Placeholder",
             systemImage: "envelope.fill",
@@ -206,96 +206,17 @@ class ModernTextFieldTests: XCTestCase {
         XCTAssertEqual(textField.fieldType, .email)
     }
     
-    func testModernTextField_DarkTheme_ShouldReturnCorrectColors() {
-        // Arrange
-        mockThemeManager.colorScheme = .dark
-        let textBinding = Binding.constant("")
-        let focusBinding = FocusState<ModernLoginView.Field?>().projectedValue
-        
-        let textField = ModernTextField(
-            text: textBinding,
-            placeholder: "Test",
-            systemImage: "envelope.fill",
-            keyboardType: .default,
-            isSecure: false,
-            focusedField: focusBinding,
-            fieldType: .email,
-            themeManager: mockThemeManager
-        )
-        
-        // Act & Assert
-        XCTAssertEqual(textField.textColor, Color.white)
-        XCTAssertEqual(textField.fieldBackgroundColor, Color(hex: "#1C1C1E"))
-    }
-    
-    func testModernTextField_LightTheme_ShouldReturnCorrectColors() {
-        // Arrange
-        mockThemeManager.colorScheme = .light
-        let textBinding = Binding.constant("")
-        let focusBinding = FocusState<ModernLoginView.Field?>().projectedValue
-        
-        let textField = ModernTextField(
-            text: textBinding,
-            placeholder: "Test",
-            systemImage: "envelope.fill",
-            keyboardType: .default,
-            isSecure: false,
-            focusedField: focusBinding,
-            fieldType: .email,
-            themeManager: mockThemeManager
-        )
-        
-        // Act & Assert
-        XCTAssertEqual(textField.textColor, Color(hex: "#1C1C1E"))
-        XCTAssertEqual(textField.fieldBackgroundColor, Color.white)
-    }
+    // NOTE: removed testModernTextField_DarkTheme/LightTheme tests — they
+    // tested `textColor` / `fieldBackgroundColor` computed properties that
+    // existed on the old ModernTextField struct but were removed in the
+    // ArborTextField rewrite (those colors are now inlined in the view body
+    // via themeManager, not exposed as public properties).
 }
 
-// MARK: - SocialLoginButton Tests
-
-class SocialLoginButtonTests: XCTestCase {
-    
-    func testSocialLoginButton_Initialization_ShouldSetCorrectProperties() {
-        // Arrange
-        let action = {}
-
-        // Act
-        let button = SocialLoginButton(
-            title: "Test Button",
-            icon: "apple.logo",
-            backgroundColor: .black,
-            foregroundColor: .white,
-            action: action
-        )
-
-        // Assert
-        XCTAssertEqual(button.title, "Test Button")
-        XCTAssertEqual(button.icon, "apple.logo")
-        XCTAssertEqual(button.backgroundColor, .black)
-        XCTAssertEqual(button.foregroundColor, .white)
-        XCTAssertFalse(button.hasBorder)
-    }
-    
-    func testSocialLoginButton_WithBorder_ShouldSetCorrectProperties() {
-        // Arrange
-        let action = {}
-        
-        // Act
-        let button = SocialLoginButton(
-            title: "Test Button",
-            icon: "google",
-            backgroundColor: .white,
-            foregroundColor: .black,
-            hasBorder: true,
-            borderColor: .gray,
-            action: action
-        )
-        
-        // Assert
-        XCTAssertTrue(button.hasBorder)
-        XCTAssertEqual(button.borderColor, .gray)
-    }
-}
+// NOTE: removed SocialLoginButtonTests class — the SocialLoginButton struct
+// was renamed to ArborSocialButton and no longer exposes the stored public
+// properties the old tests asserted on. These were dead-code tests since
+// ModernLoginView itself is not referenced anywhere in the main app.
 
 // MARK: - Authentication Error Handling Tests
 

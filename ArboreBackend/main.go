@@ -598,6 +598,7 @@ func generateAndInsertPlant(ctx context.Context, name string) (Plant, bool, erro
 	if aiGeneratorURL == "" {
 		aiGeneratorURL = "http://localhost:8001"
 	}
+	// nolint:gosec // aiGeneratorURL comes from trusted AI_GENERATOR_URL environment variable
 	resp, err := http.Post(aiGeneratorURL+"/generate", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		log.Println("❌ Erreur appel API IA:", err)
@@ -917,13 +918,20 @@ func uploadPlantThumbnail(c *gin.Context) {
 		thumbnailsDir = "/home/fedora/Arbore/ArboreBackend/models/thumbnails"
 	}
 
-	if err := os.MkdirAll(thumbnailsDir, 0o755); err != nil {
+	// nolint:gosec // thumbnailsDir comes from trusted THUMBNAILS_DIR environment variable
+	if err := os.MkdirAll(thumbnailsDir, 0o750); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot create thumbnails directory"})
 		return
 	}
 
+	// Sanitize plantID to prevent path traversal
+	if strings.Contains(plantID, "..") || strings.ContainsAny(plantID, "/\\") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid plantID"})
+		return
+	}
 	targetPath := filepath.Join(thumbnailsDir, plantID+".png")
-	if err := os.WriteFile(targetPath, imageBytes, 0o644); err != nil {
+	// nolint:gosec // plantID is sanitized above, thumbnailsDir is from trusted env
+	if err := os.WriteFile(targetPath, imageBytes, 0o600); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save thumbnail"})
 		return
 	}
@@ -1106,6 +1114,7 @@ func deleteGarden(c *gin.Context) {
 // ---------- LOAD ENV ----------
 
 func loadDotEnv(path string) {
+	// nolint:gosec // path is a hard-coded constant from main(), not user input
 	data, err := os.ReadFile(path)
 	if err != nil {
 		log.Printf("ℹ️ .env not loaded (%s): %v", path, err)
@@ -1215,6 +1224,7 @@ func main() {
 
 		fmt.Println("📂 Looking for:", filePath)
 
+		// nolint:gosec // filename is sanitized above (no .. no / and must end with .png)
 		info, err := os.Stat(filePath)
 		if err != nil {
 			fmt.Println("❌ stat error:", err)

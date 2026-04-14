@@ -320,7 +320,31 @@ struct CloseAccountView: View {
 
         defaults.synchronize()
 
+        // Remove AR scene files from Documents/ so the "Jardin" tab
+        // (ManageGardenView → GardenLocalStorageService) no longer lists
+        // orphan scenes from the deleted account.
+        cleanLocalSceneFiles()
+
         print("✅ Local data cleaned")
+    }
+
+    private func cleanLocalSceneFiles() {
+        let fm = FileManager.default
+        guard let documentsURL = fm.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+
+        do {
+            let fileURLs = try fm.contentsOfDirectory(at: documentsURL, includingPropertiesForKeys: nil)
+            var removed = 0
+            for url in fileURLs where url.lastPathComponent.hasPrefix("scene_") {
+                try? fm.removeItem(at: url)
+                removed += 1
+            }
+            print("🧹 Removed \(removed) local scene file(s)")
+        } catch {
+            print("⚠️ Failed to scan documents directory for scene files: \(error)")
+        }
     }
 }
 

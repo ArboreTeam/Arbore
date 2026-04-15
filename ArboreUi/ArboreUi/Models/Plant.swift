@@ -11,10 +11,11 @@ struct Plant: Identifiable, Codable {
     let description: String
     let modelURL: String?
     let translations: [String: PlantTranslation]   // fr / en / es / de
+    let generated: Bool?   // true = modèle 3D généré par IA (Meshy), nil/false = legacy
 
     enum CodingKeys: String, CodingKey {
         case id
-        case name, type, imageURLs, description, modelURL, translations
+        case name, type, imageURLs, description, modelURL, translations, generated
     }
 
     // Décode avec fallback safe
@@ -37,6 +38,8 @@ struct Plant: Identifiable, Codable {
 
         self.translations = try container.decodeIfPresent([String: PlantTranslation].self, forKey: .translations)
             ?? [:]
+
+        self.generated = try container.decodeIfPresent(Bool.self, forKey: .generated)
     }
 
     // ✅ Helper pour reconstruire une plante minimale au moment du restore

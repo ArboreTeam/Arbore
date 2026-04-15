@@ -62,9 +62,33 @@ struct PlantCard: View {
         .frame(height: cardHeight)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 4)
+        .overlay(alignment: .topTrailing) {
+            if plant.generated == true {
+                betaBadge
+                    .padding(10)
+            }
+        }
         .task(id: plant.id) {
             await loadRemoteThumbnailIfNeeded()
         }
+    }
+
+    private var betaBadge: some View {
+        Text("BETA")
+            .font(.system(size: 10, weight: .semibold, design: .rounded))
+            .tracking(0.8)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.white.opacity(0.35), lineWidth: 0.5)
+                    )
+            )
+            .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
     }
 
     private func loadRemoteThumbnailIfNeeded() async {

@@ -1,12 +1,40 @@
-# Plant3DGenerator input
-# Format: Common Name | Latin Name | optional style hint
+# Plant3DGenerator input — 30 decorative plants for the Arbore catalogue
+# Format: Common Name | Latin Name | optional style hint (English, meshy-friendly)
 # Lines starting with # are ignored.
 #
-# By default the script processes ONLY THE FIRST valid line (safe for testing).
-# Pass --all to process every line.
-#
-# Start with Sansevière — simple geometry, already exists in DB without a model.
+# Default behavior:
+#   - Single-plant CLI test:  python generate.py             (first line only)
+#   - Full batch CLI:         python generate.py --all
+#   - Web UI batch:           click "Generate All" in the browser at server.py
+# Already-generated plants (matching {Latin_Name}.usdz in output/) are skipped.
 
 Sansevière | Sansevieria trifasciata | tall upright sword-shaped leaves dark green with yellow margins, in a small modern ceramic pot
-Lavande | Lavandula angustifolia | purple flower spikes on silver-grey foliage, in a terracotta pot
-Fétuque bleue | Festuca glauca | round blue-silver ornamental grass clump, in a low ceramic pot
+Fétuque bleue | Festuca glauca | round blue-silver ornamental grass clump in a low ceramic pot
+Agave | Agave americana | sculptural rosette of thick grey-blue spiked leaves in a stone pot
+Phormium | Phormium tenax | tall sword-like bronze upright leaves in a tall ceramic pot
+Buis en boule | Buxus sempervirens | dense spherical topiary green foliage in a terracotta pot
+Hortensia | Hydrangea macrophylla | round clusters of blue and pink mophead flowers with broad green leaves in a ceramic pot
+Dahlia | Dahlia hortensis | bright red dahlia pompom flower with dark green foliage in a clay pot
+Géranium | Pelargonium hortorum | compact mound of round green leaves with bright red flower clusters in a ceramic pot
+Anthurium | Anthurium andraeanum | glossy red heart-shaped spathes with dark green oval leaves in a white pot
+Rose trémière | Alcea rosea | tall vertical hollyhock stem with stacked pink flowers in a wide terracotta pot
+Miscanthus | Miscanthus sinensis | tall ornamental grass with silver feathery plumes in a wide stone pot
+Échinacée | Echinacea purpurea | purple coneflowers with prominent orange cone centers in a terracotta pot
+Gaura | Gaura lindheimeri | airy thin stems with small white and pink butterfly-like flowers in a clay pot
+Sauge ornementale | Salvia nemorosa | upright violet-blue flower spikes with green leaves in a ceramic pot
+Achillée millefeuille | Achillea millefolium | flat yellow umbrella-shaped flower clusters with feathery foliage in a low pot
+Érable du Japon | Acer palmatum | small Japanese maple bonsai with delicate red palmate leaves in a shallow bonsai pot
+Bambou Fargesia | Fargesia murielae | clumping bamboo with thin green canes and dense foliage in a tall ceramic pot
+Nandina | Nandina domestica | upright stems with red and green compound leaves and red berry clusters in a ceramic pot
+Azalée japonaise | Rhododendron obtusum | round compact azalea shrub with bright pink flowers in a clay pot
+Ophiopogon noir | Ophiopogon planiscapus | low tuft of black grass-like foliage in a shallow ceramic pot
+Lavande | Lavandula angustifolia | purple flower spikes above silver-grey foliage in a terracotta pot
+Olivier nain | Olea europaea | small olive tree with twisted woody trunk and silver-green leaves in a terracotta pot
+Bougainvillier | Bougainvillea glabra | bright magenta bougainvillea bracts cascading from a clay pot
+Cyprès de Provence | Cupressus sempervirens | tall narrow dark green cypress column in a stone pot
+Stipa | Stipa tenuissima | flowing golden fine ornamental grass tuft in a low ceramic pot
+Monstera | Monstera deliciosa | large tropical leaves with deep splits and holes in a white ceramic pot
+Ficus lyre | Ficus lyrata | tall plant with large violin-shaped glossy green leaves in a tall white pot
+Pothos | Epipremnum aureum | trailing variegated green and yellow heart-shaped leaves in a hanging clay pot
+Fougère de Boston | Nephrolepis exaltata | arching bright green fern fronds in a hanging ceramic pot
+Hosta | Hosta plantaginea | wide rosette of large variegated green and white leaves in a ceramic pot

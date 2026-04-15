@@ -24,6 +24,29 @@ async function loadInput() {
 
 document.getElementById("reload-input").addEventListener("click", loadInput);
 
+document.getElementById("generate-all").addEventListener("click", async () => {
+  const btn = document.getElementById("generate-all");
+  btn.disabled = true;
+  btn.textContent = "⏳ Queuing...";
+  try {
+    const res = await fetch("/api/generate-all", { method: "POST" });
+    if (!res.ok) {
+      alert("Generate All failed: " + (await res.text()));
+      return;
+    }
+    const data = await res.json();
+    btn.textContent = `✓ ${data.enqueued} queued, ${data.skipped_done} skipped`;
+    setTimeout(() => {
+      btn.textContent = "▶ Generate All";
+      btn.disabled = false;
+    }, 4000);
+  } catch (e) {
+    alert("Network error: " + e);
+    btn.textContent = "▶ Generate All";
+    btn.disabled = false;
+  }
+});
+
 async function startJob(plant, previewOnly) {
   const res = await fetch("/api/generate", {
     method: "POST",

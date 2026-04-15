@@ -82,13 +82,13 @@ struct PlantCard: View {
             .padding(.vertical, 4)
             .background(
                 Capsule()
-                    .fill(.ultraThinMaterial)
+                    .fill(themeManager.brandPrimary)
                     .overlay(
                         Capsule()
-                            .strokeBorder(Color.white.opacity(0.35), lineWidth: 0.5)
+                            .strokeBorder(Color.white.opacity(0.45), lineWidth: 0.5)
                     )
             )
-            .shadow(color: .black.opacity(0.2), radius: 2, x: 0, y: 1)
+            .shadow(color: .black.opacity(0.25), radius: 2, x: 0, y: 1)
     }
 
     private func loadRemoteThumbnailIfNeeded() async {

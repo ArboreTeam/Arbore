@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 from meshy_client import MeshyClient
+from usdz_patch import patch_usdz_subdivision
 
 
 @dataclass
@@ -165,6 +166,10 @@ class PipelineRunner:
             if urls.get("usdz"):
                 out = self.output_dir / f"{job.job_id}.usdz"
                 self.client.download(urls["usdz"], out)
+                # Inject subdivisionScheme=none so iOS RealityKit/ARView doesn't
+                # apply Catmull-Clark subdivision to the triangle mesh and
+                # break the geometry. See usdz_patch.py for the full rationale.
+                patch_usdz_subdivision(out)
                 s.usdz_file = out.name
                 job.final_usdz = out.name
             s.status = "done"

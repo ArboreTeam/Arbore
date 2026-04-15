@@ -1,0 +1,12 @@
+# Plant3DGenerator input
+# Format: Common Name | Latin Name | optional style hint
+# Lines starting with # are ignored.
+#
+# By default the script processes ONLY THE FIRST valid line (safe for testing).
+# Pass --all to process every line.
+#
+# Start with Sansevière — simple geometry, already exists in DB without a model.
+
+Sansevière | Sansevieria trifasciata | tall upright sword-shaped leaves dark green with yellow margins, in a small modern ceramic pot
+Lavande | Lavandula angustifolia | purple flower spikes on silver-grey foliage, in a terracotta pot
+Fétuque bleue | Festuca glauca | round blue-silver ornamental grass clump, in a low ceramic pot

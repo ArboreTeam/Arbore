@@ -289,10 +289,39 @@ struct ARViewContainer: UIViewRepresentable {
             }
         }
 
+        // Sanitizes meshy-generated USDZ materials for ARView rendering.
+        // Two fixes applied to every PhysicallyBasedMaterial in the hierarchy:
+        // 1. faceCulling = .none — guards against inverted normals
+        // 2. blending = .opaque — forces opaque rendering, prevents "cut
+        //    polygon" holes caused by stray alpha values in the base color
+        //    that iOS ARView interprets as transparent (Quick Look / Xcode
+        //    preview render the same file fine).
+        // Cost is negligible for our scene size (~10k tris per plant).
+        static func sanitizeMaterials(_ entity: Entity) {
+            if var model = entity.components[ModelComponent.self] {
+                model.materials = model.materials.map { material -> RealityKit.Material in
+                    if var pbr = material as? PhysicallyBasedMaterial {
+                        pbr.faceCulling = .none
+                        pbr.blending = .opaque
+                        return pbr
+                    }
+                    return material
+                }
+                entity.components.set(model)
+            }
+            for child in entity.children {
+                sanitizeMaterials(child)
+            }
+        }
+
         // MARK: - Ajout du modèle 3D (anchor avec transform complet)
         func addPlant(with worldTransform: simd_float4x4, in arView: ARView) {
             do {
                 let modelEntity = try ModelEntity.load(contentsOf: parent.modelURL)
+
+                // Patch meshy-generated material quirks (back-face culling +
+                // alpha blending) before adding to the AR scene.
+                Self.sanitizeMaterials(modelEntity)
 
                 let bounds = modelEntity.visualBounds(relativeTo: nil)
                 let height = max(bounds.extents.y, 0.0001)

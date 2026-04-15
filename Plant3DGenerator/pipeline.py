@@ -69,6 +69,74 @@ def build_texture_prompt(latin: str, hint: str) -> str:
     return ", ".join(parts)
 
 
+def scan_existing_jobs(output_dir: Path, known_plants: list[dict]) -> list[Job]:
+    """Rebuild Job objects from files already present in the output directory.
+
+    Used at server startup to pre-populate the UI with previously generated
+    plants. Cross-references with the parsed input.txt (when provided) so the
+    common name and hint are restored; falls back to the latin name extracted
+    from the filename otherwise.
+    """
+    by_id = {safe_filename(p["latin"]): p for p in known_plants}
+    jobs: list[Job] = []
+    seen: set[str] = set()
+
+    def reconstruct(job_id: str) -> Job:
+        meta = by_id.get(job_id)
+        if meta:
+            return make_job(meta["common"], meta["latin"], meta.get("hint", ""))
+        # Fallback: filename "Sansevieria_Trifasciata" → latin "sansevieria trifasciata"
+        latin = " ".join(part.lower() for part in job_id.split("_") if part)
+        return make_job(common=latin.title(), latin=latin, hint="")
+
+    # Full-flow results: identified by the presence of {job_id}.usdz
+    for usdz_path in sorted(output_dir.glob("*.usdz")):
+        job_id = usdz_path.stem
+        if job_id in seen:
+            continue
+        seen.add(job_id)
+
+        job = reconstruct(job_id)
+        job.job_id = job_id
+
+        preview_glb = output_dir / f"{job_id}_preview.glb"
+        final_glb = output_dir / f"{job_id}.glb"
+
+        job.stages["preview"].status = "done"
+        job.stages["preview"].progress = 100
+        if preview_glb.exists():
+            job.stages["preview"].glb_file = preview_glb.name
+
+        job.stages["refine"].status = "done"
+        job.stages["refine"].progress = 100
+        if final_glb.exists():
+            job.stages["refine"].glb_file = final_glb.name
+            job.final_glb = final_glb.name
+        job.stages["refine"].usdz_file = usdz_path.name
+        job.final_usdz = usdz_path.name
+
+        jobs.append(job)
+
+    # Preview-only results: {job_id}_preview.glb without a matching usdz
+    for preview_path in sorted(output_dir.glob("*_preview.glb")):
+        stem = preview_path.stem
+        if not stem.endswith("_preview"):
+            continue
+        job_id = stem[: -len("_preview")]
+        if job_id in seen:
+            continue
+        seen.add(job_id)
+
+        job = reconstruct(job_id)
+        job.job_id = job_id
+        job.stages["preview"].status = "done"
+        job.stages["preview"].progress = 100
+        job.stages["preview"].glb_file = preview_path.name
+        jobs.append(job)
+
+    return jobs
+
+
 def make_job(common: str, latin: str, hint: str = "") -> Job:
     # Mirror the Meshy website's "Texture" button behavior: it auto-fills the
     # texture prompt with the original preview prompt. We do the same by

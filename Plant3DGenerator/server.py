@@ -6,6 +6,7 @@ import json
 import os
 import threading
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -19,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from meshy_client import MeshyClient
-from pipeline import Job, PipelineRunner, make_job
+from pipeline import Job, PipelineRunner, make_job, scan_existing_jobs
 
 ROOT = Path(__file__).parent
 OUTPUT_DIR = ROOT / "output"
@@ -32,6 +33,11 @@ if not API_KEY:
     raise SystemExit("❌ MESHY_API_KEY not set — copy .env.example to .env and fill it in")
 
 _client = MeshyClient(API_KEY)
+
+# Cap concurrent meshy pipelines to stay safely under the Pro tier's 10
+# concurrent queue tasks limit. Each running job has at most 1 active meshy
+# task (preview xor refine) at any time, so 5 workers ≤ 5 concurrent tasks.
+_executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="plant3d")
 
 _jobs: dict[str, Job] = {}
 _subscribers: list[asyncio.Queue] = []
@@ -74,6 +80,14 @@ _runner = PipelineRunner(_client, OUTPUT_DIR, on_event=_emit)
 async def lifespan(_app: FastAPI):
     global _loop
     _loop = asyncio.get_running_loop()
+
+    existing = scan_existing_jobs(OUTPUT_DIR, _read_input_plants())
+    with _lock:
+        for job in existing:
+            _jobs[job.job_id] = job
+    if existing:
+        print(f"📦 Loaded {len(existing)} existing job(s) from output/")
+
     try:
         yield
     finally:
@@ -101,9 +115,8 @@ def get_state():
         return JSONResponse([_job_to_dict(j) for j in _jobs.values()])
 
 
-@app.get("/api/input")
-def get_input():
-    plants = []
+def _read_input_plants() -> list[dict]:
+    plants: list[dict] = []
     path = ROOT / "input.txt"
     if not path.exists():
         return plants
@@ -123,6 +136,15 @@ def get_input():
     return plants
 
 
+@app.get("/api/input")
+def get_input():
+    return _read_input_plants()
+
+
+def _enqueue_job(job: Job, preview_only: bool) -> None:
+    _executor.submit(_runner.run, job, preview_only=preview_only)
+
+
 @app.post("/api/generate")
 def start_job(req: StartJobReq):
     job = make_job(req.common, req.latin, req.hint)
@@ -132,11 +154,47 @@ def start_job(req: StartJobReq):
             raise HTTPException(409, "already running")
         _jobs[job.job_id] = job
     _emit(job)
-    threading.Thread(
-        target=_runner.run, args=(job,),
-        kwargs={"preview_only": req.preview_only}, daemon=True,
-    ).start()
+    _enqueue_job(job, req.preview_only)
     return {"job_id": job.job_id}
+
+
+@app.post("/api/generate-all")
+def start_batch():
+    """Queue every plant from input.txt that doesn't already have a USDZ in
+    output/. Returns the count enqueued and skipped. Submissions are throttled
+    by the executor's 5-worker cap so we never exceed the meshy concurrent
+    task limit."""
+    plants = _read_input_plants()
+    enqueued: list[str] = []
+    skipped_done: list[str] = []
+    skipped_running: list[str] = []
+
+    with _lock:
+        for p in plants:
+            job = make_job(p["common"], p["latin"], p.get("hint", ""))
+            existing_usdz = OUTPUT_DIR / f"{job.job_id}.usdz"
+            if existing_usdz.exists():
+                skipped_done.append(job.job_id)
+                continue
+            existing_job = _jobs.get(job.job_id)
+            if existing_job and existing_job.stages["preview"].status == "running":
+                skipped_running.append(job.job_id)
+                continue
+            _jobs[job.job_id] = job
+            enqueued.append(job.job_id)
+
+    # Emit + submit outside the lock to avoid holding it during I/O
+    for job_id in enqueued:
+        job = _jobs[job_id]
+        _emit(job)
+        _enqueue_job(job, preview_only=False)
+
+    return {
+        "enqueued": len(enqueued),
+        "skipped_done": len(skipped_done),
+        "skipped_running": len(skipped_running),
+        "total": len(plants),
+    }
 
 
 @app.get("/api/stream")

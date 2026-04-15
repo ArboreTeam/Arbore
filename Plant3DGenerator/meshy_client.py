@@ -9,6 +9,32 @@ import requests
 
 BASE_URL = "https://api.meshy.ai/openapi/v2/text-to-3d"
 
+# Meshy Pro-tier rate limits (per docs):
+#   - 20 requests/second
+#   - 10 concurrent queue tasks
+# 429 is returned as RateLimitExceeded (req/s) or NoMoreConcurrentTasks (queue).
+_MAX_RETRIES = 6
+_BASE_BACKOFF = 4.0  # seconds; doubles on each retry
+
+
+def _request_with_retry(method: str, url: str, *, session: requests.Session,
+                        **kwargs) -> requests.Response:
+    """Wrap a request with exponential backoff on 429 and transient 5xx."""
+    for attempt in range(_MAX_RETRIES):
+        resp = session.request(method, url, **kwargs)
+        if resp.status_code == 429 or 500 <= resp.status_code < 600:
+            retry_after = resp.headers.get("Retry-After")
+            if retry_after and retry_after.isdigit():
+                wait = float(retry_after)
+            else:
+                wait = _BASE_BACKOFF * (2 ** attempt)
+            print(f"⏳ meshy {resp.status_code} on {method} {url.split('/')[-1]}, "
+                  f"retry {attempt + 1}/{_MAX_RETRIES} in {wait:.0f}s")
+            time.sleep(wait)
+            continue
+        return resp
+    return resp  # last response (failure)
+
 
 class MeshyClient:
     def __init__(self, api_key: str):
@@ -28,7 +54,8 @@ class MeshyClient:
             "model_type": "lowpoly" if lowpoly else "standard",
             "target_formats": formats or ["glb", "usdz"],
         }
-        r = self.session.post(BASE_URL, json=payload, timeout=30)
+        r = _request_with_retry("POST", BASE_URL, session=self.session,
+                                json=payload, timeout=30)
         r.raise_for_status()
         return r.json()["result"]
 
@@ -44,12 +71,14 @@ class MeshyClient:
         }
         if texture_prompt:
             payload["texture_prompt"] = texture_prompt
-        r = self.session.post(BASE_URL, json=payload, timeout=30)
+        r = _request_with_retry("POST", BASE_URL, session=self.session,
+                                json=payload, timeout=30)
         r.raise_for_status()
         return r.json()["result"]
 
     def get_task(self, task_id: str) -> dict:
-        r = self.session.get(f"{BASE_URL}/{task_id}", timeout=30)
+        r = _request_with_retry("GET", f"{BASE_URL}/{task_id}",
+                                session=self.session, timeout=30)
         r.raise_for_status()
         return r.json()
 

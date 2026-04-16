@@ -141,6 +141,18 @@ extension Plant {
         return try await ModelCacheManager.shared.getModelURL(for: modelURL, forceDownload: forceDownload)
     }
 
+    /// Synchronous bundle-only lookup (non-deprecated replacement for localModelURL).
+    var bundleModelURL: URL? {
+        guard let modelURL, !modelURL.isEmpty else { return nil }
+
+        let file = modelURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ext  = (file as NSString).pathExtension
+        let name = (file as NSString).deletingPathExtension
+        let finalExt = ext.isEmpty ? "usdz" : ext
+
+        return Bundle.main.url(forResource: name, withExtension: finalExt)
+    }
+
     /// URL locale du modèle (ancienne version synchrone - deprecated)
     /// Fallback vers le bundle iOS pour compatibilité
     @available(*, deprecated, message: "Use getModelURL() async instead")

@@ -270,7 +270,7 @@ struct ARViewWrapper: View {
             .frame(maxWidth: .infinity)
         }
         // Gestion de l'affichage de la photo prise
-        .onChange(of: isImageReady) { ready in
+        .onChange(of: isImageReady) { _, ready in
             if ready {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { showShareSheet = true }
             }
@@ -420,7 +420,7 @@ struct ARPage: View {
 
     @ViewBuilder
     private func destinationView() -> some View {
-        if let url = plant.localModelURL {
+        if let url = plant.bundleModelURL {
             ARViewWrapper(modelURL: url)
         } else if let url = findModelURL() {
             ARViewWrapper(modelURL: url)

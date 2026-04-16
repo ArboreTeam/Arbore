@@ -52,7 +52,24 @@ final class PlantThumbnailRenderer {
                 // --- 1) Plant at NATIVE scale (same as AR placement).
                 // No manual scaling — USDZ meters are real meters, and the
                 // camera auto-frames the plant below.
-                model.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
+                //
+                // Some legacy USDZs come from Blender with upAxis = "Z" and
+                // the root Xform rotations don't reach RealityKit's Y-up
+                // convention, leaving the plant lying on its side pointing
+                // along the depth axis. Manually rotate those to stand up.
+                let normalizedKey = normalizeModelKey(modelKey)
+                let zUpPlants: Set<String> = [
+                    "alocasia_polly",
+                    "philodendron_birkin_variegata"
+                ]
+                if zUpPlants.contains(normalizedKey) {
+                    // Z-up → Y-up: pitch forward -90° around X. The plant
+                    // happens to face +Z after this, so no extra Y-flip.
+                    model.orientation = simd_quatf(angle: -.pi / 2, axis: [1, 0, 0])
+                } else {
+                    // Y-up plant: just flip 180° around Y so it faces the camera.
+                    model.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
+                }
 
                 // Bottom-align: plant sits on the floor at y=0, centered x/z.
                 var b = model.visualBounds(relativeTo: nil)

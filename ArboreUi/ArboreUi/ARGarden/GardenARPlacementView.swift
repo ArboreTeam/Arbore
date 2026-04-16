@@ -349,6 +349,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             private var redoStack: [[PersistedPlant]] = []
             // Cached on main thread to avoid UIKit access from SceneKit render queue
             private var cachedViewCenter: CGPoint = .zero
+            // Tracks upAxis per planted plant ID for capture/restore
+            private var plantUpAxisMap: [String: String] = [:]
 
             init(_ parent: GardenARPlacementContainerView) { self.parentProps = parent }
 
@@ -417,14 +419,16 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         return (rawURLString as NSString).lastPathComponent
                     }()
 
+                    let plantId = parts[safe: 1] ?? "unknown"
                     return PersistedPlant(
-                        plantID: parts[safe: 1] ?? "unknown",
+                        plantID: plantId,
                         plantName: parts[safe: 2] ?? "Plante",
                         modelURLString: modelFileName,
                         position: [node.position.x, node.position.y, node.position.z],
                         rotation: [node.eulerAngles.x, node.eulerAngles.y, node.eulerAngles.z],
                         scale: [node.scale.x, node.scale.y, node.scale.z],
-                        transform: matrixToFloatArray(node.simdTransform)
+                        transform: matrixToFloatArray(node.simdTransform),
+                        upAxis: plantUpAxisMap[plantId]
                     )
                 }
             }
@@ -583,7 +587,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                 ],
                                 rotation: plant.rotation,
                                 scale: plant.scale,
-                                transform: plant.transform
+                                transform: plant.transform,
+                                upAxis: plant.upAxis
                             )
                         }
                         
@@ -695,13 +700,13 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                 do {
                                     let remoteURL = try await ModelCacheManager.shared.getModelURL(for: p.modelURLString, forceDownload: false)
                                     await MainActor.run {
-                                        self.placeObject(at: transform, modelURL: remoteURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString)
+                                        self.placeObject(at: transform, modelURL: remoteURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString, upAxis: p.upAxis)
                                     }
                                 } catch {
                                     print("⚠️ Impossible de télécharger le modèle \(p.modelURLString): \(error)")
                                     if let fallbackURL = self.resolveLocalModelURL(p.modelURLString) {
                                         await MainActor.run {
-                                            self.placeObject(at: transform, modelURL: fallbackURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString)
+                                            self.placeObject(at: transform, modelURL: fallbackURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString, upAxis: p.upAxis)
                                         }
                                     } else {
                                         print("❌ Impossible de résoudre le modèle : \(p.modelURLString)")
@@ -823,7 +828,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
 
                 saveStateForUndo()
-                placeObject(at: transform, modelURL: url, id: plant.id, name: plant.name, modelURLString: plant.modelURL)
+                if let axis = plant.upAxis { plantUpAxisMap[plant.id] = axis }
+                placeObject(at: transform, modelURL: url, id: plant.id, name: plant.name, modelURLString: plant.modelURL, upAxis: plant.upAxis)
             }
 
             @objc func handleLongPressToSelect(_ gesture: UILongPressGestureRecognizer) {
@@ -846,25 +852,33 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
             }
 
-            func placeObject(at transform: simd_float4x4, modelURL: URL, id: String, name: String, finalScale: SCNVector3? = nil, modelURLString: String? = nil, allowRetry: Bool = true) {
+            func placeObject(at transform: simd_float4x4, modelURL: URL, id: String, name: String, finalScale: SCNVector3? = nil, modelURLString: String? = nil, allowRetry: Bool = true, upAxis: String? = nil) {
                 guard let arView = arView else { return }
-                
+
                 if modelURL.isFileURL && !FileManager.default.fileExists(atPath: modelURL.path) {
                     print("❌ Fichier introuvable : \(modelURL.path)")
                     return
                 }
-                
+
                 do {
                     let scene = try SCNScene(url: modelURL, options: nil)
 
                     let container = SCNNode()
                     let encodedURL = modelURL.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "default"
-                    
+
                     // UUID unique pour éviter les conflits dans la Map
                     let uniqueID = UUID().uuidString
                     container.name = "plant_\(id)_\(name)_\(encodedURL)_\(uniqueID)"
 
-                    for child in scene.rootNode.childNodes { container.addChildNode(child) }
+                    // Wrapper node: handles Z-up → Y-up rotation for Blender
+                    // exports without interfering with the AR placement transform
+                    let wrapper = SCNNode()
+                    for child in scene.rootNode.childNodes { wrapper.addChildNode(child) }
+                    let effectiveAxis = upAxis ?? plantUpAxisMap[id]
+                    if effectiveAxis?.uppercased() == "Z" {
+                        wrapper.eulerAngles.x = -.pi / 2
+                    }
+                    container.addChildNode(wrapper)
                     stripPotIfNeeded(from: container)
                     container.simdTransform = transform
 

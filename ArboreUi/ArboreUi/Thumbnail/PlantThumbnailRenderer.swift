@@ -10,21 +10,12 @@ final class PlantThumbnailRenderer {
     private var floorTexture: TextureResource?
     private var wallTexture: TextureResource?
 
-    // Fallback for plants not hand-tuned below. Normalizes on the plant's
-    // horizontal footprint (max of X and Z) so every plant occupies the
-    // same width in the thumbnail frame — tall narrow plants get taller,
-    // wide short plants stay wide, and all look "equally big" at a glance.
-    private let defaultTargetHorizontal: Float = 0.028
-
-    // Height in scene units per plant, hand-tuned. Normalized on Y only.
-    private let perModelTargetHeight: [String: Float] = [
-        "pothos": 0.01,
-        "monstera_deliciosa": 0.016,
-        "cactus": 0.016,
-        "dyspis_lutescens": 0.016,
-        "livistona_chinensis": 0.016,
-        "pilea": 0.01
-    ]
+    // Auto-frame camera parameters. The plant is kept at its native USDZ
+    // scale (real-world meters, just like AR placement) and the camera
+    // moves per-plant to frame it. This makes thumbnails proportional to
+    // the plant's actual size without per-plant hand-tuning.
+    private let cameraFOVDegrees: Float = 60
+    private let fillFactor: Float = 0.65
 
     init() {
         self.arView = ThumbnailRenderHost.shared.arView
@@ -56,47 +47,39 @@ final class PlantThumbnailRenderer {
 
                 let model = try await ModelEntity(contentsOf: usdzURL)
 
-                // ✅ Nom du modèle basé sur le nom de fichier (sans extension)
                 let modelKey = usdzURL.deletingPathExtension().lastPathComponent
 
-                // --- 1) NORMALISATION + CALIBRATION PAR MODELE
-                let normalizedModelKey = normalizeModelKey(modelKey)
+                // --- 1) Plant at NATIVE scale (same as AR placement).
+                // No manual scaling — USDZ meters are real meters, and the
+                // camera auto-frames the plant below.
+                model.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
+
+                // Bottom-align: plant sits on the floor at y=0, centered x/z.
                 var b = model.visualBounds(relativeTo: nil)
-
-                let s: Float
-                if let tunedHeight = perModelTargetHeight[normalizedModelKey] {
-                    // Legacy hand-tuned: scale on Y (height) only
-                    s = tunedHeight / max(b.extents.y, 0.0001)
-                } else {
-                    // Unknown / Meshy: scale on the horizontal footprint
-                    // (max of X and Z) so tall narrow plants (Sansevieria)
-                    // don't look half the width of wide plants (Monstera).
-                    // All plants end up with the same apparent width in the
-                    // frame; height varies naturally with plant proportions.
-                    let currentHoriz = max(b.extents.x, b.extents.z)
-                    s = defaultTargetHorizontal / max(currentHoriz, 0.0001)
-                }
-                model.scale = SIMD3(repeating: s)
-
-                b = model.visualBounds(relativeTo: nil)
                 model.position.y = -b.min.y
                 b = model.visualBounds(relativeTo: nil)
-
                 let center = b.center
                 model.position.x -= center.x
                 model.position.z -= center.z
 
-                model.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
+                // Final bounds after positioning.
+                b = model.visualBounds(relativeTo: nil)
+                let plantH = max(b.extents.y, 0.001)
+                let plantW = max(b.extents.x, 0.001)
+                let plantD = max(b.extents.z, 0.001)
+                let plantMaxHoriz = max(plantW, plantD)
 
-                // Debug calibration key/size
-                print("🌿 Thumbnail modelKey:", modelKey, "| normalized:", normalizedModelKey, "| scale:", s)
+                print("🌿 Thumbnail", modelKey, "native H=", plantH, "W=", plantW, "D=", plantD)
 
-                // --- 2) Studio: sol + mur (textures + tiling)
+                // --- 2) Studio: floor + wall scaled to plant size.
+                // Floor extends ~4× the plant's footprint so there's ground
+                // visible beside the plant at the camera angle.
+                let floorExtent = max(plantMaxHoriz * 4, 1.0)
                 let floorMesh = Self.makeTiledPlane(
-                    width: 3.0,
-                    depth: 3.0,
-                    uScale: 3.0,
-                    vScale: 3.0
+                    width: floorExtent,
+                    depth: floorExtent,
+                    uScale: floorExtent,
+                    vScale: floorExtent
                 )
                 let floor = ModelEntity(mesh: floorMesh)
 
@@ -111,15 +94,18 @@ final class PlantThumbnailRenderer {
                 floor.model?.materials = [floorMat]
                 floor.position = [0, -0.001, 0]
 
+                // Wall covers ~3× plant width and ~2.5× plant height, placed
+                // behind the plant along -Z.
+                let wallWidth = max(plantW * 3, plantH * 2)
+                let wallHeight = plantH * 2.5
                 let wallMesh = Self.makeTiledPlane(
-                    width: 3.6,
-                    depth: 3.6,
-                    uScale: 2.0,
-                    vScale: 2.0
+                    width: wallWidth,
+                    depth: wallHeight,
+                    uScale: wallWidth / 1.8,
+                    vScale: wallHeight / 1.8
                 )
                 let backdrop = ModelEntity(mesh: wallMesh)
 
-                // ✅ Mur unlit un peu moins blanc + texture si dispo
                 var wallMat = UnlitMaterial(color: .white)
                 if let wallTexture {
                     wallMat.color = .init(
@@ -130,7 +116,7 @@ final class PlantThumbnailRenderer {
                     wallMat.color = .init(tint: UIColor(white: 0.92, alpha: 1.0))
                 }
                 backdrop.model?.materials = [wallMat]
-                backdrop.position = [0, 1.1, -1.3]
+                backdrop.position = [0, plantH / 2, -plantD * 1.5 - 0.1]
                 backdrop.orientation = simd_quatf(angle: .pi/2, axis: [1, 0, 0])
 
                 // --- 3) Lumières (✅ clés baissées)
@@ -145,22 +131,40 @@ final class PlantThumbnailRenderer {
                     simd_quatf(angle: -.pi/3, axis: [1, 0, 0]) *
                     simd_quatf(angle: .pi/6, axis: [0, 1, 0])
 
-                // ✅ Fill/Rim plus faibles pour éviter le “flashy”
+                // ✅ Fill/Rim positionnés relativement à la taille de la plante
+                // (inverse-square: intensity scales with distance²)
+                let lightOffset = max(plantMaxHoriz, plantH) * 1.2
+                let lightIntensity: Float = 200 * (lightOffset * lightOffset) / (1.0 * 1.0)
+
                 let fill = PointLight()
-                fill.light.intensity = 200
+                fill.light.intensity = lightIntensity
                 fill.light.color = UIColor(white: 0.92, alpha: 1.0)
-                fill.position = [0.6, 1.2, 1.0]
+                fill.position = [lightOffset, plantH * 0.9, lightOffset]
 
                 let rim = PointLight()
-                rim.light.intensity = 200
+                rim.light.intensity = lightIntensity
                 rim.light.color = UIColor(white: 0.92, alpha: 1.0)
-                rim.position = [-0.7, 1.1, -1.0]
+                rim.position = [-lightOffset, plantH * 0.8, -lightOffset]
 
-                // --- 4) Caméra (inchangée)
+                // --- 4) Caméra auto-framing
+                // Place camera at a distance such that the plant's vertical
+                // extent (or horizontal extent, whichever is bigger in frame
+                // given the viewport aspect ratio) fills `fillFactor` of the
+                // camera's FOV. Camera looks at plant's vertical center.
                 let camera = PerspectiveCamera()
-                camera.position = [0, 0.8, 2.05]
+                camera.camera.fieldOfViewInDegrees = cameraFOVDegrees
+
+                let halfFovTan = tan((cameraFOVDegrees / 2) * .pi / 180)
+                let aspectRatio: Float = 1024.0 / 1280.0  // arView W/H
+                let verticalNeed = plantH
+                let horizontalNeed = (plantMaxHoriz * 2) / aspectRatio
+                let neededExtent = max(verticalNeed, horizontalNeed)
+                let distance = (neededExtent / 2) / (halfFovTan * fillFactor)
+
+                let lookAtY = plantH / 2
+                camera.position = [0, lookAtY, plantD / 2 + distance]
                 camera.look(
-                    at: [0, 0.7, 0],
+                    at: [0, lookAtY, 0],
                     from: camera.position,
                     relativeTo: nil
                 )

@@ -58,7 +58,7 @@ final class PlantThumbnailGenerator: ObservableObject {
         Task {
             do {
                 let url = try await plant.getModelURL()
-                renderer.render(usdzURL: url) { image in
+                renderer.render(usdzURL: url, upAxis: plant.upAxis) { image in
                     if let image {
                         PlantThumbnailCache.save(image, plantID: plant.id)
                         self.onThumbnailGenerated?()

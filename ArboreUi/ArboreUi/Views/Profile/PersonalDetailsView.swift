@@ -1,13 +1,14 @@
 import SwiftUI
+import FirebaseAuth
 
 struct PersonalDetailsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) var dismiss
-    @State private var fullName: String = "Hugo Michel"
+    @State private var fullName: String = ""
     @State private var phoneNumber: String = ""
     @State private var email: String = ""
     @State private var address: String = ""
-    
+
     var body: some View {
         ZStack {
             themeManager.backgroundColor
@@ -89,6 +90,13 @@ struct PersonalDetailsView: View {
             }
         }
         .interactiveDismissDisabled()
+        .onAppear {
+            if let user = Auth.auth().currentUser {
+                if fullName.isEmpty { fullName = user.displayName ?? "" }
+                if email.isEmpty { email = user.email ?? "" }
+                if phoneNumber.isEmpty { phoneNumber = user.phoneNumber ?? "" }
+            }
+        }
     }
     
     // MARK: - Input Field

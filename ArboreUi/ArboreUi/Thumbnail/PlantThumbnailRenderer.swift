@@ -10,9 +10,12 @@ final class PlantThumbnailRenderer {
     private var floorTexture: TextureResource?
     private var wallTexture: TextureResource?
 
-    private let defaultTargetHeight: Float = 0.02
+    // Fallback for plants not hand-tuned below. Normalizes on the LARGEST
+    // native dimension (not just Y) so tall narrow plants and wide flat
+    // plants end up at comparable visual size in the thumbnail.
+    private let defaultTargetMaxDim: Float = 0.02
 
-    // Height in scene units per plant. Tune these values plant-by-plant.
+    // Height in scene units per plant, hand-tuned. Normalized on Y only.
     private let perModelTargetHeight: [String: Float] = [
         "pothos": 0.01,
         "monstera_deliciosa": 0.016,
@@ -57,12 +60,20 @@ final class PlantThumbnailRenderer {
 
                 // --- 1) NORMALISATION + CALIBRATION PAR MODELE
                 let normalizedModelKey = normalizeModelKey(modelKey)
-                let targetHeight = perModelTargetHeight[normalizedModelKey] ?? defaultTargetHeight
-
                 var b = model.visualBounds(relativeTo: nil)
-                let currentHeight = max(b.extents.y, 0.0001)
 
-                let s = targetHeight / currentHeight
+                let s: Float
+                if let tunedHeight = perModelTargetHeight[normalizedModelKey] {
+                    // Legacy hand-tuned: scale on Y (height) only
+                    s = tunedHeight / max(b.extents.y, 0.0001)
+                } else {
+                    // Unknown / Meshy: scale on MAX native dimension so tall-narrow
+                    // plants (Sansevieria) don't render much smaller than wide-short
+                    // ones (Monstera). USDZs from Plant3DGenerator normalize their
+                    // max extent to 2.0 units, making this consistent across plants.
+                    let currentMax = max(b.extents.x, max(b.extents.y, b.extents.z))
+                    s = defaultTargetMaxDim / max(currentMax, 0.0001)
+                }
                 model.scale = SIMD3(repeating: s)
 
                 b = model.visualBounds(relativeTo: nil)
@@ -76,7 +87,7 @@ final class PlantThumbnailRenderer {
                 model.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
 
                 // Debug calibration key/size
-                print("🌿 Thumbnail modelKey:", modelKey, "| normalized:", normalizedModelKey, "| targetHeight:", targetHeight)
+                print("🌿 Thumbnail modelKey:", modelKey, "| normalized:", normalizedModelKey, "| scale:", s)
 
                 // --- 2) Studio: sol + mur (textures + tiling)
                 let floorMesh = Self.makeTiledPlane(

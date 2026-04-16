@@ -323,8 +323,15 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         context.coordinator.setupObservers()
 
         if mode == .reopen, let id = existingGardenId {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                context.coordinator.loadGardenFromDisk(gardenId: id)
+            if measurementWorldMapId != nil {
+                // WorldMap needs relocalization before placing plants.
+                // The session delegate will trigger restore once mapped.
+                context.coordinator.pendingRestoreGardenId = id
+            } else {
+                // No WorldMap — restore immediately (positions are relative)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    context.coordinator.loadGardenFromDisk(gardenId: id)
+                }
             }
         }
         return sceneView
@@ -351,6 +358,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             private var cachedViewCenter: CGPoint = .zero
             // Tracks upAxis per planted plant ID for capture/restore
             private var plantUpAxisMap: [String: String] = [:]
+            // Garden ID pending restore after WorldMap relocalization
+            private var pendingRestoreGardenId: String?
 
             init(_ parent: GardenARPlacementContainerView) { self.parentProps = parent }
 
@@ -378,6 +387,17 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 ring.opacity = 0
                 reticleNode = ring
                 arView?.scene.rootNode.addChildNode(ring)
+            }
+
+            // MARK: - WorldMap relocalization tracking
+            func session(_ session: ARSession, didUpdate frame: ARFrame) {
+                guard let gardenId = pendingRestoreGardenId else { return }
+                let status = frame.worldMappingStatus
+                if status == .mapped || status == .extending {
+                    pendingRestoreGardenId = nil
+                    print("✅ WorldMap relocalized (\(status)), restoring garden \(gardenId)")
+                    loadGardenFromDisk(gardenId: gardenId)
+                }
             }
 
             func updateCachedBounds() {

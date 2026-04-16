@@ -108,7 +108,7 @@ struct GardenARPlacementView: View {
                     isDownloadingModel = true
                     downloadedModelURL = nil
                     do {
-                        let url = try await plant.getModelURL(forceDownload: true)
+                        let url = try await plant.getModelURL()
                         downloadedModelURL = url
                         print("✅ Model pre-downloaded for: \(plant.name)")
                     } catch {
@@ -317,6 +317,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         [tap, longPress, pan].forEach { sceneView.addGestureRecognizer($0) }
 
         context.coordinator.arView = sceneView
+        context.coordinator.updateCachedBounds()
         context.coordinator.setupReticle()
         context.coordinator.parentProps = self
         context.coordinator.setupObservers()
@@ -329,7 +330,9 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         return sceneView
     }
 
-    func updateUIView(_ uiView: ARSCNView, context: Context) {}
+    func updateUIView(_ uiView: ARSCNView, context: Context) {
+        context.coordinator.updateCachedBounds()
+    }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     // MARK: - Coordinator
@@ -344,6 +347,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
 
             private var undoStack: [[PersistedPlant]] = []
             private var redoStack: [[PersistedPlant]] = []
+            // Cached on main thread to avoid UIKit access from SceneKit render queue
+            private var cachedViewCenter: CGPoint = .zero
 
             init(_ parent: GardenARPlacementContainerView) { self.parentProps = parent }
 
@@ -373,10 +378,15 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 arView?.scene.rootNode.addChildNode(ring)
             }
 
+            func updateCachedBounds() {
+                guard let arView = arView else { return }
+                cachedViewCenter = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+            }
+
             func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
                 guard let arView = arView, let reticle = reticleNode else { return }
 
-                let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+                let center = cachedViewCenter
                 if let query = arView.raycastQuery(from: center, allowing: .existingPlaneGeometry, alignment: .horizontal),
                    let result = arView.session.raycast(query).first {
                     lastReticleTransform = result.worldTransform
@@ -846,9 +856,6 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 
                 do {
                     let scene = try SCNScene(url: modelURL, options: nil)
-
-                    print("🌿 DEBUG NODE TREE for \(modelURL.lastPathComponent)")
-                    dumpNodeTree(scene.rootNode)
 
                     let container = SCNNode()
                     let encodedURL = modelURL.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "default"

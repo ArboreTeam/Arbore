@@ -96,27 +96,24 @@ final class PlantThumbnailRenderer {
 
                 let lookAtY = plantH / 2
                 let cameraZ = plantD / 2 + distance
-                let wallZ = -plantD * 1.5 - 0.1
 
-                // Downward camera pitch: lift the camera so its view
-                // direction makes a ~15° angle with the horizontal, giving
-                // a slight plunging / top-down view of the plant.
+                // Downward camera pitch
                 let pitchRad = cameraPitchDegrees * .pi / 180
                 let pitchLift = cameraZ * tan(pitchRad)
 
-                // --- 3) Studio backdrop sized from camera frustum.
-                // At the wall's Z position, compute the visible rect and
-                // make the wall 50% bigger to guarantee full coverage.
+                // --- 3) Studio backdrop: cyclorama-style (floor + wall)
+                // The wall sits at the BACK EDGE of the floor, forming a
+                // clean L-junction with no gap. Both are oversized so
+                // no edge is ever visible regardless of FOV, pitch, or
+                // plant proportions.
+                let floorExtent = max(cameraZ * 4, plantMaxHoriz * 8, 4.0)
+                let wallZ = -floorExtent / 2
+
                 let camToWallDist = cameraZ - wallZ
                 let visibleHAtWall = 2 * camToWallDist * halfFovTan
                 let visibleWAtWall = visibleHAtWall * aspectRatio
-                let wallWidth = visibleWAtWall * 2.0
-                let wallHeight = visibleHAtWall * 2.5
-
-                // Floor needs to cover from the plant outward toward the
-                // camera and behind the plant toward the wall. Using the
-                // camera distance as the base gives plenty of margin.
-                let floorExtent = max(cameraZ * 3, plantMaxHoriz * 6, 3.0)
+                let wallWidth = max(visibleWAtWall * 2.0, floorExtent)
+                let wallHeight = max(visibleHAtWall * 2.5, floorExtent)
 
                 let floorMesh = Self.makeTiledPlane(
                     width: floorExtent,

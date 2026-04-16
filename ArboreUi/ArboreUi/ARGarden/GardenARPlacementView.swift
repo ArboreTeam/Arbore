@@ -374,17 +374,12 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         context.coordinator.setupObservers()
 
         if mode == .reopen, let id = existingGardenId {
-            if measurementWorldMapId != nil {
-                // WorldMap needs relocalization before placing plants.
-                // The session delegate will trigger restore once mapped.
-                isRelocating = true
-                context.coordinator.pendingRestoreGardenId = id
-            } else {
-                // No WorldMap — restore immediately (positions are relative)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    context.coordinator.loadGardenFromDisk(gardenId: id)
-                }
-            }
+            // Always wait for worldMappingStatus == .mapped before
+            // restoring plants. Without this, plants are placed in the
+            // phone's current coordinate system (wrong) and only snap
+            // to the correct position once ARKit relocalizes.
+            isRelocating = true
+            context.coordinator.pendingRestoreGardenId = id
         }
         return sceneView
     }
@@ -442,10 +437,13 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             }
 
             // MARK: - WorldMap relocalization tracking
+            private var didRestoreGarden = false
+
             func session(_ session: ARSession, didUpdate frame: ARFrame) {
-                guard let gardenId = pendingRestoreGardenId else { return }
+                guard let gardenId = pendingRestoreGardenId, !didRestoreGarden else { return }
                 let status = frame.worldMappingStatus
                 if status == .mapped || status == .extending {
+                    didRestoreGarden = true
                     pendingRestoreGardenId = nil
                     print("✅ WorldMap relocalized (\(status)), restoring garden \(gardenId)")
                     DispatchQueue.main.async {

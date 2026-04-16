@@ -311,7 +311,7 @@ struct PlantDetailView: View {
                     } catch {
                         print("❌ Failed to download model: \(error)")
                         // Fallback to bundle if download fails
-                        downloadedModelURL = plant.localModelURL
+                        downloadedModelURL = plant.bundleModelURL
                     }
                     isDownloadingModel = false
                     showARView = true

@@ -137,8 +137,8 @@ class AuthenticationView: ObservableObject {
     func logout() async throws {
         GIDSignIn.sharedInstance.signOut()
         try Auth.auth().signOut()
-        DispatchQueue.main.async {
-            self.isLoggedIn = false
+        DispatchQueue.main.async { [weak self] in
+            self?.isLoggedIn = false
         }
     }
 }

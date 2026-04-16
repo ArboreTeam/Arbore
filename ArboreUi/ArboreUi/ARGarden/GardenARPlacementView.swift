@@ -121,7 +121,7 @@ struct GardenARPlacementView: View {
                     } catch {
                         print("❌ Failed to pre-download model for \(plant.name): \(error)")
                         // Fallback to bundle if download fails
-                        downloadedModelURL = plant.localModelURL
+                        downloadedModelURL = plant.bundleModelURL
                     }
                     isDownloadingModel = false
                 }
@@ -142,7 +142,7 @@ struct GardenARPlacementView: View {
                             let url = try await first.getModelURL(forceDownload: false)
                             downloadedModelURL = url
                         } catch {
-                            downloadedModelURL = first.localModelURL
+                            downloadedModelURL = first.bundleModelURL
                         }
                         isDownloadingModel = false
                     }
@@ -774,7 +774,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                     }
                                 } catch {
                                     print("⚠️ Impossible de télécharger le modèle \(p.modelURLString): \(error)")
-                                    if let fallbackURL = self.resolveLocalModelURL(p.modelURLString) {
+                                    if let fallbackURL = await MainActor.run(body: { self.resolveLocalModelURL(p.modelURLString) }) {
                                         await MainActor.run {
                                             self.placeObject(at: transform, modelURL: fallbackURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString, upAxis: p.upAxis)
                                         }
@@ -891,7 +891,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
 
                 // Utiliser l'URL pré-téléchargée si disponible, sinon fallback au bundle
-                guard let url = parentProps?.downloadedModelURL ?? plant.localModelURL else {
+                guard let url = parentProps?.downloadedModelURL ?? plant.bundleModelURL else {
                     print("❌ Model URL nil pour: \(plant.name) | modelURL: \(plant.modelURL ?? "nil")")
                     deselectAll()
                     return

@@ -47,12 +47,11 @@ struct HomeView: View {
                     .padding(.bottom, 32)
                 }
 
-                NavigationLink(
-                    destination: AllGardensView(),
-                    isActive: $goToAllGardens,
-                    label: { EmptyView() }
-                )
-                .hidden()
+                Color.clear
+                    .frame(width: 0, height: 0)
+                    .navigationDestination(isPresented: $goToAllGardens) {
+                        AllGardensView()
+                    }
             }
             .navigationBarHidden(true)
             .onAppear {
@@ -157,16 +156,15 @@ private extension HomeView {
             }
             .buttonStyle(.plain)
 
-            NavigationLink(
-                destination: GardenWizardView(
-                    uid: currentUID,
-                    selectedPlants: [],
-                    onFinish: { _ in }
-                ),
-                isActive: $goToQuestionnaire,
-                label: { EmptyView() }
-            )
-            .hidden()
+            Color.clear
+                .frame(width: 0, height: 0)
+                .navigationDestination(isPresented: $goToQuestionnaire) {
+                    GardenWizardView(
+                        uid: currentUID,
+                        selectedPlants: [],
+                        onFinish: { _ in }
+                    )
+                }
         }
         .padding(.vertical, 18)
         .padding(.horizontal, 20)

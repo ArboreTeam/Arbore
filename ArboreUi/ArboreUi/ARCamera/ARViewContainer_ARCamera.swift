@@ -276,7 +276,7 @@ struct ARViewContainer: UIViewRepresentable {
                     alignment: .horizontal
                 )
                 if let result = results.first,
-                   let initialPosition = initialEntityPosition,
+                   let _ = initialEntityPosition,
                    let offset = offset {
 
                     let newPosition = SIMD3<Float>(

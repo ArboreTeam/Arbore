@@ -12,8 +12,8 @@ struct AppearanceView: View {
     // Langue actuelle affichée dans la cellule
     private var currentLanguageDisplayName: String {
         let preferred = Locale.preferredLanguages.first ?? "en"
-        let components = Locale.components(fromIdentifier: preferred)
-        let langCode = components[NSLocale.Key.languageCode.rawValue] ?? preferred
+        let components = Locale.Components(identifier: preferred)
+        let langCode = components.languageComponents.languageCode?.identifier ?? preferred
         let locale = Locale.current
         let name = locale.localizedString(forLanguageCode: langCode) ?? "English"
         return name.capitalized

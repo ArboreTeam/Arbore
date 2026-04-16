@@ -146,7 +146,7 @@ class VisionAnalyzer: ObservableObject {
         // En prod: Utiliser VNGenerateAttentionBasedSaliencyImageRequest
         
         // Simuler un diagnostic visuel simple
-        let extent = smallImage.extent
+        _ = smallImage.extent
         var bitmap = [UInt8](repeating: 0, count: 4)
         context.render(smallImage, toBitmap: &bitmap, rowBytes: 4, bounds: CGRect(x: 0, y: 0, width: 1, height: 1), format: .RGBA8, colorSpace: nil)
         

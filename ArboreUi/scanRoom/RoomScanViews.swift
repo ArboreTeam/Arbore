@@ -121,9 +121,11 @@ struct SaveScanView: View {
         
         // Perform save on background thread
         Task.detached(priority: .userInitiated) {
-            captureController.fileName = fileName
-            captureController.saveScan()
-            
+            await MainActor.run {
+                captureController.fileName = fileName
+                captureController.saveScan()
+            }
+
             // Return to main thread to dismiss
             await MainActor.run {
                 isSaving = false

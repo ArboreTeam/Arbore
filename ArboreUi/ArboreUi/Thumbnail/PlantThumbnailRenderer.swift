@@ -18,7 +18,7 @@ final class PlantThumbnailRenderer {
     private let fillFactor: Float = 0.78
     // Slight downward pitch so the viewer sees the top of the plant and
     // a bit of floor in front, giving a more natural catalog look.
-    private let cameraPitchDegrees: Float = 15
+    private let cameraPitchDegrees: Float = 8
 
     init() {
         self.arView = ThumbnailRenderHost.shared.arView
@@ -101,25 +101,19 @@ final class PlantThumbnailRenderer {
                 let pitchRad = cameraPitchDegrees * .pi / 180
                 let pitchLift = cameraZ * tan(pitchRad)
 
-                // --- 3) Studio backdrop: cyclorama-style (floor + wall)
-                // The wall sits at the BACK EDGE of the floor, forming a
-                // clean L-junction with no gap. Both are oversized so
-                // no edge is ever visible regardless of FOV, pitch, or
-                // plant proportions.
-                let floorExtent = max(cameraZ * 4, plantMaxHoriz * 8, 4.0)
-                let wallZ = -floorExtent / 2
-
-                let camToWallDist = cameraZ - wallZ
-                let visibleHAtWall = 2 * camToWallDist * halfFovTan
-                let visibleWAtWall = visibleHAtWall * aspectRatio
-                let wallWidth = max(visibleWAtWall * 2.0, floorExtent)
-                let wallHeight = max(visibleHAtWall * 2.5, floorExtent)
+                // --- 3) Studio backdrop: floor centred under plant, wall at
+                // the floor's back edge. Sized from camera distance so the
+                // proportions stay consistent across plant sizes.
+                let floorSize = distance * 2.0
+                let wallZ = -floorSize / 2
+                let wallWidth = floorSize
+                let wallHeight = floorSize
 
                 let floorMesh = Self.makeTiledPlane(
-                    width: floorExtent,
-                    depth: floorExtent,
-                    uScale: floorExtent,
-                    vScale: floorExtent
+                    width: floorSize,
+                    depth: floorSize,
+                    uScale: floorSize,
+                    vScale: floorSize
                 )
                 let floor = ModelEntity(mesh: floorMesh)
 
@@ -135,7 +129,7 @@ final class PlantThumbnailRenderer {
                 floor.position = [0, -0.001, 0]
 
                 let wallMesh = Self.makeTiledPlane(
-                    width: wallWidth,
+                    width: wallWidth * 2,
                     depth: wallHeight,
                     uScale: wallWidth / 1.8,
                     vScale: wallHeight / 1.8
@@ -152,10 +146,8 @@ final class PlantThumbnailRenderer {
                     wallMat.color = .init(tint: UIColor(white: 0.92, alpha: 1.0))
                 }
                 backdrop.model?.materials = [wallMat]
-                // Anchor wall bottom at floor level (y=0) and extend upward.
-                // The makeTiledPlane depth becomes the wall's vertical extent
-                // after the π/2 X rotation, so center at wallHeight/2.
-                backdrop.position = [0, wallHeight / 2 - 0.001, wallZ]
+                // Wall bottom at floor level (y=0), at the floor's back edge.
+                backdrop.position = [0, wallHeight / 2, wallZ]
                 backdrop.orientation = simd_quatf(angle: .pi/2, axis: [1, 0, 0])
 
                 // --- 3) Lumières (✅ clés baissées)

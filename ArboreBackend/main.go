@@ -123,6 +123,7 @@ type Plant struct {
 	ModelURL     string                  `json:"modelURL" bson:"modelURL"`
 	Translations map[string]LanguageData `json:"translations" bson:"translations"`
 	Generated    *bool                   `json:"generated,omitempty" bson:"generated,omitempty"`
+	UpAxis       *string                 `json:"upAxis,omitempty" bson:"upAxis,omitempty"`
 }
 
 type AIRequest struct {

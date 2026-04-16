@@ -71,8 +71,6 @@ class NetworkManager {
         config.timeoutIntervalForResource = 30
         config.waitsForConnectivity = false
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
-        // Bypass du proxy système (désincite iOS à router via Private Relay)
-        config.connectionProxyDictionary = [:]
         return URLSession(configuration: config)
     }()
 

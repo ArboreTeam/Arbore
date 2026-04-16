@@ -14,7 +14,7 @@ final class PlantThumbnailRenderer {
     // scale (real-world meters, just like AR placement) and the camera
     // moves per-plant to frame it. This makes thumbnails proportional to
     // the plant's actual size without per-plant hand-tuning.
-    private let cameraFOVDegrees: Float = 60
+    private let cameraFOVDegrees: Float = 35
     private let fillFactor: Float = 0.78
     // Slight downward pitch so the viewer sees the top of the plant and
     // a bit of floor in front, giving a more natural catalog look.

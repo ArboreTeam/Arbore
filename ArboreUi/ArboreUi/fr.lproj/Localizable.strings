@@ -913,3 +913,7 @@
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notifications";
 "PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Push notifications";
 "PRIVACYSETTINGS_NOTIFICATIONS_SUB" = "Rappels d'arrosage et alertes";
+
+// Garden AR Relocalization
+"GARDEN_LOADING_TITLE" = "Chargement du jardin";
+"GARDEN_LOADING_SUBTITLE" = "Scannez lentement votre environnement\npour repositionner vos plantes";

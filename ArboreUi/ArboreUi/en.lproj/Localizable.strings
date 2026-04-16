@@ -886,3 +886,7 @@
 "TUTORIAL_PAGE4_DESC" = "If you prefer, use the 'Manual entry' tab and enter the dimensions with a ruler.";
 "TUTORIAL_PAGE4_TITLE" = "Or manual entry";
 "TUTORIAL_START_BUTTON" = "Start";
+
+// Garden AR Relocalization
+"GARDEN_LOADING_TITLE" = "Loading your garden";
+"GARDEN_LOADING_SUBTITLE" = "Slowly scan your environment\nto reposition your plants";

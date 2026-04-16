@@ -866,3 +866,7 @@
 "MEASURE_RESULTS_RECOMMENDATIONS" = "Recomendaciones";
 "MEASURE_RESULTS_RECOMMENDED_SIZE" = "Tamaño recomendado para macetas";
 "MEASURE_RESULTS_SUCCESS_TITLE" = "¡Medición con éxito!";
+
+// Garden AR Relocalization
+"GARDEN_LOADING_TITLE" = "Cargando tu jardín";
+"GARDEN_LOADING_SUBTITLE" = "Escanea lentamente tu entorno\npara reposicionar tus plantas";

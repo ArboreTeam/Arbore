@@ -51,6 +51,7 @@ struct GardenARPlacementView: View {
     // Model download state
     @State private var downloadedModelURL: URL? = nil
     @State private var isDownloadingModel = false
+    @State private var isRelocating = false
 
     var body: some View {
         ZStack {
@@ -62,6 +63,7 @@ struct GardenARPlacementView: View {
                 hasSelectedNode: $hasSelectedNode,
                 selectedNodeName: $selectedNodeName,
                 isSaving: $isSaving,
+                isRelocating: $isRelocating,
                 uid: uid,
                 wizard: wizard,
                 gardenName: gardenName,
@@ -78,6 +80,11 @@ struct GardenARPlacementView: View {
                 }
             )
             .ignoresSafeArea()
+
+            // --- Relocalization overlay ---
+            if isRelocating {
+                gardenLoadingOverlay
+            }
 
             // --- HUD Interface ---
             VStack(spacing: 0) {
@@ -248,6 +255,49 @@ struct GardenARPlacementView: View {
         .cornerRadius(12)
         .padding(.bottom, 10)
     }
+
+    @State private var leafPulse = false
+
+    private var gardenLoadingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.35)
+                .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                Image(systemName: "leaf.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(.green)
+                    .scaleEffect(leafPulse ? 1.15 : 0.9)
+                    .opacity(leafPulse ? 1.0 : 0.6)
+                    .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: leafPulse)
+
+                Text(NSLocalizedString("GARDEN_LOADING_TITLE", comment: ""))
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text(NSLocalizedString("GARDEN_LOADING_SUBTITLE", comment: ""))
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .multilineTextAlignment(.center)
+
+                ProgressView()
+                    .tint(.white)
+                    .scaleEffect(1.1)
+            }
+            .padding(32)
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24)
+                            .strokeBorder(.white.opacity(0.15), lineWidth: 1)
+                    )
+            )
+            .shadow(color: .black.opacity(0.3), radius: 20)
+        }
+        .onAppear { leafPulse = true }
+        .transition(.opacity.animation(.easeInOut(duration: 0.3)))
+    }
 }
 
 // MARK: - 3. Container AR
@@ -255,6 +305,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var selectedPlant: Plant?
     @Binding var downloadedModelURL: URL?
     @Binding var isDownloadingModel: Bool
+    @Binding var isRelocating: Bool
     @Binding var hasSelectedNode: Bool
     @Binding var selectedNodeName: String?
     @Binding var isSaving: Bool
@@ -326,6 +377,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             if measurementWorldMapId != nil {
                 // WorldMap needs relocalization before placing plants.
                 // The session delegate will trigger restore once mapped.
+                isRelocating = true
                 context.coordinator.pendingRestoreGardenId = id
             } else {
                 // No WorldMap — restore immediately (positions are relative)
@@ -396,6 +448,9 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 if status == .mapped || status == .extending {
                     pendingRestoreGardenId = nil
                     print("✅ WorldMap relocalized (\(status)), restoring garden \(gardenId)")
+                    DispatchQueue.main.async {
+                        self.parentProps?.isRelocating = false
+                    }
                     loadGardenFromDisk(gardenId: gardenId)
                 }
             }

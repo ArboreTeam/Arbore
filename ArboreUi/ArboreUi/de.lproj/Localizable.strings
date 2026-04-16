@@ -870,3 +870,7 @@
 "TUTORIAL_PAGE4_DESC" = "Wenn du es vorziehst, benutze den Reiter \"Manuelle Eingabe\" und gib die Maße mit einem Lineal ein.";
 "TUTORIAL_PAGE4_TITLE" = "Oder manuelle Eingabe";
 "TUTORIAL_START_BUTTON" = "Beginne";
+
+// Garden AR Relocalization
+"GARDEN_LOADING_TITLE" = "Garten wird geladen";
+"GARDEN_LOADING_SUBTITLE" = "Scannen Sie langsam Ihre Umgebung,\num Ihre Pflanzen neu zu positionieren";

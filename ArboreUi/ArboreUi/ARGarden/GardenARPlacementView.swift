@@ -130,9 +130,11 @@ struct GardenARPlacementView: View {
             .presentationBackground(.clear)
         }
         .onAppear {
+            if mode == .reopen, existingGardenId != nil {
+                isRelocating = true
+            }
             if selectedPlantForPlacement == nil {
                 selectedPlantForPlacement = selectedPlants.first
-                // Pré-télécharger le premier modèle
                 if let first = selectedPlants.first {
                     Task {
                         isDownloadingModel = true
@@ -374,11 +376,6 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         context.coordinator.setupObservers()
 
         if mode == .reopen, let id = existingGardenId {
-            // Always wait for worldMappingStatus == .mapped before
-            // restoring plants. Without this, plants are placed in the
-            // phone's current coordinate system (wrong) and only snap
-            // to the correct position once ARKit relocalizes.
-            isRelocating = true
             context.coordinator.pendingRestoreGardenId = id
         }
         return sceneView

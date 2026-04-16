@@ -83,40 +83,44 @@ final class PlantThumbnailRenderer {
                 let plantD = max(b.extents.z, 0.001)
                 let plantMaxHoriz = max(plantW, plantD)
 
-                print("🌿 Thumbnail", modelKey, "native H=", plantH, "W=", plantW, "D=", plantD)
+                print("🌿 Thumbnail", modelKey, "H=", plantH, "W=", plantW, "D=", plantD)
 
-                // --- 2) Camera distance & framing (computed first so the
-                // backdrop can be sized to cover the visible frustum)
-                let halfFovTan = tan((cameraFOVDegrees / 2) * .pi / 180)
-                let aspectRatio: Float = 1024.0 / 1280.0  // arView W/H
-                let verticalNeed = plantH
-                let horizontalNeed = (plantMaxHoriz * 2) / aspectRatio
-                let neededExtent = max(verticalNeed, horizontalNeed)
-                let distance = (neededExtent / 2) / (halfFovTan * fillFactor)
+                // =====================================================
+                // 2) CAMERA — correct frustum math
+                // =====================================================
+                let halfVFov = (cameraFOVDegrees / 2) * .pi / 180
+                let halfVTan = tan(halfVFov)
+                let aspectRatio: Float = 1024.0 / 1280.0
+                let halfHTan = halfVTan * aspectRatio
 
-                let lookAtY = plantH / 2
-                let cameraZ = plantD / 2 + distance
+                // Distance so the plant fills `fillFactor` of the viewport
+                // on whichever axis is the bottleneck.
+                let distForH = (plantH / 2) / (halfVTan * fillFactor)
+                let distForW = (plantMaxHoriz / 2) / (halfHTan * fillFactor)
+                let distance = max(distForH, distForW)
 
-                // Downward camera pitch
+                // Pitch: camera slightly above, looking at plant center.
+                // lookAt shifted down a bit (0.45 × plantH) so the pitch
+                // doesn't push the plant to the bottom of the frame.
                 let pitchRad = cameraPitchDegrees * .pi / 180
-                let pitchLift = cameraZ * tan(pitchRad)
+                let lookAtY = plantH * 0.45
+                let cameraY = lookAtY + distance * sin(pitchRad)
+                let cameraZ = plantD / 2 + distance * cos(pitchRad)
 
-                // --- 3) Studio backdrop: floor centred under plant, wall at
-                // the floor's back edge. Sized from camera distance so the
-                // proportions stay consistent across plant sizes.
-                let floorSize = distance * 2.0
-                let wallZ = -floorSize / 2
-                let wallWidth = floorSize
-                let wallHeight = floorSize
+                // =====================================================
+                // 3) BACKDROP — massively oversized quads (4 vertices
+                //    each, zero perf cost) so no edge is EVER visible
+                //    regardless of FOV, pitch, or plant proportions.
+                // =====================================================
+                let sceneScale = max(plantH, plantMaxHoriz, distance)
+                let studioSize = sceneScale * 10
 
+                // Floor: horizontal quad at y=0, centred under plant
                 let floorMesh = Self.makeTiledPlane(
-                    width: floorSize,
-                    depth: floorSize,
-                    uScale: floorSize,
-                    vScale: floorSize
+                    width: studioSize, depth: studioSize,
+                    uScale: studioSize * 0.8, vScale: studioSize * 0.8
                 )
                 let floor = ModelEntity(mesh: floorMesh)
-
                 var floorMat = PhysicallyBasedMaterial()
                 if let floorTexture {
                     floorMat.baseColor = .init(tint: .white, texture: .init(floorTexture))
@@ -128,14 +132,13 @@ final class PlantThumbnailRenderer {
                 floor.model?.materials = [floorMat]
                 floor.position = [0, -0.001, 0]
 
+                // Wall: vertical quad, bottom at y=0, behind the plant
+                let wallZ: Float = -studioSize / 2
                 let wallMesh = Self.makeTiledPlane(
-                    width: wallWidth * 2,
-                    depth: wallHeight,
-                    uScale: wallWidth / 1.8,
-                    vScale: wallHeight / 1.8
+                    width: studioSize, depth: studioSize,
+                    uScale: studioSize * 0.5, vScale: studioSize * 0.5
                 )
                 let backdrop = ModelEntity(mesh: wallMesh)
-
                 var wallMat = UnlitMaterial(color: .white)
                 if let wallTexture {
                     wallMat.color = .init(
@@ -146,41 +149,42 @@ final class PlantThumbnailRenderer {
                     wallMat.color = .init(tint: UIColor(white: 0.92, alpha: 1.0))
                 }
                 backdrop.model?.materials = [wallMat]
-                // Wall bottom at floor level (y=0), at the floor's back edge.
-                backdrop.position = [0, wallHeight / 2, wallZ]
-                backdrop.orientation = simd_quatf(angle: .pi/2, axis: [1, 0, 0])
+                backdrop.position = [0, studioSize / 2, wallZ]
+                backdrop.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
 
-                // --- 3) Lumières (✅ clés baissées)
+                // =====================================================
+                // 4) LIGHTS — scaled to plant dimensions
+                // =====================================================
                 let light = DirectionalLight()
                 light.light.intensity = 25000
                 light.light.color = UIColor(white: 0.98, alpha: 1.0)
                 light.shadow = DirectionalLightComponent.Shadow(
-                    maximumDistance: 3,
+                    maximumDistance: sceneScale * 3,
                     depthBias: 3e-4
                 )
                 light.orientation =
-                    simd_quatf(angle: -.pi/3, axis: [1, 0, 0]) *
-                    simd_quatf(angle: .pi/6, axis: [0, 1, 0])
+                    simd_quatf(angle: -.pi / 3, axis: [1, 0, 0]) *
+                    simd_quatf(angle: .pi / 6, axis: [0, 1, 0])
 
-                // ✅ Fill/Rim positionnés relativement à la taille de la plante
-                // (inverse-square: intensity scales with distance²)
-                let lightOffset = max(plantMaxHoriz, plantH) * 1.2
-                let lightIntensity: Float = 200 * (lightOffset * lightOffset) / (1.0 * 1.0)
+                let lightDist = sceneScale * 1.2
+                let lightPower: Float = 200 * (lightDist * lightDist)
 
                 let fill = PointLight()
-                fill.light.intensity = lightIntensity
+                fill.light.intensity = lightPower
                 fill.light.color = UIColor(white: 0.92, alpha: 1.0)
-                fill.position = [lightOffset, plantH * 0.9, lightOffset]
+                fill.position = [lightDist, plantH * 0.9, lightDist]
 
                 let rim = PointLight()
-                rim.light.intensity = lightIntensity
+                rim.light.intensity = lightPower
                 rim.light.color = UIColor(white: 0.92, alpha: 1.0)
-                rim.position = [-lightOffset, plantH * 0.8, -lightOffset]
+                rim.position = [-lightDist, plantH * 0.8, -lightDist]
 
-                // --- 5) Caméra auto-framing + plunge (15° downward)
+                // =====================================================
+                // 5) CAMERA placement
+                // =====================================================
                 let camera = PerspectiveCamera()
                 camera.camera.fieldOfViewInDegrees = cameraFOVDegrees
-                camera.position = [0, lookAtY + pitchLift, cameraZ]
+                camera.position = [0, cameraY, cameraZ]
                 camera.look(
                     at: [0, lookAtY, 0],
                     from: camera.position,

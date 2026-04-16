@@ -60,10 +60,10 @@ struct GardenARPlacementView: View {
                 selectedPlant: $selectedPlantForPlacement,
                 downloadedModelURL: $downloadedModelURL,
                 isDownloadingModel: $isDownloadingModel,
+                isRelocating: $isRelocating,
                 hasSelectedNode: $hasSelectedNode,
                 selectedNodeName: $selectedNodeName,
                 isSaving: $isSaving,
-                isRelocating: $isRelocating,
                 uid: uid,
                 wizard: wizard,
                 gardenName: gardenName,
@@ -411,7 +411,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             // Tracks upAxis per planted plant ID for capture/restore
             private var plantUpAxisMap: [String: String] = [:]
             // Garden ID pending restore after WorldMap relocalization
-            private var pendingRestoreGardenId: String?
+            var pendingRestoreGardenId: String?
 
             init(_ parent: GardenARPlacementContainerView) { self.parentProps = parent }
 

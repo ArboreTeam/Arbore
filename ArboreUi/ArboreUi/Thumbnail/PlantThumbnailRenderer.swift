@@ -60,7 +60,8 @@ final class PlantThumbnailRenderer {
                 let normalizedKey = normalizeModelKey(modelKey)
                 let zUpPlants: Set<String> = [
                     "alocasia_polly",
-                    "philodendron_birkin_variegata"
+                    "philodendron_birkin_variegata",
+                    "chamaedorea_elegans"
                 ]
                 if zUpPlants.contains(normalizedKey) {
                     // Z-up → Y-up: pitch forward -90° around X. The plant

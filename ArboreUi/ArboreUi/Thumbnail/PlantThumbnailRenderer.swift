@@ -110,10 +110,8 @@ final class PlantThumbnailRenderer {
                 let camToWallDist = cameraZ - wallZ
                 let visibleHAtWall = 2 * camToWallDist * halfFovTan
                 let visibleWAtWall = visibleHAtWall * aspectRatio
-                let wallWidth = visibleWAtWall * 1.5
-                // Extra vertical margin because the pitched camera projects
-                // its view higher on the wall (roughly camToWallDist * tan(pitch))
-                let wallHeight = visibleHAtWall * 1.7
+                let wallWidth = visibleWAtWall * 2.0
+                let wallHeight = visibleHAtWall * 2.5
 
                 // Floor needs to cover from the plant outward toward the
                 // camera and behind the plant toward the wall. Using the
@@ -157,7 +155,10 @@ final class PlantThumbnailRenderer {
                     wallMat.color = .init(tint: UIColor(white: 0.92, alpha: 1.0))
                 }
                 backdrop.model?.materials = [wallMat]
-                backdrop.position = [0, lookAtY, wallZ]
+                // Anchor wall bottom at floor level (y=0) and extend upward.
+                // The makeTiledPlane depth becomes the wall's vertical extent
+                // after the π/2 X rotation, so center at wallHeight/2.
+                backdrop.position = [0, wallHeight / 2 - 0.001, wallZ]
                 backdrop.orientation = simd_quatf(angle: .pi/2, axis: [1, 0, 0])
 
                 // --- 3) Lumières (✅ clés baissées)

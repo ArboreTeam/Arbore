@@ -71,10 +71,33 @@ final class PlantThumbnailRenderer {
 
                 print("🌿 Thumbnail", modelKey, "native H=", plantH, "W=", plantW, "D=", plantD)
 
-                // --- 2) Studio: floor + wall scaled to plant size.
-                // Floor extends ~4× the plant's footprint so there's ground
-                // visible beside the plant at the camera angle.
-                let floorExtent = max(plantMaxHoriz * 4, 1.0)
+                // --- 2) Camera distance & framing (computed first so the
+                // backdrop can be sized to cover the visible frustum)
+                let halfFovTan = tan((cameraFOVDegrees / 2) * .pi / 180)
+                let aspectRatio: Float = 1024.0 / 1280.0  // arView W/H
+                let verticalNeed = plantH
+                let horizontalNeed = (plantMaxHoriz * 2) / aspectRatio
+                let neededExtent = max(verticalNeed, horizontalNeed)
+                let distance = (neededExtent / 2) / (halfFovTan * fillFactor)
+
+                let lookAtY = plantH / 2
+                let cameraZ = plantD / 2 + distance
+                let wallZ = -plantD * 1.5 - 0.1
+
+                // --- 3) Studio backdrop sized from camera frustum.
+                // At the wall's Z position, compute the visible rect and
+                // make the wall 50% bigger to guarantee full coverage.
+                let camToWallDist = cameraZ - wallZ
+                let visibleHAtWall = 2 * camToWallDist * halfFovTan
+                let visibleWAtWall = visibleHAtWall * aspectRatio
+                let wallWidth = visibleWAtWall * 1.5
+                let wallHeight = visibleHAtWall * 1.5
+
+                // Floor needs to cover from the plant outward toward the
+                // camera and behind the plant toward the wall. Using the
+                // camera distance as the base gives plenty of margin.
+                let floorExtent = max(cameraZ * 3, plantMaxHoriz * 6, 3.0)
+
                 let floorMesh = Self.makeTiledPlane(
                     width: floorExtent,
                     depth: floorExtent,
@@ -94,10 +117,6 @@ final class PlantThumbnailRenderer {
                 floor.model?.materials = [floorMat]
                 floor.position = [0, -0.001, 0]
 
-                // Wall covers ~3× plant width and ~2.5× plant height, placed
-                // behind the plant along -Z.
-                let wallWidth = max(plantW * 3, plantH * 2)
-                let wallHeight = plantH * 2.5
                 let wallMesh = Self.makeTiledPlane(
                     width: wallWidth,
                     depth: wallHeight,
@@ -116,7 +135,7 @@ final class PlantThumbnailRenderer {
                     wallMat.color = .init(tint: UIColor(white: 0.92, alpha: 1.0))
                 }
                 backdrop.model?.materials = [wallMat]
-                backdrop.position = [0, plantH / 2, -plantD * 1.5 - 0.1]
+                backdrop.position = [0, lookAtY, wallZ]
                 backdrop.orientation = simd_quatf(angle: .pi/2, axis: [1, 0, 0])
 
                 // --- 3) Lumières (✅ clés baissées)
@@ -146,23 +165,10 @@ final class PlantThumbnailRenderer {
                 rim.light.color = UIColor(white: 0.92, alpha: 1.0)
                 rim.position = [-lightOffset, plantH * 0.8, -lightOffset]
 
-                // --- 4) Caméra auto-framing
-                // Place camera at a distance such that the plant's vertical
-                // extent (or horizontal extent, whichever is bigger in frame
-                // given the viewport aspect ratio) fills `fillFactor` of the
-                // camera's FOV. Camera looks at plant's vertical center.
+                // --- 5) Caméra auto-framing (distance/lookAtY calculés plus haut)
                 let camera = PerspectiveCamera()
                 camera.camera.fieldOfViewInDegrees = cameraFOVDegrees
-
-                let halfFovTan = tan((cameraFOVDegrees / 2) * .pi / 180)
-                let aspectRatio: Float = 1024.0 / 1280.0  // arView W/H
-                let verticalNeed = plantH
-                let horizontalNeed = (plantMaxHoriz * 2) / aspectRatio
-                let neededExtent = max(verticalNeed, horizontalNeed)
-                let distance = (neededExtent / 2) / (halfFovTan * fillFactor)
-
-                let lookAtY = plantH / 2
-                camera.position = [0, lookAtY, plantD / 2 + distance]
+                camera.position = [0, lookAtY, cameraZ]
                 camera.look(
                     at: [0, lookAtY, 0],
                     from: camera.position,

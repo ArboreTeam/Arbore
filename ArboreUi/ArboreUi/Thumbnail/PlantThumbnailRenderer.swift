@@ -10,10 +10,11 @@ final class PlantThumbnailRenderer {
     private var floorTexture: TextureResource?
     private var wallTexture: TextureResource?
 
-    // Fallback for plants not hand-tuned below. Normalizes on the LARGEST
-    // native dimension (not just Y) so tall narrow plants and wide flat
-    // plants end up at comparable visual size in the thumbnail.
-    private let defaultTargetMaxDim: Float = 0.02
+    // Fallback for plants not hand-tuned below. Normalizes on the plant's
+    // horizontal footprint (max of X and Z) so every plant occupies the
+    // same width in the thumbnail frame — tall narrow plants get taller,
+    // wide short plants stay wide, and all look "equally big" at a glance.
+    private let defaultTargetHorizontal: Float = 0.028
 
     // Height in scene units per plant, hand-tuned. Normalized on Y only.
     private let perModelTargetHeight: [String: Float] = [
@@ -67,12 +68,13 @@ final class PlantThumbnailRenderer {
                     // Legacy hand-tuned: scale on Y (height) only
                     s = tunedHeight / max(b.extents.y, 0.0001)
                 } else {
-                    // Unknown / Meshy: scale on MAX native dimension so tall-narrow
-                    // plants (Sansevieria) don't render much smaller than wide-short
-                    // ones (Monstera). USDZs from Plant3DGenerator normalize their
-                    // max extent to 2.0 units, making this consistent across plants.
-                    let currentMax = max(b.extents.x, max(b.extents.y, b.extents.z))
-                    s = defaultTargetMaxDim / max(currentMax, 0.0001)
+                    // Unknown / Meshy: scale on the horizontal footprint
+                    // (max of X and Z) so tall narrow plants (Sansevieria)
+                    // don't look half the width of wide plants (Monstera).
+                    // All plants end up with the same apparent width in the
+                    // frame; height varies naturally with plant proportions.
+                    let currentHoriz = max(b.extents.x, b.extents.z)
+                    s = defaultTargetHorizontal / max(currentHoriz, 0.0001)
                 }
                 model.scale = SIMD3(repeating: s)
 

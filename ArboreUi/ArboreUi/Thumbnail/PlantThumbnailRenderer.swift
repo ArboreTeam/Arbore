@@ -15,7 +15,10 @@ final class PlantThumbnailRenderer {
     // moves per-plant to frame it. This makes thumbnails proportional to
     // the plant's actual size without per-plant hand-tuning.
     private let cameraFOVDegrees: Float = 60
-    private let fillFactor: Float = 0.65
+    private let fillFactor: Float = 0.78
+    // Slight downward pitch so the viewer sees the top of the plant and
+    // a bit of floor in front, giving a more natural catalog look.
+    private let cameraPitchDegrees: Float = 15
 
     init() {
         self.arView = ThumbnailRenderHost.shared.arView
@@ -39,7 +42,7 @@ final class PlantThumbnailRenderer {
         print("🧱 wallTexture :", wallTexture  == nil ? "nil" : "ok")
     }
 
-    func render(usdzURL: URL, completion: @escaping (UIImage?) -> Void) {
+    func render(usdzURL: URL, upAxis: String?, completion: @escaping (UIImage?) -> Void) {
         Task { @MainActor in
             do {
                 arView.scene.anchors.removeAll()
@@ -53,22 +56,15 @@ final class PlantThumbnailRenderer {
                 // No manual scaling — USDZ meters are real meters, and the
                 // camera auto-frames the plant below.
                 //
-                // Some legacy USDZs come from Blender with upAxis = "Z" and
-                // the root Xform rotations don't reach RealityKit's Y-up
-                // convention, leaving the plant lying on its side pointing
-                // along the depth axis. Manually rotate those to stand up.
-                let normalizedKey = normalizeModelKey(modelKey)
-                let zUpPlants: Set<String> = [
-                    "alocasia_polly",
-                    "philodendron_birkin_variegata",
-                    "chamaedorea_elegans"
-                ]
-                if zUpPlants.contains(normalizedKey) {
-                    // Z-up → Y-up: pitch forward -90° around X. The plant
-                    // happens to face +Z after this, so no extra Y-flip.
+                // Axis handling driven by the `upAxis` field from the DB:
+                // "Z" = Blender-style Z-up USDZ that RealityKit doesn't fully
+                // auto-convert; we apply a -π/2 X rotation to stand it up.
+                // Anything else (nil, "Y") = standard Y-up, just flip 180°
+                // around Y so the plant faces the camera.
+                let isZUp = (upAxis?.uppercased() == "Z")
+                if isZUp {
                     model.orientation = simd_quatf(angle: -.pi / 2, axis: [1, 0, 0])
                 } else {
-                    // Y-up plant: just flip 180° around Y so it faces the camera.
                     model.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
                 }
 
@@ -102,6 +98,12 @@ final class PlantThumbnailRenderer {
                 let cameraZ = plantD / 2 + distance
                 let wallZ = -plantD * 1.5 - 0.1
 
+                // Downward camera pitch: lift the camera so its view
+                // direction makes a ~15° angle with the horizontal, giving
+                // a slight plunging / top-down view of the plant.
+                let pitchRad = cameraPitchDegrees * .pi / 180
+                let pitchLift = cameraZ * tan(pitchRad)
+
                 // --- 3) Studio backdrop sized from camera frustum.
                 // At the wall's Z position, compute the visible rect and
                 // make the wall 50% bigger to guarantee full coverage.
@@ -109,7 +111,9 @@ final class PlantThumbnailRenderer {
                 let visibleHAtWall = 2 * camToWallDist * halfFovTan
                 let visibleWAtWall = visibleHAtWall * aspectRatio
                 let wallWidth = visibleWAtWall * 1.5
-                let wallHeight = visibleHAtWall * 1.5
+                // Extra vertical margin because the pitched camera projects
+                // its view higher on the wall (roughly camToWallDist * tan(pitch))
+                let wallHeight = visibleHAtWall * 1.7
 
                 // Floor needs to cover from the plant outward toward the
                 // camera and behind the plant toward the wall. Using the
@@ -183,10 +187,10 @@ final class PlantThumbnailRenderer {
                 rim.light.color = UIColor(white: 0.92, alpha: 1.0)
                 rim.position = [-lightOffset, plantH * 0.8, -lightOffset]
 
-                // --- 5) Caméra auto-framing (distance/lookAtY calculés plus haut)
+                // --- 5) Caméra auto-framing + plunge (15° downward)
                 let camera = PerspectiveCamera()
                 camera.camera.fieldOfViewInDegrees = cameraFOVDegrees
-                camera.position = [0, lookAtY, cameraZ]
+                camera.position = [0, lookAtY + pitchLift, cameraZ]
                 camera.look(
                     at: [0, lookAtY, 0],
                     from: camera.position,
@@ -217,14 +221,6 @@ final class PlantThumbnailRenderer {
                 completion(nil)
             }
         }
-    }
-
-    private func normalizeModelKey(_ key: String) -> String {
-        key
-            .folding(options: .diacriticInsensitive, locale: .current)
-            .lowercased()
-            .replacingOccurrences(of: "-", with: "_")
-            .replacingOccurrences(of: " ", with: "_")
     }
 
     // MARK: - Tiled Plane (UVs qui se répètent)

@@ -54,6 +54,7 @@ struct PersistedPlant: Codable {
     let rotation: [Float]
     let scale: [Float]
     let transform: [Float]
+    let upAxis: String?
 }
 
 // MARK: - 3. Modèle pour l'affichage liste

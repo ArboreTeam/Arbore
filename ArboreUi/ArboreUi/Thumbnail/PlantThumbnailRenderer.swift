@@ -132,8 +132,10 @@ final class PlantThumbnailRenderer {
                 floor.model?.materials = [floorMat]
                 floor.position = [0, -0.001, 0]
 
-                // Wall: vertical quad, bottom at y=0, behind the plant
-                let wallZ: Float = -studioSize / 2
+                // Wall: vertical quad, bottom at y=0, close behind the
+                // plant so its texture/color is clearly visible (not 7m
+                // away where it blends with the background).
+                let wallZ: Float = -(plantD + distance * 0.3)
                 let wallMesh = Self.makeTiledPlane(
                     width: studioSize, depth: studioSize,
                     uScale: studioSize * 0.5, vScale: studioSize * 0.5
@@ -146,7 +148,7 @@ final class PlantThumbnailRenderer {
                         texture: .init(wallTexture)
                     )
                 } else {
-                    wallMat.color = .init(tint: UIColor(white: 0.92, alpha: 1.0))
+                    wallMat.color = .init(tint: UIColor(white: 0.85, alpha: 1.0))
                 }
                 backdrop.model?.materials = [wallMat]
                 backdrop.position = [0, studioSize / 2, wallZ]

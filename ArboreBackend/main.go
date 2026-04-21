@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -1192,6 +1193,14 @@ func main() {
 	middleware.CheckUserBannedFunc = checkUserBannedFromDB
 
 	router := gin.Default()
+
+	// CORS pour autoriser les requêtes depuis le frontend web
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Authorization", "Content-Type", "X-API-Key"},
+		AllowCredentials: true,
+	}))
 
 	// Augmenter la limite de taille pour les uploads de fichiers (1GB max)
 	router.MaxMultipartMemory = 1 << 30 // 1 GB

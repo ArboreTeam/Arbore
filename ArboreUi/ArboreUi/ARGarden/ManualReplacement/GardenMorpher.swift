@@ -46,7 +46,15 @@ enum GardenMorpher {
 
         let oldCentroid2D = centroid(of: oldPolygon2D)
         let newCentroid2D = centroid(of: newPolygon2D)
-        let avgFloorY = floorY ?? (newBoundary.reduce(Float(0)) { $0 + $1.y } / Float(newBoundary.count))
+
+        // Floor Y is approximated by the average Y of each boundary's tap
+        // points (the user taps the floor, so the average is a good proxy).
+        // We use this to PRESERVE THE ELEVATION DELTA of each plant: a plant
+        // saved at oldFloorY + 0.6 ends up at newFloorY + 0.6, regardless of
+        // session-Y origin differences.
+        let oldFloorY = oldBoundary.reduce(Float(0)) { $0 + $1.y } / Float(oldBoundary.count)
+        let newFloorY = floorY ?? (newBoundary.reduce(Float(0)) { $0 + $1.y } / Float(newBoundary.count))
+        let floorDelta = newFloorY - oldFloorY
 
         let morphed: [MorphedPlant] = oldPlants.map { plant in
             let plantPos2D = SIMD2<Float>(plant.position[0], plant.position[2])
@@ -63,15 +71,18 @@ enum GardenMorpher {
                 newPos2D = closestPointOnPolygonEdge(point: newPos2D, polygon: newPolygon2D)
             }
 
-            // 4. Build the new 4x4 transform. Preserve original rotation and scale
-            //    (we only translate). For Y, snap to detected floor or preserve delta.
+            // 4. Build the new 4x4 transform. We preserve the plant's elevation
+            //    above the original floor by shifting Y by `floorDelta` (the
+            //    difference between new and old floor Y). Floor plants stay on
+            //    the floor; elevated plants keep their height.
             let oldY = plant.position[1]
+            let newY = oldY + floorDelta
             let newTransform = buildTransform(
                 originalTransform: plant.transform,
                 newX: newPos2D.x,
-                newY: oldY,                 // delta is naturally preserved
+                newY: newY,
                 newZ: newPos2D.y,
-                snapY: avgFloorY
+                snapY: newY
             )
 
             // 5. Distortion analysis.

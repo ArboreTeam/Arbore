@@ -470,12 +470,15 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     /// SwiftUI calls this when the view goes away. We pause the AR session
     /// (silences "ARSession is being deallocated without being paused"
     /// warnings) and detach the delegates so any in-flight callbacks don't
-    /// reach a half-torn-down coordinator.
+    /// reach a half-torn-down coordinator. Selector-based notification
+    /// observers are NOT auto-removed by Foundation, so we drop them too
+    /// to avoid leaks across repeated open/close cycles.
     static func dismantleUIView(_ uiView: ARSCNView, coordinator: Coordinator) {
-        AppLog.arSession.notice("dismantle — pausing session")
+        AppLog.arSession.notice("dismantle — pausing session, removing observers")
         uiView.session.pause()
         uiView.session.delegate = nil
         uiView.delegate = nil
+        NotificationCenter.default.removeObserver(coordinator)
         coordinator.arView = nil
     }
 
@@ -1831,6 +1834,35 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 let newBoundary = props.newBoundaryPoints
                 guard newBoundary.count >= 3 else { return }
 
+                // Validate that the old garden's data finished loading from disk
+                // (Issue #111 I1). Without it, GardenMorpher would silently
+                // produce an empty result and the user would see nothing happen.
+                guard oldDataLoaded else {
+                    AppLog.manualReplace.warning("validateNewBoundary blocked — old data not loaded yet")
+                    // Stay in tracingBoundary; the user can retry shortly.
+                    return
+                }
+                guard !oldPersistedPlants.isEmpty else {
+                    AppLog.manualReplace.warning("validateNewBoundary — old garden has no plants, nothing to morph")
+                    DispatchQueue.main.async {
+                        self.parentProps?.relocationPhase = .completed
+                    }
+                    return
+                }
+                guard !oldBoundaryPoints.isEmpty else {
+                    AppLog.manualReplace.warning("validateNewBoundary — old garden has no boundary, falling back to centroid placement")
+                    // Morpher's fallback path will place plants near the new
+                    // centroid; user can fine-tune in .adjusting.
+                    let result = GardenMorpher.morph(
+                        oldPlants: oldPersistedPlants,
+                        oldBoundary: [],
+                        newBoundary: newBoundary,
+                        floorY: averageY(of: newBoundary)
+                    )
+                    self.applyMorphResult(result, in: arView)
+                    return
+                }
+
                 // The old boundary may have a different vertex count than the new one;
                 // if so, resample so MVC weights have matching arities.
                 let resampled = resamplePolygon(oldBoundaryPoints, toCount: newBoundary.count)
@@ -1841,7 +1873,13 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     floorY: averageY(of: newBoundary)
                 )
 
-                // Render ghost plants at morphed positions.
+                applyMorphResult(result, in: arView)
+            }
+
+            /// Renders morph result as ghost markers and transitions to
+            /// `.morphingPreview`. Called from both the normal MVC path and
+            /// the no-boundary fallback (Issue #111 I1).
+            private func applyMorphResult(_ result: MorphResult, in arView: ARSCNView) {
                 arView.scene.rootNode.childNodes
                     .filter { $0.name?.starts(with: "ghost_morphed_") == true }
                     .forEach { $0.removeFromParentNode() }
@@ -1889,6 +1927,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                 do {
                                     let url = try await ModelCacheManager.shared.getModelURL(for: persisted.modelURLString, forceDownload: false)
                                     await MainActor.run {
+                                        // Propagate surface info so future
+                                        // restores can snap properly (Issue #111 B1).
                                         self.placeObject(
                                             at: transform,
                                             modelURL: url,
@@ -1896,7 +1936,9 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                             name: persisted.plantName,
                                             finalScale: finalScale,
                                             modelURLString: persisted.modelURLString,
-                                            upAxis: persisted.upAxis
+                                            upAxis: persisted.upAxis,
+                                            surfaceType: persisted.surfaceType,
+                                            surfaceHeight: persisted.surfaceHeight
                                         )
                                     }
                                 } catch {
@@ -1909,7 +1951,9 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                                 name: persisted.plantName,
                                                 finalScale: finalScale,
                                                 modelURLString: persisted.modelURLString,
-                                                upAxis: persisted.upAxis
+                                                upAxis: persisted.upAxis,
+                                                surfaceType: persisted.surfaceType,
+                                                surfaceHeight: persisted.surfaceHeight
                                             )
                                         }
                                     }

@@ -1709,7 +1709,10 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             // Snapshot taken right after morphing, used to revert manual adjustments.
             private var preMorphAdjustment: [String: simd_float4x4] = [:]
             // Map plantId → URL string used to instantiate the model post-morph.
-            private var morphedModelMap: [String: PersistedPlant] = [:]
+            // List of morphed plants pending confirmation. Keyed by index, NOT
+            // plantId — multiple instances of the same catalog plant must
+            // each survive (dedup-by-id was a bug: 5 Arecas collapsed to 1).
+            private var pendingMorphedPlants: [MorphedPlant] = []
 
             /// Loads scene_{id}.json off the main thread; stores boundary + plants
             /// for use in the manual replacement flow. Independent of WorldMap.
@@ -1884,10 +1887,9 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     .filter { $0.name?.starts(with: "ghost_morphed_") == true }
                     .forEach { $0.removeFromParentNode() }
 
-                morphedModelMap.removeAll()
-                for mp in result.morphedPlants {
-                    morphedModelMap[mp.plantId] = mp.originalPlant
-                    drawGhostMarker(for: mp, in: arView.scene)
+                pendingMorphedPlants = result.morphedPlants
+                for (idx, mp) in result.morphedPlants.enumerated() {
+                    drawGhostMarker(for: mp, instanceIndex: idx, in: arView.scene)
                 }
 
                 DispatchQueue.main.async {
@@ -1902,26 +1904,24 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 // Take a snapshot of morphed transforms before any user adjustment.
                 preMorphAdjustment.removeAll()
 
-                // Remove ghost markers — we'll instantiate real plants now.
-                let ghosts = arView.scene.rootNode.childNodes
-                    .filter { $0.name?.starts(with: "ghost_morphed_") == true }
-                let morphedTransformsByPlantId: [String: simd_float4x4] = ghosts.reduce(into: [:]) { dict, node in
-                    if let name = node.name,
-                       let id = name.components(separatedBy: "_").dropFirst(2).first {
-                        dict[id] = node.simdTransform
-                    }
-                }
-
                 // Hide old-boundary ghost outline and ghost markers.
-                ghosts.forEach { $0.removeFromParentNode() }
+                arView.scene.rootNode.childNodes
+                    .filter { $0.name?.starts(with: "ghost_morphed_") == true }
+                    .forEach { $0.removeFromParentNode() }
                 GhostRenderer.removeBoundary(named: "manual_replacement_old_boundary", from: arView.scene)
                 clearNewBoundaryVisuals()
 
-                // Instantiate real plants concurrently using the existing placement pipeline.
-                Task { [morphedTransformsByPlantId] in
+                // Instantiate real plants concurrently using the existing placement
+                // pipeline. Iterate the MorphedPlant list directly — multiple
+                // instances of the same catalog plant must each survive (was a
+                // dedup bug: 5 Arecas collapsed to 1 because the dict key was
+                // the catalog plantId).
+                let snapshot = pendingMorphedPlants
+                Task {
                     await withTaskGroup(of: Void.self) { group in
-                        for (plantId, persisted) in self.morphedModelMap {
-                            guard let transform = morphedTransformsByPlantId[plantId] else { continue }
+                        for mp in snapshot {
+                            let persisted = mp.originalPlant
+                            let transform = mp.newTransform
                             let finalScale = SCNVector3(persisted.scale[0], persisted.scale[1], persisted.scale[2])
                             group.addTask {
                                 do {
@@ -1962,6 +1962,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         }
                     }
                     await MainActor.run {
+                        self.pendingMorphedPlants.removeAll()
                         self.snapshotPreMorphAdjustment()
                         self.parentProps?.relocationPhase = .adjusting
                     }
@@ -2024,9 +2025,11 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 )
             }
 
-            private func drawGhostMarker(for mp: MorphedPlant, in scene: SCNScene) {
+            private func drawGhostMarker(for mp: MorphedPlant, instanceIndex: Int, in scene: SCNScene) {
                 // Lightweight marker: small floating sphere at the morphed XZ
                 // (we don't load USDZ here to keep preview cheap and snappy).
+                // The name embeds the instance INDEX so multiple instances of
+                // the same catalog plant get distinct, identifiable markers.
                 let isWarn = mp.warning != nil
                 let color: UIColor = isWarn ? UIColor.systemOrange : UIColor(hex: "#FFD86F")
                 let sphere = SCNSphere(radius: 0.06)
@@ -2036,7 +2039,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 let node = SCNNode(geometry: sphere)
                 node.opacity = 0.7
                 node.simdTransform = mp.newTransform
-                node.name = "ghost_morphed_\(mp.plantId)"
+                node.name = "ghost_morphed_\(instanceIndex)_\(mp.plantId)"
                 scene.rootNode.addChildNode(node)
             }
 

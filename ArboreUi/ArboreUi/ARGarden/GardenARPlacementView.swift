@@ -490,6 +490,12 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             
             private var reticleNode: SCNNode?
             private var lastReticleTransform: simd_float4x4?
+            // Quality of the surface under the reticle. Drives color feedback
+            // and decides whether boundary taps are accepted reliably.
+            private enum ReticleQuality { case none, estimated, geometry }
+            private var reticleQuality: ReticleQuality = .none
+            // Rate-limit "no surface" warnings during boundary tracing.
+            private var lastNoSurfaceWarnAt: TimeInterval = 0
             private var selectedNode: SCNNode?
             private var isRestoring = false
 
@@ -723,14 +729,43 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 guard let arView = arView, let reticle = reticleNode else { return }
 
                 let center = cachedViewCenter
-                if let query = arView.raycastQuery(from: center, allowing: .existingPlaneGeometry, alignment: .horizontal),
-                   let result = arView.session.raycast(query).first {
-                    lastReticleTransform = result.worldTransform
-                    reticle.simdTransform = result.worldTransform
-                    reticle.opacity = 1
+
+                // Two-tier raycast: prefer a real detected plane (.existingPlaneGeometry,
+                // surveyed surface — reliable). Fall back to .estimatedPlane (ARKit
+                // guesses a plausible plane from feature points — less precise but
+                // usable in low-light or poorly-textured scenes). Both keep the
+                // reticle interactive; only the color changes.
+                var newQuality: ReticleQuality = .none
+                var newTransform: simd_float4x4?
+
+                if let q = arView.raycastQuery(from: center, allowing: .existingPlaneGeometry, alignment: .horizontal),
+                   let r = arView.session.raycast(q).first {
+                    newQuality = .geometry
+                    newTransform = r.worldTransform
+                } else if let q = arView.raycastQuery(from: center, allowing: .estimatedPlane, alignment: .horizontal),
+                          let r = arView.session.raycast(q).first {
+                    newQuality = .estimated
+                    newTransform = r.worldTransform
+                }
+
+                lastReticleTransform = newTransform
+                if let t = newTransform {
+                    reticle.simdTransform = t
+                    reticle.opacity = (newQuality == .geometry) ? 1.0 : 0.6
                 } else {
-                    lastReticleTransform = nil
                     reticle.opacity = 0
+                }
+
+                // Update color only on transition (avoid per-frame material churn).
+                if newQuality != reticleQuality {
+                    reticleQuality = newQuality
+                    let color: UIColor
+                    switch newQuality {
+                    case .geometry:  color = UIColor(hex: "#2BEE79")  // green: solid surface
+                    case .estimated: color = UIColor(hex: "#FFB020")  // amber: approximate
+                    case .none:      color = UIColor(hex: "#2BEE79")  // hidden anyway
+                    }
+                    reticle.geometry?.firstMaterial?.diffuse.contents = color
                 }
             }
             
@@ -1359,9 +1394,19 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 // During manual boundary tracing, taps add boundary points (Issue #111).
                 if parentProps?.relocationPhase == .tracingBoundary {
                     if let transform = lastReticleTransform {
+                        // Accept both .geometry and .estimated hits — the user
+                        // gets visual feedback via the reticle color (green vs.
+                        // amber) so they know when the surface is approximate.
                         addBoundaryPoint(at: transform)
                     } else {
-                        print("⚠️ Pas de surface détectée pour le tracé de boundary")
+                        // Throttle this log: ARKit can drop the raycast for
+                        // many tap-frames in low light, and 25 lines/session
+                        // drowns out everything else.
+                        let now = CACurrentMediaTime()
+                        if now - lastNoSurfaceWarnAt > 2.0 {
+                            lastNoSurfaceWarnAt = now
+                            AppLog.manualReplace.notice("boundary tap ignored — no surface under reticle")
+                        }
                     }
                     return
                 }

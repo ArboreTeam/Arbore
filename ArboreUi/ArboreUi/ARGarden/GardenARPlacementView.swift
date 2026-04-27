@@ -478,6 +478,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         uiView.session.pause()
         uiView.session.delegate = nil
         uiView.delegate = nil
+        coordinator.cancelPendingRestore()
         NotificationCenter.default.removeObserver(coordinator)
         coordinator.arView = nil
     }
@@ -572,6 +573,25 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             private var lastLoggedMapStatus: ARFrame.WorldMappingStatus = .notAvailable
             private var lastLoggedTrackingState: String = ""
 
+            // Debounce restore until ARKit's plane detection has settled.
+            // After relocalization completes, ARKit keeps adding/refining
+            // planes for a few hundred ms. If we restore too early, plants
+            // sitting on a desk snap to the floor (or to a half-detected plane)
+            // because `restoreScene`'s nearest-plane lookup runs before the
+            // correct plane exists.
+            //
+            // Pattern: when relocalization completes, schedule restore after
+            // `restoreDebounceDelay`. Each new ARPlaneAnchor that arrives
+            // BEFORE we fire pushes the deadline back (planes are still being
+            // discovered). A `restoreMaxWait` failsafe guarantees we
+            // eventually fire even if planes never stop arriving (rare but
+            // possible on cluttered scenes).
+            private var restoreScheduled = false
+            private var restoreDebounceWorkItem: DispatchWorkItem?
+            private var restoreMaxWaitWorkItem: DispatchWorkItem?
+            private let restoreDebounceDelay: TimeInterval = 1.5
+            private let restoreMaxWait: TimeInterval = 4.0
+
             func session(_ session: ARSession, didUpdate frame: ARFrame) {
                 let mapStatus = frame.worldMappingStatus
                 let trackingState = frame.camera.trackingState
@@ -615,17 +635,83 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }()
                 guard mapStatusOK, trackingNormal else { return }
 
+                if !restoreScheduled {
+                    restoreScheduled = true
+                    let timing = String(format: "debounce %.1fs, maxWait %.1fs",
+                                        restoreDebounceDelay, restoreMaxWait)
+                    AppLog.arSession.notice("""
+                        relocalized garden=\(gardenId, privacy: .public) \
+                        map=\(mapStatus.logDescription, privacy: .public) \
+                        tracking=\(trackingDesc, privacy: .public) — \
+                        scheduling restore (\(timing, privacy: .public))
+                        """)
+                    scheduleRestore(gardenId: gardenId)
+                }
+            }
+
+            /// Schedules the deferred restore: a debounced primary timer (reset
+            /// every time a new ARPlaneAnchor arrives) plus a max-wait failsafe.
+            /// Both fire `executePendingRestore`; whichever runs first cancels
+            /// the other.
+            private func scheduleRestore(gardenId: String) {
+                // Cancel any prior schedule (defensive — caller already gates
+                // on `restoreScheduled`, but never trust the call site).
+                restoreDebounceWorkItem?.cancel()
+                restoreMaxWaitWorkItem?.cancel()
+
+                let debounce = DispatchWorkItem { [weak self] in
+                    guard let self = self else { return }
+                    AppLog.arSession.notice("restore fired (debounce settled) garden=\(gardenId, privacy: .public)")
+                    self.executePendingRestore(gardenId: gardenId)
+                }
+                let maxWait = DispatchWorkItem { [weak self] in
+                    guard let self = self else { return }
+                    AppLog.arSession.notice("restore fired (max-wait reached) garden=\(gardenId, privacy: .public)")
+                    self.executePendingRestore(gardenId: gardenId)
+                }
+                restoreDebounceWorkItem = debounce
+                restoreMaxWaitWorkItem = maxWait
+                DispatchQueue.main.asyncAfter(deadline: .now() + restoreDebounceDelay, execute: debounce)
+                DispatchQueue.main.asyncAfter(deadline: .now() + restoreMaxWait, execute: maxWait)
+            }
+
+            /// Called when a new plane is discovered while restore is pending —
+            /// extends the debounce window so we wait for the scene to settle.
+            private func bumpRestoreDebounce() {
+                guard restoreScheduled, !didRestoreGarden,
+                      let gardenId = pendingRestoreGardenId else { return }
+                restoreDebounceWorkItem?.cancel()
+                let debounce = DispatchWorkItem { [weak self] in
+                    guard let self = self else { return }
+                    AppLog.arSession.notice("restore fired (debounce settled after plane bump) garden=\(gardenId, privacy: .public)")
+                    self.executePendingRestore(gardenId: gardenId)
+                }
+                restoreDebounceWorkItem = debounce
+                DispatchQueue.main.asyncAfter(deadline: .now() + restoreDebounceDelay, execute: debounce)
+            }
+
+            private func executePendingRestore(gardenId: String) {
+                guard !didRestoreGarden else { return }
+                restoreDebounceWorkItem?.cancel()
+                restoreMaxWaitWorkItem?.cancel()
+                restoreDebounceWorkItem = nil
+                restoreMaxWaitWorkItem = nil
                 didRestoreGarden = true
                 pendingRestoreGardenId = nil
-                AppLog.arSession.notice("""
-                    relocalized garden=\(gardenId, privacy: .public) \
-                    map=\(mapStatus.logDescription, privacy: .public) \
-                    tracking=\(trackingDesc, privacy: .public)
-                    """)
                 DispatchQueue.main.async {
                     self.parentProps?.isRelocating = false
                 }
                 loadGardenFromDisk(gardenId: gardenId)
+            }
+
+            /// Cancels any pending restore work — used by manual replacement
+            /// and by dismantle.
+            func cancelPendingRestore() {
+                restoreDebounceWorkItem?.cancel()
+                restoreMaxWaitWorkItem?.cancel()
+                restoreDebounceWorkItem = nil
+                restoreMaxWaitWorkItem = nil
+                restoreScheduled = false
             }
 
             func updateCachedBounds() {
@@ -1592,6 +1678,15 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             // is invisible to the user.
 
             func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
+                // While we're waiting to restore a saved garden, every new
+                // plane that arrives extends the debounce window. This lets
+                // ARKit's plane-detection finish converging before we run the
+                // snap-to-plane lookup in restoreScene.
+                if anchor is ARPlaneAnchor {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.bumpRestoreDebounce()
+                    }
+                }
                 DispatchQueue.main.async { [weak self] in
                     guard let self = self,
                           let pending = self.anchorPendingPlacements.removeValue(forKey: anchor.identifier) else {
@@ -1743,6 +1838,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             @objc func handleEnterManualReplacement() {
                 guard let arView = arView else { return }
                 // Stop relying on automatic relocalization.
+                cancelPendingRestore()
                 pendingRestoreGardenId = nil
                 didRestoreGarden = true
                 DispatchQueue.main.async {

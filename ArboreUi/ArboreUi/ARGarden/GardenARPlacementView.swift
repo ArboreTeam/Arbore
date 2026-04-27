@@ -467,6 +467,18 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
+    /// SwiftUI calls this when the view goes away. We pause the AR session
+    /// (silences "ARSession is being deallocated without being paused"
+    /// warnings) and detach the delegates so any in-flight callbacks don't
+    /// reach a half-torn-down coordinator.
+    static func dismantleUIView(_ uiView: ARSCNView, coordinator: Coordinator) {
+        AppLog.arSession.notice("dismantle — pausing session")
+        uiView.session.pause()
+        uiView.session.delegate = nil
+        uiView.delegate = nil
+        coordinator.arView = nil
+    }
+
     // MARK: - Coordinator
         final class Coordinator: NSObject, ARSCNViewDelegate, ARSessionDelegate, UIGestureRecognizerDelegate {
             var parentProps: GardenARPlacementContainerView?
@@ -561,13 +573,17 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 let mapStatus = frame.worldMappingStatus
                 let trackingState = frame.camera.trackingState
 
+                // mapStatus oscillates rapidly (mapped ↔ extending) during
+                // normal use — log at .debug to avoid spamming Console.
                 if mapStatus != lastLoggedMapStatus {
-                    AppLog.arSession.notice("""
+                    AppLog.arSession.debug("""
                         mapStatus \(self.lastLoggedMapStatus.logDescription, privacy: .public) \
                         → \(mapStatus.logDescription, privacy: .public)
                         """)
                     lastLoggedMapStatus = mapStatus
                 }
+                // trackingState transitions are rarer and load-bearing
+                // (relocalization completion) — keep at .notice.
                 let trackingDesc = trackingState.logDescription
                 if trackingDesc != lastLoggedTrackingState {
                     AppLog.arSession.notice("""
@@ -629,6 +645,27 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
             }
             
+            /// Returns the Y of the largest detected horizontal plane (the floor).
+            /// Falls back to nil if no horizontal planes are detected yet.
+            /// Used to classify a plant as `floor` vs `elevated` independently
+            /// of the session's Y=0 origin (which depends on where the user
+            /// held the phone at session start, not on the actual floor).
+            @MainActor
+            private func detectedFloorY() -> Float? {
+                guard let frame = arView?.session.currentFrame else { return nil }
+                let horizontals = frame.anchors.compactMap { $0 as? ARPlaneAnchor }
+                    .filter { $0.alignment == .horizontal }
+                guard !horizontals.isEmpty else { return nil }
+                // The floor is the plane with the largest area AND the lowest Y
+                // among large planes. We pick "largest area" as primary signal —
+                // furniture surfaces are smaller than the floor in most rooms.
+                let largest = horizontals.max(by: {
+                    ($0.planeExtent.width * $0.planeExtent.height) <
+                    ($1.planeExtent.width * $1.planeExtent.height)
+                })
+                return largest?.transform.columns.3.y
+            }
+
             // MARK: - Capture Précise (Crucial pour la Map 2D)
             private func captureCurrentState() -> [PersistedPlant] {
                 guard let arView = arView else { return [] }
@@ -641,6 +678,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     }
                     return rootChild.childNodes.filter { $0.name?.starts(with: "plant_") == true }
                 }
+                // Cache the floor Y once per capture for elevation classification.
+                let floorY = detectedFloorY()
 
                 return plantNodes.map { node -> PersistedPlant in
                     // Découpage du nom: plant_{id}_{name}_{url}_{uuid}
@@ -682,13 +721,27 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     let worldEuler = node.eulerAngles
                     let worldScale = SIMD3<Float>(node.scale.x, node.scale.y, node.scale.z)
 
-                    // Surface detection: above 10cm from the session-Y origin
-                    // is treated as "elevated" — used by snap-to-plane.
+                    // Surface detection (Issue #113) — RELATIVE to the detected
+                    // floor plane, not to the session's Y=0 origin (which can
+                    // be anywhere depending on where the user held the phone
+                    // at session start). A plant > 10cm above floor = elevated.
                     let elevationThreshold: Float = 0.10
-                    let surfaceType: String = worldPos.y > elevationThreshold ? "elevated" : "floor"
+                    let surfaceType: String
+                    if let floorY = floorY {
+                        surfaceType = (worldPos.y - floorY) > elevationThreshold ? "elevated" : "floor"
+                    } else {
+                        // No floor detected yet — fall back to the old absolute
+                        // threshold. Will misclassify if Y=0 isn't the floor,
+                        // but it's the best guess we have.
+                        surfaceType = worldPos.y > elevationThreshold ? "elevated" : "floor"
+                    }
                     let surfaceHeight: Float = worldPos.y
 
-                    AppLog.gardenSave.notice("""
+                    // captureCurrentState is invoked on every undo snapshot and
+                    // by every gesture — it can fire dozens of times per
+                    // second during a scale animation. Keep these at .debug
+                    // so notice-level logs stay readable.
+                    AppLog.gardenSave.debug("""
                         capture plant=\(parts[safe: 2] ?? "Plante", privacy: .public) \
                         id=\(plantId, privacy: .public) \
                         anchorPos=\(worldPos.logDescription, privacy: .public) \

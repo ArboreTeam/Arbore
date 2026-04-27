@@ -21,6 +21,14 @@ extension Notification.Name {
     static let gardenARRotate = Notification.Name("gardenARRotate")
     static let gardenARScaleUp = Notification.Name("gardenARScaleUp")
     static let gardenARScaleDown = Notification.Name("gardenARScaleDown")
+    // Manual replacement (Issue #111)
+    static let gardenAREnterManualReplacement = Notification.Name("gardenAREnterManualReplacement")
+    static let gardenARCancelManualReplacement = Notification.Name("gardenARCancelManualReplacement")
+    static let gardenARBoundaryUndoLast = Notification.Name("gardenARBoundaryUndoLast")
+    static let gardenARValidateNewBoundary = Notification.Name("gardenARValidateNewBoundary")
+    static let gardenARConfirmMorphedPlacement = Notification.Name("gardenARConfirmMorphedPlacement")
+    static let gardenARRevertToMorphed = Notification.Name("gardenARRevertToMorphed")
+    static let gardenARLoadOldData = Notification.Name("gardenARLoadOldData")
 }
 
 // MARK: - 2. Vue Principale SwiftUI
@@ -53,6 +61,12 @@ struct GardenARPlacementView: View {
     @State private var isDownloadingModel = false
     @State private var isRelocating = false
 
+    // Manual replacement (Issue #111) state
+    @State private var relocationPhase: RelocationPhase = .scanning
+    @State private var newBoundaryPoints: [SIMD3<Float>] = []
+    @State private var newBoundaryArea: Float = 0
+    @State private var distortionWarnings: [DistortionWarning] = []
+
     var body: some View {
         ZStack {
             // --- Vue AR ---
@@ -64,6 +78,10 @@ struct GardenARPlacementView: View {
                 hasSelectedNode: $hasSelectedNode,
                 selectedNodeName: $selectedNodeName,
                 isSaving: $isSaving,
+                relocationPhase: $relocationPhase,
+                newBoundaryPoints: $newBoundaryPoints,
+                newBoundaryArea: $newBoundaryArea,
+                distortionWarnings: $distortionWarnings,
                 uid: uid,
                 wizard: wizard,
                 gardenName: gardenName,
@@ -81,9 +99,52 @@ struct GardenARPlacementView: View {
             )
             .ignoresSafeArea()
 
-            // --- Relocalization overlay ---
-            if isRelocating {
-                gardenLoadingOverlay
+            // --- Phase-based overlays (Issue #111) ---
+            if mode == .reopen {
+                switch relocationPhase {
+                case .scanning where isRelocating:
+                    ScanningCoachingOverlay(
+                        onReplaceManually: {
+                            NotificationCenter.default.post(name: .gardenAREnterManualReplacement, object: nil)
+                        },
+                        onCancel: { dismiss() }
+                    )
+                case .tracingBoundary:
+                    BoundaryTracingOverlay(
+                        pointCount: newBoundaryPoints.count,
+                        area: newBoundaryArea,
+                        onCancel: {
+                            NotificationCenter.default.post(name: .gardenARCancelManualReplacement, object: nil)
+                        },
+                        onUndoLast: {
+                            NotificationCenter.default.post(name: .gardenARBoundaryUndoLast, object: nil)
+                        },
+                        onValidate: {
+                            NotificationCenter.default.post(name: .gardenARValidateNewBoundary, object: nil)
+                        }
+                    )
+                case .morphingPreview:
+                    MorphingPreviewOverlay(
+                        warnings: distortionWarnings,
+                        onCancel: {
+                            NotificationCenter.default.post(name: .gardenARCancelManualReplacement, object: nil)
+                        },
+                        onConfirm: {
+                            NotificationCenter.default.post(name: .gardenARConfirmMorphedPlacement, object: nil)
+                        }
+                    )
+                case .adjusting:
+                    AdjustingOverlay(
+                        onRevert: {
+                            NotificationCenter.default.post(name: .gardenARRevertToMorphed, object: nil)
+                        },
+                        onValidate: {
+                            NotificationCenter.default.post(name: .gardenARValidate, object: nil)
+                        }
+                    )
+                default:
+                    EmptyView()
+                }
             }
 
             // --- HUD Interface ---
@@ -130,8 +191,10 @@ struct GardenARPlacementView: View {
             .presentationBackground(.clear)
         }
         .onAppear {
-            if mode == .reopen, existingGardenId != nil {
+            if mode == .reopen, let id = existingGardenId {
                 isRelocating = true
+                relocationPhase = .scanning
+                NotificationCenter.default.post(name: .gardenARLoadOldData, object: id)
             }
             if selectedPlantForPlacement == nil {
                 selectedPlantForPlacement = selectedPlants.first
@@ -312,6 +375,12 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var selectedNodeName: String?
     @Binding var isSaving: Bool
 
+    // Manual replacement state (Issue #111)
+    @Binding var relocationPhase: RelocationPhase
+    @Binding var newBoundaryPoints: [SIMD3<Float>]
+    @Binding var newBoundaryArea: Float
+    @Binding var distortionWarnings: [DistortionWarning]
+
     let uid: String
     let wizard: GardenWizardDTO
     let gardenName: String
@@ -340,15 +409,27 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
 
         // Load WorldMap on a background thread so main thread is not blocked.
-        // Once loaded, restart the session with the world map.
-        if let mapId = measurementWorldMapId {
+        // Once loaded, restart the session with the world map as initialWorldMap.
+        // For mode .create with measurement: load measurementWorldMapId.
+        // For mode .reopen: load the saved garden's own WorldMap.
+        // We load it here (rather than later in loadGardenFromDisk) so that the
+        // session's relocalization runs ONCE; then we wait for it to fully
+        // complete (camera.trackingState == .normal) before adding plant
+        // ARAnchors. Adding anchors mid-relocalization locks them to the wrong
+        // real-world location and produces 90°/180° garden rotations.
+        let worldMapToLoad: String? = {
+            if let measurement = measurementWorldMapId { return measurement }
+            if mode == .reopen, let gardenId = existingGardenId { return gardenId }
+            return nil
+        }()
+        if let mapId = worldMapToLoad {
             let mapURL = GardenLocalStore.worldMapURL(for: mapId)
             DispatchQueue.global(qos: .userInitiated).async {
                 guard FileManager.default.fileExists(atPath: mapURL.path),
                       let mapData = try? Data(contentsOf: mapURL),
                       let worldMap = try? NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData)
                 else {
-                    print("⚠️ WorldMap de mesure introuvable ou illisible: \(mapId)")
+                    print("⚠️ WorldMap introuvable ou illisible: \(mapId)")
                     return
                 }
                 DispatchQueue.main.async {
@@ -357,7 +438,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     restartConfig.environmentTexturing = .automatic
                     restartConfig.initialWorldMap = worldMap
                     sceneView.session.run(restartConfig, options: [.resetTracking, .removeExistingAnchors])
-                    print("✅ WorldMap de mesure chargée (ID: \(mapId))")
+                    print("✅ WorldMap chargée (ID: \(mapId))")
                 }
             }
         }
@@ -405,6 +486,28 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             // Garden ID pending restore after WorldMap relocalization
             var pendingRestoreGardenId: String?
 
+            // Issue #113 — ARAnchor-based placement.
+            // anchor.identifier (UUID, unique per placement) → its ARAnchor.
+            // Keyed by UUID and not by plantId because the user can place multiple
+            // instances of the same catalog plant.
+            private var plantAnchorMap: [UUID: ARAnchor] = [:]
+            // anchor.identifier → pending visual to attach when ARKit creates the anchor's node.
+            private var anchorPendingPlacements: [UUID: PendingPlantPlacement] = [:]
+
+            struct PendingPlantPlacement {
+                let modelURL: URL
+                let plantId: String
+                let plantName: String
+                let finalScale: SCNVector3?
+                let modelURLString: String?
+                let upAxis: String?
+                let allowRetry: Bool
+                let isRestore: Bool   // captured at queue-time (placeObject's isRestoring may flip async)
+                let surfaceType: String?
+                let surfaceHeight: Float?
+                let instanceId: UUID  // anchor.identifier — used so the loaded node can find its anchor
+            }
+
             init(_ parent: GardenARPlacementContainerView) { self.parentProps = parent }
 
             private func dumpNodeTree(_ node: SCNNode, indent: String = "") {
@@ -423,6 +526,19 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 nc.addObserver(self, selector: #selector(handleScaleDownAction), name: .gardenARScaleDown, object: nil)
                 nc.addObserver(self, selector: #selector(handleUndo), name: .gardenARUndo, object: nil)
                 nc.addObserver(self, selector: #selector(handleRedo), name: .gardenARRedo, object: nil)
+                // Manual replacement observers (Issue #111)
+                nc.addObserver(self, selector: #selector(handleEnterManualReplacement), name: .gardenAREnterManualReplacement, object: nil)
+                nc.addObserver(self, selector: #selector(handleCancelManualReplacement), name: .gardenARCancelManualReplacement, object: nil)
+                nc.addObserver(self, selector: #selector(handleBoundaryUndoLast), name: .gardenARBoundaryUndoLast, object: nil)
+                nc.addObserver(self, selector: #selector(handleValidateNewBoundary), name: .gardenARValidateNewBoundary, object: nil)
+                nc.addObserver(self, selector: #selector(handleConfirmMorphedPlacement), name: .gardenARConfirmMorphedPlacement, object: nil)
+                nc.addObserver(self, selector: #selector(handleRevertToMorphed), name: .gardenARRevertToMorphed, object: nil)
+                nc.addObserver(self, selector: #selector(handleLoadOldData(_:)), name: .gardenARLoadOldData, object: nil)
+            }
+
+            @objc func handleLoadOldData(_ note: Notification) {
+                guard let id = note.object as? String else { return }
+                loadOldGardenData(gardenId: id)
             }
             
             func setupReticle() {
@@ -436,18 +552,61 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             // MARK: - WorldMap relocalization tracking
             private var didRestoreGarden = false
 
+            // Throttle session-state logs (called ~60 Hz). We keep last seen
+            // values and only emit a `notice` line when something changes.
+            private var lastLoggedMapStatus: ARFrame.WorldMappingStatus = .notAvailable
+            private var lastLoggedTrackingState: String = ""
+
             func session(_ session: ARSession, didUpdate frame: ARFrame) {
-                guard let gardenId = pendingRestoreGardenId, !didRestoreGarden else { return }
-                let status = frame.worldMappingStatus
-                if status == .mapped || status == .extending {
-                    didRestoreGarden = true
-                    pendingRestoreGardenId = nil
-                    print("✅ WorldMap relocalized (\(status)), restoring garden \(gardenId)")
-                    DispatchQueue.main.async {
-                        self.parentProps?.isRelocating = false
-                    }
-                    loadGardenFromDisk(gardenId: gardenId)
+                let mapStatus = frame.worldMappingStatus
+                let trackingState = frame.camera.trackingState
+
+                if mapStatus != lastLoggedMapStatus {
+                    AppLog.arSession.notice("""
+                        mapStatus \(self.lastLoggedMapStatus.logDescription, privacy: .public) \
+                        → \(mapStatus.logDescription, privacy: .public)
+                        """)
+                    lastLoggedMapStatus = mapStatus
                 }
+                let trackingDesc = trackingState.logDescription
+                if trackingDesc != lastLoggedTrackingState {
+                    AppLog.arSession.notice("""
+                        trackingState \(self.lastLoggedTrackingState, privacy: .public) \
+                        → \(trackingDesc, privacy: .public)
+                        """)
+                    lastLoggedTrackingState = trackingDesc
+                }
+
+                guard let gardenId = pendingRestoreGardenId, !didRestoreGarden else { return }
+                // If the user already took manual control, ignore relocalization events.
+                if let phase = parentProps?.relocationPhase, phase.isManualReplacement { return }
+
+                // Wait for FULL relocalization completion before placing plant
+                // anchors (Issue #113). Two signals must be true together:
+                //  - worldMappingStatus is .mapped or .extending (env understood)
+                //  - camera.trackingState is .normal (relocalization finished —
+                //    not still in .limited(.relocalizing))
+                // Adding ARAnchors while still relocalizing locks them to the
+                // wrong real-world location, which manifests as the whole
+                // garden being rotated 90° or 180° once relocalization settles.
+                let mapStatusOK = mapStatus == .mapped || mapStatus == .extending
+                let trackingNormal: Bool = {
+                    if case .normal = trackingState { return true }
+                    return false
+                }()
+                guard mapStatusOK, trackingNormal else { return }
+
+                didRestoreGarden = true
+                pendingRestoreGardenId = nil
+                AppLog.arSession.notice("""
+                    relocalized garden=\(gardenId, privacy: .public) \
+                    map=\(mapStatus.logDescription, privacy: .public) \
+                    tracking=\(trackingDesc, privacy: .public)
+                    """)
+                DispatchQueue.main.async {
+                    self.parentProps?.isRelocating = false
+                }
+                loadGardenFromDisk(gardenId: gardenId)
             }
 
             func updateCachedBounds() {
@@ -473,15 +632,21 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             // MARK: - Capture Précise (Crucial pour la Map 2D)
             private func captureCurrentState() -> [PersistedPlant] {
                 guard let arView = arView else { return [] }
-                let plantNodes = arView.scene.rootNode.childNodes.filter { $0.name?.starts(with: "plant_") == true }
-                
+                // Plants are now children of anchor nodes (Issue #113), so we
+                // walk one level deeper. Older flows that still attach plants
+                // to rootNode directly are also covered.
+                let plantNodes: [SCNNode] = arView.scene.rootNode.childNodes.flatMap { rootChild -> [SCNNode] in
+                    if rootChild.name?.starts(with: "plant_") == true {
+                        return [rootChild]
+                    }
+                    return rootChild.childNodes.filter { $0.name?.starts(with: "plant_") == true }
+                }
+
                 return plantNodes.map { node -> PersistedPlant in
                     // Découpage du nom: plant_{id}_{name}_{url}_{uuid}
                     let parts = node.name?.components(separatedBy: "_") ?? []
-                    
+
                     let rawURLString = (parts[safe: 3] ?? "").removingPercentEncoding ?? ""
-                    // Stocker uniquement le nom de fichier (ex: "Pothos.usdz")
-                    // pour éviter les chemins absolus invalides après recompilation
                     let modelFileName: String = {
                         if let url = URL(string: rawURLString) {
                             return url.lastPathComponent
@@ -490,15 +655,59 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     }()
 
                     let plantId = parts[safe: 1] ?? "unknown"
+
+                    // Issue #113 — Save the ANCHOR's transform, not
+                    // node.simdWorldTransform.
+                    //
+                    // simdWorldTransform of the container reflects the geometry
+                    // ORIGIN position (with the pivot offset baked in), which
+                    // is *not* the visual base. If we save it and use it as the
+                    // new anchor.transform on restore, we accumulate the pivot
+                    // offset on every save→restore cycle (the plant climbs
+                    // higher and higher). Saving anchor.transform is invariant.
+                    let anchorTransform: simd_float4x4
+                    if let uuid = self.instanceIdFromNodeName(node.name ?? ""),
+                       let anchor = plantAnchorMap[uuid] {
+                        anchorTransform = anchor.transform
+                    } else {
+                        // Legacy node attached directly to rootNode (older saves
+                        // before the ARAnchor migration). Fall back to its world
+                        // transform with scale stripped.
+                        anchorTransform = stripScale(from: node.simdWorldTransform)
+                    }
+
+                    let worldPos = SIMD3<Float>(anchorTransform.columns.3.x,
+                                                anchorTransform.columns.3.y,
+                                                anchorTransform.columns.3.z)
+                    let worldEuler = node.eulerAngles
+                    let worldScale = SIMD3<Float>(node.scale.x, node.scale.y, node.scale.z)
+
+                    // Surface detection: above 10cm from the session-Y origin
+                    // is treated as "elevated" — used by snap-to-plane.
+                    let elevationThreshold: Float = 0.10
+                    let surfaceType: String = worldPos.y > elevationThreshold ? "elevated" : "floor"
+                    let surfaceHeight: Float = worldPos.y
+
+                    AppLog.gardenSave.notice("""
+                        capture plant=\(parts[safe: 2] ?? "Plante", privacy: .public) \
+                        id=\(plantId, privacy: .public) \
+                        anchorPos=\(worldPos.logDescription, privacy: .public) \
+                        scale=\(worldScale.logDescription, privacy: .public) \
+                        surface=\(surfaceType, privacy: .public) \
+                        surfaceY=\(surfaceHeight, format: .fixed(precision: 3), privacy: .public)
+                        """)
+
                     return PersistedPlant(
                         plantID: plantId,
                         plantName: parts[safe: 2] ?? "Plante",
                         modelURLString: modelFileName,
-                        position: [node.position.x, node.position.y, node.position.z],
-                        rotation: [node.eulerAngles.x, node.eulerAngles.y, node.eulerAngles.z],
-                        scale: [node.scale.x, node.scale.y, node.scale.z],
-                        transform: matrixToFloatArray(node.simdTransform),
-                        upAxis: plantUpAxisMap[plantId]
+                        position: [worldPos.x, worldPos.y, worldPos.z],
+                        rotation: [worldEuler.x, worldEuler.y, worldEuler.z],
+                        scale: [worldScale.x, worldScale.y, worldScale.z],
+                        transform: matrixToFloatArray(anchorTransform),
+                        upAxis: plantUpAxisMap[plantId],
+                        surfaceType: surfaceType,
+                        surfaceHeight: surfaceHeight
                     )
                 }
             }
@@ -658,7 +867,9 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                 rotation: plant.rotation,
                                 scale: plant.scale,
                                 transform: plant.transform,
-                                upAxis: plant.upAxis
+                                upAxis: plant.upAxis,
+                                surfaceType: plant.surfaceType,    // Issue #113 — preserve
+                                surfaceHeight: plant.surfaceHeight  // Issue #113 — preserve
                             )
                         }
                         
@@ -694,28 +905,25 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             }
             
             // MARK: - Restauration (Chargement)
+            //
+            // Issue #113 — IMPORTANT: by the time this runs, the session has
+            // already been started with the saved WorldMap as initialWorldMap
+            // (see makeUIView), and the relocalization has fully completed
+            // (camera.trackingState == .normal — checked in session(_:didUpdate:)).
+            // We do NOT restart the session here. Restarting after relocalization
+            // would re-trigger relocalizing state, and adding plant anchors
+            // mid-relocalization locks them to the wrong real-world location
+            // (manifesting as 90°/180° garden rotations after settle).
             func loadGardenFromDisk(gardenId: String) {
-                guard let arView = arView else { return }
+                guard arView != nil else { return }
                 print("📂 Chargement ID: \(gardenId)")
-                
+
                 DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                     guard let self = self else { return }
-                    
-                    // 1. World Map
-                    let mapUrl = GardenLocalStore.worldMapURL(for: gardenId)
-                    var worldMap: ARWorldMap? = nil
-                    
-                    if FileManager.default.fileExists(atPath: mapUrl.path) {
-                        do {
-                            let mapData = try Data(contentsOf: mapUrl)
-                            worldMap = try NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData)
-                        } catch { print("⚠️ Map ignorée (version incompatible)") }
-                    }
-                    
-                    // 2. Scene JSON
+
                     let sceneUrl = GardenLocalStore.sceneURL(for: gardenId)
                     var persistedPlants: [PersistedPlant] = []
-                    
+
                     if FileManager.default.fileExists(atPath: sceneUrl.path) {
                         do {
                             let sceneJson = try Data(contentsOf: sceneUrl)
@@ -726,17 +934,9 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     } else {
                         print("⚠️ FICHIER JSON ABSENT: \(sceneUrl.path)")
                     }
-                    
+
                     DispatchQueue.main.async {
                         self.isRestoring = true
-                        
-                        if let map = worldMap {
-                            let config = ARWorldTrackingConfiguration()
-                            config.initialWorldMap = map
-                            config.planeDetection = [.horizontal]
-                            arView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
-                        }
-                        
                         if !persistedPlants.isEmpty {
                             self.restoreScene(from: persistedPlants)
                         } else {
@@ -752,7 +952,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     return
                 }
 
-                // Nettoyage
+                // Nettoyage : retirer toutes les anciennes plantes (anchors + nodes legacy).
+                removeAllPlantAnchors()
                 arView.scene.rootNode.childNodes.forEach { node in
                     if node.name?.starts(with: "plant_") == true {
                         node.removeFromParentNode()
@@ -764,19 +965,64 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     // Download all models concurrently instead of sequentially.
                     await withTaskGroup(of: Void.self) { group in
                         for p in plants {
-                            guard let transform = floatArrayToMatrix(p.transform), !p.modelURLString.isEmpty else { continue }
+                            guard var transform = floatArrayToMatrix(p.transform), !p.modelURLString.isEmpty else { continue }
+
+                            // Issue #113 — snap-to-plane for elevated plants
+                            // when a horizontal plane was detected near the
+                            // saved Y. Reduces drift-induced floating/sinking.
+                            let originalY = transform.columns.3.y
+                            if p.surfaceType == "elevated", let saved = p.surfaceHeight {
+                                if let snappedY = await MainActor.run(body: { self.findNearestPlaneY(target: saved, tolerance: 0.05) }) {
+                                    transform.columns.3.y = snappedY
+                                    AppLog.gardenLoad.notice("""
+                                        snap plant=\(p.plantName, privacy: .public) \
+                                        savedY=\(saved, format: .fixed(precision: 3), privacy: .public) \
+                                        snappedY=\(snappedY, format: .fixed(precision: 3), privacy: .public) \
+                                        delta=\(snappedY - saved, format: .fixed(precision: 3), privacy: .public)
+                                        """)
+                                } else {
+                                    AppLog.gardenLoad.notice("""
+                                        snap plant=\(p.plantName, privacy: .public) \
+                                        savedY=\(saved, format: .fixed(precision: 3), privacy: .public) \
+                                        snappedY=nil (no plane within ±0.05)
+                                        """)
+                                }
+                            }
+                            _ = originalY
+
                             let finalScale = SCNVector3(p.scale[0], p.scale[1], p.scale[2])
+                            let captured = transform
                             group.addTask {
                                 do {
                                     let remoteURL = try await ModelCacheManager.shared.getModelURL(for: p.modelURLString, forceDownload: false)
                                     await MainActor.run {
-                                        self.placeObject(at: transform, modelURL: remoteURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString, upAxis: p.upAxis)
+                                        self.placeObject(
+                                            at: captured,
+                                            modelURL: remoteURL,
+                                            id: p.plantID,
+                                            name: p.plantName,
+                                            finalScale: finalScale,
+                                            modelURLString: p.modelURLString,
+                                            upAxis: p.upAxis,
+                                            surfaceType: p.surfaceType,
+                                            surfaceHeight: p.surfaceHeight
+                                        )
                                     }
                                 } catch {
                                     print("⚠️ Impossible de télécharger le modèle \(p.modelURLString): \(error)")
                                     if let fallbackURL = await MainActor.run(body: { self.resolveLocalModelURL(p.modelURLString) }) {
                                         await MainActor.run {
-                                            self.placeObject(at: transform, modelURL: fallbackURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString, upAxis: p.upAxis)
+                                            self.placeObject(
+                                                at: captured,
+                                                modelURL: fallbackURL,
+                                                id: p.plantID,
+                                                name: p.plantName,
+                                                finalScale: finalScale,
+                                                modelURLString: p.modelURLString,
+                                                upAxis: p.upAxis,
+                                                surfaceType: p.surfaceType,
+                                                surfaceHeight: p.surfaceHeight
+                                            )
                                         }
                                     } else {
                                         print("❌ Impossible de résoudre le modèle : \(p.modelURLString)")
@@ -790,6 +1036,40 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         self.isRestoring = false
                     }
                 }
+            }
+
+            /// Issue #113 — Finds the Y of the closest detected horizontal plane
+            /// to the target height, within `tolerance` (in meters). Returns
+            /// nil if no plane is close enough.
+            @MainActor
+            private func findNearestPlaneY(target: Float, tolerance: Float) -> Float? {
+                guard let frame = arView?.session.currentFrame else { return nil }
+                let allHorizontal = frame.anchors.compactMap { $0 as? ARPlaneAnchor }
+                    .filter { $0.alignment == .horizontal }
+                let allYs = allHorizontal.map { $0.transform.columns.3.y }
+                let inRange = allYs.filter { abs($0 - target) <= tolerance }
+
+                AppLog.gardenLoad.debug("""
+                    planeScan target=\(target, format: .fixed(precision: 3), privacy: .public) \
+                    tolerance=\(tolerance, format: .fixed(precision: 3), privacy: .public) \
+                    nHorizontal=\(allHorizontal.count, privacy: .public) \
+                    allYs=\(allYs.map { String(format: "%.3f", $0) }.joined(separator: ","), privacy: .public) \
+                    inRange=\(inRange.count, privacy: .public)
+                    """)
+
+                return inRange.min(by: { abs($0 - target) < abs($1 - target) })
+            }
+
+            /// Removes every ARAnchor we tracked (so all plant nodes disappear via
+            /// ARKit), and clears our id→anchor map.
+            @MainActor
+            private func removeAllPlantAnchors() {
+                guard let arView = arView else { return }
+                for anchor in plantAnchorMap.values {
+                    arView.session.remove(anchor: anchor)
+                }
+                plantAnchorMap.removeAll()
+                anchorPendingPlacements.removeAll()
             }
             
             /// Résout un modelURLString en URL utilisable, quelle que soit sa forme :
@@ -872,13 +1152,47 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             }
 
             @objc func handleDelete() {
-                guard let node = selectedNode else { return }
+                guard let node = selectedNode, let arView = arView else { return }
                 saveStateForUndo()
-                node.removeFromParentNode()
+                // Issue #113 — also remove the backing ARAnchor so ARKit stops
+                // tracking it (otherwise the anchor stays alive and burns CPU).
+                // Lookup is by per-instance UUID (not catalog plantId) so deleting
+                // one of two same-species plants targets the correct one.
+                let plantId = plantIdFromNodeName(node.name ?? "")
+                if let uuid = instanceIdFromNodeName(node.name ?? ""),
+                   let anchor = plantAnchorMap[uuid] {
+                    arView.session.remove(anchor: anchor)
+                    plantAnchorMap.removeValue(forKey: uuid)
+                } else {
+                    // Legacy node attached directly to rootNode (older saves).
+                    node.removeFromParentNode()
+                }
+                // Only forget the upAxis if no other instance of this plant id
+                // remains in the scene — multiple Pothos plants share an axis.
+                let stillHasInstances = arView.scene.rootNode.childNodes.contains { rootChild in
+                    if rootChild.name?.starts(with: "plant_\(plantId)_") == true { return true }
+                    return rootChild.childNodes.contains { $0.name?.starts(with: "plant_\(plantId)_") == true }
+                }
+                if !stillHasInstances {
+                    plantUpAxisMap.removeValue(forKey: plantId)
+                }
                 deselectAll()
             }
 
             @objc func handleTapToPlace(_ gesture: UITapGestureRecognizer) {
+                // During manual boundary tracing, taps add boundary points (Issue #111).
+                if parentProps?.relocationPhase == .tracingBoundary {
+                    if let transform = lastReticleTransform {
+                        addBoundaryPoint(at: transform)
+                    } else {
+                        print("⚠️ Pas de surface détectée pour le tracé de boundary")
+                    }
+                    return
+                }
+
+                // Block taps during morphing preview to avoid accidental placements.
+                if parentProps?.relocationPhase == .morphingPreview { return }
+
                 guard let transform = lastReticleTransform else {
                     print("⚠️ Pas de reticle transform (pas de surface détectée)")
                     deselectAll()
@@ -916,13 +1230,108 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 guard let node = selectedNode, let arView = arView else { return }
                 if gesture.state == .began { saveStateForUndo() }
                 let location = gesture.location(in: arView)
-                if let query = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal),
-                   let result = arView.session.raycast(query).first {
-                    node.simdWorldPosition = simd_float3(result.worldTransform.columns.3.x, result.worldTransform.columns.3.y, result.worldTransform.columns.3.z)
+                guard let query = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal),
+                      let result = arView.session.raycast(query).first else { return }
+                let newWorldPos = simd_float3(result.worldTransform.columns.3.x,
+                                              result.worldTransform.columns.3.y,
+                                              result.worldTransform.columns.3.z)
+                // During the drag, just move the visual node (cheap, smooth).
+                // SceneKit converts world → local relative to the parent (the
+                // anchor's node) automatically. The anchor itself stays put;
+                // drift correction keeps applying to it, and the container's
+                // local offset rides along.
+                node.simdWorldPosition = newWorldPos
+
+                // On drag end, re-anchor the plant at its final position so
+                // future drift correction targets the new spot rather than the
+                // original placement (Issue #113).
+                if gesture.state == .ended || gesture.state == .cancelled {
+                    rebaseAnchorAtCurrentPosition(for: node)
                 }
             }
 
-            func placeObject(at transform: simd_float4x4, modelURL: URL, id: String, name: String, finalScale: SCNVector3? = nil, modelURLString: String? = nil, allowRetry: Bool = true, upAxis: String? = nil) {
+            /// Re-creates the underlying ARAnchor so its transform matches the
+            /// plant's current world position. Called after drag/rotate/scale to
+            /// keep ARKit's drift correction aligned with where the user put it.
+            private func rebaseAnchorAtCurrentPosition(for node: SCNNode) {
+                guard let arView = arView,
+                      let uuid = instanceIdFromNodeName(node.name ?? ""),
+                      let oldAnchor = plantAnchorMap[uuid] else { return }
+                let worldT = stripScale(from: node.simdWorldTransform)
+
+                // Capture the data we need to re-instantiate at the new anchor.
+                let plantId = plantIdFromNodeName(node.name ?? "")
+                let parts = node.name?.components(separatedBy: "_") ?? []
+                let plantName = parts[safe: 2] ?? "Plante"
+                let upAxis = plantUpAxisMap[plantId]
+                let scale = SCNVector3(node.scale.x, node.scale.y, node.scale.z)
+
+                // Resolve the model URL via cache/bundle (best-effort).
+                let modelKey = (parts[safe: 3] ?? "").removingPercentEncoding ?? ""
+                let modelFileName = (modelKey as NSString).lastPathComponent
+                guard !modelFileName.isEmpty,
+                      let resolvedURL = resolveLocalModelURL(modelFileName) else {
+                    // Without a model URL we cannot re-anchor cleanly — leave as is.
+                    return
+                }
+
+                // Tear down the old anchor (visual node disappears momentarily).
+                arView.session.remove(anchor: oldAnchor)
+                plantAnchorMap.removeValue(forKey: uuid)
+                deselectAll()
+
+                // Re-place at the new world position with the same scale/upAxis.
+                // isRestoring is true here so auto-scale and auto-select are
+                // skipped — we already have an explicit scale.
+                let wasRestoring = isRestoring
+                isRestoring = true
+                placeObject(
+                    at: worldT,
+                    modelURL: resolvedURL,
+                    id: plantId,
+                    name: plantName,
+                    finalScale: scale,
+                    modelURLString: modelFileName,
+                    upAxis: upAxis
+                )
+                isRestoring = wasRestoring
+            }
+
+            /// Strips any scale from a 4x4 transform, leaving only translation
+            /// and rotation. Critical for ARAnchor.transform: if the saved or
+            /// captured transform has a scale baked in (legacy data, or our own
+            /// post-auto-scale capture), using it as anchor.transform would
+            /// double-apply the scale once the container's own scale is set.
+            private func stripScale(from matrix: simd_float4x4) -> simd_float4x4 {
+                var result = matrix
+                let c0 = SIMD3<Float>(result.columns.0.x, result.columns.0.y, result.columns.0.z)
+                let c1 = SIMD3<Float>(result.columns.1.x, result.columns.1.y, result.columns.1.z)
+                let c2 = SIMD3<Float>(result.columns.2.x, result.columns.2.y, result.columns.2.z)
+                let l0 = simd_length(c0); let l1 = simd_length(c1); let l2 = simd_length(c2)
+                guard l0 > 1e-6, l1 > 1e-6, l2 > 1e-6 else { return matrix }
+                let n0 = c0 / l0, n1 = c1 / l1, n2 = c2 / l2
+                result.columns.0 = SIMD4<Float>(n0.x, n0.y, n0.z, 0)
+                result.columns.1 = SIMD4<Float>(n1.x, n1.y, n1.z, 0)
+                result.columns.2 = SIMD4<Float>(n2.x, n2.y, n2.z, 0)
+                return result
+            }
+
+            /// Issue #113 — Plants are now anchored via `ARAnchor` so ARKit's drift
+            /// correction applies to each one individually. The visual model is
+            /// loaded asynchronously when ARKit creates the anchor's node
+            /// (see `renderer(_:didAdd:for:)` below).
+            func placeObject(
+                at transform: simd_float4x4,
+                modelURL: URL,
+                id: String,
+                name: String,
+                finalScale: SCNVector3? = nil,
+                modelURLString: String? = nil,
+                allowRetry: Bool = true,
+                upAxis: String? = nil,
+                surfaceType: String? = nil,
+                surfaceHeight: Float? = nil
+            ) {
                 guard let arView = arView else { return }
 
                 if modelURL.isFileURL && !FileManager.default.fileExists(atPath: modelURL.path) {
@@ -930,57 +1339,181 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     return
                 }
 
+                // Always feed a rigid (no-scale) transform to ARAnchor so the
+                // container's own scale doesn't get multiplied by a baked-in scale.
+                let rigidTransform = stripScale(from: transform)
+                let anchor = ARAnchor(name: "plant_\(id)", transform: rigidTransform)
+                anchorPendingPlacements[anchor.identifier] = PendingPlantPlacement(
+                    modelURL: modelURL,
+                    plantId: id,
+                    plantName: name,
+                    finalScale: finalScale,
+                    modelURLString: modelURLString,
+                    upAxis: upAxis,
+                    allowRetry: allowRetry,
+                    isRestore: isRestoring,
+                    surfaceType: surfaceType,
+                    surfaceHeight: surfaceHeight,
+                    instanceId: anchor.identifier
+                )
+                plantAnchorMap[anchor.identifier] = anchor
+                arView.session.add(anchor: anchor)
+
+                AppLog.arAnchor.notice("""
+                    placeObject id=\(id, privacy: .public) \
+                    anchor=\(anchor.identifier.uuidString.prefix(8), privacy: .public) \
+                    isRestore=\(self.isRestoring, privacy: .public) \
+                    rigid=\(rigidTransform.logDescription, privacy: .public) \
+                    surface=\(surfaceType ?? "nil", privacy: .public) \
+                    surfaceY=\(surfaceHeight ?? -1, format: .fixed(precision: 3), privacy: .public) \
+                    finalScale=\(finalScale?.logDescription ?? "auto", privacy: .public)
+                    """)
+            }
+
+            /// Loads a USDZ and attaches it as a child of an anchor's node.
+            /// Returns the created plant container, or nil on load error.
+            @discardableResult
+            private func instantiatePlantNode(into parentNode: SCNNode, pending: PendingPlantPlacement, anchorTransform: simd_float4x4) -> SCNNode? {
                 do {
-                    let scene = try SCNScene(url: modelURL, options: nil)
+                    let scene = try SCNScene(url: pending.modelURL, options: nil)
 
                     let container = SCNNode()
-                    let encodedURL = modelURL.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "default"
+                    let encodedURL = pending.modelURL.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "default"
+                    // Use the anchor's identifier as the node's unique tag so we
+                    // can later recover the anchor from the node name (Issue #113).
+                    let uniqueID = pending.instanceId.uuidString
+                    container.name = "plant_\(pending.plantId)_\(pending.plantName)_\(encodedURL)_\(uniqueID)"
 
-                    // UUID unique pour éviter les conflits dans la Map
-                    let uniqueID = UUID().uuidString
-                    container.name = "plant_\(id)_\(name)_\(encodedURL)_\(uniqueID)"
-
-                    // Wrapper node: handles Z-up → Y-up rotation for Blender
-                    // exports without interfering with the AR placement transform
                     let wrapper = SCNNode()
                     for child in scene.rootNode.childNodes { wrapper.addChildNode(child) }
-                    let effectiveAxis = upAxis ?? plantUpAxisMap[id]
+                    let effectiveAxis = pending.upAxis ?? plantUpAxisMap[pending.plantId]
                     if effectiveAxis?.uppercased() == "Z" {
                         wrapper.eulerAngles.x = -.pi / 2
                     }
                     container.addChildNode(wrapper)
                     stripPotIfNeeded(from: container)
-                    container.simdTransform = transform
 
-                    if let scale = finalScale {
+                    let (minVec, maxVec) = container.boundingBox
+                    let rawHeight = maxVec.y - minVec.y
+
+                    AppLog.plants.debug("""
+                        bbox plant=\(pending.plantName, privacy: .public) \
+                        min=\(SCNVector3(minVec.x, minVec.y, minVec.z).logDescription, privacy: .public) \
+                        max=\(SCNVector3(maxVec.x, maxVec.y, maxVec.z).logDescription, privacy: .public) \
+                        rawH=\(rawHeight, format: .fixed(precision: 3), privacy: .public)
+                        """)
+
+                    // Issue #113 — pivot SCALE-CORRECTED so the visual base
+                    // lands exactly at the anchor's position.
+                    //
+                    // Naive pivot `T(0, minY, 0)` does NOT fully compensate for
+                    // node.scale: the visible base ends up at
+                    //   anchor.y + (1 - scale) * |minY|
+                    // For a centered model (minY = -0.695) at scale 0.36, that's
+                    // 44 cm above the surface — visible "levitating" plant.
+                    //
+                    // Empirical SceneKit formula used for rendering:
+                    //   simdWorldTransform = parent.world * pivot.inverse * transform
+                    // so a pivot of `T(0, scaleFactor * minY, 0)` makes the
+                    // base vertex (0, minY, 0) land exactly at anchor.t.
+                    if let scale = pending.finalScale {
                         container.scale = scale
-                    } else if !isRestoring {
-                        let (minVec, maxVec) = container.boundingBox
-                        let rawHeight = maxVec.y - minVec.y
+                        if rawHeight > 0 {
+                            let pivotY = scale.y * minVec.y
+                            container.pivot = SCNMatrix4MakeTranslation(0, pivotY, 0)
+                        }
+                        AppLog.plants.debug("""
+                            restoreScale plant=\(pending.plantName, privacy: .public) \
+                            scale=\(scale.logDescription, privacy: .public) \
+                            pivotY=\(rawHeight > 0 ? scale.y * minVec.y : 0, format: .fixed(precision: 3), privacy: .public)
+                            """)
+                    } else if !pending.isRestore {
                         if rawHeight > 0 {
                             let targetHeight: Float = 0.5
                             let scaleFactor = targetHeight / rawHeight
                             container.scale = SCNVector3(scaleFactor, scaleFactor, scaleFactor)
-                            container.pivot = SCNMatrix4MakeTranslation(0, minVec.y, 0)
+                            container.pivot = SCNMatrix4MakeTranslation(0, scaleFactor * minVec.y, 0)
+                            AppLog.plants.debug("""
+                                autoScale plant=\(pending.plantName, privacy: .public) \
+                                scaleFactor=\(scaleFactor, format: .fixed(precision: 3), privacy: .public) \
+                                pivotY=\(scaleFactor * minVec.y, format: .fixed(precision: 3), privacy: .public)
+                                """)
                         }
                     }
-                    arView.scene.rootNode.addChildNode(container)
-                    if !isRestoring { selectNode(container) }
+
+                    // Container's local transform stays identity — its world
+                    // transform is the anchor's transform, which ARKit corrects
+                    // for drift automatically.
+                    parentNode.addChildNode(container)
+                    if !pending.isRestore { selectNode(container) }
+
+                    AppLog.arAnchor.notice("""
+                        instantiated plant=\(pending.plantName, privacy: .public) \
+                        anchor=\(pending.instanceId.uuidString.prefix(8), privacy: .public) \
+                        world=\(container.simdWorldTransform.logDescription, privacy: .public) \
+                        local=\(container.simdTransform.logDescription, privacy: .public)
+                        """)
+                    return container
                 } catch {
                     print("❌ Erreur chargement modèle: \(error)")
-                    // Retry once by forcing a redownload in case the cached file is corrupted
-                    if allowRetry, let raw = modelURLString {
+                    if pending.allowRetry, let raw = pending.modelURLString {
+                        // The anchor whose load failed is now orphaned. Remove it
+                        // before queuing the retry so ARKit doesn't track a dead
+                        // placement and our maps stay consistent.
+                        let staleId = pending.instanceId
                         Task { [weak self] in
+                            await MainActor.run {
+                                if let stale = self?.plantAnchorMap.removeValue(forKey: staleId) {
+                                    self?.arView?.session.remove(anchor: stale)
+                                }
+                            }
                             do {
                                 let freshURL = try await ModelCacheManager.shared.getModelURL(for: raw, forceDownload: true)
                                 await MainActor.run {
-                                    self?.placeObject(at: transform, modelURL: freshURL, id: id, name: name, finalScale: finalScale, modelURLString: raw, allowRetry: false)
+                                    self?.placeObject(
+                                        at: anchorTransform,
+                                        modelURL: freshURL,
+                                        id: pending.plantId,
+                                        name: pending.plantName,
+                                        finalScale: pending.finalScale,
+                                        modelURLString: raw,
+                                        allowRetry: false,
+                                        upAxis: pending.upAxis,
+                                        surfaceType: pending.surfaceType,
+                                        surfaceHeight: pending.surfaceHeight
+                                    )
                                 }
                             } catch {
                                 print("⚠️ Retry download failed for \(raw): \(error)")
                             }
                         }
                     }
+                    return nil
+                }
+            }
+
+            // MARK: - ARSCNViewDelegate (anchor lifecycle)
+            //
+            // ARKit calls these on the rendering thread. We marshal the work to
+            // the main thread so the dictionaries (`anchorPendingPlacements`,
+            // `plantAnchorMap`) are only ever mutated from one thread, avoiding
+            // Swift Dictionary races with main-thread mutators (placeObject,
+            // handleDelete, undo/redo). The one-frame latency this introduces
+            // is invisible to the user.
+
+            func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
+                DispatchQueue.main.async { [weak self] in
+                    guard let self = self,
+                          let pending = self.anchorPendingPlacements.removeValue(forKey: anchor.identifier) else {
+                        return
+                    }
+                    self.instantiatePlantNode(into: node, pending: pending, anchorTransform: anchor.transform)
+                }
+            }
+
+            func renderer(_ renderer: SCNSceneRenderer, didRemove node: SCNNode, for anchor: ARAnchor) {
+                DispatchQueue.main.async { [weak self] in
+                    _ = self?.anchorPendingPlacements.removeValue(forKey: anchor.identifier)
                 }
             }
 
@@ -1074,6 +1607,378 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 var curr = node
                 while let p = curr.parent, p.name?.starts(with: "plant_") == false { curr = p }
                 return curr.parent?.name?.starts(with: "plant_") == true ? curr.parent! : curr
+            }
+
+            // MARK: - Manual Replacement (Issue #111)
+
+            // Old garden data loaded from JSON (no WorldMap dependency).
+            private var oldBoundaryPoints: [SIMD3<Float>] = []
+            private var oldPersistedPlants: [PersistedPlant] = []
+            private var oldDataLoaded = false
+
+            // Snapshot taken right after morphing, used to revert manual adjustments.
+            private var preMorphAdjustment: [String: simd_float4x4] = [:]
+            // Map plantId → URL string used to instantiate the model post-morph.
+            private var morphedModelMap: [String: PersistedPlant] = [:]
+
+            /// Loads scene_{id}.json off the main thread; stores boundary + plants
+            /// for use in the manual replacement flow. Independent of WorldMap.
+            func loadOldGardenData(gardenId: String) {
+                guard !oldDataLoaded else { return }
+                let sceneURL = GardenLocalStore.sceneURL(for: gardenId)
+                DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                    guard let self = self else { return }
+                    var boundary: [SIMD3<Float>] = []
+                    var plants: [PersistedPlant] = []
+                    if FileManager.default.fileExists(atPath: sceneURL.path),
+                       let data = try? Data(contentsOf: sceneURL),
+                       let scene = try? JSONDecoder().decode(PersistedARScene.self, from: data) {
+                        plants = scene.plants
+                        boundary = (scene.boundaryPoints ?? []).compactMap { arr in
+                            guard arr.count >= 3 else { return nil }
+                            return SIMD3<Float>(arr[0], arr[1], arr[2])
+                        }
+                    }
+                    DispatchQueue.main.async {
+                        self.oldBoundaryPoints = boundary
+                        self.oldPersistedPlants = plants
+                        self.oldDataLoaded = true
+                    }
+                }
+            }
+
+            @objc func handleEnterManualReplacement() {
+                guard let arView = arView else { return }
+                // Stop relying on automatic relocalization.
+                pendingRestoreGardenId = nil
+                didRestoreGarden = true
+                DispatchQueue.main.async {
+                    self.parentProps?.isRelocating = false
+                    self.parentProps?.relocationPhase = .tracingBoundary
+                    self.parentProps?.newBoundaryPoints = []
+                    self.parentProps?.newBoundaryArea = 0
+                }
+                // Clean any partially restored plants (anchors + legacy nodes).
+                removeAllPlantAnchors()
+                arView.scene.rootNode.childNodes
+                    .filter { $0.name?.starts(with: "plant_") == true }
+                    .forEach { $0.removeFromParentNode() }
+                // Show the OLD boundary as a faint dashed grey outline (visual cue).
+                if !oldBoundaryPoints.isEmpty {
+                    GhostRenderer.drawBoundary(
+                        points: oldBoundaryPoints,
+                        color: UIColor.lightGray,
+                        opacity: 0.3,
+                        in: arView.scene,
+                        name: "manual_replacement_old_boundary"
+                    )
+                }
+                clearNewBoundaryVisuals()
+            }
+
+            @objc func handleCancelManualReplacement() {
+                guard let arView = arView else { return }
+                let phase = parentProps?.relocationPhase ?? .scanning
+                switch phase {
+                case .tracingBoundary:
+                    // Wipe everything and return to scanning.
+                    clearNewBoundaryVisuals()
+                    GhostRenderer.removeBoundary(named: "manual_replacement_old_boundary", from: arView.scene)
+                    DispatchQueue.main.async {
+                        self.parentProps?.relocationPhase = .scanning
+                        self.parentProps?.isRelocating = true
+                        self.parentProps?.newBoundaryPoints = []
+                        self.parentProps?.newBoundaryArea = 0
+                    }
+                case .morphingPreview:
+                    // Step back one phase: clear ghost plants, return to tracing.
+                    arView.scene.rootNode.childNodes
+                        .filter { $0.name?.starts(with: "ghost_morphed_") == true }
+                        .forEach { $0.removeFromParentNode() }
+                    DispatchQueue.main.async {
+                        self.parentProps?.relocationPhase = .tracingBoundary
+                        self.parentProps?.distortionWarnings = []
+                    }
+                default:
+                    break
+                }
+            }
+
+            func addBoundaryPoint(at transform: simd_float4x4) {
+                let p = SIMD3<Float>(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
+                guard let arView = arView else { return }
+
+                // Add a green sphere marker (same visual as the wizard's measurement view).
+                let sphere = SCNSphere(radius: 0.025)
+                sphere.firstMaterial?.diffuse.contents = UIColor(hex: "#2BEE79")
+                sphere.firstMaterial?.lightingModel = .constant
+                let node = SCNNode(geometry: sphere)
+                node.simdPosition = p
+                node.name = "manual_replacement_new_boundary_point"
+                arView.scene.rootNode.addChildNode(node)
+
+                DispatchQueue.main.async {
+                    self.parentProps?.newBoundaryPoints.append(p)
+                    self.refreshNewBoundaryArea()
+                    self.refreshNewBoundaryEdges()
+                }
+            }
+
+            @objc func handleBoundaryUndoLast() {
+                guard let arView = arView else { return }
+                // Remove the most recent green sphere if any.
+                let spheres = arView.scene.rootNode.childNodes
+                    .filter { $0.name == "manual_replacement_new_boundary_point" }
+                if let last = spheres.last { last.removeFromParentNode() }
+
+                DispatchQueue.main.async {
+                    if let _ = self.parentProps?.newBoundaryPoints.popLast() {
+                        self.refreshNewBoundaryArea()
+                        self.refreshNewBoundaryEdges()
+                    }
+                }
+            }
+
+            @objc func handleValidateNewBoundary() {
+                guard let props = parentProps, let arView = arView else { return }
+                let newBoundary = props.newBoundaryPoints
+                guard newBoundary.count >= 3 else { return }
+
+                // The old boundary may have a different vertex count than the new one;
+                // if so, resample so MVC weights have matching arities.
+                let resampled = resamplePolygon(oldBoundaryPoints, toCount: newBoundary.count)
+                let result = GardenMorpher.morph(
+                    oldPlants: oldPersistedPlants,
+                    oldBoundary: resampled,
+                    newBoundary: newBoundary,
+                    floorY: averageY(of: newBoundary)
+                )
+
+                // Render ghost plants at morphed positions.
+                arView.scene.rootNode.childNodes
+                    .filter { $0.name?.starts(with: "ghost_morphed_") == true }
+                    .forEach { $0.removeFromParentNode() }
+
+                morphedModelMap.removeAll()
+                for mp in result.morphedPlants {
+                    morphedModelMap[mp.plantId] = mp.originalPlant
+                    drawGhostMarker(for: mp, in: arView.scene)
+                }
+
+                DispatchQueue.main.async {
+                    self.parentProps?.distortionWarnings = result.warnings
+                    self.parentProps?.relocationPhase = .morphingPreview
+                }
+            }
+
+            @objc func handleConfirmMorphedPlacement() {
+                guard let arView = arView else { return }
+
+                // Take a snapshot of morphed transforms before any user adjustment.
+                preMorphAdjustment.removeAll()
+
+                // Remove ghost markers — we'll instantiate real plants now.
+                let ghosts = arView.scene.rootNode.childNodes
+                    .filter { $0.name?.starts(with: "ghost_morphed_") == true }
+                let morphedTransformsByPlantId: [String: simd_float4x4] = ghosts.reduce(into: [:]) { dict, node in
+                    if let name = node.name,
+                       let id = name.components(separatedBy: "_").dropFirst(2).first {
+                        dict[id] = node.simdTransform
+                    }
+                }
+
+                // Hide old-boundary ghost outline and ghost markers.
+                ghosts.forEach { $0.removeFromParentNode() }
+                GhostRenderer.removeBoundary(named: "manual_replacement_old_boundary", from: arView.scene)
+                clearNewBoundaryVisuals()
+
+                // Instantiate real plants concurrently using the existing placement pipeline.
+                Task { [morphedTransformsByPlantId] in
+                    await withTaskGroup(of: Void.self) { group in
+                        for (plantId, persisted) in self.morphedModelMap {
+                            guard let transform = morphedTransformsByPlantId[plantId] else { continue }
+                            let finalScale = SCNVector3(persisted.scale[0], persisted.scale[1], persisted.scale[2])
+                            group.addTask {
+                                do {
+                                    let url = try await ModelCacheManager.shared.getModelURL(for: persisted.modelURLString, forceDownload: false)
+                                    await MainActor.run {
+                                        self.placeObject(
+                                            at: transform,
+                                            modelURL: url,
+                                            id: persisted.plantID,
+                                            name: persisted.plantName,
+                                            finalScale: finalScale,
+                                            modelURLString: persisted.modelURLString,
+                                            upAxis: persisted.upAxis
+                                        )
+                                    }
+                                } catch {
+                                    if let fallback = await MainActor.run(body: { self.resolveLocalModelURL(persisted.modelURLString) }) {
+                                        await MainActor.run {
+                                            self.placeObject(
+                                                at: transform,
+                                                modelURL: fallback,
+                                                id: persisted.plantID,
+                                                name: persisted.plantName,
+                                                finalScale: finalScale,
+                                                modelURLString: persisted.modelURLString,
+                                                upAxis: persisted.upAxis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    await MainActor.run {
+                        self.snapshotPreMorphAdjustment()
+                        self.parentProps?.relocationPhase = .adjusting
+                    }
+                }
+            }
+
+            @objc func handleRevertToMorphed() {
+                guard let arView = arView else { return }
+                // Issue #113 — plants are anchor children; walk one level deeper
+                // and revert their world transform (not local).
+                let plantNodes: [SCNNode] = arView.scene.rootNode.childNodes.flatMap { rootChild -> [SCNNode] in
+                    if rootChild.name?.starts(with: "plant_") == true { return [rootChild] }
+                    return rootChild.childNodes.filter { $0.name?.starts(with: "plant_") == true }
+                }
+                for node in plantNodes {
+                    let id = plantIdFromNodeName(node.name ?? "")
+                    if let snapshot = preMorphAdjustment[id] {
+                        node.simdWorldTransform = snapshot
+                    }
+                }
+                deselectAll()
+            }
+
+            // MARK: - Manual replacement helpers
+
+            private func clearNewBoundaryVisuals() {
+                guard let arView = arView else { return }
+                arView.scene.rootNode.childNodes
+                    .filter { $0.name == "manual_replacement_new_boundary_point" || $0.name == "manual_replacement_new_boundary_edges" }
+                    .forEach { $0.removeFromParentNode() }
+            }
+
+            private func refreshNewBoundaryArea() {
+                let pts = parentProps?.newBoundaryPoints ?? []
+                guard pts.count > 2 else {
+                    parentProps?.newBoundaryArea = 0
+                    return
+                }
+                var sum: Float = 0
+                for i in 0..<pts.count {
+                    let j = (i + 1) % pts.count
+                    sum += (pts[i].x * pts[j].z) - (pts[i].z * pts[j].x)
+                }
+                parentProps?.newBoundaryArea = abs(sum) / 2
+            }
+
+            private func refreshNewBoundaryEdges() {
+                guard let arView = arView else { return }
+                let pts = parentProps?.newBoundaryPoints ?? []
+                arView.scene.rootNode.childNodes
+                    .filter { $0.name == "manual_replacement_new_boundary_edges" }
+                    .forEach { $0.removeFromParentNode() }
+                guard pts.count >= 2 else { return }
+                GhostRenderer.drawBoundary(
+                    points: pts,
+                    color: UIColor(hex: "#2BEE79"),
+                    opacity: 0.85,
+                    in: arView.scene,
+                    name: "manual_replacement_new_boundary_edges"
+                )
+            }
+
+            private func drawGhostMarker(for mp: MorphedPlant, in scene: SCNScene) {
+                // Lightweight marker: small floating sphere at the morphed XZ
+                // (we don't load USDZ here to keep preview cheap and snappy).
+                let isWarn = mp.warning != nil
+                let color: UIColor = isWarn ? UIColor.systemOrange : UIColor(hex: "#FFD86F")
+                let sphere = SCNSphere(radius: 0.06)
+                sphere.firstMaterial?.diffuse.contents = color
+                sphere.firstMaterial?.emission.contents = color
+                sphere.firstMaterial?.lightingModel = .constant
+                let node = SCNNode(geometry: sphere)
+                node.opacity = 0.7
+                node.simdTransform = mp.newTransform
+                node.name = "ghost_morphed_\(mp.plantId)"
+                scene.rootNode.addChildNode(node)
+            }
+
+            private func snapshotPreMorphAdjustment() {
+                guard let arView = arView else { return }
+                preMorphAdjustment.removeAll()
+                // Walk anchor children too (Issue #113).
+                let plantNodes: [SCNNode] = arView.scene.rootNode.childNodes.flatMap { rootChild -> [SCNNode] in
+                    if rootChild.name?.starts(with: "plant_") == true { return [rootChild] }
+                    return rootChild.childNodes.filter { $0.name?.starts(with: "plant_") == true }
+                }
+                for node in plantNodes {
+                    let id = plantIdFromNodeName(node.name ?? "")
+                    preMorphAdjustment[id] = node.simdWorldTransform
+                }
+            }
+
+            private func plantIdFromNodeName(_ name: String) -> String {
+                // Format: plant_{id}_{name}_{url}_{uuid}
+                let parts = name.components(separatedBy: "_")
+                return parts.count >= 2 ? parts[1] : name
+            }
+
+            /// Extracts the per-instance UUID embedded as the trailing component of
+            /// a plant node's name. The UUID matches the anchor's identifier
+            /// (Issue #113), so it lets us recover the anchor from a tapped node.
+            private func instanceIdFromNodeName(_ name: String) -> UUID? {
+                let parts = name.components(separatedBy: "_")
+                guard let last = parts.last else { return nil }
+                return UUID(uuidString: last)
+            }
+
+            private func averageY(of points: [SIMD3<Float>]) -> Float {
+                guard !points.isEmpty else { return 0 }
+                return points.reduce(Float(0)) { $0 + $1.y } / Float(points.count)
+            }
+
+            /// Resamples a polygon to a target vertex count by uniform arc-length
+            /// interpolation along its edges. Required because the OLD boundary may
+            /// have a different number of vertices than the user-traced new one.
+            private func resamplePolygon(_ poly: [SIMD3<Float>], toCount target: Int) -> [SIMD3<Float>] {
+                guard poly.count >= 2, target >= 3 else { return poly }
+                if poly.count == target { return poly }
+
+                // Total perimeter (closed polygon).
+                var perimeter: Float = 0
+                let n = poly.count
+                for i in 0..<n {
+                    perimeter += simd_length(poly[(i + 1) % n] - poly[i])
+                }
+                guard perimeter > 1e-5 else { return poly }
+
+                let step = perimeter / Float(target)
+                var result: [SIMD3<Float>] = []
+                var edgeIdx = 0
+                var distAlongEdge: Float = 0
+                var edgeStart = poly[0]
+                var edgeEnd = poly[1 % n]
+                var edgeLen = simd_length(edgeEnd - edgeStart)
+
+                for i in 0..<target {
+                    let target = Float(i) * step
+                    while distAlongEdge + edgeLen < target && edgeIdx < n - 1 {
+                        distAlongEdge += edgeLen
+                        edgeIdx += 1
+                        edgeStart = poly[edgeIdx]
+                        edgeEnd = poly[(edgeIdx + 1) % n]
+                        edgeLen = simd_length(edgeEnd - edgeStart)
+                    }
+                    let t = edgeLen > 1e-5 ? (target - distAlongEdge) / edgeLen : 0
+                    result.append(edgeStart + (edgeEnd - edgeStart) * simd_clamp(t, 0, 1))
+                }
+                return result
             }
         }
 }

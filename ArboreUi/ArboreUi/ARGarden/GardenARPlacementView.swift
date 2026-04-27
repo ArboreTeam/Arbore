@@ -1015,33 +1015,67 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 deselectAll()
 
                 Task {
-                    // Download all models concurrently instead of sequentially.
+                    // Smart snap-to-plane (Option 1) — applies to BOTH floor and
+                    // elevated plants, using the currently detected floor as a
+                    // Y reference instead of the session's arbitrary Y=0 origin.
+                    //
+                    // Strategy:
+                    //  - floor plants     → snap to current detected floor Y
+                    //                       (corrects vertical relocalization drift)
+                    //  - elevated plants  → snap to the closest detected plane
+                    //                       within ±5cm of the saved Y (the
+                    //                       furniture surface, presumably re-detected)
+                    //  - if no matching plane is found → keep the saved Y
+                    //    (graceful degradation; usually <5cm off)
+                    let currentFloorY: Float? = await MainActor.run(body: { self.detectedFloorY() })
+
                     await withTaskGroup(of: Void.self) { group in
                         for p in plants {
                             guard var transform = floatArrayToMatrix(p.transform), !p.modelURLString.isEmpty else { continue }
 
-                            // Issue #113 — snap-to-plane for elevated plants
-                            // when a horizontal plane was detected near the
-                            // saved Y. Reduces drift-induced floating/sinking.
-                            let originalY = transform.columns.3.y
-                            if p.surfaceType == "elevated", let saved = p.surfaceHeight {
-                                if let snappedY = await MainActor.run(body: { self.findNearestPlaneY(target: saved, tolerance: 0.05) }) {
-                                    transform.columns.3.y = snappedY
-                                    AppLog.gardenLoad.notice("""
-                                        snap plant=\(p.plantName, privacy: .public) \
-                                        savedY=\(saved, format: .fixed(precision: 3), privacy: .public) \
-                                        snappedY=\(snappedY, format: .fixed(precision: 3), privacy: .public) \
-                                        delta=\(snappedY - saved, format: .fixed(precision: 3), privacy: .public)
-                                        """)
-                                } else {
-                                    AppLog.gardenLoad.notice("""
-                                        snap plant=\(p.plantName, privacy: .public) \
-                                        savedY=\(saved, format: .fixed(precision: 3), privacy: .public) \
-                                        snappedY=nil (no plane within ±0.05)
-                                        """)
-                                }
+                            let savedY = transform.columns.3.y
+                            let snapTarget: Float?
+                            let snapTolerance: Float
+
+                            switch p.surfaceType {
+                            case "floor":
+                                // Use the freshly detected floor Y if available;
+                                // accept up to 15cm drift to allow re-anchoring
+                                // a plant that was on a slightly mis-detected floor
+                                // last session.
+                                snapTarget = currentFloorY
+                                snapTolerance = 0.15
+                            case "elevated":
+                                // Look for a plane near the saved furniture Y.
+                                snapTarget = p.surfaceHeight ?? savedY
+                                snapTolerance = 0.05
+                            default:
+                                // Legacy data (no surfaceType saved) — keep the
+                                // saved Y untouched.
+                                snapTarget = nil
+                                snapTolerance = 0
                             }
-                            _ = originalY
+
+                            if let target = snapTarget,
+                               let snappedY = await MainActor.run(body: { self.findNearestPlaneY(target: target, tolerance: snapTolerance) }) {
+                                transform.columns.3.y = snappedY
+                                AppLog.gardenLoad.notice("""
+                                    snap plant=\(p.plantName, privacy: .public) \
+                                    surface=\(p.surfaceType ?? "nil", privacy: .public) \
+                                    savedY=\(savedY, format: .fixed(precision: 3), privacy: .public) \
+                                    target=\(target, format: .fixed(precision: 3), privacy: .public) \
+                                    snappedY=\(snappedY, format: .fixed(precision: 3), privacy: .public) \
+                                    delta=\(snappedY - savedY, format: .fixed(precision: 3), privacy: .public)
+                                    """)
+                            } else {
+                                AppLog.gardenLoad.notice("""
+                                    snap plant=\(p.plantName, privacy: .public) \
+                                    surface=\(p.surfaceType ?? "nil", privacy: .public) \
+                                    savedY=\(savedY, format: .fixed(precision: 3), privacy: .public) \
+                                    target=\(snapTarget ?? -999, format: .fixed(precision: 3), privacy: .public) \
+                                    snappedY=nil (no plane within tolerance, kept savedY)
+                                    """)
+                            }
 
                             let finalScale = SCNVector3(p.scale[0], p.scale[1], p.scale[2])
                             let captured = transform

@@ -1099,6 +1099,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                             
                             DispatchQueue.main.async {
                                 self.pendingDragTransform.removeAll()
+                                self.removeOutlinesFromAllPlants()
                                 props.isSaving = false
                                 props.onValidated()
                             }
@@ -1552,14 +1553,18 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 // Block taps during morphing preview to avoid accidental placements.
                 if parentProps?.relocationPhase == .morphingPreview { return }
 
-                // Adjusting phase (Issue #111) — tap to select / teleport.
-                // Tap on a plant: select it (glowing ring appears).
-                // Tap on empty floor with a plant selected: teleport it there.
-                // Tap on empty floor with nothing selected: just deselect.
+                // Adjusting phase (Issue #111) — reticle-centric selection.
+                // The user aims a plant at the screen-center reticle and taps:
+                //  - reticle on a plant  → select it (orange outline)
+                //  - reticle on a surface, plant already selected → teleport
+                //    the selected plant to the reticle's world position
+                //  - reticle on empty   → deselect
+                // The tap location itself is ignored, so a slightly-off finger
+                // position never fires the wrong action.
                 if parentProps?.relocationPhase == .adjusting,
                    let arView = arView {
-                    let location = gesture.location(in: arView)
-                    let hits = arView.hitTest(location, options: [.searchMode: SCNHitTestSearchMode.all.rawValue])
+                    let center = cachedViewCenter
+                    let hits = arView.hitTest(center, options: [.searchMode: SCNHitTestSearchMode.all.rawValue])
                     if let hit = hits.first(where: { isPlantNode($0.node) }) {
                         let root = findPlantRoot(hit.node)
                         if root !== selectedNode {
@@ -1568,12 +1573,11 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         }
                         return
                     }
-                    // Empty hit — try to teleport selected plant to the tap location.
-                    if let node = selectedNode,
-                       let query = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal),
-                       let result = arView.session.raycast(query).first {
+                    // No plant under the reticle — teleport the selected one
+                    // to the reticle's last surface raycast (lastReticleTransform).
+                    if let node = selectedNode, let transform = lastReticleTransform {
                         saveStateForUndo()
-                        let p = result.worldTransform.columns.3
+                        let p = transform.columns.3
                         node.simdWorldPosition = simd_float3(p.x, p.y, p.z)
                         recordDraggedTransform(for: node)
                         rebaseAnchorAtCurrentPosition(for: node)
@@ -1993,33 +1997,106 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
             }
 
+            // MARK: - Selection visuals (outline mesh)
+            //
+            // Selection is conveyed by an outline halo on the plant's geometry
+            // rather than a floor ring. Default color (in .adjusting only) is
+            // a soft blue applied to every plant; the currently-selected one
+            // turns orange. Outside .adjusting (e.g. while creating), only
+            // the selected plant gets a halo and unselected plants are bare.
+            //
+            // Implementation: for each mesh node under the container, attach
+            // a child node with the same geometry, scale 1.04, a flat material
+            // with `cullMode = .front` and `writesToDepthBuffer = false`. The
+            // result is a thin halo of back-facing faces visible around the
+            // silhouette.
+            private static let outlineHaloName = "outline_halo"
+            private static let outlineDefaultColor = UIColor(red: 0.36, green: 0.75, blue: 1.0, alpha: 1.0)
+            private static let outlineSelectedColor = UIColor(red: 1.0, green: 0.62, blue: 0.10, alpha: 1.0)
+
+            private func applyOutline(to container: SCNNode, color: UIColor, opacity: CGFloat = 0.5) {
+                removeOutline(from: container)
+                var meshes: [(parent: SCNNode, geo: SCNGeometry)] = []
+                container.enumerateHierarchy { node, _ in
+                    guard node.name != Self.outlineHaloName else { return }
+                    if let geo = node.geometry { meshes.append((node, geo)) }
+                }
+                for (parent, geo) in meshes {
+                    guard let cloned = geo.copy() as? SCNGeometry else { continue }
+                    let mat = SCNMaterial()
+                    mat.diffuse.contents = color.withAlphaComponent(opacity)
+                    mat.transparencyMode = .default
+                    mat.cullMode = .front
+                    mat.lightingModel = .constant
+                    mat.writesToDepthBuffer = false
+                    mat.isDoubleSided = false
+                    cloned.materials = [mat]
+                    let halo = SCNNode(geometry: cloned)
+                    halo.name = Self.outlineHaloName
+                    halo.scale = SCNVector3(1.04, 1.04, 1.04)
+                    halo.renderingOrder = 100  // draw after the plant so the halo doesn't z-fight
+                    parent.addChildNode(halo)
+                }
+            }
+
+            private func removeOutline(from container: SCNNode) {
+                var toRemove: [SCNNode] = []
+                container.enumerateHierarchy { node, _ in
+                    if node.name == Self.outlineHaloName { toRemove.append(node) }
+                }
+                toRemove.forEach { $0.removeFromParentNode() }
+            }
+
+            /// Walks every plant in the scene and applies the default blue
+            /// outline. Called when entering .adjusting. Cheap enough to run
+            /// once per phase entry — for 100+ plants we'd want batching, but
+            /// in practice gardens have <30 instances.
+            private func applyOutlinesToAllPlants() {
+                guard let arView = arView else { return }
+                let plants: [SCNNode] = arView.scene.rootNode.childNodes.flatMap { rootChild -> [SCNNode] in
+                    if rootChild.name?.starts(with: "plant_") == true { return [rootChild] }
+                    return rootChild.childNodes.filter { $0.name?.starts(with: "plant_") == true }
+                }
+                for plant in plants {
+                    applyOutline(to: plant, color: Self.outlineDefaultColor)
+                }
+            }
+
+            /// Strips outlines from every plant. Called on exit from
+            /// .adjusting (validate / cancel / dismiss).
+            private func removeOutlinesFromAllPlants() {
+                guard let arView = arView else { return }
+                let plants: [SCNNode] = arView.scene.rootNode.childNodes.flatMap { rootChild -> [SCNNode] in
+                    if rootChild.name?.starts(with: "plant_") == true { return [rootChild] }
+                    return rootChild.childNodes.filter { $0.name?.starts(with: "plant_") == true }
+                }
+                for plant in plants { removeOutline(from: plant) }
+            }
+
             private func selectNode(_ node: SCNNode) {
-                deselectAll()
+                // Restore the previously-selected plant to its phase-default
+                // outline state (blue in .adjusting, none elsewhere).
+                if let prev = selectedNode, prev !== node {
+                    if parentProps?.relocationPhase == .adjusting {
+                        applyOutline(to: prev, color: Self.outlineDefaultColor)
+                    } else {
+                        removeOutline(from: prev)
+                    }
+                }
                 selectedNode = node
                 parentProps?.hasSelectedNode = true
                 parentProps?.selectedNodeName = node.name?.components(separatedBy: "_")[safe: 2] ?? "Plante"
-
-                // Pulsing emissive ring at the plant's base — discoverable
-                // visual feedback for selection (Issue #111). Replaces the
-                // older flat yellow square that wasn't obvious enough.
-                let ring = SCNTorus(ringRadius: 0.18, pipeRadius: 0.012)
-                let mat = SCNMaterial()
-                mat.diffuse.contents = UIColor(hex: "#2BEE79")
-                mat.emission.contents = UIColor(hex: "#2BEE79")
-                mat.lightingModel = .constant
-                ring.firstMaterial = mat
-                let ringNode = SCNNode(geometry: ring)
-                ringNode.name = "selection_indicator"
-                ringNode.position = SCNVector3(0, 0.005, 0)
-                ringNode.runAction(.repeatForever(.sequence([
-                    .fadeOpacity(to: 0.45, duration: 0.6),
-                    .fadeOpacity(to: 0.95, duration: 0.6),
-                ])))
-                node.addChildNode(ringNode)
+                applyOutline(to: node, color: Self.outlineSelectedColor, opacity: 0.7)
             }
-            
+
             private func deselectAll() {
-                selectedNode?.childNode(withName: "selection_indicator", recursively: false)?.removeFromParentNode()
+                if let node = selectedNode {
+                    if parentProps?.relocationPhase == .adjusting {
+                        applyOutline(to: node, color: Self.outlineDefaultColor)
+                    } else {
+                        removeOutline(from: node)
+                    }
+                }
                 selectedNode = nil
                 parentProps?.hasSelectedNode = false
                 parentProps?.selectedNodeName = nil
@@ -2307,6 +2384,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         self.pendingMorphedPlants.removeAll()
                         self.snapshotPreMorphAdjustment()
                         self.parentProps?.relocationPhase = .adjusting
+                        self.applyOutlinesToAllPlants()
                     }
                 }
             }

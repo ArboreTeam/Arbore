@@ -1625,26 +1625,22 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
                 guard let node = selectedNode, let arView = arView else { return }
                 if gesture.state == .began { saveStateForUndo() }
-                let location = gesture.location(in: arView)
-                guard let query = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal),
-                      let result = arView.session.raycast(query).first else { return }
-                let newWorldPos = simd_float3(result.worldTransform.columns.3.x,
-                                              result.worldTransform.columns.3.y,
-                                              result.worldTransform.columns.3.z)
-                // During the drag, just move the visual node (cheap, smooth).
-                // SceneKit converts world → local relative to the parent (the
-                // anchor's node) automatically. The anchor itself stays put;
-                // drift correction keeps applying to it, and the container's
-                // local offset rides along.
-                node.simdWorldPosition = newWorldPos
 
-                // On drag end, re-anchor the plant at its final position so
-                // future drift correction targets the new spot rather than the
-                // original placement (Issue #113). We ALSO record the override
-                // transform first so save persistence is independent of the
-                // rebase outcome — the rebase can fail silently (e.g. when the
-                // model URL can't be parsed from the node name), but capture
-                // will still see the user's final position.
+                // Update the visual position only when the raycast hits a
+                // surface. If it misses (finger over a textureless or non-floor
+                // area), keep the last visual position — don't snap back.
+                let location = gesture.location(in: arView)
+                if let query = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal),
+                   let result = arView.session.raycast(query).first {
+                    let p = result.worldTransform.columns.3
+                    node.simdWorldPosition = simd_float3(p.x, p.y, p.z)
+                }
+
+                // On drag end, persist the user's final position regardless of
+                // whether the last raycast frame succeeded. The previous code
+                // returned early on a failed raycast, skipping
+                // recordDraggedTransform — so a finger lifted over a furniture
+                // edge or a low-texture spot lost the entire drag on save.
                 if gesture.state == .ended || gesture.state == .cancelled {
                     recordDraggedTransform(for: node)
                     rebaseAnchorAtCurrentPosition(for: node)

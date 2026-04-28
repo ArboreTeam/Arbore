@@ -79,20 +79,20 @@ class ThemeManager: ObservableObject {
     
     func adjust(_ color: Color) -> Color { Color(adjustedUIColor(UIColor(color))) }
     
-    // MARK: - Comprehensive Color System
-    var backgroundColor: Color { adjust(Color(.systemBackground)) }
-    var cardBackgroundColor: Color { adjust(Color(.secondarySystemBackground)) }
-    var tertiaryBackgroundColor: Color { adjust(Color(.tertiarySystemBackground)) }
-    var textColor: Color { adjust(Color(.label)) }
-    var secondaryTextColor: Color { adjust(Color(.secondaryLabel)) }
-    var tertiaryTextColor: Color { adjust(Color(.tertiaryLabel)) }
-    var placeholderTextColor: Color { adjust(Color(.placeholderText)) }
-    var accentColor: Color { adjust(.green) }
+    // MARK: - Arbore Organic Premium Color System
+    var backgroundColor: Color { adjust(ArboreDesign.Colors.background) }
+    var cardBackgroundColor: Color { adjust(ArboreDesign.Colors.card) }
+    var tertiaryBackgroundColor: Color { adjust(ArboreDesign.Colors.softSurface) }
+    var textColor: Color { adjust(ArboreDesign.Colors.textPrimary) }
+    var secondaryTextColor: Color { adjust(ArboreDesign.Colors.textSecondary) }
+    var tertiaryTextColor: Color { adjust(ArboreDesign.Colors.textSecondary.opacity(0.78)) }
+    var placeholderTextColor: Color { adjust(ArboreDesign.Colors.placeholder) }
+    var accentColor: Color { adjust(ArboreDesign.Colors.primaryGreen) }
     
     // System colors adjusted for color blindness
     var systemBlue: Color { adjust(.blue) }
-    var systemGreen: Color { adjust(.green) }
-    var systemRed: Color { adjust(.red) }
+    var systemGreen: Color { adjust(ArboreDesign.Colors.success) }
+    var systemRed: Color { adjust(ArboreDesign.Colors.danger) }
     var systemOrange: Color { adjust(.orange) }
     var systemYellow: Color { adjust(.yellow) }
     var systemPurple: Color { adjust(.purple) }
@@ -103,14 +103,14 @@ class ThemeManager: ObservableObject {
     var systemCyan: Color { adjust(.cyan) }
     
     // UI Element colors
-    var separatorColor: Color { adjust(Color(.separator)) }
+    var separatorColor: Color { adjust(ArboreDesign.Colors.border) }
     var linkColor: Color { adjust(Color(.link)) }
-    var fillColor: Color { adjust(Color(.systemFill)) }
-    var secondaryFillColor: Color { adjust(Color(.secondarySystemFill)) }
-    var tertiaryFillColor: Color { adjust(Color(.tertiarySystemFill)) }
-    var quaternaryFillColor: Color { adjust(Color(.quaternarySystemFill)) }
+    var fillColor: Color { adjust(ArboreDesign.Colors.softSurface) }
+    var secondaryFillColor: Color { adjust(ArboreDesign.Colors.softSurface.opacity(0.75)) }
+    var tertiaryFillColor: Color { adjust(ArboreDesign.Colors.softSurface.opacity(0.55)) }
+    var quaternaryFillColor: Color { adjust(ArboreDesign.Colors.softSurface.opacity(0.35)) }
     
     // Navigation and Tab Bar colors
-    var navigationBackgroundColor: Color { adjust(Color(.systemBackground)) }
-    var tabBarBackgroundColor: Color { adjust(Color(.systemBackground)) }
+    var navigationBackgroundColor: Color { adjust(ArboreDesign.Colors.background) }
+    var tabBarBackgroundColor: Color { adjust(ArboreDesign.Colors.card) }
 }

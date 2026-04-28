@@ -1,10 +1,50 @@
 import SwiftUI
 
-/// UI shown while the user is tapping the floor to trace a new garden boundary
-/// after choosing to replace manually.
-struct BoundaryTracingOverlay: View {
+/// Top hint banner shown during the boundary-tracing phase. Designed to
+/// sit inside the main HUD VStack just under the topBar so it never
+/// collides with back/undo/redo buttons.
+struct BoundaryTracingHintBanner: View {
     let pointCount: Int
-    let area: Float                  // in m²
+    let area: Float  // m²
+
+    var body: some View {
+        VStack(spacing: 4) {
+            Text("Tracez votre jardin")
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+            Text("Tapez le sol aux coins de votre jardin")
+                .font(.system(size: 12))
+                .foregroundStyle(.white.opacity(0.75))
+
+            HStack(spacing: 18) {
+                Label("\(pointCount) point\(pointCount > 1 ? "s" : "")", systemImage: "circle.dotted")
+                    .font(.system(size: 12, weight: .medium))
+                if pointCount >= 3 {
+                    Text(String(format: "%.1f m²", area))
+                        .font(.system(size: 12, weight: .medium))
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.top, 4)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                )
+        )
+    }
+}
+
+/// Bottom action row for the boundary-tracing phase. Lives inside the
+/// main HUD VStack just above the safe-area bottom so it never overlaps
+/// with editing HUDs or the dock.
+struct BoundaryTracingActionButtons: View {
+    let pointCount: Int
     let onCancel: () -> Void
     let onUndoLast: () -> Void
     let onValidate: () -> Void
@@ -12,72 +52,30 @@ struct BoundaryTracingOverlay: View {
     private var canValidate: Bool { pointCount >= 3 }
 
     var body: some View {
-        VStack {
-            // Top instruction banner
-            VStack(spacing: 4) {
-                Text("Tracez votre jardin")
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white)
-                Text("Tapez le sol aux coins de votre jardin")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.white.opacity(0.75))
-
-                HStack(spacing: 18) {
-                    Label("\(pointCount) point\(pointCount > 1 ? "s" : "")", systemImage: "circle.dotted")
-                        .font(.system(size: 12, weight: .medium))
-                    if pointCount >= 3 {
-                        Text(String(format: "%.1f m²", area))
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                }
-                .foregroundStyle(.white)
-                .padding(.top, 4)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .strokeBorder(.white.opacity(0.12), lineWidth: 1)
-                    )
+        HStack(spacing: 10) {
+            actionButton(
+                title: "Annuler",
+                icon: "xmark",
+                tint: .red.opacity(0.85),
+                enabled: true,
+                action: onCancel
             )
-            .padding(.top, 12)
-            .padding(.horizontal, 16)
-
-            Spacer()
-
-            // Bottom action buttons
-            HStack(spacing: 10) {
-                actionButton(
-                    title: "Annuler",
-                    icon: "xmark",
-                    tint: .red.opacity(0.85),
-                    enabled: true,
-                    action: onCancel
-                )
-
-                actionButton(
-                    title: "Effacer",
-                    icon: "arrow.uturn.backward",
-                    tint: .gray.opacity(0.85),
-                    enabled: pointCount > 0,
-                    action: onUndoLast
-                )
-
-                actionButton(
-                    title: "Valider la zone",
-                    icon: "checkmark.circle.fill",
-                    tint: Color(hex: "#2BEE79"),
-                    enabled: canValidate,
-                    action: onValidate
-                )
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 28)
+            actionButton(
+                title: "Effacer",
+                icon: "arrow.uturn.backward",
+                tint: .gray.opacity(0.85),
+                enabled: pointCount > 0,
+                action: onUndoLast
+            )
+            actionButton(
+                title: "Valider la zone",
+                icon: "checkmark.circle.fill",
+                tint: Color(hex: "#2BEE79"),
+                enabled: canValidate,
+                action: onValidate
+            )
         }
-        .transition(.opacity.animation(.easeInOut(duration: 0.25)))
+        .padding(.bottom, 16)
     }
 
     @ViewBuilder

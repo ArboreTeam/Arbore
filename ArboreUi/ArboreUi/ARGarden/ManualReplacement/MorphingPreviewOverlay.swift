@@ -1,51 +1,22 @@
 import SwiftUI
 
-/// UI shown after the user validated their new boundary, while plants are
-/// previewed at their morphed positions in golden ghost form.
-struct MorphingPreviewOverlay: View {
+/// Top status banner shown after the user validated their new boundary,
+/// while plants are previewed at their morphed positions in golden ghost
+/// form. Lives inside the main HUD VStack under the topBar so it never
+/// collides with back/undo/redo buttons.
+struct MorphingPreviewHintBanner: View {
     let warnings: [DistortionWarning]
-    let onCancel: () -> Void
-    let onConfirm: () -> Void
 
     private var severeCount: Int { warnings.filter { $0.severity == .severe }.count }
     private var moderateCount: Int { warnings.filter { $0.severity == .moderate }.count }
 
     var body: some View {
-        VStack {
-            // Top status banner — green if everything is fine, orange/red otherwise.
+        VStack(spacing: 8) {
             statusBanner
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-
-            // Warnings list (only if any) — capped to 5 entries with a "+N more" footer.
             if !warnings.isEmpty {
                 warningsList
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
             }
-
-            Spacer()
-
-            // Bottom action buttons
-            HStack(spacing: 10) {
-                actionButton(
-                    title: "Annuler",
-                    icon: "xmark",
-                    tint: .red.opacity(0.85),
-                    action: onCancel
-                )
-
-                actionButton(
-                    title: "Confirmer le placement",
-                    icon: "checkmark.circle.fill",
-                    tint: Color(hex: "#2BEE79"),
-                    action: onConfirm
-                )
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 28)
         }
-        .transition(.opacity.animation(.easeInOut(duration: 0.25)))
     }
 
     @ViewBuilder
@@ -127,6 +98,31 @@ struct MorphingPreviewOverlay: View {
             RoundedRectangle(cornerRadius: 12)
                 .fill(.black.opacity(0.45))
         )
+    }
+}
+
+/// Bottom action row for the morphing-preview phase. Lives inside the
+/// main HUD VStack just above the safe-area bottom.
+struct MorphingPreviewActionButtons: View {
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            actionButton(
+                title: "Annuler",
+                icon: "xmark",
+                tint: .red.opacity(0.85),
+                action: onCancel
+            )
+            actionButton(
+                title: "Confirmer le placement",
+                icon: "checkmark.circle.fill",
+                tint: Color(hex: "#2BEE79"),
+                action: onConfirm
+            )
+        }
+        .padding(.bottom, 16)
     }
 
     @ViewBuilder

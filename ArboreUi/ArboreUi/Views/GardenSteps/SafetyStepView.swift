@@ -45,7 +45,7 @@ struct SafetyStepView: View {
                     ForEach(SafetyOption.allCases) { option in
                         ImprovedSelectableCard(
                             isSelected: state.safetySelections.contains(option),
-                            emoji: option.emoji,
+                            systemImage: option.iconName,
                             title: option.title
                         ) {
                             toggleSafety(option)

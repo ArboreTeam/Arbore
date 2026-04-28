@@ -29,7 +29,7 @@ struct ExposureStepView: View {
                         ForEach(SunExposure.allCases) { exposure in
                             ImprovedSelectableCard(
                                 isSelected: state.exposure == exposure,
-                                emoji: exposure.emoji,
+                                systemImage: exposure.iconName,
                                 title: exposure.title,
                                 subtitle: exposure.subtitle
                             ) {

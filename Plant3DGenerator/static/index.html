@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Plant3DGenerator</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>🌱 Plant3DGenerator</h1>
+    <div id="toolbar">
+      <button id="generate-all">▶ Generate All</button>
+      <button id="reload-input">↻ Reload input.txt</button>
+    </div>
+  </header>
+
+  <section id="available">
+    <h2>Plantes disponibles (depuis input.txt)</h2>
+    <div id="plant-list"></div>
+  </section>
+
+  <section id="pipeline">
+    <h2>Pipeline</h2>
+    <div id="jobs">
+      <p class="empty">Aucun job lancé. Clique sur une plante ci-dessus pour démarrer.</p>
+    </div>
+  </section>
+
+  <template id="job-card-template">
+    <div class="job-card">
+      <div class="stage stage-input done">
+        <div class="stage-label">INPUT</div>
+        <div class="stage-body">
+          <div class="job-title"></div>
+          <div class="job-latin"></div>
+          <details>
+            <summary>Prompt</summary>
+            <pre class="job-prompt"></pre>
+          </details>
+          <details>
+            <summary>Texture prompt</summary>
+            <pre class="job-texture-prompt"></pre>
+          </details>
+        </div>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="stage stage-preview">
+        <div class="stage-label">PREVIEW (lowpoly)</div>
+        <div class="stage-body">
+          <div class="stage-status">idle</div>
+          <div class="stage-progress"><div class="bar"></div></div>
+          <div class="stage-viewer"></div>
+        </div>
+      </div>
+
+      <div class="arrow">→</div>
+
+      <div class="stage stage-refine">
+        <div class="stage-label">TEXTURE (PBR)</div>
+        <div class="stage-body">
+          <div class="stage-status">idle</div>
+          <div class="stage-progress"><div class="bar"></div></div>
+          <div class="stage-viewer"></div>
+          <div class="download-links"></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

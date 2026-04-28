@@ -25,7 +25,7 @@ struct SpaceTypeStepView: View {
                         ForEach(GardenSpaceType.allCases) { spaceType in
                             ImprovedSelectableCard(
                                 isSelected: state.spaceType == spaceType,
-                                emoji: spaceType.emoji,
+                                systemImage: spaceType.iconName,
                                 title: spaceType.title,
                                 subtitle: spaceType.subtitle
                             ) {

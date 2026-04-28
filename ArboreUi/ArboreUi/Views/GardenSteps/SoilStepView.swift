@@ -24,7 +24,7 @@ struct SoilStepView: View {
                         ForEach(SoilType.allCases) { soil in
                             ImprovedSelectableCard(
                                 isSelected: state.soil == soil,
-                                emoji: soil.emoji,
+                                systemImage: soil.iconName,
                                 title: soil.title
                             ) {
                                 state.soil = soil

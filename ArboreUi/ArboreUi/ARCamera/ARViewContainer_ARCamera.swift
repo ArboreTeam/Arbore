@@ -71,6 +71,21 @@ struct ARViewContainer: UIViewRepresentable {
         // Rien à mettre à jour pour l'instant
     }
 
+    // MARK: - Teardown
+    // SwiftUI calls this when the view is removed from the hierarchy.
+    // Without it, the ARView + its loaded ModelEntities stayed in memory for
+    // the process lifetime, causing the OOM jetsam kill observed during
+    // long AR sessions.
+    static func dismantleUIView(_ uiView: ARView, coordinator: Coordinator) {
+        uiView.session.pause()
+        uiView.scene.anchors.removeAll()
+        coordinator.plantEntities.removeAll()
+        coordinator.plantAnchors.removeAll()
+        coordinator.modelTemplateByURL.removeAll()
+        coordinator.selectedEntity = nil
+        print("🧹 ARViewContainer dismantled — scene + caches cleared")
+    }
+
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
@@ -80,11 +95,29 @@ struct ARViewContainer: UIViewRepresentable {
         var parent: ARViewContainer
         var selectedEntity: Entity?
         var plantEntities: [Entity] = []
+        // Parallel array to plantEntities so we can remove the wrapping anchor
+        // when we evict a plant (entity.removeFromParent alone doesn't free
+        // the AnchorEntity sitting in arView.scene).
+        var plantAnchors: [AnchorEntity] = []
+        // Per-URL parsed template. The first placement pays the USDZ decode
+        // cost; subsequent placements call `template.clone(recursive: true)`,
+        // which shares the underlying MeshResource + Materials and only
+        // duplicates per-instance transform state.
+        var modelTemplateByURL: [URL: Entity] = [:]
+        // Hard cap on concurrent placements. 20 plants × ~40 MB decoded is
+        // comfortably under the iPhone 17 Pro jetsam threshold.
+        private let maxConcurrentPlants = 20
         var initialEntityPosition: SIMD3<Float>?
         var offset: SIMD3<Float>?
 
         init(_ parent: ARViewContainer) {
             self.parent = parent
+        }
+
+        deinit {
+            plantEntities.removeAll()
+            plantAnchors.removeAll()
+            modelTemplateByURL.removeAll()
         }
 
         // MARK: - ARSession debug
@@ -243,7 +276,7 @@ struct ARViewContainer: UIViewRepresentable {
                     alignment: .horizontal
                 )
                 if let result = results.first,
-                   let initialPosition = initialEntityPosition,
+                   let _ = initialEntityPosition,
                    let offset = offset {
 
                     let newPosition = SIMD3<Float>(
@@ -289,30 +322,80 @@ struct ARViewContainer: UIViewRepresentable {
             }
         }
 
+        // Defensive: forces opaque blending on every PhysicallyBasedMaterial
+        // in the hierarchy. Free performance-wise, prevents stray alpha values
+        // in meshy-generated base color textures from triggering transparent
+        // rendering in iOS ARView. Back-face culling stays default (one-sided)
+        // for perf — the real geometry fix lives in the USDZ pipeline
+        // (subdivisionScheme = "none" injected at packaging time).
+        static func sanitizeMaterials(_ entity: Entity) {
+            if var model = entity.components[ModelComponent.self] {
+                model.materials = model.materials.map { material -> RealityKit.Material in
+                    if var pbr = material as? PhysicallyBasedMaterial {
+                        pbr.blending = .opaque
+                        return pbr
+                    }
+                    return material
+                }
+                entity.components.set(model)
+            }
+            for child in entity.children {
+                sanitizeMaterials(child)
+            }
+        }
+
         // MARK: - Ajout du modèle 3D (anchor avec transform complet)
         func addPlant(with worldTransform: simd_float4x4, in arView: ARView) {
             do {
-                let modelEntity = try ModelEntity.load(contentsOf: parent.modelURL)
+                // 1) Parse-once template cache. The first placement pays the
+                //    USDZ decode; subsequent placements clone the template,
+                //    sharing MeshResource + Materials for ~free extra cost.
+                let template: Entity
+                if let cached = modelTemplateByURL[parent.modelURL] {
+                    template = cached
+                } else {
+                    let loaded = try ModelEntity.load(contentsOf: parent.modelURL)
+                    Self.sanitizeMaterials(loaded)
+                    modelTemplateByURL[parent.modelURL] = loaded
+                    template = loaded
+                    print("🧩 cached template for \(parent.modelURL.lastPathComponent)")
+                }
 
+                let modelEntity = template.clone(recursive: true)
+
+                // 2) Enforce the hard cap: evict oldest placements first.
+                while plantEntities.count >= maxConcurrentPlants {
+                    let oldestEntity = plantEntities.removeFirst()
+                    oldestEntity.removeFromParent()
+                    if !plantAnchors.isEmpty {
+                        let oldestAnchor = plantAnchors.removeFirst()
+                        arView.scene.removeAnchor(oldestAnchor)
+                    }
+                    print("♻️  Max plants reached — evicted oldest")
+                }
+
+                // 3) Scale + collision + anchor — same as before.
                 let bounds = modelEntity.visualBounds(relativeTo: nil)
                 let height = max(bounds.extents.y, 0.0001)
-                let targetHeight: Float = 0.01 // 80 cm
+                let targetHeight: Float = 0.01
                 let scale = targetHeight / height
 
                 modelEntity.scale = SIMD3<Float>(repeating: scale)
                 print("📏 Auto-scale: height=\(height) -> scale=\(scale)")
 
-                modelEntity.generateCollisionShapes(recursive: true)
+                if let me = modelEntity as? ModelEntity {
+                    me.generateCollisionShapes(recursive: true)
+                }
 
-                // Anchor plus fiable
                 let anchor = AnchorEntity(world: worldTransform)
                 anchor.addChild(modelEntity)
                 arView.scene.addAnchor(anchor)
 
                 plantEntities.append(modelEntity)
+                plantAnchors.append(anchor)
 
-                print("✅ Plante ajoutée")
-                print("📦 Modèle chargé depuis : \(parent.modelURL.lastPathComponent)")
+                print("✅ Plante ajoutée (\(plantEntities.count)/\(maxConcurrentPlants))")
+                print("📦 Modèle : \(parent.modelURL.lastPathComponent)")
             } catch {
                 print("❌ Impossible de charger le modèle 3D depuis \(parent.modelURL): \(error)")
             }

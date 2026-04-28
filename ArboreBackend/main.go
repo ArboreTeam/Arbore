@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -122,6 +123,8 @@ type Plant struct {
 	Description  string                  `json:"description" bson:"description"`
 	ModelURL     string                  `json:"modelURL" bson:"modelURL"`
 	Translations map[string]LanguageData `json:"translations" bson:"translations"`
+	Generated    *bool                   `json:"generated,omitempty" bson:"generated,omitempty"`
+	UpAxis       *string                 `json:"upAxis,omitempty" bson:"upAxis,omitempty"`
 }
 
 type AIRequest struct {
@@ -594,7 +597,12 @@ func generateAndInsertPlant(ctx context.Context, name string) (Plant, bool, erro
 
 	// Appel du microservice IA
 	jsonData, _ := json.Marshal(AIRequest{Name: name})
-	resp, err := http.Post("http://localhost:8001/generate", "application/json", bytes.NewBuffer(jsonData))
+	aiGeneratorURL := os.Getenv("AI_GENERATOR_URL")
+	if aiGeneratorURL == "" {
+		aiGeneratorURL = "http://localhost:8001"
+	}
+	// nolint:gosec // aiGeneratorURL comes from trusted AI_GENERATOR_URL environment variable
+	resp, err := http.Post(aiGeneratorURL+"/generate", "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		log.Println("❌ Erreur appel API IA:", err)
 		return Plant{}, false, err
@@ -913,13 +921,20 @@ func uploadPlantThumbnail(c *gin.Context) {
 		thumbnailsDir = "/home/fedora/Arbore/ArboreBackend/models/thumbnails"
 	}
 
-	if err := os.MkdirAll(thumbnailsDir, 0o755); err != nil {
+	// nolint:gosec // thumbnailsDir comes from trusted THUMBNAILS_DIR environment variable
+	if err := os.MkdirAll(thumbnailsDir, 0o750); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot create thumbnails directory"})
 		return
 	}
 
+	// Sanitize plantID to prevent path traversal
+	if strings.Contains(plantID, "..") || strings.ContainsAny(plantID, "/\\") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid plantID"})
+		return
+	}
 	targetPath := filepath.Join(thumbnailsDir, plantID+".png")
-	if err := os.WriteFile(targetPath, imageBytes, 0o644); err != nil {
+	// nolint:gosec // plantID is sanitized above, thumbnailsDir is from trusted env
+	if err := os.WriteFile(targetPath, imageBytes, 0o600); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save thumbnail"})
 		return
 	}
@@ -1102,6 +1117,7 @@ func deleteGarden(c *gin.Context) {
 // ---------- LOAD ENV ----------
 
 func loadDotEnv(path string) {
+	// nolint:gosec // path is a hard-coded constant from main(), not user input
 	data, err := os.ReadFile(path)
 	if err != nil {
 		log.Printf("ℹ️ .env not loaded (%s): %v", path, err)
@@ -1166,15 +1182,25 @@ func main() {
 	}
 	fmt.Println("✅ Connecté à MongoDB!")
 
-	// Initialiser Firebase Admin SDK
+	// Initialiser Firebase Admin SDK.
+	// En release mode, toute erreur est fatale : le backend refuse de démarrer
+	// sans authentification pour éviter d'exposer les endpoints sans token.
 	if err := middleware.InitFirebase(); err != nil {
-		log.Fatal("❌ Erreur initialisation Firebase:", err)
+		log.Fatalf("❌ Firebase init failed: %v", err)
 	}
 
 	// Configurer la fonction de vérification ban pour le middleware
 	middleware.CheckUserBannedFunc = checkUserBannedFromDB
 
 	router := gin.Default()
+
+	// CORS pour autoriser les requêtes depuis le frontend web
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:3000"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Authorization", "Content-Type", "X-API-Key"},
+		AllowCredentials: true,
+	}))
 
 	// Augmenter la limite de taille pour les uploads de fichiers (1GB max)
 	router.MaxMultipartMemory = 1 << 30 // 1 GB
@@ -1201,10 +1227,15 @@ func main() {
 			return
 		}
 
-		filePath := fmt.Sprintf("/home/fedora/Arbore/ArboreBackend/models/thumbnails/%s", filename)
+		thumbnailsBaseDir := strings.TrimSpace(os.Getenv("THUMBNAILS_DIR"))
+		if thumbnailsBaseDir == "" {
+			thumbnailsBaseDir = "./models/thumbnails"
+		}
+		filePath := filepath.Join(thumbnailsBaseDir, filename)
 
 		fmt.Println("📂 Looking for:", filePath)
 
+		// nolint:gosec // filename is sanitized above (no .. no / and must end with .png)
 		info, err := os.Stat(filePath)
 		if err != nil {
 			fmt.Println("❌ stat error:", err)

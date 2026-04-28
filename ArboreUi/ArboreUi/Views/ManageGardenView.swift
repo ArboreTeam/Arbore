@@ -281,7 +281,7 @@ struct GardenDetailsPage: View {
                                     HStack(spacing: 20) {
                                         HStack(spacing: 8) {
                                             Image(systemName: "square.dashed")
-                                                .foregroundColor(Color(hex: "#2BEE79"))
+                                                .foregroundColor(themeManager.accentColor)
                                                 .font(.system(size: 16))
                                             VStack(alignment: .leading, spacing: 2) {
                                                 Text("Surface")
@@ -293,7 +293,7 @@ struct GardenDetailsPage: View {
                                         }
                                         HStack(spacing: 8) {
                                             Image(systemName: "arrow.triangle.turn.up.right.diamond")
-                                                .foregroundColor(Color(hex: "#2BEE79"))
+                                                .foregroundColor(themeManager.accentColor)
                                                 .font(.system(size: 16))
                                             VStack(alignment: .leading, spacing: 2) {
                                                 Text("Périmètre")
@@ -680,7 +680,7 @@ struct GardenPlanInteractiveMap: View {
             .contentShape(Rectangle())
             .gesture(DragGesture().onChanged { val in offset = CGSize(width: lastOffset.width + val.translation.width, height: lastOffset.height + val.translation.height) }.onEnded { _ in lastOffset = offset })
             .gesture(MagnificationGesture().onChanged { val in scale = lastScale * val }.onEnded { _ in lastScale = scale })
-            .onChange(of: viewModel.displayPlants.count) { _ in DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { withAnimation { fitContent(geo: geo) } } }
+            .onChange(of: viewModel.displayPlants.count) { DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { withAnimation { fitContent(geo: geo) } } }
         }
     }
     

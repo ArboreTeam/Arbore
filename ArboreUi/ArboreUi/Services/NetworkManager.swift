@@ -60,6 +60,32 @@ class NetworkManager {
         AppConfig.apiKey
     }
 
+    /// URLSession dédiée aux appels backend. Timeouts courts pour éviter
+    /// que le premier clic catalogue bloque 60 s quand iCloud Private
+    /// Relay tente de proxy-fier un HTTP non chiffré via son infra QUIC
+    /// et échoue (erreur -1001 avec _NSURLErrorPrivacyProxyFailureKey=true).
+    /// Un retry automatique est géré par `performWithRetry` ci-dessous.
+    private lazy var httpSession: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 10
+        config.timeoutIntervalForResource = 30
+        config.waitsForConnectivity = false
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: config)
+    }()
+
+    /// Exécute la requête avec un retry unique sur timeout réseau.
+    /// Les timeouts Private Relay au premier appel sont suivis d'un
+    /// second essai sur connexion fraîche qui passe habituellement.
+    private func performWithRetry(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        do {
+            return try await httpSession.data(for: request)
+        } catch let error as URLError where error.code == .timedOut || error.code == .cannotConnectToHost || error.code == .networkConnectionLost {
+            print("⚠️ Network error (\(error.code.rawValue)) on first try, retrying once…")
+            return try await httpSession.data(for: request)
+        }
+    }
+
     /// Obtient le token Firebase du user actuel
     func getFirebaseToken() async throws -> String {
         guard let currentUser = Auth.auth().currentUser else {
@@ -104,7 +130,7 @@ class NetworkManager {
             }
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await performWithRetry(request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NetworkError.serverError("Réponse invalide")
@@ -174,7 +200,7 @@ class NetworkManager {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await performWithRetry(request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NetworkError.serverError("Réponse invalide")
@@ -231,7 +257,7 @@ class NetworkManager {
             }
         }
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await performWithRetry(request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NetworkError.serverError("Réponse invalide")

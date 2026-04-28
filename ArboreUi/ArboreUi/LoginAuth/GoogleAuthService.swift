@@ -9,6 +9,21 @@ class AuthenticationView: ObservableObject {
     @Published var isLoginSuccessed = false
     @AppStorage("isLoggedIn") var isLoggedIn = false
 
+    // Returns the topmost visible UIViewController that is not being dismissed,
+    // so GIDSignIn never tries to present on a transitioning controller.
+    private func topVisibleViewController() -> UIViewController? {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene
+        else { return nil }
+        // Prefer the key window, fall back to the first available window.
+        let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first
+        guard let rootVC = window?.rootViewController else { return nil }
+        var top = rootVC
+        while let presented = top.presentedViewController, !presented.isBeingDismissed {
+            top = presented
+        }
+        return top
+    }
+
     func signInWithGoogle() {
         guard let clientID = FirebaseApp.app()?.options.clientID else {
             print("❌ Missing Firebase client ID.")
@@ -18,8 +33,7 @@ class AuthenticationView: ObservableObject {
         let config = GIDConfiguration(clientID: clientID)
         GIDSignIn.sharedInstance.configuration = config
 
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootViewController = windowScene.windows.first?.rootViewController else {
+        guard let rootViewController = topVisibleViewController() else {
             print("❌ Unable to get root view controller.")
             return
         }
@@ -81,8 +95,7 @@ class AuthenticationView: ObservableObject {
         let config = GIDConfiguration(clientID: clientID)
         GIDSignIn.sharedInstance.configuration = config
 
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootViewController = windowScene.windows.first?.rootViewController else {
+        guard let rootViewController = topVisibleViewController() else {
             print("❌ Unable to get root view controller.")
             completion(false)
             return
@@ -124,7 +137,7 @@ class AuthenticationView: ObservableObject {
     func logout() async throws {
         GIDSignIn.sharedInstance.signOut()
         try Auth.auth().signOut()
-        DispatchQueue.main.async {
+        await MainActor.run {
             self.isLoggedIn = false
         }
     }

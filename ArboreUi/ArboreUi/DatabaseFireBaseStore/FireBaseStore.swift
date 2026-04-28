@@ -19,13 +19,8 @@ struct FirebaseService {
             FirebaseApp.configure()
         }
         
-        do {
-            db = Firestore.firestore()
-            print("Connexion réussie à Firebase")
-        } catch {
-            print("Erreur de connexion à Firebase : \(error)")
-            throw error
-        }
+        db = Firestore.firestore()
+        print("Connexion réussie à Firebase")
     }
 
     @MainActor

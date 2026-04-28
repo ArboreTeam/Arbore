@@ -26,30 +26,14 @@ struct ModernLoginView: View {
         !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
-    
-    // Use ThemeManager's color-blindness adjusted colors
-    var backgroundColor: Color {
-        themeManager.backgroundColor
-    }
-    
-    var primaryColor: Color {
-        themeManager.adjust(Color(hex: "#4A7C59"))
-    }
-    
-    var textColor: Color {
-        themeManager.textColor
-    }
-    
-    var secondaryTextColor: Color {
-        themeManager.secondaryTextColor
-    }
-    
-    var fieldBackgroundColor: Color {
-        themeManager.cardBackgroundColor
-    }
-    
-    var placeholderColor: Color {
-        themeManager.placeholderTextColor
+
+    // Fond beige signature identique à la HomeView
+    private var loginBackground: Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0.10, green: 0.10, blue: 0.10, alpha: 1.0)
+            : UIColor(red: 0.956, green: 0.953, blue: 0.937, alpha: 1.0) // #F4F3EF
+        })
     }
 
     var body: some View {
@@ -58,256 +42,39 @@ struct ModernLoginView: View {
         } else {
             GeometryReader { geometry in
                 ZStack {
-                    // Modern gradient background adapted for dark theme
-                    LinearGradient(
-                        gradient: Gradient(stops: [
-                            .init(color: themeManager.colorScheme == .dark ?
-                                  Color(hex: "#000000") : Color(hex: "#E8F5E8"), location: 0.0),
-                            .init(color: themeManager.colorScheme == .dark ?
-                                  Color(hex: "#1C1C1E") : Color(hex: "#F0F9F0"), location: 0.3),
-                            .init(color: backgroundColor, location: 1.0)
-                        ]),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        hideKeyboard()
-                    }
-                    
-                    // Subtle background pattern
-                    Circle()
-                        .fill(
-                            RadialGradient(
-                                gradient: Gradient(colors: [
-                                    primaryColor.opacity(themeManager.colorScheme == .dark ? 0.1 : 0.05),
-                                    Color.clear
-                                ]),
-                                center: .topTrailing,
-                                startRadius: 50,
-                                endRadius: 400
-                            )
-                        )
-                        .frame(width: 600, height: 600)
-                        .position(x: geometry.size.width + 100, y: -100)
-                    
-                    ScrollView {
+                    // Fond beige signature Arbore
+                    loginBackground
+                        .ignoresSafeArea()
+                        .onTapGesture { hideKeyboard() }
+
+                    // Halo décoratif en haut
+                    Ellipse()
+                        .fill(themeManager.brandPrimaryHero.opacity(0.12))
+                        .frame(width: geometry.size.width * 1.4, height: 340)
+                        .offset(y: -geometry.size.height * 0.35)
+                        .blur(radius: 60)
+                        .ignoresSafeArea()
+
+                    ScrollView(showsIndicators: false) {
                         VStack(spacing: 0) {
-                            // Header Section
-                            VStack(spacing: 12) {
-                                // App Icon/Logo
-                                ZStack {
-                                    Circle()
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [primaryColor, Color(hex: "#2D5016")],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
-                                        .frame(width: 80, height: 80)
-                                        .shadow(color: primaryColor.opacity(0.3), radius: 10, x: 0, y: 5)
-                                    
-                                    Image(systemName: "leaf.fill")
-                                        .font(.system(size: 35, weight: .medium))
-                                        .foregroundColor(.white)
-                                }
-                                .scaleEffect(focusedField != nil ? 0.8 : 1.0)
-                                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: focusedField)
-                                
-                                VStack(spacing: 8) {
-                                    Text("Bienvenue sur Arbore")
-                                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                                        .foregroundColor(textColor)
-                                        .multilineTextAlignment(.center)
-                                    
-                                    Text("Connectez-vous pour gérer votre jardin")
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(secondaryTextColor)
-                                        .multilineTextAlignment(.center)
-                                }
-                                .opacity(focusedField != nil ? 0.7 : 1.0)
-                                .animation(.easeInOut(duration: 0.3), value: focusedField)
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.top, 60)
-                            .padding(.bottom, 40)
-                            
-                            // Form Section
-                            VStack(spacing: 20) {
-                                // Email Field
-                                ModernTextField(
-                                    text: $email,
-                                    placeholder: "Adresse email",
-                                    systemImage: "envelope.fill",
-                                    keyboardType: .emailAddress,
-                                    isSecure: false,
-                                    focusedField: $focusedField,
-                                    fieldType: .email,
-                                    themeManager: themeManager
-                                )
-                                
-                                // Password Field
-                                ModernTextField(
-                                    text: $password,
-                                    placeholder: "Mot de passe",
-                                    systemImage: "lock.fill",
-                                    keyboardType: .default,
-                                    isSecure: !isPasswordVisible,
-                                    focusedField: $focusedField,
-                                    fieldType: .password,
-                                    showPasswordToggle: true,
-                                    isPasswordVisible: $isPasswordVisible,
-                                    themeManager: themeManager
-                                )
-                                
-                                // Forgot Password
-                                HStack {
-                                    Spacer()
-                                    Button("Mot de passe oublié ?") {
-                                        showReset = true
-                                    }
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(primaryColor)
-                                }
-                                .padding(.horizontal, 24)
-                                .padding(.top, -8)
-                            }
-                            .padding(.bottom, 32)
-                            
-                            // Sign In Button
-                            VStack(spacing: 16) {
-                                Button(action: loginUser) {
-                                    HStack {
-                                        if isLoading {
-                                            ProgressView()
-                                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                                .scaleEffect(0.8)
-                                        } else {
-                                            Text("Se connecter")
-                                                .font(.system(size: 16, weight: .semibold))
-                                        }
-                                    }
-                                    .foregroundColor(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 56)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 16)
-                                            .fill(
-                                                LinearGradient(
-                                                    colors: isFormValid ?
-                                                        [primaryColor, Color(hex: "#2D5016")] :
-                                                        [Color(hex: "#8E8E93"), Color(hex: "#636366")],
-                                                    startPoint: .leading,
-                                                    endPoint: .trailing
-                                                )
-                                            )
-                                            .shadow(
-                                                color: isFormValid ? primaryColor.opacity(0.3) : Color.clear,
-                                                radius: isFormValid ? 10 : 0,
-                                                x: 0,
-                                                y: isFormValid ? 5 : 0
-                                            )
-                                    )
-                                }
-                                .disabled(!isFormValid || isLoading)
-                                .scaleEffect(isFormValid ? 1.0 : 0.98)
-                                .animation(.spring(response: 0.5, dampingFraction: 0.8), value: isFormValid)
-                                .padding(.horizontal, 24)
-                                
-                                // Error Message
-                                if !errorMessage.isEmpty {
-                                    HStack {
-                                        Image(systemName: "exclamationmark.triangle.fill")
-                                            .foregroundColor(.red)
-                                            .font(.system(size: 14))
-                                        
-                                        Text(errorMessage)
-                                            .font(.system(size: 14, weight: .medium))
-                                            .foregroundColor(.red)
-                                            .multilineTextAlignment(.leading)
-                                        
-                                        Spacer()
-                                    }
-                                    .padding(.horizontal, 24)
-                                    .padding(.vertical, 16)
-                                    .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(Color.red.opacity(0.1))
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 12)
-                                                    .stroke(Color.red.opacity(0.3), lineWidth: 1)
-                                            )
-                                    )
-                                    .padding(.horizontal, 24)
-                                    .transition(.opacity.combined(with: .scale))
-                                }
-                            }
-                            
-                            // Divider
-                            HStack {
-                                Rectangle()
-                                    .fill(secondaryTextColor.opacity(0.3))
-                                    .frame(height: 1)
-                                Text("ou")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(secondaryTextColor)
-                                    .padding(.horizontal, 16)
-                                Rectangle()
-                                    .fill(secondaryTextColor.opacity(0.3))
-                                    .frame(height: 1)
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 32)
-                            
-                            // Social Login Buttons
-                            VStack(spacing: 12) {
-                                SocialLoginButton(
-                                    title: "Continuer avec Apple",
-                                    icon: "apple.logo",
-                                    backgroundColor: themeManager.colorScheme == .dark ? .white : .black,
-                                    foregroundColor: themeManager.colorScheme == .dark ? .black : .white,
-                                    action: {}
-                                )
-                                
-                                SocialLoginButton(
-                                    title: "Continuer avec Google",
-                                    icon: "google",
-                                    backgroundColor: fieldBackgroundColor,
-                                    foregroundColor: textColor,
-                                    hasBorder: true,
-                                    borderColor: secondaryTextColor.opacity(0.3),
-                                    action: {
-                                        authViewModel.signInWithGoogle()
-                                    }
-                                )
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.bottom, 32)
-                            
-                            // Sign Up Link
-                            HStack(spacing: 4) {
-                                Text("Pas de compte ?")
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundColor(secondaryTextColor)
-                                
-                                Button("Créer un compte") {
-                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                                        showSignUp = true
-                                    }
-                                }
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(primaryColor)
-                            }
-                            .padding(.bottom, 40)
+
+                            // ── HERO ─────────────────────────────────────────
+                            heroHeader(geometry: geometry)
+
+                            // ── FORMULAIRE ───────────────────────────────────
+                            formCard
+                                .padding(.top, -20)
+
+                            // ── SIGN UP LINK ──────────────────────────────────
+                            signUpFooter
+                                .padding(.top, 28)
+                                .padding(.bottom, 48)
                         }
                     }
                 }
             }
             .fullScreenCover(isPresented: $showSignUp) {
-                NavigationStack {
-                    SignUpView()
-                }
+                NavigationStack { SignUpView() }
             }
             .sheet(isPresented: $showReset) {
                 ResetPasswordView()
@@ -317,10 +84,218 @@ struct ModernLoginView: View {
         }
     }
 
+    // MARK: - Hero Header
+    private func heroHeader(geometry: GeometryProxy) -> some View {
+        ZStack(alignment: .bottom) {
+            // Carte hero verte identique à la HomeView
+            RoundedRectangle(cornerRadius: CGFloat(themeManager.heroCornerRadius), style: .continuous)
+                .fill(themeManager.brandPrimaryHero)
+                .shadow(color: themeManager.brandPrimaryHero.opacity(0.22), radius: 20, x: 0, y: 12)
+                .frame(height: 240)
+                .padding(.horizontal, 16)
+
+            VStack(spacing: 14) {
+                // Logo feuille
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.18))
+                        .overlay(Circle().stroke(Color.white.opacity(0.28), lineWidth: 1))
+                        .frame(width: 64, height: 64)
+
+                    Image(systemName: "leaf.fill")
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                .scaleEffect(focusedField != nil ? 0.85 : 1.0)
+                .animation(.spring(response: 0.5, dampingFraction: 0.75), value: focusedField)
+
+                VStack(spacing: 6) {
+                    Text("Bienvenue sur Arbore")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+
+                    Text("Connectez-vous pour gérer votre jardin")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.white.opacity(0.80))
+                        .multilineTextAlignment(.center)
+                }
+                .opacity(focusedField != nil ? 0.7 : 1.0)
+                .animation(.easeInOut(duration: 0.25), value: focusedField)
+            }
+            .padding(.bottom, 40)
+        }
+        .padding(.top, 56)
+        .padding(.horizontal, 0)
+    }
+
+    // MARK: - Form Card
+    private var formCard: some View {
+        VStack(spacing: 0) {
+            VStack(spacing: 20) {
+
+                // Email
+                ArborTextField(
+                    text: $email,
+                    placeholder: "Adresse email",
+                    systemImage: "envelope.fill",
+                    keyboardType: .emailAddress,
+                    isSecure: false,
+                    focusedField: $focusedField,
+                    fieldType: .email,
+                    themeManager: themeManager
+                )
+
+                // Mot de passe
+                ArborTextField(
+                    text: $password,
+                    placeholder: "Mot de passe",
+                    systemImage: "lock.fill",
+                    keyboardType: .default,
+                    isSecure: !isPasswordVisible,
+                    focusedField: $focusedField,
+                    fieldType: .password,
+                    showPasswordToggle: true,
+                    isPasswordVisible: $isPasswordVisible,
+                    themeManager: themeManager
+                )
+
+                // Mot de passe oublié
+                HStack {
+                    Spacer()
+                    Button("Mot de passe oublié ?") { showReset = true }
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(themeManager.brandPrimary)
+                }
+                .padding(.top, -4)
+
+                // Bouton connexion
+                Button(action: loginUser) {
+                    HStack(spacing: 8) {
+                        if isLoading {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.85)
+                        } else {
+                            Text("Se connecter")
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 14, weight: .bold))
+                        }
+                    }
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(
+                        Capsule()
+                            .fill(isFormValid
+                                  ? themeManager.brandPrimaryHero
+                                  : Color(.systemGray4))
+                            .shadow(
+                                color: isFormValid ? themeManager.brandPrimaryHero.opacity(0.35) : .clear,
+                                radius: isFormValid ? 12 : 0,
+                                x: 0, y: isFormValid ? 6 : 0
+                            )
+                    )
+                }
+                .disabled(!isFormValid || isLoading)
+                .scaleEffect(isFormValid ? 1.0 : 0.97)
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isFormValid)
+
+                // Message d'erreur
+                if !errorMessage.isEmpty {
+                    HStack(spacing: 10) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.red)
+                            .font(.system(size: 14))
+                        Text(errorMessage)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.red)
+                            .multilineTextAlignment(.leading)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.red.opacity(0.08))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(Color.red.opacity(0.25), lineWidth: 1)
+                            )
+                    )
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            .padding(24)
+
+            // ── Séparateur ────────────────────────────────────────────
+            HStack {
+                Rectangle()
+                    .fill(themeManager.secondaryTextColor.opacity(0.2))
+                    .frame(height: 1)
+                Text("ou")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(themeManager.secondaryTextColor)
+                    .padding(.horizontal, 14)
+                Rectangle()
+                    .fill(themeManager.secondaryTextColor.opacity(0.2))
+                    .frame(height: 1)
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 20)
+
+            // ── Boutons sociaux ───────────────────────────────────────
+            VStack(spacing: 12) {
+                ArborSocialButton(
+                    title: "Continuer avec Apple",
+                    icon: "apple.logo",
+                    backgroundColor: themeManager.textColor,
+                    foregroundColor: themeManager.backgroundColor,
+                    action: {}
+                )
+
+                ArborSocialButton(
+                    title: "Continuer avec Google",
+                    icon: "google",
+                    backgroundColor: themeManager.cardBackgroundColor,
+                    foregroundColor: themeManager.textColor,
+                    hasBorder: true,
+                    borderColor: themeManager.secondaryTextColor.opacity(0.25),
+                    action: { authViewModel.signInWithGoogle() }
+                )
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 24)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: CGFloat(themeManager.heroCornerRadius), style: .continuous)
+                .fill(themeManager.cardBackgroundColor)
+                .shadow(color: .black.opacity(0.07), radius: 18, x: 0, y: 6)
+        )
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: - Sign Up Footer
+    private var signUpFooter: some View {
+        HStack(spacing: 4) {
+            Text("Pas de compte ?")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(themeManager.secondaryTextColor)
+
+            Button("Créer un compte") {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { showSignUp = true }
+            }
+            .font(.system(size: 14, weight: .bold))
+            .foregroundColor(themeManager.brandPrimary)
+        }
+    }
+
+    // MARK: - Login Logic
     func loginUser() {
         isLoading = true
         errorMessage = ""
-        
+
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -333,7 +308,7 @@ struct ModernLoginView: View {
         Auth.auth().signIn(withEmail: trimmedEmail, password: trimmedPassword) { result, error in
             DispatchQueue.main.async {
                 self.isLoading = false
-                
+
                 if let error = error as NSError? {
                     print("❌ Firebase Auth error:")
                     print("Full error: \(error)")
@@ -342,7 +317,7 @@ struct ModernLoginView: View {
                     if let underlyingError = error.userInfo[NSUnderlyingErrorKey] as? NSError,
                        let deserialized = underlyingError.userInfo["FIRAuthErrorUserInfoDeserializedResponseKey"] as? [String: Any],
                        let firebaseMessage = deserialized["message"] as? String {
-                        
+
                         switch firebaseMessage {
                         case "INVALID_LOGIN_CREDENTIALS":
                             self.errorMessage = "Email ou mot de passe incorrect."
@@ -369,7 +344,7 @@ struct ModernLoginView: View {
                     }
                     return
                 }
-                
+
                 Task {
                     if let token = try? await Auth.auth().currentUser?.getIDToken() {
                         print("🔑 Firebase Token:", token)
@@ -391,8 +366,8 @@ struct ModernLoginView: View {
     }
 }
 
-// MARK: - Modern TextField Component
-struct ModernTextField: View {
+// MARK: - Arbore Text Field
+struct ArborTextField: View {
     @Binding var text: String
     let placeholder: String
     let systemImage: String
@@ -403,7 +378,7 @@ struct ModernTextField: View {
     var showPasswordToggle: Bool = false
     @Binding var isPasswordVisible: Bool
     let themeManager: ThemeManager
-    
+
     init(text: Binding<String>, placeholder: String, systemImage: String, keyboardType: UIKeyboardType, isSecure: Bool, focusedField: FocusState<ModernLoginView.Field?>.Binding, fieldType: ModernLoginView.Field, showPasswordToggle: Bool = false, isPasswordVisible: Binding<Bool> = .constant(false), themeManager: ThemeManager) {
         self._text = text
         self.placeholder = placeholder
@@ -416,124 +391,90 @@ struct ModernTextField: View {
         self._isPasswordVisible = isPasswordVisible
         self.themeManager = themeManager
     }
-    
-    // Dynamic colors based on theme
-    var iconColor: Color {
-        focusedField == fieldType ?
-            Color(hex: "#4A7C59") :
-            (themeManager.colorScheme == .dark ? Color(hex: "#EBEBF5").opacity(0.6) : Color(hex: "#8E8E93"))
+
+    private var isFocused: Bool { focusedField == fieldType }
+
+    private var iconColor: Color {
+        isFocused ? themeManager.brandPrimaryHero : themeManager.secondaryTextColor
     }
-    
-    var placeholderColor: Color {
-        themeManager.colorScheme == .dark ? Color(hex: "#EBEBF5").opacity(0.4) : Color(hex: "#C7C7CC")
+    private var borderColor: Color {
+        isFocused ? themeManager.brandPrimaryHero : themeManager.secondaryTextColor.opacity(0.25)
     }
-    
-    var textColor: Color {
-        themeManager.colorScheme == .dark ? Color.white : Color(hex: "#1C1C1E")
+    private var shadowColor: Color {
+        isFocused ? themeManager.brandPrimaryHero.opacity(0.12) : .clear
     }
-    
-    var fieldBackgroundColor: Color {
-        themeManager.colorScheme == .dark ? Color(hex: "#1C1C1E") : Color.white
-    }
-    
-    var borderColor: Color {
-        focusedField == fieldType ?
-            Color(hex: "#4A7C59") :
-            (themeManager.colorScheme == .dark ? Color(hex: "#38383A") : Color(hex: "#E5E5E7"))
-    }
-    
-    var shadowColor: Color {
-        focusedField == fieldType ?
-            Color(hex: "#4A7C59").opacity(0.1) :
-            (themeManager.colorScheme == .dark ? Color.clear : Color.black.opacity(0.05))
-    }
-    
+
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 14) {
             Image(systemName: systemImage)
-                .font(.system(size: 18, weight: .medium))
+                .font(.system(size: 17, weight: .medium))
                 .foregroundColor(iconColor)
                 .frame(width: 20)
-            
+                .animation(.easeInOut(duration: 0.2), value: isFocused)
+
             ZStack(alignment: .leading) {
                 if text.isEmpty {
                     Text(placeholder)
                         .font(.system(size: 16))
-                        .foregroundColor(placeholderColor)
+                        .foregroundColor(themeManager.placeholderTextColor)
                 }
-                
+
                 if isSecure {
                     SecureField("", text: $text)
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(textColor)
+                        .foregroundColor(themeManager.textColor)
                         .keyboardType(keyboardType)
                         .focused($focusedField, equals: fieldType)
                         .submitLabel(fieldType == .email ? .next : .go)
-                        .onSubmit {
-                            if fieldType == .email {
-                                focusedField = .password
-                            }
-                        }
-                        .accentColor(Color(hex: "#4A7C59"))
+                        .onSubmit { if fieldType == .email { focusedField = .password } }
+                        .tint(themeManager.brandPrimaryHero)
                 } else {
                     TextField("", text: $text)
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(textColor)
+                        .foregroundColor(themeManager.textColor)
                         .keyboardType(keyboardType)
                         .focused($focusedField, equals: fieldType)
                         .submitLabel(fieldType == .email ? .next : .go)
-                        .onSubmit {
-                            if fieldType == .email {
-                                focusedField = .password
-                            }
-                        }
-                        .accentColor(Color(hex: "#4A7C59"))
+                        .onSubmit { if fieldType == .email { focusedField = .password } }
+                        .tint(themeManager.brandPrimaryHero)
+                        .autocapitalization(.none)
+                        .disableAutocorrection(true)
                 }
             }
-            
+
             if showPasswordToggle {
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isPasswordVisible.toggle()
-                    }
-                }) {
+                Button(action: { isPasswordVisible.toggle() }) {
                     Image(systemName: isPasswordVisible ? "eye.slash.fill" : "eye.fill")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(iconColor)
+                        .foregroundColor(themeManager.secondaryTextColor)
                 }
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 18)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
         .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(fieldBackgroundColor)
+            RoundedRectangle(cornerRadius: CGFloat(themeManager.cardCornerRadius), style: .continuous)
+                .fill(themeManager.backgroundColor)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(borderColor, lineWidth: focusedField == fieldType ? 2 : 1)
+                    RoundedRectangle(cornerRadius: CGFloat(themeManager.cardCornerRadius), style: .continuous)
+                        .stroke(borderColor, lineWidth: isFocused ? 1.5 : 1)
                 )
-                .shadow(
-                    color: shadowColor,
-                    radius: focusedField == fieldType ? 8 : 2,
-                    x: 0,
-                    y: focusedField == fieldType ? 4 : 1
-                )
+                .shadow(color: shadowColor, radius: 8, x: 0, y: 3)
         )
-        .padding(.horizontal, 24)
-        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: focusedField == fieldType)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isFocused)
     }
 }
 
-// MARK: - Social Login Button Component
-struct SocialLoginButton: View {
+// MARK: - Social Login Button
+struct ArborSocialButton: View {
     let title: String
     let icon: String
     let backgroundColor: Color
     let foregroundColor: Color
     var hasBorder: Bool = false
-    var borderColor: Color = Color.clear
+    var borderColor: Color = .clear
     let action: () -> Void
-    
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
@@ -545,36 +486,30 @@ struct SocialLoginButton: View {
                     Image(systemName: icon)
                         .font(.system(size: 18, weight: .medium))
                 }
-                
+
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
             }
             .foregroundColor(foregroundColor)
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(height: 52)
             .background(
-                RoundedRectangle(cornerRadius: 16)
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
                     .fill(backgroundColor)
                     .overlay(
-                        hasBorder ?
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(borderColor, lineWidth: 1) :
-                            nil
+                        hasBorder
+                        ? RoundedRectangle(cornerRadius: 26, style: .continuous)
+                            .stroke(borderColor, lineWidth: 1)
+                        : nil
                     )
-                    .shadow(
-                        color: backgroundColor == .black ? Color.black.opacity(0.2) : Color.black.opacity(0.05),
-                        radius: 4,
-                        x: 0,
-                        y: 2
-                    )
+                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
             )
         }
-        .scaleEffect(1.0)
-        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: backgroundColor)
+        .buttonStyle(.plain)
     }
 }
 
-// MARK: - Helper Functions
+// MARK: - Helper
 extension View {
     func hideKeyboard() {
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)

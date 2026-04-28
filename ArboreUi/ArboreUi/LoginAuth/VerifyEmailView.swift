@@ -6,14 +6,15 @@ struct VerifyEmailView: View {
     var onResend: () -> Void
     var onBackToLogin: () -> Void
 
+    @AppStorage("isLoggedIn") var isLoggedIn = false
     @Environment(\.dismiss) var dismiss
-    @State private var isVerified = false
+    @EnvironmentObject var themeManager: ThemeManager
     @State private var resendMessage = ""
     @State private var isLoading = false
 
     var body: some View {
         ZStack {
-            Color(hex: "#F1F5ED").ignoresSafeArea()
+            themeManager.backgroundColor.ignoresSafeArea()
 
             VStack(spacing: 30) {
                 Spacer()
@@ -22,16 +23,16 @@ struct VerifyEmailView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 80, height: 80)
-                    .foregroundColor(Color(hex: "#263826"))
+                    .foregroundColor(themeManager.brandPrimary)
 
                 Text("Verify your email")
                     .font(.title)
                     .fontWeight(.bold)
-                    .foregroundColor(Color(hex: "#263826"))
+                    .foregroundColor(themeManager.textColor)
 
                 Text("We've sent a verification link to:\n\(email). Please verify your email to continue.")
                     .multilineTextAlignment(.center)
-                    .foregroundColor(.gray)
+                    .foregroundColor(themeManager.secondaryTextColor)
                     .padding(.horizontal)
 
                 if !resendMessage.isEmpty {
@@ -46,12 +47,12 @@ struct VerifyEmailView: View {
                             .fontWeight(.medium)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.white)
+                            .background(themeManager.cardBackgroundColor)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color(hex: "#263826"), lineWidth: 1)
+                                    .stroke(themeManager.brandPrimary, lineWidth: 1)
                             )
-                            .foregroundColor(Color(hex: "#263826"))
+                            .foregroundColor(themeManager.brandPrimary)
                     }
 
                     Button(action: checkVerificationStatus) {
@@ -59,14 +60,14 @@ struct VerifyEmailView: View {
                             ProgressView()
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color(hex: "#263826").opacity(0.6))
+                                .background(themeManager.brandPrimary.opacity(0.6))
                                 .cornerRadius(10)
                         } else {
                             Text("I've Verified")
                                 .fontWeight(.bold)
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color(hex: "#263826"))
+                                .background(themeManager.brandPrimary)
                                 .foregroundColor(.white)
                                 .cornerRadius(10)
                         }
@@ -80,9 +81,6 @@ struct VerifyEmailView: View {
         }
         .onAppear {
             sendInitialEmail()
-        }
-        .fullScreenCover(isPresented: $isVerified) {
-            LoginView() // Ou ta vue principale
         }
     }
 
@@ -120,8 +118,8 @@ struct VerifyEmailView: View {
                 print("❌ Error reloading user: \(error.localizedDescription)")
             } else {
                 if Auth.auth().currentUser?.isEmailVerified == true {
-                    print("✅ Email verified")
-                    isVerified = true
+                    print("✅ Email verified — logging in")
+                    isLoggedIn = true
                 } else {
                     resendMessage = "Email not verified yet."
                 }

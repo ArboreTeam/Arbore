@@ -87,8 +87,40 @@ class ThemeManager: ObservableObject {
     var secondaryTextColor: Color { adjust(ArboreDesign.Colors.textSecondary) }
     var tertiaryTextColor: Color { adjust(ArboreDesign.Colors.textSecondary.opacity(0.78)) }
     var placeholderTextColor: Color { adjust(ArboreDesign.Colors.placeholder) }
-    var accentColor: Color { adjust(ArboreDesign.Colors.primaryGreen) }
-    
+    var accentColor: Color { brandPrimary }
+
+    // MARK: - Brand Design Tokens
+    var brandPrimary: Color {
+        adjust(ArboreDesign.Colors.primaryGreen)
+    }
+
+    var brandPrimaryLight: Color {
+        adjust(ArboreDesign.Colors.softSurface)
+    }
+
+    var brandPrimaryHero: Color {
+        adjust(ArboreDesign.Colors.primaryGreen)
+    }
+
+    // MARK: - Design Tokens — Spacing & Shape
+    var cardCornerRadius: CGFloat { ArboreDesign.Radius.large }
+    var heroCornerRadius: CGFloat { ArboreDesign.Radius.image }
+
+    func pageTitle(size: CGFloat = 34) -> Font {
+        .system(size: size, weight: .bold)
+    }
+
+    func sectionTitle(size: CGFloat = 22) -> Font {
+        .system(size: size, weight: .semibold)
+    }
+
+    func cardTitle(size: CGFloat = 17) -> Font {
+        .system(size: size, weight: .semibold)
+    }
+
+    func bodyText(size: CGFloat = 15) -> Font {
+        .system(size: size, weight: .regular)
+    }
     // System colors adjusted for color blindness
     var systemBlue: Color { adjust(.blue) }
     var systemGreen: Color { adjust(ArboreDesign.Colors.success) }

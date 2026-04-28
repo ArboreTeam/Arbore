@@ -30,7 +30,7 @@ struct MaintenanceStepView: View {
                         ForEach(MaintenanceLevel.allCases) { level in
                             ImprovedSelectableCard(
                                 isSelected: state.maintenance == level,
-                                emoji: level.emoji,
+                                systemImage: level.iconName,
                                 title: level.title,
                                 subtitle: level.subtitle
                             ) {

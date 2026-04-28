@@ -793,6 +793,16 @@
 "ROUTINE_SUCCESS_MESSAGE" = "Ta routine d'arrosage a été créée avec succès.";
 "ROUTINE_SUCCESS_OK" = "OK";
 
+/* Calendrier Apple */
+"ROUTINE_CALENDAR_TOGGLE" = "Ajouter au calendrier Apple";
+"ROUTINE_CALENDAR_TOGGLE_SUBTITLE" = "Crée un rappel récurrent dans ton calendrier";
+"ROUTINE_CALENDAR_DENIED_TITLE" = "Accès au calendrier refusé";
+"ROUTINE_CALENDAR_DENIED_MESSAGE" = "Pour ajouter tes rappels au calendrier, autorise l'accès dans Réglages > Arbore > Calendrier.";
+"ROUTINE_CALENDAR_DENIED_SETTINGS" = "Ouvrir les Réglages";
+"ROUTINE_SUCCESS_WITH_CALENDAR" = "Ta routine d'arrosage a été créée et ajoutée à ton calendrier Apple.";
+"ROUTINE_CALENDAR_ERROR" = "Erreur calendrier";
+"ROUTINE_CREATING" = "Création en cours…";
+
 // Measure Pot Feature
 "MEASURE_POT_TITLE" = "Mesurer mon pot";
 "MEASURE_TAB_AR" = "Réalité augmentée";
@@ -903,3 +913,7 @@
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notifications";
 "PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Push notifications";
 "PRIVACYSETTINGS_NOTIFICATIONS_SUB" = "Rappels d'arrosage et alertes";
+
+// Garden AR Relocalization
+"GARDEN_LOADING_TITLE" = "Chargement du jardin";
+"GARDEN_LOADING_SUBTITLE" = "Scannez lentement votre environnement\npour repositionner vos plantes";

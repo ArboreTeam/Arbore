@@ -27,4 +27,13 @@ final class ThumbnailRenderHost {
 
         self.window = win
     }
+
+    // Drops the anchor graph so RealityKit can release its mesh and texture
+    // caches tied to previously rendered plants. Called after the thumbnail
+    // queue drains and on memory warnings. The ARView itself is kept alive
+    // (recreating it is expensive) but with zero resident content.
+    func releaseScene() {
+        arView.scene.anchors.removeAll()
+        print("🧹 ThumbnailRenderHost scene released")
+    }
 }

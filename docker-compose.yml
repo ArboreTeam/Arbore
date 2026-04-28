@@ -1,0 +1,79 @@
+services:
+  # ─────────────────────────────────────────────
+  # 🤖  AI Generator  (FastAPI / Python)
+  # ─────────────────────────────────────────────
+  ai-generator:
+    build:
+      context: ./AiGenerator
+      dockerfile: Dockerfile
+    container_name: arbore-ai-generator
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - arbore-net
+
+  # ─────────────────────────────────────────────
+  # 🌿  Backend  (Gin / Go)
+  # ─────────────────────────────────────────────
+  backend:
+    build:
+      context: ./ArboreBackend
+      dockerfile: Dockerfile
+    container_name: arbore-backend
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - ARBORE_API_KEY=${ARBORE_API_KEY}
+      - FIREBASE_SERVICE_ACCOUNT_PATH=/root/firebase-adminsdk.json
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - UNSPLASH_ACCESS_KEY=${UNSPLASH_ACCESS_KEY}
+      - GIN_MODE=${GIN_MODE:-release}
+      - PORT=${PORT:-8080}
+      # Le backend appelle l'AI Generator via le réseau Docker interne
+      - AI_GENERATOR_URL=http://ai-generator:8000
+      # Thumbnails dans un chemin séparé (hors du montage read-only /root/models)
+      - THUMBNAILS_DIR=/root/thumbnails
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      # Fichiers 3D USDZ (lecture seule)
+      - ./ArboreBackend/models:/root/models:ro
+      # Thumbnails : bind mount sur le dossier existant de la VM (conserve les anciens thumbnails)
+      - ./ArboreBackend/models/thumbnails:/root/thumbnails
+      # Firebase service account JSON (le vrai fichier du projet)
+      - ./arbore-firebase-adminsdk.json:/root/firebase-adminsdk.json:ro
+    depends_on:
+      ai-generator:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - arbore-net
+
+
+
+# ─────────────────────────────────────────────
+# 🔌  Réseau interne
+# ─────────────────────────────────────────────
+networks:
+  arbore-net:
+    driver: bridge

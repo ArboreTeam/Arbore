@@ -865,7 +865,17 @@
 "ROUTINE_SUCCESS_MESSAGE" = "Your watering routine has been successfully created.";
 "ROUTINE_SUCCESS_OK" = "OK";
 "ROUTINE_SUCCESS_TITLE" = "Routine created!";
-"ROUTINE_TIME_LABEL" = "Callback time";
+"ROUTINE_TIME_LABEL" = "Reminder time";
+
+/* Apple Calendar */
+"ROUTINE_CALENDAR_TOGGLE" = "Add to Apple Calendar";
+"ROUTINE_CALENDAR_TOGGLE_SUBTITLE" = "Create a recurring reminder in your calendar";
+"ROUTINE_CALENDAR_DENIED_TITLE" = "Calendar access denied";
+"ROUTINE_CALENDAR_DENIED_MESSAGE" = "To add reminders to your calendar, allow access in Settings > Arbore > Calendar.";
+"ROUTINE_CALENDAR_DENIED_SETTINGS" = "Open Settings";
+"ROUTINE_SUCCESS_WITH_CALENDAR" = "Your watering routine has been created and added to your Apple Calendar.";
+"ROUTINE_CALENDAR_ERROR" = "Calendar error";
+"ROUTINE_CREATING" = "Creating…";
 "TUTORIAL_NEXT_BUTTON" = "Next";
 "TUTORIAL_PAGE1_DESC" = "This feature lets you measure the exact dimensions of your pot using augmented reality.";
 "TUTORIAL_PAGE1_TITLE" = "Welcome!";
@@ -876,3 +886,7 @@
 "TUTORIAL_PAGE4_DESC" = "If you prefer, use the 'Manual entry' tab and enter the dimensions with a ruler.";
 "TUTORIAL_PAGE4_TITLE" = "Or manual entry";
 "TUTORIAL_START_BUTTON" = "Start";
+
+// Garden AR Relocalization
+"GARDEN_LOADING_TITLE" = "Loading your garden";
+"GARDEN_LOADING_SUBTITLE" = "Slowly scan your environment\nto reposition your plants";

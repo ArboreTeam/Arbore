@@ -9,6 +9,8 @@ struct DataExportView: View {
     @State private var exportError: String? = nil
     @State private var exportSuccess = false
     @State private var exportedData: String? = nil
+    @State private var exportedFileURL: URL? = nil
+    @State private var showShareSheet = false
 
     var body: some View {
         ZStack {
@@ -72,7 +74,7 @@ struct DataExportView: View {
                         .padding(.horizontal)
 
                         // Success message
-                        if exportSuccess {
+                        if exportSuccess, let fileURL = exportedFileURL {
                             VStack(spacing: 12) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 48))
@@ -82,10 +84,15 @@ struct DataExportView: View {
                                     .font(.system(size: 18, weight: .bold))
                                     .foregroundColor(.green)
 
-                                Text("Your data has been saved to your device")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(themeManager.secondaryTextColor)
-                                    .multilineTextAlignment(.center)
+                                ShareLink(item: fileURL) {
+                                    Label("Share / Save file", systemImage: "square.and.arrow.up")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(Color.green)
+                                        .cornerRadius(10)
+                                }
                             }
                             .padding()
                             .background(Color.green.opacity(0.1))
@@ -184,10 +191,10 @@ struct DataExportView: View {
             }
 
             if httpResponse.statusCode == 200 {
-                // Save JSON to device
                 let fileName = "arbore_data_export_\(ISO8601DateFormatter().string(from: Date())).json"
-                saveToDocuments(data: data, fileName: fileName)
-
+                if let fileURL = saveToDocuments(data: data, fileName: fileName) {
+                    exportedFileURL = fileURL
+                }
                 exportSuccess = true
                 exportError = nil
             } else {
@@ -213,31 +220,18 @@ struct DataExportView: View {
         }
     }
 
-    private func saveToDocuments(data: Data, fileName: String) {
+    @discardableResult
+    private func saveToDocuments(data: Data, fileName: String) -> URL? {
         let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let fileURL = documentsPath.appendingPathComponent(fileName)
-
         do {
             try data.write(to: fileURL)
             print("✅ Data saved to: \(fileURL.path)")
-
-            // Share the file
-            DispatchQueue.main.async {
-                shareFile(url: fileURL)
-            }
+            return fileURL
         } catch {
             print("❌ Error saving file: \(error)")
             exportError = "Failed to save file: \(error.localizedDescription)"
-        }
-    }
-
-    private func shareFile(url: URL) {
-        let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let window = windowScene.windows.first,
-           let rootVC = window.rootViewController {
-            rootVC.present(activityVC, animated: true)
+            return nil
         }
     }
 }

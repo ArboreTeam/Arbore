@@ -92,8 +92,8 @@ struct ProfileView: View {
                                 .fill(
                                     LinearGradient(
                                         gradient: Gradient(colors: [
-                                            Color(red: 0.2, green: 0.7, blue: 0.4),
-                                            Color(red: 0.1, green: 0.6, blue: 0.3)
+                                            themeManager.brandPrimaryHero,
+                                            themeManager.brandPrimary
                                         ]),
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
@@ -108,7 +108,7 @@ struct ProfileView: View {
                     }
                     .frame(width: 90, height: 90)
                     .clipShape(Circle())
-                    .shadow(color: .green.opacity(0.4), radius: 8)
+                    .shadow(color: themeManager.brandPrimary.opacity(0.4), radius: 8)
 
                     Button(action: { showImagePicker = true }) {
                         ZStack {
@@ -116,7 +116,7 @@ struct ProfileView: View {
                                 .fill(themeManager.backgroundColor.opacity(0.8))
                                 .frame(width: 36, height: 36)
                             Image(systemName: "camera.fill")
-                                .foregroundColor(.green)
+                                .foregroundColor(themeManager.brandPrimary)
                                 .font(.system(size: 16, weight: .bold))
                         }
                     }
@@ -191,15 +191,15 @@ struct ProfileView: View {
                 .background(
                     LinearGradient(
                         colors: [
-                            Color(red: 0.1, green: 0.8, blue: 0.5),
-                            Color(red: 0.05, green: 0.5, blue: 0.2)
+                            themeManager.brandPrimaryHero,
+                            themeManager.brandPrimary
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
                 .cornerRadius(18)
-                .shadow(color: Color.green.opacity(0.5), radius: 10, x: 0, y: 6)
+                .shadow(color: themeManager.brandPrimary.opacity(0.4), radius: 10, x: 0, y: 6)
             }
             .buttonStyle(.plain)
         }

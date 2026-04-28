@@ -10,26 +10,26 @@ struct SubscriptionPlanCard: View {
     // plansData now holds keys for localized strings
     private let plansData: [String: (color: Color, icon: String, descriptionKey: String, priceKey: String)] = [
         "Standard": (
-            color: .green,
-            icon: "leaf.fill",
+            color: ArboreDesign.Colors.primaryGreen,
+            icon: "leaf",
             descriptionKey: "SUBSCRIPTION_DESCRIPTION_STANDARD",
             priceKey: "PLAN_FREE"
         ),
         "Premium": (
-            color: Color(red: 0.1, green: 0.8, blue: 0.5),
-            icon: "sparkles.square.fill",
+            color: ArboreDesign.Colors.accentGold,
+            icon: "sparkles",
             descriptionKey: "SUBSCRIPTION_DESCRIPTION_PREMIUM",
             priceKey: "PLAN_PAID"
         ),
         "Metal": (
-            color: Color(red: 0.6, green: 0.6, blue: 0.7),
-            icon: "goforward.plus",
+            color: ArboreDesign.Colors.secondaryGreen,
+            icon: "shield.lefthalf.filled",
             descriptionKey: "SUBSCRIPTION_DESCRIPTION_METAL",
             priceKey: "PLAN_PAID"
         ),
         "Ultra": (
-            color: Color(red: 0.7, green: 0.5, blue: 0.9),
-            icon: "diamond.fill",
+            color: ArboreDesign.Colors.accentGold,
+            icon: "diamond",
             descriptionKey: "SUBSCRIPTION_DESCRIPTION_ULTRA",
             priceKey: "PLAN_PAID"
         )
@@ -44,98 +44,86 @@ struct SubscriptionPlanCard: View {
     }
 
     var body: some View {
-        guard let plan = currentPlan else {
-            return AnyView(emptyPlanView)
+        if let plan = currentPlan {
+            planContent(plan)
+        } else {
+            emptyPlanView
         }
+    }
 
-        let planColor = isFreePlan ? .green : plan.color
-        let planTitle: String = {
-            if currentPlanName == "Standard" {
-                return NSLocalizedString("PLAN_TITLE_STANDARD", comment: "Standard plan title")
-            } else {
-                return String(format: NSLocalizedString("PLAN_TITLE_FORMAT", comment: "Plan title format"), currentPlanName)
-            }
-        }()
-
+    private func planContent(_ plan: (color: Color, icon: String, descriptionKey: String, priceKey: String)) -> some View {
+        let planColor = isFreePlan ? ArboreDesign.Colors.primaryGreen : plan.color
         let description = NSLocalizedString(plan.descriptionKey, comment: "")
         let priceText = NSLocalizedString(plan.priceKey, comment: "")
         let activeBadge = NSLocalizedString("SUBSCRIPTION_BADGE_ACTIVE", comment: "Active badge")
 
-        return AnyView(
-            VStack(spacing: 0) {
-                VStack(spacing: 12) {
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: plan.icon)
-                            .font(.system(size: 22, weight: .bold))
+        return AppCard {
+            VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.small, style: .continuous)
+                    .fill(planColor)
+                    .frame(width: 52, height: 4)
+
+                HStack(alignment: .top, spacing: ArboreDesign.Spacing.md) {
+                    Image(systemName: plan.icon)
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundColor(planColor)
+                        .frame(width: 46, height: 46)
+                        .background(planColor.opacity(0.14))
+                        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
+                        Text(planTitle)
+                            .font(ArboreDesign.Typography.cardTitle)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
+
+                        Text(description)
+                            .font(ArboreDesign.Typography.bodySmall)
+                            .foregroundColor(ArboreDesign.Colors.textSecondary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Spacer(minLength: ArboreDesign.Spacing.sm)
+
+                    VStack(alignment: .trailing, spacing: ArboreDesign.Spacing.xs) {
+                        Text(priceText)
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(planColor)
-                            .frame(width: 28)
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(planTitle)
-                                .font(.system(size: 19, weight: .heavy))
-                                .foregroundColor(themeManager.textColor)
-
-                            Text(description)
-                                .font(.system(size: 13))
-                                .foregroundColor(themeManager.secondaryTextColor)
-                                .lineLimit(2)
-                        }
-
-                        Spacer()
-
-                        VStack(alignment: .trailing, spacing: 4) {
-                            Text(priceText)
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(planColor)
-
-                            Text(activeBadge)
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundColor(.black)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Capsule().fill(planColor.opacity(0.85)))
-                        }
+                        Text(activeBadge)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(isFreePlan ? .white : ArboreDesign.Colors.textPrimary)
+                            .padding(.horizontal, ArboreDesign.Spacing.xs)
+                            .padding(.vertical, 5)
+                            .background(planColor.opacity(isFreePlan ? 1 : 0.18))
+                            .clipShape(Capsule())
                     }
                 }
-                .padding(18)
             }
-            .background(
-                ZStack {
-                    Color.gray.opacity(0.15)
+        }
+    }
 
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    planColor.opacity(0.4),
-                                    Color.white.opacity(0.1)
-                                ]),
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 2
-                        )
-
-                    RoundedRectangle(cornerRadius: 18)
-                        .fill(planColor)
-                        .frame(height: 4)
-                        .mask(
-                            VStack(spacing: 0) {
-                                Rectangle().frame(height: 4)
-                                Spacer()
-                            }
-                        )
-                }
-            )
-            .cornerRadius(18)
-            .shadow(color: planColor.opacity(0.25), radius: 8, x: 0, y: 4)
-        )
+    private var planTitle: String {
+        if currentPlanName == "Standard" {
+            return NSLocalizedString("PLAN_TITLE_STANDARD", comment: "Standard plan title")
+        } else {
+            return String(format: NSLocalizedString("PLAN_TITLE_FORMAT", comment: "Plan title format"), currentPlanName)
+        }
     }
 
     private var emptyPlanView: some View {
-        Text(NSLocalizedString("PLAN_UNDEFINED", comment: "Plan undefined message"))
-            .foregroundColor(.red)
-            .padding()
+        AppCard {
+            HStack(spacing: ArboreDesign.Spacing.sm) {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundColor(ArboreDesign.Colors.danger)
+
+                Text(NSLocalizedString("PLAN_UNDEFINED", comment: "Plan undefined message"))
+                    .font(ArboreDesign.Typography.bodySmall)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+
+                Spacer()
+            }
+        }
     }
 }
 
@@ -146,7 +134,7 @@ struct SettingRowItem {
     let destination: AnyView
     let iconColor: Color
 
-    init<V: View>(icon: String, label: String, destination: V, iconColor: Color = .green) {
+    init<V: View>(icon: String, label: String, destination: V, iconColor: Color = ArboreDesign.Colors.primaryGreen) {
         self.icon = icon
         self.label = label
         self.destination = AnyView(destination)

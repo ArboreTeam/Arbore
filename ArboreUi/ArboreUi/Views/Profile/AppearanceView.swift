@@ -20,18 +20,8 @@ struct AppearanceView: View {
     }
     
     var body: some View {
-        ZStack {
-            themeManager.backgroundColor
-                .ignoresSafeArea()
-            
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    header
-                    appearanceCard
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-            }
+        SettingsPage(title: NSLocalizedString("APPEARANCE_TITLE", comment: "Appearance Title")) {
+            appearanceCard
         }
         .sheet(isPresented: $showLanguageSheet) {
             languageSheet
@@ -46,149 +36,63 @@ struct AppearanceView: View {
                 .presentationDetents([.height(260), .medium])
         }
     }
-    
-    // MARK: - Header
-    
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Button(action: { dismiss() }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(themeManager.textColor)
-                        .padding(.trailing, 4)
-                }
-                Spacer()
-            }
-            
-            Text(NSLocalizedString("APPEARANCE_TITLE", comment: "Appearance Title"))
-                .font(.system(size: 32, weight: .bold))
-                .foregroundColor(themeManager.textColor)
-        }
-        .padding(.top, 4)
-    }
-    
+
     // MARK: - Main card
     
     private var appearanceCard: some View {
-        VStack(spacing: 0) {
+        VStack(spacing: ArboreDesign.Spacing.xs) {
             buttonRow(
-                icon: "r.circle.fill",
-                iconBackground: .gray.opacity(0.25),
+                icon: "app.dashed",
                 title: NSLocalizedString("APPEARANCE_APP_ICON", comment: ""),
                 subtitle: NSLocalizedString("APPEARANCE_APP_ICON_STANDARD", comment: ""),
                 valueText: nil,
                 action: {}
             )
-            
-            divider
-            
+
             buttonRow(
-                icon: "lightbulb.fill",
-                iconBackground: .yellow.opacity(0.25),
+                icon: "circle.lefthalf.filled",
                 title: NSLocalizedString("APPEARANCE_THEME", comment: ""),
                 subtitle: NSLocalizedString("APPEARANCE_THEME_CURRENT", comment: ""),  
                 valueText: nil,
-                action: { showThemeSheet = true }
+                action: { showThemeSheet = true },
+                tint: ArboreDesign.Colors.accentGold
             )
-            
-            divider
-            
+
             buttonRow(
-                icon: "rectangle.and.hand.point.up.left.fill",
-                iconBackground: .blue.opacity(0.25),
+                icon: "rectangle.and.hand.point.up.left",
                 title: NSLocalizedString("APPEARANCE_INTERFACE", comment: ""),
                 subtitle: NSLocalizedString("APPEARANCE_INTERFACE_SUBTITLE", comment: ""),
                 valueText: nil,
                 action: { showInterfaceSheet = true }
             )
-            
-            divider
-            
+
             buttonRow(
                 icon: "globe",
-                iconBackground: .green.opacity(0.25),
                 title: NSLocalizedString("APPEARANCE_LANGUAGE", comment: ""),
                 subtitle: currentLanguageDisplayName,
                 valueText: nil,
                 action: { showLanguageSheet = true }
             )
         }
-        .background(
-            ZStack {
-                Color.gray.opacity(0.08)
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.white.opacity(0.15),
-                                Color.white.opacity(0.05)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            }
-        )
-        .cornerRadius(16)
-    }
-    
-    private var divider: some View {
-        Divider()
-            .background(Color.gray.opacity(0.3))
-            .padding(.leading, 64)
     }
     
     // MARK: - Row
     
     private func buttonRow(
         icon: String,
-        iconBackground: Color,
         title: String,
         subtitle: String? = nil,
         valueText: String? = nil,
-        action: @escaping () -> Void
+        action: @escaping () -> Void,
+        tint: Color = ArboreDesign.Colors.primaryGreen
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 14) {
-                ZStack {
-                    Circle()
-                        .fill(iconBackground)
-                        .frame(width: 40, height: 40)
-                    
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                }
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(themeManager.textColor)
-                    
-                    if let subtitle = subtitle {
-                        Text(subtitle)
-                            .font(.system(size: 13))
-                            .foregroundColor(themeManager.secondaryTextColor)
-                    }
-                }
-                
-                Spacer()
-                
-                if let valueText = valueText {
-                    Text(valueText)
-                        .font(.system(size: 14))
-                        .foregroundColor(themeManager.secondaryTextColor)
-                }
-                
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
+            SettingsRow(
+                systemImage: icon,
+                title: title,
+                subtitle: valueText.map { subtitle == nil ? $0 : "\(subtitle ?? "") · \($0)" } ?? subtitle,
+                tint: tint
+            )
         }
         .buttonStyle(.plain)
     }
@@ -196,116 +100,99 @@ struct AppearanceView: View {
     // MARK: - Sheets
     
     private var languageSheet: some View {
-        VStack(spacing: 20) {
-            Capsule()
-                .frame(width: 40, height: 4)
-                .foregroundColor(Color.gray.opacity(0.4))
-                .padding(.top, 8)
-            
-            Text(NSLocalizedString("APPEARANCE_LANGUAGE", comment: ""))
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(themeManager.textColor)
-            
-            Text(NSLocalizedString("APPEARANCE_LANGUAGE_DESCRIPTION", comment: ""))
-                .font(.system(size: 15))
-                .foregroundColor(themeManager.secondaryTextColor)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-            
-            Button(action: openSystemSettings) {
-                Text(NSLocalizedString("APPEARANCE_LANGUAGE_BUTTON", comment: ""))
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 24)
-                            .fill(Color.white.opacity(0.12))
-                    )
+        AppBackground {
+            sheetStack {
+                Text(NSLocalizedString("APPEARANCE_LANGUAGE", comment: ""))
+                    .font(ArboreDesign.Typography.sectionTitle)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+
+                Text(NSLocalizedString("APPEARANCE_LANGUAGE_DESCRIPTION", comment: ""))
+                    .font(ArboreDesign.Typography.bodySmall)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
+
+                Button(action: openSystemSettings) {
+                    Text(NSLocalizedString("APPEARANCE_LANGUAGE_BUTTON", comment: ""))
+                }
+                .buttonStyle(.arborePrimary)
+                .padding(.top, ArboreDesign.Spacing.xs)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 6)
-            
-            Spacer()
         }
-        .background(themeManager.backgroundColor.ignoresSafeArea())
     }
     
     private var themeSheet: some View {
-        VStack(spacing: 20) {
-            Capsule()
-                .frame(width: 40, height: 4)
-                .foregroundColor(Color.gray.opacity(0.4))
-                .padding(.top, 8)
-            
-            Text(NSLocalizedString("APPEARANCE_THEME", comment: ""))
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(themeManager.textColor)
-            
-            Text(NSLocalizedString("APPEARANCE_THEME_DESCRIPTION", comment: ""))
-                .font(.system(size: 15))
-                .foregroundColor(themeManager.secondaryTextColor)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-            
-            VStack(spacing: 10) {
-                themeOptionRow(title: NSLocalizedString("APPEARANCE_THEME_SYSTEM", comment: "")) {}
-                themeOptionRow(title: NSLocalizedString("APPEARANCE_THEME_LIGHT", comment: "")) {}
-                themeOptionRow(title: NSLocalizedString("APPEARANCE_THEME_DARK", comment: "")) {}
+        AppBackground {
+            sheetStack {
+                Text(NSLocalizedString("APPEARANCE_THEME", comment: ""))
+                    .font(ArboreDesign.Typography.sectionTitle)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+
+                Text(NSLocalizedString("APPEARANCE_THEME_DESCRIPTION", comment: ""))
+                    .font(ArboreDesign.Typography.bodySmall)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
+
+                VStack(spacing: ArboreDesign.Spacing.xs) {
+                    themeOptionRow(title: NSLocalizedString("APPEARANCE_THEME_SYSTEM", comment: "")) {}
+                    themeOptionRow(title: NSLocalizedString("APPEARANCE_THEME_LIGHT", comment: "")) {}
+                    themeOptionRow(title: NSLocalizedString("APPEARANCE_THEME_DARK", comment: "")) {}
+                }
             }
-            .padding(.horizontal, 24)
-            
-            Spacer()
         }
-        .background(themeManager.backgroundColor.ignoresSafeArea())
     }
     
     private func themeOptionRow(title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack {
                 Text(title)
-                    .font(.system(size: 16))
-                    .foregroundColor(themeManager.textColor)
+                    .font(ArboreDesign.Typography.body)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
                 Spacer()
             }
-            .padding()
-            .background(Color.gray.opacity(0.12))
-            .cornerRadius(12)
+            .padding(ArboreDesign.Spacing.md)
+            .background(ArboreDesign.Colors.card)
+            .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
+                    .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
     }
     
     private var interfaceSheet: some View {
-        VStack(spacing: 20) {
+        AppBackground {
+            sheetStack {
+                Text(NSLocalizedString("APPEARANCE_INTERFACE", comment: ""))
+                    .font(ArboreDesign.Typography.sectionTitle)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+
+                Text(NSLocalizedString("APPEARANCE_INTERFACE_DESCRIPTION", comment: ""))
+                    .font(ArboreDesign.Typography.bodySmall)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                    .multilineTextAlignment(.center)
+
+                Button(action: openSystemSettings) {
+                    Text(NSLocalizedString("APPEARANCE_OPEN_DEVICE_SETTINGS", comment: ""))
+                }
+                .buttonStyle(.arborePrimary)
+                .padding(.top, ArboreDesign.Spacing.xs)
+            }
+        }
+    }
+
+    private func sheetStack<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(spacing: ArboreDesign.Spacing.lg) {
             Capsule()
                 .frame(width: 40, height: 4)
-                .foregroundColor(Color.gray.opacity(0.4))
-                .padding(.top, 8)
-            
-            Text(NSLocalizedString("APPEARANCE_INTERFACE", comment: ""))
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(themeManager.textColor)
-            
-            Text(NSLocalizedString("APPEARANCE_INTERFACE_DESCRIPTION", comment: ""))
-                .font(.system(size: 15))
-                .foregroundColor(themeManager.secondaryTextColor)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-            
-            Button(action: openSystemSettings) {
-                Text(NSLocalizedString("APPEARANCE_OPEN_DEVICE_SETTINGS", comment: ""))
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 24)
-                            .fill(Color.white.opacity(0.12))
-                    )
-            }
-            .padding(.horizontal, 24)
-            
+                .foregroundColor(ArboreDesign.Colors.border)
+                .padding(.top, ArboreDesign.Spacing.sm)
+
+            content()
+
             Spacer()
         }
-        .background(themeManager.backgroundColor.ignoresSafeArea())
+        .padding(.horizontal, ArboreDesign.Spacing.screenHorizontal)
     }
     
     // MARK: - Helpers

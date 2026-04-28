@@ -102,7 +102,7 @@ struct AppButtonStyle: ButtonStyle {
 
         switch variant {
         case .primary:
-            return ArboreDesign.Colors.primaryGreen
+            return ArboreDesign.Colors.primaryButton
         case .secondary:
             return ArboreDesign.Colors.softSurface
         case .ghost:
@@ -349,5 +349,236 @@ struct LoadingView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(ArboreDesign.Spacing.xl)
+    }
+}
+
+struct SettingsPage<Content: View>: View {
+    let title: String
+    var contentSpacing: CGFloat = ArboreDesign.Spacing.xl
+    private let content: Content
+
+    @Environment(\.dismiss) private var dismiss
+
+    init(
+        title: String,
+        contentSpacing: CGFloat = ArboreDesign.Spacing.xl,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.contentSpacing = contentSpacing
+        self.content = content()
+    }
+
+    var body: some View {
+        AppBackground {
+            VStack(spacing: 0) {
+                SettingsTopBar(title: title) {
+                    dismiss()
+                }
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: contentSpacing) {
+                        content
+                    }
+                    .padding(.horizontal, ArboreDesign.Spacing.screenHorizontal)
+                    .padding(.top, ArboreDesign.Spacing.lg)
+                    .padding(.bottom, ArboreDesign.Spacing.xxl)
+                }
+            }
+        }
+    }
+}
+
+struct SettingsTopBar: View {
+    let title: String
+    let dismissAction: () -> Void
+
+    var body: some View {
+        HStack {
+            Button(action: dismissAction) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+                    .frame(width: 38, height: 38)
+                    .background(ArboreDesign.Colors.softSurface)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Text(title)
+                .font(ArboreDesign.Typography.cardTitle)
+                .foregroundColor(ArboreDesign.Colors.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+
+            Spacer()
+
+            Color.clear
+                .frame(width: 38, height: 38)
+        }
+        .padding(.horizontal, ArboreDesign.Spacing.screenHorizontal)
+        .frame(height: 58)
+        .background(ArboreDesign.Colors.background)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(ArboreDesign.Colors.border)
+                .frame(height: 1)
+        }
+    }
+}
+
+struct SettingsIntroCard: View {
+    let systemImage: String
+    let title: String
+    let message: String
+    var tint: Color = ArboreDesign.Colors.primaryGreen
+
+    var body: some View {
+        AppCard {
+            HStack(alignment: .top, spacing: ArboreDesign.Spacing.md) {
+                SettingsIconBadge(systemImage: systemImage, tint: tint, size: 48)
+
+                VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
+                    Text(title)
+                        .font(ArboreDesign.Typography.sectionTitle)
+                        .foregroundColor(ArboreDesign.Colors.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(message)
+                        .font(ArboreDesign.Typography.bodySmall)
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+            }
+        }
+    }
+}
+
+struct SettingsSectionCard<Content: View>: View {
+    let title: String
+    var systemImage: String?
+    var tint: Color = ArboreDesign.Colors.primaryGreen
+    private let content: Content
+
+    init(
+        title: String,
+        systemImage: String? = nil,
+        tint: Color = ArboreDesign.Colors.primaryGreen,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.systemImage = systemImage
+        self.tint = tint
+        self.content = content()
+    }
+
+    var body: some View {
+        AppCard {
+            VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+                HStack(spacing: ArboreDesign.Spacing.sm) {
+                    if let systemImage {
+                        SettingsIconBadge(systemImage: systemImage, tint: tint, size: 34)
+                    }
+
+                    Text(title)
+                        .font(ArboreDesign.Typography.cardTitle)
+                        .foregroundColor(ArboreDesign.Colors.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer(minLength: 0)
+                }
+
+                content
+            }
+        }
+    }
+}
+
+struct SettingsIconBadge: View {
+    let systemImage: String
+    var tint: Color = ArboreDesign.Colors.primaryGreen
+    var size: CGFloat = 42
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.system(size: size <= 36 ? 15 : 18, weight: .semibold))
+            .foregroundColor(tint)
+            .frame(width: size, height: size)
+            .background(tint.opacity(0.14))
+            .clipShape(RoundedRectangle(cornerRadius: min(ArboreDesign.Radius.medium, size / 3), style: .continuous))
+    }
+}
+
+struct SettingsInfoRow: View {
+    let systemImage: String
+    let title: String
+    var subtitle: String?
+    var tint: Color = ArboreDesign.Colors.primaryGreen
+
+    var body: some View {
+        HStack(alignment: .top, spacing: ArboreDesign.Spacing.sm) {
+            SettingsIconBadge(systemImage: systemImage, tint: tint, size: 38)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(ArboreDesign.Typography.body)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(ArboreDesign.Typography.caption)
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+}
+
+struct SettingsToggleRow: View {
+    let systemImage: String
+    let title: String
+    var subtitle: String?
+    @Binding var isOn: Bool
+    var tint: Color = ArboreDesign.Colors.primaryGreen
+
+    var body: some View {
+        HStack(alignment: .top, spacing: ArboreDesign.Spacing.sm) {
+            SettingsIconBadge(systemImage: systemImage, tint: tint, size: 38)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(ArboreDesign.Typography.body)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(ArboreDesign.Typography.caption)
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Spacer(minLength: ArboreDesign.Spacing.sm)
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(ArboreDesign.Colors.primaryGreen)
+        }
+    }
+}
+
+struct SettingsDivider: View {
+    var body: some View {
+        Divider()
+            .background(ArboreDesign.Colors.border)
     }
 }

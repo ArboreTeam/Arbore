@@ -13,147 +13,79 @@ struct DataExportView: View {
     @State private var showShareSheet = false
 
     var body: some View {
-        ZStack {
-            themeManager.backgroundColor
-                .ignoresSafeArea()
+        SettingsPage(title: NSLocalizedString("DATA_EXPORT_TITLE", comment: "Download My Data")) {
+            SettingsIntroCard(
+                systemImage: "square.and.arrow.down",
+                title: NSLocalizedString("DATA_EXPORT_TITLE", comment: "Download My Data"),
+                message: NSLocalizedString("DATA_EXPORT_DESCRIPTION", comment: "Export all your data")
+            )
 
-            VStack(spacing: 0) {
-                // Header
-                HStack {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(themeManager.secondaryTextColor)
-                    }
-                    Spacer()
+            SettingsSectionCard(
+                title: "Your export will include:",
+                systemImage: "doc.zipper"
+            ) {
+                VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+                    ExportInfoRow(icon: "person", text: "Account information (name, email)")
+                    SettingsDivider()
+                    ExportInfoRow(icon: "leaf", text: "All your gardens and plants")
+                    SettingsDivider()
+                    ExportInfoRow(icon: "checkmark.shield", text: "Privacy consent history")
+                    SettingsDivider()
+                    ExportInfoRow(icon: "calendar.badge.clock", text: "Timestamps and metadata")
                 }
-                .padding()
+            }
 
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // Icon
-                        ZStack {
-                            Circle()
-                                .fill(Color.blue.opacity(0.15))
-                                .frame(width: 100, height: 100)
+            if exportSuccess, let fileURL = exportedFileURL {
+                AppCard {
+                    VStack(spacing: ArboreDesign.Spacing.md) {
+                        SettingsIconBadge(
+                            systemImage: "checkmark.circle",
+                            tint: ArboreDesign.Colors.success,
+                            size: 56
+                        )
 
-                            Image(systemName: "square.and.arrow.down.fill")
-                                .font(.system(size: 44))
-                                .foregroundColor(.blue)
+                        Text("Export successful!")
+                            .font(ArboreDesign.Typography.cardTitle)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
+
+                        ShareLink(item: fileURL) {
+                            Label("Share / Save file", systemImage: "square.and.arrow.up")
                         }
-                        .padding(.top, 20)
+                        .buttonStyle(.arboreSecondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
 
-                        // Title
-                        Text(NSLocalizedString("DATA_EXPORT_TITLE", comment: "Download My Data"))
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(themeManager.textColor)
-                            .multilineTextAlignment(.center)
+            if let error = exportError {
+                AppCard {
+                    SettingsInfoRow(
+                        systemImage: "exclamationmark.triangle",
+                        title: error,
+                        tint: ArboreDesign.Colors.danger
+                    )
+                }
+            }
 
-                        // Description
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text(NSLocalizedString("DATA_EXPORT_DESCRIPTION", comment: "Export all your data"))
-                                .font(.system(size: 16))
-                                .foregroundColor(themeManager.secondaryTextColor)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 24)
-
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Your export will include:")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(themeManager.textColor)
-
-                                ExportInfoRow(icon: "person.fill", text: "Account information (name, email)", color: .green)
-                                ExportInfoRow(icon: "leaf.fill", text: "All your gardens and plants", color: .green)
-                                ExportInfoRow(icon: "checkmark.shield.fill", text: "Privacy consent history", color: .blue)
-                                ExportInfoRow(icon: "calendar.badge.clock", text: "Timestamps and metadata", color: .orange)
-                            }
-                            .padding()
-                            .background(themeManager.textColor.opacity(0.05))
-                            .cornerRadius(12)
-                        }
-                        .padding(.horizontal)
-
-                        // Success message
-                        if exportSuccess, let fileURL = exportedFileURL {
-                            VStack(spacing: 12) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 48))
-                                    .foregroundColor(.green)
-
-                                Text("Export successful!")
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundColor(.green)
-
-                                ShareLink(item: fileURL) {
-                                    Label("Share / Save file", systemImage: "square.and.arrow.up")
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundColor(.white)
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 12)
-                                        .background(Color.green)
-                                        .cornerRadius(10)
-                                }
-                            }
-                            .padding()
-                            .background(Color.green.opacity(0.1))
-                            .cornerRadius(12)
-                            .padding(.horizontal)
-                        }
-
-                        // Error message
-                        if let error = exportError {
-                            Text(error)
-                                .font(.system(size: 14))
-                                .foregroundColor(.red)
-                                .padding()
-                                .background(Color.red.opacity(0.1))
-                                .cornerRadius(8)
-                                .padding(.horizontal)
-                        }
-
-                        // Export button
-                        Button(action: { Task { await exportData() } }) {
-                            HStack(spacing: 12) {
-                                if isExporting {
-                                    ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                } else {
-                                    Image(systemName: "square.and.arrow.down.fill")
-                                        .font(.system(size: 18, weight: .bold))
-                                    Text(exportSuccess ? "Export Again" : "Download My Data")
-                                        .font(.system(size: 17, weight: .bold))
-                                }
-                            }
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(
-                                LinearGradient(
-                                    colors: [
-                                        Color.blue,
-                                        Color.blue.opacity(0.8)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .cornerRadius(14)
-                            .shadow(color: Color.blue.opacity(0.4), radius: 8, x: 0, y: 4)
-                        }
-                        .disabled(isExporting)
-                        .padding(.horizontal)
-                        .padding(.top, 8)
-
-                        // GDPR info
-                        Text("This feature is part of your GDPR rights (Article 20 - Data Portability)")
-                            .font(.system(size: 12))
-                            .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-                            .padding(.bottom, 40)
+            Button(action: { Task { await exportData() } }) {
+                HStack(spacing: ArboreDesign.Spacing.xs) {
+                    if isExporting {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    } else {
+                        Image(systemName: "square.and.arrow.down")
+                        Text(exportSuccess ? "Export Again" : "Download My Data")
                     }
                 }
             }
+            .disabled(isExporting)
+            .buttonStyle(AppButtonStyle(variant: .primary, isEnabled: !isExporting))
+
+            Text("This feature is part of your GDPR rights (Article 20 - Data Portability)")
+                .font(ArboreDesign.Typography.caption)
+                .foregroundColor(ArboreDesign.Colors.textMuted)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
         }
     }
 
@@ -239,23 +171,11 @@ struct DataExportView: View {
 struct ExportInfoRow: View {
     let icon: String
     let text: String
-    let color: Color
 
     @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(color)
-                .frame(width: 24)
-
-            Text(text)
-                .font(.system(size: 14))
-                .foregroundColor(themeManager.textColor)
-
-            Spacer()
-        }
+        SettingsInfoRow(systemImage: icon, title: text)
     }
 }
 

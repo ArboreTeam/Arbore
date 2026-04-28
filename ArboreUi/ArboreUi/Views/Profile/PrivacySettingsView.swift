@@ -19,226 +19,137 @@ struct PrivacySettingsView: View {
     @State internal var hasLoadedFromBackend: Bool = false
 
     var body: some View {
-        ZStack {
-            themeManager.backgroundColor.ignoresSafeArea()
+        SettingsPage(title: NSLocalizedString("PRIVACYSETTINGS_TITLE", comment: "")) {
+            SettingsIntroCard(
+                systemImage: "hand.raised",
+                title: NSLocalizedString("PRIVACYSETTINGS_HEADER_TITLE", comment: ""),
+                message: NSLocalizedString("PRIVACYSETTINGS_HEADER_SUBTITLE", comment: "")
+            )
 
-            VStack(spacing: 0) {
-                // Top bar
-                HStack {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(themeManager.textColor)
-                    }
-                    Spacer()
-                    Text(NSLocalizedString("PRIVACYSETTINGS_TITLE", comment: ""))
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(themeManager.textColor)
-                    Spacer()
-                    Color.clear.frame(width: 16)
+            SettingsSectionCard(
+                title: NSLocalizedString("PRIVACYSETTINGS_SECTION_PROFILE", comment: ""),
+                systemImage: "person.crop.circle"
+            ) {
+                SettingsToggleRow(
+                    systemImage: "globe.europe.africa",
+                    title: NSLocalizedString("PRIVACYSETTINGS_PUBLICPROFILE_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("PRIVACYSETTINGS_PUBLICPROFILE_SUB", comment: ""),
+                    isOn: $profilePublic
+                )
+                .onChange(of: profilePublic) { _, newValue in
+                    recordConsentChange(type: "profilePublic", granted: newValue)
                 }
-                .frame(height: 48)
-                .padding(.horizontal, 16)
-                .background(themeManager.backgroundColor)
+            }
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-
-                        // Header
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(NSLocalizedString("PRIVACYSETTINGS_HEADER_TITLE", comment: ""))
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundColor(themeManager.textColor)
-
-                            Text(NSLocalizedString("PRIVACYSETTINGS_HEADER_SUBTITLE", comment: ""))
-                                .font(.system(size: 15))
-                                .foregroundColor(themeManager.secondaryTextColor)
-                        }
-                        .padding(.top, 18)
-
-                        // Profile Visibility
-                        PrivacySectionCard(
-                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_PROFILE", comment: ""),
-                            icon: "person.crop.circle.fill",
-                            content: {
-                                ToggleRow(
-                                    icon: "globe.europe.africa.fill",
-                                    title: NSLocalizedString("PRIVACYSETTINGS_PUBLICPROFILE_TITLE", comment: ""),
-                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_PUBLICPROFILE_SUB", comment: ""),
-                                    isOn: $profilePublic
-                                )
-                                .onChange(of: profilePublic) { _, newValue in
-                                    recordConsentChange(type: "profilePublic", granted: newValue)
-                                }
-                            },
-                            themeManager: themeManager
-                        )
-
-                        // Activity Sharing
-                        PrivacySectionCard(
-                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_ACTIVITY", comment: ""),
-                            icon: "waveform.path.ecg.rectangle.fill",
-                            content: {
-                                ToggleRow(
-                                    icon: "list.bullet.rectangle.portrait",
-                                    title: NSLocalizedString("PRIVACYSETTINGS_ACTIVITY_TITLE", comment: ""),
-                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_ACTIVITY_SUB", comment: ""),
-                                    isOn: $showActivity
-                                )
-                                .onChange(of: showActivity) { _, newValue in
-                                    recordConsentChange(type: "showActivity", granted: newValue)
-                                }
-                            },
-                            themeManager: themeManager
-                        )
-
-                        // Data Sharing
-                        PrivacySectionCard(
-                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_DATASHARING", comment: ""),
-                            icon: "chart.bar.doc.horizontal.fill",
-                            content: {
-                                ToggleRow(
-                                    icon: "chart.bar.doc.horizontal.fill",
-                                    title: NSLocalizedString("PRIVACYSETTINGS_DATASHARING_TITLE", comment: ""),
-                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_DATASHARING_SUB", comment: ""),
-                                    isOn: $shareData
-                                )
-                                .onChange(of: shareData) { _, newValue in
-                                    recordConsentChange(type: "analytics", granted: newValue)
-                                }
-                            },
-                            themeManager: themeManager
-                        )
-
-                        // Marketing Communications
-                        PrivacySectionCard(
-                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_MARKETING", comment: ""),
-                            icon: "envelope.fill",
-                            content: {
-                                ToggleRow(
-                                    icon: "megaphone.fill",
-                                    title: NSLocalizedString("PRIVACYSETTINGS_MARKETING_TITLE", comment: ""),
-                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_MARKETING_SUB", comment: ""),
-                                    isOn: $marketingConsent
-                                )
-                                .onChange(of: marketingConsent) { _, newValue in
-                                    recordConsentChange(type: "marketing", granted: newValue)
-                                }
-                            },
-                            themeManager: themeManager
-                        )
-
-                        // Camera/AR Usage
-                        PrivacySectionCard(
-                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_CAMERA", comment: ""),
-                            icon: "camera.fill",
-                            content: {
-                                ToggleRow(
-                                    icon: "arkit",
-                                    title: NSLocalizedString("PRIVACYSETTINGS_CAMERA_TITLE", comment: ""),
-                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_CAMERA_SUB", comment: ""),
-                                    isOn: $cameraConsent
-                                )
-                                .onChange(of: cameraConsent) { _, newValue in
-                                    recordConsentChange(type: "camera", granted: newValue)
-                                }
-                            },
-                            themeManager: themeManager
-                        )
-
-                        // AI Processing
-                        PrivacySectionCard(
-                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_AI", comment: ""),
-                            icon: "brain.head.profile",
-                            content: {
-                                ToggleRow(
-                                    icon: "sparkles",
-                                    title: NSLocalizedString("PRIVACYSETTINGS_AI_TITLE", comment: ""),
-                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_AI_SUB", comment: ""),
-                                    isOn: $aiConsent
-                                )
-                                .onChange(of: aiConsent) { _, newValue in
-                                    recordConsentChange(type: "ai", granted: newValue)
-                                }
-                            },
-                            themeManager: themeManager
-                        )
-
-                        // Push Notifications
-                        PrivacySectionCard(
-                            title: NSLocalizedString("PRIVACYSETTINGS_SECTION_NOTIFICATIONS", comment: ""),
-                            icon: "bell.fill",
-                            content: {
-                                ToggleRow(
-                                    icon: "bell.badge.fill",
-                                    title: NSLocalizedString("PRIVACYSETTINGS_NOTIFICATIONS_TITLE", comment: ""),
-                                    subtitle: NSLocalizedString("PRIVACYSETTINGS_NOTIFICATIONS_SUB", comment: ""),
-                                    isOn: $notificationsConsent
-                                )
-                                .onChange(of: notificationsConsent) { _, newValue in
-                                    recordConsentChange(type: "notifications", granted: newValue)
-                                }
-                            },
-                            themeManager: themeManager
-                        )
-
-                        // Link to Privacy Policy
-                        Button(action: { showPrivacyPolicy = true }) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "doc.text.fill")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.green)
-                                    .frame(width: 24)
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(NSLocalizedString("PRIVACYSETTINGS_READ_POLICY", comment: ""))
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(themeManager.textColor)
-
-                                    Text(NSLocalizedString("PRIVACYSETTINGS_READ_POLICY_SUB", comment: ""))
-                                        .font(.system(size: 13))
-                                        .foregroundColor(themeManager.secondaryTextColor)
-                                }
-
-                                Spacer()
-
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
-                            }
-                        }
-                        .padding(16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 18)
-                                .fill(Color.gray.opacity(0.12))
-                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                        )
-                        .cornerRadius(18)
-                        .buttonStyle(.plain)
-
-                        // Info note
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(NSLocalizedString("PRIVACYSETTINGS_NOTE_TITLE", comment: ""))
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(themeManager.textColor)
-
-                            Text(NSLocalizedString("PRIVACYSETTINGS_NOTE_TEXT", comment: ""))
-                                .font(.system(size: 13))
-                                .foregroundColor(themeManager.secondaryTextColor)
-                        }
-                        .padding(16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 18)
-                                .fill(Color.gray.opacity(0.12))
-                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                        )
-                        .cornerRadius(18)
-
-                        Spacer(minLength: 8)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 20)
+            SettingsSectionCard(
+                title: NSLocalizedString("PRIVACYSETTINGS_SECTION_ACTIVITY", comment: ""),
+                systemImage: "waveform.path.ecg.rectangle"
+            ) {
+                SettingsToggleRow(
+                    systemImage: "list.bullet.rectangle.portrait",
+                    title: NSLocalizedString("PRIVACYSETTINGS_ACTIVITY_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("PRIVACYSETTINGS_ACTIVITY_SUB", comment: ""),
+                    isOn: $showActivity
+                )
+                .onChange(of: showActivity) { _, newValue in
+                    recordConsentChange(type: "showActivity", granted: newValue)
                 }
+            }
+
+            SettingsSectionCard(
+                title: NSLocalizedString("PRIVACYSETTINGS_SECTION_DATASHARING", comment: ""),
+                systemImage: "chart.bar.doc.horizontal"
+            ) {
+                SettingsToggleRow(
+                    systemImage: "chart.bar.doc.horizontal",
+                    title: NSLocalizedString("PRIVACYSETTINGS_DATASHARING_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("PRIVACYSETTINGS_DATASHARING_SUB", comment: ""),
+                    isOn: $shareData
+                )
+                .onChange(of: shareData) { _, newValue in
+                    recordConsentChange(type: "analytics", granted: newValue)
+                }
+            }
+
+            SettingsSectionCard(
+                title: NSLocalizedString("PRIVACYSETTINGS_SECTION_MARKETING", comment: ""),
+                systemImage: "envelope"
+            ) {
+                SettingsToggleRow(
+                    systemImage: "megaphone",
+                    title: NSLocalizedString("PRIVACYSETTINGS_MARKETING_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("PRIVACYSETTINGS_MARKETING_SUB", comment: ""),
+                    isOn: $marketingConsent
+                )
+                .onChange(of: marketingConsent) { _, newValue in
+                    recordConsentChange(type: "marketing", granted: newValue)
+                }
+            }
+
+            SettingsSectionCard(
+                title: NSLocalizedString("PRIVACYSETTINGS_SECTION_CAMERA", comment: ""),
+                systemImage: "camera"
+            ) {
+                SettingsToggleRow(
+                    systemImage: "arkit",
+                    title: NSLocalizedString("PRIVACYSETTINGS_CAMERA_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("PRIVACYSETTINGS_CAMERA_SUB", comment: ""),
+                    isOn: $cameraConsent
+                )
+                .onChange(of: cameraConsent) { _, newValue in
+                    recordConsentChange(type: "camera", granted: newValue)
+                }
+            }
+
+            SettingsSectionCard(
+                title: NSLocalizedString("PRIVACYSETTINGS_SECTION_AI", comment: ""),
+                systemImage: "brain.head.profile",
+                tint: ArboreDesign.Colors.accentGold
+            ) {
+                SettingsToggleRow(
+                    systemImage: "sparkles",
+                    title: NSLocalizedString("PRIVACYSETTINGS_AI_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("PRIVACYSETTINGS_AI_SUB", comment: ""),
+                    isOn: $aiConsent,
+                    tint: ArboreDesign.Colors.accentGold
+                )
+                .onChange(of: aiConsent) { _, newValue in
+                    recordConsentChange(type: "ai", granted: newValue)
+                }
+            }
+
+            SettingsSectionCard(
+                title: NSLocalizedString("PRIVACYSETTINGS_SECTION_NOTIFICATIONS", comment: ""),
+                systemImage: "bell"
+            ) {
+                SettingsToggleRow(
+                    systemImage: "bell.badge",
+                    title: NSLocalizedString("PRIVACYSETTINGS_NOTIFICATIONS_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("PRIVACYSETTINGS_NOTIFICATIONS_SUB", comment: ""),
+                    isOn: $notificationsConsent
+                )
+                .onChange(of: notificationsConsent) { _, newValue in
+                    recordConsentChange(type: "notifications", granted: newValue)
+                }
+            }
+
+            Button(action: { showPrivacyPolicy = true }) {
+                SettingsRow(
+                    systemImage: "doc.text",
+                    title: NSLocalizedString("PRIVACYSETTINGS_READ_POLICY", comment: ""),
+                    subtitle: NSLocalizedString("PRIVACYSETTINGS_READ_POLICY_SUB", comment: "")
+                )
+            }
+            .buttonStyle(.plain)
+
+            SettingsSectionCard(
+                title: NSLocalizedString("PRIVACYSETTINGS_NOTE_TITLE", comment: ""),
+                systemImage: "info.circle"
+            ) {
+                Text(NSLocalizedString("PRIVACYSETTINGS_NOTE_TEXT", comment: ""))
+                    .font(ArboreDesign.Typography.bodySmall)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .fullScreenCover(isPresented: $showPrivacyPolicy) {
@@ -354,83 +265,6 @@ struct PrivacySettingsView: View {
             } catch {
                 print("⚠️ Error loading consents from backend: \(error)")
             }
-        }
-    }
-}
-
-// MARK: - Section Card
-private struct PrivacySectionCard<Content: View>: View {
-    let title: String
-    let icon: String
-    let content: Content
-    let themeManager: ThemeManager
-
-    init(title: String, icon: String, @ViewBuilder content: () -> Content, themeManager: ThemeManager) {
-        self.title = title
-        self.icon = icon
-        self.content = content()
-        self.themeManager = themeManager
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundColor(.green)
-
-                Text(title)
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(themeManager.textColor)
-
-                Spacer()
-            }
-
-            content
-        }
-        .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color.gray.opacity(0.12))
-                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
-        )
-        .cornerRadius(18)
-    }
-}
-
-// MARK: - Toggle Row
-private struct ToggleRow: View {
-    @EnvironmentObject var themeManager: ThemeManager
-    let icon: String
-    let title: String
-    let subtitle: String?
-    @Binding var isOn: Bool
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 20))
-                .foregroundColor(.green)
-                .frame(width: 24)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(themeManager.textColor)
-
-                if let subtitle = subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 13))
-                        .foregroundColor(themeManager.secondaryTextColor)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            Spacer()
-
-            Toggle("", isOn: $isOn)
-                .labelsHidden()
-                .tint(.green)
         }
     }
 }

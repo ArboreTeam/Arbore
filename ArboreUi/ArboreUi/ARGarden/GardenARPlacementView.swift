@@ -67,7 +67,22 @@ struct GardenARPlacementView: View {
     @State private var newBoundaryArea: Float = 0
     @State private var distortionWarnings: [DistortionWarning] = []
 
+    // Set when reopening a garden whose local AR data was wiped (e.g. after
+    // app reinstall or device change). The backend keeps the plant list for
+    // the card, but the WorldMap and scene JSON are local-only — there's no
+    // way to relocalize or morph without them. We surface a clear message
+    // instead of letting the user spin on the scanning overlay forever.
+    @State private var gardenUnavailable: Bool = false
+
     var body: some View {
+        if gardenUnavailable {
+            gardenUnavailableView
+        } else {
+            placementBody
+        }
+    }
+
+    private var placementBody: some View {
         ZStack {
             // --- Vue AR ---
             GardenARPlacementContainerView(
@@ -134,14 +149,10 @@ struct GardenARPlacementView: View {
                         }
                     )
                 case .adjusting:
-                    AdjustingOverlay(
-                        onRevert: {
-                            NotificationCenter.default.post(name: .gardenARRevertToMorphed, object: nil)
-                        },
-                        onValidate: {
-                            NotificationCenter.default.post(name: .gardenARValidate, object: nil)
-                        }
-                    )
+                    // Adjusting hint + action buttons live in the HUD VStack
+                    // below (so they reflow under topBar / above editingHUD),
+                    // not as a full-screen overlay.
+                    EmptyView()
                 default:
                     EmptyView()
                 }
@@ -151,6 +162,15 @@ struct GardenARPlacementView: View {
             VStack(spacing: 0) {
                 // 1. Barre du haut
                 topBar
+
+                // 1b. Hint banner during .adjusting — sits directly under
+                // topBar so it doesn't get covered by the back/undo/redo row.
+                if mode == .reopen, relocationPhase == .adjusting {
+                    AdjustingHintBanner()
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .transition(.opacity)
+                }
 
                 Spacer()
 
@@ -164,8 +184,30 @@ struct GardenARPlacementView: View {
                     editingHUD.transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                // 4. Dock du bas (Bouton Ajouter)
-                bottomDock
+                // 3b. Action buttons during .adjusting — sit directly under
+                // the editingHUD (when a plant is selected) or just above
+                // the safe-area bottom.
+                if mode == .reopen, relocationPhase == .adjusting {
+                    AdjustingActionButtons(
+                        onRevert: {
+                            NotificationCenter.default.post(name: .gardenARRevertToMorphed, object: nil)
+                        },
+                        onValidate: {
+                            NotificationCenter.default.post(name: .gardenARValidate, object: nil)
+                        }
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .transition(.opacity)
+                }
+
+                // 4. Dock du bas (Bouton Ajouter) — caché pendant les
+                // phases de manual-replacement (Issue #111). Pas de sens
+                // d'ajouter une plante du catalogue pendant qu'on retrace
+                // la boundary ou qu'on ajuste les positions morphées.
+                if !relocationPhase.isManualReplacement {
+                    bottomDock
+                }
             }
         }
         .sheet(isPresented: $showPicker) {
@@ -192,6 +234,23 @@ struct GardenARPlacementView: View {
         }
         .onAppear {
             if mode == .reopen, let id = existingGardenId {
+                // Issue: local-only AR data is wiped on app reinstall — the
+                // garden card still shows because the backend keeps the plant
+                // list, but we can't relocalize or morph without the WorldMap
+                // + scene JSON. Bail out early with a clear message rather
+                // than spinning forever on the scanning overlay.
+                let mapURL = GardenLocalStore.worldMapURL(for: id)
+                let sceneURL = GardenLocalStore.sceneURL(for: id)
+                let mapMissing = !FileManager.default.fileExists(atPath: mapURL.path)
+                let sceneMissing = !FileManager.default.fileExists(atPath: sceneURL.path)
+                if mapMissing && sceneMissing {
+                    AppLog.gardenLoad.notice("""
+                        garden=\(id, privacy: .public) unavailable — \
+                        local AR data missing (likely app reinstall)
+                        """)
+                    gardenUnavailable = true
+                    return
+                }
                 isRelocating = true
                 relocationPhase = .scanning
                 NotificationCenter.default.post(name: .gardenARLoadOldData, object: id)
@@ -215,7 +274,45 @@ struct GardenARPlacementView: View {
     }
 
     // MARK: - Composants UI
-    
+
+    private var gardenUnavailableView: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VStack(spacing: 18) {
+                Spacer()
+                Image(systemName: "icloud.slash")
+                    .font(.system(size: 56, weight: .light))
+                    .foregroundStyle(.white.opacity(0.85))
+                Text("Jardin indisponible")
+                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+                Text("Ce jardin a été créé sur un autre appareil ou avant une réinstallation. Les données AR (carte de l'environnement et placement des plantes) ne sont stockées que localement et ont été supprimées.\n\nRecréez le jardin pour pouvoir le visualiser à nouveau.")
+                    .font(.system(size: 14, weight: .regular, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 28)
+                Spacer()
+                Button { dismiss() } label: {
+                    Text("Retour")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: 13)
+                                .fill(.white.opacity(0.18))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 13)
+                                        .strokeBorder(.white.opacity(0.25), lineWidth: 1)
+                                )
+                        )
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 28)
+            }
+        }
+    }
+
     private var topBar: some View {
         HStack {
             Button { dismiss() } label: {
@@ -233,14 +330,21 @@ struct GardenARPlacementView: View {
             }
             
             Spacer()
-            
-            Button {
-                NotificationCenter.default.post(name: .gardenARValidate, object: nil)
-            } label: {
-                Image(systemName: "checkmark").modifier(GlassButtonStyle(isGreen: true))
+
+            // Hidden during .adjusting — the AdjustingOverlay already shows
+            // a "Valider et sauvegarder" button, no need for two.
+            if relocationPhase != .adjusting {
+                Button {
+                    NotificationCenter.default.post(name: .gardenARValidate, object: nil)
+                } label: {
+                    Image(systemName: "checkmark").modifier(GlassButtonStyle(isGreen: true))
+                }
+                .disabled(isSaving)
+                .opacity(isSaving ? 0.5 : 1)
+            } else {
+                // Keep the trailing slot the same width to avoid the bar reflowing.
+                Color.clear.frame(width: 44, height: 44)
             }
-            .disabled(isSaving)
-            .opacity(isSaving ? 0.5 : 1)
         }
         .padding(.horizontal, 20).padding(.top, 10)
     }
@@ -515,6 +619,12 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             private var plantAnchorMap: [UUID: ARAnchor] = [:]
             // anchor.identifier → pending visual to attach when ARKit creates the anchor's node.
             private var anchorPendingPlacements: [UUID: PendingPlantPlacement] = [:]
+            // anchor.identifier → world transform set by the most recent drag /
+            // tap-teleport. captureCurrentState reads this in priority over
+            // anchor.transform so saves persist the user's final position even
+            // if rebaseAnchorAtCurrentPosition fails silently (e.g. when the
+            // model URL can't be resolved from the node name).
+            private var pendingDragTransform: [UUID: simd_float4x4] = [:]
 
             struct PendingPlantPlacement {
                 let modelURL: URL
@@ -829,9 +939,18 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     // offset on every save→restore cycle (the plant climbs
                     // higher and higher). Saving anchor.transform is invariant.
                     let anchorTransform: simd_float4x4
-                    if let uuid = self.instanceIdFromNodeName(node.name ?? ""),
-                       let anchor = plantAnchorMap[uuid] {
-                        anchorTransform = anchor.transform
+                    if let uuid = self.instanceIdFromNodeName(node.name ?? "") {
+                        if let override = pendingDragTransform[uuid] {
+                            // The user dragged or tap-teleported this plant.
+                            // Trust the override — it's the visual position they
+                            // last saw, regardless of whether the underlying
+                            // anchor was rebased successfully (Issue #111).
+                            anchorTransform = override
+                        } else if let anchor = plantAnchorMap[uuid] {
+                            anchorTransform = anchor.transform
+                        } else {
+                            anchorTransform = stripScale(from: node.simdWorldTransform)
+                        }
                     } else {
                         // Legacy node attached directly to rootNode (older saves
                         // before the ARAnchor migration). Fall back to its world
@@ -979,6 +1098,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                             }
                             
                             DispatchQueue.main.async {
+                                self.pendingDragTransform.removeAll()
                                 props.isSaving = false
                                 props.onValidated()
                             }
@@ -1353,13 +1473,31 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             @objc func handleScaleUpAction() {
                 guard let node = selectedNode else { return }
                 saveStateForUndo()
-                node.runAction(SCNAction.scale(by: 1.1, duration: 0.2))
+                let action = SCNAction.scale(by: 1.1, duration: 0.2)
+                node.runAction(action) { [weak self] in
+                    self?.refreshPivotForScale(node: node)
+                }
             }
 
             @objc func handleScaleDownAction() {
                 guard let node = selectedNode else { return }
                 saveStateForUndo()
-                node.runAction(SCNAction.scale(by: 0.9, duration: 0.2))
+                let action = SCNAction.scale(by: 0.9, duration: 0.2)
+                node.runAction(action) { [weak self] in
+                    self?.refreshPivotForScale(node: node)
+                }
+            }
+
+            /// Re-computes the pivot Y from the node's current scale. The pivot
+            /// is set once at placement to make the visible base land at the
+            /// anchor's position, but it doesn't track scale changes — which
+            /// is why pinching/zooming a plant after placement made it float
+            /// (or sink) by `(1 - scaleRatio) * |minY|`. Call this every time
+            /// the user changes a plant's scale.
+            private func refreshPivotForScale(node: SCNNode) {
+                guard let origMinY = node.value(forKey: "arboreOriginalMinY") as? Float else { return }
+                let pivotY = node.scale.y * origMinY
+                node.pivot = SCNMatrix4MakeTranslation(0, pivotY, 0)
             }
 
             @objc func handleDelete() {
@@ -1414,6 +1552,39 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 // Block taps during morphing preview to avoid accidental placements.
                 if parentProps?.relocationPhase == .morphingPreview { return }
 
+                // Adjusting phase (Issue #111) — tap to select / teleport.
+                // Tap on a plant: select it (glowing ring appears).
+                // Tap on empty floor with a plant selected: teleport it there.
+                // Tap on empty floor with nothing selected: just deselect.
+                if parentProps?.relocationPhase == .adjusting,
+                   let arView = arView {
+                    let location = gesture.location(in: arView)
+                    let hits = arView.hitTest(location, options: [.searchMode: SCNHitTestSearchMode.all.rawValue])
+                    if let hit = hits.first(where: { isPlantNode($0.node) }) {
+                        let root = findPlantRoot(hit.node)
+                        if root !== selectedNode {
+                            selectNode(root)
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        }
+                        return
+                    }
+                    // Empty hit — try to teleport selected plant to the tap location.
+                    if let node = selectedNode,
+                       let query = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal),
+                       let result = arView.session.raycast(query).first {
+                        saveStateForUndo()
+                        let p = result.worldTransform.columns.3
+                        node.simdWorldPosition = simd_float3(p.x, p.y, p.z)
+                        recordDraggedTransform(for: node)
+                        rebaseAnchorAtCurrentPosition(for: node)
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        deselectAll()
+                        return
+                    }
+                    deselectAll()
+                    return
+                }
+
                 guard let transform = lastReticleTransform else {
                     print("⚠️ Pas de reticle transform (pas de surface détectée)")
                     deselectAll()
@@ -1465,10 +1636,22 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
 
                 // On drag end, re-anchor the plant at its final position so
                 // future drift correction targets the new spot rather than the
-                // original placement (Issue #113).
+                // original placement (Issue #113). We ALSO record the override
+                // transform first so save persistence is independent of the
+                // rebase outcome — the rebase can fail silently (e.g. when the
+                // model URL can't be parsed from the node name), but capture
+                // will still see the user's final position.
                 if gesture.state == .ended || gesture.state == .cancelled {
+                    recordDraggedTransform(for: node)
                     rebaseAnchorAtCurrentPosition(for: node)
                 }
+            }
+
+            /// Records the node's current world transform as the source of
+            /// truth for the next save. Called on drag-end and tap-teleport.
+            private func recordDraggedTransform(for node: SCNNode) {
+                guard let uuid = instanceIdFromNodeName(node.name ?? "") else { return }
+                pendingDragTransform[uuid] = stripScale(from: node.simdWorldTransform)
             }
 
             /// Re-creates the underlying ARAnchor so its transform matches the
@@ -1661,12 +1844,19 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                 """)
                         }
                     }
+                    // Stash the unscaled minY so refreshPivotForScale can
+                    // recompute the pivot after the user pinches/zooms.
+                    if rawHeight > 0 {
+                        container.setValue(NSNumber(value: minVec.y), forKey: "arboreOriginalMinY")
+                    }
 
                     // Container's local transform stays identity — its world
                     // transform is the anchor's transform, which ARKit corrects
                     // for drift automatically.
                     parentNode.addChildNode(container)
-                    if !pending.isRestore { selectNode(container) }
+                    // No auto-select on placement — the selection ring is
+                    // visually loud, and the user explicitly selects a plant
+                    // when they want to manipulate it.
 
                     AppLog.arAnchor.notice("""
                         instantiated plant=\(pending.plantName, privacy: .public) \
@@ -1808,13 +1998,24 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 selectedNode = node
                 parentProps?.hasSelectedNode = true
                 parentProps?.selectedNodeName = node.name?.components(separatedBy: "_")[safe: 2] ?? "Plante"
-                
-                let box = SCNBox(width: 0.3, height: 0.01, length: 0.3, chamferRadius: 0)
-                let boxNode = SCNNode(geometry: box)
-                boxNode.geometry?.firstMaterial?.diffuse.contents = UIColor.yellow.withAlphaComponent(0.3)
-                boxNode.position = SCNVector3(0, 0.01, 0)
-                boxNode.name = "selection_indicator"
-                node.addChildNode(boxNode)
+
+                // Pulsing emissive ring at the plant's base — discoverable
+                // visual feedback for selection (Issue #111). Replaces the
+                // older flat yellow square that wasn't obvious enough.
+                let ring = SCNTorus(ringRadius: 0.18, pipeRadius: 0.012)
+                let mat = SCNMaterial()
+                mat.diffuse.contents = UIColor(hex: "#2BEE79")
+                mat.emission.contents = UIColor(hex: "#2BEE79")
+                mat.lightingModel = .constant
+                ring.firstMaterial = mat
+                let ringNode = SCNNode(geometry: ring)
+                ringNode.name = "selection_indicator"
+                ringNode.position = SCNVector3(0, 0.005, 0)
+                ringNode.runAction(.repeatForever(.sequence([
+                    .fadeOpacity(to: 0.45, duration: 0.6),
+                    .fadeOpacity(to: 0.95, duration: 0.6),
+                ])))
+                node.addChildNode(ringNode)
             }
             
             private func deselectAll() {

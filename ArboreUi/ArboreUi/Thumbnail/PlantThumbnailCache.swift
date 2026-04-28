@@ -14,7 +14,7 @@ struct PlantThumbnailCache {
         return dir
     }
 
-    private static let version = "v14"
+    private static let version = "v17"
 
     static func url(for plantID: String) -> URL {
         directory.appendingPathComponent("\(plantID)_\(version).png")

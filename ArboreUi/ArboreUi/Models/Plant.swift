@@ -128,12 +128,55 @@ extension Plant {
     /// - Parameter forceDownload: Si true, force un nouveau téléchargement depuis le backend
     /// - Returns: L'URL locale du fichier USDZ
     func getModelURL(forceDownload: Bool = false) async throws -> URL {
-        guard let modelURL, !modelURL.isEmpty else {
+        let rawModelURL = modelURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        var candidates: [String] = []
+
+        if !rawModelURL.isEmpty {
+            candidates.append(rawModelURL)
+
+            // Si un nom est fourni sans extension, on tente aussi avec .usdz
+            if (rawModelURL as NSString).pathExtension.isEmpty {
+                candidates.append(rawModelURL + ".usdz")
+            }
+        }
+
+        // Fallback: reconstruire des noms probables depuis le nom de plante
+        let nameTrimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !nameTrimmed.isEmpty {
+            candidates.append(nameTrimmed + ".usdz")
+            candidates.append(nameTrimmed.replacingOccurrences(of: " ", with: "_") + ".usdz")
+            candidates.append(nameTrimmed.replacingOccurrences(of: " ", with: "-") + ".usdz")
+        }
+
+        // Dédupliquer en conservant l'ordre
+        var uniqueCandidates: [String] = []
+        var seen = Set<String>()
+        for candidate in candidates {
+            let clean = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !clean.isEmpty else { continue }
+            if !seen.contains(clean) {
+                uniqueCandidates.append(clean)
+                seen.insert(clean)
+            }
+        }
+
+        guard !uniqueCandidates.isEmpty else {
             throw ModelCacheError.invalidModelURL
         }
 
-        // Utiliser le ModelCacheManager pour obtenir le modèle (cache ou téléchargement)
-        return try await ModelCacheManager.shared.getModelURL(for: modelURL, forceDownload: forceDownload)
+        var lastError: Error = ModelCacheError.invalidModelURL
+
+        // Essayer chaque candidat jusqu'à trouver un fichier valide côté backend
+        for candidate in uniqueCandidates {
+            do {
+                return try await ModelCacheManager.shared.getModelURL(for: candidate, forceDownload: forceDownload)
+            } catch {
+                lastError = error
+                continue
+            }
+        }
+
+        throw lastError
     }
 
     /// URL locale du modèle (ancienne version synchrone - deprecated)

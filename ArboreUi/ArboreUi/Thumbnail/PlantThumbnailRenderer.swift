@@ -19,7 +19,10 @@ final class PlantThumbnailRenderer {
         "cactus": 0.016,
         "dyspis_lutescens": 0.016,
         "livistona_chinensis": 0.016,
-        "pilea": 0.01
+        "pilea": 0.01,
+        "chamaedorea_elegans": 1.6,
+        "philodendron_birkin_variegata": 1,
+        "alocasia_polly": 1,
     ]
 
     init() {
@@ -52,6 +55,18 @@ final class PlantThumbnailRenderer {
 
                 let model = try await ModelEntity(contentsOf: usdzURL)
 
+                // 🔍 DEBUG TREE
+                print("=== ENTITY TREE BEFORE TRANSFORMS ===")
+                dumpEntity(model)
+
+                // 🔍 DEBUG BOUNDS
+                var b = model.visualBounds(relativeTo: nil)
+                print("📦 Before any transform")
+                print("   min    :", b.min)
+                print("   max    :", b.max)
+                print("   center :", b.center)
+                print("   extents:", b.extents)
+
                 // ✅ Nom du modèle basé sur le nom de fichier (sans extension)
                 let modelKey = usdzURL.deletingPathExtension().lastPathComponent
 
@@ -59,21 +74,38 @@ final class PlantThumbnailRenderer {
                 let normalizedModelKey = normalizeModelKey(modelKey)
                 let targetHeight = perModelTargetHeight[normalizedModelKey] ?? defaultTargetHeight
 
-                var b = model.visualBounds(relativeTo: nil)
                 let currentHeight = max(b.extents.y, 0.0001)
-
                 let s = targetHeight / currentHeight
                 model.scale = SIMD3(repeating: s)
 
                 b = model.visualBounds(relativeTo: nil)
+                print("📦 After scale")
+                print("   min    :", b.min)
+                print("   max    :", b.max)
+                print("   center :", b.center)
+                print("   extents:", b.extents)
+
                 model.position.y = -b.min.y
+
                 b = model.visualBounds(relativeTo: nil)
+                print("📦 After ground alignment")
+                print("   min    :", b.min)
+                print("   max    :", b.max)
+                print("   center :", b.center)
+                print("   extents:", b.extents)
 
                 let center = b.center
                 model.position.x -= center.x
                 model.position.z -= center.z
 
-                model.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
+                b = model.visualBounds(relativeTo: nil)
+                print("📦 After centering")
+                print("   min    :", b.min)
+                print("   max    :", b.max)
+                print("   center :", b.center)
+                print("   extents:", b.extents)
+
+                //model.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
 
                 // Debug calibration key/size
                 print("🌿 Thumbnail modelKey:", modelKey, "| normalized:", normalizedModelKey, "| targetHeight:", targetHeight)
@@ -229,6 +261,23 @@ final class PlantThumbnailRenderer {
             return try MeshResource.generate(from: [desc])
         } catch {
             return .generatePlane(width: width, depth: depth)
+        }
+    }
+
+    func dumpEntity(_ entity: Entity, level: Int = 0) {
+        let indent = String(repeating: "  ", count: level)
+        print("\(indent)• \(entity.name) [\(type(of: entity))]")
+        print("\(indent)  children: \(entity.children.count)")
+        print("\(indent)  position: \(entity.position)")
+        print("\(indent)  scale   : \(entity.scale)")
+        
+        if let modelEntity = entity as? ModelEntity,
+        let comp = modelEntity.model {
+            print("\(indent)  ✅ ModelComponent materials: \(comp.materials.count)")
+        }
+        
+        for child in entity.children {
+            dumpEntity(child, level: level + 1)
         }
     }
 }

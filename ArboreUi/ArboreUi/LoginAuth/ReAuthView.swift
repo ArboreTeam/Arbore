@@ -7,7 +7,6 @@ struct ReAuthView: View {
     var onSuccess: () -> Void
 
     @Environment(\.dismiss) var dismiss
-    @AppStorage("isLoggedIn") var isLoggedIn = false
     @StateObject private var authViewModel = AuthenticationView()
 
     @State private var email = ""
@@ -201,30 +200,15 @@ struct ReAuthView: View {
         let credential = EmailAuthProvider.credential(withEmail: trimmedEmail, password: trimmedPassword)
 
         user.reauthenticate(with: credential) { _, error in
-            if let error = error {
-                DispatchQueue.main.async {
-                    isLoading = false
-                    errorMessage = "Incorrect email or password."
-                }
-                return
-            }
-
-            user.delete { error in
+            DispatchQueue.main.async {
+                isLoading = false
                 if let error = error {
-                    DispatchQueue.main.async {
-                        isLoading = false
-                        errorMessage = "Error deleting Firebase account: \(error.localizedDescription)"
-                    }
+                    errorMessage = "Incorrect email or password."
+                    print("❌ Re-auth error: \(error.localizedDescription)")
                     return
                 }
-
-                deleteUserFromMongo(uid: user.uid) {
-                    DispatchQueue.main.async {
-                        isLoading = false
-                        isLoggedIn = false
-                        UIApplication.shared.windows.first?.rootViewController = UIHostingController(rootView: LoginView())
-                    }
-                }
+                // Re-auth succeeded — let CloseAccountView handle deletion
+                onSuccess()
             }
         }
     }
@@ -232,18 +216,9 @@ struct ReAuthView: View {
     func handleGoogleDeletion() {
         authViewModel.reauthenticateWithGoogle { success in
             DispatchQueue.main.async {
-                if success, let user = Auth.auth().currentUser {
-                    user.delete { error in
-                        if let error = error {
-                            errorMessage = "Error deleting Firebase account: \(error.localizedDescription)"
-                            return
-                        }
-
-                        deleteUserFromMongo(uid: user.uid) {
-                            isLoggedIn = false
-                            UIApplication.shared.windows.first?.rootViewController = UIHostingController(rootView: LoginView())
-                        }
-                    }
+                if success {
+                    // Re-auth succeeded — let CloseAccountView handle deletion
+                    onSuccess()
                 } else {
                     errorMessage = "Google re-authentication failed."
                 }

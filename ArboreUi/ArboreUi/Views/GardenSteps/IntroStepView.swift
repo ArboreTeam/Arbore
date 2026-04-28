@@ -14,8 +14,9 @@ struct IntroStepView: View {
                 Spacer()
                 
                 VStack(spacing: 24) {
-                    Text("🌱")
-                        .font(.system(size: 100))
+                    Image(systemName: "leaf.circle.fill")
+                        .font(.system(size: 92, weight: .semibold))
+                        .foregroundColor(Color.gardenPrimary)
                         .padding(.bottom, 8)
                     
                     Text("Construisons ensemble\nvotre futur jardin")

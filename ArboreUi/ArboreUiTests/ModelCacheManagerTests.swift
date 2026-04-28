@@ -188,7 +188,35 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
     var testEmail: String!
     var testUserUID: String?
 
+    private func ensureBackendIsReachableOrSkip() throws {
+        guard let url = URL(string: "\(AppConfig.baseURL)/health") else {
+            throw XCTSkip("ModelCacheManager integration tests skipped: invalid backend URL \(AppConfig.baseURL)")
+        }
+
+        let expectation = self.expectation(description: "Backend health check")
+        var isReachable = false
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 5
+
+        URLSession.shared.dataTask(with: request) { _, response, _ in
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
+                isReachable = true
+            }
+            expectation.fulfill()
+        }.resume()
+
+        wait(for: [expectation], timeout: 7.0)
+
+        if !isReachable {
+            throw XCTSkip("ModelCacheManager integration tests skipped: backend is unreachable at \(AppConfig.baseURL)")
+        }
+    }
+
     override func setUpWithError() throws {
+        try ensureBackendIsReachableOrSkip()
+
         // Configuration Firebase
         if FirebaseApp.app() == nil {
             FirebaseApp.configure()

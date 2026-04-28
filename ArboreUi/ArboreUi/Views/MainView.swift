@@ -38,10 +38,7 @@ struct MainView: View {
         .accentColor(themeManager.accentColor)
         .environmentObject(tabRouter) // ✅ injecte le router à toute l'app
         .onAppear {
-            let appearance = UITabBarAppearance()
-            appearance.configureWithDefaultBackground()
-            UITabBar.appearance().standardAppearance = appearance
-            UITabBar.appearance().scrollEdgeAppearance = appearance
+            ArboreTabBarAppearance.apply()
         }
     }
 }

@@ -10,115 +10,88 @@ final class PlantThumbnailRenderer {
     private var floorTexture: TextureResource?
     private var wallTexture: TextureResource?
 
-    private let defaultTargetHeight: Float = 0.02
-
-    // Height in scene units per plant. Tune these values plant-by-plant.
-    private let perModelTargetHeight: [String: Float] = [
-        "pothos": 0.01,
-        "monstera_deliciosa": 0.016,
-        "cactus": 0.016,
-        "dyspis_lutescens": 0.016,
-        "livistona_chinensis": 0.016,
-        "pilea": 0.01,
-        "chamaedorea_elegans": 1.6,
-        "philodendron_birkin_variegata": 1,
-        "alocasia_polly": 1,
-    ]
+    // Auto-frame camera parameters. The plant is kept at its native USDZ
+    // scale (real-world meters, just like AR placement) and the camera
+    // moves per-plant to frame it. This makes thumbnails proportional to
+    // the plant's actual size without per-plant hand-tuning.
+    private let cameraFOVDegrees: Float = 35
+    private let fillFactor: Float = 0.78
+    // Slight downward pitch so the viewer sees the top of the plant and
+    // a bit of floor in front, giving a more natural catalog look.
+    private let cameraPitchDegrees: Float = 8
 
     init() {
         self.arView = ThumbnailRenderHost.shared.arView
         self.arView.frame = CGRect(x: 0, y: 0, width: 1024, height: 1280)
 
-        // ✅ Fond légèrement gris (au lieu de blanc pur)
         self.arView.environment.background = .color(UIColor(white: 0.95, alpha: 1.0))
-
-        // ✅ Désactive le HDR pour calmer les highlights
         self.arView.renderOptions.insert(.disableHDR)
-
-        // ✅ Calme un peu le rendu global (optionnel mais efficace)
         self.arView.environment.lighting.intensityExponent = 0.85
 
-        // Assets.xcassets
         self.floorTexture = try? TextureResource.load(named: "studio_floor")
-        self.wallTexture  = try? TextureResource.load(named: "studio_wall")
+        self.wallTexture = try? TextureResource.load(named: "studio_wall")
 
-        // Debug (à laisser 2 runs)
-        print("🧱 floorTexture:", floorTexture == nil ? "nil" : "ok")
-        print("🧱 wallTexture :", wallTexture  == nil ? "nil" : "ok")
+        print("Thumbnail floorTexture:", floorTexture == nil ? "nil" : "ok")
+        print("Thumbnail wallTexture:", wallTexture == nil ? "nil" : "ok")
     }
 
-    func render(usdzURL: URL, completion: @escaping (UIImage?) -> Void) {
+    func render(usdzURL: URL, upAxis: String?, completion: @escaping (UIImage?) -> Void) {
         Task { @MainActor in
             do {
                 arView.scene.anchors.removeAll()
                 let anchor = AnchorEntity(world: .zero)
 
                 let model = try await ModelEntity(contentsOf: usdzURL)
-
-                // 🔍 DEBUG TREE
-                print("=== ENTITY TREE BEFORE TRANSFORMS ===")
-                dumpEntity(model)
-
-                // 🔍 DEBUG BOUNDS
-                var b = model.visualBounds(relativeTo: nil)
-                print("📦 Before any transform")
-                print("   min    :", b.min)
-                print("   max    :", b.max)
-                print("   center :", b.center)
-                print("   extents:", b.extents)
-
-                // ✅ Nom du modèle basé sur le nom de fichier (sans extension)
                 let modelKey = usdzURL.deletingPathExtension().lastPathComponent
 
-                // --- 1) NORMALISATION + CALIBRATION PAR MODELE
-                let normalizedModelKey = normalizeModelKey(modelKey)
-                let targetHeight = perModelTargetHeight[normalizedModelKey] ?? defaultTargetHeight
+                // Plant at native scale, matching AR placement.
+                let isZUp = (upAxis?.uppercased() == "Z")
+                if isZUp {
+                    model.orientation = simd_quatf(angle: -.pi / 2, axis: [1, 0, 0])
+                } else {
+                    model.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
+                }
 
-                let currentHeight = max(b.extents.y, 0.0001)
-                let s = targetHeight / currentHeight
-                model.scale = SIMD3(repeating: s)
-
-                b = model.visualBounds(relativeTo: nil)
-                print("📦 After scale")
-                print("   min    :", b.min)
-                print("   max    :", b.max)
-                print("   center :", b.center)
-                print("   extents:", b.extents)
-
+                var b = model.visualBounds(relativeTo: nil)
                 model.position.y = -b.min.y
 
                 b = model.visualBounds(relativeTo: nil)
-                print("📦 After ground alignment")
-                print("   min    :", b.min)
-                print("   max    :", b.max)
-                print("   center :", b.center)
-                print("   extents:", b.extents)
-
                 let center = b.center
                 model.position.x -= center.x
                 model.position.z -= center.z
 
                 b = model.visualBounds(relativeTo: nil)
-                print("📦 After centering")
-                print("   min    :", b.min)
-                print("   max    :", b.max)
-                print("   center :", b.center)
-                print("   extents:", b.extents)
+                let plantH = max(b.extents.y, 0.001)
+                let plantW = max(b.extents.x, 0.001)
+                let plantD = max(b.extents.z, 0.001)
+                let plantMaxHoriz = max(plantW, plantD)
 
-                //model.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
+                print("Thumbnail", modelKey, "H=", plantH, "W=", plantW, "D=", plantD)
 
-                // Debug calibration key/size
-                print("🌿 Thumbnail modelKey:", modelKey, "| normalized:", normalizedModelKey, "| targetHeight:", targetHeight)
+                let halfVFov = (cameraFOVDegrees / 2) * .pi / 180
+                let halfVTan = tan(halfVFov)
+                let aspectRatio: Float = 1024.0 / 1280.0
+                let halfHTan = halfVTan * aspectRatio
 
-                // --- 2) Studio: sol + mur (textures + tiling)
+                let distForH = (plantH / 2) / (halfVTan * fillFactor)
+                let distForW = (plantMaxHoriz / 2) / (halfHTan * fillFactor)
+                let distance = max(distForH, distForW)
+
+                let pitchRad = cameraPitchDegrees * .pi / 180
+                let lookAtY = plantH * 0.45
+                let cameraY = lookAtY + distance * sin(pitchRad)
+                let cameraZ = plantD / 2 + distance * cos(pitchRad)
+
+                let sceneScale = max(plantH, plantMaxHoriz, distance)
+                let studioSize = sceneScale * 10
+
                 let floorMesh = Self.makeTiledPlane(
-                    width: 3.0,
-                    depth: 3.0,
-                    uScale: 3.0,
-                    vScale: 3.0
+                    width: studioSize,
+                    depth: studioSize,
+                    uScale: studioSize * 0.8,
+                    vScale: studioSize * 0.8
                 )
                 let floor = ModelEntity(mesh: floorMesh)
-
                 var floorMat = PhysicallyBasedMaterial()
                 if let floorTexture {
                     floorMat.baseColor = .init(tint: .white, texture: .init(floorTexture))
@@ -126,19 +99,18 @@ final class PlantThumbnailRenderer {
                     floorMat.baseColor = .init(tint: UIColor(white: 0.78, alpha: 1.0))
                 }
                 floorMat.roughness = .init(floatLiteral: 0.95)
-                floorMat.metallic  = .init(floatLiteral: 0.0)
+                floorMat.metallic = .init(floatLiteral: 0.0)
                 floor.model?.materials = [floorMat]
                 floor.position = [0, -0.001, 0]
 
+                let wallZ: Float = -(plantD + distance * 0.3)
                 let wallMesh = Self.makeTiledPlane(
-                    width: 3.6,
-                    depth: 3.6,
-                    uScale: 2.0,
-                    vScale: 2.0
+                    width: studioSize,
+                    depth: studioSize,
+                    uScale: studioSize * 0.5,
+                    vScale: studioSize * 0.5
                 )
                 let backdrop = ModelEntity(mesh: wallMesh)
-
-                // ✅ Mur unlit un peu moins blanc + texture si dispo
                 var wallMat = UnlitMaterial(color: .white)
                 if let wallTexture {
                     wallMat.color = .init(
@@ -146,40 +118,41 @@ final class PlantThumbnailRenderer {
                         texture: .init(wallTexture)
                     )
                 } else {
-                    wallMat.color = .init(tint: UIColor(white: 0.92, alpha: 1.0))
+                    wallMat.color = .init(tint: UIColor(white: 0.85, alpha: 1.0))
                 }
                 backdrop.model?.materials = [wallMat]
-                backdrop.position = [0, 1.1, -1.3]
-                backdrop.orientation = simd_quatf(angle: .pi/2, axis: [1, 0, 0])
+                backdrop.position = [0, studioSize / 2, wallZ]
+                backdrop.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
 
-                // --- 3) Lumières (✅ clés baissées)
                 let light = DirectionalLight()
                 light.light.intensity = 25000
                 light.light.color = UIColor(white: 0.98, alpha: 1.0)
                 light.shadow = DirectionalLightComponent.Shadow(
-                    maximumDistance: 3,
+                    maximumDistance: sceneScale * 3,
                     depthBias: 3e-4
                 )
                 light.orientation =
-                    simd_quatf(angle: -.pi/3, axis: [1, 0, 0]) *
-                    simd_quatf(angle: .pi/6, axis: [0, 1, 0])
+                    simd_quatf(angle: -.pi / 3, axis: [1, 0, 0]) *
+                    simd_quatf(angle: .pi / 6, axis: [0, 1, 0])
 
-                // ✅ Fill/Rim plus faibles pour éviter le “flashy”
+                let lightDist = sceneScale * 1.2
+                let lightPower: Float = 200 * (lightDist * lightDist)
+
                 let fill = PointLight()
-                fill.light.intensity = 200
+                fill.light.intensity = lightPower
                 fill.light.color = UIColor(white: 0.92, alpha: 1.0)
-                fill.position = [0.6, 1.2, 1.0]
+                fill.position = [lightDist, plantH * 0.9, lightDist]
 
                 let rim = PointLight()
-                rim.light.intensity = 200
+                rim.light.intensity = lightPower
                 rim.light.color = UIColor(white: 0.92, alpha: 1.0)
-                rim.position = [-0.7, 1.1, -1.0]
+                rim.position = [-lightDist, plantH * 0.8, -lightDist]
 
-                // --- 4) Caméra (inchangée)
                 let camera = PerspectiveCamera()
-                camera.position = [0, 0.8, 2.05]
+                camera.camera.fieldOfViewInDegrees = cameraFOVDegrees
+                camera.position = [0, cameraY, cameraZ]
                 camera.look(
-                    at: [0, 0.7, 0],
+                    at: [0, lookAtY, 0],
                     from: camera.position,
                     relativeTo: nil
                 )
@@ -204,21 +177,13 @@ final class PlantThumbnailRenderer {
                     }
                 }
             } catch {
-                print("❌ Render error:", error.localizedDescription)
+                print("Render error:", error.localizedDescription)
                 completion(nil)
             }
         }
     }
 
-    private func normalizeModelKey(_ key: String) -> String {
-        key
-            .folding(options: .diacriticInsensitive, locale: .current)
-            .lowercased()
-            .replacingOccurrences(of: "-", with: "_")
-            .replacingOccurrences(of: " ", with: "_")
-    }
-
-    // MARK: - Tiled Plane (UVs qui se répètent)
+    // MARK: - Tiled Plane
 
     private static func makeTiledPlane(
         width: Float,
@@ -264,18 +229,18 @@ final class PlantThumbnailRenderer {
         }
     }
 
-    func dumpEntity(_ entity: Entity, level: Int = 0) {
+    private func dumpEntity(_ entity: Entity, level: Int = 0) {
         let indent = String(repeating: "  ", count: level)
-        print("\(indent)• \(entity.name) [\(type(of: entity))]")
+        print("\(indent)- \(entity.name) [\(type(of: entity))]")
         print("\(indent)  children: \(entity.children.count)")
         print("\(indent)  position: \(entity.position)")
-        print("\(indent)  scale   : \(entity.scale)")
-        
+        print("\(indent)  scale: \(entity.scale)")
+
         if let modelEntity = entity as? ModelEntity,
-        let comp = modelEntity.model {
-            print("\(indent)  ✅ ModelComponent materials: \(comp.materials.count)")
+           let comp = modelEntity.model {
+            print("\(indent)  ModelComponent materials: \(comp.materials.count)")
         }
-        
+
         for child in entity.children {
             dumpEntity(child, level: level + 1)
         }

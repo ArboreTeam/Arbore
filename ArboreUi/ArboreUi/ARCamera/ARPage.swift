@@ -74,17 +74,39 @@ struct SinglePlantARContainer: UIViewRepresentable {
             }
         }
     }
-    
+
+    // MARK: - Teardown
+    // SwiftUI invokes this when ARViewWrapper is dismissed. Without it the
+    // ARSession kept running after the user left the AR flow, the loaded
+    // USDZ scene stayed parented to the ARSCNView, and the camera pipeline
+    // kept delivering frames into a dangling delegate. Repeatedly entering
+    // and leaving the AR view compounded the leak and was the main cause
+    // of the jetsam OOM crash reported by iOS on the iPhone 17 Pro.
+    static func dismantleUIView(_ uiView: ARSCNView, coordinator: Coordinator) {
+        uiView.session.pause()
+        uiView.session.delegate = nil
+        uiView.scene.rootNode.childNodes.forEach { $0.removeFromParentNode() }
+        uiView.scene = SCNScene() // drop the loaded USDZ geometry entirely
+        coordinator.currentPlantNode = nil
+        coordinator.arView = nil
+        print("🧹 SinglePlantARContainer dismantled — AR session paused, scene cleared")
+    }
+
     // MARK: - Coordinator (Logique)
     class Coordinator: NSObject, ARSCNViewDelegate, ARSessionDelegate {
         var parent: SinglePlantARContainer
         weak var arView: ARSCNView?
-        
+
         // Référence à la plante actuelle pour la déplacer si besoin
         var currentPlantNode: SCNNode?
-        
+
         init(_ parent: SinglePlantARContainer) {
             self.parent = parent
+        }
+
+        deinit {
+            currentPlantNode = nil
+            print("🧹 SinglePlantARContainer.Coordinator deinit")
         }
         
         @objc func handleTap(_ sender: UITapGestureRecognizer) {
@@ -248,7 +270,7 @@ struct ARViewWrapper: View {
             .frame(maxWidth: .infinity)
         }
         // Gestion de l'affichage de la photo prise
-        .onChange(of: isImageReady) { ready in
+        .onChange(of: isImageReady) { _, ready in
             if ready {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { showShareSheet = true }
             }
@@ -398,7 +420,7 @@ struct ARPage: View {
 
     @ViewBuilder
     private func destinationView() -> some View {
-        if let url = plant.localModelURL {
+        if let url = plant.bundleModelURL {
             ARViewWrapper(modelURL: url)
         } else if let url = findModelURL() {
             ARViewWrapper(modelURL: url)

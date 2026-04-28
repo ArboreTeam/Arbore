@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseAuth
+import GoogleSignIn
 
 struct CloseAccountView: View {
     @AppStorage("isLoggedIn") var isLoggedIn = false
@@ -57,7 +58,7 @@ struct CloseAccountView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 18)
                                 .fill(Color.gray.opacity(0.12))
-                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1))
                         )
                         .cornerRadius(18)
 
@@ -123,7 +124,7 @@ struct CloseAccountView: View {
                                 )
 
                                 ConsequenceRow(
-                                    icon: "cloud.slash.fill",
+                                    icon: "icloud.slash.fill",
                                     text: NSLocalizedString("CLOSE_ACCOUNT_CONSEQUENCE_CLOUD", comment: ""),
                                     iconColor: .blue
                                 )
@@ -133,7 +134,7 @@ struct CloseAccountView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 18)
                                 .fill(Color.gray.opacity(0.12))
-                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1))
                         )
                         .cornerRadius(18)
 
@@ -180,7 +181,7 @@ struct CloseAccountView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 18)
                                 .fill(Color.gray.opacity(0.12))
-                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 18).stroke(themeManager.separatorColor.opacity(0.3), lineWidth: 1))
                         )
                         .cornerRadius(18)
 
@@ -250,11 +251,28 @@ struct CloseAccountView: View {
 
             // 4. Delete Firebase Auth account
             do {
+                // Sign out from Google and Firebase first so tokens don't linger.
+                // Without this, a subsequent Google sign-in reuses the stale token
+                // against the now-deleted Firebase account, causing a crash.
+                GIDSignIn.sharedInstance.signOut()
+                try? Auth.auth().signOut()
+
                 try await user.delete()
 
-                // 5. Sign out and update login state
+                // 5. Dismiss all UIKit-presented VCs (CloseAccountView, ReAuthView, etc.)
+                //    before flipping isLoggedIn. If we flip first, SwiftUI replaces
+                //    MainView() while UIKit still holds those VCs as "presented" —
+                //    any GIDSignIn call immediately after would land on a zombie VC.
                 DispatchQueue.main.async {
-                    self.isLoggedIn = false
+                    if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                       let rootVC = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController,
+                       rootVC.presentedViewController != nil {
+                        rootVC.dismiss(animated: false) {
+                            self.isLoggedIn = false
+                        }
+                    } else {
+                        self.isLoggedIn = false
+                    }
                 }
             } catch {
                 deletionError = "Failed to delete Firebase account: \(error.localizedDescription)"
@@ -302,7 +320,31 @@ struct CloseAccountView: View {
 
         defaults.synchronize()
 
+        // Remove AR scene files from Documents/ so the "Jardin" tab
+        // (ManageGardenView → GardenLocalStorageService) no longer lists
+        // orphan scenes from the deleted account.
+        cleanLocalSceneFiles()
+
         print("✅ Local data cleaned")
+    }
+
+    private func cleanLocalSceneFiles() {
+        let fm = FileManager.default
+        guard let documentsURL = fm.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+
+        do {
+            let fileURLs = try fm.contentsOfDirectory(at: documentsURL, includingPropertiesForKeys: nil)
+            var removed = 0
+            for url in fileURLs where url.lastPathComponent.hasPrefix("scene_") {
+                try? fm.removeItem(at: url)
+                removed += 1
+            }
+            print("🧹 Removed \(removed) local scene file(s)")
+        } catch {
+            print("⚠️ Failed to scan documents directory for scene files: \(error)")
+        }
     }
 }
 

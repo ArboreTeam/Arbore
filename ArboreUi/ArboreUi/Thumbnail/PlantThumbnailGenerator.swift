@@ -40,7 +40,14 @@ final class PlantThumbnailGenerator: ObservableObject {
     }
 
     private func processNext() {
-        guard !isRendering, !queue.isEmpty else { return }
+        guard !isRendering else { return }
+        guard !queue.isEmpty else {
+            // Queue drained — release the singleton ARView's scene so its
+            // internal RealityKit mesh/texture caches can shrink. The ARView
+            // itself stays alive for the next catalog open.
+            ThumbnailRenderHost.shared.releaseScene()
+            return
+        }
 
         let plant = queue.removeFirst()
         print("🎬 rendering:", plant.name, "id:", plant.id)
@@ -51,7 +58,7 @@ final class PlantThumbnailGenerator: ObservableObject {
         Task {
             do {
                 let url = try await plant.getModelURL()
-                renderer.render(usdzURL: url) { image in
+                renderer.render(usdzURL: url, upAxis: plant.upAxis) { image in
                     if let image {
                         PlantThumbnailCache.save(image, plantID: plant.id)
                         self.onThumbnailGenerated?()

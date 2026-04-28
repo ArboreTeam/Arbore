@@ -11,10 +11,12 @@ struct Plant: Identifiable, Codable {
     let description: String
     let modelURL: String?
     let translations: [String: PlantTranslation]   // fr / en / es / de
+    let generated: Bool?   // true = modèle 3D généré par IA (Meshy), nil/false = legacy
+    let upAxis: String?    // "Y" (default, nil) ou "Z" (Blender exports qui doivent être redressés)
 
     enum CodingKeys: String, CodingKey {
         case id
-        case name, type, imageURLs, description, modelURL, translations
+        case name, type, imageURLs, description, modelURL, translations, generated, upAxis
     }
 
     // Décode avec fallback safe
@@ -37,6 +39,9 @@ struct Plant: Identifiable, Codable {
 
         self.translations = try container.decodeIfPresent([String: PlantTranslation].self, forKey: .translations)
             ?? [:]
+
+        self.generated = try container.decodeIfPresent(Bool.self, forKey: .generated)
+        self.upAxis = try container.decodeIfPresent(String.self, forKey: .upAxis)
     }
 
     // ✅ Helper pour reconstruire une plante minimale au moment du restore
@@ -177,6 +182,18 @@ extension Plant {
         }
 
         throw lastError
+    }
+
+    /// Synchronous bundle-only lookup (non-deprecated replacement for localModelURL).
+    var bundleModelURL: URL? {
+        guard let modelURL, !modelURL.isEmpty else { return nil }
+
+        let file = modelURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ext  = (file as NSString).pathExtension
+        let name = (file as NSString).deletingPathExtension
+        let finalExt = ext.isEmpty ? "usdz" : ext
+
+        return Bundle.main.url(forResource: name, withExtension: finalExt)
     }
 
     /// URL locale du modèle (ancienne version synchrone - deprecated)

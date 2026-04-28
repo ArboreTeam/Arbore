@@ -68,7 +68,7 @@ struct ScanMethodStepView: View {
     private var gardenMeasureCard: some View {
         ImprovedSelectableCard(
             isSelected: state.scanMethod == .gardenPerimeter,
-            emoji: "📐",
+            systemImage: "ruler",
             title: "Tracer mon jardin au sol",
             subtitle: "Place des points au sol pour dessiner le plan de ton jardin, puis ajoute des zones de plantation.",
             gradient: [Color(hex: "#4A7C59"), Color(hex: "#2C5530")]
@@ -83,7 +83,7 @@ struct ScanMethodStepView: View {
 
         return ImprovedSelectableCard(
             isSelected: state.scanMethod == .roomScan,
-            emoji: "🧱",
+            systemImage: "cube.transparent",
             title: "Scanner la pièce en 3D",
             subtitle: isSupported
                 ? "Utilise le scanner 3D pour capturer ton intérieur ou ton balcon et visualiser les plantes dans l’espace."

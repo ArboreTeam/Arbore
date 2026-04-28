@@ -51,6 +51,7 @@ struct GardenARPlacementView: View {
     // Model download state
     @State private var downloadedModelURL: URL? = nil
     @State private var isDownloadingModel = false
+    @State private var isRelocating = false
 
     var body: some View {
         ZStack {
@@ -59,6 +60,7 @@ struct GardenARPlacementView: View {
                 selectedPlant: $selectedPlantForPlacement,
                 downloadedModelURL: $downloadedModelURL,
                 isDownloadingModel: $isDownloadingModel,
+                isRelocating: $isRelocating,
                 hasSelectedNode: $hasSelectedNode,
                 selectedNodeName: $selectedNodeName,
                 isSaving: $isSaving,
@@ -78,6 +80,11 @@ struct GardenARPlacementView: View {
                 }
             )
             .ignoresSafeArea()
+
+            // --- Relocalization overlay ---
+            if isRelocating {
+                gardenLoadingOverlay
+            }
 
             // --- HUD Interface ---
             VStack(spacing: 0) {
@@ -108,13 +115,13 @@ struct GardenARPlacementView: View {
                     isDownloadingModel = true
                     downloadedModelURL = nil
                     do {
-                        let url = try await plant.getModelURL(forceDownload: true)
+                        let url = try await plant.getModelURL()
                         downloadedModelURL = url
                         print("✅ Model pre-downloaded for: \(plant.name)")
                     } catch {
                         print("❌ Failed to pre-download model for \(plant.name): \(error)")
                         // Fallback to bundle if download fails
-                        downloadedModelURL = plant.localModelURL
+                        downloadedModelURL = plant.bundleModelURL
                     }
                     isDownloadingModel = false
                 }
@@ -123,17 +130,19 @@ struct GardenARPlacementView: View {
             .presentationBackground(.clear)
         }
         .onAppear {
+            if mode == .reopen, existingGardenId != nil {
+                isRelocating = true
+            }
             if selectedPlantForPlacement == nil {
                 selectedPlantForPlacement = selectedPlants.first
-                // Pré-télécharger le premier modèle
                 if let first = selectedPlants.first {
                     Task {
                         isDownloadingModel = true
                         do {
-                            let url = try await first.getModelURL(forceDownload: true)
+                            let url = try await first.getModelURL(forceDownload: false)
                             downloadedModelURL = url
                         } catch {
-                            downloadedModelURL = first.localModelURL
+                            downloadedModelURL = first.bundleModelURL
                         }
                         isDownloadingModel = false
                     }
@@ -248,6 +257,49 @@ struct GardenARPlacementView: View {
         .cornerRadius(12)
         .padding(.bottom, 10)
     }
+
+    @State private var leafPulse = false
+
+    private var gardenLoadingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.35)
+                .ignoresSafeArea()
+
+            VStack(spacing: 20) {
+                Image(systemName: "leaf.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(.green)
+                    .scaleEffect(leafPulse ? 1.15 : 0.9)
+                    .opacity(leafPulse ? 1.0 : 0.6)
+                    .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: leafPulse)
+
+                Text(NSLocalizedString("GARDEN_LOADING_TITLE", comment: ""))
+                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white)
+
+                Text(NSLocalizedString("GARDEN_LOADING_SUBTITLE", comment: ""))
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .multilineTextAlignment(.center)
+
+                ProgressView()
+                    .tint(.white)
+                    .scaleEffect(1.1)
+            }
+            .padding(32)
+            .background(
+                RoundedRectangle(cornerRadius: 24)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24)
+                            .strokeBorder(.white.opacity(0.15), lineWidth: 1)
+                    )
+            )
+            .shadow(color: .black.opacity(0.3), radius: 20)
+        }
+        .onAppear { leafPulse = true }
+        .transition(.opacity.animation(.easeInOut(duration: 0.3)))
+    }
 }
 
 // MARK: - 3. Container AR
@@ -255,6 +307,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var selectedPlant: Plant?
     @Binding var downloadedModelURL: URL?
     @Binding var isDownloadingModel: Bool
+    @Binding var isRelocating: Bool
     @Binding var hasSelectedNode: Bool
     @Binding var selectedNodeName: String?
     @Binding var isSaving: Bool
@@ -284,25 +337,30 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         config.planeDetection = [.horizontal]
         config.environmentTexturing = .automatic
         
-        // 🆕 Charger la WorldMap de mesure si disponible
+        sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
+
+        // Load WorldMap on a background thread so main thread is not blocked.
+        // Once loaded, restart the session with the world map.
         if let mapId = measurementWorldMapId {
             let mapURL = GardenLocalStore.worldMapURL(for: mapId)
-            if FileManager.default.fileExists(atPath: mapURL.path) {
-                do {
-                    let mapData = try Data(contentsOf: mapURL)
-                    if let worldMap = try NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData) {
-                        config.initialWorldMap = worldMap
-                        print("✅ WorldMap de mesure chargée (ID: \(mapId))")
-                    }
-                } catch {
-                    print("⚠️ Erreur chargement WorldMap mesure: \(error)")
+            DispatchQueue.global(qos: .userInitiated).async {
+                guard FileManager.default.fileExists(atPath: mapURL.path),
+                      let mapData = try? Data(contentsOf: mapURL),
+                      let worldMap = try? NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData)
+                else {
+                    print("⚠️ WorldMap de mesure introuvable ou illisible: \(mapId)")
+                    return
                 }
-            } else {
-                print("⚠️ WorldMap de mesure introuvable: \(mapId)")
+                DispatchQueue.main.async {
+                    let restartConfig = ARWorldTrackingConfiguration()
+                    restartConfig.planeDetection = [.horizontal]
+                    restartConfig.environmentTexturing = .automatic
+                    restartConfig.initialWorldMap = worldMap
+                    sceneView.session.run(restartConfig, options: [.resetTracking, .removeExistingAnchors])
+                    print("✅ WorldMap de mesure chargée (ID: \(mapId))")
+                }
             }
         }
-        
-        sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
 
         let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTapToPlace(_:)))
         let longPress = UILongPressGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleLongPressToSelect(_:)))
@@ -312,19 +370,20 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         [tap, longPress, pan].forEach { sceneView.addGestureRecognizer($0) }
 
         context.coordinator.arView = sceneView
+        context.coordinator.updateCachedBounds()
         context.coordinator.setupReticle()
         context.coordinator.parentProps = self
         context.coordinator.setupObservers()
 
         if mode == .reopen, let id = existingGardenId {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                context.coordinator.loadGardenFromDisk(gardenId: id)
-            }
+            context.coordinator.pendingRestoreGardenId = id
         }
         return sceneView
     }
 
-    func updateUIView(_ uiView: ARSCNView, context: Context) {}
+    func updateUIView(_ uiView: ARSCNView, context: Context) {
+        context.coordinator.updateCachedBounds()
+    }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     // MARK: - Coordinator
@@ -339,6 +398,12 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
 
             private var undoStack: [[PersistedPlant]] = []
             private var redoStack: [[PersistedPlant]] = []
+            // Cached on main thread to avoid UIKit access from SceneKit render queue
+            private var cachedViewCenter: CGPoint = .zero
+            // Tracks upAxis per planted plant ID for capture/restore
+            private var plantUpAxisMap: [String: String] = [:]
+            // Garden ID pending restore after WorldMap relocalization
+            var pendingRestoreGardenId: String?
 
             init(_ parent: GardenARPlacementContainerView) { self.parentProps = parent }
 
@@ -368,10 +433,32 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 arView?.scene.rootNode.addChildNode(ring)
             }
 
+            // MARK: - WorldMap relocalization tracking
+            private var didRestoreGarden = false
+
+            func session(_ session: ARSession, didUpdate frame: ARFrame) {
+                guard let gardenId = pendingRestoreGardenId, !didRestoreGarden else { return }
+                let status = frame.worldMappingStatus
+                if status == .mapped || status == .extending {
+                    didRestoreGarden = true
+                    pendingRestoreGardenId = nil
+                    print("✅ WorldMap relocalized (\(status)), restoring garden \(gardenId)")
+                    DispatchQueue.main.async {
+                        self.parentProps?.isRelocating = false
+                    }
+                    loadGardenFromDisk(gardenId: gardenId)
+                }
+            }
+
+            func updateCachedBounds() {
+                guard let arView = arView else { return }
+                cachedViewCenter = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+            }
+
             func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
                 guard let arView = arView, let reticle = reticleNode else { return }
 
-                let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+                let center = cachedViewCenter
                 if let query = arView.raycastQuery(from: center, allowing: .existingPlaneGeometry, alignment: .horizontal),
                    let result = arView.session.raycast(query).first {
                     lastReticleTransform = result.worldTransform
@@ -402,14 +489,16 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         return (rawURLString as NSString).lastPathComponent
                     }()
 
+                    let plantId = parts[safe: 1] ?? "unknown"
                     return PersistedPlant(
-                        plantID: parts[safe: 1] ?? "unknown",
+                        plantID: plantId,
                         plantName: parts[safe: 2] ?? "Plante",
                         modelURLString: modelFileName,
                         position: [node.position.x, node.position.y, node.position.z],
                         rotation: [node.eulerAngles.x, node.eulerAngles.y, node.eulerAngles.z],
                         scale: [node.scale.x, node.scale.y, node.scale.z],
-                        transform: matrixToFloatArray(node.simdTransform)
+                        transform: matrixToFloatArray(node.simdTransform),
+                        upAxis: plantUpAxisMap[plantId]
                     )
                 }
             }
@@ -568,7 +657,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                 ],
                                 rotation: plant.rotation,
                                 scale: plant.scale,
-                                transform: plant.transform
+                                transform: plant.transform,
+                                upAxis: plant.upAxis
                             )
                         }
                         
@@ -671,23 +761,27 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 deselectAll()
 
                 Task {
-                    for p in plants {
-                        guard let transform = floatArrayToMatrix(p.transform), !p.modelURLString.isEmpty else { continue }
-                        let finalScale = SCNVector3(p.scale[0], p.scale[1], p.scale[2])
-
-                        do {
-                            let remoteURL = try await ModelCacheManager.shared.getModelURL(for: p.modelURLString, forceDownload: true)
-                            await MainActor.run {
-                                self.placeObject(at: transform, modelURL: remoteURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString)
-                            }
-                        } catch {
-                            print("⚠️ Impossible de télécharger le modèle \(p.modelURLString): \(error)")
-                            if let fallbackURL = resolveLocalModelURL(p.modelURLString) {
-                                await MainActor.run {
-                                    self.placeObject(at: transform, modelURL: fallbackURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString)
+                    // Download all models concurrently instead of sequentially.
+                    await withTaskGroup(of: Void.self) { group in
+                        for p in plants {
+                            guard let transform = floatArrayToMatrix(p.transform), !p.modelURLString.isEmpty else { continue }
+                            let finalScale = SCNVector3(p.scale[0], p.scale[1], p.scale[2])
+                            group.addTask {
+                                do {
+                                    let remoteURL = try await ModelCacheManager.shared.getModelURL(for: p.modelURLString, forceDownload: false)
+                                    await MainActor.run {
+                                        self.placeObject(at: transform, modelURL: remoteURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString, upAxis: p.upAxis)
+                                    }
+                                } catch {
+                                    print("⚠️ Impossible de télécharger le modèle \(p.modelURLString): \(error)")
+                                    if let fallbackURL = await MainActor.run(body: { self.resolveLocalModelURL(p.modelURLString) }) {
+                                        await MainActor.run {
+                                            self.placeObject(at: transform, modelURL: fallbackURL, id: p.plantID, name: p.plantName, finalScale: finalScale, modelURLString: p.modelURLString, upAxis: p.upAxis)
+                                        }
+                                    } else {
+                                        print("❌ Impossible de résoudre le modèle : \(p.modelURLString)")
+                                    }
                                 }
-                            } else {
-                                print("❌ Impossible de résoudre le modèle : \(p.modelURLString)")
                             }
                         }
                     }
@@ -797,14 +891,15 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
 
                 // Utiliser l'URL pré-téléchargée si disponible, sinon fallback au bundle
-                guard let url = parentProps?.downloadedModelURL ?? plant.localModelURL else {
+                guard let url = parentProps?.downloadedModelURL ?? plant.bundleModelURL else {
                     print("❌ Model URL nil pour: \(plant.name) | modelURL: \(plant.modelURL ?? "nil")")
                     deselectAll()
                     return
                 }
 
                 saveStateForUndo()
-                placeObject(at: transform, modelURL: url, id: plant.id, name: plant.name, modelURLString: plant.modelURL)
+                if let axis = plant.upAxis { plantUpAxisMap[plant.id] = axis }
+                placeObject(at: transform, modelURL: url, id: plant.id, name: plant.name, modelURLString: plant.modelURL, upAxis: plant.upAxis)
             }
 
             @objc func handleLongPressToSelect(_ gesture: UILongPressGestureRecognizer) {
@@ -827,28 +922,33 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
             }
 
-            func placeObject(at transform: simd_float4x4, modelURL: URL, id: String, name: String, finalScale: SCNVector3? = nil, modelURLString: String? = nil, allowRetry: Bool = true) {
+            func placeObject(at transform: simd_float4x4, modelURL: URL, id: String, name: String, finalScale: SCNVector3? = nil, modelURLString: String? = nil, allowRetry: Bool = true, upAxis: String? = nil) {
                 guard let arView = arView else { return }
-                
+
                 if modelURL.isFileURL && !FileManager.default.fileExists(atPath: modelURL.path) {
                     print("❌ Fichier introuvable : \(modelURL.path)")
                     return
                 }
-                
+
                 do {
                     let scene = try SCNScene(url: modelURL, options: nil)
 
-                    print("🌿 DEBUG NODE TREE for \(modelURL.lastPathComponent)")
-                    dumpNodeTree(scene.rootNode)
-
                     let container = SCNNode()
                     let encodedURL = modelURL.absoluteString.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "default"
-                    
+
                     // UUID unique pour éviter les conflits dans la Map
                     let uniqueID = UUID().uuidString
                     container.name = "plant_\(id)_\(name)_\(encodedURL)_\(uniqueID)"
 
-                    for child in scene.rootNode.childNodes { container.addChildNode(child) }
+                    // Wrapper node: handles Z-up → Y-up rotation for Blender
+                    // exports without interfering with the AR placement transform
+                    let wrapper = SCNNode()
+                    for child in scene.rootNode.childNodes { wrapper.addChildNode(child) }
+                    let effectiveAxis = upAxis ?? plantUpAxisMap[id]
+                    if effectiveAxis?.uppercased() == "Z" {
+                        wrapper.eulerAngles.x = -.pi / 2
+                    }
+                    container.addChildNode(wrapper)
                     stripPotIfNeeded(from: container)
                     container.simdTransform = transform
 

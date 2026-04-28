@@ -105,7 +105,7 @@ class SecurityTests: XCTestCase {
         let focusBinding = FocusState<ModernLoginView.Field?>().projectedValue
         let passwordVisibleBinding = Binding.constant(false)
         
-        let passwordField = ModernTextField(
+        let passwordField = ArborTextField(
             text: textBinding,
             placeholder: "Password",
             systemImage: "lock.fill",
@@ -132,7 +132,7 @@ class SecurityTests: XCTestCase {
         let textBinding = Binding.constant("")
         let focusBinding = FocusState<ModernLoginView.Field?>().projectedValue
         
-        let passwordField = ModernTextField(
+        let passwordField = ArborTextField(
             text: textBinding,
             placeholder: "Password",
             systemImage: "lock.fill",
@@ -150,7 +150,7 @@ class SecurityTests: XCTestCase {
         
         // Toggle visibility
         isPasswordVisible = true
-        let toggledField = ModernTextField(
+        let toggledField = ArborTextField(
             text: textBinding,
             placeholder: "Password",
             systemImage: "lock.fill",
@@ -306,7 +306,7 @@ class LoginAccessibilityTests: XCTestCase {
         let textBinding = Binding.constant("")
         let focusBinding = FocusState<ModernLoginView.Field?>().projectedValue
         
-        let emailField = ModernTextField(
+        let emailField = ArborTextField(
             text: textBinding,
             placeholder: "Adresse email",
             systemImage: "envelope.fill",
@@ -320,7 +320,7 @@ class LoginAccessibilityTests: XCTestCase {
         XCTAssertEqual(emailField.placeholder, "Adresse email", "Email field should have proper placeholder")
         XCTAssertEqual(emailField.keyboardType, .emailAddress, "Email field should have email keyboard type")
         
-        let passwordField = ModernTextField(
+        let passwordField = ArborTextField(
             text: textBinding,
             placeholder: "Mot de passe",
             systemImage: "lock.fill",

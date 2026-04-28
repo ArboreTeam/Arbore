@@ -4,21 +4,12 @@ import RoomPlan
 // MARK: - Theme Colors
 
 extension Color {
-    static let gardenPrimary = Color(hex: "#2C5530") // Dark green from screenshots
-    static let gardenAccent = Color(hex: "#6ECF78")  // Light green accent
-    static let gardenCardBorder = Color(hex: "#2C5530").opacity(0.2)
+    static let gardenPrimary = ArboreDesign.Colors.primaryGreen
+    static let gardenAccent = ArboreDesign.Colors.secondaryGreen
+    static let gardenCardBorder = ArboreDesign.Colors.primaryGreen.opacity(0.2)
 
-    /// Fond du wizard : F1F5ED en light, #1A1A1A en dark
     static var gardenBackground: Color {
-        Color(UIColor { trait in
-            if trait.userInterfaceStyle == .dark {
-                // #1A1A1A
-                return UIColor(red: 0.10, green: 0.10, blue: 0.10, alpha: 1.0)
-            } else {
-                // #F1F5ED
-                return UIColor(red: 0.945, green: 0.961, blue: 0.929, alpha: 1.0)
-            }
-        })
+        ArboreDesign.Colors.background
     }
 }
 
@@ -39,15 +30,14 @@ enum GardenStyle: String, CaseIterable, Identifiable {
     
     var id: String { rawValue }
     
-    // Gardé pour le récap / autres usages, mais plus utilisé dans la carte
-    var emoji: String {
+    var iconName: String {
         switch self {
-        case .modern: return "🏢"
-        case .floral: return "🌸"
-        case .wild: return "🌾"
-        case .zen: return "🌿"
-        case .mediterranean: return "🌴"
-        case .noPreference: return "✨"
+        case .modern: return "square.grid.2x2"
+        case .floral: return "camera.macro"
+        case .wild: return "leaf"
+        case .zen: return "wind"
+        case .mediterranean: return "sun.max"
+        case .noPreference: return "sparkles"
         }
     }
     
@@ -84,11 +74,11 @@ enum GardenSpaceType: String, CaseIterable, Identifiable {
     
     var id: String { rawValue }
     
-    var emoji: String {
+    var iconName: String {
         switch self {
-        case .garden: return "🏡"
-        case .balcony: return "☀️"
-        case .interior: return "🏠"
+        case .garden: return "house.and.flag"
+        case .balcony: return "sun.max"
+        case .interior: return "house"
         }
     }
     
@@ -111,12 +101,12 @@ enum SunExposure: String, CaseIterable, Identifiable {
     
     var id: String { rawValue }
     
-    var emoji: String {
+    var iconName: String {
         switch self {
-        case .fullSun: return "☀️"
-        case .partialShade: return "⛅"
-        case .shade: return "🌫️"
-        case .unknown: return "🤔"
+        case .fullSun: return "sun.max"
+        case .partialShade: return "cloud.sun"
+        case .shade: return "cloud"
+        case .unknown: return "questionmark.circle"
         }
     }
     
@@ -139,11 +129,11 @@ enum MaintenanceLevel: String, CaseIterable, Identifiable {
     
     var id: String { rawValue }
     
-    var emoji: String {
+    var iconName: String {
         switch self {
-        case .veryEasy: return "🫰"
-        case .easy: return "🙂"
-        case .demanding: return "😅"
+        case .veryEasy: return "hand.thumbsup"
+        case .easy: return "leaf"
+        case .demanding: return "wrench.and.screwdriver"
         }
     }
     
@@ -165,11 +155,11 @@ enum SafetyOption: String, CaseIterable, Identifiable {
     
     var id: String { rawValue }
     
-    var emoji: String {
+    var iconName: String {
         switch self {
-        case .pets: return "🐕"
-        case .children: return "👶"
-        case .none: return "🚫"
+        case .pets: return "pawprint"
+        case .children: return "person.2"
+        case .none: return "checkmark.shield"
         }
     }
     
@@ -185,13 +175,13 @@ enum SoilType: String, CaseIterable, Identifiable {
     
     var id: String { rawValue }
     
-    var emoji: String {
+    var iconName: String {
         switch self {
-        case .rich: return "🌱"
-        case .dry: return "🏜️"
-        case .rocky: return "🪨"
-        case .waterRetentive: return "💧"
-        case .unknown: return "❓"
+        case .rich: return "leaf"
+        case .dry: return "sun.max"
+        case .rocky: return "mountain.2"
+        case .waterRetentive: return "drop"
+        case .unknown: return "questionmark.circle"
         }
     }
     
@@ -439,13 +429,13 @@ struct WizardProgressHeader: View {
         VStack(spacing: 10) {
             Text("ÉTAPE \(currentIndex + 1) SUR \(total)")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.secondary)
+                .foregroundColor(ArboreDesign.Colors.textSecondary)
                 .tracking(1.2)
             
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     Capsule()
-                        .fill(Color.black.opacity(0.1))
+                        .fill(ArboreDesign.Colors.border)
                         .frame(height: 4)
                     
                     Capsule()
@@ -466,12 +456,12 @@ struct PrimaryWizardButtonStyle: ButtonStyle {
     
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 17, weight: .semibold))
+            .font(ArboreDesign.Typography.button)
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
-            .background(isEnabled ? Color.gardenPrimary : Color.secondary)
-            .cornerRadius(28)
+            .frame(height: 52)
+            .background(isEnabled ? Color.gardenPrimary : ArboreDesign.Colors.textSecondary.opacity(0.35))
+            .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
             .opacity(configuration.isPressed ? 0.8 : 1.0)
             .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
             .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
@@ -481,11 +471,12 @@ struct PrimaryWizardButtonStyle: ButtonStyle {
 struct SecondaryWizardButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 17, weight: .medium))
-            .foregroundColor(.secondary)
+            .font(ArboreDesign.Typography.button)
+            .foregroundColor(Color.gardenPrimary)
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
-            .background(Color.clear)
+            .frame(height: 50)
+            .background(ArboreDesign.Colors.softSurface)
+            .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
             .opacity(configuration.isPressed ? 0.5 : 1.0)
     }
 }
@@ -494,7 +485,7 @@ struct SecondaryWizardButtonStyle: ButtonStyle {
 
 struct ImprovedSelectableCard: View {
     let isSelected: Bool
-    let emoji: String
+    let systemImage: String
     let title: String
     let subtitle: String?
     let gradient: [Color]?
@@ -504,14 +495,14 @@ struct ImprovedSelectableCard: View {
     
     init(
         isSelected: Bool,
-        emoji: String,
+        systemImage: String,
         title: String,
         subtitle: String? = nil,
         gradient: [Color]? = nil,
         action: @escaping () -> Void
     ) {
         self.isSelected = isSelected
-        self.emoji = emoji
+        self.systemImage = systemImage
         self.title = title
         self.subtitle = subtitle
         self.gradient = gradient
@@ -520,22 +511,22 @@ struct ImprovedSelectableCard: View {
     
     private var cardBackground: Color {
         colorScheme == .dark
-        ? Color.white.opacity(0.06)
-        : Color.white
+        ? ArboreDesign.Colors.cardDark
+        : ArboreDesign.Colors.cardLight
     }
     
     private var titleColor: Color {
-        colorScheme == .dark ? .white : .primary
+        colorScheme == .dark ? ArboreDesign.Colors.textPrimaryDark : ArboreDesign.Colors.textPrimaryLight
     }
     
     private var subtitleColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.7) : .secondary
+        colorScheme == .dark ? ArboreDesign.Colors.textSecondaryDark : ArboreDesign.Colors.textSecondaryLight
     }
     
     private var iconBackground: Color {
         colorScheme == .dark
-        ? Color.white.opacity(0.08)
-        : Color.gardenPrimary.opacity(0.1)
+        ? Color.gardenPrimary.opacity(0.28)
+        : ArboreDesign.Colors.softGreenBackground
     }
     
     var body: some View {
@@ -556,8 +547,9 @@ struct ImprovedSelectableCard: View {
                             .cornerRadius(12)
                     }
                     
-                    Text(emoji)
-                        .font(.system(size: 24))
+                    Image(systemName: systemImage)
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundColor(gradient == nil ? Color.gardenPrimary : .white)
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
@@ -595,12 +587,12 @@ struct ImprovedSelectableCard: View {
             }
             .padding(20)
             .background(
-                RoundedRectangle(cornerRadius: 20)
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
                     .fill(cardBackground)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(isSelected ? Color.gardenPrimary : Color.clear, lineWidth: 2)
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                    .stroke(isSelected ? Color.gardenPrimary : ArboreDesign.Colors.border, lineWidth: isSelected ? 2 : 1)
             )
             .shadow(
                 color: isSelected
@@ -700,8 +692,8 @@ struct StyleCard: View {
 
                     Text(style.title)
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.white)
-                        .shadow(radius: 4)
+                        .foregroundColor(isNoPreference ? (colorScheme == .dark ? ArboreDesign.Colors.textPrimaryDark : ArboreDesign.Colors.textPrimaryLight) : .white)
+                        .shadow(color: isNoPreference ? .clear : .black.opacity(0.8), radius: 4)
                         .multilineTextAlignment(.leading)
                         .lineLimit(2)
                 }
@@ -740,14 +732,16 @@ struct StyleCard: View {
 }
 
 struct RecapRow: View {
-    let emoji: String
+    let systemImage: String
     let title: String
     let value: String
     
     var body: some View {
         HStack(spacing: 12) {
-            Text(emoji)
-                .font(.system(size: 24))
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(Color.gardenPrimary)
+                .frame(width: 28, height: 28)
             
             Text(title)
                 .font(.system(size: 14, weight: .medium))

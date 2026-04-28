@@ -25,11 +25,15 @@ final class GardenAPI {
     }
 
     // MARK: - List (Home)
+    // Backend returns JSON `null` when the user has no gardens instead of `[]`,
+    // which fails to decode as `[GardenDTO]`. Wrap the raw array in an optional
+    // so `null` decodes to `nil`, then map to an empty array.
     func listGardens() async throws -> [GardenDTO] {
-        return try await NetworkManager.shared.request(
+        let result: [GardenDTO]? = try await NetworkManager.shared.request(
             endpoint: "/gardens",
             method: .GET
         )
+        return result ?? []
     }
 
     // MARK: - Get one (reopen)

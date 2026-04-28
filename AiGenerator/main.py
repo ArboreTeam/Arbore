@@ -2,14 +2,61 @@
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from openai import OpenAI
 import os
 import json
 import traceback
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+AI_PROVIDER = os.getenv("AI_PROVIDER", "mistral").lower()
+MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 app = FastAPI()
+
+
+def _call_openai(system_prompt: str, user_prompt: str) -> str:
+    from openai import OpenAI
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    completion = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.7,
+    )
+    return completion.choices[0].message.content
+
+
+def _call_mistral(system_prompt: str, user_prompt: str) -> str:
+    from mistralai import Mistral
+    client = Mistral(api_key=os.getenv("MISTRAL_API_KEY"))
+    completion = client.chat.complete(
+        model=MISTRAL_MODEL,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=0.7,
+    )
+    return completion.choices[0].message.content
+
+
+def _generate_json(system_prompt: str, user_prompt: str) -> str:
+    if AI_PROVIDER == "mistral":
+        return _call_mistral(system_prompt, user_prompt)
+    return _call_openai(system_prompt, user_prompt)
+
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "ok",
+        "service": "arbore-ai-generator",
+        "provider": AI_PROVIDER,
+        "model": MISTRAL_MODEL if AI_PROVIDER == "mistral" else OPENAI_MODEL,
+    }
 
 
 class PlantRequest(BaseModel):
@@ -30,13 +77,7 @@ async def generate_plant_info(req: PlantRequest):
     - care
     """
     try:
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            response_format={"type": "json_object"},
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
+        system_prompt = (
                         "Tu es un expert botaniste spécialisé en plantes d'intérieur et d'extérieur. "
                         "Tu dois répondre STRICTEMENT avec un objet JSON valide (aucun texte autour). "
                         "La structure JSON attendue est la suivante :\n\n"
@@ -99,23 +140,17 @@ async def generate_plant_info(req: PlantRequest):
                         "- Les textes doivent être CONCIS, pratiques et faciles à comprendre pour un débutant.\n"
                         '- Remplis TOUS les champs avec un contenu utile : n’utilise jamais null, "N/A" ou des chaînes vides.\n'
                         "- Ne commente pas ta réponse, ne rajoute pas de texte hors du JSON."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        f"Génère une fiche de soin complète pour la plante « {req.name} ».\n"
-                        "Respecte exactement la structure JSON décrite dans les instructions système.\n"
-                        "Adapte les conseils spécifiquement à cette plante.\n"
-                        'Rédige en français pour "fr", en anglais pour "en", en espagnol pour "es" et en allemand pour "de".\n'
-                        "Ne renvoie que l'objet JSON, sans texte supplémentaire."
-                    ),
-                },
-            ],
-            temperature=0.7,
         )
 
-        raw = completion.choices[0].message.content
+        user_prompt = (
+            f"Génère une fiche de soin complète pour la plante « {req.name} ».\n"
+            "Respecte exactement la structure JSON décrite dans les instructions système.\n"
+            "Adapte les conseils spécifiquement à cette plante.\n"
+            'Rédige en français pour "fr", en anglais pour "en", en espagnol pour "es" et en allemand pour "de".\n'
+            "Ne renvoie que l'objet JSON, sans texte supplémentaire."
+        )
+
+        raw = _generate_json(system_prompt, user_prompt)
         data = json.loads(raw)
         return data
 

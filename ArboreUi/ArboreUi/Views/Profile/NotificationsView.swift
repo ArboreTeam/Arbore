@@ -12,146 +12,74 @@ struct NotificationsView: View {
     @AppStorage("weatherAlerts") private var weatherAlerts: Bool = true
 
     var body: some View {
-        ZStack {
-            themeManager.backgroundColor
-                .ignoresSafeArea()
+        SettingsPage(title: NSLocalizedString("NOTIF_TITLE", comment: "Notification settings title")) {
+            SettingsIntroCard(
+                systemImage: "bell",
+                title: NSLocalizedString("NOTIF_HEADER_TITLE", comment: ""),
+                message: NSLocalizedString("NOTIF_HEADER_SUBTITLE", comment: "")
+            )
 
-            VStack(spacing: 0) {
-                // Top bar
-                HStack {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(themeManager.textColor)
-                    }
-                    Spacer()
-                    Text(NSLocalizedString("NOTIF_TITLE", comment: "Notification settings title"))
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(themeManager.textColor)
-                    Spacer()
-                    Color.clear.frame(width: 16)
+            notificationToggleCard(
+                icon: "bell.badge",
+                title: NSLocalizedString("NOTIF_MAIN_TOGGLE_TITLE", comment: ""),
+                subtitle: NSLocalizedString("NOTIF_MAIN_TOGGLE_SUBTITLE", comment: ""),
+                isOn: $notificationsEnabled
+            )
+
+            if notificationsEnabled {
+                wateringRemindersCard()
+
+                notificationToggleCard(
+                    icon: "ladybug",
+                    title: NSLocalizedString("NOTIF_DISEASE_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("NOTIF_DISEASE_SUBTITLE", comment: ""),
+                    isOn: $diseaseAlerts
+                )
+
+                notificationToggleCard(
+                    icon: "cloud.drizzle",
+                    title: NSLocalizedString("NOTIF_WEATHER_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("NOTIF_WEATHER_SUBTITLE", comment: ""),
+                    isOn: $weatherAlerts
+                )
+
+                notificationToggleCard(
+                    icon: "sun.max",
+                    title: NSLocalizedString("NOTIF_SEASONAL_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("NOTIF_SEASONAL_SUBTITLE", comment: ""),
+                    isOn: $seasonalTips,
+                    tint: ArboreDesign.Colors.accentGold
+                )
+
+                SettingsSectionCard(
+                    title: NSLocalizedString("NOTIF_INFO_TITLE", comment: ""),
+                    systemImage: "info.circle"
+                ) {
+                    Text(NSLocalizedString("NOTIF_INFO_SUBTITLE", comment: ""))
+                        .font(ArboreDesign.Typography.bodySmall)
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .frame(height: 48)
-                .padding(.horizontal, 16)
-                .background(themeManager.backgroundColor)
-
-                ScrollView {
-                    VStack(spacing: 20) {
-                        // Header
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(NSLocalizedString("NOTIF_HEADER_TITLE", comment: ""))
-                                .font(.system(size: 28, weight: .bold))
-                                .foregroundColor(themeManager.textColor)
-                            
-                            Text(NSLocalizedString("NOTIF_HEADER_SUBTITLE", comment: ""))
-                                .font(.system(size: 15))
-                                .foregroundColor(themeManager.secondaryTextColor)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 18)
-                        
-                        // Main notifications toggle
-                        notificationToggleCard(
-                            icon: "bell.badge.fill",
-                            iconColor: .green,
-                            title: NSLocalizedString("NOTIF_MAIN_TOGGLE_TITLE", comment: ""),
-                            subtitle: NSLocalizedString("NOTIF_MAIN_TOGGLE_SUBTITLE", comment: ""),
-                            isOn: $notificationsEnabled
+            } else {
+                AppCard {
+                    VStack(alignment: .center, spacing: ArboreDesign.Spacing.sm) {
+                        SettingsIconBadge(
+                            systemImage: "bell.slash",
+                            tint: ArboreDesign.Colors.textSecondary,
+                            size: 58
                         )
-                        .cornerRadius(18)
-                        .padding(.horizontal, 16)
 
-                        if notificationsEnabled {
-                            VStack(spacing: 16) {
-                                // Watering reminders
-                                wateringRemindersCard()
-                                    .padding(.horizontal, 16)
+                        Text(NSLocalizedString("NOTIF_DISABLED_TITLE", comment: ""))
+                            .font(ArboreDesign.Typography.cardTitle)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                                // Disease & pest alerts
-                                notificationToggleCard(
-                                    icon: "ant.fill",
-                                    iconColor: .orange,
-                                    title: NSLocalizedString("NOTIF_DISEASE_TITLE", comment: ""),
-                                    subtitle: NSLocalizedString("NOTIF_DISEASE_SUBTITLE", comment: ""),
-                                    isOn: $diseaseAlerts
-                                )
-                                .padding(.horizontal, 16)
-                                
-                                // Weather alerts
-                                notificationToggleCard(
-                                    icon: "cloud.drizzle.fill",
-                                    iconColor: .blue,
-                                    title: NSLocalizedString("NOTIF_WEATHER_TITLE", comment: ""),
-                                    subtitle: NSLocalizedString("NOTIF_WEATHER_SUBTITLE", comment: ""),
-                                    isOn: $weatherAlerts
-                                )
-                                .padding(.horizontal, 16)
-
-                                // Seasonal tips
-                                notificationToggleCard(
-                                    icon: "sun.max.fill",
-                                    iconColor: .yellow,
-                                    title: NSLocalizedString("NOTIF_SEASONAL_TITLE", comment: ""),
-                                    subtitle: NSLocalizedString("NOTIF_SEASONAL_SUBTITLE", comment: ""),
-                                    isOn: $seasonalTips
-                                )
-                                .padding(.horizontal, 16)
-                            }
-                            
-                            // Info card
-                            VStack(alignment: .leading, spacing: 10) {
-                                HStack(spacing: 10) {
-                                    Image(systemName: "info.circle.fill")
-                                        .foregroundColor(.green)
-                                        .font(.system(size: 18))
-                                    
-                                    Text(NSLocalizedString("NOTIF_INFO_TITLE", comment: ""))
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(themeManager.textColor)
-                                    
-                                    Spacer()
-                                }
-                                
-                                Text(NSLocalizedString("NOTIF_INFO_SUBTITLE", comment: ""))
-                                    .font(.system(size: 13))
-                                    .foregroundColor(themeManager.secondaryTextColor)
-                            }
-                            .padding(16)
-                            .background(
-                                RoundedRectangle(cornerRadius: 18)
-                                    .fill(Color.gray.opacity(0.12))
-                                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                            )
-                            .padding(.horizontal, 16)
-                        } else {
-                            // Notifications disabled card
-                            VStack(alignment: .center, spacing: 10) {
-                                Image(systemName: "bell.slash.fill")
-                                    .font(.system(size: 36))
-                                    .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
-                                
-                                Text(NSLocalizedString("NOTIF_DISABLED_TITLE", comment: ""))
-                                    .font(.system(size: 18, weight: .bold))
-                                    .foregroundColor(themeManager.textColor)
-                                
-                                Text(NSLocalizedString("NOTIF_DISABLED_SUBTITLE", comment: ""))
-                                    .font(.system(size: 14))
-                                    .foregroundColor(themeManager.secondaryTextColor)
-                                    .multilineTextAlignment(.center)
-                            }
-                            .padding(24)
-                            .frame(maxWidth: .infinity)
-                            .background(
-                                RoundedRectangle(cornerRadius: 18)
-                                    .fill(Color.gray.opacity(0.12))
-                                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
-                            )
-                            .padding(.horizontal, 16)
-                        }
-
-                        Spacer(minLength: 24)
+                        Text(NSLocalizedString("NOTIF_DISABLED_SUBTITLE", comment: ""))
+                            .font(ArboreDesign.Typography.bodySmall)
+                            .foregroundColor(ArboreDesign.Colors.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .padding(.bottom, 30)
+                    .frame(maxWidth: .infinity)
                 }
             }
         }
@@ -162,111 +90,71 @@ struct NotificationsView: View {
     
     private func notificationToggleCard(
         icon: String,
-        iconColor: Color,
         title: String,
         subtitle: String,
-        isOn: Binding<Bool>
+        isOn: Binding<Bool>,
+        tint: Color = ArboreDesign.Colors.primaryGreen
     ) -> some View {
-        HStack {
-            Image(systemName: icon)
-                .foregroundColor(iconColor)
-                .font(.system(size: 20))
-                .frame(width: 28)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(themeManager.textColor)
-                
-                Text(subtitle)
-                    .font(.system(size: 13))
-                    .foregroundColor(themeManager.secondaryTextColor)
-            }
-            
-            Spacer()
-            
-            Toggle("", isOn: isOn)
-                .labelsHidden()
+        AppCard {
+            SettingsToggleRow(
+                systemImage: icon,
+                title: title,
+                subtitle: subtitle,
+                isOn: isOn,
+                tint: tint
+            )
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color.gray.opacity(0.12))
-                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
-        )
     }
     
     // MARK: - Watering Reminders Card
     
     private func wateringRemindersCard() -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Image(systemName: "drop.fill")
-                    .foregroundColor(.cyan)
-                    .font(.system(size: 20))
-                    .frame(width: 28)
-                
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(NSLocalizedString("NOTIF_WATERING_TITLE", comment: ""))
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(themeManager.textColor)
-                    
-                    Text(NSLocalizedString("NOTIF_WATERING_SUBTITLE", comment: ""))
-                        .font(.system(size: 13))
-                        .foregroundColor(themeManager.secondaryTextColor)
-                }
-                
-                Spacer()
-                
-                Toggle("", isOn: $wateringReminders)
-                    .labelsHidden()
-            }
+        AppCard {
+            VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+                SettingsToggleRow(
+                    systemImage: "drop",
+                    title: NSLocalizedString("NOTIF_WATERING_TITLE", comment: ""),
+                    subtitle: NSLocalizedString("NOTIF_WATERING_SUBTITLE", comment: ""),
+                    isOn: $wateringReminders
+                )
 
-            if wateringReminders {
-                VStack(alignment: .leading, spacing: 10) {
-                    Divider()
-                        .background(Color.white.opacity(0.1))
-                        .padding(.horizontal, -16)
-                    
-                    HStack {
-                        Text(NSLocalizedString("NOTIF_WATERING_FREQUENCY_TITLE", comment: ""))
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(themeManager.textColor)
-                        
-                        Spacer()
-                        
-                        let days = Int(wateringFrequency)
-                        let key = days > 1
-                            ? "NOTIF_WATERING_FREQUENCY_FORMAT_PLURAL"
-                            : "NOTIF_WATERING_FREQUENCY_FORMAT_SINGULAR"
-                        
-                        Text(String(format: NSLocalizedString(key, comment: ""), days))
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.cyan)
-                    }
-                    
-                    HStack(spacing: 8) {
-                        Text(NSLocalizedString("NOTIF_WATERING_MIN_LABEL", comment: ""))
-                            .font(.caption2)
-                            .foregroundColor(themeManager.secondaryTextColor)
-                        
-                        Slider(value: $wateringFrequency, in: 1...14, step: 1)
-                            .tint(.cyan)
-                        
-                        Text(NSLocalizedString("NOTIF_WATERING_MAX_LABEL", comment: ""))
-                            .font(.caption2)
-                            .foregroundColor(themeManager.secondaryTextColor)
+                if wateringReminders {
+                    SettingsDivider()
+
+                    VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
+                        HStack {
+                            Text(NSLocalizedString("NOTIF_WATERING_FREQUENCY_TITLE", comment: ""))
+                                .font(ArboreDesign.Typography.bodySmall.weight(.semibold))
+                                .foregroundColor(ArboreDesign.Colors.textPrimary)
+
+                            Spacer()
+
+                            let days = Int(wateringFrequency)
+                            let key = days > 1
+                                ? "NOTIF_WATERING_FREQUENCY_FORMAT_PLURAL"
+                                : "NOTIF_WATERING_FREQUENCY_FORMAT_SINGULAR"
+
+                            Text(String(format: NSLocalizedString(key, comment: ""), days))
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                        }
+
+                        HStack(spacing: ArboreDesign.Spacing.xs) {
+                            Text(NSLocalizedString("NOTIF_WATERING_MIN_LABEL", comment: ""))
+                                .font(ArboreDesign.Typography.caption)
+                                .foregroundColor(ArboreDesign.Colors.textSecondary)
+
+                            Slider(value: $wateringFrequency, in: 1...14, step: 1)
+                                .tint(ArboreDesign.Colors.primaryGreen)
+
+                            Text(NSLocalizedString("NOTIF_WATERING_MAX_LABEL", comment: ""))
+                                .font(ArboreDesign.Typography.caption)
+                                .foregroundColor(ArboreDesign.Colors.textSecondary)
+                        }
                     }
                 }
-                .padding(.top, 4)
             }
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color.gray.opacity(0.12))
-                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.white.opacity(0.1), lineWidth: 1))
-        )
     }
 }
 

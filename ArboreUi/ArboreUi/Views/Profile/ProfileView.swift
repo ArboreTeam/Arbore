@@ -38,19 +38,16 @@ struct ProfileView: View {
     @State private var selectedDestination: DestinationItem? = nil
 
     var body: some View {
-        ZStack {
-            themeManager.backgroundColor
-                .ignoresSafeArea()
-
+        AppBackground {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: ArboreDesign.Spacing.xl) {
                     header()
                     currentPlanSection()
                     settingsSectionsGroup()
                     footerSection()
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 20)
+                .padding(.horizontal, ArboreDesign.Spacing.screenHorizontal)
+                .padding(.vertical, ArboreDesign.Spacing.lg)
             }
         }
         .onAppear {
@@ -79,8 +76,8 @@ struct ProfileView: View {
 
     // MARK: - Header (single line name + editable photo)
     private func header() -> some View {
-        VStack(spacing: 12) {
-            VStack(alignment: .center, spacing: 12) {
+        AppCard {
+            VStack(alignment: .center, spacing: ArboreDesign.Spacing.md) {
                 ZStack(alignment: .bottomTrailing) {
                     Group {
                         if let img = profileImage {
@@ -92,8 +89,8 @@ struct ProfileView: View {
                                 .fill(
                                     LinearGradient(
                                         gradient: Gradient(colors: [
-                                            themeManager.brandPrimaryHero,
-                                            themeManager.brandPrimary
+                                            ArboreDesign.Colors.secondaryGreen,
+                                            ArboreDesign.Colors.primaryGreen
                                         ]),
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
@@ -108,18 +105,25 @@ struct ProfileView: View {
                     }
                     .frame(width: 90, height: 90)
                     .clipShape(Circle())
-                    .shadow(color: themeManager.brandPrimary.opacity(0.4), radius: 8)
+                    .overlay(
+                        Circle()
+                            .stroke(ArboreDesign.Colors.card, lineWidth: 3)
+                    )
+                    .shadow(color: ArboreDesign.Colors.primaryGreen.opacity(0.18), radius: 12, x: 0, y: 6)
 
                     Button(action: { showImagePicker = true }) {
-                        ZStack {
-                            Circle()
-                                .fill(themeManager.backgroundColor.opacity(0.8))
-                                .frame(width: 36, height: 36)
-                            Image(systemName: "camera.fill")
-                                .foregroundColor(themeManager.brandPrimary)
-                                .font(.system(size: 16, weight: .bold))
-                        }
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                            .frame(width: 36, height: 36)
+                            .background(ArboreDesign.Colors.softSurface)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(ArboreDesign.Colors.card, lineWidth: 2)
+                            )
                     }
+                    .buttonStyle(.plain)
                     .offset(x: 6, y: 6)
                 }
 
@@ -127,24 +131,28 @@ struct ProfileView: View {
                     HStack(spacing: 6) {
                         Spacer()
                         Text(firstName.isEmpty ? NSLocalizedString("PROFILE_USER_DEFAULT", comment: "") : firstName)
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(themeManager.textColor)
+                            .font(ArboreDesign.Typography.pageTitle)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
                         if !lastName.isEmpty {
                             Text(lastName)
-                                .font(.system(size: 22, weight: .bold))
-                                .foregroundColor(themeManager.textColor)
+                                .font(ArboreDesign.Typography.pageTitle)
+                                .foregroundColor(ArboreDesign.Colors.textPrimary)
                         }
                         Spacer()
                     }
 
                     if isUploading {
-                        Text("Uploading…").font(.caption).foregroundColor(.gray)
+                        Text("Uploading…")
+                            .font(ArboreDesign.Typography.caption)
+                            .foregroundColor(ArboreDesign.Colors.textSecondary)
                     } else if let err = uploadError {
-                        Text(err).font(.caption).foregroundColor(.red)
+                        Text(err)
+                            .font(ArboreDesign.Typography.caption)
+                            .foregroundColor(ArboreDesign.Colors.danger)
                     }
                 }
             }
-            .padding(.top, 20)
+            .frame(maxWidth: .infinity)
         }
     }
 
@@ -177,33 +185,15 @@ struct ProfileView: View {
                 .environmentObject(themeManager)
 
             Button(action: { showUpgradeSheet = true }) {
-                HStack(spacing: 8) {
+                HStack(spacing: ArboreDesign.Spacing.xs) {
                     Image(systemName: ctaIcon)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
                     Text(ctaText)
-                        .font(.system(size: 17, weight: .bold))
-                        .tracking(0.8)
-                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.86)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(
-                    LinearGradient(
-                        colors: [
-                            themeManager.brandPrimaryHero,
-                            themeManager.brandPrimary
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .cornerRadius(18)
-                .shadow(color: themeManager.brandPrimary.opacity(0.4), radius: 10, x: 0, y: 6)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.arborePrimary)
         }
-        .padding(.top, 8)
         .fullScreenCover(isPresented: $showUpgradeSheet) {
             UpgradePlanView().environmentObject(themeManager)
         }
@@ -211,201 +201,95 @@ struct ProfileView: View {
 
     // MARK: - Settings groups
     private func settingsSectionsGroup() -> some View {
-        VStack(spacing: 20) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(NSLocalizedString("PROFILE_ACCOUNT_TITLE", comment: ""))
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(themeManager.secondaryTextColor)
-                    .padding(.horizontal, 4)
+        VStack(spacing: ArboreDesign.Spacing.xl) {
+            settingsSection(
+                title: NSLocalizedString("PROFILE_ACCOUNT_TITLE", comment: ""),
+                items: [
+                    SettingRowItem(icon: "person.crop.circle", label: NSLocalizedString("PROFILE_PERSONAL_DETAILS", comment: ""), destination: PersonalDetailsView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.primaryGreen),
+                    SettingRowItem(icon: "key", label: NSLocalizedString("PROFILE_CHANGE_PASSWORD", comment: ""), destination: ChangePasswordView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.accentGold),
+                    SettingRowItem(icon: "lock.shield", label: NSLocalizedString("PROFILE_PRIVACY_POLICY", comment: ""), destination: PrivacyPolicyView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.secondaryGreen),
+                    SettingRowItem(icon: "doc.text", label: NSLocalizedString("PROFILE_TERMS", comment: ""), destination: TermsConditionsView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.primaryGreen),
+                    SettingRowItem(icon: "square.and.arrow.down", label: NSLocalizedString("PROFILE_DOWNLOAD_DATA", comment: "Download My Data"), destination: DataExportView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.success),
+                    SettingRowItem(icon: "trash", label: NSLocalizedString("PROFILE_CLOSE_ACCOUNT", comment: ""), destination: CloseAccountView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.danger)
+                ]
+            )
 
-                settingsSection(items: [
-                    SettingRowItem(icon: "person.circle.fill", label: NSLocalizedString("PROFILE_PERSONAL_DETAILS", comment: ""), destination: PersonalDetailsView().environmentObject(themeManager), iconColor: .green),
-                    SettingRowItem(icon: "key.fill", label: NSLocalizedString("PROFILE_CHANGE_PASSWORD", comment: ""), destination: ChangePasswordView().environmentObject(themeManager), iconColor: .orange),
-                    SettingRowItem(icon: "lock.shield.fill", label: NSLocalizedString("PROFILE_PRIVACY_POLICY", comment: ""), destination: PrivacyPolicyView().environmentObject(themeManager), iconColor: .blue),
-                    SettingRowItem(icon: "scroll.fill", label: NSLocalizedString("PROFILE_TERMS", comment: ""), destination: TermsConditionsView().environmentObject(themeManager), iconColor: .purple),
-                    SettingRowItem(icon: "square.and.arrow.down.fill", label: NSLocalizedString("PROFILE_DOWNLOAD_DATA", comment: "Download My Data"), destination: DataExportView().environmentObject(themeManager), iconColor: .blue),
-                    SettingRowItem(icon: "trash.fill", label: NSLocalizedString("PROFILE_CLOSE_ACCOUNT", comment: ""), destination: CloseAccountView().environmentObject(themeManager), iconColor: .red)
-                ])
-            }
+            settingsSection(
+                title: NSLocalizedString("PROFILE_PRIVACY_SECTION", comment: ""),
+                items: [
+                    SettingRowItem(icon: "eye.slash", label: NSLocalizedString("PROFILE_PRIVACY_SETTINGS", comment: ""), destination: PrivacySettingsView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.primaryGreen)
+                ]
+            )
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text(NSLocalizedString("PROFILE_PRIVACY_SECTION", comment: ""))
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(themeManager.secondaryTextColor)
-                    .padding(.horizontal, 4)
+            settingsSection(
+                title: NSLocalizedString("PROFILE_SETTINGS_SECTION", comment: ""),
+                items: [
+                    SettingRowItem(icon: "bell.badge", label: NSLocalizedString("PROFILE_NOTIFICATIONS", comment: ""), destination: NotificationsView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.accentGold),
+                    SettingRowItem(icon: "paintbrush", label: NSLocalizedString("PROFILE_APPEARANCE", comment: ""), destination: AppearanceView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.secondaryGreen)
+                ]
+            )
 
-                settingsSection(items: [
-                    SettingRowItem(icon: "eye.slash.fill", label: NSLocalizedString("PROFILE_PRIVACY_SETTINGS", comment: ""), destination: PrivacySettingsView().environmentObject(themeManager), iconColor: .teal)
-                ])
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(NSLocalizedString("PROFILE_SETTINGS_SECTION", comment: ""))
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(themeManager.secondaryTextColor)
-                    .padding(.horizontal, 4)
-
-                settingsSection(items: [
-                    SettingRowItem(icon: "bell.badge.fill", label: NSLocalizedString("PROFILE_NOTIFICATIONS", comment: ""), destination: NotificationsView().environmentObject(themeManager), iconColor: .pink),
-                    SettingRowItem(icon: "paintbrush.fill", label: NSLocalizedString("PROFILE_APPEARANCE", comment: ""), destination: AppearanceView().environmentObject(themeManager), iconColor: .yellow)
-                ])
-            }
-
-            VStack(alignment: .leading, spacing: 8) {
-                Text(NSLocalizedString("PROFILE_APP_INFO", comment: ""))
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(themeManager.secondaryTextColor)
-                    .padding(.horizontal, 4)
-
-                settingsSection(items: [
-                    SettingRowItem(icon: "figure.walk", label: NSLocalizedString("PROFILE_ACCESSIBILITY", comment: ""), destination: AccessibilityView().environmentObject(themeManager), iconColor: .cyan),
-                    SettingRowItem(icon: "info.circle.fill", label: NSLocalizedString("PROFILE_ABOUT", comment: ""), destination: AboutUsView().environmentObject(themeManager), iconColor: .gray)
-                ])
-            }
+            settingsSection(
+                title: NSLocalizedString("PROFILE_APP_INFO", comment: ""),
+                items: [
+                    SettingRowItem(icon: "figure.walk", label: NSLocalizedString("PROFILE_ACCESSIBILITY", comment: ""), destination: AccessibilityView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.success),
+                    SettingRowItem(icon: "info.circle", label: NSLocalizedString("PROFILE_ABOUT", comment: ""), destination: AboutUsView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.textSecondary)
+                ]
+            )
 
             #if DEBUG
-            VStack(alignment: .leading, spacing: 8) {
-                Text("🔧 Debug Tools")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.red)
-                    .padding(.horizontal, 4)
+            VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
+                SectionTitle(title: "Debug Tools")
 
                 Button(action: { showDebugThumbnailGenerator = true }) {
-                    HStack(spacing: 14) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.red.opacity(0.18))
-                                .frame(width: 40, height: 40)
-
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.red)
-                        }
-
-                        Text("Thumbnail Generator")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(themeManager.textColor)
-
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
-                    }
-                    .padding(.vertical, 14)
-                    .padding(.horizontal, 16)
-                    .contentShape(Rectangle())
+                    SettingsRow(
+                        systemImage: "hammer",
+                        title: "Thumbnail Generator",
+                        tint: ArboreDesign.Colors.danger
+                    )
                 }
                 .buttonStyle(.plain)
-                .background(
-                    ZStack {
-                        Color.gray.opacity(0.12)
-                        RoundedRectangle(cornerRadius: 18)
-                            .stroke(
-                                LinearGradient(
-                                    gradient: Gradient(colors: [
-                                        Color.white.opacity(0.15),
-                                        Color.white.opacity(0.05)
-                                    ]),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 1
-                            )
-                    }
-                )
-                .cornerRadius(18)
             }
             #endif
         }
     }
 
-    private func settingsSection(items: [SettingRowItem]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                Button(action: { selectedDestination = DestinationItem(view: item.destination) }) {
-                    settingRowContent(item: item)
-                }
+    private func settingsSection(title: String, items: [SettingRowItem]) -> some View {
+        VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
+            SectionTitle(title: title)
 
-                if index < items.count - 1 {
-                    Divider()
-                        .background(Color.white.opacity(0.1))
-                        .padding(.leading, 64)
+            VStack(spacing: ArboreDesign.Spacing.xs) {
+                ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                    Button(action: { selectedDestination = DestinationItem(view: item.destination) }) {
+                        SettingsRow(
+                            systemImage: item.icon,
+                            title: item.label,
+                            tint: item.iconColor
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
-        .background(
-            ZStack {
-                Color.gray.opacity(0.12)
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color.white.opacity(0.15),
-                                Color.white.opacity(0.05)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            }
-        )
-        .cornerRadius(18)
-        .buttonStyle(.plain)
-    }
-
-    private func settingRowContent(item: SettingRowItem) -> some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(item.iconColor.opacity(0.18))
-                    .frame(width: 40, height: 40)
-
-                Image(systemName: item.icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(item.iconColor)
-            }
-
-            Text(item.label)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(themeManager.textColor)
-
-            Spacer()
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(themeManager.secondaryTextColor.opacity(0.7))
-        }
-        .padding(.vertical, 14)
-        .padding(.horizontal, 16)
-        .contentShape(Rectangle())
     }
 
     // MARK: - Footer
     private func footerSection() -> some View {
-        VStack(spacing: 16) {
+        VStack(spacing: ArboreDesign.Spacing.md) {
             Text(String(format: NSLocalizedString("PROFILE_VERSION", comment: ""), "1.0.0"))
-                .font(.system(size: 12))
-                .foregroundColor(themeManager.secondaryTextColor)
+                .font(ArboreDesign.Typography.caption)
+                .foregroundColor(ArboreDesign.Colors.textSecondary)
 
             Button(action: logout) {
-                HStack(spacing: 8) {
+                HStack(spacing: ArboreDesign.Spacing.xs) {
                     Image(systemName: "rectangle.portrait.and.arrow.right")
                     Text(NSLocalizedString("PROFILE_LOGOUT", comment: ""))
                 }
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Color.red.opacity(0.8))
-                .cornerRadius(14)
-                .shadow(color: Color.red.opacity(0.4), radius: 8, x: 0, y: 4)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.arboreDanger)
         }
-        .padding(.top, 24)
-        .padding(.bottom, 40)
+        .padding(.top, ArboreDesign.Spacing.sm)
+        .padding(.bottom, ArboreDesign.Spacing.xxl)
     }
 
     // MARK: - Networking / helpers

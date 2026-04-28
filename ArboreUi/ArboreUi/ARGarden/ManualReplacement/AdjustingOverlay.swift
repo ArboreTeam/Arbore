@@ -1,17 +1,12 @@
 import SwiftUI
 
-/// UI shown after the user confirmed the morphed placement. Plants are now
-/// opaque and can be selected / dragged with the existing AR gestures.
-/// Two actions are available:
-///   - Annuler ajustements: reverts to the snapshot taken right after morphing
-///   - Valider et sauvegarder: persists & dismisses
-struct AdjustingOverlay: View {
-    let onRevert: () -> Void
-    let onValidate: () -> Void
-
+/// Hint banner shown during the .adjusting phase. Tells the user how the
+/// selection / drag / teleport gestures work. Designed to sit directly
+/// under the topBar inside the main HUD VStack — not as a full-screen
+/// overlay — so it never overlaps the back / undo / redo / validate row.
+struct AdjustingHintBanner: View {
     var body: some View {
-        VStack {
-            // Discreet hint banner at the top.
+        VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 10) {
                 Image(systemName: "hand.tap.fill")
                     .font(.system(size: 14))
@@ -21,39 +16,47 @@ struct AdjustingOverlay: View {
                     .foregroundStyle(.white)
                 Spacer()
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 9)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(.white.opacity(0.12), lineWidth: 1)
-                    )
-            )
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-
-            Spacer()
-
-            HStack(spacing: 10) {
-                actionButton(
-                    title: "Annuler ajustements",
-                    icon: "arrow.uturn.backward",
-                    tint: .gray.opacity(0.85),
-                    action: onRevert
-                )
-                actionButton(
-                    title: "Valider et sauvegarder",
-                    icon: "checkmark.seal.fill",
-                    tint: Color(hex: "#2BEE79"),
-                    action: onValidate
-                )
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 28)
+            Text("Visez une plante avec le réticule et tapez pour la sélectionner. Glissez ou tapez la nouvelle position pour la déplacer.")
+                .font(.system(size: 11, weight: .regular, design: .rounded))
+                .foregroundStyle(.white.opacity(0.75))
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .transition(.opacity.animation(.easeInOut(duration: 0.25)))
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                )
+        )
+    }
+}
+
+/// Action row shown during the .adjusting phase: revert ajustments + save.
+/// Stays inside the main HUD VStack below the editingHUD so the layout
+/// reflows naturally.
+struct AdjustingActionButtons: View {
+    let onRevert: () -> Void
+    let onValidate: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            actionButton(
+                title: "Annuler ajustements",
+                icon: "arrow.uturn.backward",
+                tint: .gray.opacity(0.85),
+                action: onRevert
+            )
+            actionButton(
+                title: "Valider et sauvegarder",
+                icon: "checkmark.seal.fill",
+                tint: Color(hex: "#2BEE79"),
+                action: onValidate
+            )
+        }
+        .padding(.bottom, 16)
     }
 
     @ViewBuilder

@@ -1890,9 +1890,14 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     // transform is the anchor's transform, which ARKit corrects
                     // for drift automatically.
                     parentNode.addChildNode(container)
-                    // No auto-select on placement — the selection ring is
-                    // visually loud, and the user explicitly selects a plant
-                    // when they want to manipulate it.
+                    // Auto-select catalogue placements so the editingHUD
+                    // (rotate / scale +- / delete) appears immediately.
+                    // Detection: catalogue placements pass finalScale=nil
+                    // (auto-scale path); restore and morph-confirm pass an
+                    // explicit scale, so they stay unselected.
+                    if !pending.isRestore && pending.finalScale == nil {
+                        selectNode(container)
+                    }
 
                     AppLog.arAnchor.notice("""
                         instantiated plant=\(pending.plantName, privacy: .public) \

@@ -202,10 +202,10 @@ struct GardenARPlacementView: View {
                 }
 
                 // 4. Dock du bas (Bouton Ajouter) — caché pendant les
-                // phases de manual-replacement (Issue #111). Pas de sens
-                // d'ajouter une plante du catalogue pendant qu'on retrace
-                // la boundary ou qu'on ajuste les positions morphées.
-                if !relocationPhase.isManualReplacement {
+                // phases de manual-replacement (Issue #111) ET pendant
+                // la relocalisation initiale (sinon le `+` chevauche le
+                // bouton "Replacer manuellement" de la coaching overlay).
+                if !relocationPhase.isManualReplacement && !isRelocating {
                     bottomDock
                 }
             }

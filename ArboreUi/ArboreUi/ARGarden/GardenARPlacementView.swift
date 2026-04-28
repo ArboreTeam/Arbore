@@ -124,34 +124,10 @@ struct GardenARPlacementView: View {
                         },
                         onCancel: { dismiss() }
                     )
-                case .tracingBoundary:
-                    BoundaryTracingOverlay(
-                        pointCount: newBoundaryPoints.count,
-                        area: newBoundaryArea,
-                        onCancel: {
-                            NotificationCenter.default.post(name: .gardenARCancelManualReplacement, object: nil)
-                        },
-                        onUndoLast: {
-                            NotificationCenter.default.post(name: .gardenARBoundaryUndoLast, object: nil)
-                        },
-                        onValidate: {
-                            NotificationCenter.default.post(name: .gardenARValidateNewBoundary, object: nil)
-                        }
-                    )
-                case .morphingPreview:
-                    MorphingPreviewOverlay(
-                        warnings: distortionWarnings,
-                        onCancel: {
-                            NotificationCenter.default.post(name: .gardenARCancelManualReplacement, object: nil)
-                        },
-                        onConfirm: {
-                            NotificationCenter.default.post(name: .gardenARConfirmMorphedPlacement, object: nil)
-                        }
-                    )
-                case .adjusting:
-                    // Adjusting hint + action buttons live in the HUD VStack
-                    // below (so they reflow under topBar / above editingHUD),
-                    // not as a full-screen overlay.
+                case .tracingBoundary, .morphingPreview, .adjusting:
+                    // Hint + actions for these phases live inside the HUD
+                    // VStack below — they reflow naturally under topBar and
+                    // above the editing/save area, no overlap.
                     EmptyView()
                 default:
                     EmptyView()
@@ -163,13 +139,28 @@ struct GardenARPlacementView: View {
                 // 1. Barre du haut
                 topBar
 
-                // 1b. Hint banner during .adjusting — sits directly under
-                // topBar so it doesn't get covered by the back/undo/redo row.
-                if mode == .reopen, relocationPhase == .adjusting {
-                    AdjustingHintBanner()
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
-                        .transition(.opacity)
+                // 1b. Phase-specific hint banner — sits directly under topBar
+                // so it never collides with back/undo/redo. One banner per
+                // phase (only the matching case renders).
+                if mode == .reopen {
+                    Group {
+                        switch relocationPhase {
+                        case .tracingBoundary:
+                            BoundaryTracingHintBanner(
+                                pointCount: newBoundaryPoints.count,
+                                area: newBoundaryArea
+                            )
+                        case .morphingPreview:
+                            MorphingPreviewHintBanner(warnings: distortionWarnings)
+                        case .adjusting:
+                            AdjustingHintBanner()
+                        default:
+                            EmptyView()
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .transition(.opacity)
                 }
 
                 Spacer()
@@ -184,18 +175,47 @@ struct GardenARPlacementView: View {
                     editingHUD.transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                // 3b. Action buttons during .adjusting — sit directly under
-                // the editingHUD (when a plant is selected) or just above
-                // the safe-area bottom.
-                if mode == .reopen, relocationPhase == .adjusting {
-                    AdjustingActionButtons(
-                        onRevert: {
-                            NotificationCenter.default.post(name: .gardenARRevertToMorphed, object: nil)
-                        },
-                        onValidate: {
-                            NotificationCenter.default.post(name: .gardenARValidate, object: nil)
+                // 3b. Phase-specific action row — sits directly under the
+                // editingHUD (when a plant is selected) or just above the
+                // safe-area bottom. One row per phase.
+                if mode == .reopen {
+                    Group {
+                        switch relocationPhase {
+                        case .tracingBoundary:
+                            BoundaryTracingActionButtons(
+                                pointCount: newBoundaryPoints.count,
+                                onCancel: {
+                                    NotificationCenter.default.post(name: .gardenARCancelManualReplacement, object: nil)
+                                },
+                                onUndoLast: {
+                                    NotificationCenter.default.post(name: .gardenARBoundaryUndoLast, object: nil)
+                                },
+                                onValidate: {
+                                    NotificationCenter.default.post(name: .gardenARValidateNewBoundary, object: nil)
+                                }
+                            )
+                        case .morphingPreview:
+                            MorphingPreviewActionButtons(
+                                onCancel: {
+                                    NotificationCenter.default.post(name: .gardenARCancelManualReplacement, object: nil)
+                                },
+                                onConfirm: {
+                                    NotificationCenter.default.post(name: .gardenARConfirmMorphedPlacement, object: nil)
+                                }
+                            )
+                        case .adjusting:
+                            AdjustingActionButtons(
+                                onRevert: {
+                                    NotificationCenter.default.post(name: .gardenARRevertToMorphed, object: nil)
+                                },
+                                onValidate: {
+                                    NotificationCenter.default.post(name: .gardenARValidate, object: nil)
+                                }
+                            )
+                        default:
+                            EmptyView()
                         }
-                    )
+                    }
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
                     .transition(.opacity)
@@ -313,6 +333,21 @@ struct GardenARPlacementView: View {
         }
     }
 
+    /// True whenever the topBar should show ONLY the back button — i.e.,
+    /// during any phase that already provides its own contextual actions
+    /// (relocalization coaching, manual-replacement phases). Avoids the
+    /// classic confusion of a generic "Validate" checkmark sitting next to
+    /// a phase-specific "Confirmer le placement" button.
+    private var topBarShouldShowOnlyBack: Bool {
+        if isRelocating { return true }
+        switch relocationPhase {
+        case .tracingBoundary, .morphingPreview, .adjusting, .completed:
+            return true
+        case .scanning:
+            return false
+        }
+    }
+
     private var topBar: some View {
         HStack {
             Button { dismiss() } label: {
@@ -320,11 +355,7 @@ struct GardenARPlacementView: View {
             }
             Spacer()
 
-            // Undo/redo are hidden in .adjusting — the global "Annuler
-            // ajustements" button reverts to the morphed snapshot, and
-            // step-by-step undo isn't meaningful since there's no anchor
-            // rebase anymore (only the override map changes).
-            if relocationPhase != .adjusting {
+            if !topBarShouldShowOnlyBack {
                 HStack(spacing: 20) {
                     Button { NotificationCenter.default.post(name: .gardenARUndo, object: nil) } label: {
                         Image(systemName: "arrow.uturn.backward").modifier(GlassButtonStyle())
@@ -337,9 +368,7 @@ struct GardenARPlacementView: View {
 
             Spacer()
 
-            // Hidden during .adjusting — the AdjustingOverlay already shows
-            // a "Valider et sauvegarder" button, no need for two.
-            if relocationPhase != .adjusting {
+            if !topBarShouldShowOnlyBack {
                 Button {
                     NotificationCenter.default.post(name: .gardenARValidate, object: nil)
                 } label: {
@@ -348,7 +377,8 @@ struct GardenARPlacementView: View {
                 .disabled(isSaving)
                 .opacity(isSaving ? 0.5 : 1)
             } else {
-                // Keep the trailing slot the same width to avoid the bar reflowing.
+                // Keep the trailing slot at the same width so the back button
+                // stays visually anchored on the left, no bar reflow.
                 Color.clear.frame(width: 44, height: 44)
             }
         }

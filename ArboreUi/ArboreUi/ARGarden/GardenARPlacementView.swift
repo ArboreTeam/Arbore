@@ -179,10 +179,15 @@ struct GardenARPlacementView: View {
                     .transition(.opacity)
                 }
 
-                // 💡 Lux widget
-                luxWidget
-                    .padding(.horizontal, 20)
-                    .padding(.top, 6)
+                // 💡 Lux widget — only in placement contexts (.create or
+                // post-relocalization .scanning). Hidden during manual
+                // replacement phases and during initial relocalization
+                // coaching to keep the HUD focused.
+                if !relocationPhase.isManualReplacement && !isRelocating {
+                    luxWidget
+                        .padding(.horizontal, 20)
+                        .padding(.top, 6)
+                }
 
                 Spacer()
 
@@ -817,6 +822,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 let surfaceType: String?
                 let surfaceHeight: Float?
                 let instanceId: UUID  // anchor.identifier — used so the loaded node can find its anchor
+                let autoSelect: Bool  // false for batch placements (AI auto-place) to avoid orange-halo flicker
             }
 
             // 🤖 AI Auto-placement
@@ -1158,11 +1164,13 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                 id: item.plant.id,
                                 name: item.plant.name,
                                 modelURLString: item.plant.modelURL,
-                                upAxis: item.plant.upAxis
+                                upAxis: item.plant.upAxis,
+                                autoSelect: false   // batch — no halo flicker
                             )
                         }
 
-                        self.deselectAll()
+                        // No deselectAll needed — autoSelect:false kept all
+                        // plants unselected to begin with.
 
                         props.isAutoPlacing = false
                         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
@@ -1511,21 +1519,30 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         }
                     }
 
+                    // When fresh boundary points exist (creation flow), we
+                    // normalize BOTH the boundary and plant positions to the
+                    // boundary's centroid. Keeping them in the same 2D frame
+                    // is required for GardenMorpher (Issue #111) — it reads
+                    // both `plants` and `boundaryPoints` from the saved JSON
+                    // and treats them as living in the same XZ space.
+                    //
+                    // A previous patch saved `plants` raw while still
+                    // normalizing the boundary, which silently broke
+                    // morphing for any garden created since. Both paths
+                    // realign here.
+                    var plantsToSave = plants
                     if !props.boundaryPoints.isEmpty {
                         let sumX = props.boundaryPoints.reduce(0.0) { $0 + $1.x }
                         let sumZ = props.boundaryPoints.reduce(0.0) { $0 + $1.z }
                         let centroidX = sumX / Float(props.boundaryPoints.count)
                         let centroidZ = sumZ / Float(props.boundaryPoints.count)
-                        
+
                         AppLog.gardenSave.debug("boundary centroid x=\(centroidX, format: .fixed(precision: 3), privacy: .public) z=\(centroidZ, format: .fixed(precision: 3), privacy: .public)")
-                        
-                        // Normaliser les bordures (soustraire le centroïd)
+
                         boundaryPointsArray = boundaryPointsArray.map { point in
                             [point[0] - centroidX, point[1], point[2] - centroidZ]
                         }
-                        
-                        // Normaliser les plantes (soustraire le centroïd)
-                        let normalizedPlants = plants.map { plant in
+                        plantsToSave = plants.map { plant in
                             PersistedPlant(
                                 plantID: plant.plantID,
                                 plantName: plant.plantName,
@@ -1539,17 +1556,17 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                 scale: plant.scale,
                                 transform: plant.transform,
                                 upAxis: plant.upAxis,
-                                surfaceType: plant.surfaceType,    // Issue #113 — preserve
-                                surfaceHeight: plant.surfaceHeight  // Issue #113 — preserve
+                                surfaceType: plant.surfaceType,
+                                surfaceHeight: plant.surfaceHeight
                             )
                         }
-                        
-                        AppLog.gardenSave.debug("coords normalized plants=\(normalizedPlants.count, privacy: .public) boundary=\(boundaryPointsArray.count, privacy: .public)")
+
+                        AppLog.gardenSave.debug("coords normalized plants=\(plantsToSave.count, privacy: .public) boundary=\(boundaryPointsArray.count, privacy: .public)")
                     }
-                    
+
                     let sceneData = PersistedARScene(
                         savedAt: Date(),
-                        plants: plants, // On sauvegarde les positions brutes exactes traquées par ARKit
+                        plants: plantsToSave,
                         boundaryPoints: boundaryPointsArray,
                         area: savedArea,
                         perimeter: savedPerimeter
@@ -2073,7 +2090,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 allowRetry: Bool = true,
                 upAxis: String? = nil,
                 surfaceType: String? = nil,
-                surfaceHeight: Float? = nil
+                surfaceHeight: Float? = nil,
+                autoSelect: Bool = true
             ) {
                 guard let arView = arView else { return }
 
@@ -2097,7 +2115,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     isRestore: isRestoring,
                     surfaceType: surfaceType,
                     surfaceHeight: surfaceHeight,
-                    instanceId: anchor.identifier
+                    instanceId: anchor.identifier,
+                    autoSelect: autoSelect
                 )
                 plantAnchorMap[anchor.identifier] = anchor
                 arView.session.add(anchor: anchor)
@@ -2227,12 +2246,14 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     // transform is the anchor's transform, which ARKit corrects
                     // for drift automatically.
                     parentNode.addChildNode(container)
-                    // Auto-select catalogue placements so the editingHUD
-                    // (rotate / scale +- / delete) appears immediately.
-                    // Detection: catalogue placements pass finalScale=nil
-                    // (auto-scale path); restore and morph-confirm pass an
-                    // explicit scale, so they stay unselected.
-                    if !pending.isRestore && pending.finalScale == nil {
+                    // Auto-select per the placement's explicit `autoSelect`
+                    // flag. Catalogue taps pass true (default) so the
+                    // editingHUD (rotate / scale +- / delete) appears
+                    // immediately. Batch placements (AI auto-place,
+                    // morph-confirm) pass false to avoid the orange-halo
+                    // flicker as we loop through plants. Restore is also
+                    // skipped — autoSelect is meaningless during reload.
+                    if !pending.isRestore && pending.autoSelect {
                         selectNode(container)
                     }
 
@@ -2751,7 +2772,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                             modelURLString: persisted.modelURLString,
                                             upAxis: persisted.upAxis,
                                             surfaceType: persisted.surfaceType,
-                                            surfaceHeight: persisted.surfaceHeight
+                                            surfaceHeight: persisted.surfaceHeight,
+                                            autoSelect: false  // batch — entering .adjusting
                                         )
                                     }
                                 } catch {
@@ -2766,7 +2788,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                                 modelURLString: persisted.modelURLString,
                                                 upAxis: persisted.upAxis,
                                                 surfaceType: persisted.surfaceType,
-                                                surfaceHeight: persisted.surfaceHeight
+                                                surfaceHeight: persisted.surfaceHeight,
+                                                autoSelect: false
                                             )
                                         }
                                     }

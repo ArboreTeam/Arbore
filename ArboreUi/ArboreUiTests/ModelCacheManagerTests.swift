@@ -444,12 +444,16 @@ class PlantModelTests: XCTestCase {
     }
 
     func testPlant_GetModelURL_WithEmptyModelURL_ShouldThrowError() async {
-        // Test avec modelURL vide
+        // Both `modelURL` and `name` empty — no candidate filename can be
+        // reconstructed, so getModelURL should throw `.invalidModelURL`
+        // immediately. (When `name` is non-empty, getModelURL tries
+        // <name>.usdz / <name>_with_underscores.usdz as fallbacks before
+        // giving up — covered by other tests.)
 
         let plantJSON = """
         {
             "id": "test123",
-            "name": "Test Plant",
+            "name": "",
             "type": "Indoor",
             "imageURLs": ["https://example.com/image.jpg"],
             "description": "Test description",

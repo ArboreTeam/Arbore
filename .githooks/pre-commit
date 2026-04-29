@@ -1,6 +1,12 @@
 #!/bin/sh
-# Lock DEVELOPMENT_TEAM and PRODUCT_BUNDLE_IDENTIFIER in project.pbxproj
+# Pre-commit hook: project hygiene + secret scanning.
+#
+# Wired via `git config core.hooksPath .githooks` (one-time, see the
+# project setup docs). Add new checks here, not in .git/hooks/.
 
+# ────────────────────────────────────────────────
+# 1. Lock DEVELOPMENT_TEAM + bundle id in project.pbxproj
+# ────────────────────────────────────────────────
 PBXPROJ="ArboreUi/ArboreUi.xcodeproj/project.pbxproj"
 EXPECTED_TEAM="582QH9652J"
 EXPECTED_BUNDLE="com.arboreteam.arbore"
@@ -14,6 +20,25 @@ if git diff --cached --name-only | grep -q "$PBXPROJ"; then
     echo "❌ PRODUCT_BUNDLE_IDENTIFIER must be $EXPECTED_BUNDLE"
     exit 1
   fi
+fi
+
+# ────────────────────────────────────────────────
+# 2. Gitleaks — block secrets at commit time.
+#    Triggered by issue #117 (API key leak). Scans only staged content,
+#    so it runs in a few hundred ms even on large repos.
+# ────────────────────────────────────────────────
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks protect --staged --redact --no-banner; then
+    echo ""
+    echo "❌ gitleaks detected a secret in the staged changes."
+    echo "   Remove it (env file, Secrets.xcconfig, etc.) and try again."
+    echo "   If it's a false positive, allowlist it in .gitleaks.toml."
+    exit 1
+  fi
+else
+  echo "⚠️  gitleaks not installed — skipping secret scan."
+  echo "   Install with: brew install gitleaks"
+  echo "   (one-time, see project setup docs)"
 fi
 
 exit 0

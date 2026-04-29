@@ -69,69 +69,27 @@ struct ManageGardenView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @StateObject private var projectService = GardenLocalStorageService()
     @State private var showingNewProjectSheet = false
-    @State private var searchText = ""
+    @State private var showingGardenList = false
+    @State private var isResolvingInitialGarden = true
+    @State private var selectedProject: GardenModel?
     
     var body: some View {
         NavigationStack {
-            ZStack {
-                themeManager.backgroundColor.ignoresSafeArea()
-                
-                VStack(spacing: 20) {
-                    // Header
-                    HStack {
-                        Text("Mes Jardins")
-                            .font(.system(size: 34, weight: .bold))
-                            .foregroundColor(themeManager.textColor)
-                        Spacer()
-                        Button(action: { showingNewProjectSheet = true }) {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 30))
-                                .foregroundColor(themeManager.accentColor)
+            AppBackground {
+                if showingGardenList || (selectedProject == nil && !isResolvingInitialGarden) {
+                    allGardensPickerContent
+                } else if let selectedProject {
+                    GardenDetailsPage(
+                        gardenId: selectedProject.id,
+                        gardenName: selectedProject.name,
+                        showsBackButton: false,
+                        onOpenGardenList: {
+                            showingGardenList = true
                         }
-                    }
-                    .padding(.horizontal)
-                    .padding(.top, 10)
-                    
-                    // Search
-                    HStack {
-                        Image(systemName: "magnifyingglass").foregroundColor(themeManager.secondaryTextColor)
-                        TextField("Rechercher...", text: $searchText)
-                            .foregroundColor(themeManager.textColor)
-                    }
-                    .padding(12)
-                    .background(themeManager.cardBackgroundColor)
-                    .cornerRadius(12)
-                    .shadow(color: .black.opacity(0.05), radius: 5)
-                    .padding(.horizontal)
-                    
-                    // Liste
-                    ScrollView {
-                        if projectService.projects.isEmpty {
-                            VStack(spacing: 20) {
-                                Spacer(minLength: 50)
-                                Image(systemName: "camera.macro")
-                                    .font(.system(size: 60))
-                                    .foregroundColor(themeManager.secondaryTextColor.opacity(0.5))
-                                Text("Aucun jardin détecté")
-                                    .font(.headline)
-                                    .foregroundColor(themeManager.secondaryTextColor)
-                                Text("Créez un jardin en AR pour le voir ici.")
-                                    .font(.caption)
-                                    .foregroundColor(themeManager.secondaryTextColor)
-                            }
-                        } else {
-                            LazyVStack(spacing: 15) {
-                                ForEach(projectService.projects) { garden in
-                                    // Navigation vers la page détaillée fusionnée
-                                    NavigationLink(destination: GardenDetailsPage(gardenId: garden.id, gardenName: garden.name)) {
-                                        GardenProjectCard(garden: garden, accentColor: themeManager.accentColor)
-                                            .environmentObject(themeManager)
-                                    }
-                                }
-                            }
-                            .padding()
-                        }
-                    }
+                    )
+                    .id(selectedProject.id)
+                } else {
+                    loadingGardenContent
                 }
             }
             .navigationBarHidden(true)
@@ -139,44 +97,77 @@ struct ManageGardenView: View {
                 Text("Nouveau projet (Wizard)")
             }
             .onAppear {
+                isResolvingInitialGarden = selectedProject == nil
                 projectService.refreshProjects()
+                DispatchQueue.main.async {
+                    syncSelectedProject()
+                    isResolvingInitialGarden = false
+                }
+            }
+            .onChange(of: projectService.projects.map(\.id)) { _, _ in
+                syncSelectedProject()
+                isResolvingInitialGarden = false
             }
         }
         .preferredColorScheme(themeManager.colorScheme)
     }
-}
-
-// MARK: - 4. COMPOSANT CARTE PROJET (Liste)
-struct GardenProjectCard: View {
-    @EnvironmentObject var themeManager: ThemeManager
-    let garden: GardenModel
-    let accentColor: Color
     
-    var body: some View {
-        HStack(spacing: 15) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(accentColor.opacity(0.1))
-                    .frame(width: 70, height: 70)
-                Image(systemName: garden.thumbnail)
-                    .font(.title)
-                    .foregroundColor(accentColor)
+    private var allGardensPickerContent: some View {
+        AllGardensView(
+            currentGardenId: selectedProject?.id,
+            onSelectGarden: { garden in
+                selectGarden(garden)
+            },
+            onDismiss: {
+                if selectedProject != nil {
+                    showingGardenList = false
+                }
+            },
+            onGardenDeleted: { deletedId in
+                handleGardenDeleted(deletedId)
             }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(garden.name)
-                    .font(.headline)
-                    .foregroundColor(themeManager.textColor)
-                Text("Modifié: \(garden.lastModified.formatted(date: .abbreviated, time: .shortened))")
-                    .font(.caption)
-                    .foregroundColor(themeManager.secondaryTextColor)
-            }
-            Spacer()
-            Image(systemName: "chevron.right").foregroundColor(themeManager.secondaryTextColor.opacity(0.5))
+        )
+    }
+    
+    private var loadingGardenContent: some View {
+        LoadingView(title: "Chargement du jardin...")
+    }
+    
+    private func selectGarden(_ garden: GardenDTO) {
+        guard let gardenId = garden.id else { return }
+
+        selectedProject = GardenModel(
+            id: gardenId,
+            name: garden.name,
+            lastModified: garden.updatedAt ?? garden.createdAt ?? Date(),
+            thumbnail: "leaf.fill"
+        )
+        showingGardenList = false
+    }
+
+    private func handleGardenDeleted(_ deletedId: String) {
+        if selectedProject?.id == deletedId {
+            selectedProject = nil
+            showingGardenList = true
         }
-        .padding()
-        .background(themeManager.cardBackgroundColor)
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+
+        projectService.refreshProjects()
+    }
+    
+    private func syncSelectedProject() {
+        guard !projectService.projects.isEmpty else {
+            selectedProject = nil
+            showingGardenList = true
+            return
+        }
+        
+        if let selectedProject,
+           projectService.projects.contains(where: { $0.id == selectedProject.id }) {
+            return
+        }
+        
+        selectedProject = projectService.projects.first
+        showingGardenList = false
     }
 }
 
@@ -184,10 +175,10 @@ struct GardenProjectCard: View {
 struct GardenDetailsPage: View {
     let gardenId: String
     let gardenName: String
+    let showsBackButton: Bool
+    let onOpenGardenList: (() -> Void)?
     
     @Environment(\.dismiss) var dismiss
-    @Environment(\.colorScheme) private var colorScheme
-    @EnvironmentObject var themeManager: ThemeManager
     
     // ViewModel pour la Map
     @StateObject private var mapViewModel = Garden2DViewModel()
@@ -202,8 +193,19 @@ struct GardenDetailsPage: View {
     @State private var selectedTab: Tab = .plan2D
     @State private var sortByPriority = true
     
-    private let primary = Color(red: 0.05, green: 0.95, blue: 0.27) // #0df246
-    private var isDark: Bool { colorScheme == .dark }
+    private var primary: Color { ArboreDesign.Colors.primaryGreen }
+    
+    init(
+        gardenId: String,
+        gardenName: String,
+        showsBackButton: Bool = true,
+        onOpenGardenList: (() -> Void)? = nil
+    ) {
+        self.gardenId = gardenId
+        self.gardenName = gardenName
+        self.showsBackButton = showsBackButton
+        self.onOpenGardenList = onOpenGardenList
+    }
     
     // Données Mock pour la liste d'achats
     @State private var purchaseItems: [PurchaseItem] = [
@@ -214,57 +216,32 @@ struct GardenDetailsPage: View {
     
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
-            themeManager.backgroundColor.ignoresSafeArea()
+            ArboreDesign.Colors.background.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Header (Back button + Title)
-                HStack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "arrow.left")
-                            .foregroundColor(themeManager.textColor)
-                            .padding(10)
-                            .background(themeManager.cardBackgroundColor)
-                            .clipShape(Circle())
-                            .shadow(radius: 2)
-                    }
-                    Spacer()
-                    Text(gardenName)
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .foregroundColor(themeManager.textColor)
-                    Spacer()
-                    // Bouton invisible pour équilibrer
-                    Image(systemName: "arrow.left").opacity(0).padding(10)
-                }
-                .padding(.horizontal)
-                .padding(.bottom, 10)
-                
-                // Tabs Bar (Ton style)
-                HStack(spacing: 0) {
-                    tabButton(.plan2D)
-                    tabButton(.tasks)
-                    tabButton(.purchase)
-                }
-                .padding(.horizontal, 16)
+                gardenDetailHeader
+                gardenTabs
                 
                 // Contenu
                 ScrollView {
-                    VStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: ArboreDesign.Spacing.lg) {
                         
                         switch selectedTab {
                         case .plan2D:
                             // --- LA CARTE 2D ---
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("VUE DU JARDIN")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(.secondary)
-                                    .padding(.top, 16)
+                            VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+                                SectionTitle(title: "Vue du jardin")
                                 
                                 // Map + panneau plante superposé
                                 ZStack(alignment: .bottom) {
                                     GardenPlanInteractiveMap(viewModel: mapViewModel)
                                         .frame(height: 450)
-                                        .cornerRadius(24)
-                                        .shadow(radius: 5)
+                                        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.image, style: .continuous))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: ArboreDesign.Radius.image, style: .continuous)
+                                                .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+                                        )
+                                        .shadow(color: ArboreDesign.Colors.shadow, radius: 12, x: 0, y: 6)
                                     
                                     // Panneau infos plante (overlay en bas de la carte)
                                     if mapViewModel.selectedPlant != nil {
@@ -274,49 +251,34 @@ struct GardenDetailsPage: View {
                                             .padding(.bottom, 10)
                                     }
                                 }
-                                .clipShape(RoundedRectangle(cornerRadius: 24))
                                 
                                 // Statistiques du jardin (surface et périmètre)
                                 if mapViewModel.area > 0 {
-                                    HStack(spacing: 20) {
-                                        HStack(spacing: 8) {
-                                            Image(systemName: "square.dashed")
-                                                .foregroundColor(themeManager.accentColor)
-                                                .font(.system(size: 16))
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text("Surface")
-                                                    .font(.system(size: 10, weight: .medium))
-                                                    .foregroundStyle(.secondary)
-                                                Text("\(String(format: "%.2f", mapViewModel.area)) m²")
-                                                    .font(.system(size: 14, weight: .bold))
-                                            }
-                                        }
-                                        HStack(spacing: 8) {
-                                            Image(systemName: "arrow.triangle.turn.up.right.diamond")
-                                                .foregroundColor(themeManager.accentColor)
-                                                .font(.system(size: 16))
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text("Périmètre")
-                                                    .font(.system(size: 10, weight: .medium))
-                                                    .foregroundStyle(.secondary)
-                                                Text("\(String(format: "%.2f", mapViewModel.perimeter)) m")
-                                                    .font(.system(size: 14, weight: .bold))
-                                            }
-                                        }
+                                    HStack(spacing: ArboreDesign.Spacing.sm) {
+                                        GardenStatBadge(
+                                            systemImage: "square.dashed",
+                                            title: "Surface",
+                                            value: "\(String(format: "%.2f", mapViewModel.area)) m²"
+                                        )
+
+                                        GardenStatBadge(
+                                            systemImage: "arrow.triangle.turn.up.right.diamond",
+                                            title: "Périmètre",
+                                            value: "\(String(format: "%.2f", mapViewModel.perimeter)) m"
+                                        )
                                     }
-                                    .padding(.horizontal, 20)
-                                    .padding(.vertical, 12)
-                                    .background(CardContainer(isDark: isDark, cornerRadius: 16))
                                 }
                                 
                                 if mapViewModel.displayPlants.isEmpty {
-                                    Text("Aucune plante placée. Ouvrez le jardin en AR pour en ajouter.")
-                                        .font(.caption)
-                                        .foregroundColor(themeManager.secondaryTextColor)
+                                    GardenInlineMessage(
+                                        systemImage: "leaf",
+                                        text: "Aucune plante placée. Ouvrez le jardin en AR pour en ajouter."
+                                    )
                                 } else if mapViewModel.selectedPlant == nil {
-                                    Text("\(mapViewModel.displayPlants.count) plante\(mapViewModel.displayPlants.count > 1 ? "s" : "") • Touchez un point pour les détails")
-                                        .font(.caption)
-                                        .foregroundColor(themeManager.secondaryTextColor)
+                                    GardenInlineMessage(
+                                        systemImage: "hand.tap",
+                                        text: "\(mapViewModel.displayPlants.count) plante\(mapViewModel.displayPlants.count > 1 ? "s" : "") • Touchez un point pour les détails"
+                                    )
                                 }
                             }
                             
@@ -329,9 +291,11 @@ struct GardenDetailsPage: View {
                             placeholder(title: "Tasks", subtitle: "Gestion des tâches à venir")
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 96)
+                    .padding(.horizontal, ArboreDesign.Spacing.screenHorizontal)
+                    .padding(.top, ArboreDesign.Spacing.lg)
+                    .padding(.bottom, 108)
                 }
+                .scrollIndicators(.hidden)
             }
             
             // FAB (Floating Action Button)
@@ -340,14 +304,14 @@ struct GardenDetailsPage: View {
             } label: {
                 Image(systemName: "plus")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(isDark ? Color.black : Color.white)
+                    .foregroundStyle(Color.white)
                     .frame(width: 56, height: 56)
-                    .background(themeManager.textColor)
+                    .background(ArboreDesign.Colors.primaryButton)
                     .clipShape(Circle())
-                    .shadow(radius: 10, x: 0, y: 6)
+                    .shadow(color: ArboreDesign.Colors.primaryGreen.opacity(0.28), radius: 12, x: 0, y: 7)
             }
-            .padding(.trailing, 16)
-            .padding(.bottom, 16)
+            .padding(.trailing, ArboreDesign.Spacing.screenHorizontal)
+            .padding(.bottom, ArboreDesign.Spacing.md)
         }
         .navigationBarHidden(true)
         .onAppear {
@@ -356,6 +320,71 @@ struct GardenDetailsPage: View {
     }
     
     // MARK: - Subviews UI
+
+    private var gardenDetailHeader: some View {
+        HStack(spacing: ArboreDesign.Spacing.md) {
+            if showsBackButton {
+                Button { dismiss() } label: {
+                    headerIcon("arrow.left")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Retour")
+            } else if let onOpenGardenList {
+                Button(action: onOpenGardenList) {
+                    headerIcon("line.3.horizontal")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Voir mes jardins")
+            } else {
+                Color.clear
+                    .frame(width: 42, height: 42)
+            }
+
+            Text(gardenName)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundColor(ArboreDesign.Colors.textPrimary)
+                .lineLimit(2)
+                .multilineTextAlignment(.center)
+                .minimumScaleFactor(0.78)
+                .frame(maxWidth: .infinity)
+
+            Color.clear
+                .frame(width: 42, height: 42)
+        }
+        .padding(.horizontal, ArboreDesign.Spacing.screenHorizontal)
+        .padding(.top, ArboreDesign.Spacing.md)
+        .padding(.bottom, ArboreDesign.Spacing.sm)
+        .background(ArboreDesign.Colors.background)
+    }
+
+    private var gardenTabs: some View {
+        HStack(spacing: ArboreDesign.Spacing.xs) {
+            tabButton(.plan2D)
+            tabButton(.tasks)
+            tabButton(.purchase)
+        }
+        .padding(ArboreDesign.Spacing.xs)
+        .background(ArboreDesign.Colors.softSurface)
+        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+        )
+        .padding(.horizontal, ArboreDesign.Spacing.screenHorizontal)
+    }
+    
+    private func headerIcon(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 16, weight: .bold))
+            .foregroundColor(ArboreDesign.Colors.textPrimary)
+            .frame(width: 42, height: 42)
+            .background(ArboreDesign.Colors.card)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+            )
+    }
     
     private func tabButton(_ tab: Tab) -> some View {
         Button {
@@ -363,19 +392,15 @@ struct GardenDetailsPage: View {
                 selectedTab = tab
             }
         } label: {
-            VStack(spacing: 10) {
-                Text(tab.rawValue)
-                    .font(.system(size: 13, weight: tab == selectedTab ? .bold : .semibold))
-                    .foregroundStyle(tab == selectedTab ? themeManager.textColor : .secondary)
-                
-                Rectangle()
-                    .fill(tab == selectedTab ? primary : .clear)
-                    .frame(height: 3)
-                    .clipShape(Capsule())
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
+            Text(tab.rawValue)
+                .font(.system(size: 13, weight: tab == selectedTab ? .bold : .semibold))
+                .foregroundStyle(tab == selectedTab ? Color.white : ArboreDesign.Colors.textSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
+                .background(tab == selectedTab ? primary : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -384,13 +409,13 @@ struct GardenDetailsPage: View {
         HStack {
             Text("TO BUY (\(purchaseItems.count))")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.secondary)
+                .foregroundColor(ArboreDesign.Colors.textSecondary)
                 .tracking(1.1)
             Spacer()
             Button { sortByPriority.toggle() } label: {
                 Text("Sort by Priority")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(primary)
+                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
             }
         }
         .padding(.vertical, 8)
@@ -399,19 +424,24 @@ struct GardenDetailsPage: View {
     private var purchaseList: some View {
         VStack(spacing: 12) {
             ForEach(purchaseItems) { item in
-                PurchaseRow(item: item, primary: primary, isDark: isDark) {}
+                PurchaseRow(item: item, primary: primary) {}
             }
         }
     }
     
     private func placeholder(title: String, subtitle: String) -> some View {
-        VStack(spacing: 10) {
-            Text(title).font(.system(size: 18, weight: .bold))
-            Text(subtitle).font(.system(size: 14, weight: .medium)).foregroundStyle(.secondary)
+        AppCard {
+            VStack(spacing: ArboreDesign.Spacing.xs) {
+                Text(title)
+                    .font(ArboreDesign.Typography.sectionTitle)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+                Text(subtitle)
+                    .font(ArboreDesign.Typography.bodySmall)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, ArboreDesign.Spacing.lg)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
-        .background(CardContainer(isDark: isDark, cornerRadius: 16))
     }
 }
 
@@ -420,61 +450,124 @@ struct GardenDetailsPage: View {
 private struct PurchaseRow: View {
     let item: PurchaseItem
     let primary: Color
-    let isDark: Bool
     let onBuy: () -> Void
     
     var body: some View {
         HStack(spacing: 14) {
             ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
+                    .fill(ArboreDesign.Colors.softSurface)
                     .frame(width: 64, height: 64)
                 if let icon = item.systemIcon {
                     Image(systemName: icon)
                         .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(primary.opacity(0.6))
+                        .foregroundStyle(primary)
                 } else {
                     Image(systemName: "leaf.fill")
                         .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(primary.opacity(0.6))
+                        .foregroundStyle(primary)
                 }
             }
             
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.name)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .font(ArboreDesign.Typography.cardTitle)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
                 Text(item.subtitle)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
+                    .font(ArboreDesign.Typography.caption)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
                 Text(item.priceRange)
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(primary)
+                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
             }
             Spacer()
             Button(action: onBuy) {
                 Text("Buy")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(red: 0.06, green: 0.13, blue: 0.08))
+                    .foregroundStyle(Color.white)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(primary)
+                    .background(ArboreDesign.Colors.primaryButton)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
         }
-        .padding(14)
-        .background(CardContainer(isDark: isDark, cornerRadius: 18))
-        .shadow(color: isDark ? Color.black.opacity(0.22) : Color.black.opacity(0.06), radius: 8, x: 0, y: 4)
+        .padding(ArboreDesign.Spacing.md)
+        .background(CardContainer(cornerRadius: ArboreDesign.Radius.large))
+        .shadow(color: ArboreDesign.Colors.shadow, radius: 10, x: 0, y: 4)
+    }
+}
+
+private struct GardenStatBadge: View {
+    let systemImage: String
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: ArboreDesign.Spacing.sm) {
+            SettingsIconBadge(systemImage: systemImage, tint: ArboreDesign.Colors.primaryGreen, size: 38)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(ArboreDesign.Typography.caption)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+
+                Text(value)
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(ArboreDesign.Spacing.md)
+        .frame(maxWidth: .infinity)
+        .background(ArboreDesign.Colors.card)
+        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+        )
+    }
+}
+
+private struct GardenInlineMessage: View {
+    let systemImage: String
+    let text: String
+
+    var body: some View {
+        HStack(spacing: ArboreDesign.Spacing.sm) {
+            Image(systemName: systemImage)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                .frame(width: 28, height: 28)
+                .background(ArboreDesign.Colors.softSurface)
+                .clipShape(Circle())
+
+            Text(text)
+                .font(ArboreDesign.Typography.bodySmall)
+                .foregroundColor(ArboreDesign.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(ArboreDesign.Spacing.md)
+        .background(ArboreDesign.Colors.card)
+        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+        )
     }
 }
 
 private struct CardContainer: View {
-    let isDark: Bool
     let cornerRadius: CGFloat
     var body: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(isDark ? Color.white.opacity(0.06) : Color.white)
-            .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).stroke(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.04), lineWidth: 1))
+            .fill(ArboreDesign.Colors.card)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+            )
     }
 }
 
@@ -584,9 +677,9 @@ struct GardenPlanInteractiveMap: View {
     var body: some View {
         GeometryReader { geo in
             ZStack {
-                Color(red: 26/255, green: 37/255, blue: 21/255)
+                Color(hex: "#161814")
                 GridPattern(spacing: scale)
-                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
                     .offset(x: offset.width, y: offset.height)
                 
                 // 🎯 SOLUTION DÉFINITIVE : Tout dessiner avec GeometryReader en coordonnées absolues
@@ -611,7 +704,7 @@ struct GardenPlanInteractiveMap: View {
                                 }
                                 path.closeSubpath()
                             }
-                            .fill(Color(hex: "#2BEE79").opacity(0.1))
+                            .fill(ArboreDesign.Colors.primaryGreen.opacity(0.16))
                             
                             // Contour
                             Path { path in
@@ -627,7 +720,7 @@ struct GardenPlanInteractiveMap: View {
                                 }
                                 path.closeSubpath()
                             }
-                            .stroke(Color(hex: "#2BEE79"), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                            .stroke(ArboreDesign.Colors.primaryGreen, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                         }
                         
                         // Plantes - EXACTEMENT la même formule que les bordures
@@ -639,11 +732,11 @@ struct GardenPlanInteractiveMap: View {
                             VStack(spacing: 0) {
                                 ZStack {
                                     if viewModel.selectedPlant?.id == plantWrapper.id {
-                                        Circle().stroke(Color.white, lineWidth: 2)
+                                        Circle().stroke(ArboreDesign.Colors.accentGold, lineWidth: 2)
                                             .frame(width: 36, height: 36)
                                             .background(Circle().fill(Color.white.opacity(0.2)))
                                     }
-                                    Circle().fill(Color(red: 43/255, green: 238/255, blue: 121/255))
+                                    Circle().fill(ArboreDesign.Colors.primaryGreen)
                                         .frame(width: 20, height: 20)
                                         .shadow(radius: 2)
                                 }
@@ -676,11 +769,15 @@ struct GardenPlanInteractiveMap: View {
                     }
                 }
             }
-            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.image, style: .continuous))
             .contentShape(Rectangle())
             .gesture(DragGesture().onChanged { val in offset = CGSize(width: lastOffset.width + val.translation.width, height: lastOffset.height + val.translation.height) }.onEnded { _ in lastOffset = offset })
             .gesture(MagnificationGesture().onChanged { val in scale = lastScale * val }.onEnded { _ in lastScale = scale })
-            .onChange(of: viewModel.displayPlants.count) { DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { withAnimation { fitContent(geo: geo) } } }
+            .onChange(of: viewModel.displayPlants.count) { _, _ in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation { fitContent(geo: geo) }
+                }
+            }
         }
     }
     
@@ -734,7 +831,14 @@ struct GardenPlanInteractiveMap: View {
 struct IconBtn: View {
     let icon: String
     var body: some View {
-        Image(systemName: icon).foregroundColor(.white).padding(10).background(.ultraThinMaterial).clipShape(Circle()).shadow(radius: 2)
+        Image(systemName: icon)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundColor(.white)
+            .frame(width: 42, height: 42)
+            .background(Color.black.opacity(0.34))
+            .clipShape(Circle())
+            .overlay(Circle().stroke(Color.white.opacity(0.14), lineWidth: 1))
+            .shadow(color: .black.opacity(0.2), radius: 6, x: 0, y: 3)
     }
 }
 
@@ -812,7 +916,7 @@ struct BoundaryPolygonFill: View {
                 }
                 path.closeSubpath()
             }
-            .fill(Color(hex: "#2BEE79").opacity(0.1))
+            .fill(ArboreDesign.Colors.primaryGreen.opacity(0.16))
         }
     }
 }
@@ -836,7 +940,7 @@ struct BoundaryPolygonStroke: View {
                 }
                 path.closeSubpath()
             }
-            .stroke(Color(hex: "#2BEE79"), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+            .stroke(ArboreDesign.Colors.primaryGreen, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
         }
     }
 }
@@ -847,7 +951,7 @@ struct PlantMinimapDetailPanel: View {
     @ObservedObject var viewModel: Garden2DViewModel
     @State private var isExpanded: Bool = false
 
-    private let accent = Color(hex: "#2BEE79")
+    private let accent = ArboreDesign.Colors.primaryGreen
 
     var body: some View {
         ZStack(alignment: .topTrailing) {

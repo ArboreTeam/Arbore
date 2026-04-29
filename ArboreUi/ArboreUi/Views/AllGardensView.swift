@@ -6,8 +6,16 @@ struct AllGardensView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var themeManager: ThemeManager
 
+    let currentGardenId: String?
+    let onSelectGarden: ((GardenDTO) -> Void)?
+    let onDismiss: (() -> Void)?
+    let onGardenDeleted: ((String) -> Void)?
+
     @State private var gardens: [GardenDTO] = []
     @State private var gardenToOpen: GardenDTO? = nil
+    @State private var gardenToDelete: GardenDTO? = nil
+    @State private var deletingGardenId: String? = nil
+    @State private var deleteErrorMessage: String? = nil
 
     // Style dynamique via themeManager
     private var background: Color { themeManager.backgroundColor }
@@ -19,6 +27,18 @@ struct AllGardensView: View {
     // Arrondis (aligné Home “moelleux”)
     private let cardCorner: CGFloat = 28
     private let imageCorner: CGFloat = 24
+
+    init(
+        currentGardenId: String? = nil,
+        onSelectGarden: ((GardenDTO) -> Void)? = nil,
+        onDismiss: (() -> Void)? = nil,
+        onGardenDeleted: ((String) -> Void)? = nil
+    ) {
+        self.currentGardenId = currentGardenId
+        self.onSelectGarden = onSelectGarden
+        self.onDismiss = onDismiss
+        self.onGardenDeleted = onGardenDeleted
+    }
 
     var body: some View {
         ZStack {
@@ -44,6 +64,25 @@ struct AllGardensView: View {
         .navigationBarHidden(true)
         .onAppear { Task { await fetchGardens() } }
         .preferredColorScheme(themeManager.colorScheme)
+        .alert("Supprimer ce jardin ?", isPresented: deleteConfirmationPresented) {
+            Button("Annuler", role: .cancel) {
+                gardenToDelete = nil
+            }
+            Button("Supprimer", role: .destructive) {
+                if let gardenToDelete {
+                    Task { await deleteGarden(gardenToDelete) }
+                }
+            }
+        } message: {
+            Text("Cette action supprimera le jardin et ses données sauvegardées. Elle ne peut pas être annulée.")
+        }
+        .alert("Suppression impossible", isPresented: deleteErrorPresented) {
+            Button("OK", role: .cancel) {
+                deleteErrorMessage = nil
+            }
+        } message: {
+            Text(deleteErrorMessage ?? "")
+        }
         .fullScreenCover(item: $gardenToOpen) { g in
             GardenARPlacementView(
                 selectedPlants: [],
@@ -68,6 +107,32 @@ struct AllGardensView: View {
 
 // MARK: - API
 private extension AllGardensView {
+    var isSelectionMode: Bool {
+        onSelectGarden != nil
+    }
+
+    var deleteConfirmationPresented: Binding<Bool> {
+        Binding(
+            get: { gardenToDelete != nil },
+            set: { isPresented in
+                if !isPresented {
+                    gardenToDelete = nil
+                }
+            }
+        )
+    }
+
+    var deleteErrorPresented: Binding<Bool> {
+        Binding(
+            get: { deleteErrorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    deleteErrorMessage = nil
+                }
+            }
+        )
+    }
+
     func fetchGardens() async {
         do {
             let list = try await GardenAPI.shared.listGardens()
@@ -75,6 +140,45 @@ private extension AllGardensView {
         } catch {
             print("❌ fetchGardens failed:", error)
         }
+    }
+
+    func openGarden(_ garden: GardenDTO) {
+        if let onSelectGarden {
+            onSelectGarden(garden)
+        } else {
+            gardenToOpen = garden
+        }
+    }
+
+    func deleteGarden(_ garden: GardenDTO) async {
+        guard let id = garden.id else { return }
+
+        await MainActor.run {
+            deletingGardenId = id
+            gardenToDelete = nil
+        }
+
+        do {
+            try await GardenAPI.shared.deleteGarden(id: id)
+            deleteLocalGardenFiles(id: id)
+
+            await MainActor.run {
+                gardens.removeAll { $0.id == id }
+                deletingGardenId = nil
+                onGardenDeleted?(id)
+            }
+        } catch {
+            await MainActor.run {
+                deletingGardenId = nil
+                deleteErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func deleteLocalGardenFiles(id: String) {
+        let fileManager = FileManager.default
+        try? fileManager.removeItem(at: GardenLocalStore.sceneURL(for: id))
+        try? fileManager.removeItem(at: GardenLocalStore.worldMapURL(for: id))
     }
 }
 
@@ -84,7 +188,13 @@ private extension AllGardensView {
     /// Top bar alignée au style Home (typo serif + discret, bouton back “soft”)
     var topBar: some View {
         HStack(spacing: 12) {
-            Button { dismiss() } label: {
+            Button {
+                if let onDismiss {
+                    onDismiss()
+                } else {
+                    dismiss()
+                }
+            } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(textDark)
@@ -100,7 +210,7 @@ private extension AllGardensView {
                     .font(.system(size: 26, weight: .bold, design: .serif))
                     .foregroundColor(textDark)
 
-                Text("\(gardens.count) au total")
+                Text(isSelectionMode ? "Sélectionnez le jardin à afficher" : "\(gardens.count) au total")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(textSubtle.opacity(0.9))
             }
@@ -147,30 +257,46 @@ private extension AllGardensView {
 
     /// Card jardin alignée Home : image à hauteur fixe (plus compacte), coins bien arrondis, padding identique.
     func gardenCard(garden: GardenDTO) -> some View {
-        Button {
-            gardenToOpen = garden
-        } label: {
-            VStack(spacing: 0) {
+        let isCurrent = garden.id == currentGardenId
+        let isDeleting = deletingGardenId == garden.id
 
-                ZStack {
-                    Image(garden.homeImageName)
-                        .resizable()
-                        .scaledToFill()
-                        .allowsHitTesting(false)
-
-                    LinearGradient(
-                        colors: [Color.black.opacity(0.06), Color.black.opacity(0.14)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
+        return VStack(spacing: 0) {
+            ZStack(alignment: .topTrailing) {
+                Image(garden.homeImageName)
+                    .resizable()
+                    .scaledToFill()
                     .allowsHitTesting(false)
-                }
-                // ✅ IMPORTANT : même logique que Home → hauteur fixe
-                .frame(height: 220)
-                .clipShape(RoundedRectangle(cornerRadius: imageCorner, style: .continuous))
-                .padding(.top, 12)
-                .padding(.horizontal, 12)
 
+                LinearGradient(
+                    colors: [Color.black.opacity(0.06), Color.black.opacity(0.14)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .allowsHitTesting(false)
+
+                if isCurrent {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Actuel")
+                            .font(.system(size: 12, weight: .bold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 12)
+                    .frame(height: 30)
+                    .background(primary)
+                    .clipShape(Capsule())
+                    .shadow(color: .black.opacity(0.14), radius: 8, x: 0, y: 4)
+                    .padding(12)
+                }
+            }
+            // ✅ IMPORTANT : même logique que Home → hauteur fixe
+            .frame(height: 220)
+            .clipShape(RoundedRectangle(cornerRadius: imageCorner, style: .continuous))
+            .padding(.top, 12)
+            .padding(.horizontal, 12)
+
+            VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(garden.name)
@@ -189,23 +315,54 @@ private extension AllGardensView {
                     }
 
                     Spacer()
-
-                    Text("Ouvrir")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .background(primary)
-                        .clipShape(Capsule())
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 14)
+
+                HStack(spacing: 10) {
+                    Button {
+                        gardenToDelete = garden
+                    } label: {
+                        if isDeleting {
+                            ProgressView()
+                                .tint(textSubtle)
+                                .frame(width: 40, height: 36)
+                        } else {
+                            Image(systemName: "trash")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(ArboreDesign.Colors.danger)
+                                .frame(width: 40, height: 36)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .background(ArboreDesign.Colors.danger.opacity(0.10))
+                    .clipShape(Capsule())
+                    .disabled(isDeleting)
+                    .accessibilityLabel("Supprimer \(garden.name)")
+
+                    Button {
+                        openGarden(garden)
+                    } label: {
+                        Text(isSelectionMode ? (isCurrent ? "Sélectionné" : "Choisir") : "Ouvrir")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 36)
+                            .background(isCurrent && isSelectionMode ? textSubtle : primary)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isDeleting)
+                }
             }
-            .background(cardLight)
-            .clipShape(RoundedRectangle(cornerRadius: cardCorner, style: .continuous))
-            .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 6)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
         }
-        .buttonStyle(.plain)
+        .background(cardLight)
+        .clipShape(RoundedRectangle(cornerRadius: cardCorner, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: cardCorner, style: .continuous)
+                .stroke(isCurrent ? primary.opacity(0.7) : ArboreDesign.Colors.border, lineWidth: isCurrent ? 2 : 1)
+        )
+        .shadow(color: isCurrent ? primary.opacity(0.16) : .black.opacity(0.06), radius: 12, x: 0, y: 6)
     }
 }
 

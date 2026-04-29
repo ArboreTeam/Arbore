@@ -74,6 +74,13 @@ struct GardenARPlacementView: View {
     // instead of letting the user spin on the scanning overlay forever.
     @State private var gardenUnavailable: Bool = false
 
+    // 🤖 AI Auto-placement
+    @State private var isAutoPlacing = false
+    @State private var autoPlaceToast: String? = nil
+    
+    // 💡 Lux widget
+    @State private var currentLux: Int = 0
+
     var body: some View {
         if gardenUnavailable {
             gardenUnavailableView
@@ -97,6 +104,10 @@ struct GardenARPlacementView: View {
                 newBoundaryPoints: $newBoundaryPoints,
                 newBoundaryArea: $newBoundaryArea,
                 distortionWarnings: $distortionWarnings,
+                isAutoPlacing: $isAutoPlacing,
+                autoPlaceToast: $autoPlaceToast,
+                currentLux: $currentLux,
+                plantsToAutoPlace: selectedPlants,
                 uid: uid,
                 wizard: wizard,
                 gardenName: gardenName,
@@ -134,6 +145,11 @@ struct GardenARPlacementView: View {
                 }
             }
 
+            // 🤖 Auto-placement overlay
+            if isAutoPlacing {
+                autoPlacingOverlay
+            }
+
             // --- HUD Interface ---
             VStack(spacing: 0) {
                 // 1. Barre du haut
@@ -163,7 +179,25 @@ struct GardenARPlacementView: View {
                     .transition(.opacity)
                 }
 
+                // 💡 Lux widget
+                luxWidget
+                    .padding(.horizontal, 20)
+                    .padding(.top, 6)
+
                 Spacer()
+
+                // 🤖 Auto-place toast
+                if let toast = autoPlaceToast {
+                    autoPlaceToastView(toast)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .onAppear {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+                                withAnimation(.easeOut(duration: 0.4)) {
+                                    autoPlaceToast = nil
+                                }
+                            }
+                        }
+                }
 
                 // 2. Indicateur de sauvegarde
                 if isSaving {
@@ -461,6 +495,109 @@ struct GardenARPlacementView: View {
         .padding(.bottom, 10)
     }
 
+    // MARK: - 💡 Lux Widget
+
+    private var luxWidget: some View {
+        let luxLabel: String
+        let luxColor: Color
+        let luxIcon: String
+
+        if currentLux > 1000 {
+            luxLabel = "Soleil direct"
+            luxColor = .orange
+            luxIcon = "sun.max.fill"
+        } else if currentLux > 300 {
+            luxLabel = "Lumière vive"
+            luxColor = .yellow
+            luxIcon = "sun.min.fill"
+        } else if currentLux > 50 {
+            luxLabel = "Lumière diffuse"
+            luxColor = .green
+            luxIcon = "cloud.sun.fill"
+        } else {
+            luxLabel = "Faible luminosité"
+            luxColor = .blue
+            luxIcon = "moon.fill"
+        }
+
+        return HStack(spacing: 8) {
+            Image(systemName: luxIcon)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(luxColor)
+
+            Text("\(currentLux) lux")
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .contentTransition(.numericText(value: Double(currentLux)))
+
+            Text("·")
+                .foregroundColor(.white.opacity(0.4))
+
+            Text(luxLabel)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white.opacity(0.8))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(.black.opacity(0.45))
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
+        .animation(.easeInOut(duration: 0.3), value: currentLux)
+    }
+
+    // MARK: - 🤖 Auto-Placement Overlay
+
+    private var autoPlacingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                ProgressView()
+                    .tint(.white)
+                    .scaleEffect(1.3)
+
+                Text("Placement des plantes…")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+
+                Text("L'IA place vos \(selectedPlants.count) plantes")
+                    .font(.system(size: 13))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            .padding(28)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .strokeBorder(.white.opacity(0.15), lineWidth: 1)
+                    )
+            )
+            .shadow(color: .black.opacity(0.3), radius: 20)
+        }
+        .transition(.opacity.animation(.easeInOut(duration: 0.3)))
+    }
+
+    private func autoPlaceToastView(_ text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(Color(hex: "#2BEE79"))
+
+            Text(text)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(.black.opacity(0.7))
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color(hex: "#2BEE79").opacity(0.3), lineWidth: 1))
+        .shadow(color: .black.opacity(0.3), radius: 10)
+        .padding(.bottom, 10)
+    }
+
     @State private var leafPulse = false
 
     private var gardenLoadingOverlay: some View {
@@ -520,6 +657,12 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var newBoundaryPoints: [SIMD3<Float>]
     @Binding var newBoundaryArea: Float
     @Binding var distortionWarnings: [DistortionWarning]
+
+    // 🤖 AI Auto-placement bindings
+    @Binding var isAutoPlacing: Bool
+    @Binding var autoPlaceToast: String?
+    @Binding var currentLux: Int
+    let plantsToAutoPlace: [Plant]
 
     let uid: String
     let wizard: GardenWizardDTO
@@ -675,6 +818,11 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 let surfaceHeight: Float?
                 let instanceId: UUID  // anchor.identifier — used so the loaded node can find its anchor
             }
+
+            // 🤖 AI Auto-placement
+            private var didAutoPlace = false
+            private var stablePlaneFrameCount = 0
+            private let stablePlaneThreshold = 15  // ~0.5s at 30fps before auto-placing
 
             init(_ parent: GardenARPlacementContainerView) { self.parentProps = parent }
 
@@ -874,6 +1022,16 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
                 guard let arView = arView, let reticle = reticleNode else { return }
 
+                // 💡 Update Lux from ARKit light estimation
+                if let lightEstimate = arView.session.currentFrame?.lightEstimate {
+                    let lux = Int(lightEstimate.ambientIntensity)
+                    DispatchQueue.main.async { [weak self] in
+                        withAnimation(.linear(duration: 0.2)) {
+                            self?.parentProps?.currentLux = lux
+                        }
+                    }
+                }
+
                 let center = cachedViewCenter
 
                 // Two-tier raycast: prefer a real detected plane (.existingPlaneGeometry,
@@ -898,20 +1056,202 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 if let t = newTransform {
                     reticle.simdTransform = t
                     reticle.opacity = (newQuality == .geometry) ? 1.0 : 0.6
+
+                    // 🤖 AI Auto-placement: wait for stable plane detection
+                    if !didAutoPlace,
+                       newQuality == .geometry,
+                       let props = parentProps,
+                       props.mode == .create,
+                       !props.plantsToAutoPlace.isEmpty {
+                        stablePlaneFrameCount += 1
+                        if stablePlaneFrameCount >= stablePlaneThreshold {
+                            didAutoPlace = true
+                            let transform = t
+                            DispatchQueue.main.async { [weak self] in
+                                self?.autoPlaceAIPlants(at: transform)
+                            }
+                        }
+                    }
+
+                    // Update color only on transition (avoid per-frame material churn).
+                    if newQuality != reticleQuality {
+                        reticleQuality = newQuality
+                        let color: UIColor
+                        switch newQuality {
+                        case .geometry:  color = UIColor(hex: "#2BEE79")  // green: solid surface
+                        case .estimated: color = UIColor(hex: "#FFB020")  // amber: approximate
+                        case .none:      color = UIColor(hex: "#2BEE79")  // hidden anyway
+                        }
+                        reticle.geometry?.firstMaterial?.diffuse.contents = color
+                    }
                 } else {
                     reticle.opacity = 0
+                    // Reset stability counter if we lose the plane
+                    if !didAutoPlace { stablePlaneFrameCount = 0 }
+                }
+            }
+
+            // MARK: - 🤖 AI Auto-Placement
+
+            /// Automatically places all AI-selected plants in a style-aware layout.
+            private func autoPlaceAIPlants(at centerTransform: simd_float4x4) {
+                guard let props = parentProps else { return }
+                let plants = props.plantsToAutoPlace.filter { $0.modelURL != nil && !($0.modelURL?.isEmpty ?? true) }
+                guard !plants.isEmpty else { return }
+
+                props.isAutoPlacing = true
+                let style = props.wizard.style.lowercased()
+                let count = plants.count
+
+                // Calculate positions based on style
+                let positions = calculateLayoutPositions(count: count, style: style)
+
+                // Extract center position from transform
+                let centerX = centerTransform.columns.3.x
+                let centerY = centerTransform.columns.3.y
+                let centerZ = centerTransform.columns.3.z
+
+                Task { [weak self] in
+                    guard let self = self else { return }
+
+                    // Download all models in parallel
+                    var downloadedModels: [(plant: Plant, url: URL, offset: SIMD2<Float>)] = []
+
+                    await withTaskGroup(of: (Plant, URL?, SIMD2<Float>)?.self) { group in
+                        for (index, plant) in plants.enumerated() {
+                            let offset = index < positions.count ? positions[index] : SIMD2<Float>(0, 0)
+                            group.addTask {
+                                do {
+                                    let url = try await plant.getModelURL(forceDownload: false)
+                                    return (plant, url, offset)
+                                } catch {
+                                    // Try bundle fallback
+                                    return (plant, plant.bundleModelURL, offset)
+                                }
+                            }
+                        }
+
+                        for await result in group {
+                            if let result = result, let url = result.1 {
+                                downloadedModels.append((plant: result.0, url: url, offset: result.2))
+                            }
+                        }
+                    }
+
+                    // Place all models on main thread
+                    await MainActor.run {
+                        self.saveStateForUndo()
+
+                        for item in downloadedModels {
+                            var transform = centerTransform
+                            transform.columns.3.x = centerX + item.offset.x
+                            transform.columns.3.y = centerY
+                            transform.columns.3.z = centerZ + item.offset.y
+
+                            if let axis = item.plant.upAxis {
+                                self.plantUpAxisMap[item.plant.id] = axis
+                            }
+
+                            self.placeObject(
+                                at: transform,
+                                modelURL: item.url,
+                                id: item.plant.id,
+                                name: item.plant.name,
+                                modelURLString: item.plant.modelURL,
+                                upAxis: item.plant.upAxis
+                            )
+                        }
+
+                        self.deselectAll()
+
+                        props.isAutoPlacing = false
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                            props.autoPlaceToast = "\(downloadedModels.count) plantes placées — Déplacez-les !"
+                        }
+
+                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    }
+                }
+            }
+
+            /// Calculate layout positions based on garden style.
+            /// Returns array of (x, z) offsets from center.
+            private func calculateLayoutPositions(count: Int, style: String) -> [SIMD2<Float>] {
+                guard count > 0 else { return [] }
+                if count == 1 { return [SIMD2<Float>(0, 0)] }
+
+                let spacing: Float = 0.7 // meters between plants (enough for 3D model width)
+
+                // Zen / Japanese → asymmetric triangle-based
+                if style.contains("zen") || style.contains("japonais") {
+                    return calculateZenLayout(count: count, spacing: spacing)
                 }
 
-                // Update color only on transition (avoid per-frame material churn).
-                if newQuality != reticleQuality {
-                    reticleQuality = newQuality
-                    let color: UIColor
-                    switch newQuality {
-                    case .geometry:  color = UIColor(hex: "#2BEE79")  // green: solid surface
-                    case .estimated: color = UIColor(hex: "#FFB020")  // amber: approximate
-                    case .none:      color = UIColor(hex: "#2BEE79")  // hidden anyway
-                    }
-                    reticle.geometry?.firstMaterial?.diffuse.contents = color
+                // Modern → grid
+                if style.contains("moderne") || style.contains("minimaliste") {
+                    return calculateGridLayout(count: count, spacing: spacing)
+                }
+
+                // Wild / Champêtre → randomized with noise
+                if style.contains("champêtre") || style.contains("sauvage") {
+                    return calculateWildLayout(count: count, spacing: spacing)
+                }
+
+                // Default (fleuri, méditerranéen, etc.) → circle
+                return calculateCircleLayout(count: count, spacing: spacing)
+            }
+
+            private func calculateCircleLayout(count: Int, spacing: Float) -> [SIMD2<Float>] {
+                let radius = spacing * Float(count) / (2.0 * .pi)
+                let effectiveRadius = max(radius, 0.5) // Min 50cm radius
+                return (0..<count).map { i in
+                    let angle = (2.0 * .pi * Float(i)) / Float(count)
+                    return SIMD2<Float>(
+                        cos(angle) * effectiveRadius,
+                        sin(angle) * effectiveRadius
+                    )
+                }
+            }
+
+            private func calculateGridLayout(count: Int, spacing: Float) -> [SIMD2<Float>] {
+                let cols = Int(ceil(sqrt(Double(count))))
+                let totalWidth = Float(cols - 1) * spacing
+                return (0..<count).map { i in
+                    let row = i / cols
+                    let col = i % cols
+                    return SIMD2<Float>(
+                        Float(col) * spacing - totalWidth / 2,
+                        Float(row) * spacing - totalWidth / 2
+                    )
+                }
+            }
+
+            private func calculateZenLayout(count: Int, spacing: Float) -> [SIMD2<Float>] {
+                // Asymmetric: first plant center, others in organic triangle offsets
+                var positions: [SIMD2<Float>] = [SIMD2<Float>(0, 0)]
+                let offsets: [SIMD2<Float>] = [
+                    SIMD2<Float>(-0.6, 0.5),
+                    SIMD2<Float>(0.7, 0.3),
+                    SIMD2<Float>(-0.3, -0.7),
+                    SIMD2<Float>(0.5, -0.4),
+                    SIMD2<Float>(-0.8, -0.2),
+                    SIMD2<Float>(0.2, 0.8),
+                ]
+                for i in 1..<count {
+                    let idx = (i - 1) % offsets.count
+                    let scale = 1.0 + Float(i / offsets.count) * 0.5
+                    positions.append(offsets[idx] * scale)
+                }
+                return positions
+            }
+
+            private func calculateWildLayout(count: Int, spacing: Float) -> [SIMD2<Float>] {
+                // Circle base with random noise
+                let base = calculateCircleLayout(count: count, spacing: spacing)
+                return base.map { pos in
+                    let noiseX = Float.random(in: -0.2...0.2)
+                    let noiseZ = Float.random(in: -0.2...0.2)
+                    return SIMD2<Float>(pos.x + noiseX, pos.y + noiseZ)
                 }
             }
             
@@ -1171,9 +1511,6 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         }
                     }
 
-                    var normalizedPlants = plants
-                    
-                    // 🔧 NORMALISATION : Si on a des bordures fraîches (création), normaliser
                     if !props.boundaryPoints.isEmpty {
                         let sumX = props.boundaryPoints.reduce(0.0) { $0 + $1.x }
                         let sumZ = props.boundaryPoints.reduce(0.0) { $0 + $1.z }
@@ -1188,7 +1525,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         }
                         
                         // Normaliser les plantes (soustraire le centroïd)
-                        normalizedPlants = plants.map { plant in
+                        let normalizedPlants = plants.map { plant in
                             PersistedPlant(
                                 plantID: plant.plantID,
                                 plantName: plant.plantName,
@@ -1212,7 +1549,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     
                     let sceneData = PersistedARScene(
                         savedAt: Date(),
-                        plants: normalizedPlants,
+                        plants: plants, // On sauvegarde les positions brutes exactes traquées par ARKit
                         boundaryPoints: boundaryPointsArray,
                         area: savedArea,
                         perimeter: savedPerimeter

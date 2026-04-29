@@ -210,6 +210,7 @@ enum GardenWizardStep: Int, CaseIterable, Identifiable {
     case maintenance
     case safety
     case soil
+    case aiSuggestion    // 🤖 AI garden suggestion step
     case scanMethod
     case summary
     
@@ -224,6 +225,10 @@ struct GardenWizardView: View {
     @State private var showPlacementAR = false
     @State private var showMeasurementApp = false  // 🆕 Pour lancer l'app de mesure
     @State private var showLiDARScan = false // 🆕 Pour lancer le LiDAR
+    
+    // 🤖 AI Suggestion: all catalogue plants + user's selection
+    @State private var allCataloguePlants: [Plant] = []
+    @State private var aiSelectedPlants: [Plant] = []
     
     // 🆕 Stocker les données de mesure
     @State private var measuredBoundaryPoints: [SIMD3<Float>] = []
@@ -243,8 +248,8 @@ struct GardenWizardView: View {
     // ✅ Steps visibles (logique simple = tous les steps)
     // Si tu avais une logique conditionnelle (interior/balcony/garden), je te la remets juste après.
     private var visibleSteps: [GardenWizardStep] {
-        // Version "tous les steps"
-        [.intro, .style, .spaceType, .exposure, .maintenance, .safety, .soil, .scanMethod, .summary]
+        // Version "tous les steps" avec suggestion IA
+        [.intro, .style, .spaceType, .exposure, .maintenance, .safety, .soil, .aiSuggestion, .scanMethod, .summary]
     }
 
     private var currentIndex: Int {
@@ -320,6 +325,15 @@ struct GardenWizardView: View {
                     SoilStepView(state: state, onNext: goToNext, onBack: goToPrevious)
                         .tag(GardenWizardStep.soil)
 
+                    AISuggestionStepView(
+                        state: state,
+                        allPlants: allCataloguePlants,
+                        onNext: goToNext,
+                        onBack: goToPrevious,
+                        selectedPlants: $aiSelectedPlants
+                    )
+                    .tag(GardenWizardStep.aiSuggestion)
+
                     ScanMethodStepView(state: state, onNext: goToNext, onBack: goToPrevious)
                         .tag(GardenWizardStep.scanMethod)
 
@@ -363,7 +377,7 @@ struct GardenWizardView: View {
         // 🆕 Lancer l'app de mesure d'abord si gardenPerimeter
         .fullScreenCover(isPresented: $showMeasurementApp) {
             ARViewContainerMesure(
-                selectedPlants: selectedPlants,
+                selectedPlants: aiSelectedPlants.isEmpty ? selectedPlants : aiSelectedPlants,
                 uid: uid,
                 wizard: wizardDTO,
                 gardenName: gardenName,
@@ -376,7 +390,7 @@ struct GardenWizardView: View {
         .fullScreenCover(isPresented: $showLiDARScan) {
             LiDARScanWizardView(
                 uid: uid,
-                selectedPlants: selectedPlants,
+                selectedPlants: aiSelectedPlants.isEmpty ? selectedPlants : aiSelectedPlants,
                 wizard: wizardDTO,
                 gardenName: gardenName,
                 thumbnailKey: thumbnailKey,
@@ -387,7 +401,7 @@ struct GardenWizardView: View {
         // ✅ AR placement (create) - maintenant avec les données de mesure
         .fullScreenCover(isPresented: $showPlacementAR) {
             GardenARPlacementView(
-                selectedPlants: selectedPlants,
+                selectedPlants: aiSelectedPlants.isEmpty ? selectedPlants : aiSelectedPlants,
                 uid: uid,
                 wizard: wizardDTO,
                 gardenName: gardenName,
@@ -410,6 +424,31 @@ struct GardenWizardView: View {
             currentStep = .intro
             // si tu veux reset TOTAL du state à chaque nouvelle création :
             // state.style = nil; state.spaceType = nil; etc...
+            
+            // 🤖 Fetch all catalogue plants for AI suggestion
+            fetchCataloguePlants()
+        }
+    }
+
+    // MARK: - Fetch Catalogue Plants for AI Suggestion
+
+    /// Loads the full plant catalogue from the backend.
+    /// Called once on wizard appear — the data is used by the AI suggestion step.
+    private func fetchCataloguePlants() {
+        guard allCataloguePlants.isEmpty else { return } // Already loaded
+        Task {
+            do {
+                let plants: [Plant] = try await NetworkManager.shared.request(
+                    endpoint: "/plants",
+                    method: .GET
+                )
+                await MainActor.run {
+                    self.allCataloguePlants = plants
+                }
+            } catch {
+                print("⚠️ AI Suggestion: Failed to fetch plants — \(error.localizedDescription)")
+                // Non-blocking: the AI step will work with empty array and show a message
+            }
         }
     }
 }

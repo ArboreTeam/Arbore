@@ -1,31 +1,27 @@
 import SwiftUI
-import ARKit
-import RealityKit
 
 struct PlantDetailView: View {
     let plantID: String
+    let previewPlant: Plant?
+
     @State private var plant: Plant?
     @State private var isLoading = true
     @State private var errorMessage: String?
-    @State private var isLiked: Bool = false
-    @State private var showARView = false
-    @State private var currentPage = 0
     @State private var showFullDescription = false
     @State private var showGallery = false
     @State private var galleryStartIndex = 0
-    @State private var isAddedToGarden = false
     @AppStorage("selectedLanguage") private var selectedLanguage = "system"
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject var themeManager: ThemeManager
 
-    // Model download state
-    @State private var downloadedModelURL: URL? = nil
-    @State private var isDownloadingModel = false
+    init(plantID: String, previewPlant: Plant? = nil) {
+        self.plantID = plantID
+        self.previewPlant = previewPlant
+    }
 
     // MARK: - Langue effective (UI + traductions)
     private var effectiveLanguageCode: String {
-        // normalisation d’un code ("es-ES" -> "es")
         func normalize(_ raw: String) -> String {
             let lower = raw.lowercased()
             if let dash = lower.firstIndex(of: "-") {
@@ -34,162 +30,193 @@ struct PlantDetailView: View {
             if let underscore = lower.firstIndex(of: "_") {
                 return String(lower[..<underscore])
             }
-            return lower      // déjà "fr", "en", "es", …
+            return lower
         }
 
-        // 1) si l’utilisateur a choisi une langue explicite
         if selectedLanguage != "system" && !selectedLanguage.isEmpty {
             return normalize(selectedLanguage)
         }
 
-        // 2) sinon on suit la langue de l’app
         let appLang = Bundle.main.preferredLocalizations.first
             ?? Locale.current.language.languageCode?.identifier
             ?? "en"
 
-        return normalize(appLang)   // "es", "fr", "en", …
+        return normalize(appLang)
     }
 
     private func translation(for plant: Plant) -> PlantTranslation? {
-        let lang = effectiveLanguageCode   // ex: "es"
+        let lang = effectiveLanguageCode
 
         if let t = plant.translations[lang] {
-            return t                // prend "es" si dispo
+            return t
         } else if let en = plant.translations["en"] {
-            return en               // fallback anglais
+            return en
         } else {
             return plant.translations.values.first
         }
     }
 
-    private var localizedPlantType: String {
-        guard let plant = plant else {
-            return NSLocalizedString("PLANTDETAIL_TYPE_UNKNOWN", comment: "")
-        }
+    private var displayPlant: Plant? {
+        plant ?? previewPlant
+    }
+
+    private var displayedPlantType: String? {
+        guard let plant = displayPlant else { return nil }
+
+        let rawType: String
         if let t = translation(for: plant) {
-            return t.plantType
+            rawType = t.plantType
+        } else {
+            rawType = plant.type
         }
-        if !plant.type.isEmpty {
-            return plant.type
+
+        let cleanType = rawType.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanType.isEmpty else { return nil }
+
+        let lowered = cleanType.lowercased()
+        if lowered.contains("unknown") || lowered.contains("inconnu") {
+            return nil
         }
-        return NSLocalizedString("PLANTDETAIL_TYPE_UNKNOWN", comment: "")
+        return cleanType.capitalized
     }
 
     var body: some View {
         VStack(spacing: 0) {
             topBar
 
-            if isLoading {
-                ProgressView(NSLocalizedString("PLANTDETAIL_LOADING", comment: "Loading plant"))
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
+            if let errorMessage = errorMessage, displayPlant == nil {
+                Text(errorMessage)
+                    .font(ArboreDesign.Typography.body)
+                    .foregroundColor(ArboreDesign.Colors.danger)
+                    .multilineTextAlignment(.center)
                     .padding()
-            } else if let errorMessage = errorMessage {
-                Text("❌ \(errorMessage)")
-                    .foregroundColor(.red)
-                    .padding()
-            } else if let plant = plant {
-                let t = translation(for: plant)
-
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        plantHeaderImage
-
-                        ZStack(alignment: .top) {
-                            RoundedRectangle(cornerRadius: 32)
-                                .fill(themeManager.backgroundColor)
-                                .padding(.top, -32)
-                                .padding(.bottom, -200)
-
-                            VStack(alignment: .leading, spacing: 24) {
-                                addToGardenButton
-
-                                descriptionSection(t: t, plant: plant)
-
-                                // Cartes Soleil / Eau / Terre / Santé / Cycle / Entretien
-                                GeneralInfoGridView(translation: t, plantName: plant.name)
-
-                                arSection(for: plant)
-
-                                gallerySection(for: plant)
-
-                                truffautSection(for: plant)
-                            }
-                            .padding(.horizontal)
-                            .padding(.bottom, 40)
-                            .padding(.top, 5)
-                        }
-                    }
-                }
-                .coordinateSpace(name: "scroll")
+            } else {
+                plantContent(displayPlant, isShowingSkeleton: plant == nil)
             }
         }
+        .background(ArboreDesign.Colors.background.ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .onAppear(perform: fetchPlantDetails)
-        .overlay(galleryOverlay)
+        .fullScreenCover(isPresented: $showGallery) {
+            galleryOverlay
+        }
+        .toolbar(showGallery ? .hidden : .visible, for: .tabBar)
     }
 
     // MARK: - TOP BAR
 
     private var topBar: some View {
         ZStack(alignment: .bottom) {
-            themeManager.brandPrimary
+            ArboreDesign.Colors.primaryGreen
                 .ignoresSafeArea(edges: .top)
-                .frame(height: 75)
+                .frame(height: 64)
 
             HStack {
                 Button(action: { dismiss() }) {
                     Image(systemName: "chevron.left")
                         .foregroundColor(.white)
                         .font(.headline)
+                        .frame(width: 28, height: 28)
                 }
+                .buttonStyle(.plain)
 
                 Spacer()
 
                 VStack(spacing: 2) {
-                    Text(plant?.name ?? "")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
+                    if let name = displayPlant?.name, !name.isEmpty {
+                        Text(name)
+                            .font(.system(size: 19, weight: .bold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
+                    } else {
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.white.opacity(0.28))
+                            .frame(width: 118, height: 17)
+                    }
 
-                    Text(localizedPlantType.capitalized)
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.7))
+                    if let displayedPlantType {
+                        Text(displayedPlantType)
+                            .font(ArboreDesign.Typography.caption)
+                            .foregroundColor(.white.opacity(0.76))
+                            .lineLimit(1)
+                    } else {
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Color.white.opacity(0.18))
+                            .frame(width: 82, height: 10)
+                    }
                 }
 
                 Spacer()
 
-                Button(action: { isLiked.toggle() }) {
-                    Image(systemName: isLiked ? "heart.fill" : "heart")
-                        .foregroundColor(isLiked ? .red : .white)
-                        .font(.title2)
+                Color.clear
+                    .frame(width: 28, height: 28)
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 10)
+        }
+    }
+
+    // MARK: - CONTENT
+
+    private func plantContent(_ displayPlant: Plant?, isShowingSkeleton: Bool) -> some View {
+        let t = plant.flatMap { translation(for: $0) }
+
+        return ScrollView(showsIndicators: false) {
+            VStack(spacing: 0) {
+                plantHeaderImage(for: displayPlant)
+
+                ZStack(alignment: .top) {
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .fill(ArboreDesign.Colors.background)
+                        .padding(.top, -32)
+
+                    VStack(alignment: .leading, spacing: 24) {
+                        if isShowingSkeleton {
+                            descriptionSkeleton
+                            essentialsSkeleton
+                            guideSkeleton
+                        } else if let plant = displayPlant {
+                            descriptionSection(t: t, plant: plant)
+
+                            essentialsSection(t: t)
+
+                            GeneralInfoGridView(translation: t, plantName: plant.name)
+
+                            gallerySection(for: plant)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 24)
+                    .padding(.top, 5)
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 14)
         }
+        .coordinateSpace(name: "scroll")
     }
 
     // MARK: - HEADER IMAGE
 
-    private var plantHeaderImage: some View {
+    private func plantHeaderImage(for displayPlant: Plant?) -> some View {
         ZStack(alignment: .bottom) {
             GeometryReader { geo in
                 let offset = geo.frame(in: .named("scroll")).minY
 
-                AsyncImage(url: URL(string: plant?.imageURLs.first ?? "")) { image in
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .frame(
-                            width: UIScreen.main.bounds.width,
-                            height: offset > 0 ? 320 + offset : 320
-                        )
-                        .clipped()
-                        .offset(y: offset > 0 ? -offset : 0)
-                } placeholder: {
-                    Color.gray.opacity(0.2)
-                        .frame(height: 320)
-                        .overlay(ProgressView())
+                if let imageURL = displayPlant?.imageURLs.first, !imageURL.isEmpty {
+                    AsyncImage(url: URL(string: imageURL)) { image in
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .frame(
+                                width: UIScreen.main.bounds.width,
+                                height: offset > 0 ? 320 + offset : 320
+                            )
+                            .clipped()
+                            .offset(y: offset > 0 ? -offset : 0)
+                    } placeholder: {
+                        heroSkeleton
+                    }
+                } else {
+                    heroSkeleton
                 }
             }
             .frame(height: 320)
@@ -197,36 +224,9 @@ struct PlantDetailView: View {
         .frame(height: 320)
     }
 
-    // MARK: - ADD TO GARDEN BUTTON
-
-    private var addToGardenButton: some View {
-        HStack {
-            Spacer()
-
-            Button(action: {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                    isAddedToGarden = true
-                }
-            }) {
-                Text(
-                    isAddedToGarden
-                    ? NSLocalizedString("PLANTDETAIL_ADDED_TO_GARDEN", comment: "")
-                    : NSLocalizedString("PLANTDETAIL_ADD_TO_GARDEN", comment: "")
-                )
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(isAddedToGarden ? themeManager.brandPrimaryLight : themeManager.brandPrimary)
-                .foregroundColor(isAddedToGarden ? themeManager.brandPrimary : .white)
-                .cornerRadius(20)
-                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-            }
-
-            Spacer()
-        }
-        .offset(y: -50)
-        .padding(.bottom, -80)
+    private var heroSkeleton: some View {
+        SkeletonBlock(cornerRadius: 0)
+            .frame(height: 320)
     }
 
     // MARK: - DESCRIPTION
@@ -240,23 +240,24 @@ struct PlantDetailView: View {
                     Image("description_icon")
                         .resizable()
                         .renderingMode(.template)
-                        .foregroundColor(themeManager.brandPrimary)
+                        .foregroundColor(ArboreDesign.Colors.primaryGreen)
                         .frame(width: 25, height: 25)
 
                     Text(NSLocalizedString("PLANTDETAIL_SECTION_DESCRIPTION", comment: ""))
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(themeManager.textColor)
+                        .font(ArboreDesign.Typography.sectionTitle)
+                        .foregroundColor(ArboreDesign.Colors.textPrimary)
 
                     Spacer()
                 }
 
                 Text(descriptionText)
-                    .font(.system(size: 15))
-                    .foregroundColor(themeManager.textColor.opacity(0.9))
-                    .lineLimit(showFullDescription ? nil : 2)
+                    .font(ArboreDesign.Typography.body)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                    .lineSpacing(3)
+                    .lineLimit(showFullDescription ? nil : 3)
                     .fixedSize(horizontal: false, vertical: true)
 
-                if descriptionText.count > 100 {
+                if shouldShowReadMore(for: descriptionText) {
                     Button(action: {
                         withAnimation { showFullDescription.toggle() }
                     }) {
@@ -265,88 +266,192 @@ struct PlantDetailView: View {
                             ? NSLocalizedString("PLANTDETAIL_READ_LESS", comment: "")
                             : NSLocalizedString("PLANTDETAIL_READ_MORE", comment: "")
                         )
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .foregroundColor(themeManager.brandPrimary)
+                        .font(ArboreDesign.Typography.bodySmall.weight(.semibold))
+                        .foregroundColor(ArboreDesign.Colors.primaryGreen)
                     }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(20)
-            .background(themeManager.cardBackgroundColor)
-            .cornerRadius(20)
-            .shadow(color: Color.black.opacity(0.08), radius: 8, x: 0, y: 4)
+            .background(ArboreDesign.Colors.card)
+            .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                    .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+            )
+            .shadow(color: ArboreDesign.Colors.shadow, radius: 8, x: 0, y: 4)
         }
         .frame(maxWidth: 380)
         .frame(maxWidth: .infinity)
         .padding(.top, 12)
     }
 
-    // MARK: - AR VIEW SECTION
+    private func shouldShowReadMore(for text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).count > 110
+    }
 
-    private func arSection(for plant: Plant) -> some View {
-        VStack(spacing: 12) {
-            Text(NSLocalizedString("PLANTDETAIL_AR_TITLE", comment: ""))
-                .font(.headline)
-                .foregroundColor(themeManager.brandPrimary)
+    // MARK: - ESSENTIALS
 
-            Text(NSLocalizedString("PLANTDETAIL_AR_SUBTITLE", comment: ""))
-                .font(.subheadline)
-                .foregroundColor(themeManager.secondaryTextColor)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-
-            Image("plant_scanner_placeholder")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(height: 180)
-
-            Button(action: {
-                // Pré-télécharger le modèle 3D avant d'ouvrir la vue AR
-                Task {
-                    isDownloadingModel = true
-                    do {
-                        let url = try await plant.getModelURL()
-                        downloadedModelURL = url
-                        print("✅ Model downloaded for AR view: \(plant.name)")
-                    } catch {
-                        print("❌ Failed to download model: \(error)")
-                        // Fallback to bundle if download fails
-                        downloadedModelURL = plant.bundleModelURL
-                    }
-                    isDownloadingModel = false
-                    showARView = true
-                }
-            }) {
-                HStack(spacing: 8) {
-                    if isDownloadingModel {
-                        ProgressView()
-                            .tint(.white)
-                        Text("Chargement...")
-                    } else {
-                        Text(NSLocalizedString("PLANTDETAIL_AR_CTA", comment: ""))
-                    }
-                }
-                .foregroundColor(.white)
-                .fontWeight(.semibold)
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(themeManager.brandPrimary)
-                .cornerRadius(12)
+    private func essentialsSection(t: PlantTranslation?) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkle.magnifyingglass")
+                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                Text(NSLocalizedString("PLANTDETAIL_ESSENTIALS_TITLE", value: "Essentiels", comment: ""))
+                    .font(ArboreDesign.Typography.sectionTitle)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
             }
-            .disabled(isDownloadingModel)
-            .fullScreenCover(isPresented: $showARView) {
-                if let modelURL = downloadedModelURL {
-                    ARViewWrapper(modelURL: modelURL)
-                } else if let demoURL = getDemoModelURL() {
-                    ARViewWrapper(modelURL: demoURL)
-                } else {
-                    ARViewBasic()
-                }
+            .padding(.horizontal)
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 10),
+                    GridItem(.flexible(), spacing: 10)
+                ],
+                spacing: 10
+            ) {
+                EssentialPlantInfoCard(
+                    icon: "sun.max.fill",
+                    title: NSLocalizedString("PLANTDETAIL_SUN_TITLE", comment: ""),
+                    value: firstAvailable(t?.sun?.lightType, t?.sun?.durationPerDay),
+                    tint: ArboreDesign.Colors.accentGold
+                )
+
+                EssentialPlantInfoCard(
+                    icon: "drop.fill",
+                    title: NSLocalizedString("PLANTDETAIL_WATER_TITLE", comment: ""),
+                    value: firstAvailable(t?.water?.frequency, t?.water?.amount),
+                    tint: ArboreDesign.Colors.primaryGreen
+                )
+
+                EssentialPlantInfoCard(
+                    icon: "hand.raised.fill",
+                    title: NSLocalizedString("PLANTDETAIL_CARE_TITLE", comment: ""),
+                    value: firstAvailable(t?.care?.difficulty),
+                    tint: ArboreDesign.Colors.primaryGreen
+                )
+
+                EssentialPlantInfoCard(
+                    icon: "arrow.up.right",
+                    title: NSLocalizedString("PLANTDETAIL_GROWTH_TITLE", value: "Croissance", comment: ""),
+                    value: firstAvailable(t?.lifeCycle?.growth, t?.soilAndPot?.repotFrequency),
+                    tint: ArboreDesign.Colors.accentGold
+                )
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    private func firstAvailable(_ values: String?...) -> String {
+        for value in values {
+            let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !trimmed.isEmpty {
+                return trimmed
             }
         }
-        .padding()
-        .background(themeManager.cardBackgroundColor)
-        .cornerRadius(20)
+        return NSLocalizedString("PLANTDETAIL_INFO_UNAVAILABLE", value: "Non renseigné", comment: "")
+    }
+
+    // MARK: - SKELETONS
+
+    private var descriptionSkeleton: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    SkeletonBlock(width: 25, height: 25, cornerRadius: 8)
+                    SkeletonBlock(width: 132, height: 20, cornerRadius: 8)
+                    Spacer()
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    SkeletonBlock(height: 14, cornerRadius: 7)
+                    SkeletonBlock(height: 14, cornerRadius: 7)
+                    SkeletonBlock(width: 210, height: 14, cornerRadius: 7)
+                }
+            }
+            .padding(20)
+            .background(ArboreDesign.Colors.card)
+            .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                    .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+            )
+            .shadow(color: ArboreDesign.Colors.shadow, radius: 8, x: 0, y: 4)
+        }
+        .frame(maxWidth: 380)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 12)
+    }
+
+    private var essentialsSkeleton: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                SkeletonBlock(width: 18, height: 18, cornerRadius: 7)
+                SkeletonBlock(width: 96, height: 20, cornerRadius: 8)
+            }
+            .padding(.horizontal)
+
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: 10),
+                    GridItem(.flexible(), spacing: 10)
+                ],
+                spacing: 10
+            ) {
+                ForEach(0..<4, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: 7) {
+                        SkeletonBlock(width: 30, height: 30, cornerRadius: 15)
+                        SkeletonBlock(width: 70, height: 12, cornerRadius: 6)
+                        SkeletonBlock(height: 14, cornerRadius: 7)
+                        SkeletonBlock(width: 92, height: 14, cornerRadius: 7)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
+                    .background(ArboreDesign.Colors.card)
+                    .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
+                            .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+                    )
+                    .shadow(color: ArboreDesign.Colors.shadow, radius: 4, x: 0, y: 2)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+
+    private var guideSkeleton: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                SkeletonBlock(width: 18, height: 18, cornerRadius: 7)
+                SkeletonBlock(width: 146, height: 20, cornerRadius: 8)
+            }
+            .padding(.horizontal)
+
+            VStack(spacing: 14) {
+                ForEach(0..<6, id: \.self) { _ in
+                    HStack(spacing: 12) {
+                        SkeletonBlock(width: 38, height: 38, cornerRadius: 19)
+                        VStack(alignment: .leading, spacing: 7) {
+                            SkeletonBlock(width: 118, height: 16, cornerRadius: 8)
+                            SkeletonBlock(width: 190, height: 12, cornerRadius: 6)
+                        }
+                        Spacer()
+                        SkeletonBlock(width: 8, height: 14, cornerRadius: 4)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(ArboreDesign.Colors.card)
+                    .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
+                            .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+                    )
+                    .shadow(color: ArboreDesign.Colors.shadow, radius: 4, x: 0, y: 2)
+                }
+            }
+            .padding(.horizontal)
+        }
     }
 
     // MARK: - GALLERY
@@ -356,17 +461,9 @@ struct PlantDetailView: View {
             if plant.imageURLs.count > 1 {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(themeManager.brandPrimaryLight)
-                                .frame(width: 32, height: 32)
-                            Image(systemName: "photo.on.rectangle")
-                                .foregroundColor(themeManager.brandPrimary)
-                        }
-
                         Text(NSLocalizedString("PLANTDETAIL_GALLERY_TITLE", comment: ""))
-                            .font(.headline)
-                            .foregroundColor(themeManager.brandPrimary)
+                            .font(ArboreDesign.Typography.cardTitle)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
 
                         Spacer()
 
@@ -375,9 +472,10 @@ struct PlantDetailView: View {
                             showGallery = true
                         }) {
                             Text(NSLocalizedString("PLANTDETAIL_GALLERY_SEE_ALL", comment: ""))
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
+                                .font(ArboreDesign.Typography.bodySmall.weight(.semibold))
+                                .foregroundColor(ArboreDesign.Colors.primaryGreen)
                         }
+                        .buttonStyle(.plain)
                     }
                     .padding(.horizontal, 8)
 
@@ -390,12 +488,15 @@ struct PlantDetailView: View {
                                         .scaledToFill()
                                         .frame(width: 120, height: 120)
                                         .clipped()
-                                        .cornerRadius(16)
+                                        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
                                 } placeholder: {
-                                    Color.gray.opacity(0.2)
+                                    ArboreDesign.Colors.elevatedCard
                                         .frame(width: 120, height: 120)
-                                        .cornerRadius(16)
-                                        .overlay(ProgressView())
+                                        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
+                                        .overlay(
+                                            ProgressView()
+                                                .tint(ArboreDesign.Colors.primaryGreen)
+                                        )
                                 }
                                 .onTapGesture {
                                     galleryStartIndex = index
@@ -407,8 +508,13 @@ struct PlantDetailView: View {
                     }
                 }
                 .padding()
-                .background(themeManager.cardBackgroundColor)
-                .cornerRadius(20)
+                .background(ArboreDesign.Colors.card)
+                .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                        .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+                )
+                .shadow(color: ArboreDesign.Colors.shadow, radius: 8, x: 0, y: 4)
             }
         }
         .padding(.bottom)
@@ -418,37 +524,10 @@ struct PlantDetailView: View {
         Group {
             if showGallery, let plant = plant {
                 PlantPhotoGallery(images: plant.imageURLs, isPresented: $showGallery)
+            } else {
+                Color.clear
             }
         }
-    }
-
-    // MARK: - TRUFFAUT CTA
-
-    private func truffautSection(for plant: Plant) -> some View {
-        ZStack {
-            Image("truffaut_banner_frame")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(maxWidth: 360)
-
-            Button(action: {
-                if let url = URL(
-                    string: "https://www.truffaut.com/recherche?q=\(plant.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
-                ) {
-                    UIApplication.shared.open(url)
-                }
-            }) {
-                Image("truffaut_cta")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: 300)
-                    .cornerRadius(20)
-                    .shadow(color: Color.black.opacity(0.08), radius: 10)
-            }
-        }
-        .padding(.horizontal)
-        .padding(.top, 8)
-        .padding(.bottom, 28)
     }
 
     // MARK: - NETWORKING
@@ -463,6 +542,8 @@ struct PlantDetailView: View {
 
                 await MainActor.run {
                     self.plant = plant
+                    self.errorMessage = nil
+                    self.showFullDescription = false
                     self.isLoading = false
                 }
             } catch {
@@ -474,17 +555,73 @@ struct PlantDetailView: View {
             }
         }
     }
+}
 
-    // MARK: - AR FALLBACK
+// MARK: - SKELETON
 
-    private func getDemoModelURL() -> URL? {
-        if let url = Bundle.main.url(forResource: "plant2", withExtension: "usdz", subdirectory: "Assets") {
-            return url
+struct SkeletonBlock: View {
+    var width: CGFloat?
+    var height: CGFloat?
+    var cornerRadius: CGFloat = ArboreDesign.Radius.medium
+    @State private var isPulsing = false
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(ArboreDesign.Colors.softSurface)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(ArboreDesign.Colors.card.opacity(isPulsing ? 0.42 : 0.12))
+            )
+            .opacity(isPulsing ? 0.72 : 1)
+            .frame(width: width, height: height)
+            .frame(maxWidth: width == nil ? .infinity : nil)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.05).repeatForever(autoreverses: true)) {
+                    isPulsing = true
+                }
+            }
+    }
+}
+
+// MARK: - ESSENTIAL CARD
+
+struct EssentialPlantInfoCard: View {
+    let icon: String
+    let title: String
+    let value: String
+    let tint: Color
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(tint)
+                .frame(width: 30, height: 30)
+                .background(tint.opacity(colorScheme == .dark ? 0.18 : 0.12))
+                .clipShape(Circle())
+
+            Text(title)
+                .font(ArboreDesign.Typography.caption.weight(.semibold))
+                .foregroundColor(ArboreDesign.Colors.textMuted)
+                .lineLimit(1)
+
+            Text(value)
+                .font(ArboreDesign.Typography.bodySmall.weight(.semibold))
+                .foregroundColor(ArboreDesign.Colors.textPrimary)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
-        if let url = Bundle.main.url(forResource: "plant2", withExtension: "usdz") {
-            return url
-        }
-        return nil
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
+        .background(ArboreDesign.Colors.card)
+        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
+                .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+        )
+        .shadow(color: ArboreDesign.Colors.shadow, radius: 4, x: 0, y: 2)
     }
 }
 
@@ -500,11 +637,10 @@ struct GeneralInfoGridView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Image(systemName: "doc.text.below.ecg.fill")
-                    .foregroundColor(themeManager.brandPrimary)
-                Text(NSLocalizedString("PLANTDETAIL_GENERALINFO_TITLE", comment: ""))
-                    .font(.title3)
-                    .fontWeight(.semibold)
-                    .foregroundColor(themeManager.textColor)
+                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                Text(NSLocalizedString("PLANTDETAIL_CARE_GUIDE_TITLE", value: "Guide d’entretien", comment: "Plant care guide title"))
+                    .font(ArboreDesign.Typography.sectionTitle)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
             }
             .padding(.horizontal)
 
@@ -513,42 +649,42 @@ struct GeneralInfoGridView: View {
                     icon: "sun.max.fill",
                     title: NSLocalizedString("PLANTDETAIL_SUN_TITLE", comment: ""),
                     description: NSLocalizedString("PLANTDETAIL_SUN_SUBTITLE", comment: ""),
-                    color: Color(hex: "#EEDB8B"),
+                    color: ArboreDesign.Colors.accentGold,
                     destination: SoleilDetailView(sun: translation?.sun)
                 )
                 GeneralInfoCard(
                     icon: "drop.fill",
                     title: NSLocalizedString("PLANTDETAIL_WATER_TITLE", comment: ""),
                     description: NSLocalizedString("PLANTDETAIL_WATER_SUBTITLE", comment: ""),
-                    color: Color(hex: "#A4C3D7"),
+                    color: ArboreDesign.Colors.primaryGreen,
                     destination: EauDetailView(water: translation?.water, plantName: plantName)
                 )
                 GeneralInfoCard(
                     icon: "leaf.fill",
                     title: NSLocalizedString("PLANTDETAIL_SOIL_TITLE", comment: ""),
                     description: NSLocalizedString("PLANTDETAIL_SOIL_SUBTITLE", comment: ""),
-                    color: Color(hex: "#A7C6AD"),
+                    color: ArboreDesign.Colors.primaryGreen,
                     destination: TerreDetailView(soil: translation?.soilAndPot, plantName: plantName)
                 )
                 GeneralInfoCard(
                     icon: "cross.case.fill",
                     title: NSLocalizedString("PLANTDETAIL_HEALTH_TITLE", comment: ""),
                     description: NSLocalizedString("PLANTDETAIL_HEALTH_SUBTITLE", comment: ""),
-                    color: Color(hex: "#E6A6A1"),
+                    color: ArboreDesign.Colors.danger,
                     destination: SanteDetailView(health: translation?.health)
                 )
                 GeneralInfoCard(
                     icon: "calendar",
                     title: NSLocalizedString("PLANTDETAIL_LIFECYCLE_TITLE", comment: ""),
                     description: NSLocalizedString("PLANTDETAIL_LIFECYCLE_SUBTITLE", comment: ""),
-                    color: Color(hex: "#EFCFAF"),
+                    color: ArboreDesign.Colors.accentGold,
                     destination: CycleDeVieView(lifecycle: translation?.lifeCycle)
                 )
                 GeneralInfoCard(
                     icon: "brain.head.profile",
                     title: NSLocalizedString("PLANTDETAIL_CARE_TITLE", comment: ""),
                     description: NSLocalizedString("PLANTDETAIL_CARE_SUBTITLE", comment: ""),
-                    color: Color(hex: "#C5B3E6"),
+                    color: ArboreDesign.Colors.primaryGreen,
                     destination: EntretienView(care: translation?.care)
                 )
             }
@@ -568,34 +704,39 @@ struct GeneralInfoCard<Destination: View>: View {
 
     var body: some View {
         NavigationLink(destination: destination) {
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(color.opacity(0.1))
-                        .frame(width: 44, height: 44)
+                        .fill(color.opacity(colorScheme == .dark ? 0.18 : 0.12))
+                        .frame(width: 38, height: 38)
                     Image(systemName: icon)
                         .foregroundColor(color)
-                        .font(.system(size: 20, weight: .medium))
+                        .font(.system(size: 18, weight: .medium))
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1) {
                     Text(title)
-                        .font(.headline)
-                        .foregroundColor(colorScheme == .dark ? .white : .primary)
+                        .font(ArboreDesign.Typography.cardTitle)
+                        .foregroundColor(ArboreDesign.Colors.textPrimary)
                     Text(description)
-                        .font(.subheadline)
-                        .foregroundColor(colorScheme == .dark ? .white.opacity(0.7) : .secondary)
+                        .font(ArboreDesign.Typography.bodySmall)
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
                 }
 
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundColor(themeManager.secondaryTextColor)
+                Image(systemName: ArboreDesign.Icons.chevron)
+                    .foregroundColor(ArboreDesign.Colors.textMuted)
             }
-            .padding()
-            .background(themeManager.cardBackgroundColor)
-            .cornerRadius(16)
-            .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(ArboreDesign.Colors.card)
+            .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
+                    .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+            )
+            .shadow(color: ArboreDesign.Colors.shadow, radius: 4, x: 0, y: 2)
         }
+        .buttonStyle(.plain)
     }
 }
-

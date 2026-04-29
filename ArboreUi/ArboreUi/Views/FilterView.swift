@@ -113,8 +113,6 @@ struct FilterView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 32) {
-                    
-                    // Section Lumière
                     FilterSection(
                         title: NSLocalizedString("FILTER_LIGHT_TITLE", value: "Luminosité", comment: "Light section"),
                         icon: "sun.max.fill",
@@ -122,7 +120,6 @@ struct FilterView: View {
                         selectedOption: $tempFilters.lightType
                     )
                     
-                    // Section Arrosage
                     FilterSection(
                         title: NSLocalizedString("FILTER_WATER_TITLE", value: "Arrosage", comment: "Water section"),
                         icon: "drop.fill",
@@ -130,7 +127,6 @@ struct FilterView: View {
                         selectedOption: $tempFilters.waterFrequency
                     )
                     
-                    // Section Difficulté
                     FilterSection(
                         title: NSLocalizedString("FILTER_DIFFICULTY_TITLE", value: "Difficulté d'entretien", comment: "Difficulty section"),
                         icon: "star.fill",
@@ -142,22 +138,22 @@ struct FilterView: View {
                 }
                 .padding(20)
             }
-            .background(themeManager.backgroundColor.ignoresSafeArea())
+            .background(ArboreDesign.Colors.background.ignoresSafeArea())
             .navigationTitle(NSLocalizedString("FILTER_TITLE", value: "Filtres", comment: "Filters"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button(action: { dismiss() }) {
                         Image(systemName: "xmark")
-                            .foregroundColor(themeManager.textColor)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
                     }
                 }
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: resetFilters) {
                         Text(NSLocalizedString("FILTER_RESET", value: "Réinitialiser", comment: "Reset"))
-                            .foregroundColor(themeManager.adjust(Color(hex: "#263826")))
-                            .fontWeight(.medium)
+                            .font(ArboreDesign.Typography.bodySmall.weight(.semibold))
+                            .foregroundColor(ArboreDesign.Colors.primaryGreen)
                     }
                 }
             }
@@ -178,16 +174,16 @@ struct FilterView: View {
                     dismiss()
                 }) {
                     Text(NSLocalizedString("FILTER_CANCEL", value: "Annuler", comment: "Cancel"))
-                        .fontWeight(.semibold)
-                        .foregroundColor(themeManager.textColor)
+                        .font(ArboreDesign.Typography.button)
+                        .foregroundColor(ArboreDesign.Colors.textPrimary)
                         .frame(maxWidth: .infinity)
                         .frame(height: 50)
                         .background(
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(themeManager.cardBackgroundColor)
+                            RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
+                                .fill(ArboreDesign.Colors.card)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .stroke(themeManager.adjust(Color(hex: "#263826")), lineWidth: 2)
+                                    RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
+                                        .stroke(ArboreDesign.Colors.primaryGreen, lineWidth: 1.4)
                                 )
                         )
                 }
@@ -197,29 +193,20 @@ struct FilterView: View {
                         Image(systemName: "checkmark")
                         Text(NSLocalizedString("FILTER_APPLY", value: "Appliquer", comment: "Apply"))
                     }
-                    .fontWeight(.semibold)
+                    .font(ArboreDesign.Typography.button)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
                     .background(
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        themeManager.adjust(Color(hex: "#3F6212")),
-                                        themeManager.adjust(Color(hex: "#4A7615"))
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
+                        RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
+                            .fill(ArboreDesign.Colors.primaryGreen)
                     )
-                    .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
+                    .shadow(color: ArboreDesign.Colors.shadow, radius: 8, x: 0, y: 4)
                 }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
-            .background(themeManager.backgroundColor)
+            .background(ArboreDesign.Colors.background)
         }
     }
     
@@ -239,7 +226,7 @@ struct FilterView: View {
 
 struct FilterSection: View {
     @EnvironmentObject var themeManager: ThemeManager
-    
+
     let title: String
     let icon: String
     let options: [String]
@@ -247,18 +234,16 @@ struct FilterSection: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // En-tête de section
             HStack(spacing: 10) {
                 Image(systemName: icon)
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(themeManager.adjust(Color(hex: "#3F6212")))
+                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
                 
                 Text(title)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundColor(themeManager.textColor)
+                    .font(ArboreDesign.Typography.sectionTitle)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
             }
             
-            // Options
             VStack(spacing: 12) {
                 ForEach(options, id: \.self) { option in
                     FilterOptionButton(
@@ -282,7 +267,7 @@ struct FilterSection: View {
 
 struct FilterOptionButton: View {
     @EnvironmentObject var themeManager: ThemeManager
-    
+
     let title: String
     let isSelected: Bool
     let action: () -> Void
@@ -291,55 +276,28 @@ struct FilterOptionButton: View {
         Button(action: action) {
             HStack {
                 Text(title)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(isSelected ? .white : themeManager.textColor)
-                
+                    .font(ArboreDesign.Typography.body.weight(.medium))
+                    .foregroundColor(isSelected ? .white : ArboreDesign.Colors.textPrimary)
+
                 Spacer()
-                
+
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundColor(.white)
                 }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 16)
             .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(
-                        isSelected 
-                            ? LinearGradient(
-                                colors: [
-                                    themeManager.adjust(Color(hex: "#3F6212")),
-                                    themeManager.adjust(Color(hex: "#4A7615"))
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                            : LinearGradient(
-                                colors: [themeManager.cardBackgroundColor, themeManager.cardBackgroundColor],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                    )
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
+                    .fill(isSelected ? ArboreDesign.Colors.primaryGreen : ArboreDesign.Colors.card)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(
-                                isSelected 
-                                    ? Color.clear 
-                                    : themeManager.textColor.opacity(0.15),
-                                lineWidth: 1
-                            )
+                        RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
+                            .stroke(isSelected ? Color.clear : ArboreDesign.Colors.border, lineWidth: 1)
                     )
             )
-            .shadow(
-                color: isSelected 
-                    ? Color.black.opacity(0.15) 
-                    : Color.clear,
-                radius: 8,
-                x: 0,
-                y: 4
-            )
+            .shadow(color: isSelected ? ArboreDesign.Colors.shadow : Color.clear, radius: 8, x: 0, y: 4)
         }
         .buttonStyle(PlainButtonStyle())
     }

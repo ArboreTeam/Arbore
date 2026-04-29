@@ -30,16 +30,17 @@ Cela copie le fichier encodé dans votre presse-papier.
 
 **Description**: Clé API pour authentifier l'application iOS auprès du backend
 
-**Valeur actuelle**:
-```
-***REDACTED-LEAKED-API-KEY***
-```
+**Format**: `arbore_ios_v1_<64 alphanumeric chars>`
+
+**⚠️ La clé réelle ne doit jamais apparaître dans le repo.** Demandez-la
+à un mainteneur (canal privé) ou régénérez-en une nouvelle sur le
+backend (\`ssh fedora@<host>\`, voir \`/home/fedora/Arbore/.env\`).
 
 **Comment le configurer**:
 1. Allez sur GitHub → Repository Settings → Secrets and variables → Actions
 2. Cliquez sur "New repository secret"
 3. Nom: `ARBORE_API_KEY`
-4. Valeur: Copiez la clé API ci-dessus
+4. Valeur: la clé obtenue par canal sécurisé
 5. Cliquez sur "Add secret"
 
 ⚠️ **Important**: En production, générez une nouvelle clé API sécurisée

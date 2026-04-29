@@ -4,20 +4,98 @@
 # Wired via `git config core.hooksPath .githooks` (one-time, see the
 # project setup docs). Add new checks here, not in .git/hooks/.
 
-# ────────────────────────────────────────────────
-# 1. Lock DEVELOPMENT_TEAM + bundle id in project.pbxproj
-# ────────────────────────────────────────────────
 PBXPROJ="ArboreUi/ArboreUi.xcodeproj/project.pbxproj"
-EXPECTED_TEAM="582QH9652J"
-EXPECTED_BUNDLE="com.arboreteam.arbore"
+
+# Allowed code-signing values for the staged pbxproj. Update only with
+# explicit team approval — Xcode will rewrite this file the moment any
+# collaborator signs the app on a Personal Team (because they haven't
+# accepted the Apple Developer Agreement on developer.apple.com), and
+# we don't want those drifts merged.
+#
+# Each variable is a space-separated allowlist.
+ALLOWED_TEAMS="582QH9652J"
+ALLOWED_BUNDLES="com.arboreteam.arbore com.ArboreUiTests com.ArboreUiUITests"
+ALLOWED_SIGN_STYLES="Automatic"
+
+# ────────────────────────────────────────────────
+# 1. Code signing — DEVELOPMENT_TEAM / bundle id / sign style
+# ────────────────────────────────────────────────
+ERROR_COUNT=0
+
+# Helper: extract the value (RHS) of all matching keys, deduped.
+extract_pbx_values() {
+  key="$1"
+  echo "$STAGED_PBX" | awk -F'= ' -v k="$key" '
+    $0 ~ "^[[:space:]]*"k"[[:space:]]*=" {
+      gsub(/[ \t;]/, "", $2)
+      print $2
+    }
+  ' | sort -u
+}
+
+# Helper: is "$1" present in the space-separated list "$2" ?
+in_list() {
+  case " $2 " in
+    *" $1 "*) return 0 ;;
+    *)        return 1 ;;
+  esac
+}
 
 if git diff --cached --name-only | grep -q "$PBXPROJ"; then
-  if git show :$PBXPROJ | grep "DEVELOPMENT_TEAM" | grep -qv "$EXPECTED_TEAM"; then
-    echo "❌ DEVELOPMENT_TEAM must be $EXPECTED_TEAM"
-    exit 1
-  fi
-  if git show :$PBXPROJ | grep "PRODUCT_BUNDLE_IDENTIFIER" | grep -qv "ArboreUiTests\|ArboreUiUITests\|$EXPECTED_BUNDLE"; then
-    echo "❌ PRODUCT_BUNDLE_IDENTIFIER must be $EXPECTED_BUNDLE"
+  STAGED_PBX=$(git show :"$PBXPROJ" 2>/dev/null)
+
+  # ── DEVELOPMENT_TEAM ──
+  for value in $(extract_pbx_values DEVELOPMENT_TEAM); do
+    [ -z "$value" ] && continue
+    if ! in_list "$value" "$ALLOWED_TEAMS"; then
+      echo "❌ DEVELOPMENT_TEAM = $value is not allowed."
+      echo "   Only allowed: $ALLOWED_TEAMS  (Arbore Team)"
+      ERROR_COUNT=$((ERROR_COUNT + 1))
+    fi
+  done
+
+  # ── PRODUCT_BUNDLE_IDENTIFIER ──
+  for value in $(extract_pbx_values PRODUCT_BUNDLE_IDENTIFIER); do
+    [ -z "$value" ] && continue
+    if ! in_list "$value" "$ALLOWED_BUNDLES"; then
+      echo "❌ PRODUCT_BUNDLE_IDENTIFIER = $value is not allowed."
+      echo "   Allowed: $ALLOWED_BUNDLES"
+      ERROR_COUNT=$((ERROR_COUNT + 1))
+    fi
+  done
+
+  # ── CODE_SIGN_STYLE ──
+  for value in $(extract_pbx_values CODE_SIGN_STYLE); do
+    [ -z "$value" ] && continue
+    if ! in_list "$value" "$ALLOWED_SIGN_STYLES"; then
+      echo "❌ CODE_SIGN_STYLE = $value is not allowed."
+      echo "   Allowed: $ALLOWED_SIGN_STYLES"
+      ERROR_COUNT=$((ERROR_COUNT + 1))
+    fi
+  done
+
+  if [ $ERROR_COUNT -gt 0 ]; then
+    echo ""
+    echo "──────────────────────────────────────────────────────────────"
+    echo "  Bundle ID / Team / Sign style modifié dans $PBXPROJ."
+    echo ""
+    echo "  Probablement un collaborateur signé sur sa Personal Team."
+    echo "  Cause habituelle : il n'a pas accepté l'Apple Developer"
+    echo "  Agreement (gratuit) sur developer.apple.com → Xcode bascule"
+    echo "  sur sa team perso et réécrit le pbxproj."
+    echo ""
+    echo "  À faire :"
+    echo "    1. L'auteur accepte l'Agreement sur developer.apple.com"
+    echo "       (Account → Membership → Agreements)"
+    echo "    2. Restaurer les valeurs équipe dans Xcode :"
+    echo "         Signing & Capabilities → Team = \"Arbore Team\""
+    echo "         Bundle Identifier      = com.arboreteam.arbore"
+    echo "    3. Re-tenter le commit."
+    echo ""
+    echo "  Si tu sais que tu DOIS modifier les valeurs autorisées,"
+    echo "  édite ALLOWED_TEAMS / ALLOWED_BUNDLES / ALLOWED_SIGN_STYLES"
+    echo "  en haut de .githooks/pre-commit."
+    echo "──────────────────────────────────────────────────────────────"
     exit 1
   fi
 fi

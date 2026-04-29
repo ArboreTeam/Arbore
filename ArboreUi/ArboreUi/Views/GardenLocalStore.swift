@@ -55,6 +55,34 @@ struct PersistedPlant: Codable {
     let scale: [Float]
     let transform: [Float]
     let upAxis: String?
+    // Issue #113 — surface info for snap-to-plane on elevated plants.
+    // Optional for backward compatibility with old saved JSONs.
+    let surfaceType: String?     // "floor" | "elevated" | nil
+    let surfaceHeight: Float?    // Y of the surface at save-time, in world coords
+
+    init(
+        plantID: String,
+        plantName: String,
+        modelURLString: String,
+        position: [Float],
+        rotation: [Float],
+        scale: [Float],
+        transform: [Float],
+        upAxis: String? = nil,
+        surfaceType: String? = nil,
+        surfaceHeight: Float? = nil
+    ) {
+        self.plantID = plantID
+        self.plantName = plantName
+        self.modelURLString = modelURLString
+        self.position = position
+        self.rotation = rotation
+        self.scale = scale
+        self.transform = transform
+        self.upAxis = upAxis
+        self.surfaceType = surfaceType
+        self.surfaceHeight = surfaceHeight
+    }
 }
 
 // MARK: - 3. Modèle pour l'affichage liste

@@ -4,34 +4,34 @@ import UIKit
 enum ArboreDesign {
     enum Colors {
         static let backgroundLight = Color(hex: "#F0EEEA")
-        static let backgroundDark = Color(hex: "#0D120F")
+        static let backgroundDark = Color(hex: "#10100E")
         static let primaryGreen = dynamic(light: UIColor(hex: "#234632"), dark: UIColor(hex: "#2F6B46"))
         static let primaryGreenDark = Color(hex: "#2F6B46")
         static let secondaryGreen = Color(hex: "#8FAF8A")
         static let softGreenBackground = Color(hex: "#E3EBDF")
         static let accentGold = Color(hex: "#D8A85B")
         static let cardLight = Color(hex: "#FFFFFF")
-        static let cardDark = Color(hex: "#1A211C")
-        static let elevatedCardDark = Color(hex: "#202922")
+        static let cardDark = Color(hex: "#1B1A17")
+        static let elevatedCardDark = Color(hex: "#24231F")
         static let textPrimaryLight = Color(hex: "#1B1F1A")
         static let textSecondaryLight = Color(hex: "#6E746B")
         static let textPrimaryDark = Color(hex: "#F7F4EF")
         static let textSecondaryDark = Color(hex: "#C5CBBF")
         static let textMutedDark = Color(hex: "#9EA79D")
         static let borderLight = Color(hex: "#DDD8CF")
-        static let borderDark = Color(hex: "#344039")
+        static let borderDark = Color(hex: "#3B3932")
         static let danger = Color(hex: "#D9534F")
         static let success = Color(hex: "#4F8F5B")
         static let placeholderLight = Color(hex: "#9B9F98")
 
-        static let background = dynamic(light: UIColor(hex: "#F0EEEA"), dark: UIColor(hex: "#0D120F"))
-        static let card = dynamic(light: UIColor(hex: "#FFFFFF"), dark: UIColor(hex: "#1A211C"))
-        static let elevatedCard = dynamic(light: UIColor(hex: "#FFFFFF"), dark: UIColor(hex: "#202922"))
+        static let background = dynamic(light: UIColor(hex: "#F0EEEA"), dark: UIColor(hex: "#10100E"))
+        static let card = dynamic(light: UIColor(hex: "#FFFFFF"), dark: UIColor(hex: "#1B1A17"))
+        static let elevatedCard = dynamic(light: UIColor(hex: "#FFFFFF"), dark: UIColor(hex: "#24231F"))
         static let textPrimary = dynamic(light: UIColor(hex: "#1B1F1A"), dark: UIColor(hex: "#F7F4EF"))
         static let textSecondary = dynamic(light: UIColor(hex: "#6E746B"), dark: UIColor(hex: "#C5CBBF"))
         static let textMuted = dynamic(light: UIColor(hex: "#8A8F87"), dark: UIColor(hex: "#9EA79D"))
-        static let border = dynamic(light: UIColor(hex: "#DDD8CF"), dark: UIColor(hex: "#344039"))
-        static let softSurface = dynamic(light: UIColor(hex: "#E3EBDF"), dark: UIColor(hex: "#243629"))
+        static let border = dynamic(light: UIColor(hex: "#DDD8CF"), dark: UIColor(hex: "#3B3932"))
+        static let softSurface = dynamic(light: UIColor(hex: "#E3EBDF"), dark: UIColor(hex: "#2A2924"))
         static let primaryButton = dynamic(light: UIColor(hex: "#234632"), dark: UIColor(hex: "#2F6B46"))
         static let placeholder = dynamic(light: UIColor(hex: "#9B9F98"), dark: UIColor(hex: "#9EA79D"))
         static let shadow = Color.black.opacity(0.08)
@@ -94,10 +94,10 @@ enum ArboreTabBarAppearance {
         let appearance = UITabBarAppearance()
         appearance.configureWithOpaqueBackground()
         appearance.backgroundColor = UIColor { trait in
-            trait.userInterfaceStyle == .dark ? UIColor(hex: "#1A211C") : UIColor(hex: "#FFFFFF")
+            trait.userInterfaceStyle == .dark ? UIColor(hex: "#1B1A17") : UIColor(hex: "#FFFFFF")
         }
         appearance.shadowColor = UIColor { trait in
-            trait.userInterfaceStyle == .dark ? UIColor(hex: "#344039") : UIColor(hex: "#DDD8CF")
+            trait.userInterfaceStyle == .dark ? UIColor(hex: "#3B3932") : UIColor(hex: "#DDD8CF")
         }
 
         let selected = UIColor { trait in

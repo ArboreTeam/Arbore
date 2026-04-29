@@ -2,15 +2,12 @@ import SwiftUI
 
 struct PlantCard: View {
     let plant: Plant
-    @Environment(\.colorScheme) private var colorScheme
-    @EnvironmentObject var themeManager: ThemeManager
     @State private var cachedThumbnail: UIImage?
     @State private var fetchedImage: UIImage?
     @State private var didFailLoading = false
 
     private let cardHeight: CGFloat = 220
 
-    // ⚠️ Remplace par ton URL backend réelle
     private let backendBaseURL = "http://79.137.92.154:8080"
 
     private var thumbnailURL: URL? {
@@ -45,23 +42,33 @@ struct PlantCard: View {
             }
 
             LinearGradient(
-                gradient: Gradient(colors: [Color.black.opacity(0.8), Color.clear]),
+                gradient: Gradient(colors: [
+                    Color.black.opacity(0.72),
+                    Color.black.opacity(0.24),
+                    Color.clear
+                ]),
                 startPoint: .bottom,
                 endPoint: .top
             )
-            .frame(height: 80)
+            .frame(height: 88)
 
             Text(plant.name)
-                .font(.system(size: 16, weight: .bold))
+                .font(ArboreDesign.Typography.cardTitle)
                 .foregroundColor(.white)
                 .lineLimit(1)
+                .shadow(color: Color.black.opacity(0.35), radius: 3, x: 0, y: 1)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 12)
         }
         .frame(maxWidth: .infinity)
         .frame(height: cardHeight)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: Color.black.opacity(0.15), radius: 5, x: 0, y: 4)
+        .background(ArboreDesign.Colors.elevatedCard)
+        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                .stroke(ArboreDesign.Colors.border.opacity(0.85), lineWidth: 1)
+        )
+        .shadow(color: ArboreDesign.Colors.shadow, radius: 8, x: 0, y: 4)
         .overlay(alignment: .topTrailing) {
             if plant.generated == true {
                 betaBadge
@@ -75,20 +82,20 @@ struct PlantCard: View {
 
     private var betaBadge: some View {
         Text("BETA")
-            .font(.system(size: 10, weight: .semibold, design: .rounded))
+            .font(.system(size: 10, weight: .semibold))
             .tracking(0.8)
             .foregroundStyle(.white)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(
                 Capsule()
-                    .fill(themeManager.brandPrimary)
+                    .fill(ArboreDesign.Colors.primaryGreen)
                     .overlay(
                         Capsule()
                             .strokeBorder(Color.white.opacity(0.45), lineWidth: 0.5)
                     )
             )
-            .shadow(color: .black.opacity(0.25), radius: 2, x: 0, y: 1)
+            .shadow(color: Color.black.opacity(0.22), radius: 2, x: 0, y: 1)
     }
 
     private func loadRemoteThumbnailIfNeeded() async {
@@ -148,19 +155,25 @@ struct PlantCard: View {
 
     var loadingView: some View {
         ZStack {
-            themeManager.cardBackgroundColor
+            ArboreDesign.Colors.elevatedCard
             ProgressView()
+                .tint(ArboreDesign.Colors.primaryGreen)
         }
     }
 
     var fallbackImage: some View {
         ZStack {
-            themeManager.cardBackgroundColor
-            Image(systemName: "leaf.fill")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 40)
-                .foregroundColor(themeManager.brandPrimary.opacity(0.4))
+            ArboreDesign.Colors.elevatedCard
+
+            VStack(spacing: ArboreDesign.Spacing.xs) {
+                Image(systemName: "leaf")
+                    .font(.system(size: 34, weight: .semibold))
+                    .foregroundColor(ArboreDesign.Colors.primaryGreen.opacity(0.6))
+
+                Text("Arbore")
+                    .font(ArboreDesign.Typography.caption)
+                    .foregroundColor(ArboreDesign.Colors.textMuted)
+            }
         }
     }
 }

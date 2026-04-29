@@ -33,7 +33,9 @@ struct CatalogueView: View {
                     
                     // 3. Contenu principal (Grille)
                     contentView
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
             .navigationBarHidden(true) // On cache la nav bar native pour utiliser la nôtre
             .sheet(isPresented: $showFilters) {
@@ -157,7 +159,7 @@ struct CatalogueView: View {
                     ], spacing: 20) { // Espace vertical augmenté
                         
                         ForEach(filteredPlants) { plant in
-                            NavigationLink(destination: PlantDetailView(plantID: plant.id)) {
+                            NavigationLink(destination: PlantDetailView(plantID: plant.id, previewPlant: plant)) {
                                 PlantCard(plant: plant)
                                 // Optionnel : petite animation au clic
                                     .scaleEffect(selectedPlant?.id == plant.id ? 0.95 : 1.0)

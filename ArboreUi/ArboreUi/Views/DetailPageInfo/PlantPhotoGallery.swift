@@ -12,13 +12,14 @@ struct PlantPhotoGallery: View {
             // 🔆 Fond flouté + dégradé progressif
             VisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
                 .ignoresSafeArea()
+                .background(Color.black.opacity(0.82).ignoresSafeArea())
                 .overlay(
                     LinearGradient(
                         gradient: Gradient(colors: [
-                            Color.black.opacity(0.6),
-                            Color.black.opacity(0.4),
-                            Color.black.opacity(0.1),
-                            Color.clear
+                            Color.black.opacity(0.88),
+                            Color.black.opacity(0.72),
+                            Color.black.opacity(0.48),
+                            Color.black.opacity(0.32)
                         ]),
                         startPoint: .top,
                         endPoint: .bottom
@@ -60,7 +61,7 @@ struct PlantPhotoGallery: View {
                         }) {
                             ZStack {
                                 Circle()
-                                    .fill(Color.black.opacity(0.6))
+                                    .fill(Color.black.opacity(0.78))
                                     .frame(width: 40, height: 40)
                                 Image(systemName: "xmark")
                                     .foregroundColor(.white)
@@ -154,9 +155,12 @@ struct ZoomableImageView: View {
                         }
                     )
             } placeholder: {
-                Color.gray.opacity(0.3)
+                Color.black.opacity(0.45)
                     .frame(width: geo.size.width, height: geo.size.height)
-                    .overlay(ProgressView())
+                    .overlay(
+                        ProgressView()
+                            .tint(.white)
+                    )
             }
         }
         .ignoresSafeArea()

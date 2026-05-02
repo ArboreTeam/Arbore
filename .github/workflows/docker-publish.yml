@@ -44,7 +44,7 @@ jobs:
             type=sha
 
       - name: Build and push Backend image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./ArboreBackend
           push: ${{ github.event_name != 'pull_request' }}
@@ -82,7 +82,7 @@ jobs:
             type=sha
 
       - name: Build and push AI Generator image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./AiGenerator
           push: ${{ github.event_name != 'pull_request' }}

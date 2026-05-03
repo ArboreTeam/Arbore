@@ -13,26 +13,14 @@ struct HomeView: View {
     // the created garden is scoped to the currently signed-in user.
     private var currentUID: String { Auth.auth().currentUser?.uid ?? "" }
 
-    // Fond beige signature de la Home (conservé intentionnellement pour l'identité de page)
-    private let homeBackground = Color(UIColor { trait in
-        trait.userInterfaceStyle == .dark
-        ? UIColor(red: 0.10, green: 0.10, blue: 0.10, alpha: 1.0)
-        : UIColor(red: 0.956, green: 0.953, blue: 0.937, alpha: 1.0) // #F4F3EF
-    })
-
     var body: some View {
         NavigationStack {
-            ZStack {
-                homeBackground.ignoresSafeArea()
-
+            AppBackground {
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: 18) {
+                    VStack(spacing: ArboreDesign.Spacing.xl) {
                         header
                         createGardenHero
-
-                        Spacer(minLength: 6)
-
-                        gardensTitle
+                        gardensHeader
 
                         if gardens.isEmpty {
                             emptyState
@@ -40,11 +28,11 @@ struct HomeView: View {
                             gardensList
                         }
 
-                        Spacer(minLength: 24)
+                        Spacer(minLength: ArboreDesign.Spacing.md)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 32)
+                    .padding(.horizontal, ArboreDesign.Spacing.screenHorizontal)
+                    .padding(.top, ArboreDesign.Spacing.md)
+                    .padding(.bottom, 110)
                 }
 
                 Color.clear
@@ -97,62 +85,54 @@ private extension HomeView {
 // MARK: - Header
 private extension HomeView {
     var header: some View {
-        VStack(spacing: 6) {
+        VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
             Text("Arbore")
-                .font(themeManager.pageTitle(size: 34))
-                .foregroundColor(themeManager.textColor)
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-            Text("votre futur jardin")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(themeManager.secondaryTextColor)
+            Text("Créez, visualisez et suivez vos jardins dans un espace simple et naturel.")
+                .font(ArboreDesign.Typography.bodySmall)
+                .foregroundColor(ArboreDesign.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 // MARK: - Card "Créer un futur jardin"
 private extension HomeView {
     var createGardenHero: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.14))
-                    .overlay(
-                        Circle().stroke(Color.white.opacity(0.22), lineWidth: 1)
-                    )
-                    .frame(width: 34, height: 34)
+        VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+            HStack(alignment: .top, spacing: ArboreDesign.Spacing.md) {
+                SettingsIconBadge(systemImage: "leaf.fill", tint: ArboreDesign.Colors.primaryGreen, size: 44)
 
-                Image(systemName: "leaf.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
+                VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
+                    Text("Créer un futur jardin")
+                        .font(ArboreDesign.Typography.sectionTitle)
+                        .foregroundColor(ArboreDesign.Colors.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("Répondez à quelques questions, choisissez vos plantes puis placez-les en AR.")
+                        .font(ArboreDesign.Typography.bodySmall)
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
-            .padding(.top, -4)
-            .padding(.leading, -2)
-
-            Text("Créer un futur jardin")
-                .font(.system(size: 22, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-
-            Text("Commencez la conception étape par étape\npour donner vie à vos idées.")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.white.opacity(0.85))
-                .lineSpacing(2)
 
             Button {
                 goToQuestionnaire = true
             } label: {
                 HStack(spacing: 10) {
                     Text("Commencer")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(ArboreDesign.Typography.button)
                     Image(systemName: "arrow.right")
                         .font(.system(size: 14, weight: .bold))
                 }
-                .foregroundColor(themeManager.brandPrimary)
+                .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 44)
-                .background(Color.white)
-                .clipShape(Capsule())
+                .frame(height: 52)
+                .background(ArboreDesign.Colors.primaryButton)
+                .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
             }
             .buttonStyle(.plain)
 
@@ -166,24 +146,25 @@ private extension HomeView {
                     )
                 }
         }
-        .padding(.vertical, 18)
-        .padding(.horizontal, 20)
+        .padding(ArboreDesign.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: CGFloat(themeManager.heroCornerRadius), style: .continuous)
-                .fill(themeManager.brandPrimaryHero)
-                .shadow(color: themeManager.brandPrimaryHero.opacity(0.20), radius: 18, x: 0, y: 10)
+        .background(ArboreDesign.Colors.card)
+        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                .stroke(ArboreDesign.Colors.border, lineWidth: 1)
         )
+        .shadow(color: ArboreDesign.Colors.shadow, radius: 10, x: 0, y: 4)
     }
 }
 
 // MARK: - "Vos jardins" + Voir tout
 private extension HomeView {
-    var gardensTitle: some View {
+    var gardensHeader: some View {
         HStack(alignment: .lastTextBaseline) {
             Text("Vos jardins")
-                .font(themeManager.sectionTitle(size: 22))
-                .foregroundColor(themeManager.textColor)
+                .font(ArboreDesign.Typography.sectionTitle)
+                .foregroundColor(ArboreDesign.Colors.textPrimary)
 
             Spacer()
 
@@ -192,41 +173,33 @@ private extension HomeView {
                     goToAllGardens = true
                 }
                 .font(.system(size: 13, weight: .bold))
-                .foregroundColor(themeManager.secondaryTextColor)
+                .foregroundColor(ArboreDesign.Colors.primaryGreen)
             }
         }
-        .padding(.top, 4)
     }
 }
 
 // MARK: - Empty state
 private extension HomeView {
     var emptyState: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Aucun jardin pour le moment")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(themeManager.textColor)
+        AppCard {
+            HStack(spacing: ArboreDesign.Spacing.md) {
+                SettingsIconBadge(systemImage: "leaf", tint: ArboreDesign.Colors.primaryGreen, size: 44)
 
-                Text("Vos jardins enregistrés apparaîtront ici.\nCommencez par en créer un nouveau.")
-                    .font(.system(size: 14))
-                    .foregroundColor(themeManager.secondaryTextColor)
+                VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
+                    Text("Aucun jardin pour le moment")
+                        .font(ArboreDesign.Typography.cardTitle)
+                        .foregroundColor(ArboreDesign.Colors.textPrimary)
+
+                    Text("Commencez par créer un projet pour retrouver vos plans ici.")
+                        .font(ArboreDesign.Typography.bodySmall)
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
             }
-            Spacer()
-            Image(systemName: "leaf")
-                .font(.system(size: 28))
-                .foregroundColor(themeManager.brandPrimary)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: CGFloat(themeManager.heroCornerRadius), style: .continuous)
-                .strokeBorder(Color.gray.opacity(0.25), style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
-                .background(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(themeManager.cardBackgroundColor.opacity(0.7))
-                )
-        )
     }
 }
 
@@ -234,7 +207,7 @@ private extension HomeView {
 private extension HomeView {
     var gardensList: some View {
         let preview = Array(gardens.prefix(2))
-        return VStack(spacing: 16) {
+        return VStack(spacing: ArboreDesign.Spacing.md) {
             ForEach(preview.indices, id: \.self) { idx in
                 gardenCard(garden: preview[idx])
             }
@@ -245,7 +218,7 @@ private extension HomeView {
         Button {
             gardenToOpen = garden
         } label: {
-            VStack(spacing: 0) {
+            VStack(spacing: ArboreDesign.Spacing.sm) {
                 ZStack {
                     Image(garden.homeImageName)
                         .resizable()
@@ -253,29 +226,31 @@ private extension HomeView {
                         .allowsHitTesting(false)
 
                     LinearGradient(
-                        colors: [Color.black.opacity(0.08), Color.black.opacity(0.25)],
+                        colors: [Color.black.opacity(0.02), Color.black.opacity(0.28)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                     .allowsHitTesting(false)
                 }
-                .frame(height: 220)
+                .frame(height: 190)
                 .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.image, style: .continuous))
 
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(garden.name)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(themeManager.textColor)
+                            .font(ArboreDesign.Typography.cardTitle)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
+                            .lineLimit(2)
 
                         Text("\(garden.plants.count) plantes")
-                            .font(.system(size: 13))
-                            .foregroundColor(themeManager.secondaryTextColor)
+                            .font(ArboreDesign.Typography.caption)
+                            .foregroundColor(ArboreDesign.Colors.textSecondary)
 
                         if let d = garden.updatedAt {
                             Text("Dernière modification : \(d.formatted(date: .abbreviated, time: .omitted))")
-                                .font(.system(size: 12))
-                                .foregroundColor(themeManager.secondaryTextColor.opacity(0.9))
+                                .font(ArboreDesign.Typography.caption)
+                                .foregroundColor(ArboreDesign.Colors.textMuted)
                         }
                     }
 
@@ -285,15 +260,19 @@ private extension HomeView {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(themeManager.brandPrimary.opacity(0.92))
+                        .frame(height: 30)
+                        .background(ArboreDesign.Colors.primaryButton)
                         .clipShape(Capsule())
                 }
-                .padding(16)
             }
-            .background(themeManager.cardBackgroundColor)
-            .clipShape(RoundedRectangle(cornerRadius: CGFloat(themeManager.heroCornerRadius), style: .continuous))
-            .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
+            .padding(ArboreDesign.Spacing.sm)
+            .background(ArboreDesign.Colors.card)
+            .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                    .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+            )
+            .shadow(color: ArboreDesign.Colors.shadow, radius: 10, x: 0, y: 4)
         }
         .buttonStyle(.plain)
     }

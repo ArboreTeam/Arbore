@@ -386,6 +386,8 @@ struct SettingsPage<Content: View>: View {
                 }
             }
         }
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 

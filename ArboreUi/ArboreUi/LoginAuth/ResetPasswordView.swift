@@ -15,24 +15,24 @@ struct ResetPasswordView: View {
     var body: some View {
         ZStack {
             LinearGradient(
-                gradient: Gradient(colors: [Color(hex: "#F1F5ED"), Color(hex: "#EAF1E7")]),
+                gradient: Gradient(colors: [ArboreDesign.Colors.background, ArboreDesign.Colors.background]),
                 startPoint: .top, endPoint: .bottom
             ).ignoresSafeArea()
 
             VStack(spacing: 25) {
                 VStack(spacing: 8) {
                     Text("Arbore")
-                        .font(.system(size: 42, weight: .bold, design: .serif))
-                        .foregroundColor(Color(hex: "#2D3E30"))
+                        .font(.system(size: 42, weight: .bold, design: .rounded))
+                        .foregroundColor(ArboreDesign.Colors.textPrimary)
 
                     Text("Forgot password")
-                        .font(.system(size: 20, design: .serif))
-                        .foregroundColor(Color(hex: "#2D3E30").opacity(0.7))
+                        .font(.system(size: 18, weight: .medium, design: .rounded))
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
                 }
 
                 Text("Enter the email address associated with your account and we’ll send you a link to reset your password.")
                     .font(.footnote)
-                    .foregroundColor(.gray)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 30)
 
@@ -40,15 +40,15 @@ struct ResetPasswordView: View {
                 TextField("", text: $email)
                     .focused($focusedField)
                     .placeholder(when: email.isEmpty) {
-                        Text("Email").foregroundColor(.gray)
+                        Text("Email").foregroundColor(ArboreDesign.Colors.placeholder)
                     }
-                    .foregroundColor(.black)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
                     .padding()
-                    .background(Color.white)
-                    .cornerRadius(10)
+                    .background(ArboreDesign.Colors.card)
+                    .cornerRadius(ArboreDesign.Radius.medium)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(focusedField ? Color(hex: "#263826") : Color.gray.opacity(0.3), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium)
+                            .stroke(focusedField ? ArboreDesign.Colors.primaryGreen : ArboreDesign.Colors.border, lineWidth: 1)
                     )
                     .padding(.horizontal, 30)
                     .keyboardType(.emailAddress)
@@ -82,8 +82,8 @@ struct ResetPasswordView: View {
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(isEmailValid ? Color(hex: "#263826") : Color(hex: "#263826").opacity(0.4))
-                        .cornerRadius(10)
+                        .background(isEmailValid ? ArboreDesign.Colors.primaryButton : ArboreDesign.Colors.primaryButton.opacity(0.4))
+                        .cornerRadius(ArboreDesign.Radius.button)
                 }
                 .disabled(!isEmailValid)
                 .padding(.horizontal, 30)
@@ -92,7 +92,7 @@ struct ResetPasswordView: View {
                 
                 if !successMessage.isEmpty {
                     Text(successMessage)
-                        .foregroundColor(.green)
+                        .foregroundColor(ArboreDesign.Colors.success)
                         .font(.footnote)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 30)
@@ -100,7 +100,7 @@ struct ResetPasswordView: View {
 
                 if !errorMessage.isEmpty {
                     Text(errorMessage)
-                        .foregroundColor(.red)
+                        .foregroundColor(ArboreDesign.Colors.danger)
                         .font(.footnote)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 30)

@@ -10,11 +10,14 @@ struct VerifyEmailView: View {
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject var themeManager: ThemeManager
     @State private var resendMessage = ""
+    @State private var isResendError = false
+    @State private var resendCooldown = 0
     @State private var isLoading = false
+    private let resendCooldownSeconds = 60
 
     var body: some View {
         ZStack {
-            themeManager.backgroundColor.ignoresSafeArea()
+            ArboreDesign.Colors.background.ignoresSafeArea()
 
             VStack(spacing: 30) {
                 Spacer()
@@ -23,53 +26,56 @@ struct VerifyEmailView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 80, height: 80)
-                    .foregroundColor(themeManager.brandPrimary)
+                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
 
                 Text("Verify your email")
                     .font(.title)
                     .fontWeight(.bold)
-                    .foregroundColor(themeManager.textColor)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
 
                 Text("We've sent a verification link to:\n\(email). Please verify your email to continue.")
                     .multilineTextAlignment(.center)
-                    .foregroundColor(themeManager.secondaryTextColor)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
                     .padding(.horizontal)
 
                 if !resendMessage.isEmpty {
                     Text(resendMessage)
                         .font(.footnote)
-                        .foregroundColor(.green)
+                        .foregroundColor(isResendError ? ArboreDesign.Colors.danger : ArboreDesign.Colors.success)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
                 }
 
                 VStack(spacing: 12) {
                     Button(action: resendVerificationEmail) {
-                        Text("Resend Email")
+                        Text(resendCooldown > 0 ? "Resend in \(resendCooldown)s" : "Resend Email")
                             .fontWeight(.medium)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(themeManager.cardBackgroundColor)
+                            .background(ArboreDesign.Colors.card)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(themeManager.brandPrimary, lineWidth: 1)
+                                RoundedRectangle(cornerRadius: ArboreDesign.Radius.button)
+                                    .stroke(resendCooldown > 0 ? ArboreDesign.Colors.border : ArboreDesign.Colors.primaryGreen, lineWidth: 1)
                             )
-                            .foregroundColor(themeManager.brandPrimary)
+                            .foregroundColor(resendCooldown > 0 ? ArboreDesign.Colors.textSecondary : ArboreDesign.Colors.primaryGreen)
                     }
+                    .disabled(resendCooldown > 0)
 
                     Button(action: checkVerificationStatus) {
                         if isLoading {
                             ProgressView()
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(themeManager.brandPrimary.opacity(0.6))
-                                .cornerRadius(10)
+                                .background(ArboreDesign.Colors.primaryButton.opacity(0.6))
+                                .cornerRadius(ArboreDesign.Radius.button)
                         } else {
                             Text("I've Verified")
                                 .fontWeight(.bold)
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(themeManager.brandPrimary)
+                                .background(ArboreDesign.Colors.primaryButton)
                                 .foregroundColor(.white)
-                                .cornerRadius(10)
+                                .cornerRadius(ArboreDesign.Radius.button)
                         }
                     }
                 }
@@ -79,31 +85,25 @@ struct VerifyEmailView: View {
             }
             .padding()
         }
-        .onAppear {
-            sendInitialEmail()
-        }
-    }
-
-    func sendInitialEmail() {
-        if let user = Auth.auth().currentUser, !user.isEmailVerified {
-            user.sendEmailVerification { error in
-                if let error = error {
-                    print("❌ Error sending email: \(error.localizedDescription)")
-                } else {
-                    print("✅ Initial email sent.")
-                }
-            }
-        }
     }
 
     func resendVerificationEmail() {
-        if let user = Auth.auth().currentUser {
-            user.sendEmailVerification { error in
+        guard let user = Auth.auth().currentUser else {
+            isResendError = true
+            resendMessage = "Please sign in again to resend the verification email."
+            return
+        }
+
+        startResendCooldown()
+        user.sendEmailVerification { error in
+            DispatchQueue.main.async {
                 if let error = error {
                     print("❌ Error resending email: \(error.localizedDescription)")
-                    resendMessage = "Failed to resend. Try again."
+                    isResendError = true
+                    resendMessage = resendErrorMessage(for: error)
                 } else {
                     print("✅ Verification email resent.")
+                    isResendError = false
                     resendMessage = "A new link has been sent to your inbox."
                 }
             }
@@ -111,19 +111,53 @@ struct VerifyEmailView: View {
     }
 
     func checkVerificationStatus() {
+        guard let user = Auth.auth().currentUser else {
+            isResendError = true
+            resendMessage = "Your session expired. Please log in again."
+            onBackToLogin()
+            return
+        }
+
         isLoading = true
-        Auth.auth().currentUser?.reload(completion: { error in
-            isLoading = false
-            if let error = error {
-                print("❌ Error reloading user: \(error.localizedDescription)")
-            } else {
-                if Auth.auth().currentUser?.isEmailVerified == true {
+        user.reload(completion: { error in
+            DispatchQueue.main.async {
+                isLoading = false
+                if let error = error {
+                    print("❌ Error reloading user: \(error.localizedDescription)")
+                    isResendError = true
+                    resendMessage = "Unable to check verification. Try again."
+                } else if Auth.auth().currentUser?.isEmailVerified == true {
                     print("✅ Email verified — logging in")
                     isLoggedIn = true
+                    onBackToLogin()
                 } else {
+                    isResendError = false
                     resendMessage = "Email not verified yet."
                 }
             }
         })
+    }
+
+    private func startResendCooldown() {
+        resendCooldown = resendCooldownSeconds
+        Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
+            DispatchQueue.main.async {
+                if resendCooldown > 0 {
+                    resendCooldown -= 1
+                }
+
+                if resendCooldown == 0 {
+                    timer.invalidate()
+                }
+            }
+        }
+    }
+
+    private func resendErrorMessage(for error: Error) -> String {
+        if AuthErrorCode(rawValue: (error as NSError).code) == .tooManyRequests {
+            return "Too many requests from this device. Please wait before trying again."
+        }
+
+        return "Failed to resend. Try again."
     }
 }

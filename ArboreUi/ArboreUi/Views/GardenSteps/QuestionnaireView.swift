@@ -211,7 +211,6 @@ enum GardenWizardStep: Int, CaseIterable, Identifiable {
     case safety
     case soil
     case aiSuggestion    // 🤖 AI garden suggestion step
-    case scanMethod
     case summary
     
     var id: Int { rawValue }
@@ -223,8 +222,6 @@ struct GardenWizardView: View {
 
     // ouvre l’AR à la fin
     @State private var showPlacementAR = false
-    @State private var showMeasurementApp = false  // 🆕 Pour lancer l'app de mesure
-    @State private var showLiDARScan = false // 🆕 Pour lancer le LiDAR
     
     // 🤖 AI Suggestion: all catalogue plants + user's selection
     @State private var allCataloguePlants: [Plant] = []
@@ -245,11 +242,15 @@ struct GardenWizardView: View {
     let selectedPlants: [Plant]
     let onFinish: (GardenWizardState) -> Void
 
-    // ✅ Steps visibles (logique simple = tous les steps)
-    // Si tu avais une logique conditionnelle (interior/balcony/garden), je te la remets juste après.
     private var visibleSteps: [GardenWizardStep] {
-        // Version "tous les steps" avec suggestion IA
-        [.intro, .style, .spaceType, .exposure, .maintenance, .safety, .soil, .aiSuggestion, .scanMethod, .summary]
+        var steps: [GardenWizardStep] = [.intro, .style, .spaceType, .exposure, .maintenance, .safety]
+
+        if state.spaceType == .garden {
+            steps.append(.soil)
+        }
+
+        steps.append(contentsOf: [.aiSuggestion, .summary])
+        return steps
     }
 
     private var currentIndex: Int {
@@ -322,8 +323,10 @@ struct GardenWizardView: View {
                     SafetyStepView(state: state, onNext: goToNext, onBack: goToPrevious)
                         .tag(GardenWizardStep.safety)
 
-                    SoilStepView(state: state, onNext: goToNext, onBack: goToPrevious)
-                        .tag(GardenWizardStep.soil)
+                    if state.spaceType == .garden {
+                        SoilStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+                            .tag(GardenWizardStep.soil)
+                    }
 
                     AISuggestionStepView(
                         state: state,
@@ -334,21 +337,11 @@ struct GardenWizardView: View {
                     )
                     .tag(GardenWizardStep.aiSuggestion)
 
-                    ScanMethodStepView(state: state, onNext: goToNext, onBack: goToPrevious)
-                        .tag(GardenWizardStep.scanMethod)
-
                     WizardSummaryStepView(
                         state: state,
                         onBack: goToPrevious,
-                        onStartAR: {
-                            // 🆕 Si gardenPerimeter, lancer d'abord l'app de mesure
-                            if state.scanMethod == .gardenPerimeter {
-                                showMeasurementApp = true
-                            } else {
-                                showPlacementAR = true
-                            }
-                        },
-                        onStartLiDAR: { showLiDARScan = true },
+                        onStartAR: { showPlacementAR = true },
+                        onStartLiDAR: {},
                         onFinishWizard: { onFinish(state) },
                         isSaving: false
                     )
@@ -374,30 +367,6 @@ struct GardenWizardView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
 
-        // 🆕 Lancer l'app de mesure d'abord si gardenPerimeter
-        .fullScreenCover(isPresented: $showMeasurementApp) {
-            ARViewContainerMesure(
-                selectedPlants: aiSelectedPlants.isEmpty ? selectedPlants : aiSelectedPlants,
-                uid: uid,
-                wizard: wizardDTO,
-                gardenName: gardenName,
-                thumbnailKey: thumbnailKey,
-                onSuccess: { dismiss() }
-            )
-        }
-        
-        // 🆕 Lancer l'app LiDAR si roomScan
-        .fullScreenCover(isPresented: $showLiDARScan) {
-            LiDARScanWizardView(
-                uid: uid,
-                selectedPlants: aiSelectedPlants.isEmpty ? selectedPlants : aiSelectedPlants,
-                wizard: wizardDTO,
-                gardenName: gardenName,
-                thumbnailKey: thumbnailKey,
-                onSuccess: { dismiss() }
-            )
-        }
-
         // ✅ AR placement (create) - maintenant avec les données de mesure
         .fullScreenCover(isPresented: $showPlacementAR) {
             GardenARPlacementView(
@@ -422,11 +391,21 @@ struct GardenWizardView: View {
         // ✅ super important: quand tu ré-ouvres un wizard, on repart de 0
         .onAppear {
             currentStep = .intro
+            state.scanMethod = nil
             // si tu veux reset TOTAL du state à chaque nouvelle création :
             // state.style = nil; state.spaceType = nil; etc...
             
             // 🤖 Fetch all catalogue plants for AI suggestion
             fetchCataloguePlants()
+        }
+        .onChange(of: state.spaceType) { _, newValue in
+            if newValue != .garden {
+                state.soil = nil
+            }
+
+            if !visibleSteps.contains(currentStep) {
+                currentStep = visibleSteps.last ?? .summary
+            }
         }
     }
 

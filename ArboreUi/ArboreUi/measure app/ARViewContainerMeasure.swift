@@ -302,6 +302,8 @@ struct ARViewContainerMesure: View {
     let wizard: GardenWizardDTO
     let gardenName: String
     let thumbnailKey: String?
+    let existingGardenId: String?
+    let measurementOnly: Bool
     let onSuccess: () -> Void
 
     @StateObject var gardenManager = GardenManager()
@@ -331,6 +333,8 @@ struct ARViewContainerMesure: View {
         ),
         gardenName: String = "Mon jardin",
         thumbnailKey: String? = nil,
+        existingGardenId: String? = nil,
+        measurementOnly: Bool = false,
         onSuccess: @escaping () -> Void = {}
     ) {
         self.selectedPlants = selectedPlants
@@ -338,6 +342,8 @@ struct ARViewContainerMesure: View {
         self.wizard = wizard
         self.gardenName = gardenName
         self.thumbnailKey = thumbnailKey
+        self.existingGardenId = existingGardenId
+        self.measurementOnly = measurementOnly
         self.onSuccess = onSuccess
     }
     
@@ -345,10 +351,51 @@ struct ARViewContainerMesure: View {
     private func saveWorldMapForPlacement() {
         // Note: Cette fonction sera appelée depuis le button handler
         // La sauvegarde réelle se fera via une notification ou callback vers ARViewContainerGarden
-        print("🗺️ Demande de sauvegarde WorldMap pour: \(tempGardenId)")
+        let targetGardenId = existingGardenId ?? tempGardenId
+        print("🗺️ Demande de sauvegarde WorldMap pour: \(targetGardenId)")
         print("📢 Envoi notification .saveWorldMapForMeasurement")
-        NotificationCenter.default.post(name: .saveWorldMapForMeasurement, object: tempGardenId)
+        NotificationCenter.default.post(name: .saveWorldMapForMeasurement, object: targetGardenId)
         print("📢 Notification envoyée")
+    }
+
+    private func saveMeasurementsOnly() {
+        guard let existingGardenId else {
+            showARPlacement = true
+            return
+        }
+
+        saveWorldMapForPlacement()
+
+        let sceneURL = GardenLocalStore.sceneURL(for: existingGardenId)
+        let existingPlants: [PersistedPlant]
+
+        if FileManager.default.fileExists(atPath: sceneURL.path),
+           let data = try? Data(contentsOf: sceneURL),
+           let scene = try? JSONDecoder().decode(PersistedARScene.self, from: data) {
+            existingPlants = scene.plants
+        } else {
+            existingPlants = []
+        }
+
+        let boundary = gardenManager.points.map { [$0.x, $0.y, $0.z] }
+        let scene = PersistedARScene(
+            savedAt: Date(),
+            plants: existingPlants,
+            boundaryPoints: boundary,
+            area: gardenManager.area,
+            perimeter: gardenManager.perimeter
+        )
+
+        do {
+            let data = try JSONEncoder().encode(scene)
+            try data.write(to: sceneURL)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                presentationMode.wrappedValue.dismiss()
+                onSuccess()
+            }
+        } catch {
+            print("❌ Erreur sauvegarde mesures 2D: \(error)")
+        }
     }
 
     var body: some View {
@@ -499,12 +546,16 @@ struct ARViewContainerMesure: View {
                         Button {
                             // 🆕 Sauvegarder la WorldMap avant de continuer
                             print("🎯 Bouton CONTINUER cliqué - Sauvegarde WorldMap...")
-                            saveWorldMapForPlacement()
-                            
-                            // Délai pour laisser le temps à la WorldMap de se sauvegarder
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                                print("🎯 Ouverture GardenARPlacementView avec ID: \(tempGardenId)")
-                                showARPlacement = true
+                            if measurementOnly {
+                                saveMeasurementsOnly()
+                            } else {
+                                saveWorldMapForPlacement()
+
+                                // Délai pour laisser le temps à la WorldMap de se sauvegarder
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                                    print("🎯 Ouverture GardenARPlacementView avec ID: \(tempGardenId)")
+                                    showARPlacement = true
+                                }
                             }
                         } label: {
                             Text("CONTINUER")
@@ -551,7 +602,7 @@ struct ARViewContainerMesure: View {
                 boundaryPoints: gardenManager.points,
                 area: gardenManager.area,
                 perimeter: gardenManager.perimeter,
-                measurementWorldMapId: tempGardenId,
+                measurementWorldMapId: existingGardenId ?? tempGardenId,
                 onValidated: {
                     showARPlacement = false
                     tabRouter.selectedTab = .home

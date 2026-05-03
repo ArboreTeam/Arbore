@@ -45,15 +45,14 @@ struct WizardSummaryStepView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                // --- HEADER ---
                 VStack(spacing: 12) {
-                    Text("Mesurons votre espace")
+                    Text("Placez vos plantes")
                         .font(.system(size: 34, weight: .bold))
                         .foregroundColor(colorScheme == .dark ? .white : .primary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
 
-                    Text("Pour créer des plans précis et des visualisations réalistes, nous devons connaître les dimensions de votre jardin.")
+                    Text("Votre sélection est prête. Vous pouvez maintenant ouvrir l’AR pour placer les plantes dans votre espace.")
                         .font(.system(size: 16, weight: .regular))
                         .foregroundColor(subtitleColor)
                         .multilineTextAlignment(.center)
@@ -64,8 +63,8 @@ struct WizardSummaryStepView: View {
                 // --- BENEFITS LIST ---
                 VStack(spacing: 12) {
                     BenefitRow(
-                        systemImage: "ruler",
-                        title: "Proportions précises",
+                        systemImage: "sparkles",
+                        title: "Préférences prises en compte",
                         cardBackground: infoCardBackground,
                         chipBackground: iconChipBackground,
                         iconColor: iconColor
@@ -73,15 +72,15 @@ struct WizardSummaryStepView: View {
 
                     BenefitRow(
                         systemImage: "leaf",
-                        title: "Placement réaliste des plantes",
+                        title: "Plantes prêtes à placer",
                         cardBackground: infoCardBackground,
                         chipBackground: iconChipBackground,
                         iconColor: iconColor
                     )
 
                     BenefitRow(
-                        systemImage: "viewfinder",
-                        title: "Visualisation AR fidèle",
+                        systemImage: "arkit",
+                        title: "Placement en réalité augmentée",
                         cardBackground: infoCardBackground,
                         chipBackground: iconChipBackground,
                         iconColor: iconColor
@@ -97,39 +96,19 @@ struct WizardSummaryStepView: View {
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 12) {
 
-                Text(isSaving ? "Sauvegarde du jardin..." : "Durée : ~30 secondes")
+                Text(isSaving ? "Sauvegarde du jardin..." : "Vous pourrez ajuster les plantes avant validation")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Color.white.opacity(0.45))
                     .padding(.top, 2)
 
                 // BOUTON PRINCIPAL
                 Button(action: {
-                    // 1) Sauvegarde (le parent déclenche la requête)
                     onFinishWizard()
-
-                    // 2) On décide quelle caméra lancer
-                    switch state.scanMethod {
-                    case .some(.gardenPerimeter):
-                        onStartAR()
-
-                    case .some(.roomScan):
-                        if RoomCaptureSession.isSupported {
-                            onStartLiDAR()
-                        } else {
-                            showLidarAlert = true
-                        }
-
-                    case .none:
-                        if RoomCaptureSession.isSupported {
-                            onStartLiDAR()
-                        } else {
-                            onStartAR()
-                        }
-                    }
+                    onStartAR()
                 }) {
                     HStack {
-                        Text(isSaving ? "Sauvegarde..." : "Scanner mon espace en AR")
-                        Image(systemName: isSaving ? "arrow.triangle.2.circlepath" : "camera.fill")
+                        Text(isSaving ? "Sauvegarde..." : "Placer mes plantes en AR")
+                        Image(systemName: isSaving ? "arrow.triangle.2.circlepath" : "arkit")
                     }
                 }
                 .buttonStyle(PrimaryWizardButtonStyle(isEnabled: true))

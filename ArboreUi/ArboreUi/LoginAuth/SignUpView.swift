@@ -17,8 +17,6 @@ struct SignUpView: View {
     @State private var verificationMessage = ""
     @State private var showVerificationScreen = false
     @State private var registeredEmail: String = ""
-    @State private var acceptedTerms = false
-    @State private var acceptedPrivacy = false
     @StateObject private var authViewModel = AuthenticationView()
     @FocusState private var focusedField: Field?
 
@@ -30,15 +28,13 @@ struct SignUpView: View {
         !firstName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !lastName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        acceptedTerms &&
-        acceptedPrivacy
+        !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
         ZStack {
             LinearGradient(
-                gradient: Gradient(colors: [Color(hex: "#F1F5ED"), Color(hex: "#EAF1E7")]),
+                gradient: Gradient(colors: [ArboreDesign.Colors.background, ArboreDesign.Colors.background]),
                 startPoint: .top,
                 endPoint: .bottom
             ).ignoresSafeArea()
@@ -50,28 +46,28 @@ struct SignUpView: View {
                 VStack(spacing: 25) {
                     VStack(spacing: 8) {
                         Text("Arbore")
-                            .font(.system(size: 42, weight: .bold, design: .serif))
-                            .foregroundColor(Color(hex: "#2D3E30"))
+                            .font(.system(size: 42, weight: .bold, design: .rounded))
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
 
                         Text("Grow with harmony")
-                            .font(.system(size: 20, design: .serif))
-                            .foregroundColor(Color(hex: "#2D3E30").opacity(0.7))
+                            .font(.system(size: 18, weight: .medium, design: .rounded))
+                            .foregroundColor(ArboreDesign.Colors.textSecondary)
                     }
 
                     VStack(spacing: 14) {
                         TextField("", text: $firstName)
                             .focused($focusedField, equals: .name)
                             .placeholder(when: firstName.isEmpty) {
-                                Text("First Name").foregroundColor(.gray)
+                                Text("First Name").foregroundColor(ArboreDesign.Colors.placeholder)
                             }
-                            .foregroundColor(.black)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
                             .padding()
-                            .background(Color.white)
-                            .cornerRadius(10)
-                            .tint(Color(hex: "#263826"))
+                            .background(ArboreDesign.Colors.card)
+                            .cornerRadius(ArboreDesign.Radius.medium)
+                            .tint(ArboreDesign.Colors.primaryGreen)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(focusedField == .name ? Color(hex: "#263826") : Color.gray.opacity(0.3), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium)
+                                    .stroke(focusedField == .name ? ArboreDesign.Colors.primaryGreen : ArboreDesign.Colors.border, lineWidth: 1)
                             )
                             .submitLabel(.next)
                             .onSubmit { focusedField = .email }
@@ -79,16 +75,16 @@ struct SignUpView: View {
                         TextField("", text: $lastName)
                             .focused($focusedField, equals: .name)
                             .placeholder(when: lastName.isEmpty) {
-                                Text("Last Name").foregroundColor(.gray)
+                                Text("Last Name").foregroundColor(ArboreDesign.Colors.placeholder)
                             }
-                            .foregroundColor(.black)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
                             .padding()
-                            .background(Color.white)
-                            .cornerRadius(10)
-                            .tint(Color(hex: "#263826"))
+                            .background(ArboreDesign.Colors.card)
+                            .cornerRadius(ArboreDesign.Radius.medium)
+                            .tint(ArboreDesign.Colors.primaryGreen)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(focusedField == .name ? Color(hex: "#263826") : Color.gray.opacity(0.3), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium)
+                                    .stroke(focusedField == .name ? ArboreDesign.Colors.primaryGreen : ArboreDesign.Colors.border, lineWidth: 1)
                             )
                             .submitLabel(.next)
                             .onSubmit { focusedField = .email }
@@ -96,16 +92,16 @@ struct SignUpView: View {
                         TextField("", text: $email)
                             .focused($focusedField, equals: .email)
                             .placeholder(when: email.isEmpty) {
-                                Text("Email").foregroundColor(.gray)
+                                Text("Email").foregroundColor(ArboreDesign.Colors.placeholder)
                             }
-                            .foregroundColor(.black)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
                             .padding()
-                            .background(Color.white)
-                            .cornerRadius(10)
-                            .tint(Color(hex: "#263826"))
+                            .background(ArboreDesign.Colors.card)
+                            .cornerRadius(ArboreDesign.Radius.medium)
+                            .tint(ArboreDesign.Colors.primaryGreen)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(focusedField == .email ? Color(hex: "#263826") : Color.gray.opacity(0.3), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium)
+                                    .stroke(focusedField == .email ? ArboreDesign.Colors.primaryGreen : ArboreDesign.Colors.border, lineWidth: 1)
                             )
                             .submitLabel(.next)
                             .onSubmit { focusedField = .password }
@@ -116,26 +112,26 @@ struct SignUpView: View {
                                     TextField("", text: $password)
                                         .focused($focusedField, equals: .password)
                                         .placeholder(when: password.isEmpty) {
-                                            Text("Password").foregroundColor(.gray)
+                                            Text("Password").foregroundColor(ArboreDesign.Colors.placeholder)
                                         }
                                         .submitLabel(.go)
                                 } else {
                                     SecureField("", text: $password)
                                         .focused($focusedField, equals: .password)
                                         .placeholder(when: password.isEmpty) {
-                                            Text("Password").foregroundColor(.gray)
+                                            Text("Password").foregroundColor(ArboreDesign.Colors.placeholder)
                                         }
                                         .submitLabel(.go)
                                 }
                             }
-                            .foregroundColor(.black)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
                             .padding()
-                            .background(Color.white)
-                            .cornerRadius(10)
-                            .tint(Color(hex: "#263826"))
+                            .background(ArboreDesign.Colors.card)
+                            .cornerRadius(ArboreDesign.Radius.medium)
+                            .tint(ArboreDesign.Colors.primaryGreen)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(focusedField == .password ? Color(hex: "#263826") : Color.gray.opacity(0.3), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium)
+                                    .stroke(focusedField == .password ? ArboreDesign.Colors.primaryGreen : ArboreDesign.Colors.border, lineWidth: 1)
                             )
 
                             Button(action: {
@@ -144,7 +140,7 @@ struct SignUpView: View {
                                 Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
                                     .resizable()
                                     .frame(width: 18, height: 18)
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(ArboreDesign.Colors.textSecondary)
                                     .padding(.trailing, 12)
                             }
                         }
@@ -157,8 +153,8 @@ struct SignUpView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(isFormValid ? Color(hex: "#263826") : Color(hex: "#263826").opacity(0.4))
-                            .cornerRadius(10)
+                            .background(isFormValid ? ArboreDesign.Colors.primaryButton : ArboreDesign.Colors.primaryButton.opacity(0.4))
+                            .cornerRadius(ArboreDesign.Radius.button)
                     }
                     .disabled(!isFormValid)
                     .padding(.horizontal, 30)
@@ -167,7 +163,7 @@ struct SignUpView: View {
                     
                     if !verificationMessage.isEmpty {
                         Text(verificationMessage)
-                            .foregroundColor(.green)
+                            .foregroundColor(ArboreDesign.Colors.success)
                             .font(.footnote)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 30)
@@ -175,66 +171,45 @@ struct SignUpView: View {
                     
                     if let errorMessage = signUpError {
                         Text(errorMessage)
-                            .foregroundColor(.red)
+                            .foregroundColor(ArboreDesign.Colors.danger)
                             .font(.footnote)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 30)
                             .transition(.opacity)
                     }
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        // Terms of Service checkbox
-                        HStack(alignment: .top, spacing: 8) {
-                            Button(action: {
-                                acceptedTerms.toggle()
-                            }) {
-                                Image(systemName: acceptedTerms ? "checkmark.square.fill" : "square")
-                                    .foregroundColor(acceptedTerms ? Color(hex: "#263826") : Color.gray)
-                                    .font(.system(size: 20))
+                    VStack(spacing: 4) {
+                        Text("By signing up, you agree to Arbore’s")
+                            .foregroundColor(ArboreDesign.Colors.textSecondary)
+
+                        HStack(spacing: 4) {
+                            NavigationLink(destination: TermsConditionsView()) {
+                                Text("Terms & Conditions")
+                                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                                    .underline()
                             }
 
-                            HStack(spacing: 2) {
-                                Text(NSLocalizedString("SIGNUP_ACCEPT", comment: "I accept the"))
-                                    .foregroundColor(.gray)
-                                NavigationLink(destination: TermsConditionsView()) {
-                                    Text(NSLocalizedString("SIGNUP_TERMS", comment: "Terms of Service"))
-                                        .foregroundColor(Color(hex: "#263826"))
-                                        .underline()
-                                }
-                            }
-                            .font(.footnote)
-                        }
+                            Text("and")
+                                .foregroundColor(ArboreDesign.Colors.textSecondary)
 
-                        // Privacy Policy checkbox
-                        HStack(alignment: .top, spacing: 8) {
-                            Button(action: {
-                                acceptedPrivacy.toggle()
-                            }) {
-                                Image(systemName: acceptedPrivacy ? "checkmark.square.fill" : "square")
-                                    .foregroundColor(acceptedPrivacy ? Color(hex: "#263826") : Color.gray)
-                                    .font(.system(size: 20))
+                            NavigationLink(destination: PrivacyPolicyView()) {
+                                Text("Privacy Policy")
+                                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                                    .underline()
                             }
-
-                            HStack(spacing: 2) {
-                                Text(NSLocalizedString("SIGNUP_ACCEPT", comment: "I accept the"))
-                                    .foregroundColor(.gray)
-                                NavigationLink(destination: PrivacyPolicyView()) {
-                                    Text(NSLocalizedString("SIGNUP_PRIVACY", comment: "Privacy Policy"))
-                                        .foregroundColor(Color(hex: "#263826"))
-                                        .underline()
-                                }
-                            }
-                            .font(.footnote)
                         }
                     }
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
                     .padding(.horizontal, 30)
 
                     HStack {
-                        Rectangle().fill(Color.gray.opacity(0.4)).frame(height: 1)
+                        Rectangle().fill(ArboreDesign.Colors.border).frame(height: 1)
                         Text("or")
-                            .foregroundColor(.gray)
+                            .foregroundColor(ArboreDesign.Colors.textSecondary)
                             .padding(.horizontal)
-                        Rectangle().fill(Color.gray.opacity(0.4)).frame(height: 1)
+                        Rectangle().fill(ArboreDesign.Colors.border).frame(height: 1)
                     }
                     .padding(.horizontal, 30)
 
@@ -249,9 +224,9 @@ struct SignUpView: View {
                             }
                             .padding()
                             .frame(maxWidth: .infinity)
-                            .background(Color.black)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
+                            .background(ArboreDesign.Colors.textPrimary)
+                            .foregroundColor(ArboreDesign.Colors.background)
+                            .cornerRadius(ArboreDesign.Radius.button)
                         }
                         .padding(.horizontal, 30)
 
@@ -267,24 +242,24 @@ struct SignUpView: View {
                             }
                             .padding()
                             .frame(maxWidth: .infinity)
-                            .foregroundColor(.black)
-                            .background(Color.white)
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.gray.opacity(0.2)))
-                            .cornerRadius(10)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
+                            .background(ArboreDesign.Colors.card)
+                            .overlay(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button).stroke(ArboreDesign.Colors.border))
+                            .cornerRadius(ArboreDesign.Radius.button)
                         }
                         .padding(.horizontal, 30)
                     }
 
                     HStack {
                         Text("Already have an account?")
-                            .foregroundColor(.gray)
+                            .foregroundColor(ArboreDesign.Colors.textSecondary)
 
                         Button(action: {
                             dismiss()
                         }) {
                             Text("Log in")
                                 .fontWeight(.semibold)
-                                .foregroundColor(Color(hex: "#263826"))
+                                .foregroundColor(ArboreDesign.Colors.primaryGreen)
                         }
                     }
                     .font(.footnote)
@@ -327,22 +302,32 @@ struct SignUpView: View {
 
         Auth.auth().createUser(withEmail: trimmedEmail, password: trimmedPassword) { result, error in
             if let error = error {
-                self.signUpError = error.localizedDescription
+                if AuthErrorCode(rawValue: (error as NSError).code) == .emailAlreadyInUse {
+                    self.resendVerificationForExistingAccount(email: trimmedEmail, password: trimmedPassword)
+                } else {
+                    DispatchQueue.main.async {
+                        self.signUpError = error.localizedDescription
+                    }
+                }
                 return
             }
 
             guard let user = result?.user else {
-                self.signUpError = "Unexpected error."
+                DispatchQueue.main.async {
+                    self.signUpError = "Unexpected error."
+                }
                 return
             }
 
             // Envoyer l'email de vérification
             user.sendEmailVerification { error in
-                if let error = error {
-                    self.signUpError = "Failed to send verification email: \(error.localizedDescription)"
-                } else {
-                    self.emailVerificationSent = true
-                    self.showVerificationScreen = true
+                DispatchQueue.main.async {
+                    if let error = error {
+                        self.signUpError = self.verificationEmailErrorMessage(for: error)
+                    } else {
+                        self.emailVerificationSent = true
+                        self.showVerificationScreen = true
+                    }
                 }
             }
 
@@ -350,10 +335,59 @@ struct SignUpView: View {
             saveUserToBackend(uid: user.uid, email: user.email ?? "", name: fullName, createdAt: Date())
 
             // Enregistre les consentements initiaux (RGPD)
-            recordInitialConsents(uid: user.uid, acceptedTerms: self.acceptedTerms, acceptedPrivacy: self.acceptedPrivacy)
+            recordInitialConsents(uid: user.uid, acceptedTerms: true, acceptedPrivacy: true)
 
             // Ne connecte pas l'utilisateur tout de suite
-            self.isLoggedIn = false
+            DispatchQueue.main.async {
+                self.isLoggedIn = false
+            }
         }
+    }
+
+    private func resendVerificationForExistingAccount(email: String, password: String) {
+        Auth.auth().signIn(withEmail: email, password: password) { result, error in
+            if error != nil {
+                DispatchQueue.main.async {
+                    self.signUpError = "This email already has an account. Log in or reset your password."
+                }
+                return
+            }
+
+            guard let user = result?.user else {
+                DispatchQueue.main.async {
+                    self.signUpError = "Unable to access this account. Please try logging in."
+                }
+                return
+            }
+
+            if user.isEmailVerified {
+                try? Auth.auth().signOut()
+                DispatchQueue.main.async {
+                    self.signUpError = "This email is already verified. Please log in."
+                }
+                return
+            }
+
+            user.sendEmailVerification { error in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        self.signUpError = self.verificationEmailErrorMessage(for: error)
+                    } else {
+                        self.registeredEmail = email
+                        self.emailVerificationSent = true
+                        self.signUpError = nil
+                        self.showVerificationScreen = true
+                    }
+                }
+            }
+        }
+    }
+
+    private func verificationEmailErrorMessage(for error: Error) -> String {
+        if AuthErrorCode(rawValue: (error as NSError).code) == .tooManyRequests {
+            return "Too many verification requests from this device. Please wait before trying again."
+        }
+
+        return "Failed to send verification email: \(error.localizedDescription)"
     }
 }

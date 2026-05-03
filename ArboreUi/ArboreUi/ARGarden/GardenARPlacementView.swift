@@ -59,6 +59,7 @@ struct GardenARPlacementView: View {
     @State private var shouldCaptureSharePhoto = false
     @State private var capturedShareImage: UIImage?
     @State private var showShareSheet = false
+    @State private var showSharePreview = false
     @State private var isCapturingSharePhoto = false
 
     // Model download state
@@ -306,7 +307,21 @@ struct GardenARPlacementView: View {
         }
         .onChange(of: capturedShareImage) { _, image in
             guard image != nil else { return }
-            showShareSheet = true
+            showSharePreview = true
+        }
+        .fullScreenCover(isPresented: $showSharePreview) {
+            if let capturedShareImage {
+                GardenSharePreviewView(
+                    image: capturedShareImage,
+                    onRetake: {
+                        showSharePreview = false
+                        self.capturedShareImage = nil
+                    },
+                    onShare: {
+                        showShareSheet = true
+                    }
+                )
+            }
         }
         .onAppear {
             if mode == .reopen, let id = existingGardenId {
@@ -807,9 +822,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 let rawSnapshot = uiView.snapshot()
                 let brandedSnapshot = GardenARShareComposer.compose(
                     snapshot: rawSnapshot,
-                    gardenName: gardenName,
-                    plantCount: context.coordinator.currentPlantCount(),
-                    style: wizard.style
+                    gardenName: gardenName
                 )
                 capturedShareImage = brandedSnapshot
                 isCapturingSharePhoto = false
@@ -3089,7 +3102,7 @@ struct GlassButtonStyle: ViewModifier {
 }
 
 private enum GardenARShareComposer {
-    static func compose(snapshot: UIImage, gardenName: String, plantCount: Int, style: String) -> UIImage {
+    static func compose(snapshot: UIImage, gardenName: String) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
         format.scale = snapshot.scale
         format.opaque = true
@@ -3101,12 +3114,6 @@ private enum GardenARShareComposer {
 
             drawGradient(in: context.cgContext, rect: rect)
             drawBranding(in: context.cgContext, rect: rect, snapshot: snapshot)
-            drawInfoOverlay(
-                in: rect,
-                gardenName: gardenName,
-                plantCount: plantCount,
-                style: style
-            )
         }
     }
 
@@ -3114,10 +3121,10 @@ private enum GardenARShareComposer {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let colors = [
             UIColor.clear.cgColor,
-            UIColor.black.withAlphaComponent(0.12).cgColor,
-            UIColor.black.withAlphaComponent(0.72).cgColor
+            UIColor.clear.cgColor,
+            UIColor.black.withAlphaComponent(0.38).cgColor
         ] as CFArray
-        let locations: [CGFloat] = [0.0, 0.52, 1.0]
+        let locations: [CGFloat] = [0.0, 0.68, 1.0]
 
         guard let gradient = CGGradient(colorsSpace: colorSpace, colors: colors, locations: locations) else { return }
         cgContext.drawLinearGradient(
@@ -3129,9 +3136,9 @@ private enum GardenARShareComposer {
     }
 
     private static func drawBranding(in cgContext: CGContext, rect: CGRect, snapshot: UIImage) {
-        let bottomInset = rect.height * 0.055
-        let logoSize = rect.width * 0.13
-        let totalWidth = logoSize + rect.width * 0.025 + rect.width * 0.32
+        let bottomInset = rect.height * 0.045
+        let logoSize = rect.width * 0.12
+        let totalWidth = logoSize + rect.width * 0.025 + rect.width * 0.34
         let logoX = rect.midX - totalWidth / 2
         let logoY = rect.maxY - bottomInset - logoSize
 
@@ -3147,74 +3154,12 @@ private enum GardenARShareComposer {
         cgContext.restoreGState()
 
         let textX = logoRect.maxX + rect.width * 0.025
-        let brandY = logoY + logoSize * 0.11
+        let brandY = logoY + logoSize * 0.04
         drawText(
             "arbore",
-            in: CGRect(x: textX, y: brandY, width: rect.width * 0.4, height: logoSize * 0.48),
-            font: .systemFont(ofSize: rect.width * 0.07, weight: .bold),
+            in: CGRect(x: textX, y: brandY, width: rect.width * 0.42, height: logoSize * 0.48),
+            font: .systemFont(ofSize: rect.width * 0.058, weight: .bold),
             color: UIColor.white.withAlphaComponent(0.86)
-        )
-        drawText(
-            "grow with harmony",
-            in: CGRect(x: textX, y: brandY + logoSize * 0.5, width: rect.width * 0.46, height: logoSize * 0.3),
-            font: .systemFont(ofSize: rect.width * 0.028, weight: .medium),
-            color: UIColor.white.withAlphaComponent(0.68)
-        )
-    }
-
-    private static func drawInfoOverlay(in rect: CGRect, gardenName: String, plantCount: Int, style: String) {
-        let horizontalPadding = rect.width * 0.08
-        let contentBottom = rect.height * 0.2
-        let titleRect = CGRect(
-            x: horizontalPadding,
-            y: rect.maxY - contentBottom - rect.height * 0.16,
-            width: rect.width - horizontalPadding * 2,
-            height: rect.height * 0.08
-        )
-
-        drawText(
-            gardenName,
-            in: titleRect,
-            font: .systemFont(ofSize: rect.width * 0.065, weight: .bold),
-            color: .white,
-            alignment: .center
-        )
-
-        let metricsY = titleRect.maxY + rect.height * 0.02
-        let halfWidth = (rect.width - horizontalPadding * 2) / 2
-        drawMetric(
-            label: "PLANTES",
-            value: "\(max(plantCount, 0))",
-            icon: "camera.macro",
-            rect: CGRect(x: horizontalPadding, y: metricsY, width: halfWidth, height: rect.height * 0.07)
-        )
-        drawMetric(
-            label: "STYLE",
-            value: style.isEmpty ? "Arbore" : style,
-            icon: "leaf",
-            rect: CGRect(x: horizontalPadding + halfWidth, y: metricsY, width: halfWidth, height: rect.height * 0.07)
-        )
-    }
-
-    private static func drawMetric(label: String, value: String, icon: String, rect: CGRect) {
-        let iconSize = rect.height * 0.52
-        let iconRect = CGRect(x: rect.minX + rect.width * 0.1, y: rect.midY - iconSize / 2, width: iconSize, height: iconSize)
-        UIImage(systemName: icon)?
-            .withTintColor(UIColor(red: 0.78, green: 0.87, blue: 0.71, alpha: 1), renderingMode: .alwaysOriginal)
-            .draw(in: iconRect)
-
-        let textX = iconRect.maxX + rect.width * 0.06
-        drawText(
-            label,
-            in: CGRect(x: textX, y: rect.minY + rect.height * 0.08, width: rect.width * 0.58, height: rect.height * 0.28),
-            font: .systemFont(ofSize: rect.width * 0.055, weight: .semibold),
-            color: UIColor.white.withAlphaComponent(0.62)
-        )
-        drawText(
-            value,
-            in: CGRect(x: textX, y: rect.minY + rect.height * 0.38, width: rect.width * 0.62, height: rect.height * 0.48),
-            font: .systemFont(ofSize: rect.width * 0.082, weight: .medium),
-            color: .white
         )
     }
 
@@ -3236,6 +3181,107 @@ private enum GardenARShareComposer {
         ]
 
         (text as NSString).draw(in: rect, withAttributes: attributes)
+    }
+}
+
+private struct GardenSharePreviewView: View {
+    let image: UIImage
+    let onRetake: () -> Void
+    let onShare: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            Color(hex: "#0D120F").ignoresSafeArea()
+
+            VStack(spacing: 18) {
+                HStack {
+                    Button {
+                        dismiss()
+                        onRetake()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 42, height: 42)
+                            .background(.white.opacity(0.12))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    Text("Aperçu du partage")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+
+                    Spacer()
+
+                    Color.clear.frame(width: 42, height: 42)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .stroke(.white.opacity(0.12), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.35), radius: 22, x: 0, y: 14)
+                    .padding(.horizontal, 18)
+
+                VStack(spacing: 12) {
+                Button {
+                        onShare()
+                } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "square.and.arrow.up")
+                            Text("Partager la photo")
+                        }
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                        .background(Color(hex: "#2F6B46"))
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        dismiss()
+                        onRetake()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "camera.rotate")
+                            Text("Reprendre la photo")
+                        }
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white.opacity(0.86))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(.white.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(.white.opacity(0.12), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+
+                    Text("Vous pouvez reprendre la photo si le cadrage ou la lumière ne vous convient pas.")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(.white.opacity(0.56))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 10)
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+            }
+        }
     }
 }
 

@@ -46,10 +46,10 @@ final class GardenAPI {
 
     // MARK: - Update (PATCH-like via PUT)
     struct GardenPatch: Codable {
-        var name: String?
-        var wizard: GardenWizardDTO?
-        var plants: [PlacedPlantDTO]?
-        var thumbnailKey: String?
+        var name: String? = nil
+        var wizard: GardenWizardDTO? = nil
+        var plants: [PlacedPlantDTO]? = nil
+        var thumbnailKey: String? = nil
     }
 
     func updateGarden(id: String, patch: GardenPatch) async throws {

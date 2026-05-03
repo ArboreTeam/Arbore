@@ -3,6 +3,7 @@ import ARKit
 import SceneKit
 import Foundation
 import simd
+import UIKit
 
 // NOTE: Les modèles de données (PersistedARScene, PersistedPlant)
 // et GardenLocalStore doivent être présents dans le fichier "GardenDataModels.swift".
@@ -55,6 +56,10 @@ struct GardenARPlacementView: View {
     @State private var hasSelectedNode = false
     @State private var selectedNodeName: String? = nil
     @State private var isSaving = false
+    @State private var shouldCaptureSharePhoto = false
+    @State private var capturedShareImage: UIImage?
+    @State private var showShareSheet = false
+    @State private var isCapturingSharePhoto = false
 
     // Model download state
     @State private var downloadedModelURL: URL? = nil
@@ -107,6 +112,9 @@ struct GardenARPlacementView: View {
                 isAutoPlacing: $isAutoPlacing,
                 autoPlaceToast: $autoPlaceToast,
                 currentLux: $currentLux,
+                shouldCaptureSharePhoto: $shouldCaptureSharePhoto,
+                capturedShareImage: $capturedShareImage,
+                isCapturingSharePhoto: $isCapturingSharePhoto,
                 plantsToAutoPlace: selectedPlants,
                 uid: uid,
                 wizard: wizard,
@@ -291,6 +299,15 @@ struct GardenARPlacementView: View {
             .presentationDetents([.large])
             .presentationBackground(.clear)
         }
+        .sheet(isPresented: $showShareSheet) {
+            if let capturedShareImage {
+                ShareSheet(items: [capturedShareImage])
+            }
+        }
+        .onChange(of: capturedShareImage) { _, image in
+            guard image != nil else { return }
+            showShareSheet = true
+        }
         .onAppear {
             if mode == .reopen, let id = existingGardenId {
                 // Issue: local-only AR data is wiped on app reinstall — the
@@ -464,6 +481,28 @@ struct GardenARPlacementView: View {
     private var bottomDock: some View {
         HStack {
             Spacer()
+
+            Button { captureGardenSharePhoto() } label: {
+                ZStack {
+                    Circle().fill(.black.opacity(0.62))
+                        .frame(width: 58, height: 58)
+                        .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 1))
+
+                    if isCapturingSharePhoto {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                }
+            }
+            .disabled(isCapturingSharePhoto)
+            .accessibilityLabel("Prendre une photo du jardin")
+
+            Spacer(minLength: 26)
+
             Button { showPicker = true } label: {
                 ZStack {
                     Circle().fill(Color(hex: "#2BEE79"))
@@ -481,9 +520,16 @@ struct GardenARPlacementView: View {
                 }
             }
             .disabled(isDownloadingModel)
+
             Spacer()
         }
         .padding(.bottom, 20)
+    }
+
+    private func captureGardenSharePhoto() {
+        capturedShareImage = nil
+        isCapturingSharePhoto = true
+        shouldCaptureSharePhoto = true
     }
     
     private var savingIndicator: some View {
@@ -667,6 +713,9 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var isAutoPlacing: Bool
     @Binding var autoPlaceToast: String?
     @Binding var currentLux: Int
+    @Binding var shouldCaptureSharePhoto: Bool
+    @Binding var capturedShareImage: UIImage?
+    @Binding var isCapturingSharePhoto: Bool
     let plantsToAutoPlace: [Plant]
 
     let uid: String
@@ -752,6 +801,21 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
 
     func updateUIView(_ uiView: ARSCNView, context: Context) {
         context.coordinator.updateCachedBounds()
+
+        if shouldCaptureSharePhoto {
+            DispatchQueue.main.async {
+                let rawSnapshot = uiView.snapshot()
+                let brandedSnapshot = GardenARShareComposer.compose(
+                    snapshot: rawSnapshot,
+                    gardenName: gardenName,
+                    plantCount: context.coordinator.currentPlantCount(),
+                    style: wizard.style
+                )
+                capturedShareImage = brandedSnapshot
+                isCapturingSharePhoto = false
+                shouldCaptureSharePhoto = false
+            }
+        }
     }
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -837,6 +901,19 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 let geo = (node.geometry != nil) ? " (geo)" : ""
                 print("\(indent)- \(name)\(geo)")
                 node.childNodes.forEach { dumpNodeTree($0, indent: indent + "  ") }
+            }
+
+            func currentPlantCount() -> Int {
+                guard let arView else { return 0 }
+                return arView.scene.rootNode.childNodes.reduce(0) { total, rootChild in
+                    if rootChild.name?.starts(with: "plant_") == true {
+                        return total + 1
+                    }
+
+                    return total + rootChild.childNodes.filter {
+                        $0.name?.starts(with: "plant_") == true
+                    }.count
+                }
             }
 
             func setupObservers() {
@@ -3008,6 +3085,157 @@ struct GlassButtonStyle: ViewModifier {
             .background(isGreen ? Color(hex: "#2BEE79") : .black.opacity(0.35))
             .clipShape(Circle())
             .overlay(Circle().stroke(.white.opacity(0.15), lineWidth: 1))
+    }
+}
+
+private enum GardenARShareComposer {
+    static func compose(snapshot: UIImage, gardenName: String, plantCount: Int, style: String) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = snapshot.scale
+        format.opaque = true
+
+        let renderer = UIGraphicsImageRenderer(size: snapshot.size, format: format)
+        return renderer.image { context in
+            let rect = CGRect(origin: .zero, size: snapshot.size)
+            snapshot.draw(in: rect)
+
+            drawGradient(in: context.cgContext, rect: rect)
+            drawBranding(in: context.cgContext, rect: rect, snapshot: snapshot)
+            drawInfoOverlay(
+                in: rect,
+                gardenName: gardenName,
+                plantCount: plantCount,
+                style: style
+            )
+        }
+    }
+
+    private static func drawGradient(in cgContext: CGContext, rect: CGRect) {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let colors = [
+            UIColor.clear.cgColor,
+            UIColor.black.withAlphaComponent(0.12).cgColor,
+            UIColor.black.withAlphaComponent(0.72).cgColor
+        ] as CFArray
+        let locations: [CGFloat] = [0.0, 0.52, 1.0]
+
+        guard let gradient = CGGradient(colorsSpace: colorSpace, colors: colors, locations: locations) else { return }
+        cgContext.drawLinearGradient(
+            gradient,
+            start: CGPoint(x: rect.midX, y: rect.minY),
+            end: CGPoint(x: rect.midX, y: rect.maxY),
+            options: []
+        )
+    }
+
+    private static func drawBranding(in cgContext: CGContext, rect: CGRect, snapshot: UIImage) {
+        let bottomInset = rect.height * 0.055
+        let logoSize = rect.width * 0.13
+        let totalWidth = logoSize + rect.width * 0.025 + rect.width * 0.32
+        let logoX = rect.midX - totalWidth / 2
+        let logoY = rect.maxY - bottomInset - logoSize
+
+        cgContext.saveGState()
+        let logoRect = CGRect(x: logoX, y: logoY, width: logoSize, height: logoSize)
+        UIBezierPath(roundedRect: logoRect, cornerRadius: logoSize * 0.22).addClip()
+        if let logo = UIImage(named: "arbore_logo") {
+            logo.draw(in: logoRect)
+        } else {
+            UIColor(red: 0.13, green: 0.27, blue: 0.19, alpha: 1).setFill()
+            cgContext.fill(logoRect)
+        }
+        cgContext.restoreGState()
+
+        let textX = logoRect.maxX + rect.width * 0.025
+        let brandY = logoY + logoSize * 0.11
+        drawText(
+            "arbore",
+            in: CGRect(x: textX, y: brandY, width: rect.width * 0.4, height: logoSize * 0.48),
+            font: .systemFont(ofSize: rect.width * 0.07, weight: .bold),
+            color: UIColor.white.withAlphaComponent(0.86)
+        )
+        drawText(
+            "grow with harmony",
+            in: CGRect(x: textX, y: brandY + logoSize * 0.5, width: rect.width * 0.46, height: logoSize * 0.3),
+            font: .systemFont(ofSize: rect.width * 0.028, weight: .medium),
+            color: UIColor.white.withAlphaComponent(0.68)
+        )
+    }
+
+    private static func drawInfoOverlay(in rect: CGRect, gardenName: String, plantCount: Int, style: String) {
+        let horizontalPadding = rect.width * 0.08
+        let contentBottom = rect.height * 0.2
+        let titleRect = CGRect(
+            x: horizontalPadding,
+            y: rect.maxY - contentBottom - rect.height * 0.16,
+            width: rect.width - horizontalPadding * 2,
+            height: rect.height * 0.08
+        )
+
+        drawText(
+            gardenName,
+            in: titleRect,
+            font: .systemFont(ofSize: rect.width * 0.065, weight: .bold),
+            color: .white,
+            alignment: .center
+        )
+
+        let metricsY = titleRect.maxY + rect.height * 0.02
+        let halfWidth = (rect.width - horizontalPadding * 2) / 2
+        drawMetric(
+            label: "PLANTES",
+            value: "\(max(plantCount, 0))",
+            icon: "camera.macro",
+            rect: CGRect(x: horizontalPadding, y: metricsY, width: halfWidth, height: rect.height * 0.07)
+        )
+        drawMetric(
+            label: "STYLE",
+            value: style.isEmpty ? "Arbore" : style,
+            icon: "leaf",
+            rect: CGRect(x: horizontalPadding + halfWidth, y: metricsY, width: halfWidth, height: rect.height * 0.07)
+        )
+    }
+
+    private static func drawMetric(label: String, value: String, icon: String, rect: CGRect) {
+        let iconSize = rect.height * 0.52
+        let iconRect = CGRect(x: rect.minX + rect.width * 0.1, y: rect.midY - iconSize / 2, width: iconSize, height: iconSize)
+        UIImage(systemName: icon)?
+            .withTintColor(UIColor(red: 0.78, green: 0.87, blue: 0.71, alpha: 1), renderingMode: .alwaysOriginal)
+            .draw(in: iconRect)
+
+        let textX = iconRect.maxX + rect.width * 0.06
+        drawText(
+            label,
+            in: CGRect(x: textX, y: rect.minY + rect.height * 0.08, width: rect.width * 0.58, height: rect.height * 0.28),
+            font: .systemFont(ofSize: rect.width * 0.055, weight: .semibold),
+            color: UIColor.white.withAlphaComponent(0.62)
+        )
+        drawText(
+            value,
+            in: CGRect(x: textX, y: rect.minY + rect.height * 0.38, width: rect.width * 0.62, height: rect.height * 0.48),
+            font: .systemFont(ofSize: rect.width * 0.082, weight: .medium),
+            color: .white
+        )
+    }
+
+    private static func drawText(
+        _ text: String,
+        in rect: CGRect,
+        font: UIFont,
+        color: UIColor,
+        alignment: NSTextAlignment = .left
+    ) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = alignment
+        paragraph.lineBreakMode = .byTruncatingTail
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraph
+        ]
+
+        (text as NSString).draw(in: rect, withAttributes: attributes)
     }
 }
 

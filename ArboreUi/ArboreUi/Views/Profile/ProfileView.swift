@@ -294,18 +294,57 @@ struct ProfileView: View {
 
     // MARK: - Networking / helpers
     private func uploadProfileImage(_ image: UIImage) async {
-        // Placeholder upload logic - replace with your storage/upload code
-        isUploading = true
-        uploadError = nil
-        try? await Task.sleep(nanoseconds: 700_000_000)
-        DispatchQueue.main.async {
-            self.profileImage = image
-            self.isUploading = false
+        await MainActor.run {
+            isUploading = true
+            uploadError = nil
+        }
+
+        do {
+            try saveProfileImageLocally(image)
+            await MainActor.run {
+                self.profileImage = image
+                self.isUploading = false
+            }
+        } catch {
+            await MainActor.run {
+                self.uploadError = "Impossible de sauvegarder la photo."
+                self.isUploading = false
+            }
         }
     }
 
     private func fetchProfileImage() {
-        // Implement your fetch logic; kept empty for sample
+        guard let image = loadLocalProfileImage() else { return }
+        profileImage = image
+    }
+
+    private var profileImageURL: URL? {
+        guard let uid = Auth.auth().currentUser?.uid else { return nil }
+        let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("ProfileImages", isDirectory: true)
+        return directory.appendingPathComponent("\(uid).jpg")
+    }
+
+    private func saveProfileImageLocally(_ image: UIImage) throws {
+        guard let url = profileImageURL else { return }
+        let directory = url.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        guard let data = image.normalizedProfileImage().jpegData(compressionQuality: 0.86) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+
+        try data.write(to: url, options: [.atomic])
+    }
+
+    private func loadLocalProfileImage() -> UIImage? {
+        guard let url = profileImageURL,
+              FileManager.default.fileExists(atPath: url.path),
+              let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+
+        return UIImage(data: data)
     }
 
     private func loadUserData() {
@@ -327,6 +366,20 @@ struct ProfileView: View {
             isLoggedIn = false
         } catch {
             print("Erreur de déconnexion Firebase :", error.localizedDescription)
+        }
+    }
+}
+
+private extension UIImage {
+    func normalizedProfileImage(maxDimension: CGFloat = 600) -> UIImage {
+        let longestSide = max(size.width, size.height)
+        guard longestSide > maxDimension else { return self }
+
+        let scale = maxDimension / longestSide
+        let targetSize = CGSize(width: size.width * scale, height: size.height * scale)
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        return renderer.image { _ in
+            draw(in: CGRect(origin: .zero, size: targetSize))
         }
     }
 }

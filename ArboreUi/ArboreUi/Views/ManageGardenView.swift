@@ -86,6 +86,9 @@ struct ManageGardenView: View {
                         showsBackButton: false,
                         onOpenGardenList: {
                             showingGardenList = true
+                        },
+                        onGardenRenamed: { newName in
+                            updateSelectedGardenName(newName)
                         }
                     )
                     .id(selectedProject.id)
@@ -167,6 +170,17 @@ struct ManageGardenView: View {
         projectService.refreshProjects()
     }
 
+    private func updateSelectedGardenName(_ newName: String) {
+        guard let selectedProject else { return }
+
+        self.selectedProject = GardenModel(
+            id: selectedProject.id,
+            name: newName,
+            lastModified: Date(),
+            thumbnail: selectedProject.thumbnail
+        )
+    }
+
     private func resolveInitialGarden() async {
         await MainActor.run {
             syncSelectedProject()
@@ -225,6 +239,7 @@ struct GardenDetailsPage: View {
     let gardenName: String
     let showsBackButton: Bool
     let onOpenGardenList: (() -> Void)?
+    let onGardenRenamed: ((String) -> Void)?
     
     @Environment(\.dismiss) var dismiss
     
@@ -233,6 +248,12 @@ struct GardenDetailsPage: View {
     @State private var mapTextureKind: MapTextureKind = .garden
     @State private var gardenDetails: GardenDTO?
     @State private var showMeasurementApp = false
+    @State private var currentGardenName: String
+    @State private var renameText = ""
+    @State private var showRenameAlert = false
+    @State private var isRenamingGarden = false
+    @State private var renameError: String?
+    @State private var showARShareCapture = false
     
     // États pour l'interface "Purchase"
     enum Tab: String, CaseIterable {
@@ -250,12 +271,15 @@ struct GardenDetailsPage: View {
         gardenId: String,
         gardenName: String,
         showsBackButton: Bool = true,
-        onOpenGardenList: (() -> Void)? = nil
+        onOpenGardenList: (() -> Void)? = nil,
+        onGardenRenamed: ((String) -> Void)? = nil
     ) {
         self.gardenId = gardenId
         self.gardenName = gardenName
         self.showsBackButton = showsBackButton
         self.onOpenGardenList = onOpenGardenList
+        self.onGardenRenamed = onGardenRenamed
+        _currentGardenName = State(initialValue: gardenName)
     }
     
     // Données Mock pour la liste d'achats
@@ -311,11 +335,22 @@ struct GardenDetailsPage: View {
             .padding(.bottom, ArboreDesign.Spacing.md)
         }
         .navigationBarHidden(true)
+        .alert("Renommer le jardin", isPresented: $showRenameAlert) {
+            TextField("Nom du jardin", text: $renameText)
+
+            Button("Annuler", role: .cancel) {}
+            Button("Enregistrer") {
+                Task { await renameGarden() }
+            }
+            .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        } message: {
+            Text("Choisissez un nom facile à reconnaître.")
+        }
         .fullScreenCover(isPresented: $showMeasurementApp) {
             ARViewContainerMesure(
                 uid: gardenDetails?.uid ?? "",
                 wizard: gardenDetails?.wizard ?? fallbackWizardDTO,
-                gardenName: gardenDetails?.name ?? gardenName,
+                gardenName: currentGardenName,
                 thumbnailKey: gardenDetails?.thumbnailKey,
                 existingGardenId: gardenId,
                 measurementOnly: true,
@@ -325,8 +360,28 @@ struct GardenDetailsPage: View {
                 }
             )
         }
+        .fullScreenCover(isPresented: $showARShareCapture) {
+            GardenARPlacementView(
+                selectedPlants: [],
+                uid: gardenDetails?.uid ?? "",
+                wizard: gardenDetails?.wizard ?? fallbackWizardDTO,
+                gardenName: currentGardenName,
+                thumbnailKey: gardenDetails?.thumbnailKey,
+                existingGardenId: gardenId,
+                mode: .reopen,
+                boundaryPoints: [],
+                area: 0,
+                perimeter: 0,
+                measurementWorldMapId: nil,
+                onValidated: {
+                    showARShareCapture = false
+                    mapViewModel.loadGarden(gardenId: gardenId)
+                }
+            )
+        }
         .onAppear {
             mapViewModel.loadGarden(gardenId: gardenId)
+            currentGardenName = gardenDetails?.name ?? gardenName
             Task { await loadMapTextureKind() }
         }
     }
@@ -352,7 +407,7 @@ struct GardenDetailsPage: View {
                     .frame(width: 42, height: 42)
             }
 
-            Text("Mon jardin")
+            Text(currentGardenName)
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundColor(ArboreDesign.Colors.textPrimary)
                 .lineLimit(1)
@@ -360,8 +415,28 @@ struct GardenDetailsPage: View {
                 .minimumScaleFactor(0.78)
                 .frame(maxWidth: .infinity)
 
-            Color.clear
-                .frame(width: 42, height: 42)
+            Menu {
+                Button(action: { showARShareCapture = true }) {
+                    Label("Partager en 3D", systemImage: "camera.viewfinder")
+                }
+
+                Button(action: openRenameAlert) {
+                    Label("Renommer", systemImage: "pencil")
+                }
+            } label: {
+                if isRenamingGarden {
+                    ProgressView()
+                        .tint(ArboreDesign.Colors.primaryGreen)
+                        .frame(width: 42, height: 42)
+                        .background(ArboreDesign.Colors.card)
+                        .clipShape(Circle())
+                } else {
+                    headerIcon("ellipsis")
+                }
+            }
+            .buttonStyle(.plain)
+            .disabled(isRenamingGarden)
+            .accessibilityLabel("Actions du jardin")
         }
         .padding(.horizontal, ArboreDesign.Spacing.screenHorizontal)
         .padding(.top, ArboreDesign.Spacing.md)
@@ -374,10 +449,16 @@ struct GardenDetailsPage: View {
             VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
                 SectionTitle(title: "Vue du jardin")
 
-                Text("Visualisez l’emplacement de vos plantes et touchez un marqueur pour afficher ses besoins.")
+                Text("\(currentGardenName) • Visualisez l’emplacement de vos plantes et touchez un marqueur pour afficher ses besoins.")
                     .font(ArboreDesign.Typography.bodySmall)
                     .foregroundColor(ArboreDesign.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+
+                if let renameError {
+                    Text(renameError)
+                        .font(ArboreDesign.Typography.caption)
+                        .foregroundColor(ArboreDesign.Colors.danger)
+                }
             }
 
             ZStack(alignment: .bottom) {
@@ -539,6 +620,7 @@ struct GardenDetailsPage: View {
             let garden = try await GardenAPI.shared.getGarden(id: gardenId)
             await MainActor.run {
                 gardenDetails = garden
+                currentGardenName = garden.name
                 mapTextureKind = MapTextureKind(spaceType: garden.wizard.spaceType)
             }
         } catch {
@@ -547,6 +629,39 @@ struct GardenDetailsPage: View {
             }
             print("❌ loadMapTextureKind failed:", error)
         }
+    }
+
+    private func openRenameAlert() {
+        renameText = currentGardenName
+        renameError = nil
+        showRenameAlert = true
+    }
+
+    @MainActor
+    private func renameGarden() async {
+        let newName = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !newName.isEmpty, newName != currentGardenName else { return }
+
+        isRenamingGarden = true
+        renameError = nil
+
+        do {
+            try await GardenAPI.shared.updateGarden(
+                id: gardenId,
+                patch: GardenAPI.GardenPatch(name: newName)
+            )
+            currentGardenName = newName
+            if var details = gardenDetails {
+                details.name = newName
+                gardenDetails = details
+            }
+            onGardenRenamed?(newName)
+        } catch {
+            renameError = "Impossible de renommer ce jardin."
+            print("❌ renameGarden failed:", error)
+        }
+
+        isRenamingGarden = false
     }
 
     private var fallbackWizardDTO: GardenWizardDTO {

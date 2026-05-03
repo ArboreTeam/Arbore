@@ -165,6 +165,11 @@ Ce projet est développé dans un cadre éducatif.
 
 Développé par l'équipe ArboreTeam dans le cadre d'un projet de fin d'études.
 
+### Developers
+
+| [<img src="https://github.com/Matribuk.png?size=85" width=85><br><sub>Antonin Leprest</sub>](https://github.com/Matribuk) | [<img src="https://github.com/hugorth.png?size=85" width=85><br><sub>Hugo Rath</sub>](https://github.com/hugorth) | [<img src="https://github.com/Jus2Orange.png?size=85" width=85><br><sub>Hugo Michel</sub>](https://github.com/Jus2Orange) | [<img src="https://github.com/tanssime.png?size=85" width=85><br><sub>Tanssime Mansour</sub>](https://github.com/tanssime) |
+|:---:|:---:|:---:|:---:|
+
 ---
 
 *Arbore - Cultivez votre passion du jardinage avec l'IA et la réalité augmentée* 🌱✨

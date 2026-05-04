@@ -211,8 +211,9 @@ enum GardenWizardStep: Int, CaseIterable, Identifiable {
     case safety
     case soil
     case aiSuggestion    // 🤖 AI garden suggestion step
+    case scanMethod      // Choose perimeter vs LiDAR room scan
     case summary
-    
+
     var id: Int { rawValue }
 }
 
@@ -220,8 +221,13 @@ struct GardenWizardView: View {
     @StateObject private var state = GardenWizardState()
     @State private var currentStep: GardenWizardStep = .intro
 
-    // ouvre l’AR à la fin
-    @State private var showPlacementAR = false
+    // Branchement après summary, choisi via state.scanMethod (step 9).
+    // - perimeter → ouvre ARViewContainerMesure (le user trace la boundary
+    //   au sol, puis l'écran enchaîne vers GardenARPlacementView)
+    // - roomScan  → ouvre LiDARScanWizardView (RoomPlan, puis place les
+    //   plantes dans l'espace 3D capturé)
+    @State private var showPerimeterFlow = false
+    @State private var showLiDARFlow = false
     
     // 🤖 AI Suggestion: all catalogue plants + user's selection
     @State private var allCataloguePlants: [Plant] = []
@@ -249,7 +255,7 @@ struct GardenWizardView: View {
             steps.append(.soil)
         }
 
-        steps.append(contentsOf: [.aiSuggestion, .summary])
+        steps.append(contentsOf: [.aiSuggestion, .scanMethod, .summary])
         return steps
     }
 
@@ -268,6 +274,19 @@ struct GardenWizardView: View {
         let prevIndex = currentIndex - 1
         if prevIndex >= 0 {
             withAnimation(.easeInOut) { currentStep = visibleSteps[prevIndex] }
+        }
+    }
+
+    /// Called from the summary's primary CTA. Branches to the scan flow the
+    /// user picked at the .scanMethod step. Defaults to perimeter if the
+    /// state somehow ended up nil (shouldn't — the .scanMethod step
+    /// disables Continue until a method is chosen).
+    private func startScanFlow() {
+        switch state.scanMethod {
+        case .roomScan:
+            showLiDARFlow = true
+        case .gardenPerimeter, .none:
+            showPerimeterFlow = true
         }
     }
 
@@ -337,10 +356,17 @@ struct GardenWizardView: View {
                     )
                     .tag(GardenWizardStep.aiSuggestion)
 
+                    ScanMethodStepView(
+                        state: state,
+                        onNext: goToNext,
+                        onBack: goToPrevious
+                    )
+                    .tag(GardenWizardStep.scanMethod)
+
                     WizardSummaryStepView(
                         state: state,
                         onBack: goToPrevious,
-                        onStartAR: { showPlacementAR = true },
+                        onStartAR: { startScanFlow() },
                         onStartLiDAR: {},
                         onFinishWizard: { onFinish(state) },
                         isSaving: false
@@ -367,22 +393,37 @@ struct GardenWizardView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
 
-        // ✅ AR placement (create) - maintenant avec les données de mesure
-        .fullScreenCover(isPresented: $showPlacementAR) {
-            GardenARPlacementView(
+        // Mode "tracer le périmètre au sol" — branche non-LiDAR.
+        // ARViewContainerMesure gère le tracé des coins puis enchaîne sur
+        // GardenARPlacementView (mode .create) avec la boundary mesurée.
+        .fullScreenCover(isPresented: $showPerimeterFlow) {
+            ARViewContainerMesure(
                 selectedPlants: aiSelectedPlants.isEmpty ? selectedPlants : aiSelectedPlants,
                 uid: uid,
                 wizard: wizardDTO,
                 gardenName: gardenName,
                 thumbnailKey: thumbnailKey,
                 existingGardenId: nil,
-                mode: .create,
-                boundaryPoints: [],  // No boundaries in direct create mode
-                area: 0,
-                perimeter: 0,
-                measurementWorldMapId: nil,  // Pas de mesure en mode direct
-                onValidated: {
-                    showPlacementAR = false
+                measurementOnly: false,
+                onSuccess: {
+                    showPerimeterFlow = false
+                    tabRouter.selectedTab = .home
+                    dismiss()
+                }
+            )
+        }
+        // Mode "scan 3D" — branche LiDAR (suivie côté Mate).
+        // LiDARScanWizardView capture la pièce via RoomPlan puis ouvre
+        // GardenARPlacementView avec le worldmap LiDAR pour placement.
+        .fullScreenCover(isPresented: $showLiDARFlow) {
+            LiDARScanWizardView(
+                uid: uid,
+                selectedPlants: aiSelectedPlants.isEmpty ? selectedPlants : aiSelectedPlants,
+                wizard: wizardDTO,
+                gardenName: gardenName,
+                thumbnailKey: thumbnailKey,
+                onSuccess: {
+                    showLiDARFlow = false
                     tabRouter.selectedTab = .home
                     dismiss()
                 }

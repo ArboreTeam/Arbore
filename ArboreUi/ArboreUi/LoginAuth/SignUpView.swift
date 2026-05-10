@@ -319,29 +319,65 @@ struct SignUpView: View {
                 return
             }
 
-            // Envoyer l'email de vérification
-            user.sendEmailVerification { error in
-                DispatchQueue.main.async {
-                    if let error = error {
-                        self.signUpError = self.verificationEmailErrorMessage(for: error)
-                    } else {
-                        self.emailVerificationSent = true
-                        self.showVerificationScreen = true
+            // 1) POST /users (Mongo) AVANT l'email de vérif — si ça échoue on
+            // supprime le compte Firebase pour que l'utilisateur puisse
+            // recommencer proprement (sinon: orphan Firebase user, cf #137).
+            Task {
+                do {
+                    try await saveUserToBackendThrowing(
+                        uid: user.uid,
+                        email: user.email ?? "",
+                        name: fullName,
+                        createdAt: Date()
+                    )
+
+                    // 2) Consentements RGPD (best-effort, on n'annule pas si ça loupe)
+                    recordInitialConsents(uid: user.uid, acceptedTerms: true, acceptedPrivacy: true)
+
+                    // 3) Envoyer l'email de vérification (best-effort aussi —
+                    // l'utilisateur peut le renvoyer depuis l'écran de vérif)
+                    user.sendEmailVerification { error in
+                        DispatchQueue.main.async {
+                            if let error = error {
+                                self.signUpError = self.verificationEmailErrorMessage(for: error)
+                            } else {
+                                self.emailVerificationSent = true
+                            }
+                            self.showVerificationScreen = true
+                            self.isLoggedIn = false
+                        }
+                    }
+                } catch {
+                    print("❌ POST /users a échoué après createUser — rollback Firebase user (uid=\(user.uid)):", error.localizedDescription)
+                    // Rollback : on supprime le user Firebase pour qu'il puisse
+                    // retenter sans tomber dans "email already in use".
+                    do {
+                        try await user.delete()
+                        print("🧹 Firebase user supprimé (rollback)")
+                    } catch {
+                        print("⚠️ Rollback Firebase échoué (l'utilisateur devra réessayer plus tard):", error.localizedDescription)
+                    }
+                    await MainActor.run {
+                        self.signUpError = self.signupBackendErrorMessage(for: error)
+                        self.isLoggedIn = false
                     }
                 }
             }
+        }
+    }
 
-            // Enregistre l'utilisateur dans ta DB uniquement si tu veux malgré tout
-            saveUserToBackend(uid: user.uid, email: user.email ?? "", name: fullName, createdAt: Date())
-
-            // Enregistre les consentements initiaux (RGPD)
-            recordInitialConsents(uid: user.uid, acceptedTerms: true, acceptedPrivacy: true)
-
-            // Ne connecte pas l'utilisateur tout de suite
-            DispatchQueue.main.async {
-                self.isLoggedIn = false
+    private func signupBackendErrorMessage(for error: Error) -> String {
+        if let networkError = error as? NetworkError {
+            switch networkError {
+            case .unauthorized:
+                return NSLocalizedString("SIGNUP_BACKEND_UNAUTHORIZED", comment: "")
+            case .noUser, .noToken:
+                return NSLocalizedString("SIGNUP_BACKEND_AUTH_ISSUE", comment: "")
+            default:
+                return NSLocalizedString("SIGNUP_BACKEND_UNAVAILABLE", comment: "")
             }
         }
+        return NSLocalizedString("SIGNUP_BACKEND_UNAVAILABLE", comment: "")
     }
 
     private func resendVerificationForExistingAccount(email: String, password: String) {

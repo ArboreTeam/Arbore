@@ -310,6 +310,65 @@ func createUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Utilisateur enregistré avec succès", "user": user})
 }
 
+// updateUserSelf met à jour le profil de l'utilisateur authentifié (PATCH /users/me).
+// Seul le nom est éditable côté JSON ; la photo passe par POST /users/:uid/photo.
+// L'identité vient toujours du token Firebase — pas de :uid dans l'URL.
+func updateUserSelf(c *gin.Context) {
+	authenticatedUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	uid := authenticatedUID.(string)
+
+	var payload struct {
+		Name *string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if payload.Name == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Aucun champ à mettre à jour"})
+		return
+	}
+
+	trimmed := strings.TrimSpace(*payload.Name)
+	if trimmed == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Le nom ne peut pas être vide"})
+		return
+	}
+	// Garde-fou raisonnable : un nom humain dépasse rarement 100 chars.
+	if len([]rune(trimmed)) > 100 {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Le nom est trop long (max 100 caractères)"})
+		return
+	}
+
+	collection := client.Database("arbore").Collection("users")
+	res, err := collection.UpdateOne(
+		context.Background(),
+		bson.M{"uid": uid},
+		bson.M{"$set": bson.M{"name": trimmed}},
+	)
+	if err != nil {
+		log.Println("❌ Erreur lors de la mise à jour du profil :", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la mise à jour du profil"})
+		return
+	}
+	if res.MatchedCount == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Utilisateur non trouvé"})
+		return
+	}
+
+	var updated User
+	if err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&updated); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "Profil mis à jour"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Profil mis à jour", "user": updated})
+}
+
 func deleteUser(c *gin.Context) {
 	authenticatedUID, exists := c.Get("uid")
 	if !exists {
@@ -1197,7 +1256,7 @@ func main() {
 	// CORS pour autoriser les requêtes depuis le frontend web
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"http://localhost:3000"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Authorization", "Content-Type", "X-API-Key"},
 		AllowCredentials: true,
 	}))
@@ -1283,6 +1342,7 @@ func main() {
 		protected.POST("/users/:uid/photo", uploadUserPhoto)
 		protected.GET("/users/:uid/photo", getUserPhoto)
 		protected.GET("/users/export", exportUserData)
+		protected.PATCH("/users/me", updateUserSelf)
 		protected.DELETE("/users", deleteUser)
 
 		// Plants

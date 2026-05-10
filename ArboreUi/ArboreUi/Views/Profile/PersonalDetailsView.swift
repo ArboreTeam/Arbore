@@ -4,10 +4,22 @@ import FirebaseAuth
 struct PersonalDetailsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) var dismiss
+
     @State private var fullName: String = ""
-    @State private var phoneNumber: String = ""
     @State private var email: String = ""
-    @State private var address: String = ""
+    @State private var initialName: String = ""
+
+    @State private var isSaving: Bool = false
+    @State private var errorMessage: String? = nil
+    @State private var didSave: Bool = false
+
+    private var trimmedName: String {
+        fullName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSave: Bool {
+        !isSaving && !trimmedName.isEmpty && trimmedName != initialName
+    }
 
     var body: some View {
         SettingsPage(title: NSLocalizedString("PERSONAL_DETAILS_TITLE", comment: "")) {
@@ -22,48 +34,99 @@ struct PersonalDetailsView: View {
                         text: $fullName,
                         systemImage: "person"
                     )
+                    .disabled(isSaving)
 
-                    inputField(
-                        title: NSLocalizedString("PERSONAL_DETAILS_PHONE_LABEL", comment: ""),
-                        placeholder: NSLocalizedString("PERSONAL_DETAILS_PHONE_PLACEHOLDER", comment: ""),
-                        text: $phoneNumber,
-                        systemImage: "phone",
-                        keyboardType: .phonePad
-                    )
-
-                    inputField(
+                    readOnlyField(
                         title: NSLocalizedString("PERSONAL_DETAILS_EMAIL_LABEL", comment: ""),
-                        placeholder: NSLocalizedString("PERSONAL_DETAILS_EMAIL_PLACEHOLDER", comment: ""),
-                        text: $email,
-                        systemImage: "envelope",
-                        keyboardType: .emailAddress
-                    )
-
-                    inputField(
-                        title: NSLocalizedString("PERSONAL_DETAILS_ADDRESS_LABEL", comment: ""),
-                        placeholder: NSLocalizedString("PERSONAL_DETAILS_ADDRESS_PLACEHOLDER", comment: ""),
-                        text: $address,
-                        systemImage: "mappin.and.ellipse"
+                        value: email.isEmpty ? "—" : email,
+                        systemImage: "envelope"
                     )
                 }
             }
 
-            Button(action: { dismiss() }) {
-                Text(NSLocalizedString("PERSONAL_DETAILS_SAVE_BUTTON", comment: ""))
+            if let errorMessage = errorMessage {
+                Text(errorMessage)
+                    .font(ArboreDesign.Typography.caption)
+                    .foregroundColor(ArboreDesign.Colors.danger)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, ArboreDesign.Spacing.lg)
+            }
+
+            if didSave && errorMessage == nil {
+                Text(NSLocalizedString("PERSONAL_DETAILS_SAVE_SUCCESS", comment: ""))
+                    .font(ArboreDesign.Typography.caption)
+                    .foregroundColor(ArboreDesign.Colors.success)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, ArboreDesign.Spacing.lg)
+            }
+
+            Button(action: save) {
+                HStack {
+                    if isSaving {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                            .tint(.white)
+                    }
+                    Text(NSLocalizedString("PERSONAL_DETAILS_SAVE_BUTTON", comment: ""))
+                }
             }
             .buttonStyle(.arborePrimary)
+            .disabled(!canSave)
+            .opacity(canSave ? 1.0 : 0.5)
         }
-        .interactiveDismissDisabled()
+        .interactiveDismissDisabled(isSaving)
         .onAppear {
             if let user = Auth.auth().currentUser {
                 if fullName.isEmpty { fullName = user.displayName ?? "" }
                 if email.isEmpty { email = user.email ?? "" }
-                if phoneNumber.isEmpty { phoneNumber = user.phoneNumber ?? "" }
+                initialName = fullName
             }
         }
     }
-    
-    // MARK: - Input Field
+
+    // MARK: - Save action
+
+    private func save() {
+        let payload = trimmedName
+        errorMessage = nil
+        didSave = false
+        isSaving = true
+
+        Task {
+            do {
+                let _: UserResponse = try await NetworkManager.shared.request(
+                    endpoint: "/users/me",
+                    method: .PATCH,
+                    body: ["name": payload]
+                )
+                await updateFirebaseDisplayName(payload)
+
+                await MainActor.run {
+                    self.initialName = payload
+                    self.didSave = true
+                    self.isSaving = false
+                }
+                try? await Task.sleep(nanoseconds: 600_000_000)
+                await MainActor.run { dismiss() }
+            } catch {
+                await MainActor.run {
+                    self.isSaving = false
+                    self.errorMessage = (error as? LocalizedError)?.errorDescription
+                        ?? NSLocalizedString("PERSONAL_DETAILS_SAVE_ERROR", comment: "")
+                }
+            }
+        }
+    }
+
+    private func updateFirebaseDisplayName(_ newName: String) async {
+        guard let user = Auth.auth().currentUser, user.displayName != newName else { return }
+        let change = user.createProfileChangeRequest()
+        change.displayName = newName
+        try? await change.commitChanges()
+    }
+
+    // MARK: - Input fields
+
     private func inputField(
         title: String,
         placeholder: String,
@@ -82,6 +145,25 @@ struct PersonalDetailsView: View {
                 systemImage: systemImage,
                 keyboardType: keyboardType
             )
+        }
+    }
+
+    private func readOnlyField(title: String, value: String, systemImage: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(ArboreDesign.Typography.caption)
+                .foregroundColor(ArboreDesign.Colors.textSecondary)
+
+            HStack(spacing: 12) {
+                Image(systemName: systemImage)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                Text(value)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                Spacer()
+            }
+            .padding()
+            .background(ArboreDesign.Colors.card.opacity(0.5))
+            .cornerRadius(ArboreDesign.Radius.medium)
         }
     }
 }

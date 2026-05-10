@@ -3,34 +3,67 @@ import Firebase
 
 // MARK: - User Management Functions
 
-/// Envoie un utilisateur vers MongoDB via ton backend
+/// Envoie un utilisateur vers MongoDB via ton backend (fire-and-forget, ne throw pas).
+/// Pour la signup avec rollback, utiliser `saveUserToBackendThrowing` à la place.
 func saveUserToBackend(uid: String, email: String, name: String, createdAt: Date) {
     Task {
         do {
-            let formatter = ISO8601DateFormatter()
-            let userData: [String: Any] = [
-                "email": email,
-                "name": name,
-                "createdAt": formatter.string(from: createdAt),
-                "banned": false
-            ]
+            try await saveUserToBackendThrowing(uid: uid, email: email, name: name, createdAt: createdAt)
+        } catch {
+            print("❌ Erreur d'enregistrement MongoDB:", error.localizedDescription)
+        }
+    }
+}
 
-            if let jsonData = try? JSONSerialization.data(withJSONObject: userData, options: .prettyPrinted),
-               let jsonString = String(data: jsonData, encoding: .utf8) {
-                print("🚀 Payload envoyé à MongoDB :\n\(jsonString)")
-            }
+/// Variante async/throws : remonte les erreurs au caller pour décider d'un rollback
+/// (cf. SignUpView qui supprime le Firebase user si POST /users échoue).
+/// Retry sur 5xx avec backoff exponentiel ; 4xx remonte tout de suite.
+func saveUserToBackendThrowing(uid: String, email: String, name: String, createdAt: Date) async throws {
+    let formatter = ISO8601DateFormatter()
+    let userData: [String: Any] = [
+        "email": email,
+        "name": name,
+        "createdAt": formatter.string(from: createdAt),
+        "banned": false
+    ]
 
+    let maxAttempts = 3
+    var lastError: Error?
+
+    for attempt in 1...maxAttempts {
+        do {
             let response: UserResponse = try await NetworkManager.shared.request(
                 endpoint: "/users",
                 method: .POST,
                 body: userData
             )
-
-            print("✅ Utilisateur enregistré dans MongoDB:", response.message ?? "success")
-        } catch {
-            print("❌ Erreur d'enregistrement MongoDB:", error.localizedDescription)
+            print("✅ Utilisateur enregistré dans MongoDB (uid=\(uid)):", response.message ?? "success")
+            return
+        } catch NetworkError.unauthorized, NetworkError.forbidden {
+            // 401/403: clé API ou token invalide — retry inutile, on remonte.
+            throw NetworkError.unauthorized
+        } catch let error as NetworkError {
+            lastError = error
+            if attempt < maxAttempts, isTransient(error) {
+                let delayNs = UInt64(pow(2.0, Double(attempt - 1)) * 500_000_000)
+                print("⏳ POST /users échec (\(error.localizedDescription)), retry \(attempt)/\(maxAttempts - 1) dans \(delayNs / 1_000_000)ms")
+                try? await Task.sleep(nanoseconds: delayNs)
+                continue
+            }
+            throw error
         }
     }
+
+    throw lastError ?? NetworkError.serverError("Inconnue")
+}
+
+private func isTransient(_ error: NetworkError) -> Bool {
+    if case .serverError(let message) = error {
+        // Heuristique: les messages venant du backend Gin commencent souvent par
+        // "Status code: 5xx" pour les codes non interceptés ailleurs.
+        return message.contains("Status code: 5")
+    }
+    return false
 }
 
 /// Vérifie si un utilisateur existe déjà côté MongoDB

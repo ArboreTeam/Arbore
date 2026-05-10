@@ -231,6 +231,8 @@
 "PERSONAL_DETAILS_ADDRESS_PLACEHOLDER" = "Adresse";
 
 "PERSONAL_DETAILS_SAVE_BUTTON" = "Enregistrer les modifications";
+"PERSONAL_DETAILS_SAVE_SUCCESS" = "Modifications enregistrées ✓";
+"PERSONAL_DETAILS_SAVE_ERROR" = "Impossible d’enregistrer. Réessaie dans un instant.";
 
 
 // Politique de confidentialité
@@ -893,6 +895,9 @@
 "SIGNUP_ACCEPT" = "J'accepte ";
 "SIGNUP_TERMS" = "les Conditions Générales d'Utilisation";
 "SIGNUP_PRIVACY" = "la Politique de Confidentialité";
+"SIGNUP_BACKEND_UNAVAILABLE" = "Impossible de finaliser l’inscription. Vérifie ta connexion et réessaie.";
+"SIGNUP_BACKEND_UNAUTHORIZED" = "Inscription refusée par le serveur. Mets à jour l’app puis réessaie.";
+"SIGNUP_BACKEND_AUTH_ISSUE" = "Problème d’authentification. Réessaie dans un instant.";
 
 // Privacy Settings - Marketing
 "PRIVACYSETTINGS_SECTION_MARKETING" = "Communications marketing";

@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -894,6 +895,198 @@ func TestListGardens_WithoutAuth_ShouldReturn401(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+// MARK: - PATCH /users/me Tests
+
+// setupPatchUserTestRouter mirrors PATCH /users/me with the same trim/length
+// validation as updateUserSelf in main.go, without hitting MongoDB.
+func setupPatchUserTestRouter(t *testing.T) *gin.Engine {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+
+	mockFirebase := func(c *gin.Context) {
+		if c.GetHeader("Authorization") != "Bearer "+validFirebaseToken {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.Abort()
+			return
+		}
+		c.Set("uid", "test_user_123")
+		c.Next()
+	}
+	mockAPIKey := func(c *gin.Context) {
+		if c.GetHeader("X-API-Key") != testAPIKey {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid API Key"})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+
+	protected := router.Group("/")
+	protected.Use(mockAPIKey)
+	protected.Use(mockFirebase)
+	{
+		protected.PATCH("/users/me", func(c *gin.Context) {
+			authenticatedUID, _ := c.Get("uid")
+			uid := authenticatedUID.(string)
+
+			var payload struct {
+				Name *string `json:"name"`
+			}
+			if err := c.ShouldBindJSON(&payload); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			if payload.Name == nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Aucun champ à mettre à jour"})
+				return
+			}
+			cleaned := strings.TrimSpace(*payload.Name)
+			if cleaned == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Le nom ne peut pas être vide"})
+				return
+			}
+			if len([]rune(cleaned)) > 100 {
+				c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Le nom est trop long (max 100 caractères)"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"message": "Profil mis à jour",
+				"user": gin.H{
+					"uid":  uid,
+					"name": cleaned,
+				},
+			})
+		})
+	}
+
+	return router
+}
+
+func TestPatchUserMe_Self_ShouldReturn200(t *testing.T) {
+	router := setupPatchUserTestRouter(t)
+	body, _ := json.Marshal(map[string]string{"name": "Apple Reviewer"})
+	req, _ := http.NewRequest("PATCH", "/users/me", bytes.NewBuffer(body))
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+validFirebaseToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code, "Self update should return 200")
+
+	var response map[string]interface{}
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, "Profil mis à jour", response["message"])
+	user, ok := response["user"].(map[string]interface{})
+	assert.True(t, ok, "Response should include updated user")
+	assert.Equal(t, "Apple Reviewer", user["name"])
+}
+
+func TestPatchUserMe_TrimsName(t *testing.T) {
+	router := setupPatchUserTestRouter(t)
+	body, _ := json.Marshal(map[string]string{"name": "  Trimmed  "})
+	req, _ := http.NewRequest("PATCH", "/users/me", bytes.NewBuffer(body))
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+validFirebaseToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var response map[string]interface{}
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	user, _ := response["user"].(map[string]interface{})
+	assert.Equal(t, "Trimmed", user["name"], "Whitespace should be trimmed before persisting")
+}
+
+func TestPatchUserMe_WithoutAuth_ShouldReturn401(t *testing.T) {
+	router := setupPatchUserTestRouter(t)
+	body, _ := json.Marshal(map[string]string{"name": "Hacker"})
+	req, _ := http.NewRequest("PATCH", "/users/me", bytes.NewBuffer(body))
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestPatchUserMe_WithoutAPIKey_ShouldReturn401(t *testing.T) {
+	router := setupPatchUserTestRouter(t)
+	body, _ := json.Marshal(map[string]string{"name": "NoKey"})
+	req, _ := http.NewRequest("PATCH", "/users/me", bytes.NewBuffer(body))
+	req.Header.Set("Authorization", "Bearer "+validFirebaseToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+}
+
+func TestPatchUserMe_EmptyPayload_ShouldReturn400(t *testing.T) {
+	router := setupPatchUserTestRouter(t)
+	req, _ := http.NewRequest("PATCH", "/users/me", bytes.NewBuffer([]byte("{}")))
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+validFirebaseToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, "PATCH with no fields should be rejected")
+}
+
+func TestPatchUserMe_BlankName_ShouldReturn400(t *testing.T) {
+	router := setupPatchUserTestRouter(t)
+	body, _ := json.Marshal(map[string]string{"name": "   "})
+	req, _ := http.NewRequest("PATCH", "/users/me", bytes.NewBuffer(body))
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+validFirebaseToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code, "Whitespace-only name should be rejected")
+}
+
+func TestPatchUserMe_OversizedName_ShouldReturn422(t *testing.T) {
+	router := setupPatchUserTestRouter(t)
+	// 101 chars of 'a' — one over the 100-char limit
+	oversized := ""
+	for i := 0; i < 101; i++ {
+		oversized += "a"
+	}
+	body, _ := json.Marshal(map[string]string{"name": oversized})
+	req, _ := http.NewRequest("PATCH", "/users/me", bytes.NewBuffer(body))
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+validFirebaseToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnprocessableEntity, w.Code, "Names over 100 chars should be rejected with 422")
+}
+
+func TestPatchUserMe_InvalidJSON_ShouldReturn400(t *testing.T) {
+	router := setupPatchUserTestRouter(t)
+	req, _ := http.NewRequest("PATCH", "/users/me", bytes.NewBufferString("{not json"))
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+validFirebaseToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 // MARK: - Benchmark Tests

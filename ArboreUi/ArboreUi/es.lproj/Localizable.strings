@@ -214,6 +214,8 @@
 "PERSONAL_DETAILS_ADDRESS_PLACEHOLDER" = "Dirección";
 
 "PERSONAL_DETAILS_SAVE_BUTTON" = "Guardar cambios";
+"PERSONAL_DETAILS_SAVE_SUCCESS" = "Cambios guardados ✓";
+"PERSONAL_DETAILS_SAVE_ERROR" = "No se pudo guardar. Inténtalo de nuevo.";
 
 "PRIVACY_TITLE" = "Política de privacidad";
 
@@ -746,6 +748,9 @@
 "SIGNUP_ACCEPT" = "Acepto ";
 "SIGNUP_TERMS" = "los Términos de Servicio";
 "SIGNUP_PRIVACY" = "la Política de Privacidad";
+"SIGNUP_BACKEND_UNAVAILABLE" = "No se pudo completar el registro. Comprueba tu conexión y vuelve a intentarlo.";
+"SIGNUP_BACKEND_UNAUTHORIZED" = "Registro rechazado por el servidor. Actualiza la app y vuelve a intentarlo.";
+"SIGNUP_BACKEND_AUTH_ISSUE" = "Problema de autenticación. Inténtalo de nuevo en un instante.";
 
 // Privacy Settings - Marketing
 "PRIVACYSETTINGS_SECTION_MARKETING" = "Comunicaciones de marketing";

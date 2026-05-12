@@ -6,62 +6,46 @@ Pour la vue d'ensemble des containers, consulter [`02-containers.md`](02-contain
 
 ## Diagramme
 
-Le diagramme ci-dessous expose **tous les modules et leurs dépendances**. Les flèches reflètent les appels effectifs identifiés dans le code ; la règle de dépendance est respectée : la présentation appelle le domaine, le domaine appelle l'infrastructure, jamais l'inverse.
+Le diagramme ci-dessous expose **tous les modules et leurs dépendances**. Les flèches reflètent les appels effectifs identifiés dans le code.
+
+**Convention de couleurs** : chaque module est colorisé selon sa couche d'appartenance.
+
+- 🔵 **Bleu** — Couche présentation (SwiftUI Views)
+- 🟢 **Vert** — Couche domaine (Models et Services métier)
+- 🟣 **Violet** — Couche infrastructure (Network, persistance, config)
+- ⚪ **Gris** — Systèmes externes (Firebase Auth SDK, Backend API)
+- 🟦 **Bleu marine** — Acteurs humains
+
+Cette représentation par classes plutôt que par subgraphs imbriqués est un parti pris assumé : la codebase contient des appels qui sautent la couche domaine (`GardenARPlacementView` qui écrit directement dans `GardenLocalStore`, par exemple), ce que les subgraphs imbriqués peinent à rendre lisiblement. L'approche par color-coding est utilisée par Shopify Polaris, Material Design 3 et IBM Carbon pour les mêmes raisons, et reste conforme à la sémantique C4 (la couche est portée par le label et la couleur du nœud).
 
 ```mermaid
 flowchart TB
     user["👤 Utilisateur"]
 
-    subgraph ui_layer["📱 Couche présentation — SwiftUI Views"]
-        direction TB
-        login["LoginAuth/<br/>SignUpView · LoginView · VerifyEmailView · ReAuthView"]
-        wizard["Views/GardenSteps/<br/>QuestionnaireView · ScanMethodSelectionView · WizardSummaryStepView · LiDARScanWizardView"]
-        ar_view["ARGarden/<br/>GardenARPlacementView · PlantCatalogView"]
-        manual_rep["ARGarden/ManualReplacement/<br/>RelocationPhase · GardenMorpher · MVC · DistortionAnalyzer · Overlays"]
-        profile["Views/Profile/<br/>PersonalDetailsView · DataExportView · PrivacySettingsView · CloseAccountView"]
-        measure["measure app/<br/>ARViewContainerMeasure"]
-    end
+    login["📱 LoginAuth/<br/>SignUpView · LoginView · VerifyEmailView · ReAuthView"]
+    wizard["📱 Views/GardenSteps/<br/>QuestionnaireView · ScanMethodSelectionView · WizardSummaryStepView · LiDARScanWizardView"]
+    ar_view["📱 ARGarden/<br/>GardenARPlacementView · PlantCatalogView"]
+    manual_rep["📱 ARGarden/ManualReplacement/<br/>RelocationPhase · GardenMorpher · MVC · DistortionAnalyzer · Overlays"]
+    profile["📱 Views/Profile/<br/>PersonalDetailsView · DataExportView · PrivacySettingsView · CloseAccountView"]
+    measure["📱 measure app/<br/>ARViewContainerMeasure"]
 
-    subgraph domain_layer["🌿 Couche domaine — Models et Services métier"]
-        direction TB
-        models["Models/<br/>User · Plant · GardenProject · WizardPlantFilter · WateringRoutine · PotMeasurement"]
-        user_svc["UserService.swift"]
-        garden_svc["GardenProjectService.swift"]
-        suggest["Services/GardenSuggestionEngine.swift"]
-        calendar["Services/CalendarService.swift"]
-        save_auth["LoginAuth/saveAuthDB.swift<br/>(retry exponentiel + rollback Firebase)"]
-    end
+    models["🌿 Models/<br/>User · Plant · GardenProject · WizardPlantFilter · WateringRoutine · PotMeasurement"]
+    user_svc["🌿 UserService.swift"]
+    garden_svc["🌿 GardenProjectService.swift"]
+    suggest["🌿 Services/GardenSuggestionEngine.swift"]
+    calendar["🌿 Services/CalendarService.swift"]
+    save_auth["🌿 LoginAuth/saveAuthDB.swift<br/>(retry exponentiel + rollback Firebase)"]
 
-    subgraph infra_layer["⚙️ Couche infrastructure"]
-        direction TB
-        network["Services/NetworkManager.swift<br/>(singleton HTTP)"]
-        model_cache["Services/ModelCacheManager.swift<br/>(cache USDZ)"]
-        local_store["Views/GardenLocalStore.swift<br/>(WorldMap + scene JSON)"]
-        firestore["DatabaseFireBaseStore/<br/>(deprecated)"]
-        config["Config/AppConfig.swift<br/>(Secrets.xcconfig)"]
-        logger["ARGarden/ArboreLog.swift<br/>(os_log catégorisé)"]
-    end
+    network["⚙️ Services/NetworkManager.swift<br/>(singleton HTTP)"]
+    model_cache["⚙️ Services/ModelCacheManager.swift<br/>(cache USDZ)"]
+    local_store["⚙️ Views/GardenLocalStore.swift<br/>(WorldMap + scene JSON)"]
+    firestore["⚙️ DatabaseFireBaseStore/<br/>(deprecated)"]
+    config["⚙️ Config/AppConfig.swift<br/>(Secrets.xcconfig)"]
+    logger["⚙️ ARGarden/ArboreLog.swift<br/>(os_log catégorisé)"]
 
     fb_auth_ext["[System Ext] Firebase Auth SDK"]
     backend_ext["[Container] Backend API"]
 
-    %% Edges invisibles pour forcer le stack vertical des subgraphs.
-    %% Mermaid ignore "direction TB" dans un subgraph si ses noeuds ont
-    %% des liens vers l'extérieur (mermaid-js/mermaid#6438). Le fix
-    %% officiel est d'ajouter des liens invisibles entre subgraphs.
-    %% Plusieurs liens node-à-node sont nécessaires pour contrebalancer
-    %% les edges réels ui→infra qui sautent la couche domaine et tendent
-    %% à rapprocher ui et infra dans le layout Dagre.
-    user ~~~ ui_layer
-    ui_layer ~~~ domain_layer
-    domain_layer ~~~ infra_layer
-    infra_layer ~~~ backend_ext
-    measure ~~~ user_svc
-    measure ~~~ suggest
-    measure ~~~ calendar
-    manual_rep ~~~ save_auth
-
-    %% Edges réelles
     user --> login
     user --> wizard
     user --> ar_view

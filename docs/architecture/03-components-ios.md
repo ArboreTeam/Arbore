@@ -77,6 +77,88 @@ Les flèches reflètent la **règle de dépendance** : la présentation peut app
 | `Config/AppConfig.swift` | Lit `baseURL` et `apiKey` depuis `Secrets.xcconfig` non versionné (cf. issue #117 résolue : rotation + purge historique). |
 | `ARGarden/ArboreLog.swift` | Wrapper `os_log` catégorisé (`plants`, `network`, `AR`). Utilisé par tous les modules. |
 
+## Câblage inter-modules
+
+Le diagramme ci-dessous restaure les **dépendances réelles** entre modules à travers les trois couches. Il complète la topologie générale et les tableaux : chaque flèche correspond à un appel direct identifié dans le code.
+
+```mermaid
+flowchart TB
+    user["👤 Utilisateur"]
+
+    subgraph ui["Présentation"]
+        direction TB
+        login["LoginAuth/<br/>SignUpView"]
+        wizard["GardenSteps/<br/>QuestionnaireView"]
+        ar["ARGarden/<br/>GardenARPlacementView"]
+        profile["Profile/<br/>PersonalDetailsView"]
+        measure["measure app/<br/>ARViewContainerMeasure"]
+    end
+
+    subgraph domain["Domaine"]
+        direction TB
+        save_auth["saveAuthDB<br/>(retry + rollback)"]
+        garden_svc["GardenProjectService"]
+        user_svc["UserService"]
+        manual["ManualReplacement/<br/>(zoom dédié)"]
+    end
+
+    subgraph infra["Infrastructure"]
+        direction TB
+        net["NetworkManager<br/>(singleton)"]
+        local["GardenLocalStore<br/>(disque iOS)"]
+        cache["ModelCacheManager<br/>(USDZ cache)"]
+    end
+
+    fb["Firebase Auth SDK"]
+    backend["Backend API"]
+
+    user --> login
+    user --> wizard
+    user --> ar
+    user --> profile
+    user --> measure
+
+    login --> save_auth
+    login --> fb
+    save_auth --> net
+
+    wizard --> garden_svc
+    garden_svc --> net
+
+    profile --> net
+    profile --> fb
+    user_svc --> net
+
+    ar --> manual
+    ar --> local
+    ar --> cache
+    cache --> net
+
+    measure --> local
+
+    net --> fb
+    net --> backend
+
+    classDef person fill:#08427B,stroke:#073B6F,color:#fff
+    classDef ui_n   fill:#1168BD,stroke:#0B4884,color:#fff
+    classDef dom_n  fill:#2E7D32,stroke:#1B5E20,color:#fff
+    classDef inf_n  fill:#6A1B9A,stroke:#4A148C,color:#fff
+    classDef ext_n  fill:#999,stroke:#666,color:#fff
+    class user person
+    class login,wizard,ar,profile,measure ui_n
+    class save_auth,garden_svc,user_svc,manual dom_n
+    class net,local,cache inf_n
+    class fb,backend ext_n
+```
+
+Lectures recommandées de ce diagramme :
+
+- **Signup** : `SignUpView` → `saveAuthDB` (retry + rollback, issue #137) → `NetworkManager` → Backend ; en parallèle, `SignUpView` → Firebase Auth SDK pour la création de compte.
+- **Wizard de jardin** : `QuestionnaireView` → `GardenProjectService` → `NetworkManager` → Backend.
+- **Placement AR** : `GardenARPlacementView` ramifie vers trois dépendances — `ManualReplacement/` (UI overlays + math morphing), `GardenLocalStore` (persistance WorldMap), `ModelCacheManager` (USDZ via le réseau).
+- **Profil** : `PersonalDetailsView` → `NetworkManager` (PATCH /users/me, issue #138) **et** Firebase Auth SDK (mise à jour `displayName`).
+- **Tracé périmètre non-LiDAR** : `ARViewContainerMeasure` écrit la boundary dans `GardenLocalStore` sans passer par le réseau.
+
 ## Zoom Manual Replacement
 
 Le sous-dossier `ARGarden/ManualReplacement/` regroupe la machine d'états du **Manual Replace** introduite par l'issue #111. La granularité fine permet de tester la couche mathématique indépendamment de l'UI.

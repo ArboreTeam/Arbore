@@ -57,6 +57,24 @@ Les fichiers numérotés (`01-`, `02-`) suivent l'ordre de lecture recommandé. 
 | Interaction entre acteurs dans le temps | `sequenceDiagram` |
 | États discrets et transitions | `stateDiagram-v2` |
 
+## Contrat CI
+
+Toute PR ciblant `main` qui modifie un fichier sous `docs/`, ou un fichier source cité par la documentation (`ArboreUi/**/*.swift`, `ArboreBackend/**/*.go`), déclenche le workflow `.github/workflows/docs.yml`. Ce workflow exécute trois jobs en parallèle et bloque le merge si l'un d'eux échoue.
+
+| Job | Outil | Cause d'échec |
+|---|---|---|
+| **Mermaid syntax** | [`@mermaid-js/mermaid-cli`](https://github.com/mermaid-js/mermaid-cli) | Un bloc ``` ```mermaid ``` ``` dans `docs/**/*.md` ne se rend pas (syntaxe invalide, mot-clé réservé utilisé comme node ID, caractère spécial non échappé). |
+| **Internal links** | [`lycheeverse/lychee-action`](https://github.com/lycheeverse/lychee-action) en mode `--offline` | Un lien interne dans `docs/` pointe vers un fichier ou une ancre qui n'existe pas. Les liens externes restent en warning. |
+| **Doc drift** | Script `.github/scripts/docs-drift-check.sh` | Un chemin code cité dans la documentation entre backticks (par exemple `` `Services/NetworkManager.swift` ``) ne correspond à aucun fichier du dépôt. Détecte les renommages et suppressions non répercutés. |
+
+La logique de matching du drift est en **suffix match** : un chemin cité comme `Models/User.swift` est considéré valide si un fichier du dépôt y termine (par exemple `ArboreUi/ArboreUi/Models/User.swift`). Cela évite d'imposer le chemin complet depuis la racine dans la documentation.
+
+Pour reproduire le check de drift localement avant d'ouvrir une PR :
+
+```sh
+bash .github/scripts/docs-drift-check.sh
+```
+
 ## Outils et statut
 
 - **Markdown + Mermaid** — rendu natif GitHub, diff-able, aucun outillage externe.

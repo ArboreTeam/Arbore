@@ -3,6 +3,7 @@
 [![CI/CD](https://github.com/ArboreTeam/Arbore/actions/workflows/ci.yml/badge.svg)](https://github.com/ArboreTeam/Arbore/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/ArboreTeam/Arbore/actions/workflows/codeql.yml/badge.svg)](https://github.com/ArboreTeam/Arbore/actions/workflows/codeql.yml)
 [![Docker](https://github.com/ArboreTeam/Arbore/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/ArboreTeam/Arbore/actions/workflows/docker-publish.yml)
+[![Docs](https://github.com/ArboreTeam/Arbore/actions/workflows/docs.yml/badge.svg)](https://github.com/ArboreTeam/Arbore/actions/workflows/docs.yml)
 
 Arbore est un projet de 4ème et 5ème année - une application complète de jardinage qui vous aide à organiser et entretenir vos jardins avec la puissance de la réalité augmentée et de l'intelligence artificielle.
 

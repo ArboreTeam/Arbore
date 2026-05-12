@@ -1,6 +1,6 @@
 # Flux — Placement AR (création et réouverture)
 
-Ce document décrit le **flux complet d'ouverture de la vue AR** qui permet à l'utilisateur de placer des plantes en réalité augmentée. Deux entrées principales : la création d'un jardin neuf (depuis le wizard) et la réouverture d'un jardin existant (depuis la Home). Le code de référence est `Views/ARGarden/GardenARPlacementView.swift`.
+Ce document décrit le **flux complet d'ouverture de la vue AR** qui permet à l'utilisateur de placer des plantes en réalité augmentée. Deux entrées principales : la création d'un jardin neuf (depuis le wizard) et la réouverture d'un jardin existant (depuis la Home). Le code de référence est `ARGarden/GardenARPlacementView.swift`.
 
 ## Vue d'ensemble
 

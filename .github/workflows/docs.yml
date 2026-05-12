@@ -1,0 +1,123 @@
+name: 📚 Docs validation
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "docs/**"
+      - "ArboreUi/**/*.swift"
+      - "ArboreBackend/**/*.go"
+      - ".github/workflows/docs.yml"
+      - ".github/scripts/docs-*.sh"
+  push:
+    branches: ["main"]
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ────────────────────────────────────────────────────────────
+  # Job 1 — Validation syntaxe Mermaid
+  # ────────────────────────────────────────────────────────────
+  mermaid-validation:
+    name: Mermaid syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install mermaid-cli
+        run: npm install -g @mermaid-js/mermaid-cli
+
+      - name: Install Puppeteer Chromium dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libnss3 libatk1.0-0 libatk-bridge2.0-0 libxss1 libasound2t64 \
+            libxshmfence1 libgbm1 libdrm2 libxkbcommon0
+
+      - name: Render every Mermaid block in docs/
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/mermaid-blocks
+          fail=0
+          total=0
+
+          # Configure puppeteer to use a sane sandbox
+          cat > /tmp/puppeteer.json <<'JSON'
+          { "args": ["--no-sandbox", "--disable-setuid-sandbox"] }
+          JSON
+
+          # Extract every ```mermaid ... ``` block from docs/**/*.md
+          find docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do
+            awk '
+              /^```mermaid$/ { in_block=1; block_idx++; out=ENVIRON["TMP"] "/" block_idx ".mmd"; next }
+              /^```$/        { in_block=0; next }
+              in_block       { print > out }
+            ' TMP=/tmp/mermaid-blocks "$file"
+          done
+
+          # Render each extracted block
+          for mmd in /tmp/mermaid-blocks/*.mmd; do
+            [ -f "$mmd" ] || continue
+            total=$((total + 1))
+            if ! mmdc -p /tmp/puppeteer.json -i "$mmd" -o "${mmd%.mmd}.svg" 2> "${mmd%.mmd}.err"; then
+              fail=$((fail + 1))
+              echo "::error file=$mmd::Mermaid block failed to render"
+              cat "${mmd%.mmd}.err"
+              echo "--- offending block ---"
+              cat "$mmd"
+              echo "-----------------------"
+            fi
+          done
+
+          echo "Rendered $total Mermaid block(s), $fail failure(s)."
+          exit $fail
+
+  # ────────────────────────────────────────────────────────────
+  # Job 2 — Vérification des liens internes
+  # ────────────────────────────────────────────────────────────
+  link-check:
+    name: Internal links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run lychee link checker on docs/
+        uses: lycheeverse/lychee-action@v2
+        with:
+          # On vérifie les liens internes en mode strict ; les liens externes
+          # restent en warning (flakiness réseau côté CI).
+          args: >
+            --no-progress
+            --offline
+            --include-fragments
+            --base .
+            'docs/**/*.md'
+          fail: true
+
+  # ────────────────────────────────────────────────────────────
+  # Job 3 — Détection de drift (chemins code cités dans la doc)
+  # ────────────────────────────────────────────────────────────
+  drift-detection:
+    name: Doc drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify file paths referenced in docs/ still exist
+        run: bash .github/scripts/docs-drift-check.sh

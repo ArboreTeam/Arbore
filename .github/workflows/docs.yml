@@ -62,13 +62,16 @@ jobs:
           { "args": ["--no-sandbox", "--disable-setuid-sandbox"] }
           JSON
 
-          # Extract every ```mermaid ... ``` block from docs/**/*.md
+          # Extract every ```mermaid ... ``` block from docs/**/*.md.
+          # Each block goes to /tmp/mermaid-blocks/<file>-<idx>.mmd so the
+          # error context tells us which file and which block failed.
           find docs -type f -name "*.md" -print0 | while IFS= read -r -d '' file; do
-            awk '
-              /^```mermaid$/ { in_block=1; block_idx++; out=ENVIRON["TMP"] "/" block_idx ".mmd"; next }
-              /^```$/        { in_block=0; next }
-              in_block       { print > out }
-            ' TMP=/tmp/mermaid-blocks "$file"
+            slug="$(echo "$file" | sed 's|/|__|g; s|\.md$||')"
+            awk -v OUTDIR=/tmp/mermaid-blocks -v SLUG="$slug" '
+              /^```mermaid$/ { in_block=1; block_idx++; out=OUTDIR "/" SLUG "-" block_idx ".mmd"; next }
+              /^```[[:space:]]*$/ { in_block=0; next }
+              in_block { print > out }
+            ' "$file"
           done
 
           # Render each extracted block
@@ -100,13 +103,14 @@ jobs:
       - name: Run lychee link checker on docs/
         uses: lycheeverse/lychee-action@v2
         with:
-          # On vérifie les liens internes en mode strict ; les liens externes
-          # restent en warning (flakiness réseau côté CI).
+          # On vérifie les liens internes en mode strict. Les liens externes
+          # ne sont pas suivis (--offline) pour éviter la flakiness réseau.
+          # --root-dir doit être un chemin absolu — on prend le workspace.
           args: >
             --no-progress
             --offline
             --include-fragments
-            --base .
+            --root-dir ${{ github.workspace }}
             'docs/**/*.md'
           fail: true
 

@@ -132,6 +132,15 @@ for md in "${md_files[@]}"; do
       done
     fi
 
+    # Skip gitignored files (Secrets.xcconfig, .env, *.adminsdk.json, etc.).
+    # On les cite légitimement dans la doc même s'ils ne sont pas dans
+    # le dépôt. git check-ignore renvoie 0 si le chemin matche .gitignore.
+    if [ "$found" -eq 0 ]; then
+      if git check-ignore --quiet "$candidate" 2>/dev/null; then
+        found=1
+      fi
+    fi
+
     if [ "$found" -eq 0 ]; then
       missing_count=$((missing_count + 1))
       missing_paths+=("$md → $candidate")

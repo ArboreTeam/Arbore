@@ -12,28 +12,30 @@ Le diagramme ci-dessous décrit les états, les transitions, et l'événement d�
 
 ```mermaid
 stateDiagram-v2
-    [*] --> scanning : ouverture jardin (mode reopen)
+    [*] --> scanning
 
-    scanning --> scanning : ARKit relocalize OK\n→ load normal (machine non utilisée)
-    scanning --> tracingBoundary : tap "Replacer manuellement"
-    scanning --> [*] : tap X (back)
+    scanning --> tracingBoundary : tap Replacer manuellement
+    scanning --> [*] : tap X
 
-    tracingBoundary --> tracingBoundary : tap au sol\n→ ajoute point boundary
-    tracingBoundary --> scanning : tap "Annuler"
-    tracingBoundary --> morphingPreview : tap "Valider la zone"\n(≥ 3 points)
-    tracingBoundary --> [*] : tap X (confirmation)
+    tracingBoundary --> scanning : tap Annuler
+    tracingBoundary --> morphingPreview : tap Valider la zone
+    tracingBoundary --> [*] : tap X (confirm)
 
-    morphingPreview --> tracingBoundary : tap "Annuler"\n→ reset newBoundary + ghosts
-    morphingPreview --> adjusting : tap "Confirmer le placement"
-    morphingPreview --> [*] : tap X (confirmation)
+    morphingPreview --> tracingBoundary : tap Annuler
+    morphingPreview --> adjusting : tap Confirmer placement
+    morphingPreview --> [*] : tap X (confirm)
 
-    adjusting --> adjusting : drag / tap plante\n→ recordDraggedTransform
-    adjusting --> adjusting : tap "Annuler ajustements"\n→ revert vers preMorphAdjustment
-    adjusting --> completed : tap "Valider et sauvegarder"
-    adjusting --> [*] : tap X (confirmation)
+    adjusting --> completed : tap Valider et sauvegarder
+    adjusting --> [*] : tap X (confirm)
 
     completed --> [*] : save + dismiss
 ```
+
+Les **self-transitions** ne sont pas représentées sur le diagramme pour préserver sa lisibilité ; elles sont décrites au cas par cas dans la section « Comportement détaillé par état » plus bas :
+
+- `scanning → scanning` : ARKit `relocalize` réussit en arrière-plan → la machine est court-circuitée et `loadGardenFromDisk` est appelé sans transition d'état explicite.
+- `tracingBoundary → tracingBoundary` : tap au sol → un point est ajouté à `newBoundary`.
+- `adjusting → adjusting` : drag/tap d'une plante → `recordDraggedTransform`. Ou tap **« Annuler ajustements »** → revert vers `preMorphAdjustment`.
 
 ## Comportement détaillé par état
 

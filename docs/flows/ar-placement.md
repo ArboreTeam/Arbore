@@ -16,66 +16,65 @@ Le pivot entre ces deux modes est porté par la machine d'états [`RelocationPha
 ```mermaid
 flowchart TB
     home([Tap sur carte jardin Home])
-    wizard([Sortie wizard\nbouton "Placer mes plantes en AR"])
+    wizard([Sortie wizard<br/>bouton Placer mes plantes en AR])
 
     open["GardenARPlacementView.onAppear"]
-    detect_mode{"mode ?"}
+    detect_mode{mode ?}
 
-    create_flow["Mode .create<br/>session ARKit fraîche<br/>boundary connue (wizard)"]
+    create_flow["Mode .create<br/>session ARKit fraîche<br/>boundary connue depuis wizard"]
     place_create["Utilisateur place les plantes<br/>via picker catalogue + tap au sol"]
 
-    reopen_flow["Mode .reopen<br/>charge worldmap_id.arworldmap"]
+    reopen_flow["Mode .reopen<br/>charge worldmap arworldmap"]
     arkit_reloc["ARKit relocalize la WorldMap"]
-    reloc_result{"relocalize OK ?"}
+    reloc_result{relocalize OK ?}
 
     load_normal["loadGardenFromDisk<br/>plantes restaurées via ARAnchor"]
 
-    manual["RelocationPhase.scanning<br/>coaching overlay + bouton<br/>'Replacer manuellement'"]
-    user_choice{"choix utilisateur"}
+    manual["RelocationPhase.scanning<br/>coaching overlay + bouton<br/>Replacer manuellement"]
+    user_choice{choix utilisateur}
     trace["RelocationPhase.tracingBoundary"]
     morph["RelocationPhase.morphingPreview"]
     adjust["RelocationPhase.adjusting"]
 
-    save["captureCurrentState<br/>+ archivedData WorldMap<br/>+ POST /gardens.plants (PUT)"]
+    save["captureCurrentState<br/>+ archivedData WorldMap<br/>+ PUT /gardens.plants"]
     dismiss([Retour Home])
 
     home --> open
     wizard --> open
     open --> detect_mode
 
-    detect_mode -->|".create"| create_flow
+    detect_mode -->|create| create_flow
     create_flow --> place_create
     place_create --> save
 
-    detect_mode -->|".reopen"| reopen_flow
+    detect_mode -->|reopen| reopen_flow
     reopen_flow --> arkit_reloc
     arkit_reloc --> reloc_result
 
-    reloc_result -->|"OK (mapped)"| load_normal
+    reloc_result -->|OK mapped| load_normal
     load_normal --> save
 
-    reloc_result -->|"KO (limited)"| manual
+    reloc_result -->|KO limited| manual
     manual --> user_choice
-    user_choice -->|"tap Replacer manuellement"| trace
-    user_choice -->|"tap X"| dismiss
+    user_choice -->|tap Replacer manuellement| trace
+    user_choice -->|tap X| dismiss
     trace --> morph
-    morph -->|"confirmer placement"| adjust
-    morph -.->|"annuler"| trace
+    morph -->|confirmer placement| adjust
+    morph -->|annuler| trace
     adjust --> save
-    adjust -.->|"annuler ajustements"| adjust
 
     save --> dismiss
 
-    classDef start  fill:#08427B,stroke:#073B6F,color:#fff
+    classDef startN fill:#08427B,stroke:#073B6F,color:#fff
     classDef state  fill:#1168BD,stroke:#0B4884,color:#fff
     classDef cond   fill:#2E7D32,stroke:#1B5E20,color:#fff
     classDef ar     fill:#6A1B9A,stroke:#4A148C,color:#fff
-    classDef end_n  fill:#999,stroke:#666,color:#fff
-    class home,wizard start
+    classDef endN   fill:#999,stroke:#666,color:#fff
+    class home,wizard startN
     class open,create_flow,reopen_flow,load_normal,save state
     class detect_mode,reloc_result,user_choice cond
     class place_create,manual,trace,morph,adjust ar
-    class dismiss end_n
+    class dismiss endN
 ```
 
 ## Mode `.create` — création nouvelle session

@@ -15,20 +15,20 @@ Le wizard est composé d'un nombre variable d'étapes (entre 9 et 10 selon les c
 
 ```mermaid
 flowchart TB
-    start([Tap "Créer un jardin"<br/>depuis Home])
+    start([Tap Créer un jardin<br/>depuis Home])
 
     intro["Étape 1 — Intro<br/>présentation du wizard"]
-    style["Étape 2 — Style<br/>moderne · zen · sauvage..."]
-    spaceType["Étape 3 — Type d'espace<br/>intérieur · balcon · jardin"]
+    style["Étape 2 — Style<br/>moderne · zen · sauvage"]
+    spaceType["Étape 3 — Type d espace<br/>intérieur · balcon · jardin"]
     exposure["Étape 4 — Exposition<br/>plein soleil · mi-ombre · ombre"]
     maintenance["Étape 5 — Entretien<br/>faible · moyen · élevé"]
     safety["Étape 6 — Sécurité<br/>enfants · animaux · allergies"]
-    soil["Étape 7 — Sol<br/>(uniquement si spaceType == garden)"]
+    soil["Étape 7 — Sol<br/>uniquement si spaceType garden"]
     ai["Étape 8 — AI Suggestion<br/>sélection automatique + ajustement manuel"]
     scan["Étape 9 — Scan method<br/>perimeter vs roomScan"]
-    summary["Étape 10 — Summary<br/>résumé et bouton 'Placer en AR'"]
+    summary["Étape 10 — Summary<br/>résumé et bouton Placer en AR"]
 
-    save["createGarden\nPOST /gardens"]
+    save["createGarden<br/>POST /gardens"]
 
     perimeter_flow["ARViewContainerMeasure<br/>tracé périmètre au sol"]
     lidar_flow["LiDARScanWizardView<br/>scan RoomPlan 3D"]
@@ -39,23 +39,23 @@ flowchart TB
     start --> intro
     intro --> style
     style --> spaceType
-    spaceType -->|"spaceType ∈ {indoor, balcony}"| ai
-    spaceType -->|"spaceType == garden"| exposure
+    spaceType -->|indoor ou balcony| ai
+    spaceType -->|garden| exposure
     exposure --> maintenance
     maintenance --> safety
-    safety -->|"spaceType == garden"| soil
-    safety -->|"sinon"| ai
+    safety -->|garden| soil
+    safety -->|sinon| ai
     soil --> ai
     ai --> scan
     scan --> summary
 
-    summary -->|"tap Placer en AR"| save
-    save -->|"scanMethod == gardenPerimeter"| perimeter_flow
-    save -->|"scanMethod == roomScan"| lidar_flow
+    summary -->|tap Placer en AR| save
+    save -->|gardenPerimeter| perimeter_flow
+    save -->|roomScan| lidar_flow
 
     perimeter_flow --> ar_place
     lidar_flow --> ar_place
-    ar_place -->|"valider et sauvegarder"| home
+    ar_place -->|valider et sauvegarder| home
 
     classDef step  fill:#1168BD,stroke:#0B4884,color:#fff
     classDef cond  fill:#2E7D32,stroke:#1B5E20,color:#fff

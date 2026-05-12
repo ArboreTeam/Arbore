@@ -18,7 +18,7 @@ flowchart TB
     start([Tap Créer un jardin<br/>depuis Home])
 
     intro["Étape 1 — Intro<br/>présentation du wizard"]
-    style["Étape 2 — Style<br/>moderne · zen · sauvage"]
+    style_step["Étape 2 — Style<br/>moderne · zen · sauvage"]
     spaceType["Étape 3 — Type d espace<br/>intérieur · balcon · jardin"]
     exposure["Étape 4 — Exposition<br/>plein soleil · mi-ombre · ombre"]
     maintenance["Étape 5 — Entretien<br/>faible · moyen · élevé"]
@@ -37,8 +37,8 @@ flowchart TB
     home([Retour Home])
 
     start --> intro
-    intro --> style
-    style --> spaceType
+    intro --> style_step
+    style_step --> spaceType
     spaceType -->|indoor ou balcony| ai
     spaceType -->|garden| exposure
     exposure --> maintenance
@@ -61,7 +61,7 @@ flowchart TB
     classDef cond  fill:#2E7D32,stroke:#1B5E20,color:#fff
     classDef ar    fill:#6A1B9A,stroke:#4A148C,color:#fff
     classDef io    fill:#999,stroke:#666,color:#fff
-    class intro,style,spaceType,exposure,maintenance,safety,soil,ai,scan,summary step
+    class intro,style_step,spaceType,exposure,maintenance,safety,soil,ai,scan,summary step
     class save cond
     class perimeter_flow,lidar_flow,ar_place ar
     class start,home io

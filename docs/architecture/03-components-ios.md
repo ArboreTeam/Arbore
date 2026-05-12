@@ -45,13 +45,21 @@ flowchart TB
     fb_auth_ext["[System Ext] Firebase Auth SDK"]
     backend_ext["[Container] Backend API"]
 
-    %% Edges invisibles pour forcer le stack vertical des subgraphs
-    %% (Mermaid ignore "direction TB" dans un subgraph si ses noeuds ont
-    %% des liens vers l'extérieur. Voir mermaid-js/mermaid#6438.)
+    %% Edges invisibles pour forcer le stack vertical des subgraphs.
+    %% Mermaid ignore "direction TB" dans un subgraph si ses noeuds ont
+    %% des liens vers l'extérieur (mermaid-js/mermaid#6438). Le fix
+    %% officiel est d'ajouter des liens invisibles entre subgraphs.
+    %% Plusieurs liens node-à-node sont nécessaires pour contrebalancer
+    %% les edges réels ui→infra qui sautent la couche domaine et tendent
+    %% à rapprocher ui et infra dans le layout Dagre.
     user ~~~ ui_layer
     ui_layer ~~~ domain_layer
     domain_layer ~~~ infra_layer
     infra_layer ~~~ backend_ext
+    measure ~~~ user_svc
+    measure ~~~ suggest
+    measure ~~~ calendar
+    manual_rep ~~~ save_auth
 
     %% Edges réelles
     user --> login

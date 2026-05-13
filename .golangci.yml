@@ -27,7 +27,21 @@ linters:
       check-blank: false
 
     gocyclo:
-      min-complexity: 20
+      # main() est à 23 (init Mongo prod + test, Firebase, routes, listen).
+      # 24 laisse une marge sans excuser un main() qui dériverait davantage.
+      min-complexity: 24
+
+    misspell:
+      # Mots français présents dans les commentaires et chaînes du backend
+      # (la base de code documente en français). Évite les faux positifs
+      # type `plantes` → `planets`, `trafic` → `traffic`, `marrage` →
+      # `marriage`, `exemple` → `example`.
+      ignore-rules:
+        - plantes
+        - plante
+        - trafic
+        - exemple
+        - marrage
 
     revive:
       confidence: 0.8

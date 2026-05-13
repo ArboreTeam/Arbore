@@ -1,0 +1,88 @@
+# Fastfile — automatisation TestFlight pour Arbore iOS
+#
+# Lane principale : `fastlane beta`
+#   Bump le build number à `latest_testflight + 1`, archive et upload sur
+#   TestFlight, distribue automatiquement au groupe interne « Internal QA ».
+#
+# Prérequis (one-shot, cf. docs/operations/testflight-deploy.md) :
+#   1. App Store Connect API Key (rôle App Manager) → fichier `.p8`
+#   2. fastlane/AuthKey.json renseigné (gitignored)
+#   3. Groupe « Internal QA » créé dans ASC avec auto-distribution
+#   4. Xcode automatic signing activé sur la machine qui déploie
+#
+# Usage :
+#   bundle exec fastlane beta            # déploie une nouvelle build interne
+#   bundle exec fastlane current_build   # affiche le dernier build_number sur TestFlight
+
+WORKSPACE = "ArboreUi/ArboreUi.xcworkspace"
+SCHEME    = "ArboreUi"
+AUTH_KEY  = "./fastlane/AuthKey.json"
+INTERNAL_GROUP = "Internal QA"
+
+default_platform(:ios)
+
+platform :ios do
+  before_all do
+    # Garde-fou : refuser de tourner si la clé API n'est pas posée.
+    unless File.exist?(AUTH_KEY)
+      UI.user_error!(
+        "Fastlane API key missing: #{AUTH_KEY}\n" \
+        "Suivre docs/operations/testflight-deploy.md (section « Setup initial »)."
+      )
+    end
+  end
+
+  desc "Affiche le dernier build_number actuellement sur TestFlight."
+  lane :current_build do
+    n = latest_testflight_build_number(api_key_path: AUTH_KEY)
+    UI.success("Dernier build sur TestFlight: #{n}")
+  end
+
+  desc "Build + upload TestFlight + distribute à « Internal QA »."
+  lane :beta do
+    api_key = app_store_connect_api_key(
+      key_filepath: AUTH_KEY,
+      duration: 1200,
+      in_house: false
+    )
+
+    # Bump build_number = latest_testflight + 1. Échoue volontairement si
+    # ASC ne répond pas, plutôt que de pousser une build avec un numéro
+    # qui collisionne et fera échouer l'upload après 15 min de processing.
+    latest = latest_testflight_build_number(
+      api_key: api_key,
+      version: get_version_number(xcodeproj: "ArboreUi/ArboreUi.xcodeproj")
+    )
+    increment_build_number(
+      xcodeproj: "ArboreUi/ArboreUi.xcodeproj",
+      build_number: latest + 1
+    )
+
+    build_app(
+      workspace: WORKSPACE,
+      scheme: SCHEME,
+      export_method: "app-store",
+      clean: true,
+      output_directory: "./fastlane/builds",
+      output_name: "Arbore.ipa",
+      include_symbols: true,
+      include_bitcode: false
+    )
+
+    upload_to_testflight(
+      api_key: api_key,
+      ipa: "./fastlane/builds/Arbore.ipa",
+      distribute_external: false,
+      groups: [INTERNAL_GROUP],
+      skip_waiting_for_build_processing: false,
+      notify_external_testers: false,
+      changelog: "Build interne automatique (lane: beta)."
+    )
+
+    UI.success("✅ Build #{latest + 1} déployée sur TestFlight → groupe #{INTERNAL_GROUP}")
+  end
+
+  error do |lane, exception|
+    UI.error("❌ Lane #{lane} a échoué: #{exception}")
+  end
+end

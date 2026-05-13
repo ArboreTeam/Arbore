@@ -1,0 +1,5 @@
+# Plugins fastlane (vide pour l'instant — la lane beta n'a besoin
+# que des actions standard `build_app` et `upload_to_testflight`).
+#
+# Pour ajouter un plugin :
+#   bundle exec fastlane add_plugin <nom>

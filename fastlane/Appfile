@@ -1,0 +1,2 @@
+app_identifier "com.arboreteam.arbore"  # Bundle identifier de l'app iOS (cf. ArboreUi.xcodeproj)
+team_id "582QH9652J"                     # ArboreTeam Apple Developer — enforced par .githooks/pre-commit

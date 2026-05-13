@@ -167,6 +167,19 @@ arbore-firebase-adminsdk.json
 *.p12
 *.mobileprovision
 *.certSigningRequest
+*.p8
+
+# Fastlane — never commit the App Store Connect API key or any local
+# fastlane state (only the Fastfile + Appfile + READMEs are tracked).
+fastlane/AuthKey.json
+fastlane/AuthKey*.json
+fastlane/AuthKey*.p8
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+fastlane/.env
+fastlane/.env.local
 
 # Deepl translations
 .deepl_api.backups/

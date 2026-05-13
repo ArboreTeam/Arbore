@@ -26,7 +26,68 @@ import (
 	"ArboreBackend/middleware"
 )
 
-var client *mongo.Client
+// client est la connexion MongoDB de production (DB `arbore`).
+// testClient est la connexion utilisée pour le trafic de tests (DB
+// `arbore_test`) — initialisée uniquement si MONGODB_URI_TEST est défini.
+// Cf. issue #159 v2 pour le contexte du routing dual.
+var (
+	client     *mongo.Client
+	testClient *mongo.Client
+)
+
+const (
+	prodDBName = "arbore"
+	testDBName = "arbore_test"
+)
+
+// getDatabaseForRequest retourne la *mongo.Database à utiliser pour la
+// requête courante, en fonction du sélecteur posé par APIKeyMiddleware.
+// Tombe sur la DB prod si le sélecteur est absent (cas hors middleware
+// ou bug de routing — fail-safe vers prod).
+func getDatabaseForRequest(c *gin.Context) *mongo.Database {
+	if selector, ok := c.Get(middleware.DBSelectorKey); ok {
+		if selector == middleware.DBSelectorTest && testClient != nil {
+			return testClient.Database(testDBName)
+		}
+	}
+	return client.Database(prodDBName)
+}
+
+// getDatabaseByName retourne la *mongo.Database par nom logique
+// (`prod` ou `test`). Utilisé par les helpers qui ne reçoivent pas
+// directement un *gin.Context (par exemple checkUserBannedFromDB
+// appelé par le middleware Firebase).
+func getDatabaseByName(name string) *mongo.Database {
+	if name == middleware.DBSelectorTest && testClient != nil {
+		return testClient.Database(testDBName)
+	}
+	return client.Database(prodDBName)
+}
+
+// maybeLabelTestDoc enrichit un document inséré en mode test avec
+// `_test: true` et `_createdAtUTC` pour faciliter le tracking (qui a
+// été créé par les tests, à quand remonte le doc) et l'éventuel cleanup
+// par filtre plutôt que par drop complet de la DB. Pas d'effet en mode
+// prod : le doc est retourné tel quel. Si le marshal/unmarshal échoue
+// (cas pathologique), on retombe sur le doc original sans label —
+// l'écriture ne doit pas échouer à cause d'un problème de labelling.
+func maybeLabelTestDoc(dbSelector string, doc interface{}) interface{} {
+	if dbSelector != middleware.DBSelectorTest {
+		return doc
+	}
+	raw, err := bson.Marshal(doc)
+	if err != nil {
+		return doc
+	}
+	var m bson.M
+	if err := bson.Unmarshal(raw, &m); err != nil {
+		return doc
+	}
+	m["_test"] = true
+	m["_createdAtUTC"] = time.Now().UTC()
+	return m
+}
+
 var thumbnailPlantIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 type User struct {
@@ -179,9 +240,11 @@ type Garden struct {
 
 // ---------- HELPER FUNCTIONS ----------
 
-// checkUserBannedFromDB vérifie si l'utilisateur est banni dans MongoDB
-func checkUserBannedFromDB(uid string) (bool, error) {
-	collection := client.Database("arbore").Collection("users")
+// checkUserBannedFromDB vérifie si l'utilisateur est banni dans MongoDB.
+// Reçoit le contexte Gin pour router vers la bonne DB (prod ou test) selon
+// le sélecteur posé par APIKeyMiddleware.
+func checkUserBannedFromDB(c *gin.Context, uid string) (bool, error) {
+	collection := getDatabaseForRequest(c).Collection("users")
 
 	var user User
 	err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
@@ -212,7 +275,7 @@ func exportUserData(c *gin.Context) {
 
 	// 1. Récupérer les données utilisateur
 	var user User
-	userCollection := client.Database("arbore").Collection("users")
+	userCollection := getDatabaseForRequest(c).Collection("users")
 	err := userCollection.FindOne(ctx, bson.M{"uid": uid}).Decode(&user)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
@@ -225,7 +288,7 @@ func exportUserData(c *gin.Context) {
 
 	// 2. Récupérer tous les gardens
 	var gardens []Garden
-	gardensCollection := client.Database("arbore").Collection("gardens")
+	gardensCollection := getDatabaseForRequest(c).Collection("gardens")
 	gardensCursor, err := gardensCollection.Find(ctx, bson.M{"uid": uid})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération des gardens"})
@@ -244,7 +307,7 @@ func exportUserData(c *gin.Context) {
 
 	// 3. Récupérer tous les consentements
 	var consents []ConsentRecord
-	consentsCollection := client.Database("arbore").Collection("consents")
+	consentsCollection := getDatabaseForRequest(c).Collection("consents")
 	consentsCursor, err := consentsCollection.Find(ctx, bson.M{"uid": uid})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération des consentements"})
@@ -300,8 +363,8 @@ func createUser(c *gin.Context) {
 
 	fmt.Printf("✅ Donnée reçue dans createUser : %+v\n", user)
 
-	collection := client.Database("arbore").Collection("users")
-	_, err := collection.InsertOne(context.Background(), user)
+	collection := getDatabaseForRequest(c).Collection("users")
+	_, err := collection.InsertOne(context.Background(), maybeLabelTestDoc(c.GetString(middleware.DBSelectorKey), user))
 	if err != nil {
 		log.Println("❌ Erreur lors de l'insertion dans MongoDB :", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de l'insertion dans MongoDB"})
@@ -345,7 +408,7 @@ func updateUserSelf(c *gin.Context) {
 		return
 	}
 
-	collection := client.Database("arbore").Collection("users")
+	collection := getDatabaseForRequest(c).Collection("users")
 	res, err := collection.UpdateOne(
 		context.Background(),
 		bson.M{"uid": uid},
@@ -378,7 +441,7 @@ func deleteUser(c *gin.Context) {
 
 	uid := authenticatedUID.(string)
 	ctx := context.Background()
-	db := client.Database("arbore")
+	db := getDatabaseForRequest(c)
 
 	// 1. Supprimer tous les gardens de l'utilisateur
 	gardensCollection := db.Collection("gardens")
@@ -459,8 +522,8 @@ func recordConsent(c *gin.Context) {
 		consent.UserAgent = c.GetHeader("User-Agent")
 	}
 
-	collection := client.Database("arbore").Collection("consents")
-	_, err := collection.InsertOne(context.Background(), consent)
+	collection := getDatabaseForRequest(c).Collection("consents")
+	_, err := collection.InsertOne(context.Background(), maybeLabelTestDoc(c.GetString(middleware.DBSelectorKey), consent))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de l'enregistrement du consentement"})
 		return
@@ -478,7 +541,7 @@ func getUserConsents(c *gin.Context) {
 
 	uid := authenticatedUID.(string)
 
-	collection := client.Database("arbore").Collection("consents")
+	collection := getDatabaseForRequest(c).Collection("consents")
 
 	findOptions := options.Find().SetSort(bson.D{{Key: "timestamp", Value: -1}})
 
@@ -519,7 +582,7 @@ func getLatestUserConsents(c *gin.Context) {
 
 	uid := authenticatedUID.(string)
 
-	collection := client.Database("arbore").Collection("consents")
+	collection := getDatabaseForRequest(c).Collection("consents")
 
 	findOptions := options.Find().SetSort(bson.D{{Key: "timestamp", Value: -1}})
 	cursor, err := collection.Find(
@@ -571,10 +634,10 @@ func createPlant(c *gin.Context) {
 		return
 	}
 
-	collection := client.Database("arbore").Collection("plants")
+	collection := getDatabaseForRequest(c).Collection("plants")
 	plant.ID = primitive.NewObjectID()
 
-	_, err := collection.InsertOne(context.Background(), plant)
+	_, err := collection.InsertOne(context.Background(), maybeLabelTestDoc(c.GetString(middleware.DBSelectorKey), plant))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de l'insertion de la plante"})
 		return
@@ -584,7 +647,7 @@ func createPlant(c *gin.Context) {
 }
 
 func getPlants(c *gin.Context) {
-	collection := client.Database("arbore").Collection("plants")
+	collection := getDatabaseForRequest(c).Collection("plants")
 
 	cursor, err := collection.Find(context.Background(), bson.M{})
 	if err != nil {
@@ -615,7 +678,7 @@ func getPlantByID(c *gin.Context) {
 		return
 	}
 
-	collection := client.Database("arbore").Collection("plants")
+	collection := getDatabaseForRequest(c).Collection("plants")
 
 	var plant Plant
 	err = collection.FindOne(context.TODO(), bson.M{"_id": objectID}).Decode(&plant)
@@ -634,10 +697,12 @@ func getPlantByID(c *gin.Context) {
 // ---------- AI GENERATION (logique commune) ----------
 
 // Génère une plante avec l'IA + Unsplash + insertion Mongo
-// - name: nom de la plante
+// - name : nom de la plante
+// - dbSelector : sélecteur de DB ("prod" ou "test") — propagé depuis le
+//   gin.Context du handler appelant pour respecter le routing par API key
 // Retourne: (plant, alreadyExists, error)
-func generateAndInsertPlant(ctx context.Context, name string) (Plant, bool, error) {
-	collection := client.Database("arbore").Collection("plants")
+func generateAndInsertPlant(ctx context.Context, name string, dbSelector string) (Plant, bool, error) {
+	collection := getDatabaseByName(dbSelector).Collection("plants")
 
 	// Vérifie si la plante existe déjà (insensible à la casse)
 	filter := bson.M{
@@ -704,7 +769,7 @@ func generateAndInsertPlant(ctx context.Context, name string) (Plant, bool, erro
 		},
 	}
 
-	_, err = collection.InsertOne(ctx, plant)
+	_, err = collection.InsertOne(ctx, maybeLabelTestDoc(dbSelector, plant))
 	if err != nil {
 		log.Println("❌ Erreur lors de l'insertion MongoDB :", err)
 		return Plant{}, false, err
@@ -755,7 +820,7 @@ func generatePlantWithAI(c *gin.Context) {
 		return
 	}
 
-	plant, exists, err := generateAndInsertPlant(context.Background(), req.Name)
+	plant, exists, err := generateAndInsertPlant(context.Background(), req.Name, c.GetString(middleware.DBSelectorKey))
 	if err != nil {
 		log.Println("❌ Erreur lors de la génération de la plante :", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la génération de la plante"})
@@ -794,7 +859,7 @@ func generateMultiplePlantsHandler(c *gin.Context) {
 			continue
 		}
 
-		plant, exists, err := generateAndInsertPlant(context.Background(), name)
+		plant, exists, err := generateAndInsertPlant(context.Background(), name, c.GetString(middleware.DBSelectorKey))
 		if err != nil {
 			log.Println("❌ Erreur lors de la génération pour", name, ":", err)
 			skipped = append(skipped, name)
@@ -855,7 +920,7 @@ func uploadUserPhoto(c *gin.Context) {
 		contentType = http.DetectContentType(imageBytes)
 	}
 
-	collection := client.Database("arbore").Collection("users")
+	collection := getDatabaseForRequest(c).Collection("users")
 	filter := bson.M{"uid": uidParam}
 	update := bson.M{"$set": bson.M{
 		"photoData":        encoded,
@@ -880,7 +945,7 @@ func getUserPhoto(c *gin.Context) {
 		return
 	}
 	uid := uidParam
-	collection := client.Database("arbore").Collection("users")
+	collection := getDatabaseForRequest(c).Collection("users")
 
 	var user User
 	err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
@@ -1026,8 +1091,8 @@ func createGarden(c *gin.Context) {
 	garden.CreatedAt = now
 	garden.UpdatedAt = now
 
-	collection := client.Database("arbore").Collection("gardens")
-	_, err := collection.InsertOne(context.Background(), garden)
+	collection := getDatabaseForRequest(c).Collection("gardens")
+	_, err := collection.InsertOne(context.Background(), maybeLabelTestDoc(c.GetString(middleware.DBSelectorKey), garden))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur insertion garden"})
 		return
@@ -1043,7 +1108,7 @@ func listGardens(c *gin.Context) {
 		return
 	}
 
-	collection := client.Database("arbore").Collection("gardens")
+	collection := getDatabaseForRequest(c).Collection("gardens")
 	opts := options.Find().SetSort(bson.M{"updatedAt": -1})
 
 	cursor, err := collection.Find(context.Background(), bson.M{"uid": uid}, opts)
@@ -1075,7 +1140,7 @@ func getGardenByID(c *gin.Context) {
 		return
 	}
 
-	collection := client.Database("arbore").Collection("gardens")
+	collection := getDatabaseForRequest(c).Collection("gardens")
 	var garden Garden
 
 	err = collection.FindOne(context.Background(), bson.M{"_id": objectID}).Decode(&garden)
@@ -1131,7 +1196,7 @@ func updateGarden(c *gin.Context) {
 		set["thumbnailKey"] = *payload.ThumbnailKey
 	}
 
-	collection := client.Database("arbore").Collection("gardens")
+	collection := getDatabaseForRequest(c).Collection("gardens")
 	res, err := collection.UpdateOne(context.Background(), bson.M{"_id": objectID, "uid": uid}, bson.M{"$set": set})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur update garden"})
@@ -1159,7 +1224,7 @@ func deleteGarden(c *gin.Context) {
 		return
 	}
 
-	collection := client.Database("arbore").Collection("gardens")
+	collection := getDatabaseForRequest(c).Collection("gardens")
 	res, err := collection.DeleteOne(context.Background(), bson.M{"_id": objectID, "uid": uid})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur delete garden"})
@@ -1171,6 +1236,56 @@ func deleteGarden(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Garden supprimé"})
+}
+
+// seedTestDBPlantsIfEmpty copie le catalogue de plantes depuis la DB prod
+// vers la DB test si celle-ci est vide. Appelée une seule fois au démarrage
+// du backend si MONGODB_URI_TEST est défini. Permet aux tests d'avoir un
+// catalogue cohérent avec prod sans script de seed manuel, et permet au
+// cleanup nocturne (cf. cron VPS) de droper la DB test sans craindre de
+// perdre le seed — il sera reposé au prochain démarrage.
+func seedTestDBPlantsIfEmpty() {
+	if testClient == nil {
+		return
+	}
+	testPlants := testClient.Database(testDBName).Collection("plants")
+	count, err := testPlants.CountDocuments(context.Background(), bson.M{})
+	if err != nil {
+		log.Printf("⚠️  Test DB plants count failed: %v — seed sauté", err)
+		return
+	}
+	if count > 0 {
+		fmt.Printf("ℹ️ Test DB plants déjà peuplée (%d entrées), pas de seed.\n", count)
+		return
+	}
+
+	prodPlants := client.Database(prodDBName).Collection("plants")
+	cursor, err := prodPlants.Find(context.Background(), bson.M{})
+	if err != nil {
+		log.Printf("⚠️  Lecture plants prod pour seed échouée : %v", err)
+		return
+	}
+	defer func() { _ = cursor.Close(context.Background()) }()
+
+	var docs []interface{}
+	for cursor.Next(context.Background()) {
+		var p Plant
+		if err := cursor.Decode(&p); err != nil {
+			continue
+		}
+		// Note : on conserve l'ObjectID prod pour que les références
+		// PlacedPlant.plantId restent valides côté gardens créés en test.
+		docs = append(docs, p)
+	}
+	if len(docs) == 0 {
+		log.Println("⚠️  Aucune plante en prod à seed vers test.")
+		return
+	}
+	if _, err := testPlants.InsertMany(context.Background(), docs); err != nil {
+		log.Printf("⚠️  Seed test DB plants échoué : %v", err)
+		return
+	}
+	fmt.Printf("🌱 Seed test DB : %d plantes copiées depuis prod.\n", len(docs))
 }
 
 // ---------- LOAD ENV ----------
@@ -1239,7 +1354,31 @@ func main() {
 	if err != nil {
 		log.Fatal("❌ Erreur lors de la vérification de la connexion à MongoDB :", err)
 	}
-	fmt.Println("✅ Connecté à MongoDB!")
+	fmt.Println("✅ Connecté à MongoDB (prod, DB " + prodDBName + ") !")
+
+	// Connexion optionnelle pour la DB de test. Permet aux runs CI d'écrire
+	// dans `arbore_test` sans polluer la prod, via une seconde API key
+	// reconnue par APIKeyMiddleware (cf. issue #159 v2). Si MONGODB_URI_TEST
+	// n'est pas défini, le mode test est désactivé et toute requête avec
+	// ARBORE_API_KEY_TEST sera rejetée par le middleware.
+	if testURI := os.Getenv("MONGODB_URI_TEST"); testURI != "" {
+		testClientOptions := options.Client().ApplyURI(testURI)
+		testClient, err = mongo.Connect(context.Background(), testClientOptions)
+		if err != nil {
+			log.Fatal("❌ Connexion test MongoDB échouée :", err)
+		}
+		if err := testClient.Ping(context.Background(), nil); err != nil {
+			log.Fatal("❌ Ping test MongoDB échoué :", err)
+		}
+		fmt.Println("✅ Connecté à MongoDB (test, DB " + testDBName + ") !")
+
+		// Auto-seed des plantes dans la DB test si elle est vide. Évite
+		// d'avoir à exécuter un script de seed manuel après chaque cleanup
+		// nocturne. Copie le catalogue depuis la DB prod.
+		seedTestDBPlantsIfEmpty()
+	} else {
+		fmt.Println("ℹ️ MONGODB_URI_TEST non défini, mode test désactivé.")
+	}
 
 	// Initialiser Firebase Admin SDK.
 	// En release mode, toute erreur est fatale : le backend refuse de démarrer
@@ -1325,7 +1464,7 @@ func main() {
 			}
 
 			var user User
-			collection := client.Database("arbore").Collection("users")
+			collection := getDatabaseForRequest(c).Collection("users")
 			err := collection.FindOne(context.Background(), bson.M{"uid": uidParam}).Decode(&user)
 			if err != nil {
 				if err == mongo.ErrNoDocuments {

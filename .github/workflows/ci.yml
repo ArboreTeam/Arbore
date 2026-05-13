@@ -338,12 +338,39 @@ jobs:
             ARBORE_BACKEND_HOST="${{ secrets.ARBORE_BACKEND_HOST }}" \
             | xcpretty
 
+      - name: 🧪 Switch to test API key (route to arbore_test DB)
+        # Si ARBORE_API_KEY_TEST est défini comme secret, on régénère
+        # Secrets.xcconfig avec cette clé avant les tests. Le backend
+        # détecte la clé test via APIKeyMiddleware et route les écritures
+        # vers la DB `arbore_test` au lieu de `arbore` (cf. issue #159 v2).
+        # Si le secret n'est pas défini, on reste sur la clé prod et les
+        # tests continuent de polluer `arbore` (état antérieur, à éviter).
+        if: env.ARBORE_API_KEY_TEST != ''
+        env:
+          ARBORE_API_KEY_TEST: ${{ secrets.ARBORE_API_KEY_TEST }}
+        run: |
+          echo "🔁 Réécriture Secrets.xcconfig avec ARBORE_API_KEY_TEST"
+          cat > Secrets.xcconfig << EOF
+          // Secrets.xcconfig - Test mode (CI only)
+          ARBORE_API_KEY = ${ARBORE_API_KEY_TEST}
+          ARBORE_BACKEND_PROTOCOL = ${{ secrets.ARBORE_BACKEND_PROTOCOL }}
+          ARBORE_BACKEND_HOST = ${{ secrets.ARBORE_BACKEND_HOST }}
+          EOF
+          echo "✅ Secrets.xcconfig (test) écrit"
+
       - name: 🧪 Run Unit Tests
         timeout-minutes: 20
+        env:
+          ARBORE_API_KEY_EFFECTIVE: ${{ secrets.ARBORE_API_KEY_TEST != '' && secrets.ARBORE_API_KEY_TEST || secrets.ARBORE_API_KEY }}
         run: |
           set -o pipefail
 
           echo "🧪 Running all tests (including integration tests with backend)"
+          if [ "${{ secrets.ARBORE_API_KEY_TEST != '' }}" = "true" ]; then
+            echo "ℹ️  Mode TEST actif : écritures dans arbore_test DB"
+          else
+            echo "⚠️  Mode PROD : tests polluent arbore DB (ajouter ARBORE_API_KEY_TEST secret)"
+          fi
 
           xcodebuild test \
             -workspace ArboreUi.xcworkspace \
@@ -358,7 +385,7 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             GCC_TREAT_WARNINGS_AS_ERRORS=NO \
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
-            ARBORE_API_KEY="${{ secrets.ARBORE_API_KEY }}" \
+            ARBORE_API_KEY="$ARBORE_API_KEY_EFFECTIVE" \
             ARBORE_BACKEND_PROTOCOL="${{ secrets.ARBORE_BACKEND_PROTOCOL }}" \
             ARBORE_BACKEND_HOST="${{ secrets.ARBORE_BACKEND_HOST }}" \
             2>&1 | tee build/test-output.log

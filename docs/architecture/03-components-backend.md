@@ -129,7 +129,9 @@ Les handlers sont regroupés thématiquement dans `main.go` et exposés sous le 
 | Variable | Rôle | Sensibilité |
 |---|---|---|
 | `MONGODB_URI` | URI de connexion Mongo Atlas | 🔒 **secret** |
-| `ARBORE_API_KEY` | Clé applicative attendue dans `X-API-Key` | 🔒 **secret** |
+| `ARBORE_API_KEY` | Clé applicative attendue dans `X-API-Key` pour le trafic prod | 🔒 **secret** |
+| `ARBORE_API_KEY_TEST` | Clé applicative alternative qui route vers la DB `arbore_test`. Optionnelle ; si absente, le mode test est désactivé. | 🔒 **secret** |
+| `MONGODB_URI_TEST` | URI Mongo pour la DB `arbore_test` (utilisée uniquement quand `ARBORE_API_KEY_TEST` est validée). Optionnelle. | 🔒 **secret** |
 | `FIREBASE_SERVICE_ACCOUNT_PATH` | Chemin vers le JSON du service account Firebase | 🔒 **secret** |
 | `OPENAI_API_KEY` | Forwardée à l'AI Generator | 🔒 **secret** |
 | `UNSPLASH_ACCESS_KEY` | Clé API Unsplash | 🔒 **secret** |

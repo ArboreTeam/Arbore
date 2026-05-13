@@ -4,7 +4,7 @@
 
 Cet écran guide l'utilisateur à travers la **création complète d'un jardin** : profil esthétique et fonctionnel (style, espace, exposition, entretien, sécurité, sol), sélection de plantes assistée par IA, choix de la méthode de scan, et validation finale. À sa sortie, l'utilisateur est routé vers une vue AR adaptée à sa méthode de scan.
 
-Implémenté dans `Views/GardenSteps/QuestionnaireView.swift`. Composé de 10 étapes maximum (entre 9 et 10 selon les choix), portées par une `TabView` non-paginable dont la sélection est gouvernée par l'enum `GardenWizardStep`.
+Implémenté dans `Views/GardenSteps/QuestionnaireView.swift`. Composé de 9 étapes maximum (entre 8 et 9 selon les choix), portées par une `TabView` non-paginable dont la sélection est gouvernée par l'enum `GardenWizardStep`. Le step `scanMethod` ouvre directement la vue AR de tracé qui crée le jardin en base avant de rendre la main au wizard pour l'étape finale `aiSuggestion`.
 
 ## Entry points
 
@@ -37,17 +37,18 @@ flowchart TB
     soil[7 soil — conditionnel]
     ai[8 aiSuggestion]
     scan[9 scanMethod]
-    summary[10 summary]
+    placement[9 placement final<br/>fullScreenCover GardenARPlacementView]
 
     intro --> style_step --> spaceType
     spaceType --> exposure --> maintenance --> safety
     safety -->|spaceType garden| soil --> ai
     safety -->|sinon| ai
-    ai --> scan --> summary
+    scan -->|tap Démarrer le scan + POST /gardens| ai
+    ai -->|tap Placer en AR| placement
 
     classDef step fill:#1168BD,stroke:#0B4884,color:#fff
     classDef cond fill:#2E7D32,stroke:#1B5E20,color:#fff
-    class intro,style_step,spaceType,exposure,maintenance,safety,ai,scan,summary step
+    class intro,style_step,spaceType,exposure,maintenance,safety,ai,scan,placement step
     class soil cond
 ```
 
@@ -107,7 +108,7 @@ Composant dédié au choix de la méthode de scan. Deux cartes :
 | Situation | Comportement |
 |---|---|
 | Utilisateur tap « Retour » multiple fois jusqu'à l'étape `intro` | Le bouton « Retour » devient désactivé. Pas de pop arrière implicite — l'utilisateur doit utiliser le X pour quitter. |
-| `state.spaceType` modifié en allant en arrière | `visibleSteps` est recalculé à chaque accès au computed. Si l'utilisateur passe de `garden` à `indoor`, l'étape `soil` disparaît à la prochaine évaluation. Un `onChange(of: visibleSteps)` repositionne `currentStep` sur `.summary` si l'étape courante n'est plus dans la liste. |
+| `state.spaceType` modifié en allant en arrière | `visibleSteps` est recalculé à chaque accès au computed. Si l'utilisateur passe de `garden` à `indoor`, l'étape `soil` disparaît à la prochaine évaluation. Un `onChange(of: visibleSteps)` repositionne `currentStep` sur `.aiSuggestion` si l'étape courante n'est plus dans la liste. |
 | Backend down au tap final du Summary | `isSaving = true`, puis `NetworkError` levée. L'utilisateur voit un message inline « Impossible de créer le jardin. Réessayez. » et peut retenter. |
 | LiDAR sélectionné mais non supporté | Ne devrait pas arriver — la carte est grisée. Si toutefois `state.scanMethod == .roomScan` sur un device sans LiDAR, le `fullScreenCover` `LiDARScanWizardView` affiche immédiatement une alerte « Scan 3D indisponible » et propose de revenir au choix. |
 | Permission caméra refusée à l'étape suivante | La permission est demandée par `ARViewContainerMeasure` ou `LiDARScanWizardView` après dismissal du wizard. Si refusée, l'utilisateur revient au wizard avec un message d'erreur en bas du Summary. |

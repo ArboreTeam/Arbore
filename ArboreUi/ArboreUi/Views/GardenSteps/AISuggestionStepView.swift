@@ -11,7 +11,10 @@ import SwiftUI
 struct AISuggestionStepView: View {
     @ObservedObject var state: GardenWizardState
     let allPlants: [Plant]
-    let onNext: () -> Void
+    /// Dernier step du wizard : à l'activation du CTA, le parent ouvre
+    /// `GardenARPlacementView` sur le jardin tout neuf créé au step
+    /// `scanMethod`. La sélection de plantes est passée en `selectedPlants`.
+    let onPlaceInAR: () -> Void
     let onBack: () -> Void
 
     /// Plants accepted by the user for the garden
@@ -298,11 +301,13 @@ struct AISuggestionStepView: View {
                         .filter { acceptedPlantIds.contains($0.plant.id) }
                         .map(\.plant)
                 }
-                onNext()
+                onPlaceInAR()
             }) {
                 HStack {
-                    Text(acceptedPlantIds.isEmpty ? "Passer cette étape" : "Continuer avec \(acceptedPlantIds.count) plante\(acceptedPlantIds.count > 1 ? "s" : "")")
-                    Image(systemName: "arrow.right")
+                    Text(acceptedPlantIds.isEmpty
+                         ? "Placer le jardin sans plantes"
+                         : "Placer \(acceptedPlantIds.count) plante\(acceptedPlantIds.count > 1 ? "s" : "") en AR")
+                    Image(systemName: "arkit")
                 }
             }
             .buttonStyle(PrimaryWizardButtonStyle(isEnabled: true))

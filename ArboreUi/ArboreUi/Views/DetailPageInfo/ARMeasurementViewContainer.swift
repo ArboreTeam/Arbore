@@ -20,7 +20,7 @@ struct ARMeasurementViewContainer: UIViewRepresentable {
         
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal] // On se concentre sur le sol
-        config.environmentTexturing = .automatic
+        config.environmentTexturing = ARQuality.recommended.environmentTexturing
         
         // Activation LiDAR si dispo pour meilleure précision
         if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {

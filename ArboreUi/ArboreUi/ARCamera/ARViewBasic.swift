@@ -116,7 +116,7 @@ struct ARViewBasicContainer: UIViewRepresentable {
 
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal, .vertical]
-        config.environmentTexturing = .automatic
+        config.environmentTexturing = ARQuality.recommended.environmentTexturing
 
         // ⚠️ IMPORTANT: sceneDepth peut provoquer un flux caméra noir sur certains appareils/iOS.
         // On le désactive par défaut.

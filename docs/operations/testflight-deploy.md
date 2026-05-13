@@ -51,7 +51,7 @@ git check-ignore -v fastlane/AuthKey.json
 # → .gitignore:172:fastlane/AuthKey.json   fastlane/AuthKey.json
 ```
 
-> ⚠️ Si `git check-ignore` ne retourne rien, ne PAS continuer — `AuthKey.json` serait commit au prochain `git add .`. Le pre-commit hook gitleaks devrait aussi rattraper, mais ne pas s'en remettre.
+> ⚠️ Si `git check-ignore` ne retourne rien, ne PAS continuer — le fichier serait commit au prochain `git add .`. Le pre-commit hook gitleaks devrait aussi rattraper, mais ne pas s'en remettre.
 
 ### 3. Créer le groupe « Internal QA » sur App Store Connect
 

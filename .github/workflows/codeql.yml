@@ -1,30 +1,19 @@
 name: "🔒 CodeQL Security Analysis"
 
-# ─────────────────────────────────────────────────────────────────────
-# IMPORTANT — triggers automatiques temporairement commentés.
-#
-# CodeQL exige GitHub Advanced Security pour les dépôts privés. Notre
-# dépôt n'a pas cette licence (payante, Team / Enterprise) donc
-# l'analyse tourne nickel sur le runner mais le upload SARIF échoue
-# systématiquement avec :
-#
-#   Advanced Security must be enabled for this repository to use code scanning.
-#
-# Conséquence : la CI restait rouge en permanence sur main.
-#
-# À DÉCOMMENTER quand le dépôt sera rendu public — CodeQL est gratuit
-# pour les repos publics. Restaurer alors les blocs `push`, `pull_request`
-# et `schedule` ci-dessous.
-# ─────────────────────────────────────────────────────────────────────
+# Réactivé le 2026-05-13 après le passage du dépôt en public — CodeQL
+# est gratuit pour les repos publics, plus besoin de GitHub Advanced
+# Security. Si le dépôt repasse privé un jour, recommenter les triggers
+# `push`, `pull_request` et `schedule` ci-dessous (cf. historique de ce
+# fichier pour le contexte).
 
 on:
-  workflow_dispatch:  # Relance manuelle uniquement, à conserver dans tous les cas.
-  # push:
-  #   branches: [ "main" ]
-  # pull_request:
-  #   branches: [ "main" ]
-  # schedule:
-  #   - cron: '30 2 * * 1'  # Tous les lundis à 2h30
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: '30 2 * * 1'  # Tous les lundis à 2h30 UTC
+  workflow_dispatch:
 
 jobs:
   analyze:

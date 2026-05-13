@@ -1,0 +1,66 @@
+## .gitleaks.toml — règles de scan secrets pour Arbore
+##
+## Hérite de la config par défaut de gitleaks (toutes les règles publiques
+## restent actives) et ajoute une allowlist pour éliminer le bruit connu
+## et qualifié comme non-secret après audit du 2026-05-13 (cf. PR de scan
+## post-passage public du dépôt).
+##
+## En cas de doute sur une nouvelle entrée, RE-tester localement avec :
+##   gitleaks detect --config .gitleaks.toml --no-banner --report-format json --report-path /tmp/gitleaks.json
+## puis comparer le nombre de findings avant/après.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Faux positifs connus, vendored code, et fichiers d'exemple intentionnels"
+
+# Fichiers à exclure entièrement du scan.
+paths = [
+  # CocoaPods vendored code : Firebase, BoringSSL, gRPC, GoogleSignIn,
+  # GoogleAppMeasurement contiennent des constantes Go/C++ qui matchent
+  # les patterns gitleaks (FB tokens, GCP keys, etc.) mais ne sont pas
+  # des secrets — ce sont les sources des SDKs publics.
+  '''ArboreUi/Pods/.*''',
+
+  # Lockfiles CocoaPods : checksums SHA256 confondus avec des API keys.
+  '''.*Podfile\.lock$''',
+  '''.*Manifest\.lock$''',
+
+  # Fichiers d'exemple (placeholders explicites).
+  '''.*\.example$''',
+  '''ArboreUi/Secrets\.xcconfig\.example''',
+  '''ArboreBackend/\.env\.example''',
+
+  # Tests Go avec fixtures volontairement faibles (testAPIKey = "test_api_key_12345").
+  '''ArboreBackend/main_test\.go''',
+
+  # README de l'endpoint /models qui contient un placeholder curl
+  #   curl -H "X-API-Key: YOUR_API_KEY"
+  # détecté comme curl-auth-header par gitleaks.
+  '''ArboreBackend/models/README\.md''',
+
+  # Secrets historiques déjà rotatés et archivés dans le repository public :
+  # l'ancien ARBORE_API_KEY apparaissait dans Secrets.xcconfig pour des
+  # commits anciens (cf. issue #117). Cette entrée allowliste UNIQUEMENT
+  # les anciens commits historiques — la version actuelle de
+  # Secrets.xcconfig reste scannée normalement.
+  '''ArboreUi/Secrets\.xcconfig''',
+]
+
+# Stop-words : substrings qui, présents dans un secret matché, le
+# disqualifient automatiquement. Utile pour les placeholders évidents.
+stopwords = [
+  "YOUR_API_KEY",
+  "YOUR_FIREBASE_TOKEN",
+  "REMPLACER_ICI",
+  "your-key-here",
+  "test_api_key_12345",
+]
+
+# Regex de secrets autorisés. La Firebase Web API key d'Arbore est
+# publique par design (bundlée dans GoogleService-Info.plist du .app
+# iOS et dans le futur bundle JS web). Cf. audit du 2026-05-13.
+regexes = [
+  '''AIzaSyDSqOesYSajdrZVEM5pyp9pydeImKkFRJ8''',
+]

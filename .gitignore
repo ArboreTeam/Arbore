@@ -178,8 +178,14 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots
 fastlane/test_output
+fastlane/builds
 fastlane/.env
 fastlane/.env.local
+
+# Bundler — gems sont installés en local au projet (vendor/bundle,
+# déjà couvert par `vendor/` plus haut). `.bundle/` contient la config
+# locale `bundle config set --local path 'vendor/bundle'`.
+.bundle/
 
 # Deepl translations
 .deepl_api.backups/

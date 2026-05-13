@@ -64,17 +64,29 @@ git check-ignore -v fastlane/AuthKey.json
 
 ### 4. Installer fastlane sur la machine qui déploie
 
+Sur macOS avec Ruby installé via Homebrew, le dossier système des gems
+n'est pas writable par défaut. Toujours installer les gems en local au
+projet :
+
 ```bash
+bundle config set --local path 'vendor/bundle'   # one-shot — écrit .bundle/config
 bundle install
 ```
 
-Cela installe la version pinnée dans `Gemfile`. Vérifier ensuite :
+Cela installe la version pinnée dans `Gemfile` dans `vendor/bundle/`
+(gitignored). Vérifier ensuite :
 
 ```bash
 bundle exec fastlane --version
 ```
 
-> Alternative sans bundler : `brew install fastlane`. Plus simple mais sans pin de version — risque de dériver entre machines.
+> Si `bundle install` échoue avec `Bundler::PermissionError` sur
+> `/opt/homebrew/lib/ruby/...`, c'est que le `bundle config set` n'a pas
+> été fait. La config est par-projet (dans `.bundle/config`), pas
+> globale — chaque clone du repo doit la repasser.
+
+> Alternative sans bundler : `brew install fastlane`. Plus simple mais
+> sans pin de version — risque de dériver entre machines.
 
 ### 5. Vérifier le code signing Xcode
 

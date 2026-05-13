@@ -32,7 +32,7 @@ jobs:
     name: Mermaid syntax
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -98,7 +98,7 @@ jobs:
     name: Internal links
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Run lychee link checker on docs/
         uses: lycheeverse/lychee-action@v2
@@ -121,7 +121,7 @@ jobs:
     name: Doc drift
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Verify file paths referenced in docs/ still exist
         run: bash .github/scripts/docs-drift-check.sh

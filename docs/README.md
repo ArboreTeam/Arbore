@@ -2,7 +2,7 @@
 
 Cette section regroupe la documentation technique de l'application Arbore, rédigée en **Markdown + Mermaid** afin de vivre à côté du code source et d'être rendue nativement par GitHub.
 
-> 🗂️ **Tracker** : [Issue #141](https://github.com/ArboreTeam/Arbore/issues/141) suit l'avancement des phases de documentation.
+> 🗂️ **Tracker** : [Issue #141](https://github.com/ArboreTeam/Arbore/issues/141) a porté la mise en place de la documentation. Les cinq phases ont été livrées entre les PR #142 et #147 ; les mises à jour suivantes passent par les PRs de feature qui touchent un domaine documenté.
 
 ## Guide de lecture
 
@@ -12,12 +12,24 @@ La documentation est découpée en cinq vues complémentaires. Selon l'informati
 |---|---|
 | Vue d'ensemble (acteurs et systèmes externes) | [`architecture/01-context.md`](architecture/01-context.md) |
 | Briques techniques déployées | [`architecture/02-containers.md`](architecture/02-containers.md) |
-| Détail des modules internes d'un container | `architecture/03-components-*.md` *(Phase 2)* |
-| Schéma de données MongoDB | `architecture/04-data-model.md` *(Phase 2)* |
-| Enchaînement des écrans côté utilisateur | `flows/*.md` *(Phase 3)* |
-| États discrets d'une fonctionnalité | `state-machines/*.md` *(Phase 3)* |
-| Détail d'un écran principal (hero screen) | `screens/*.md` *(Phase 4)* |
-| Justification d'un choix d'architecture | `decisions/*.md` *(Phase 5)* |
+| Détail des modules internes côté iOS | [`architecture/03-components-ios.md`](architecture/03-components-ios.md) |
+| Détail des modules internes côté backend Go | [`architecture/03-components-backend.md`](architecture/03-components-backend.md) |
+| Schéma de données MongoDB | [`architecture/04-data-model.md`](architecture/04-data-model.md) |
+| Flow de signup avec rollback Firebase | [`flows/auth-signup.md`](flows/auth-signup.md) |
+| Flow de création de jardin (wizard) | [`flows/garden-creation.md`](flows/garden-creation.md) |
+| Flow de placement AR (création et réouverture) | [`flows/ar-placement.md`](flows/ar-placement.md) |
+| Machine d'états du manual replacement (#111) | [`state-machines/relocation-phase.md`](state-machines/relocation-phase.md) |
+| Index des hero screens | [`screens/_index.md`](screens/_index.md) |
+| Per-screen spec — `GardenARPlacementView` | [`screens/garden-ar-placement.md`](screens/garden-ar-placement.md) |
+| Per-screen spec — wizard de création | [`screens/questionnaire-wizard.md`](screens/questionnaire-wizard.md) |
+| Per-screen spec — `PersonalDetailsView` | [`screens/personal-details.md`](screens/personal-details.md) |
+| Index des décisions d'architecture | [`decisions/_index.md`](decisions/_index.md) |
+| ADR 0001 — Mermaid + flowchart pour la doc | [`decisions/0001-mermaid-for-docs.md`](decisions/0001-mermaid-for-docs.md) |
+| ADR 0002 — Stack de scan double (LiDAR / non-LiDAR) | [`decisions/0002-scan-stacks.md`](decisions/0002-scan-stacks.md) |
+| ADR 0003 — Stratégie de relocalisation à trois étages | [`decisions/0003-relocation-strategy.md`](decisions/0003-relocation-strategy.md) |
+| ADR 0004 — Firebase Auth comme provider | [`decisions/0004-firebase-auth.md`](decisions/0004-firebase-auth.md) |
+| ADR 0005 — Self-authz via token uid | [`decisions/0005-self-authz-pattern.md`](decisions/0005-self-authz-pattern.md) |
+| ADR 0006 — Qualité AR adaptative (environmentTexturing + thermal) | [`decisions/0006-ar-quality-adaptive.md`](decisions/0006-ar-quality-adaptive.md) |
 | Définition d'un terme métier ou technique | [`glossary.md`](glossary.md) |
 
 ## Structure
@@ -78,15 +90,15 @@ bash .github/scripts/docs-drift-check.sh
 ## Outils et statut
 
 - **Markdown + Mermaid** — rendu natif GitHub, diff-able, aucun outillage externe.
-- **Sémantique C4 portée par `flowchart`.** La syntaxe `C4Context` / `C4Container` native de Mermaid est officiellement marquée comme [`experimental`](https://mermaid.js.org/syntax/c4.html) et produit des **chevauchements d'arêtes** dès que le graphe dépasse une dizaine d'éléments. La convention adoptée dans cette documentation utilise `flowchart` avec des labels préfixés `[Person]`, `[Container]`, `[System Ext]`, etc. Cette approche préserve la sémantique C4 tout en bénéficiant du moteur de layout mature de Mermaid. La décision est tracée dans l'ADR `0001-mermaid-for-docs.md` (Phase 5).
+- **Sémantique C4 portée par `flowchart`.** La syntaxe `C4Context` / `C4Container` native de Mermaid est officiellement marquée comme [`experimental`](https://mermaid.js.org/syntax/c4.html) et produit des **chevauchements d'arêtes** dès que le graphe dépasse une dizaine d'éléments. La convention adoptée dans cette documentation utilise `flowchart` avec des labels préfixés `[Person]`, `[Container]`, `[System Ext]`, etc. Cette approche préserve la sémantique C4 tout en bénéficiant du moteur de layout mature de Mermaid. La décision est tracée dans l'[ADR 0001](decisions/0001-mermaid-for-docs.md).
 - **MADR** — voir [adr.github.io/madr](https://adr.github.io/madr/) pour le format complet.
 
 ## Documents legacy
 
-Les fichiers suivants précèdent la mise en place de cette structure et sont conservés à titre de référence. Ils seront migrés ou supprimés au fil des sprints :
+Les fichiers suivants précèdent la mise en place de cette structure et sont **isolés sous [`docs/legacy/`](legacy/)**. Ils restent accessibles pour référence historique mais n'entrent pas dans le périmètre des règles de rédaction décrites plus haut. Ils seront migrés vers la nouvelle arborescence ou supprimés au fil des sprints.
 
-- `AR_CAMERA_BLACK_SCREEN_FIX.md`
-- `CI-CD.md`
-- `DEBUG_MODE_VISUAL_SUMMARY.md`, `DEBUG_THUMBNAIL_MODE.md`
-- `TROUBLESHOOTING.md`
-- `BETA_TEST_PLAN_Arbore_simple_v2_2026-05-02.{pdf,docx}`
+- [`legacy/AR_CAMERA_BLACK_SCREEN_FIX.md`](legacy/AR_CAMERA_BLACK_SCREEN_FIX.md) — notes du fix écran noir caméra AR
+- [`legacy/CI-CD.md`](legacy/CI-CD.md) — documentation détaillée de la CI/CD historique
+- [`legacy/DEBUG_MODE_VISUAL_SUMMARY.md`](legacy/DEBUG_MODE_VISUAL_SUMMARY.md), [`legacy/DEBUG_THUMBNAIL_MODE.md`](legacy/DEBUG_THUMBNAIL_MODE.md) — guides de debug thumbnails
+- [`legacy/TROUBLESHOOTING.md`](legacy/TROUBLESHOOTING.md) — guide de dépannage CI
+- `legacy/BETA_TEST_PLAN_Arbore_simple_v2_2026-05-02.pdf` / `.docx` — plan de test beta

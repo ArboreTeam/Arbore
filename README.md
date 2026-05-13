@@ -7,7 +7,7 @@
 
 Arbore est un projet de 4ème et 5ème année - une application complète de jardinage qui vous aide à organiser et entretenir vos jardins avec la puissance de la réalité augmentée et de l'intelligence artificielle.
 
-> 📚 **[Documentation CI/CD complète](docs/CI-CD.md)**
+> 📚 **[Documentation CI/CD complète](docs/legacy/CI-CD.md)**
 
 ## 📱 Fonctionnalités
 

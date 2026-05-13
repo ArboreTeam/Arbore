@@ -40,6 +40,7 @@ Cette règle s'applique également si l'on découvre une erreur factuelle dans u
 | [0003](0003-relocation-strategy.md) | Relocalisation ARWorldMap + fallback manual replace | Accepted (2026-04-29) | AR / persistance session |
 | [0004](0004-firebase-auth.md) | Firebase Auth comme provider d'authentification | Accepted (2026-01-20) | Authentification |
 | [0005](0005-self-authz-pattern.md) | Self-authz via token uid (pas d'uid dans l'URL) | Accepted (2026-05-10) | Sécurité backend |
+| [0006](0006-ar-quality-adaptive.md) | Stratégie adaptative de qualité AR (`environmentTexturing` + thermal observer) | Accepted (2026-05-12) | AR / perf / thermal |
 
 ## Pourquoi des ADRs
 

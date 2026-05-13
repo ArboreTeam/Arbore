@@ -42,6 +42,7 @@ flowchart TB
     firestore["⚙️ DatabaseFireBaseStore/<br/>(deprecated)"]
     config["⚙️ Config/AppConfig.swift<br/>(Secrets.xcconfig)"]
     logger["⚙️ ARGarden/ArboreLog.swift<br/>(os_log catégorisé)"]
+    quality["⚙️ ARGarden/Quality/<br/>ARQuality · DeviceCapabilities · ARQualityObserver · ThermalStateBanner"]
 
     fb_auth_ext["[System Ext] Firebase Auth SDK"]
     backend_ext["[Container] Backend API"]
@@ -65,6 +66,7 @@ flowchart TB
     ar_view --> local_store
     ar_view --> model_cache
     ar_view --> models
+    ar_view --> quality
     model_cache --> network
 
     profile --> network
@@ -87,7 +89,7 @@ flowchart TB
     class user person
     class login,wizard,ar_view,manual_rep,profile,measure ui
     class models,user_svc,garden_svc,suggest,calendar,save_auth domain
-    class network,model_cache,local_store,firestore,config,logger infra
+    class network,model_cache,local_store,firestore,config,logger,quality infra
     class fb_auth_ext,backend_ext ext
 ```
 
@@ -130,6 +132,7 @@ flowchart TB
 | `DatabaseFireBaseStore/` | Wrappers historiques autour de Firestore. **En cours de dépréciation** : les nouveaux écrans passent par le backend Go via `NetworkManager`. |
 | `Config/AppConfig.swift` | Lit `baseURL` et `apiKey` depuis `Secrets.xcconfig` non versionné (cf. issue #117 résolue : rotation + purge historique). |
 | `ARGarden/ArboreLog.swift` | Wrapper `os_log` catégorisé (`plants`, `network`, `AR`). Utilisé par tous les modules. |
+| `ARGarden/Quality/` | Module adaptatif AR. `ARQuality` décide `environmentTexturing` au démarrage selon `DeviceCapabilities` (RAM physique) + `ProcessInfo.thermalState`. `ARQualityObserver` (singleton) écoute le thermal state au long de la vie de l'app et republie `.arboreThermalCritical`/`.arboreThermalRecovered`. `ThermalStateBanner` (SwiftUI) s'attache en overlay des vues AR. Issue #80 + #82 closes. |
 
 ## Points clés
 

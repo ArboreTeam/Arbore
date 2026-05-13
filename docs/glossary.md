@@ -18,6 +18,10 @@ Sérialisation **ARKit** de l'état d'une session AR (points caractéristiques e
 
 Point fixe attaché à une position dans le monde réel, suivi par ARKit. Chaque plante placée se voit associer un `ARAnchor`. Les ancres sont sérialisées dans la WorldMap pour assurer la persistance entre sessions.
 
+## ARQuality
+
+Enum Swift (`full`, `standard`, `lite`) défini dans `ARGarden/Quality/ARQuality.swift`. Pose la valeur d'`environmentTexturing` au démarrage d'une session AR. `ARQuality.recommended` agrège le tier du device (cf. `DeviceCapabilities`) et le `ProcessInfo.thermalState` courant pour décider du niveau retenu. Le choix est figé pour toute la durée de la session — modifier `environmentTexturing` mid-session demanderait un `resetTracking` qui perdrait la `ARWorldMap` relocalisée.
+
 ## Boundary
 
 Polygone fermé au sol qui délimite la zone du jardin. Tracé par l'utilisateur en mode `gardenPerimeter` (non-LiDAR) ou dérivé du scan **RoomPlan** (LiDAR). Représenté en mémoire sous la forme `[SIMD3<Float>]`.
@@ -25,6 +29,10 @@ Polygone fermé au sol qui délimite la zone du jardin. Tracé par l'utilisateur
 ## C4 Model
 
 Modèle d'architecture en quatre niveaux (**C**ontext, **C**ontainer, **C**omponent, **C**ode) défini par Simon Brown. Appliqué à Arbore dans `docs/architecture/`. Le niveau Code est volontairement omis : le code source en tient lieu.
+
+## DeviceCapabilities
+
+Détecteur de tier device dans `ARGarden/Quality/DeviceCapabilities.swift`. Utilise `ProcessInfo.processInfo.physicalMemory` pour ranger l'iPhone courant dans `.legacy` (< 4 GB de RAM, ex. iPhone XR) ou `.modern` (≥ 4 GB, iPhone XS et plus). Volontairement basé sur la RAM physique plutôt que sur des chaînes de modèles d'iPhone codées en dur, pour rester future-proof à chaque nouvelle génération.
 
 ## Hero screen
 
@@ -81,6 +89,10 @@ Période d'environ un mois matérialisée par un GitHub Milestone. Sprint en cou
 ## Token (Firebase ID Token)
 
 Bearer token JWT signé par Firebase Auth, transmis par l'application iOS et le web dans l'en-tête `Authorization` de chaque requête au backend. Le backend le valide via le Firebase Admin SDK et en extrait l'`uid` Firebase.
+
+## Thermal state
+
+Information de température système exposée par iOS via `ProcessInfo.processInfo.thermalState`. Quatre niveaux : `.nominal`, `.fair`, `.serious`, `.critical`. À partir de `.serious`, iOS impose un throttling silencieux. Le module `ARGarden/Quality/` lit ce signal au démarrage d'une session AR pour choisir `ARQuality`, et observe ses transitions ultérieures (`ARQualityObserver`) pour notifier l'UI via `.arboreThermalCritical`. La banner `ThermalStateBanner` s'affiche en overlay sur cette notification.
 
 ## TestFlight
 

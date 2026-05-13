@@ -169,4 +169,5 @@ arbore-firebase-adminsdk.json
 *.certSigningRequest
 
 # Deepl translations
-.deepl_api
+.deepl_api.backups/
+backups/

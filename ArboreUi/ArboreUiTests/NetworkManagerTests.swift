@@ -467,9 +467,9 @@ class NetworkManagerIntegrationTests: XCTestCase {
 
     override func tearDownWithError() throws {
         // Supprimer le user du backend
-        if let uid = testUserUID {
+        if testUserUID != nil {
             let deleteExpectation = XCTestExpectation(description: "Delete user from backend")
-            deleteUserFromBackend(uid: uid) { _ in
+            deleteUserFromBackend { _ in
                 deleteExpectation.fulfill()
             }
             wait(for: [deleteExpectation], timeout: 5.0)
@@ -531,23 +531,35 @@ class NetworkManagerIntegrationTests: XCTestCase {
         }.resume()
     }
 
-    private func deleteUserFromBackend(uid: String, completion: @escaping (Bool) -> Void) {
-        guard let url = URL(string: "\(AppConfig.usersEndpoint)/\(uid)") else {
+    /// Le backend dérive l'uid du Bearer token Firebase (self-only authz,
+    /// cf. ADR 0005). Pas d'uid dans l'URL — on tape `DELETE /users` tout
+    /// court. Sans le Bearer token, le middleware Firebase renvoie 401
+    /// et le user reste orphan en base (issue identifiée pendant le
+    /// triage des dependabot bumps).
+    private func deleteUserFromBackend(completion: @escaping (Bool) -> Void) {
+        guard let currentUser = Auth.auth().currentUser else {
             completion(false)
             return
         }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
-
-        URLSession.shared.dataTask(with: request) { _, response, _ in
-            if let httpResponse = response as? HTTPURLResponse {
-                completion(httpResponse.statusCode == 200)
-            } else {
+        currentUser.getIDToken { token, _ in
+            guard let token = token,
+                  let url = URL(string: AppConfig.usersEndpoint) else {
                 completion(false)
+                return
             }
-        }.resume()
+            var request = URLRequest(url: url)
+            request.httpMethod = "DELETE"
+            request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+            URLSession.shared.dataTask(with: request) { _, response, _ in
+                if let httpResponse = response as? HTTPURLResponse {
+                    completion(httpResponse.statusCode == 200)
+                } else {
+                    completion(false)
+                }
+            }.resume()
+        }
     }
 
     // MARK: - Real Backend Tests

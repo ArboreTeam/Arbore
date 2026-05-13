@@ -494,7 +494,7 @@ class PrivacySettingsIntegrationTests: XCTestCase {
      2. MongoDB collection "users" (via POST /users)
 
      Et supprimé automatiquement de:
-     1. MongoDB (via DELETE /users/:uid)
+     1. MongoDB (via DELETE /users, self-authz par token Firebase)
      2. Firebase Authentication (via user.delete())
      */
 
@@ -599,10 +599,10 @@ class PrivacySettingsIntegrationTests: XCTestCase {
         clearUserDefaults()
 
         // Supprimer le user du backend (MongoDB)
-        if let uid = testUserUID {
+        if testUserUID != nil {
             let deleteBackendExpectation = XCTestExpectation(description: "Delete user from backend")
 
-            deleteUserFromBackend(uid: uid) { success in
+            deleteUserFromBackend { success in
                 if success {
                     NSLog("✅ Test user deleted from MongoDB")
                 } else {
@@ -677,29 +677,40 @@ class PrivacySettingsIntegrationTests: XCTestCase {
         }.resume()
     }
 
-    private func deleteUserFromBackend(uid: String, completion: @escaping (Bool) -> Void) {
-        guard let url = URL(string: "\(AppConfig.usersEndpoint)/\(uid)") else {
+    /// Le backend dérive l'uid du Bearer token Firebase (self-only authz,
+    /// cf. ADR 0005). Pas d'uid dans l'URL — on tape `DELETE /users` tout
+    /// court avec le Bearer token. La variante précédente `DELETE /users/:uid`
+    /// renvoyait 404 (route inexistante) et laissait les users de test orphans
+    /// en base.
+    private func deleteUserFromBackend(completion: @escaping (Bool) -> Void) {
+        guard let currentUser = Auth.auth().currentUser else {
             completion(false)
             return
         }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "DELETE"
-        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
-
-        URLSession.shared.dataTask(with: request) { _, response, error in
-            if let error = error {
-                NSLog("❌ Error deleting user from backend: \(error)")
+        currentUser.getIDToken { token, _ in
+            guard let token = token,
+                  let url = URL(string: AppConfig.usersEndpoint) else {
                 completion(false)
                 return
             }
+            var request = URLRequest(url: url)
+            request.httpMethod = "DELETE"
+            request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-            if let httpResponse = response as? HTTPURLResponse {
-                completion(httpResponse.statusCode == 200)
-            } else {
-                completion(false)
-            }
-        }.resume()
+            URLSession.shared.dataTask(with: request) { _, response, error in
+                if let error = error {
+                    NSLog("❌ Error deleting user from backend: \(error)")
+                    completion(false)
+                    return
+                }
+                if let httpResponse = response as? HTTPURLResponse {
+                    completion(httpResponse.statusCode == 200)
+                } else {
+                    completion(false)
+                }
+            }.resume()
+        }
     }
 
     private func clearUserDefaults() {

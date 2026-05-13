@@ -297,9 +297,10 @@ jobs:
           // Backend host (IP:port or domain:port)
           ARBORE_BACKEND_HOST = ${{ secrets.ARBORE_BACKEND_HOST }}
           EOF
-          echo "✅ Secrets.xcconfig created"
-          echo "📝 Content:"
-          cat Secrets.xcconfig
+          # NE PAS dumper Secrets.xcconfig dans les logs : ARBORE_API_KEY
+          # serait imprimée en clair et les Actions logs des repos publics
+          # sont consultables par tous (issue #120).
+          echo "✅ Secrets.xcconfig created ($(wc -l < Secrets.xcconfig) lines, $(wc -c < Secrets.xcconfig) bytes)"
 
       - name: 🔑 Setup Keychain for CI
         run: |

@@ -1,0 +1,340 @@
+# VPS Bootstrap — Provisionnement d'un serveur Arbore
+
+Procédure pour reconstruire le backend Arbore sur un VPS Fedora vierge.
+
+Ce runbook est conçu pour être exécuté en condition de récupération (la VM
+existante est perdue) ou de migration (passage sur un nouveau provider).
+Chaque étape est idempotente — la re-jouer sur un système déjà configuré
+ne casse rien.
+
+> Hypothèses : Fedora 40 Cloud Edition, utilisateur `fedora` avec
+> `sudo` NOPASSWD, accès SSH par clé publique, IP publique routable.
+> Pour un autre OS (Debian/Ubuntu), adapter `dnf` en `apt` et le repo
+> MongoDB.
+
+---
+
+## Vue d'ensemble
+
+Composants installés à la fin de la procédure :
+
+| Composant | Rôle |
+|---|---|
+| Docker + Compose | Exécute `arbore-backend` (Go/Gin) et `arbore-ai-generator` (Python/FastAPI) |
+| Nginx | Reverse proxy `:80` → `127.0.0.1:8080` (backend) |
+| MongoDB Atlas | DB hébergée (pas de Mongo local) ; `mongosh` et `mongodump` côté VPS pour cleanup et backups |
+| cronie | Lance `cleanup-test-db.sh` chaque nuit à 04:00 UTC |
+| gh CLI | Utilisé par `cleanup-test-db.sh` (optionnel, fallback curl) |
+
+L'AI Generator écoute en interne sur `:8000`, le backend l'appelle via le
+réseau Docker `arbore-net`. Ces ports sont exposés sur l'hôte mais l'accès
+public passe par Nginx sur `:80`.
+
+---
+
+## 1. Préparation système
+
+```bash
+sudo dnf -y update
+sudo dnf -y install \
+    git curl wget jq vim \
+    cronie crontabs \
+    nginx \
+    gh \
+    python3
+sudo systemctl enable --now crond
+```
+
+Vérification :
+
+```bash
+systemctl is-active crond   # active
+gh --version                # 2.x
+```
+
+---
+
+## 2. Docker + Compose
+
+Fedora fournit le paquet `moby-engine`, mais le projet utilise les binaires
+officiels Docker (compose v2 inclus) :
+
+```bash
+sudo dnf -y install dnf-plugins-core
+sudo dnf-3 config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo systemctl enable --now docker
+```
+
+Ajouter `fedora` au groupe `docker` est **optionnel** ; le projet appelle
+`sudo docker` partout (cf. `deploy.sh`), donc on peut s'en passer si on
+préfère garder la séparation de privilèges.
+
+Vérification :
+
+```bash
+sudo docker --version            # Docker version 28.x
+sudo docker compose version      # v2.35+
+sudo docker run --rm hello-world # sanity check
+```
+
+---
+
+## 3. MongoDB tools (mongosh + mongodump)
+
+`mongodump` vient du paquet `mongodb-database-tools`. `mongosh` n'est pas
+dans les dépôts Fedora — il faut ajouter le dépôt officiel MongoDB.
+
+```bash
+sudo tee /etc/yum.repos.d/mongodb-org-7.0.repo > /dev/null << 'EOF'
+[mongodb-org-7.0]
+name=MongoDB Repository
+baseurl=https://repo.mongodb.org/yum/redhat/9/mongodb-org/7.0/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://pgp.mongodb.com/server-7.0.asc
+EOF
+
+sudo dnf -y install mongodb-database-tools mongodb-mongosh
+```
+
+Vérification :
+
+```bash
+mongosh --version       # 2.8.x
+mongodump --version | head -1
+```
+
+---
+
+## 4. Nginx reverse proxy
+
+```bash
+sudo tee /etc/nginx/conf.d/arbore.conf > /dev/null << 'EOF'
+server {
+    listen 80;
+    server_name _;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+EOF
+
+sudo nginx -t                # syntaxe OK ?
+sudo systemctl enable --now nginx
+```
+
+> HTTPS : la migration vers HTTPS + cert Let's Encrypt est tracée par
+> l'issue #121. Tant que le backend reste en HTTP, ATS côté iOS doit
+> être configuré en conséquence.
+
+---
+
+## 5. Cloner le dépôt et configurer l'environnement
+
+```bash
+cd ~                                                      # /home/fedora
+git clone git@github.com:ArboreTeam/Arbore.git
+cd Arbore
+```
+
+Si la clé SSH n'est pas encore enregistrée sur le compte GitHub de la
+machine, utiliser le clone HTTPS puis remplacer le remote :
+
+```bash
+git clone https://github.com/ArboreTeam/Arbore.git
+cd Arbore && git remote set-url origin git@github.com:ArboreTeam/Arbore.git
+```
+
+---
+
+## 6. Reconstruire le `.env`
+
+Le fichier `/home/fedora/Arbore/.env` n'est **jamais commité**. Variables
+attendues (sources de vérité indiquées) :
+
+| Variable | Source de vérité | Notes |
+|---|---|---|
+| `MONGODB_URI` | Atlas → Database → Connect → Drivers | URI prod avec user `arbore_backend_user` |
+| `MONGODB_URI_TEST` | Atlas → idem, base `arbore_test`, user `arbore_test_user` | Optionnelle, n'active la DB test que si présente |
+| `ARBORE_API_KEY` | GitHub Settings → Secrets → `ARBORE_API_KEY` | Clé applicative trafic prod |
+| `ARBORE_API_KEY_TEST` | GitHub Settings → Secrets → `ARBORE_API_KEY_TEST` | Clé qui route vers `arbore_test` |
+| `FIREBASE_SERVICE_ACCOUNT_PATH` | Toujours `./arbore-firebase-adminsdk.json` | Voir étape 7 |
+| `OPENAI_API_KEY` | OpenAI Platform → API keys | Pour l'AI Generator |
+| `UNSPLASH_ACCESS_KEY` | Unsplash Developers → Application | Photos de plantes |
+| `MISTRAL_API_KEY` | console.mistral.ai → API keys | Backend AI provider alternatif |
+| `AI_PROVIDER` | Constante config | `openai` ou `mistral` |
+| `GIN_MODE` | Constante config | `release` en prod |
+| `PORT` | Constante config | `8080` |
+| `THUMBNAILS_DIR` | Constante config | `/root/thumbnails` (chemin **intra-container**) |
+| `THUMBNAIL_UPLOAD_ALLOWED_UIDS` | Liste blanche UIDs admin | Séparés par virgules |
+
+Template à recopier :
+
+```bash
+cat > /home/fedora/Arbore/.env << 'EOF'
+# Mongo
+MONGODB_URI=mongodb+srv://arbore_backend_user:PASSWORD@arbore.cew6l.mongodb.net/arbore?retryWrites=true&w=majority&appName=Arbore
+MONGODB_URI_TEST=mongodb+srv://arbore_test_user:PASSWORD@arbore.cew6l.mongodb.net/arbore_test?retryWrites=true&w=majority&appName=Arbore
+
+# API keys applicatives
+ARBORE_API_KEY=arbore_ios_v1_xxxxxxxxxxxxxxxxxxxx
+ARBORE_API_KEY_TEST=arbore_test_v1_xxxxxxxxxxxxxxxxxxxx
+
+# Firebase
+FIREBASE_SERVICE_ACCOUNT_PATH=./arbore-firebase-adminsdk.json
+
+# AI providers
+AI_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+MISTRAL_API_KEY=...
+
+# Unsplash
+UNSPLASH_ACCESS_KEY=...
+
+# Config Gin / volumes
+GIN_MODE=release
+PORT=8080
+THUMBNAILS_DIR=/root/thumbnails
+THUMBNAIL_UPLOAD_ALLOWED_UIDS=
+EOF
+chmod 600 /home/fedora/Arbore/.env
+```
+
+---
+
+## 7. Firebase service account
+
+1. Console Firebase → Project settings → Service accounts → **Generate new
+   private key**. Télécharger le JSON.
+2. Renommer en `arbore-firebase-adminsdk.json`.
+3. Uploader à la racine du dépôt :
+
+```bash
+scp arbore-firebase-adminsdk.json fedora@<VPS>:/home/fedora/Arbore/
+chmod 600 /home/fedora/Arbore/arbore-firebase-adminsdk.json
+```
+
+Le bind mount dans `docker-compose.yml` monte ce fichier en
+`/root/firebase-adminsdk.json` côté container et le backend le lit via
+`FIREBASE_SERVICE_ACCOUNT_PATH=./arbore-firebase-adminsdk.json` (chemin
+relatif à `WORKDIR` du Dockerfile).
+
+---
+
+## 8. Premier déploiement
+
+```bash
+cd /home/fedora/Arbore
+sudo docker compose build
+sudo docker compose up -d
+sudo docker compose ps        # backend + ai-generator → Up (healthy)
+```
+
+Health check end-to-end :
+
+```bash
+curl -fsS http://localhost:8080/health
+# → {"status":"ok","service":"arbore-backend","version":"..."}
+curl -fsS http://<VPS_IP>/health   # via nginx
+```
+
+À partir de maintenant, les déploiements suivants passent par
+`./deploy.sh` (qui prend un snapshot Mongo avant chaque rebuild).
+
+---
+
+## 9. Cron de cleanup de la DB de test
+
+```bash
+mkdir -p /home/fedora/Arbore/logs
+touch /home/fedora/Arbore/logs/cleanup-test-db.log
+chmod +x /home/fedora/Arbore/scripts/cleanup-test-db.sh
+
+(crontab -l 2>/dev/null; echo "0 4 * * * /home/fedora/Arbore/scripts/cleanup-test-db.sh >> /home/fedora/Arbore/logs/cleanup-test-db.log 2>&1") | crontab -
+crontab -l
+```
+
+Validation manuelle (peut afficher "skip" si une CI tourne, c'est OK) :
+
+```bash
+/home/fedora/Arbore/scripts/cleanup-test-db.sh
+```
+
+Le script vérifie qu'aucune CI GitHub Actions n'est en cours avant de
+droper la DB. Il utilise `gh` si authentifié, sinon `curl` sans token (le
+dépôt étant public, l'API Actions est lisible sans auth).
+
+---
+
+## 10. Restauration depuis un backup Mongo
+
+`deploy.sh` produit un snapshot dans `backups/daily/` avant chaque
+rebuild. Pour restaurer un backup précis (catastrophe, rollback) :
+
+```bash
+cd /home/fedora/Arbore/backups/daily
+ls -lt | head -5                                   # repérer le snapshot voulu
+SNAPSHOT="arbore-predeploy-2026-05-13T22-15-06Z"
+tar -xzf "${SNAPSHOT}.tar.gz"
+
+source /home/fedora/Arbore/.env
+mongorestore --uri="$MONGODB_URI" --drop --nsInclude="arbore.*" "$SNAPSHOT/arbore"
+```
+
+> `--drop` remplace la DB **prod**. Pour restaurer en `arbore_test`,
+> ajouter `--nsFrom='arbore.*' --nsTo='arbore_test.*'` et utiliser
+> `MONGODB_URI_TEST`.
+
+---
+
+## 11. Sanity checklist post-bootstrap
+
+Cocher ces points avant de considérer le VPS opérationnel :
+
+- [ ] `systemctl is-active docker crond nginx` → tous `active`
+- [ ] `sudo docker compose ps` → `arbore-backend` + `arbore-ai-generator` healthy
+- [ ] `curl -fsS http://localhost:8080/health` → 200 OK
+- [ ] `curl -fsS http://<VPS_IP>/health` → 200 OK (via nginx)
+- [ ] `mongosh "$MONGODB_URI" --quiet --eval 'db.users.countDocuments()'` → entier > 0
+- [ ] `crontab -l` contient l'entrée `cleanup-test-db.sh`
+- [ ] `/home/fedora/Arbore/scripts/cleanup-test-db.sh` finit en exit 0
+- [ ] `ls /home/fedora/Arbore/backups/daily/` ne plante pas (le dossier est créé au 1er `deploy.sh`)
+- [ ] Une PR de test sur GitHub déclenche la CI ; les tests passent en
+      pointant vers `arbore_test`
+
+---
+
+## Annexe — Pare-feu / cloud provider
+
+Selon le provider, le pare-feu au niveau de la VM peut être géré par :
+
+- `firewalld` (Fedora par défaut, désactivé sur la VM actuelle)
+- Les règles "Network" du dashboard cloud (Oracle Cloud, OVH, etc.)
+
+Ports à ouvrir publiquement : **22** (SSH) et **80** (HTTP via nginx).
+**Ne PAS exposer** `:8080` et `:8000` publiquement — ils restent
+accessibles uniquement en localhost (via nginx pour `:8080`, jamais pour
+`:8000`).
+
+---
+
+## Annexe — Rotation des secrets
+
+En cas de fuite (cf. historique des issues #117, #119) :
+
+1. **API key applicative** : générer une nouvelle valeur, mettre à jour
+   `ARBORE_API_KEY` dans `.env`, redéployer (`sudo docker compose up -d
+   backend`). Mettre à jour `Secrets.xcconfig` côté iOS et les secrets
+   GitHub Actions.
+2. **MongoDB user** : Atlas → Database Access → Edit → nouveau password.
+   Mettre à jour `MONGODB_URI` dans `.env`, redéployer.
+3. **Firebase service account** : Console Firebase → révoquer la clé
+   compromise, en générer une nouvelle, remplacer le JSON sur le VPS,
+   redéployer.
+4. **Re-scanner l'historique git** avec `gitleaks detect --config
+   .gitleaks.toml` pour s'assurer que la nouvelle valeur n'est pas, à son
+   tour, dans un commit.

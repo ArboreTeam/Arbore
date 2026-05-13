@@ -35,7 +35,7 @@ struct SinglePlantARContainer: UIViewRepresentable {
         // 2. Configuration AR
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal] // On cherche le sol
-        config.environmentTexturing = .automatic
+        config.environmentTexturing = ARQuality.recommended.environmentTexturing
         
         // Anti-Ecran Noir : on laisse la config standard sans forcer le LiDAR
         if ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) {

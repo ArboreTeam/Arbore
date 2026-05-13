@@ -278,6 +278,12 @@ struct GardenARPlacementView: View {
                 }
             }
         }
+        .overlay(alignment: .top) {
+            // Banner thermal critique (#82). Invisible par défaut, apparait
+            // sur .arboreThermalCritical posée par ARQualityObserver, se
+            // masque sur .arboreThermalRecovered.
+            ThermalStateBanner()
+        }
         .sheet(isPresented: $showPicker) {
             PlantCatalogARView(wizardFilter: wizard) { plant in
                 selectedPlantForPlacement = plant
@@ -756,7 +762,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         
         let config = ARWorldTrackingConfiguration()
         config.planeDetection = [.horizontal]
-        config.environmentTexturing = .automatic
+        config.environmentTexturing = ARQuality.recommended.environmentTexturing
         
         sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
 
@@ -787,7 +793,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 DispatchQueue.main.async {
                     let restartConfig = ARWorldTrackingConfiguration()
                     restartConfig.planeDetection = [.horizontal]
-                    restartConfig.environmentTexturing = .automatic
+                    restartConfig.environmentTexturing = ARQuality.recommended.environmentTexturing
                     restartConfig.initialWorldMap = worldMap
                     sceneView.session.run(restartConfig, options: [.resetTracking, .removeExistingAnchors])
                     AppLog.gardenLoad.notice("WorldMap loaded id=\(mapId, privacy: .public)")

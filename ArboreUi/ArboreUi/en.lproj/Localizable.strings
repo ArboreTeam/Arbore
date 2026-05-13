@@ -895,3 +895,8 @@
 // Garden AR Relocalization
 "GARDEN_LOADING_TITLE" = "Loading your garden";
 "GARDEN_LOADING_SUBTITLE" = "Slowly scan your environment\nto reposition your plants";
+
+// Thermal banner
+"THERMAL_BANNER_TITLE" = "Your phone is getting hot";
+"THERMAL_BANNER_SUBTITLE" = "Consider reducing AR usage to avoid slowdowns.";
+"THERMAL_BANNER_DISMISS" = "Dismiss alert";

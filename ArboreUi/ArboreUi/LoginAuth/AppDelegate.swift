@@ -29,6 +29,11 @@ class AppDelegate: NSObject, UIApplicationDelegate{
             }
         }
 
+        // Start global thermal state observation. Republishes
+        // `.arboreThermalCritical` and `.arboreThermalRecovered` for any
+        // UI component subscribed (cf. ThermalStateBanner). Issue #82.
+        ARQualityObserver.shared.start()
+
         return true
     }
 

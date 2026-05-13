@@ -100,8 +100,32 @@ fi
 # ── 3. Drop arbore_test ───────────────────────────────────────────
 log "INFO Drop de la DB arbore_test..."
 if mongosh "$MONGODB_URI_TEST" --quiet --eval 'db.dropDatabase()'; then
-    log "INFO Drop OK — la DB sera reseedée au prochain démarrage du backend"
+    log "INFO Drop OK"
 else
     log "ERROR drop a échoué"
     exit 3
+fi
+
+# ── 4. Restart backend pour réamorcer le catalogue plantes ────────
+#
+# seedTestDBPlantsIfEmpty() ne tourne qu'au démarrage du backend. Sans
+# restart, les CI runs entre le drop et le prochain redémarrage
+# trouveront plants vide → tests cassés. Restart pour réamorcer.
+#
+# Le container est piloté par docker-compose ; un simple restart suffit.
+# Variable BACKEND_CONTAINER overridable si le nom change (default
+# arbore-backend, défini dans docker-compose.yml).
+
+BACKEND_CONTAINER="${BACKEND_CONTAINER:-arbore-backend}"
+
+if command -v docker >/dev/null 2>&1 && sudo -n docker ps >/dev/null 2>&1; then
+    if sudo -n docker restart "$BACKEND_CONTAINER" >/dev/null 2>&1; then
+        log "INFO Backend container '$BACKEND_CONTAINER' restarted — seed plants amorcé"
+    else
+        log "WARN restart docker a échoué — la DB est dropée mais plants restera vide"
+        log "WARN jusqu'au prochain restart manuel du backend"
+    fi
+else
+    log "WARN docker indisponible ou sans accès sudo, skip du restart"
+    log "WARN la DB est dropée mais plants restera vide jusqu'au prochain restart du backend"
 fi

@@ -296,7 +296,7 @@ struct ExportableView: View {
 // MARK: - 4. UI PRINCIPALE (Avec Correctifs)
 struct ARViewContainerMesure: View {
     let selectedPlants: [Plant]
-    
+
     // 🆕 Paramètres du wizard
     let uid: String
     let wizard: GardenWizardDTO
@@ -306,15 +306,26 @@ struct ARViewContainerMesure: View {
     let measurementOnly: Bool
     let onSuccess: () -> Void
 
+    /// Callback du wizard (`QuestionnaireView`) : appelé quand le tracé est
+    /// validé ET que `POST /gardens` a renvoyé un id Mongo. Fournit l'id
+    /// serveur + les mesures pour que le wizard passe à l'étape suivante.
+    /// Si nil, on retombe sur le flow historique (nested
+    /// `GardenARPlacementView`) qui POST en fin de placement.
+    let onTraceValidated: ((String, [SIMD3<Float>], Float, Float) -> Void)?
+    /// Callback wizard : appelé si l'utilisateur dismiss sans valider.
+    let onCancel: (() -> Void)?
+
     @StateObject var gardenManager = GardenManager()
     @State private var showFullScreenPlan = false
     @State private var saveSuccess = false
     @State private var showARPlacement = false
     @State private var arIsReady = false  // 🆕 Indicateur AR
-    
+    @State private var isCreatingGarden = false
+    @State private var createGardenError: String? = nil
+
     // 🆕 ID temporaire pour la WorldMap
     @State private var tempGardenId = UUID().uuidString
-    
+
     @Environment(\.presentationMode) var presentationMode
     @EnvironmentObject private var tabRouter: TabRouter
 
@@ -335,7 +346,9 @@ struct ARViewContainerMesure: View {
         thumbnailKey: String? = nil,
         existingGardenId: String? = nil,
         measurementOnly: Bool = false,
-        onSuccess: @escaping () -> Void = {}
+        onSuccess: @escaping () -> Void = {},
+        onTraceValidated: ((String, [SIMD3<Float>], Float, Float) -> Void)? = nil,
+        onCancel: (() -> Void)? = nil
     ) {
         self.selectedPlants = selectedPlants
         self.uid = uid
@@ -345,6 +358,97 @@ struct ARViewContainerMesure: View {
         self.existingGardenId = existingGardenId
         self.measurementOnly = measurementOnly
         self.onSuccess = onSuccess
+        self.onTraceValidated = onTraceValidated
+        self.onCancel = onCancel
+    }
+
+    // 🆕 Crée le jardin en base APRÈS le tracé : sauvegarde locale, POST
+    // /gardens, migration des fichiers tempId → serverId, puis callback
+    // au wizard. Conçu pour ne PAS chaîner sur `GardenARPlacementView` —
+    // c'est le wizard qui ouvrira la placement view ensuite, après l'étape
+    // `aiSuggestion`.
+    @MainActor
+    private func createGardenAfterTrace() async {
+        guard onTraceValidated != nil else { return }
+        isCreatingGarden = true
+        createGardenError = nil
+
+        // 1. Demande la sauvegarde de la WorldMap au coordinator AR (notif).
+        saveWorldMapForPlacement()
+        // Délai pour laisser le temps à ARView de matérialiser le fichier
+        // (la sauvegarde est asynchrone côté ARSession.getCurrentWorldMap).
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
+
+        // 2. Écrit la scene JSON avec la boundary mesurée (sans plantes).
+        //    Permet au mode .reopen de retrouver la forme du jardin plus tard.
+        let boundary = gardenManager.points
+        let scene = PersistedARScene(
+            savedAt: Date(),
+            plants: [],
+            boundaryPoints: boundary.map { [$0.x, $0.y, $0.z] },
+            area: gardenManager.area,
+            perimeter: gardenManager.perimeter
+        )
+        let tempSceneURL = GardenLocalStore.sceneURL(for: tempGardenId)
+        do {
+            try JSONEncoder().encode(scene).write(to: tempSceneURL)
+        } catch {
+            print("⚠️ scene JSON pré-write a échoué: \(error)")
+        }
+
+        // 3. POST /gardens — plants vides à ce stade.
+        let createDTO = GardenCreateDTO(
+            name: gardenName,
+            wizard: wizard,
+            plants: [],
+            thumbnailKey: thumbnailKey
+        )
+
+        do {
+            let created = try await GardenAPI.shared.createGarden(createDTO)
+            let serverId = created.id ?? tempGardenId
+
+            // 4. Migration des fichiers tempGardenId → serverId.
+            if serverId != tempGardenId {
+                migrateLocalFiles(from: tempGardenId, to: serverId)
+            }
+
+            // 5. Callback vers le wizard. Pas de presentationMode.dismiss()
+            //    ici — c'est le wizard qui contrôle la cover.
+            onTraceValidated?(serverId, boundary, gardenManager.area, gardenManager.perimeter)
+        } catch {
+            print("❌ POST /gardens a échoué: \(error)")
+            createGardenError = "Impossible de sauvegarder le jardin. Vérifie ta connexion et réessaie."
+        }
+        isCreatingGarden = false
+    }
+
+    /// Renomme/copie les fichiers locaux `worldmap_*.arworldmap` et
+    /// `scene_*.json` du `tempGardenId` vers le `serverId`. Idempotent.
+    private func migrateLocalFiles(from oldId: String, to newId: String) {
+        let fm = FileManager.default
+        let oldMap = GardenLocalStore.worldMapURL(for: oldId)
+        let newMap = GardenLocalStore.worldMapURL(for: newId)
+        if fm.fileExists(atPath: oldMap.path) {
+            do {
+                if fm.fileExists(atPath: newMap.path) { try fm.removeItem(at: newMap) }
+                try fm.copyItem(at: oldMap, to: newMap)
+                try? fm.removeItem(at: oldMap)
+            } catch {
+                print("⚠️ worldmap copy failed: \(error)")
+            }
+        }
+        let oldScene = GardenLocalStore.sceneURL(for: oldId)
+        let newScene = GardenLocalStore.sceneURL(for: newId)
+        if fm.fileExists(atPath: oldScene.path) {
+            do {
+                if fm.fileExists(atPath: newScene.path) { try fm.removeItem(at: newScene) }
+                try fm.copyItem(at: oldScene, to: newScene)
+                try? fm.removeItem(at: oldScene)
+            } catch {
+                print("⚠️ scene copy failed: \(error)")
+            }
+        }
     }
     
     // 🆕 Fonction pour sauvegarder la WorldMap
@@ -544,14 +648,19 @@ struct ARViewContainerMesure: View {
                         }
 
                         Button {
-                            // 🆕 Sauvegarder la WorldMap avant de continuer
-                            print("🎯 Bouton CONTINUER cliqué - Sauvegarde WorldMap...")
+                            print("🎯 Bouton CONTINUER cliqué")
                             if measurementOnly {
+                                // Flow re-mesure depuis ManageGardenView — inchangé.
                                 saveMeasurementsOnly()
+                            } else if onTraceValidated != nil {
+                                // 🆕 Flow wizard : POST /gardens immédiatement et
+                                // rendre la main au wizard pour passer à l'étape
+                                // suivante. Pas de nested AR placement view ici.
+                                Task { await createGardenAfterTrace() }
                             } else {
+                                // Fallback legacy : nested AR placement chain
+                                // (utilisé quand la vue est appelée hors-wizard).
                                 saveWorldMapForPlacement()
-
-                                // Délai pour laisser le temps à la WorldMap de se sauvegarder
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                                     print("🎯 Ouverture GardenARPlacementView avec ID: \(tempGardenId)")
                                     showARPlacement = true

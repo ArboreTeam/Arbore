@@ -3,7 +3,13 @@ import RoomPlan   // On en aura besoin plus tard pour griser l’option LiDAR
 
 struct ScanMethodStepView: View {
     @ObservedObject var state: GardenWizardState
-    let onNext: () -> Void
+
+    /// Déclenché par le CTA primaire. Le parent ouvre une fullScreenCover AR
+    /// (ARViewContainerMesure ou LiDARScanWizardView selon `state.scanMethod`)
+    /// qui trace, sauvegarde la boundary, fait un `POST /gardens` et renvoie
+    /// le `gardenId` créé via son propre callback. Le wizard avance ensuite
+    /// vers `aiSuggestion`.
+    let onStartScan: () -> Void
     let onBack: () -> Void
 
     var body: some View {
@@ -41,11 +47,11 @@ struct ScanMethodStepView: View {
                 // Boutons bas
                 VStack(spacing: 12) {
                     Button {
-                        onNext()
+                        onStartScan()
                     } label: {
                         HStack {
-                            Text("Continuer")
-                            Image(systemName: "arrow.right")
+                            Text("Démarrer le scan")
+                            Image(systemName: "arkit")
                         }
                     }
                     .buttonStyle(PrimaryWizardButtonStyle(isEnabled: state.scanMethod != nil))

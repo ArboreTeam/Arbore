@@ -1506,11 +1506,16 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         
                         Task {
                             var finalServerID: String = tempID
-                            
-                            // 2. Appel API
+
+                            // 2. Appel API — la décision POST vs PUT repose
+                            //    désormais sur la présence de `existingGardenId`,
+                            //    pas sur `mode == .reopen`. Le wizard pré-crée
+                            //    le jardin au step `scanMethod` et passe son id
+                            //    ici, même en `mode = .create`.
                             do {
-                                if props.mode == .reopen, let existingId = props.existingGardenId {
-                                    // Mise à jour d'un jardin existant
+                                if let existingId = props.existingGardenId {
+                                    // Mise à jour d'un jardin existant (.reopen
+                                    // OU .create avec id pré-créé au tracé).
                                     try await GardenAPI.shared.updateGarden(
                                         id: existingId,
                                         patch: GardenAPI.GardenPatch(
@@ -1523,7 +1528,10 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                     finalServerID = existingId
                                     AppLog.gardenSave.notice("api updated garden id=\(existingId, privacy: .public)")
                                 } else {
-                                    // Création d'un nouveau jardin
+                                    // Création d'un nouveau jardin — chemin
+                                    // legacy quand la view est ouverte hors
+                                    // wizard. Le wizard moderne fournit
+                                    // toujours un `existingGardenId`.
                                     let created = try await GardenAPI.shared.createGarden(
                                         GardenCreateDTO(
                                             name: props.gardenName,
@@ -1532,12 +1540,10 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                                             thumbnailKey: props.thumbnailKey
                                         )
                                     )
-                                    
-                                    // Si le serveur nous donne un ID, c'est LUI qui a raison.
+
                                     if let newId = created.id {
                                         finalServerID = newId
                                     }
-                                    
                                     AppLog.gardenSave.notice("api created garden id=\(finalServerID, privacy: .public)")
                                 }
                             } catch {

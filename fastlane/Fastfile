@@ -16,7 +16,11 @@
 
 WORKSPACE = "ArboreUi/ArboreUi.xcworkspace"
 SCHEME    = "ArboreUi"
-AUTH_KEY  = "./fastlane/AuthKey.json"
+# Path absolu vers AuthKey.json — `__dir__` est le dossier du Fastfile,
+# robuste quelle que soit la cwd au moment de l'invocation (fastlane chdir
+# dans `fastlane/` au démarrage, donc un `./fastlane/AuthKey.json`
+# relatif chercherait `fastlane/fastlane/AuthKey.json`).
+AUTH_KEY  = File.expand_path("AuthKey.json", __dir__)
 INTERNAL_GROUP = "Internal QA"
 
 default_platform(:ios)

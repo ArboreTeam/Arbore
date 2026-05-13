@@ -15,8 +15,10 @@ import (
 
 var firebaseAuth *auth.Client
 
-// CheckUserBannedFunc is a function to check if a user is banned in the database
-var CheckUserBannedFunc func(string) (bool, error)
+// CheckUserBannedFunc is a function to check if a user is banned in the database.
+// It receives the gin.Context so the implementation can read DBSelectorKey
+// and route to the appropriate database (prod vs test).
+var CheckUserBannedFunc func(c *gin.Context, uid string) (bool, error)
 
 // isReleaseMode reports whether the server runs in production.
 // In release mode Firebase auth is REQUIRED — any missing credential must fail fast.
@@ -139,7 +141,7 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 		uid := token.UID
 
 		if CheckUserBannedFunc != nil {
-			banned, err := CheckUserBannedFunc(uid)
+			banned, err := CheckUserBannedFunc(c, uid)
 			if err != nil {
 				log.Printf("❌ Error checking ban status: %v", err)
 				c.JSON(500, gin.H{

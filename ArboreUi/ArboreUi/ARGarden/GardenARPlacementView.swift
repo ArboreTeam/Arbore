@@ -1159,12 +1159,24 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     reticle.simdTransform = t
                     reticle.opacity = (newQuality == .geometry) ? 1.0 : 0.6
 
-                    // 🤖 AI Auto-placement: wait for stable plane detection
+                    // 🤖 AI Auto-placement: wait for stable plane detection AND
+                    // require the user to be pointing close to the actual floor
+                    // (cf issue #169). Without this gate the AI batch lands on
+                    // whatever the reticle happens to hit when stability is
+                    // reached — typically a desk if the user holds the phone
+                    // naturally. We accept ±20 cm of reticle slack around the
+                    // detected floor; if the user points at a piece of
+                    // furniture, nothing fires and the user lowers the phone.
+                    let reticleNearFloor: Bool = {
+                        guard let floorY = self.detectedFloorY() else { return false }
+                        return abs(t.columns.3.y - floorY) <= 0.20
+                    }()
                     if !didAutoPlace,
                        newQuality == .geometry,
                        let props = parentProps,
                        props.mode == .create,
-                       !props.plantsToAutoPlace.isEmpty {
+                       !props.plantsToAutoPlace.isEmpty,
+                       reticleNearFloor {
                         stablePlaneFrameCount += 1
                         if stablePlaneFrameCount >= stablePlaneThreshold {
                             didAutoPlace = true
@@ -1172,6 +1184,16 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                             DispatchQueue.main.async { [weak self] in
                                 self?.autoPlaceAIPlants(at: transform)
                             }
+                        }
+                    } else if !didAutoPlace {
+                        // Lost floor proximity (user tilted up) — reset counter
+                        // so the next "valid" pointing has to re-accumulate
+                        // stability. Avoids triggering on a brief floor hit.
+                        if let props = parentProps,
+                           props.mode == .create,
+                           !props.plantsToAutoPlace.isEmpty,
+                           !reticleNearFloor {
+                            stablePlaneFrameCount = 0
                         }
                     }
 
@@ -1208,9 +1230,10 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 // Calculate positions based on style
                 let positions = calculateLayoutPositions(count: count, style: style)
 
-                // Extract center position from transform
+                // Extract center position from transform. The Y is overridden by
+                // the detected floor when available (cf issue #169) — the
+                // reticle is only used for the XZ origin of the layout.
                 let centerX = centerTransform.columns.3.x
-                let centerY = centerTransform.columns.3.y
                 let centerZ = centerTransform.columns.3.z
 
                 Task { [weak self] in
@@ -1244,10 +1267,17 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     await MainActor.run {
                         self.saveStateForUndo()
 
+                        // Floor Y is re-fetched here (not snapshotted at trigger
+                        // time) so that any plane discovered during the model
+                        // download still benefits the placement. Fallback to
+                        // the reticle Y only in the unlikely case the floor
+                        // anchor was removed between trigger and execute.
+                        let placementY: Float = self.detectedFloorY() ?? centerTransform.columns.3.y
+
                         for item in downloadedModels {
                             var transform = centerTransform
                             transform.columns.3.x = centerX + item.offset.x
-                            transform.columns.3.y = centerY
+                            transform.columns.3.y = placementY
                             transform.columns.3.z = centerZ + item.offset.y
 
                             if let axis = item.plant.upAxis {
@@ -1370,14 +1400,23 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 let horizontals = frame.anchors.compactMap { $0 as? ARPlaneAnchor }
                     .filter { $0.alignment == .horizontal }
                 guard !horizontals.isEmpty else { return nil }
-                // The floor is the plane with the largest area AND the lowest Y
-                // among large planes. We pick "largest area" as primary signal —
-                // furniture surfaces are smaller than the floor in most rooms.
-                let largest = horizontals.max(by: {
-                    ($0.planeExtent.width * $0.planeExtent.height) <
-                    ($1.planeExtent.width * $1.planeExtent.height)
+                // The floor is the LOWEST horizontal plane large enough to be a
+                // plausible floor (≥ 0.5 m²). The previous heuristic of "largest
+                // plane wins" failed in rooms where a desk, bed or sofa top
+                // happened to be bigger than the partially-detected floor —
+                // causing the whole garden to snap onto the furniture at
+                // restore time (cf issue #168). If no plane meets the area
+                // threshold, fall back to the lowest among all horizontals so
+                // that early-session restores still get a usable reference.
+                let minFloorArea: Float = 0.5  // m²
+                let candidates = horizontals.filter {
+                    $0.planeExtent.width * $0.planeExtent.height >= minFloorArea
+                }
+                let pool = candidates.isEmpty ? horizontals : candidates
+                let lowest = pool.min(by: {
+                    $0.transform.columns.3.y < $1.transform.columns.3.y
                 })
-                return largest?.transform.columns.3.y
+                return lowest?.transform.columns.3.y
             }
 
             // MARK: - Capture Précise (Crucial pour la Map 2D)
@@ -1453,10 +1492,17 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     if let floorY = floorY {
                         surfaceType = (worldPos.y - floorY) > Self.elevationThresholdMeters ? "elevated" : "floor"
                     } else {
-                        // No floor detected yet — fall back to the old absolute
-                        // threshold. Will misclassify if Y=0 isn't the floor,
-                        // but it's the best guess we have.
-                        surfaceType = worldPos.y > Self.elevationThresholdMeters ? "elevated" : "floor"
+                        // No floor detected yet — default to `floor`. The
+                        // previous fallback `worldPos.y > threshold` assumed
+                        // Y=0 was the floor, which is wrong: Y=0 is the
+                        // device pose at session start, and a phone held at
+                        // chest height puts the real floor at ~Y=-1.5 m,
+                        // mis-classifying every plant as `elevated` (cf
+                        // issue #168). A `floor` mis-classification is safer:
+                        // it falls back to re-snapping at next restore once a
+                        // floor plane is detected, while an `elevated` one
+                        // freezes a stale `surfaceHeight` reference.
+                        surfaceType = "floor"
                     }
                     let surfaceHeight: Float = worldPos.y
 

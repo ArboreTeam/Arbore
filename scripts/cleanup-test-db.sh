@@ -51,13 +51,18 @@ fi
 
 # ── 2. Garde-fou : skip si une CI tourne ──────────────────────────
 #
-# Sans gh CLI, on essaie d'appeler l'API REST directement avec curl +
-# token. Si on ne peut pas vérifier (ni gh ni curl+token), on refuse
-# de drop pour éviter de casser une CI en vol.
+# On essaie dans l'ordre :
+#   1. gh CLI (si installé ET authentifié)
+#   2. curl + GH_TOKEN (si défini)
+#   3. curl sans auth (le dépôt est public, l'API Actions est lisible
+#      sans token — rate-limit 60 req/h largement suffisant pour un
+#      cron quotidien)
+# Si aucune option ne renvoie de réponse, on refuse de drop pour ne
+# pas casser une CI en vol.
 
 count_in_progress=""
 
-if command -v gh >/dev/null 2>&1; then
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
     if count_in_progress=$(gh api "repos/$GH_REPO/actions/runs?status=in_progress" --jq '.total_count' 2>/dev/null); then
         log "INFO via gh CLI : $count_in_progress CI run(s) en cours"
     else
@@ -65,21 +70,25 @@ if command -v gh >/dev/null 2>&1; then
     fi
 fi
 
-if [ -z "$count_in_progress" ] && command -v curl >/dev/null 2>&1 && [ -n "${GH_TOKEN:-}" ]; then
-    response=$(curl -fsS \
-        -H "Authorization: Bearer $GH_TOKEN" \
-        -H "Accept: application/vnd.github+json" \
-        "https://api.github.com/repos/$GH_REPO/actions/runs?status=in_progress" 2>/dev/null) || response=""
+if [ -z "$count_in_progress" ] && command -v curl >/dev/null 2>&1; then
+    curl_args=(-fsS -H "Accept: application/vnd.github+json")
+    if [ -n "${GH_TOKEN:-}" ]; then
+        curl_args+=(-H "Authorization: Bearer $GH_TOKEN")
+        via="REST (authenticated)"
+    else
+        via="REST (anonymous — repo public)"
+    fi
+    response=$(curl "${curl_args[@]}" "https://api.github.com/repos/$GH_REPO/actions/runs?status=in_progress" 2>/dev/null) || response=""
     if [ -n "$response" ]; then
         count_in_progress=$(echo "$response" | grep -oE '"total_count":[[:space:]]*[0-9]+' | head -1 | grep -oE '[0-9]+$' || echo "")
         if [ -n "$count_in_progress" ]; then
-            log "INFO via REST : $count_in_progress CI run(s) en cours"
+            log "INFO via $via : $count_in_progress CI run(s) en cours"
         fi
     fi
 fi
 
 if [ -z "$count_in_progress" ]; then
-    log "ERROR impossible de vérifier le statut CI (ni gh ni curl+GH_TOKEN), abort par sécurité"
+    log "ERROR impossible de vérifier le statut CI (gh + curl ont tous deux échoué), abort par sécurité"
     exit 2
 fi
 

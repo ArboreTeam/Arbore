@@ -82,6 +82,16 @@ for md in "${md_files[@]}"; do
       continue
     fi
 
+    # Skip chemins absolus système (container ou VPS) : la doc d'opérations
+    # cite légitimement /root/firebase-adminsdk.json (intra-container),
+    # /home/fedora/Arbore/... (VPS), /etc/nginx/conf.d/... etc. Ces
+    # chemins n'ont pas de correspondance dans le dépôt et ne doivent
+    # pas faire échouer le drift check.
+    case "$candidate" in
+      /root/*|/home/*|/etc/*|/usr/*|/var/*|/opt/*|/tmp/*|/proc/*|/sys/*)
+        continue ;;
+    esac
+
     # Skip si pas d'extension surveillée
     if ! [[ "$candidate" =~ $EXTS_REGEX$ ]]; then
       continue

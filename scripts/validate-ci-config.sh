@@ -182,13 +182,13 @@ fi
 echo ""
 echo "📝 Vérification documentation..."
 
-if [ -f "docs/CI-CD.md" ]; then
+if [ -f "docs/legacy/CI-CD.md" ]; then
     check "Documentation CI/CD existe"
 else
     warn "Documentation CI/CD manquante"
 fi
 
-if [ -f "docs/TROUBLESHOOTING.md" ]; then
+if [ -f "docs/legacy/TROUBLESHOOTING.md" ]; then
     check "Guide de dépannage existe"
 else
     warn "Guide de dépannage manquant"

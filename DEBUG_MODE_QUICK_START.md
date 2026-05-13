@@ -141,7 +141,7 @@ APRÈS :
 ## 📞 Support
 
 Pour les détails techniques complets, vois :
-- [DEBUG_THUMBNAIL_MODE.md](./docs/DEBUG_THUMBNAIL_MODE.md) - Guide utilisateur
+- [DEBUG_THUMBNAIL_MODE.md](./docs/legacy/DEBUG_THUMBNAIL_MODE.md) - Guide utilisateur
 - [IMPLEMENTATION_DEBUG_THUMBNAILS.md](./IMPLEMENTATION_DEBUG_THUMBNAILS.md) - Guide dev
 
 ---

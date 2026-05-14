@@ -1667,7 +1667,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         // legacy → world frame appliquée si nécessaire.
                         let existingURL = GardenLocalStore.sceneURL(for: id)
                         if let existingData = try? Data(contentsOf: existingURL),
-                           let existingScene = try? JSONDecoder().decode(PersistedARScene.self, from: existingData)?.normalizedToWorldFrame() {
+                           let existingScene = try? JSONDecoder().decode(PersistedARScene.self, from: existingData).normalizedToWorldFrame() {
                             boundaryPointsArray = existingScene.boundaryPoints ?? []
                             savedArea = existingScene.area ?? props.area
                             savedPerimeter = existingScene.perimeter ?? props.perimeter
@@ -2672,7 +2672,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     var plants: [PersistedPlant] = []
                     if FileManager.default.fileExists(atPath: sceneURL.path),
                        let data = try? Data(contentsOf: sceneURL),
-                       let scene = try? JSONDecoder().decode(PersistedARScene.self, from: data)?.normalizedToWorldFrame() {
+                       let scene = try? JSONDecoder().decode(PersistedARScene.self, from: data).normalizedToWorldFrame() {
                         plants = scene.plants
                         boundary = (scene.boundaryPoints ?? []).compactMap { arr in
                             guard arr.count >= 3 else { return nil }

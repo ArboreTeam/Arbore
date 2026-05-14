@@ -480,7 +480,7 @@ struct ARViewContainerMesure: View {
         // en 2 frames incompatibles (= issue #136 — closed by this).
         if FileManager.default.fileExists(atPath: sceneURL.path),
            let data = try? Data(contentsOf: sceneURL),
-           let scene = try? JSONDecoder().decode(PersistedARScene.self, from: data)?.normalizedToWorldFrame() {
+           let scene = try? JSONDecoder().decode(PersistedARScene.self, from: data).normalizedToWorldFrame() {
             existingPlants = scene.plants
         } else {
             existingPlants = []

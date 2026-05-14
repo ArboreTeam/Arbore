@@ -1394,6 +1394,35 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             /// Used to classify a plant as `floor` vs `elevated` independently
             /// of the session's Y=0 origin (which depends on where the user
             /// held the phone at session start, not on the actual floor).
+            /// Two-tier raycast that prefers a real detected plane
+            /// (.existingPlaneGeometry — surveyed surface, reliable) over
+            /// ARKit's feature-point guess (.estimatedPlane). When the
+            /// estimated fallback fires, we lock Y to detectedFloorY() because
+            /// the estimated Y can drift 10-30 cm in low-texture / low-light
+            /// areas (cf audit AR finding Y-4). XZ from the estimate is kept
+            /// since the user's intent is captured by the screen position.
+            ///
+            /// Returns nil if no surface at all is detected — callers should
+            /// refuse the action (drag, tap-teleport, boundary point) rather
+            /// than fall back to a stale value.
+            @MainActor
+            private func resolvedFloorRaycast(at point: CGPoint) -> simd_float3? {
+                guard let arView = arView else { return nil }
+
+                if let q = arView.raycastQuery(from: point, allowing: .existingPlaneGeometry, alignment: .horizontal),
+                   let r = arView.session.raycast(q).first {
+                    let c = r.worldTransform.columns.3
+                    return SIMD3<Float>(c.x, c.y, c.z)
+                }
+                if let q = arView.raycastQuery(from: point, allowing: .estimatedPlane, alignment: .horizontal),
+                   let r = arView.session.raycast(q).first,
+                   let floorY = detectedFloorY() {
+                    let c = r.worldTransform.columns.3
+                    return SIMD3<Float>(c.x, floorY, c.z)
+                }
+                return nil
+            }
+
             @MainActor
             private func detectedFloorY() -> Float? {
                 guard let frame = arView?.session.currentFrame else { return nil }
@@ -2085,11 +2114,19 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         return
                     }
                     // No plant under the reticle — teleport the selected one
-                    // to the reticle's last surface raycast (lastReticleTransform).
-                    if let node = selectedNode, let transform = lastReticleTransform {
+                    // to a fresh surface raycast under the reticle. Going via
+                    // resolvedFloorRaycast (instead of reusing lastReticleTransform)
+                    // ensures the teleport-Y benefits from the floor-locked
+                    // fallback when the reticle was on a low-texture area
+                    // (cf audit AR finding Y-5 / issue #171).
+                    if let node = selectedNode,
+                       let p = resolvedFloorRaycast(at: center) {
                         saveStateForUndo()
-                        let p = transform.columns.3
-                        node.simdWorldPosition = simd_float3(p.x, p.y, p.z)
+                        node.simdWorldPosition = p
+                        // Pivot can become stale after teleport if the plant
+                        // was previously scaled and the new surface is at a
+                        // different height — recompute it.
+                        refreshPivotForScale(node: node)
                         recordDraggedTransform(for: node)
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         deselectAll()
@@ -2139,11 +2176,12 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 // Update the visual position only when the raycast hits a
                 // surface. If it misses (finger over a textureless or non-floor
                 // area), keep the last visual position — don't snap back.
+                // Uses resolvedFloorRaycast which prefers real planes and
+                // locks Y to detectedFloorY() when falling back to estimated
+                // (cf audit AR finding Y-4 / issue #171).
                 let location = gesture.location(in: arView)
-                if let query = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal),
-                   let result = arView.session.raycast(query).first {
-                    let p = result.worldTransform.columns.3
-                    node.simdWorldPosition = simd_float3(p.x, p.y, p.z)
+                if let p = resolvedFloorRaycast(at: location) {
+                    node.simdWorldPosition = p
                 }
 
                 // Persist final position on .ended regardless of last raycast.
@@ -2155,6 +2193,9 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 // halos (which used to disappear with the destroyed node).
                 if gesture.state == .ended || gesture.state == .cancelled {
                     recordDraggedTransform(for: node)
+                    // Re-apply pivot offset in case the plant has been scaled
+                    // and the new surface differs in height (Y-5 in audit).
+                    refreshPivotForScale(node: node)
                 }
             }
 

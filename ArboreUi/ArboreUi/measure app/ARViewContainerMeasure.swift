@@ -182,12 +182,27 @@ struct ARViewContainerGarden: UIViewRepresentable {
         @objc func handleTap(_ sender: UITapGestureRecognizer) {
             guard let arView = self.arView else { return }
             let location = sender.location(in: arView)
-            
-            // Raycast version SceneKit
-            guard let query = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal) else { return }
-            let results = arView.session.raycast(query)
-            
-            if let firstResult = results.first {
+
+            // Two-tier raycast (cf audit AR finding Y-10 / issue #171) :
+            // prefer .existingPlaneGeometry (real detected plane) over
+            // .estimatedPlane (ARKit's best-guess from feature points,
+            // ±10-30 cm en zone faible texture). Le Y de la boundary sert
+            // ensuite de référence dans GardenMorpher.morph(floorY:), donc
+            // une erreur de quelques cm propagée à tous les points de la
+            // boundary contamine durablement les futurs morphs.
+            let result: ARRaycastResult? = {
+                if let q = arView.raycastQuery(from: location, allowing: .existingPlaneGeometry, alignment: .horizontal),
+                   let r = arView.session.raycast(q).first {
+                    return r
+                }
+                if let q = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal),
+                   let r = arView.session.raycast(q).first {
+                    return r
+                }
+                return nil
+            }()
+
+            if let firstResult = result {
                 // 1. Création visuelle (Sphère verte) en SceneKit
                 let sphereGeometry = SCNSphere(radius: 0.05)
                 sphereGeometry.firstMaterial?.diffuse.contents = UIColor.green

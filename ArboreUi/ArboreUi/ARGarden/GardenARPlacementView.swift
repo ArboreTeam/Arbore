@@ -1641,23 +1641,33 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             // Fonction d'écriture disque
             private func saveToDisk(id: String, plants: [PersistedPlant], arView: ARSCNView) {
                 guard let props = parentProps else { return }
-                
+
                 // 1. JSON (Synchrone, facile)
                 do {
-                    // 🔄 En mode reopen, props.boundaryPoints est vide.
-                    // On recharge les bordures depuis le JSON existant pour les préserver.
+                    // Convention #170 : tout est persisté en frame monde ARKit
+                    // (cf doc en tête de GardenLocalStore.swift). Plus de
+                    // normalisation par centroïde : ni les `plants` capturés
+                    // depuis `captureCurrentState`, ni les `boundaryPoints`
+                    // rechargés du JSON existant. Le morpher recalcule les
+                    // centroïdes à la volée pour son MVC.
+                    //
+                    // Pré-fix : ce site soustrayait le centroïde de la
+                    // boundary à `position` et `boundaryPoints` mais pas à
+                    // `transform`, produisant un JSON en 2 frames incompatibles
+                    // (issues #170 / #136).
                     var boundaryPointsArray: [[Float]]
                     var savedArea: Float = props.area
                     var savedPerimeter: Float = props.perimeter
 
                     if !props.boundaryPoints.isEmpty {
-                        // Mode création : on utilise les bordures fraîchement mesurées
+                        // Mode création : boundary fraîchement mesurée, world frame.
                         boundaryPointsArray = props.boundaryPoints.map { [$0.x, $0.y, $0.z] }
                     } else {
-                        // Mode reopen : on relit les bordures déjà sauvegardées dans le JSON
+                        // Mode reopen : on relit la boundary existante. Migration
+                        // legacy → world frame appliquée si nécessaire.
                         let existingURL = GardenLocalStore.sceneURL(for: id)
                         if let existingData = try? Data(contentsOf: existingURL),
-                           let existingScene = try? JSONDecoder().decode(PersistedARScene.self, from: existingData) {
+                           let existingScene = try? JSONDecoder().decode(PersistedARScene.self, from: existingData)?.normalizedToWorldFrame() {
                             boundaryPointsArray = existingScene.boundaryPoints ?? []
                             savedArea = existingScene.area ?? props.area
                             savedPerimeter = existingScene.perimeter ?? props.perimeter
@@ -1667,54 +1677,9 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         }
                     }
 
-                    // When fresh boundary points exist (creation flow), we
-                    // normalize BOTH the boundary and plant positions to the
-                    // boundary's centroid. Keeping them in the same 2D frame
-                    // is required for GardenMorpher (Issue #111) — it reads
-                    // both `plants` and `boundaryPoints` from the saved JSON
-                    // and treats them as living in the same XZ space.
-                    //
-                    // A previous patch saved `plants` raw while still
-                    // normalizing the boundary, which silently broke
-                    // morphing for any garden created since. Both paths
-                    // realign here.
-                    var plantsToSave = plants
-                    if !props.boundaryPoints.isEmpty {
-                        let sumX = props.boundaryPoints.reduce(0.0) { $0 + $1.x }
-                        let sumZ = props.boundaryPoints.reduce(0.0) { $0 + $1.z }
-                        let centroidX = sumX / Float(props.boundaryPoints.count)
-                        let centroidZ = sumZ / Float(props.boundaryPoints.count)
-
-                        AppLog.gardenSave.debug("boundary centroid x=\(centroidX, format: .fixed(precision: 3), privacy: .public) z=\(centroidZ, format: .fixed(precision: 3), privacy: .public)")
-
-                        boundaryPointsArray = boundaryPointsArray.map { point in
-                            [point[0] - centroidX, point[1], point[2] - centroidZ]
-                        }
-                        plantsToSave = plants.map { plant in
-                            PersistedPlant(
-                                plantID: plant.plantID,
-                                plantName: plant.plantName,
-                                modelURLString: plant.modelURLString,
-                                position: [
-                                    plant.position[0] - centroidX,
-                                    plant.position[1],
-                                    plant.position[2] - centroidZ
-                                ],
-                                rotation: plant.rotation,
-                                scale: plant.scale,
-                                transform: plant.transform,
-                                upAxis: plant.upAxis,
-                                surfaceType: plant.surfaceType,
-                                surfaceHeight: plant.surfaceHeight
-                            )
-                        }
-
-                        AppLog.gardenSave.debug("coords normalized plants=\(plantsToSave.count, privacy: .public) boundary=\(boundaryPointsArray.count, privacy: .public)")
-                    }
-
                     let sceneData = PersistedARScene(
                         savedAt: Date(),
-                        plants: plantsToSave,
+                        plants: plants,
                         boundaryPoints: boundaryPointsArray,
                         area: savedArea,
                         perimeter: savedPerimeter
@@ -1764,6 +1729,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         do {
                             let sceneJson = try Data(contentsOf: sceneUrl)
                             let sceneData = try JSONDecoder().decode(PersistedARScene.self, from: sceneJson)
+                                .normalizedToWorldFrame()  // migration legacy (#170)
                             persistedPlants = sceneData.plants
                             AppLog.gardenLoad.notice("scene JSON loaded plants=\(persistedPlants.count, privacy: .public)")
                         } catch {
@@ -2706,7 +2672,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     var plants: [PersistedPlant] = []
                     if FileManager.default.fileExists(atPath: sceneURL.path),
                        let data = try? Data(contentsOf: sceneURL),
-                       let scene = try? JSONDecoder().decode(PersistedARScene.self, from: data) {
+                       let scene = try? JSONDecoder().decode(PersistedARScene.self, from: data)?.normalizedToWorldFrame() {
                         plants = scene.plants
                         boundary = (scene.boundaryPoints ?? []).compactMap { arr in
                             guard arr.count >= 3 else { return nil }

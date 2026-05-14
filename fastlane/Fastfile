@@ -75,13 +75,19 @@ platform :ios do
       include_bitcode: false
     )
 
+    # Internal-only deploy : on ne soumet PAS pour Beta App Review et on
+    # ne passe pas de `groups` (qui pousserait fastlane à appeler
+    # post_beta_app_review_submission, qui exige une "Beta App Description"
+    # qu'on n'a pas renseignée pour Arbore — réservée à la distribution
+    # externe). Le groupe « Internal QA » avec « Enable automatic
+    # distribution » coché côté ASC récupère la build automatiquement
+    # une fois le processing terminé.
     upload_to_testflight(
       api_key_path: AUTH_KEY,
       ipa: "./fastlane/builds/Arbore.ipa",
       distribute_external: false,
-      groups: [INTERNAL_GROUP],
+      skip_submission: true,
       skip_waiting_for_build_processing: false,
-      notify_external_testers: false,
       changelog: "Build interne automatique (lane: beta)."
     )
 

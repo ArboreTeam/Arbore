@@ -35,10 +35,22 @@ class NetworkManagerTests: XCTestCase {
     }
 
     func testAppConfig_APIKey_ShouldExist() {
-        // Assert
-        XCTAssertNotNil(AppConfig.apiKey, "API Key should exist")
+        // Assert : la clé doit être présente, non vide, et de longueur
+        // plausible. On ne contraint plus le préfixe (anciennement
+        // "arbore_") : depuis PR #161, deux clés coexistent (prod et
+        // test, routées par APIKeyMiddleware côté backend) et leur
+        // convention de nommage peut évoluer indépendamment des tests.
         XCTAssertFalse(AppConfig.apiKey.isEmpty, "API Key should not be empty")
-        XCTAssertTrue(AppConfig.apiKey.hasPrefix("arbore_"), "API Key should have correct prefix")
+        XCTAssertGreaterThanOrEqual(
+            AppConfig.apiKey.count,
+            16,
+            "API Key should be at least 16 chars (sanity check, not a security requirement)"
+        )
+        XCTAssertNotEqual(
+            AppConfig.apiKey,
+            "$(ARBORE_API_KEY)",
+            "API Key placeholder should have been substituted at build time"
+        )
     }
 
     // MARK: - HTTP Method Tests

@@ -37,11 +37,24 @@ enum GardenMorpher {
         guard !oldPlants.isEmpty else { return MorphResult(morphedPlants: []) }
 
         let oldPolygon2D = oldBoundary.map { SIMD2<Float>($0.x, $0.z) }
-        let newPolygon2D = newBoundary.map { SIMD2<Float>($0.x, $0.z) }
+        var newPolygon2D = newBoundary.map { SIMD2<Float>($0.x, $0.z) }
+        var newBoundary3D = newBoundary
 
         // Sanity check: same vertex count required for MVC re-application.
         guard oldPolygon2D.count == newPolygon2D.count, oldPolygon2D.count >= 3 else {
             return fallbackToCenter(plants: oldPlants, newBoundary: newBoundary, floorY: floorY)
+        }
+
+        // Winding normalization (cf audit AR F-4) : si l'utilisateur a tracé
+        // la nouvelle boundary en sens opposé de l'ancienne (CW vs CCW), les
+        // index polygon[i] ne correspondent plus aux mêmes coins logiques, et
+        // MVC.apply produit une position miroir. On retourne la nouvelle
+        // boundary pour rétablir la correspondance index-à-index.
+        let oldSignedArea = MeanValueCoordinates.signedArea(oldPolygon2D)
+        let newSignedArea = MeanValueCoordinates.signedArea(newPolygon2D)
+        if oldSignedArea * newSignedArea < 0 {
+            newPolygon2D.reverse()
+            newBoundary3D.reverse()
         }
 
         let oldCentroid2D = centroid(of: oldPolygon2D)
@@ -53,7 +66,7 @@ enum GardenMorpher {
         // saved at oldFloorY + 0.6 ends up at newFloorY + 0.6, regardless of
         // session-Y origin differences.
         let oldFloorY = oldBoundary.reduce(Float(0)) { $0 + $1.y } / Float(oldBoundary.count)
-        let newFloorY = floorY ?? (newBoundary.reduce(Float(0)) { $0 + $1.y } / Float(newBoundary.count))
+        let newFloorY = floorY ?? (newBoundary3D.reduce(Float(0)) { $0 + $1.y } / Float(newBoundary3D.count))
         let floorDelta = newFloorY - oldFloorY
 
         let morphed: [MorphedPlant] = oldPlants.map { plant in

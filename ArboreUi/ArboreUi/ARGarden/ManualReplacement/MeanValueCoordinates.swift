@@ -10,8 +10,10 @@ enum MeanValueCoordinates {
     /// The returned weights sum to 1 and can be used to express the point as a
     /// weighted combination of polygon vertices.
     ///
-    /// Special case: if the point lies exactly on a vertex, that vertex gets weight 1.
-    /// If it lies on an edge, the two endpoints share the weight linearly.
+    /// Special cases (all return early with stable values) :
+    ///   - point ≈ vertex          → that vertex gets weight 1 (canonical basis)
+    ///   - point on edge interior  → linear blend between the two endpoints
+    ///   - degenerate polygon      → uniform weights (apply() returns the centroid)
     static func weights(point p: SIMD2<Float>, polygon: [SIMD2<Float>]) -> [Float] {
         let n = polygon.count
         guard n >= 3 else { return Array(repeating: 1.0 / Float(max(n, 1)), count: n) }
@@ -34,26 +36,27 @@ enum MeanValueCoordinates {
             unit[i] = d / len
         }
 
-        // tan(theta_i / 2) = (1 - cos(theta_i)) / sin(theta_i)
-        // where theta_i is the angle between (vertex_i, vertex_{i+1}) seen from p.
+        // Half-angle tangent of each angle (vertex_i, p, vertex_{i+1}) computed
+        // via atan2(sin, cos) → tan(theta/2). atan2 is numerically stable across
+        // all four quadrants, including near 0 and near ±π, which avoids the
+        // (1 - cos)/sin divergence when |sin| is small (cf audit AR F-3).
         var halfTan = [Float](repeating: 0, count: n)
         for i in 0..<n {
             let next = (i + 1) % n
-            let dot = simd_clamp(simd_dot(unit[i], unit[next]), -1.0, 1.0)
-            // Cross product (2D) for sign of sin.
-            let cross = unit[i].x * unit[next].y - unit[i].y * unit[next].x
-            let sin = cross
-            let cos = dot
-            // Edge case: point on edge between i and next (theta ~ pi).
+            let cos = simd_clamp(simd_dot(unit[i], unit[next]), -1.0, 1.0)
+            // 2D cross product (signed magnitude in the implicit Z axis).
+            let sin = unit[i].x * unit[next].y - unit[i].y * unit[next].x
+            // Edge case: point on edge between i and next (theta ≈ ±π) →
+            // return a linear blend along the edge. Done explicitly because
+            // atan2 + tan(π/2) is undefined (infinity).
             if abs(sin) < 1e-6 && cos < 0 {
-                // Linear blend along the edge — assign and return.
                 let t = dists[next] / (dists[i] + dists[next])
                 weights[i] = t
                 weights[next] = 1 - t
                 return weights
             }
-            // tan(half-angle) via stable formula.
-            halfTan[i] = (1 - cos) / sin
+            let theta = atan2(sin, cos)
+            halfTan[i] = tan(theta / 2)
         }
 
         var totalWeight: Float = 0
@@ -64,11 +67,18 @@ enum MeanValueCoordinates {
             totalWeight += w
         }
 
+        // Degenerate fallback (cf audit AR F-5) : if the total weight is zero
+        // or non-finite (collinear polygon, NaN propagation from a corner
+        // case), return uniform weights so that `apply()` produces the new
+        // polygon's centroid instead of (0, 0). Avoids silently teleporting
+        // every plant to the session origin.
+        guard totalWeight.isFinite, abs(totalWeight) > 1e-6 else {
+            return Array(repeating: 1.0 / Float(n), count: n)
+        }
+
         // Normalize.
-        if totalWeight != 0 {
-            for i in 0..<n {
-                weights[i] /= totalWeight
-            }
+        for i in 0..<n {
+            weights[i] /= totalWeight
         }
 
         return weights
@@ -85,5 +95,18 @@ enum MeanValueCoordinates {
             result += weights[i] * polygon[i]
         }
         return result
+    }
+
+    /// Signed Shoelace area. Positive = counter-clockwise winding,
+    /// negative = clockwise. Used by callers to normalize old/new polygon
+    /// winding before computing weights (cf audit AR F-4).
+    static func signedArea(_ polygon: [SIMD2<Float>]) -> Float {
+        guard polygon.count >= 3 else { return 0 }
+        var sum: Float = 0
+        for i in 0..<polygon.count {
+            let j = (i + 1) % polygon.count
+            sum += polygon[i].x * polygon[j].y - polygon[j].x * polygon[i].y
+        }
+        return sum / 2
     }
 }

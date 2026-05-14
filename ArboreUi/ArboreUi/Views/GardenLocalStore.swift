@@ -15,6 +15,28 @@
 import Foundation
 import SwiftUI
 
+// MARK: - Convention de coordonnées
+//
+// Tout ce qui est persisté dans `scene_<id>.json` est en **frame monde
+// ARKit** (mètres, repère défini au démarrage de la session). Cela
+// concerne :
+//   - `plants[*].position`         : [x, y, z] en world frame
+//   - `plants[*].transform[12..14]`: tx, ty, tz en world frame
+//   - `plants[*].surfaceHeight`    : Y de la surface en world frame
+//   - `boundaryPoints[*]`          : [x, y, z] en world frame
+//
+// `position[0,2]` et `transform[12,14]` du même plant doivent toujours
+// être égaux (sauf 1-2 mm de drift de stripScale). C'est le contrat de
+// l'issue #170 / #136 — pré-fix, certains chemins de save soustrayaient
+// le centroïde de la boundary à `position` et `boundaryPoints` (mais pas
+// à `transform`), produisant un JSON en 2 frames incompatibles.
+//
+// `PersistedARScene.normalizedToWorldFrame()` détecte les jardins legacy
+// (offset constant entre `position` et `transform`) et les migre en
+// mémoire au moment de la lecture. Tous les consommateurs (restore,
+// morpher, saveMeasurementsOnly, saveToDisk reopen) doivent appeler
+// `.normalizedToWorldFrame()` après JSONDecoder.decode().
+
 // MARK: - 1. Gestion des Fichiers (Local Store)
 struct GardenLocalStore {
     static func worldMapURL(for gardenId: String) -> URL {
@@ -91,4 +113,88 @@ struct GardenModel: Identifiable {
     let name: String
     let lastModified: Date
     let thumbnail: String
+}
+
+// MARK: - 4. Migration legacy → world frame
+
+extension PersistedARScene {
+    /// Renvoie une copie du scène garantie en frame monde ARKit (cf entête
+    /// du fichier). Si la scène est déjà en frame monde, renvoie `self`
+    /// inchangé. Si elle est en frame legacy (`position` shifté par le
+    /// centroïde de la boundary, `transform` non-shifté), migre :
+    ///   1. réécrit chaque `plant.position[0,2]` depuis `plant.transform[12,14]`
+    ///   2. ajoute le centroïde déduit à chaque `boundaryPoints[i]`
+    ///
+    /// La détection compare l'écart `transform[12] - position[0]` (et 14/2)
+    /// par plante : tous les plants d'un même jardin legacy partagent le
+    /// même centroïde, donc le même offset. On utilise la médiane pour
+    /// résister à un plant qui aurait été drag-and-saved indépendamment.
+    func normalizedToWorldFrame() -> PersistedARScene {
+        guard !plants.isEmpty else { return self }
+
+        // Per-plant offset between transform translation and stored position.
+        // For a world-frame garden, all offsets ≈ 0. For a legacy garden, all
+        // offsets ≈ boundary centroid.
+        var offsetsX: [Float] = []
+        var offsetsZ: [Float] = []
+        for plant in plants {
+            guard plant.position.count >= 3, plant.transform.count == 16 else { continue }
+            offsetsX.append(plant.transform[12] - plant.position[0])
+            offsetsZ.append(plant.transform[14] - plant.position[2])
+        }
+        guard !offsetsX.isEmpty else { return self }
+
+        let medianX = Self.median(offsetsX)
+        let medianZ = Self.median(offsetsZ)
+
+        // Threshold : 1 cm. Below this we consider the scene already in
+        // world frame (drift between transform and position is negligible).
+        let epsilon: Float = 0.01
+        if abs(medianX) < epsilon && abs(medianZ) < epsilon {
+            return self
+        }
+
+        // Migration : plants take their position from transform (source of
+        // truth in world frame). Boundary points get the centroid added back.
+        let migratedPlants = plants.map { plant -> PersistedPlant in
+            guard plant.position.count >= 3, plant.transform.count == 16 else {
+                return plant
+            }
+            return PersistedPlant(
+                plantID: plant.plantID,
+                plantName: plant.plantName,
+                modelURLString: plant.modelURLString,
+                position: [plant.transform[12], plant.position[1], plant.transform[14]],
+                rotation: plant.rotation,
+                scale: plant.scale,
+                transform: plant.transform,
+                upAxis: plant.upAxis,
+                surfaceType: plant.surfaceType,
+                surfaceHeight: plant.surfaceHeight
+            )
+        }
+
+        let migratedBoundary: [[Float]]? = boundaryPoints.map { points in
+            points.map { point in
+                guard point.count >= 3 else { return point }
+                return [point[0] + medianX, point[1], point[2] + medianZ]
+            }
+        }
+
+        return PersistedARScene(
+            savedAt: savedAt,
+            plants: migratedPlants,
+            boundaryPoints: migratedBoundary,
+            area: area,
+            perimeter: perimeter
+        )
+    }
+
+    private static func median(_ values: [Float]) -> Float {
+        let sorted = values.sorted()
+        let n = sorted.count
+        if n == 0 { return 0 }
+        if n % 2 == 1 { return sorted[n / 2] }
+        return (sorted[n / 2 - 1] + sorted[n / 2]) / 2
+    }
 }

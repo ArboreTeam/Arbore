@@ -473,9 +473,14 @@ struct ARViewContainerMesure: View {
         let sceneURL = GardenLocalStore.sceneURL(for: existingGardenId)
         let existingPlants: [PersistedPlant]
 
+        // Convention #170 : on lit l'existant en migrant si nécessaire
+        // depuis le format legacy (positions shiftées par centroïde) vers
+        // le format world frame. Sans cette migration, écrire une nouvelle
+        // boundary world-frame à côté de plants legacy produirait un JSON
+        // en 2 frames incompatibles (= issue #136 — closed by this).
         if FileManager.default.fileExists(atPath: sceneURL.path),
            let data = try? Data(contentsOf: sceneURL),
-           let scene = try? JSONDecoder().decode(PersistedARScene.self, from: data) {
+           let scene = try? JSONDecoder().decode(PersistedARScene.self, from: data).normalizedToWorldFrame() {
             existingPlants = scene.plants
         } else {
             existingPlants = []

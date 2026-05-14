@@ -44,18 +44,20 @@ platform :ios do
 
   desc "Build + upload TestFlight + distribute à « Internal QA »."
   lane :beta do
-    api_key = app_store_connect_api_key(
-      key_filepath: AUTH_KEY,
-      duration: 1200,
-      in_house: false
-    )
+    # On passe `api_key_path` directement aux actions plutôt que de
+    # construire un hash via `app_store_connect_api_key` — ce helper
+    # attend un `.p8` brut, alors que nous stockons les credentials
+    # dans un JSON déjà au bon format pour `api_key_path` (cf doc
+    # operations/testflight-deploy.md). C'est aussi ce que fait la
+    # lane `current_build` (qui passe le smoke-test).
 
     # Bump build_number = latest_testflight + 1. Échoue volontairement si
     # ASC ne répond pas, plutôt que de pousser une build avec un numéro
     # qui collisionne et fera échouer l'upload après 15 min de processing.
+    version = get_version_number(xcodeproj: "ArboreUi/ArboreUi.xcodeproj")
     latest = latest_testflight_build_number(
-      api_key: api_key,
-      version: get_version_number(xcodeproj: "ArboreUi/ArboreUi.xcodeproj")
+      api_key_path: AUTH_KEY,
+      version: version
     )
     increment_build_number(
       xcodeproj: "ArboreUi/ArboreUi.xcodeproj",
@@ -74,7 +76,7 @@ platform :ios do
     )
 
     upload_to_testflight(
-      api_key: api_key,
+      api_key_path: AUTH_KEY,
       ipa: "./fastlane/builds/Arbore.ipa",
       distribute_external: false,
       groups: [INTERNAL_GROUP],

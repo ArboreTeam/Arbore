@@ -1,26 +1,35 @@
 # Plant3DGenerator input — 30 decorative plants for the Arbore catalogue
 # Format: Common Name | Latin Name | hint | height_m
 #   - column 3 (hint) describes ONLY the plant (foliage, color, habit).
-#     Pot descriptions are now generated separately (cf pots.txt + Meshy
-#     pot library) and replaceable côté iOS — never include "pot" in hint.
-#   - column 4 (height_m) is the realistic indoor height in meters. Used
-#     in the prompt with Meshy `auto_size=True` so the USDZ comes back at
-#     real-world scale; also stored backend-side as Plant.heightMeters
-#     for the catalogue thumbnail's framing.
+#     Pot descriptions sont générés séparément (cf pots.txt + Meshy pot
+#     library à venir) et remplaçables côté iOS — never include "pot" in
+#     hint.
+#   - column 4 (height_m) is the realistic indoor height in meters. Passée
+#     dans le prompt avec Meshy `auto_size=True` pour que le USDZ revienne
+#     déjà à l'échelle réelle ; sera aussi stockée backend-side en
+#     Plant.heightMeters pour le framing de la thumbnail du catalogue.
 # Lines starting with # are ignored.
 #
-# Default behavior:
-#   - Single-plant CLI test:  python generate.py             (first line only)
-#   - Full batch CLI:         python generate.py --all
-#   - Web UI batch:           click "Generate All" in the browser at server.py
-# Already-generated plants (matching {Latin_Name}.usdz in output/) are skipped.
+# Usage principal — interface web :
+#   1. `python server.py` (lance http://localhost:5555, ouvre Safari)
+#   2. Clique sur une plante dans la liste → bouton "Preview only" pour un
+#      test pas cher (20 crédits), ou "Generate" pour la full pipeline
+#      (30 crédits, USDZ texturé inclus).
+#   3. Le `<model-viewer>` Google affiche le GLB inline dès que la stage
+#      preview termine — pas besoin de QuickLook.
+# Backup avant régénération : si tu veux préserver le mesh existant,
+# renomme-le dans `output/` (le pipeline écrase sinon).
 #
-# Migration note (2026-05-16) : the original 30 lines below still mention
-# pots in column 3 — they were generated BEFORE the pot-separation pivot.
-# Only Monstera has been migrated as the pilot. Once the pilot validates,
-# strip pot mentions from the other 29 hints and add their height_m
-# column. Until then those lines will keep producing potted meshes if
-# re-run, which is fine for backward compat.
+# Usage CLI (optionnel — headless / scripts) :
+#   python generate.py             # première ligne seulement
+#   python generate.py --all       # toutes
+#
+# Migration note (2026-05-16) : seul Monstera est au nouveau format
+# plant-only (colonne 4 ajoutée). Les 29 autres lignes mentionnent
+# encore "in a XX pot" en col 3 — elles ont déjà été générées avec
+# l'ancien prompt et leur .usdz reste dans output/. Quand le pilote
+# Monstera valide visuellement, on strip les pots des 29 autres et on
+# rebatch.
 
 Sansevière | Sansevieria trifasciata | tall upright sword-shaped leaves dark green with yellow margins, in a small modern ceramic pot
 Fétuque bleue | Festuca glauca | round blue-silver ornamental grass clump in a low ceramic pot

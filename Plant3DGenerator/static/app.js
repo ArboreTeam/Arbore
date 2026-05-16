@@ -180,6 +180,11 @@ function refreshComposerSelects() {
     // sur stone_grey vs glossy_black). On scale ici à la valeur déclarée.
     if (p.height_m) opt.dataset.heightM = p.height_m;
     if (p.habit) opt.dataset.habit = p.habit;
+    // Default pot id (col 6 input.txt) — auto-selected dans le composer
+    // quand la plante est choisie. Match en USDZ filename : pot_<id>.usdz
+    if (p.default_pot_id) {
+      opt.dataset.defaultPotFilename = `pot_${p.default_pot_id.toLowerCase().replace(/[-]/g, "_")}.usdz`;
+    }
     plantSel.appendChild(opt);
   }
   if (prevPlant) plantSel.value = prevPlant;

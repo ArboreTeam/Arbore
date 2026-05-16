@@ -201,7 +201,23 @@ function initComposer() {
   }
 
   // ── Event wiring ──────────────────────────────────────────────
-  plantSelect.addEventListener("change", (e) => replace("plant", e.target.value));
+  plantSelect.addEventListener("change", async (e) => {
+    await replace("plant", e.target.value);
+    // Auto-pick le pot par défaut (col 6 input.txt) si l'user n'a pas
+    // déjà sélectionné un pot spécifiquement. Le but : choisir une
+    // plante seule te donne un aperçu "par défaut" plausible sans
+    // devoir aussi cliquer dans le pot dropdown.
+    const opt = plantSelect.selectedOptions[0];
+    const defaultPotFilename = opt?.dataset?.defaultPotFilename;
+    if (defaultPotFilename && !potSelect.value) {
+      // Cherche l'option correspondante dans le dropdown pots.
+      const target = Array.from(potSelect.options).find((o) => o.value === defaultPotFilename);
+      if (target) {
+        potSelect.value = defaultPotFilename;
+        await replace("pot", defaultPotFilename);
+      }
+    }
+  });
   potSelect.addEventListener("change", (e) => replace("pot", e.target.value));
   if (resetBtn) {
     resetBtn.addEventListener("click", fit);

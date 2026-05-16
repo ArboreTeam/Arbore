@@ -128,8 +128,8 @@ def get_state():
 
 def _read_input_plants() -> list[dict]:
     """See generate.parse_input for format ; kept duplicated here to avoid
-    a CLI ↔ server dependency cycle. Columns 4 (height_m) and 5 (habit)
-    are forwarded to Meshy via the prompt + auto_size payload."""
+    a CLI ↔ server dependency cycle. Columns 4 (height_m), 5 (habit) and
+    6 (default_pot_id) sont remontées dans /api/input pour le composer."""
     plants: list[dict] = []
     path = ROOT / "input.txt"
     if not path.exists():
@@ -149,12 +149,14 @@ def _read_input_plants() -> list[dict]:
                 except ValueError:
                     height_m = 0.0
             habit = parts[4].lower() if len(parts) >= 5 and parts[4] else "upright"
+            default_pot_id = parts[5] if len(parts) >= 6 and parts[5] else ""
             plants.append({
                 "common": parts[0],
                 "latin": parts[1],
                 "hint": parts[2] if len(parts) >= 3 else "",
                 "height_m": height_m,
                 "habit": habit,
+                "default_pot_id": default_pot_id,
             })
     return plants
 

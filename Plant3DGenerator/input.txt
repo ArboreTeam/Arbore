@@ -1,74 +1,59 @@
 # Plant3DGenerator input — 30 decorative plants for the Arbore catalogue
-# Format: Common Name | Latin Name | hint | height_m | habit
+# Format: Common Name | Latin Name | hint | height_m | habit | default_pot_id
 #   - column 3 (hint) describes ONLY le plant (foliage, color, habit).
 #     Convention "ligne de terre" : le mesh n'inclut PAS de motte / root
 #     ball / soil clump. La plante est coupée net à la base de la tige
 #     (Y=0 du USDZ = surface de la terre). Les pots, eux, ont leur disque
 #     de terre visible à leur rim — c'est eux qui portent la terre. Ne
 #     jamais mentionner "pot", "soil", "root", "motte" dans le hint.
-#   - column 4 (height_m) is the realistic indoor height in meters. Passée
-#     dans le prompt avec Meshy `auto_size=True` pour que le USDZ revienne
-#     déjà à l'échelle réelle ; sera aussi stockée backend-side en
-#     Plant.heightMeters pour le framing de la thumbnail du catalogue.
+#   - column 4 (height_m) is the realistic indoor height in meters.
+#     Hauteurs basées sur les tailles courantes de spécimens vendus en
+#     jardinerie (≠ taille adulte botanique). Sera stockée backend-side
+#     en Plant.heightMeters ; le composer (web + iOS) scale le mesh à
+#     cette taille au runtime — auto_size Meshy est imprécis (variance
+#     ×4 observée, cf issue #185).
 #   - column 5 (habit, optional, default "upright") — pilote le bloc
 #     prompt cascade-aware (cf issue #185). Valeurs supportées :
 #       * upright   — port dressé, tout au-dessus de Y=0 (Sansevière, Olivier)
 #       * trailing  — vines retombantes hors du pot, Y<0 (Pothos, Bougainvillier)
-#       * arching   — frondes/tiges qui s'arquent vers l'extérieur (Fougère Boston, Gaura)
+#       * arching   — frondes/tiges qui s'arquent vers l'extérieur (Fougère, Stipa)
 #       * bushy     — feuillage dense compact au-dessus (Monstera, Buis, Hortensia)
 #     L'omission ou une valeur inconnue retombe sur "upright" (safe default).
-#     Côté backend, sera stocké en Plant.habit pour driver le pot scaling
-#     runtime côté iOS (issue #185 solution C).
-# Lines starting with # are ignored.
-#
-# Usage principal — interface web :
-#   1. `python server.py` (lance http://localhost:5555, ouvre Safari)
-#   2. Clique sur une plante dans la liste → bouton "Preview only" pour un
-#      test pas cher (20 crédits), ou "Generate" pour la full pipeline
-#      (30 crédits, USDZ texturé inclus).
-#   3. Le `<model-viewer>` Google affiche le GLB inline dès que la stage
-#      preview termine — pas besoin de QuickLook.
-# Backup avant régénération : si tu veux préserver le mesh existant,
-# renomme-le dans `output/` (le pipeline écrase sinon).
-#
-# Usage CLI (optionnel — headless / scripts) :
-#   python generate.py             # première ligne seulement
-#   python generate.py --all       # toutes
-#
-# Migration note (2026-05-16) : seul Monstera est au nouveau format
-# plant-only (colonne 4 ajoutée). Les 29 autres lignes mentionnent
-# encore "in a XX pot" en col 3 — elles ont déjà été générées avec
-# l'ancien prompt et leur .usdz reste dans output/. Quand le pilote
-# Monstera valide visuellement, on strip les pots des 29 autres et on
-# rebatch.
+#   - column 6 (default_pot_id, optional) — id d'un pot dans pots.txt.
+#     Servira de seed pour Plant.defaultPotId backend ; le web composer
+#     auto-sélectionne ce pot quand on choisit la plante.
+#     Matching basé sur taille + style horticole (rule of thumb : pot
+#     diameter ≈ plant width × 0.7 ; modern/glossy pour intérieurs
+#     contemporains ; terracotta pour méditerranéen ; hanging pour
+#     trailing ; stone pour graminées / agave ; bonsai pour mini-arbres).
 
-Sansevière | Sansevieria trifasciata | tall upright sword-shaped leaves dark green with yellow margins, in a small modern ceramic pot
-Fétuque bleue | Festuca glauca | round blue-silver ornamental grass clump in a low ceramic pot
-Agave | Agave americana | sculptural rosette of thick grey-blue spiked leaves in a stone pot
-Phormium | Phormium tenax | tall sword-like bronze upright leaves in a tall ceramic pot
-Buis en boule | Buxus sempervirens | dense spherical topiary green foliage in a terracotta pot
-Hortensia | Hydrangea macrophylla | round clusters of blue and pink mophead flowers with broad green leaves in a ceramic pot
-Dahlia | Dahlia hortensis | bright red dahlia pompom flower with dark green foliage in a clay pot
-Géranium | Pelargonium hortorum | compact mound of round green leaves with bright red flower clusters in a ceramic pot
-Anthurium | Anthurium andraeanum | glossy red heart-shaped spathes with dark green oval leaves in a white pot
-Rose trémière | Alcea rosea | tall vertical hollyhock stem with stacked pink flowers in a wide terracotta pot
-Miscanthus | Miscanthus sinensis | tall ornamental grass with silver feathery plumes in a wide stone pot
-Échinacée | Echinacea purpurea | purple coneflowers with prominent orange cone centers in a terracotta pot
-Gaura | Gaura lindheimeri | airy thin stems with small white and pink butterfly-like flowers in a clay pot
-Sauge ornementale | Salvia nemorosa | upright violet-blue flower spikes with green leaves in a ceramic pot
-Achillée millefeuille | Achillea millefolium | flat yellow umbrella-shaped flower clusters with feathery foliage in a low pot
-Érable du Japon | Acer palmatum | small Japanese maple bonsai with delicate red palmate leaves in a shallow bonsai pot
-Bambou Fargesia | Fargesia murielae | clumping bamboo with thin green canes and dense foliage in a tall ceramic pot
-Nandina | Nandina domestica | upright stems with red and green compound leaves and red berry clusters in a ceramic pot
-Azalée japonaise | Rhododendron obtusum | round compact azalea shrub with bright pink flowers in a clay pot
-Ophiopogon noir | Ophiopogon planiscapus | low tuft of black grass-like foliage in a shallow ceramic pot
-Lavande | Lavandula angustifolia | purple flower spikes above silver-grey foliage in a terracotta pot
-Olivier nain | Olea europaea | small olive tree with twisted woody trunk and silver-green leaves in a terracotta pot
-Bougainvillier | Bougainvillea glabra | bright magenta bougainvillea bracts cascading from a clay pot
-Cyprès de Provence | Cupressus sempervirens | tall narrow dark green cypress column in a stone pot
-Stipa | Stipa tenuissima | flowing golden fine ornamental grass tuft in a low ceramic pot
-Monstera | Monstera deliciosa | large tropical leaves with deep fenestrations and holes, glossy dark green | 1.20 | bushy
-Ficus lyre | Ficus lyrata | tall plant with large violin-shaped glossy green leaves in a tall white pot
-Pothos | Epipremnum aureum | trailing variegated green and yellow heart-shaped leaves in a hanging clay pot
-Fougère de Boston | Nephrolepis exaltata | arching bright green fern fronds in a hanging ceramic pot
-Hosta | Hosta plantaginea | wide rosette of large variegated green and white leaves in a ceramic pot
+Sansevière           | Sansevieria trifasciata    | tall upright sword-shaped leaves, dark green with yellow margins                                  | 0.65 | upright   | tall_narrow_ceramic
+Fétuque bleue        | Festuca glauca             | round blue-silver ornamental grass clump                                                          | 0.30 | arching   | wide_low_terracotta
+Agave                | Agave americana            | sculptural rosette of thick grey-blue spiked leaves                                               | 0.60 | bushy     | stone_grey
+Phormium             | Phormium tenax             | tall sword-like bronze upright leaves                                                             | 1.20 | upright   | tall_narrow_ceramic
+Buis en boule        | Buxus sempervirens         | dense spherical topiary green foliage                                                             | 0.60 | bushy     | classic_terracotta
+Hortensia            | Hydrangea macrophylla      | round clusters of blue and pink mophead flowers with broad green leaves                           | 0.80 | bushy     | modern_white_ceramic
+Dahlia               | Dahlia hortensis           | bright red dahlia pompom flower with dark green foliage                                           | 0.70 | upright   | classic_terracotta
+Géranium             | Pelargonium hortorum       | compact mound of round green leaves with bright red flower clusters                               | 0.40 | bushy     | classic_terracotta
+Anthurium            | Anthurium andraeanum       | glossy red heart-shaped spathes with dark green oval leaves                                       | 0.50 | bushy     | glossy_black_ceramic
+Rose trémière        | Alcea rosea                | tall vertical hollyhock stem with stacked pink flowers                                            | 1.50 | upright   | wide_low_terracotta
+Miscanthus           | Miscanthus sinensis        | tall ornamental grass with silver feathery plumes                                                 | 1.50 | arching   | stone_grey
+Échinacée            | Echinacea purpurea         | purple coneflowers with prominent orange cone centers                                             | 0.90 | upright   | classic_terracotta
+Gaura                | Gaura lindheimeri          | airy thin stems with small white and pink butterfly-like flowers                                  | 0.80 | arching   | wide_low_terracotta
+Sauge ornementale    | Salvia nemorosa            | upright violet-blue flower spikes with green leaves                                               | 0.60 | upright   | classic_terracotta
+Achillée millefeuille| Achillea millefolium       | flat yellow umbrella-shaped flower clusters with feathery foliage                                 | 0.70 | upright   | classic_terracotta
+Érable du Japon      | Acer palmatum              | small Japanese maple bonsai with delicate red palmate leaves                                      | 0.50 | bushy     | bonsai_shallow
+Bambou Fargesia      | Fargesia murielae          | clumping bamboo with thin green canes and dense foliage                                           | 1.80 | upright   | tall_narrow_ceramic
+Nandina              | Nandina domestica          | upright stems with red and green compound leaves and red berry clusters                           | 1.20 | upright   | stone_grey
+Azalée japonaise     | Rhododendron obtusum       | round compact azalea shrub with bright pink flowers                                               | 0.60 | bushy     | classic_terracotta
+Ophiopogon noir      | Ophiopogon planiscapus     | low tuft of black grass-like foliage                                                              | 0.20 | arching   | wide_low_terracotta
+Lavande              | Lavandula angustifolia     | purple flower spikes above silver-grey foliage                                                    | 0.50 | upright   | classic_terracotta
+Olivier nain         | Olea europaea              | small olive tree with twisted woody trunk and silver-green leaves                                 | 1.20 | bushy     | classic_terracotta
+Bougainvillier       | Bougainvillea glabra       | bright magenta bougainvillea bracts cascading                                                     | 1.50 | trailing  | hanging_clay
+Cyprès de Provence   | Cupressus sempervirens     | tall narrow dark green cypress column                                                             | 1.80 | upright   | tall_narrow_ceramic
+Stipa                | Stipa tenuissima           | flowing golden fine ornamental grass tuft                                                         | 0.60 | arching   | wide_low_terracotta
+Monstera             | Monstera deliciosa         | large tropical leaves with deep fenestrations and holes, glossy dark green                        | 1.20 | bushy     | modern_white_ceramic
+Ficus lyre           | Ficus lyrata               | tall plant with large violin-shaped glossy green leaves                                           | 1.80 | upright   | modern_white_ceramic
+Pothos               | Epipremnum aureum          | trailing variegated green and yellow heart-shaped leaves                                          | 0.60 | trailing  | hanging_clay
+Fougère de Boston    | Nephrolepis exaltata       | arching bright green fern fronds                                                                  | 0.50 | arching   | hanging_clay
+Hosta                | Hosta plantaginea          | wide rosette of large variegated green and white leaves                                           | 0.50 | bushy     | modern_white_ceramic

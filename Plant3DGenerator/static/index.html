@@ -47,7 +47,7 @@
   <section class="tab-panel" data-tab-panel="combo">
     <div class="panel-header">
       <h2>Composer plante + pot</h2>
-      <small>Side-by-side preview — sélectionne un plant et un pot pour les voir aligner visuellement.</small>
+      <small>Pot posé au sol, plante alignée sur la rim — three.js inline. Reflet de ce que iOS rendra.</small>
     </div>
     <div id="composer">
       <div class="composer-controls">
@@ -57,21 +57,14 @@
         <label>Pot
           <select id="composer-pot"><option value="">— sélectionner —</option></select>
         </label>
+        <button id="composer-reset" type="button">↻ Recadrer caméra</button>
       </div>
-      <div class="composer-viewers">
-        <div class="composer-cell">
-          <h3>Plante</h3>
-          <div id="composer-plant-viewer" class="composer-viewer"></div>
-        </div>
-        <div class="composer-cell">
-          <h3>Pot</h3>
-          <div id="composer-pot-viewer" class="composer-viewer"></div>
-        </div>
-      </div>
+      <div id="composer-viewer"></div>
+      <div id="composer-status"></div>
       <p class="composer-note">
-        ⚠️ Aperçu séparé — la vraie composition (plante posée sur le pot, Y=0 aligné sur la rim, scale habit-aware)
-        se fait côté iOS via <code>PlantPotComposer</code> (cf issue #185). Cette section sert juste à vérifier
-        visuellement les meshes deux à deux avant export.
+        ⚠️ Approximation : la plante est posée à <code>Y = pot.bbox.max.y</code> (rim Y),
+        donc valide la convention « ligne de terre ». La logique iOS finale ajoutera le
+        scaling habit-aware (cf issue #185 solution C) — non simulé ici.
       </p>
     </div>
   </section>
@@ -131,6 +124,19 @@
   <!-- Cache-buster : à incrémenter chaque fois qu'app.js change pour
        éviter qu'un browser caché ne charge un vieux JS et plante sur
        des IDs qui n'existent plus (cf 3-tab refactor du 2026-05-16). -->
-  <script src="/static/app.js?v=20260516-2"></script>
+  <script src="/static/app.js?v=20260516-4"></script>
+
+  <!-- Composer 3D (tab "Plante + Pot") — three.js inline pour empiler
+       pot + plante dans la même scène, alignement à `Y = pot.rimY`.
+       Un module séparé pour ne pas convertir tout app.js en ESM. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script src="/static/composer.js?v=20260516-1" type="module"></script>
 </body>
 </html>

@@ -153,7 +153,12 @@ async function startPotJob(pot, previewOnly) {
 }
 
 // -----------------------------------------------------------------
-// Composer tab (Plante + Pot) — side-by-side preview only
+// Composer tab (Plante + Pot)
+//
+// La vraie composition 3D (load both GLBs dans une scène three.js,
+// align plant à Y = pot.rimY) vit dans composer.js (script module
+// séparé). On garde ici uniquement le populate des <select> à partir
+// des caches plant + pot — composer.js écoute les `change` events.
 // -----------------------------------------------------------------
 
 function refreshComposerSelects() {
@@ -188,31 +193,6 @@ function capitalizeLatin(latin) {
   // Mirror Python's safe_filename: "monstera deliciosa" → "Monstera_Deliciosa"
   return latin.trim().split(/\s+/).map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join("_");
 }
-
-function renderComposerSide(viewerEl, filename) {
-  viewerEl.innerHTML = "";
-  if (!filename) return;
-  const mv = document.createElement("model-viewer");
-  mv.setAttribute("camera-controls", "");
-  mv.setAttribute("auto-rotate", "");
-  mv.setAttribute("shadow-intensity", "1");
-  mv.setAttribute("exposure", "1.0");
-  // For composer we prefer GLB if available (lighter and animatable in
-  // model-viewer). Fallback to USDZ.
-  const glbName = filename.replace(/\.usdz$/i, ".glb");
-  mv.setAttribute("src", "/output/" + glbName + "?t=" + Date.now());
-  mv.setAttribute("ios-src", "/output/" + filename);
-  mv.style.width = "100%";
-  mv.style.height = "100%";
-  viewerEl.appendChild(mv);
-}
-
-document.getElementById("composer-plant").addEventListener("change", (e) => {
-  renderComposerSide(document.getElementById("composer-plant-viewer"), e.target.value);
-});
-document.getElementById("composer-pot").addEventListener("change", (e) => {
-  renderComposerSide(document.getElementById("composer-pot-viewer"), e.target.value);
-});
 
 // -----------------------------------------------------------------
 // Reload (re-fetch both lists)
@@ -303,10 +283,21 @@ function updateStage(stageEl, stage, glbFile) {
       viewer.innerHTML = "";
       viewer.appendChild(mv);
     }
-    const src = "/output/" + glbFile + "?t=" + Date.now();
-    if (!mv.getAttribute("src") || !mv.getAttribute("src").startsWith("/output/" + glbFile)) {
-      mv.setAttribute("src", src);
+    // On force le reload du model-viewer quand le contenu SUR DISQUE a
+    // changé, même si le nom de fichier est identique (relancer un job
+    // sur un job_id existant ré-écrit le GLB). On suit ça via le
+    // task_id Meshy qui est unique par génération. Comparer filename
+    // seul ne suffisait pas — le viewer gardait le vieux mesh en cache.
+    const versionKey = `${glbFile}:${stage.task_id || ""}`;
+    if (stageEl.dataset.glbVersion !== versionKey) {
+      stageEl.dataset.glbVersion = versionKey;
+      mv.setAttribute("src", "/output/" + glbFile + "?t=" + Date.now());
     }
+  } else {
+    // Quand un nouveau cycle de génération démarre (status running,
+    // glb_file vide), reset le marker pour que la prochaine arrivée
+    // du GLB déclenche bien un refresh côté viewer.
+    delete stageEl.dataset.glbVersion;
   }
 }
 

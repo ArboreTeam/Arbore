@@ -143,15 +143,21 @@ def build_pot_prompt(style: str, height_m: float = 0.0) -> str:
     """Build the preview prompt for a pot-only mesh.
 
     Style is a free-form English description ("terracotta pot, modern ceramic
-    white pot, hanging clay pot"). The pot must be empty (no soil, no plant)
-    and have a stable flat base so it sits cleanly on the ground in AR.
+    white pot, hanging clay pot"). Le pot **porte la terre** (disque de soil
+    sombre visible juste sous la rim) parce que dans la convention "ligne
+    de terre" la plante est cut clean à sa base — c'est le pot qui rend
+    visible la transition terre/air.
+
+    Aucune plante, aucune feuille — uniquement le contenant + son disque
+    de terre. Base plate et stable pour que le pot tienne droit en AR.
     """
     parts = [
         style,
-        "empty",
-        "no plant",
-        "no soil",
-        "flat stable base",
+        "filled with rich dark brown potting soil at the top",
+        "soil disc visible just below the rim, flat and level surface of compacted earth",
+        "soil texture: dark brown organic material, fine grain, slightly textured",
+        "no plant, no leaves, no foliage, no stem",
+        "flat stable base, sits cleanly on the ground",
         "realistic PBR texture",
         "studio lighting",
         "white background",

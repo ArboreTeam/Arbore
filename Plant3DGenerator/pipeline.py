@@ -143,26 +143,35 @@ def build_preview_prompt(latin: str, hint: str, height_m: float = 0.0,
 def build_pot_prompt(style: str, height_m: float = 0.0) -> str:
     """Build the preview prompt for a pot-only mesh.
 
-    Style is a free-form English description ("terracotta pot, modern ceramic
-    white pot, hanging clay pot"). Le pot **porte la terre** (disque de soil
-    sombre visible juste sous la rim) parce que dans la convention "ligne
-    de terre" la plante est cut clean à sa base — c'est le pot qui rend
-    visible la transition terre/air.
+    Meshy v2 ne supporte pas `negative_prompt` (renvoie 400 si envoyé,
+    cf meshy_client.create_preview). Donc toute la suppression du
+    contenu "plante" doit passer par le prompt positif lui-même —
+    avec des phrases emphatiques + framing contextuel + substitution
+    du mot "pot" (très associé à "avec plante" dans le corpus Meshy)
+    par "vessel" / "container".
 
-    Framing : "still life of an empty X" + "only contains soil" biaisé
-    explicitement away from le default "pot = plante incluse" du corpus
-    Meshy. Le vrai filet est le `negative_prompt` retourné par
-    `build_pot_negative_prompt()` — à passer en parallèle à l'API.
+    Le pot **porte la terre** (disque sombre visible à sa rim) dans
+    la convention "ligne de terre" — c'est lui qui rend visible la
+    transition terre/air.
     """
+    # Strip "pot" / "planter" from the style — ces mots biaisent Meshy
+    # vers la génération d'une plante (corpus association). "vessel" est
+    # plus neutre et accepte la plupart des qualifiers (clay vessel,
+    # ceramic vessel, stone vessel, bonsai vessel...).
+    neutral_style = style
+    for word in ("planter", "pot"):
+        neutral_style = neutral_style.replace(word, "vessel")
     parts = [
-        f"still life product photography of an empty {style}",
-        "interior filled to the rim with dark brown potting soil",
-        "soil surface flat at the rim level, smooth slightly textured organic earth",
-        "hollow ceramic container with soil contents only, no plant inside",
-        "clean exterior with flat stable base",
+        f"product photography of an empty {neutral_style}",
+        "isolated decorative ceramic object alone on white background",
+        "interior completely filled to the top with dark brown potting soil",
+        "soil surface forms a flat disc at the rim level, smooth slightly textured organic earth",
+        "absolutely empty above the soil — no plant, no leaves, no foliage, no stem, no flower, no branch",
+        "the vessel currently bare, awaits planting later",
+        "horticulture supply shop product shot — just the empty container with soil",
+        "clean exterior, flat stable base, sits flat on the ground",
         "realistic PBR materials",
-        "studio lighting",
-        "white background",
+        "studio lighting, white seamless background",
     ]
     if height_m > 0:
         parts.append(f"approximately {height_m:.2f} meters tall")

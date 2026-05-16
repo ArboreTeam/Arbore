@@ -183,3 +183,148 @@ details summary {
   border-radius: 4px;
 }
 .download-links a:hover { border-color: var(--accent-2); background: rgba(108, 207, 120, 0.1); }
+
+/* ──────────────────────── Tabs (Plantes / Pots / Composer) ─────────── */
+
+#tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+#tabs .tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  padding: 12px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: 0;
+  letter-spacing: 0.3px;
+}
+#tabs .tab:hover:not(.active) {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+}
+#tabs .tab.active {
+  color: var(--accent-2);
+  border-bottom-color: var(--accent-2);
+}
+
+/* Tab panels : default hidden, .active shows. Switching tabs is
+   CSS-only — no DOM destruction, no SSE reset, no job state lost. */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+  gap: 16px;
+}
+.panel-header h2 { margin: 0; }
+.panel-header small { color: var(--muted); font-size: 11px; }
+.panel-header button { font-size: 11px; padding: 6px 12px; }
+
+/* ──────────────────────── Pots chips ───────────────────────────────── */
+
+#pot-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.pot-chip {
+  /* same base style as .plant-chip, just slight visual hint */
+  border-left: 3px solid #8a6a4a;
+}
+.plant-chip .meta {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  margin-top: 2px;
+  text-transform: lowercase;
+}
+
+/* ──────────────────────── Composer (Plante + Pot) ──────────────────── */
+
+#composer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.composer-controls {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.composer-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.composer-controls select {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  min-width: 240px;
+  font-family: inherit;
+}
+.composer-viewers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.composer-cell {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.composer-cell h3 {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+}
+.composer-viewer {
+  min-height: 320px;
+  height: 320px;
+  background: #070707;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.composer-note {
+  font-size: 11px;
+  color: var(--muted);
+  background: rgba(108, 207, 120, 0.05);
+  border-left: 2px solid var(--accent-2);
+  padding: 10px 14px;
+  border-radius: 4px;
+  margin: 0;
+}
+.composer-note code {
+  background: rgba(255, 255, 255, 0.06);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+/* Job-card type tag (visual subhint) */
+.job-card.kind-pot { border-left: 3px solid #8a6a4a; }
+.job-card.kind-plant { border-left: 3px solid var(--accent); }

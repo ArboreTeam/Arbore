@@ -47,6 +47,13 @@ def safe_filename(latin: str) -> str:
     return "_".join(p.capitalize() for p in latin.split() if p)
 
 
+def safe_pot_filename(pot_id: str) -> str:
+    """File-system safe name for a pot USDZ : `pot_<snake_id>`. Used to
+    distinguish pot files from plant files in the shared output/ dir."""
+    safe = "_".join(p.lower() for p in pot_id.replace("-", "_").split("_") if p)
+    return f"pot_{safe}"
+
+
 # Habit values supported in input.txt column 5. Each maps to a specific
 # block of prompt hints injected by `build_preview_prompt` to bias Meshy
 # toward the correct cascade behavior. Default = "upright" when missing
@@ -169,20 +176,35 @@ def build_texture_prompt(latin: str, hint: str) -> str:
     return ", ".join(parts)
 
 
-def scan_existing_jobs(output_dir: Path, known_plants: list[dict]) -> list[Job]:
+def scan_existing_jobs(output_dir: Path, known_plants: list[dict],
+                       known_pots: list[dict] | None = None) -> list[Job]:
     """Rebuild Job objects from files already present in the output directory.
 
     Used at server startup to pre-populate the UI with previously generated
-    plants. Cross-references with the parsed input.txt (when provided) so the
-    common name and hint are restored; falls back to the latin name extracted
-    from the filename otherwise.
+    assets. Cross-references with parsed input.txt (plants) and pots.txt
+    (pots) when provided so the common name + style are restored. Pots are
+    identified by their `pot_` filename prefix.
     """
-    by_id = {safe_filename(p["latin"]): p for p in known_plants}
+    plants_by_id = {safe_filename(p["latin"]): p for p in known_plants}
+    pots_by_id = {safe_pot_filename(p["pot_id"]): p for p in (known_pots or [])}
     jobs: list[Job] = []
     seen: set[str] = set()
 
     def reconstruct(job_id: str) -> Job:
-        meta = by_id.get(job_id)
+        # Pot job ? Prefix-based detection — robust as long as no plant
+        # latin name starts with "Pot_" (none do in the houseplant catalogue).
+        if job_id.startswith("pot_"):
+            meta = pots_by_id.get(job_id)
+            if meta:
+                return make_pot_job(
+                    meta["pot_id"], meta["display_name"], meta["style"],
+                    top_diameter_cm=meta.get("top_diameter_cm", 0.0),
+                    height_cm=meta.get("height_cm", 0.0),
+                )
+            # Fallback: derive a display name from the suffix.
+            short = job_id[len("pot_"):].replace("_", " ").title()
+            return make_pot_job(job_id[len("pot_"):], short, short)
+        meta = plants_by_id.get(job_id)
         if meta:
             return make_job(meta["common"], meta["latin"], meta.get("hint", ""))
         # Fallback: filename "Sansevieria_Trifasciata" → latin "sansevieria trifasciata"
@@ -235,6 +257,24 @@ def scan_existing_jobs(output_dir: Path, known_plants: list[dict]) -> list[Job]:
         jobs.append(job)
 
     return jobs
+
+
+def make_pot_job(pot_id: str, display_name: str, style: str,
+                 top_diameter_cm: float = 0.0, height_cm: float = 0.0) -> Job:
+    """Pot-specific make_job. Stores prompt + identity ; the runner doesn't
+    care whether it's a plant or a pot (same preview→refine pipeline)."""
+    height_m = height_cm / 100.0 if height_cm > 0 else 0.0
+    prompt = build_pot_prompt(style, height_m=height_m)
+    if top_diameter_cm > 0:
+        prompt += f", approximately {top_diameter_cm / 100.0:.2f} meters wide at the top"
+    return Job(
+        job_id=safe_pot_filename(pot_id),
+        common=display_name,
+        latin=pot_id,                  # reuse `latin` slot to carry the canonical id
+        hint=style,
+        prompt=prompt,
+        texture_prompt=prompt,
+    )
 
 
 def make_job(common: str, latin: str, hint: str = "", height_m: float = 0.0,

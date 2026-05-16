@@ -11,20 +11,77 @@
   <header>
     <h1>🌱 Plant3DGenerator</h1>
     <div id="toolbar">
-      <button id="generate-all">▶ Generate All</button>
-      <button id="reload-input">↻ Reload input.txt</button>
+      <button id="reload-input">↻ Reload input/pots</button>
     </div>
   </header>
 
-  <section id="available">
-    <h2>Plantes disponibles (depuis input.txt)</h2>
+  <!-- Tabs : changer d'onglet n'arrête PAS les jobs en cours, l'UI bascule
+       juste en CSS. La SSE et les jobs côté serveur sont indépendants du
+       tab actif. La section #pipeline (en bas) reste toujours visible et
+       affiche les jobs de toutes les sections. -->
+  <nav id="tabs" role="tablist">
+    <button class="tab active" data-tab="plants" role="tab">🌿 Plantes</button>
+    <button class="tab" data-tab="pots"   role="tab">🪴 Pots</button>
+    <button class="tab" data-tab="combo"  role="tab">🌿+🪴 Plante + Pot</button>
+  </nav>
+
+  <!-- TAB : Plantes -->
+  <section class="tab-panel active" data-tab-panel="plants">
+    <div class="panel-header">
+      <h2>Plantes disponibles (depuis input.txt)</h2>
+      <button id="generate-all-plants">▶ Generate All plants</button>
+    </div>
     <div id="plant-list"></div>
   </section>
 
+  <!-- TAB : Pots -->
+  <section class="tab-panel" data-tab-panel="pots">
+    <div class="panel-header">
+      <h2>Pots disponibles (depuis pots.txt)</h2>
+      <button id="generate-all-pots">▶ Generate All pots</button>
+    </div>
+    <div id="pot-list"></div>
+  </section>
+
+  <!-- TAB : Composer (Plante + Pot) -->
+  <section class="tab-panel" data-tab-panel="combo">
+    <div class="panel-header">
+      <h2>Composer plante + pot</h2>
+      <small>Side-by-side preview — sélectionne un plant et un pot pour les voir aligner visuellement.</small>
+    </div>
+    <div id="composer">
+      <div class="composer-controls">
+        <label>Plante
+          <select id="composer-plant"><option value="">— sélectionner —</option></select>
+        </label>
+        <label>Pot
+          <select id="composer-pot"><option value="">— sélectionner —</option></select>
+        </label>
+      </div>
+      <div class="composer-viewers">
+        <div class="composer-cell">
+          <h3>Plante</h3>
+          <div id="composer-plant-viewer" class="composer-viewer"></div>
+        </div>
+        <div class="composer-cell">
+          <h3>Pot</h3>
+          <div id="composer-pot-viewer" class="composer-viewer"></div>
+        </div>
+      </div>
+      <p class="composer-note">
+        ⚠️ Aperçu séparé — la vraie composition (plante posée sur le pot, Y=0 aligné sur la rim, scale habit-aware)
+        se fait côté iOS via <code>PlantPotComposer</code> (cf issue #185). Cette section sert juste à vérifier
+        visuellement les meshes deux à deux avant export.
+      </p>
+    </div>
+  </section>
+
+  <!-- Pipeline : toujours visible quel que soit le tab. Les job-cards
+       restent dans le DOM même si on change d'onglet. -->
   <section id="pipeline">
-    <h2>Pipeline</h2>
+    <h2>Pipeline (jobs en cours / récents)</h2>
     <div id="jobs">
-      <p class="empty">Aucun job lancé. Clique sur une plante ci-dessus pour démarrer.</p>
+      <p class="empty">Aucun job lancé.</p>
     </div>
   </section>
 

@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from meshy_client import MeshyClient
-from pipeline import Job, PipelineRunner, make_job, scan_existing_jobs
+from pipeline import Job, PipelineRunner, make_job, make_pot_job, scan_existing_jobs
 
 ROOT = Path(__file__).parent
 OUTPUT_DIR = ROOT / "output"
@@ -81,7 +81,7 @@ async def lifespan(_app: FastAPI):
     global _loop
     _loop = asyncio.get_running_loop()
 
-    existing = scan_existing_jobs(OUTPUT_DIR, _read_input_plants())
+    existing = scan_existing_jobs(OUTPUT_DIR, _read_input_plants(), _read_input_pots())
     with _lock:
         for job in existing:
             _jobs[job.job_id] = job
@@ -103,6 +103,15 @@ class StartJobReq(BaseModel):
     hint: str = ""
     height_m: float = 0.0
     habit: str = "upright"
+    preview_only: bool = False
+
+
+class StartPotJobReq(BaseModel):
+    pot_id: str
+    display_name: str
+    style: str
+    top_diameter_cm: float = 0.0
+    height_cm: float = 0.0
     preview_only: bool = False
 
 
@@ -155,6 +164,50 @@ def get_input():
     return _read_input_plants()
 
 
+def _read_input_pots() -> list[dict]:
+    """Parse pots.txt — one pot per non-comment line.
+
+    Format: pot_id | Display Name | style | top_diameter_cm | height_cm
+    """
+    pots: list[dict] = []
+    path = ROOT / "pots.txt"
+    if not path.exists():
+        return pots
+    with open(path) as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = [p.strip() for p in line.split("|")]
+            if len(parts) < 3:
+                continue
+            top_d = 0.0
+            height = 0.0
+            if len(parts) >= 4 and parts[3]:
+                try:
+                    top_d = float(parts[3])
+                except ValueError:
+                    top_d = 0.0
+            if len(parts) >= 5 and parts[4]:
+                try:
+                    height = float(parts[4])
+                except ValueError:
+                    height = 0.0
+            pots.append({
+                "pot_id": parts[0],
+                "display_name": parts[1],
+                "style": parts[2],
+                "top_diameter_cm": top_d,
+                "height_cm": height,
+            })
+    return pots
+
+
+@app.get("/api/pots")
+def get_pots():
+    return _read_input_pots()
+
+
 def _enqueue_job(job: Job, preview_only: bool) -> None:
     _executor.submit(_runner.run, job, preview_only=preview_only)
 
@@ -163,6 +216,21 @@ def _enqueue_job(job: Job, preview_only: bool) -> None:
 def start_job(req: StartJobReq):
     job = make_job(req.common, req.latin, req.hint,
                    height_m=req.height_m, habit=req.habit)
+    with _lock:
+        existing = _jobs.get(job.job_id)
+        if existing and existing.stages["preview"].status == "running":
+            raise HTTPException(409, "already running")
+        _jobs[job.job_id] = job
+    _emit(job)
+    _enqueue_job(job, req.preview_only)
+    return {"job_id": job.job_id}
+
+
+@app.post("/api/generate-pot")
+def start_pot_job(req: StartPotJobReq):
+    job = make_pot_job(req.pot_id, req.display_name, req.style,
+                       top_diameter_cm=req.top_diameter_cm,
+                       height_cm=req.height_cm)
     with _lock:
         existing = _jobs.get(job.job_id)
         if existing and existing.stages["preview"].status == "running":

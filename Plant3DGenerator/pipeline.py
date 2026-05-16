@@ -48,25 +48,41 @@ def safe_filename(latin: str) -> str:
 
 
 def build_preview_prompt(latin: str, hint: str, height_m: float = 0.0) -> str:
-    """Build the preview prompt for a plant-only mesh (no pot).
+    """Build the preview prompt for a plant-only mesh — "soil line" convention.
 
-    The hint is expected to describe ONLY the plant (foliage, color, shape) —
-    pot descriptions are dropped because pots are generated separately as a
-    swappable library on the iOS side. The mesh base must show a clean root
-    ball / soil clump so the plant looks natural when dropped into any pot.
+    The plant is generated with **NO motte / root ball / soil clump** at the
+    base. Convention used by professional 3D plant libraries (TurboSquid,
+    Sketchfab "potted plant — plant only" assets) : the USDZ contains only
+    what's visible ABOVE the soil line (leaves, stems, foliage). The mesh
+    is cut clean at the stem base and origin is at Y=0 = soil line.
 
-    `height_m` is appended to the prompt only as a textual hint for Meshy's
-    auto_size feature ("approx 1.2 meters tall"). The actual scaling is done
-    by Meshy server-side when `auto_size=True` is set on the API payload.
+    Why no root ball : at composition time iOS aligns plant.position.y
+    with pot.soilSurfaceY. If the plant carried its own motte, the motte
+    would either poke out the sides (motte wider than pot rim) or float
+    above the pot's visible soil disc (motte too small). Cutting at the
+    soil line lets a single plant mesh combine with any pot of any
+    diameter as long as the camera doesn't dive UNDER the rim — which it
+    doesn't in AR/catalogue eye-level views.
+
+    The hint describes ONLY the plant (foliage, color, habit) — no pot,
+    no motte, no soil. `height_m` is injected as a textual hint for
+    Meshy `auto_size` server-side.
     """
     parts = [f"a {latin} houseplant"]
     if hint:
         parts.append(hint)
     parts.extend([
-        "no pot, no container",
-        "exposed root ball at base",
-        "compact soil clump under the plant",
-        "realistic plant only",
+        # The "no" stack — repeated phrasings to bias Meshy away from its
+        # default "plant comes with soil" training prior.
+        "leaves stems and foliage only",
+        "cut clean at the base of the stem",
+        "no roots visible",
+        "no soil, no soil clump, no root ball, no motte",
+        "no pot, no container, no base, no plinth",
+        "stem emerging from invisible ground plane",
+        "ready to be inserted into a separate pot",
+        # Visual quality hints.
+        "realistic indoor plant",
         "symmetric front view",
         "studio lighting",
         "white background",
@@ -99,14 +115,16 @@ def build_pot_prompt(style: str, height_m: float = 0.0) -> str:
 
 
 def build_texture_prompt(latin: str, hint: str) -> str:
-    """Texture refinement prompt. Plant-only — no pot mention so the
-    refine step doesn't bake pot materials onto the plant geometry."""
+    """Texture refinement prompt. Soil-line convention — no soil, no pot
+    so the refine step doesn't bake those materials onto the plant
+    geometry. Mirror of build_preview_prompt's "no" stack."""
     parts = [f"realistic PBR texture of {latin} plant"]
     if hint:
         parts.append(hint)
     parts.extend([
         "natural plant materials only",
-        "visible soil and root ball at base",
+        "no soil texture, no pot texture, no terracotta",
+        "leaves stems foliage materials only",
     ])
     return ", ".join(parts)
 

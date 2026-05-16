@@ -1,9 +1,11 @@
 # Plant3DGenerator input — 30 decorative plants for the Arbore catalogue
 # Format: Common Name | Latin Name | hint | height_m
-#   - column 3 (hint) describes ONLY the plant (foliage, color, habit).
-#     Pot descriptions sont générés séparément (cf pots.txt + Meshy pot
-#     library à venir) et remplaçables côté iOS — never include "pot" in
-#     hint.
+#   - column 3 (hint) describes ONLY le plant (foliage, color, habit).
+#     Convention "ligne de terre" : le mesh n'inclut PAS de motte / root
+#     ball / soil clump. La plante est coupée net à la base de la tige
+#     (Y=0 du USDZ = surface de la terre). Les pots, eux, ont leur disque
+#     de terre visible à leur rim — c'est eux qui portent la terre. Ne
+#     jamais mentionner "pot", "soil", "root", "motte" dans le hint.
 #   - column 4 (height_m) is the realistic indoor height in meters. Passée
 #     dans le prompt avec Meshy `auto_size=True` pour que le USDZ revienne
 #     déjà à l'échelle réelle ; sera aussi stockée backend-side en

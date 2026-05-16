@@ -102,6 +102,7 @@ class StartJobReq(BaseModel):
     latin: str
     hint: str = ""
     height_m: float = 0.0
+    habit: str = "upright"
     preview_only: bool = False
 
 
@@ -118,8 +119,8 @@ def get_state():
 
 def _read_input_plants() -> list[dict]:
     """See generate.parse_input for format ; kept duplicated here to avoid
-    a CLI ↔ server dependency cycle. Column 4 (height_m) is parsed as
-    float and forwarded to Meshy via the prompt + auto_size payload."""
+    a CLI ↔ server dependency cycle. Columns 4 (height_m) and 5 (habit)
+    are forwarded to Meshy via the prompt + auto_size payload."""
     plants: list[dict] = []
     path = ROOT / "input.txt"
     if not path.exists():
@@ -138,11 +139,13 @@ def _read_input_plants() -> list[dict]:
                     height_m = float(parts[3])
                 except ValueError:
                     height_m = 0.0
+            habit = parts[4].lower() if len(parts) >= 5 and parts[4] else "upright"
             plants.append({
                 "common": parts[0],
                 "latin": parts[1],
                 "hint": parts[2] if len(parts) >= 3 else "",
                 "height_m": height_m,
+                "habit": habit,
             })
     return plants
 
@@ -158,7 +161,8 @@ def _enqueue_job(job: Job, preview_only: bool) -> None:
 
 @app.post("/api/generate")
 def start_job(req: StartJobReq):
-    job = make_job(req.common, req.latin, req.hint, height_m=req.height_m)
+    job = make_job(req.common, req.latin, req.hint,
+                   height_m=req.height_m, habit=req.habit)
     with _lock:
         existing = _jobs.get(job.job_id)
         if existing and existing.stages["preview"].status == "running":
@@ -183,7 +187,8 @@ def start_batch():
     with _lock:
         for p in plants:
             job = make_job(p["common"], p["latin"], p.get("hint", ""),
-                           height_m=p.get("height_m", 0.0))
+                           height_m=p.get("height_m", 0.0),
+                           habit=p.get("habit", "upright"))
             existing_usdz = OUTPUT_DIR / f"{job.job_id}.usdz"
             if existing_usdz.exists():
                 skipped_done.append(job.job_id)

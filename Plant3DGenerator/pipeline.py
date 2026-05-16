@@ -47,7 +47,15 @@ def safe_filename(latin: str) -> str:
     return "_".join(p.capitalize() for p in latin.split() if p)
 
 
-def build_preview_prompt(latin: str, hint: str, height_m: float = 0.0) -> str:
+# Habit values supported in input.txt column 5. Each maps to a specific
+# block of prompt hints injected by `build_preview_prompt` to bias Meshy
+# toward the correct cascade behavior. Default = "upright" when missing
+# from input.txt (backward compat).
+SUPPORTED_HABITS = {"upright", "trailing", "arching", "bushy"}
+
+
+def build_preview_prompt(latin: str, hint: str, height_m: float = 0.0,
+                         habit: str = "upright") -> str:
     """Build the preview prompt for a plant-only mesh — "soil line" convention.
 
     The plant is generated with **NO motte / root ball / soil clump** at the
@@ -63,6 +71,13 @@ def build_preview_prompt(latin: str, hint: str, height_m: float = 0.0) -> str:
     soil line lets a single plant mesh combine with any pot of any
     diameter as long as the camera doesn't dive UNDER the rim — which it
     doesn't in AR/catalogue eye-level views.
+
+    `habit` (cf issue #185) drives a habit-specific block to guide Meshy
+    on cascade behavior. Trailing / arching plants have foliage that
+    drapes BELOW the soil line (Y < 0) outside an imaginary pot rim ;
+    upright / bushy plants have all their visible foliage ABOVE Y = 0.
+    Without this guidance Meshy can position trailing vines too close to
+    the central axis, leading to runtime clipping through the pot wall.
 
     The hint describes ONLY the plant (foliage, color, habit) — no pot,
     no motte, no soil. `height_m` is injected as a textual hint for
@@ -81,6 +96,31 @@ def build_preview_prompt(latin: str, hint: str, height_m: float = 0.0) -> str:
         "no pot, no container, no base, no plinth",
         "stem emerging from invisible ground plane",
         "ready to be inserted into a separate pot",
+    ])
+    # Habit-specific cascade guidance (issue #185, solution B).
+    habit_norm = habit.lower().strip() if habit else "upright"
+    if habit_norm == "trailing":
+        parts.extend([
+            "long vines that drape outward over an invisible pot rim",
+            "cascading foliage falling below the soil line outside the pot",
+            "trailing stems hanging vertically beside an imaginary 20 cm rim",
+        ])
+    elif habit_norm == "arching":
+        parts.extend([
+            "fronds arching outward then curving downward",
+            "foliage extending sideways past an invisible pot rim before falling",
+        ])
+    elif habit_norm == "bushy":
+        parts.extend([
+            "dense compact foliage above the soil line",
+            "rounded crown of leaves, no trailing parts",
+        ])
+    else:  # "upright" or unrecognised → safe default
+        parts.extend([
+            "upright growth strictly above the soil line",
+            "no trailing leaves, no foliage below the stem base",
+        ])
+    parts.extend([
         # Visual quality hints.
         "realistic indoor plant",
         "symmetric front view",
@@ -197,12 +237,13 @@ def scan_existing_jobs(output_dir: Path, known_plants: list[dict]) -> list[Job]:
     return jobs
 
 
-def make_job(common: str, latin: str, hint: str = "", height_m: float = 0.0) -> Job:
+def make_job(common: str, latin: str, hint: str = "", height_m: float = 0.0,
+             habit: str = "upright") -> Job:
     # Mirror the Meshy website's "Texture" button behavior: it auto-fills the
     # texture prompt with the original preview prompt. We do the same by
     # aliasing texture_prompt to prompt. Override manually if you need to
     # force specific material hints later (call build_texture_prompt).
-    prompt = build_preview_prompt(latin, hint, height_m=height_m)
+    prompt = build_preview_prompt(latin, hint, height_m=height_m, habit=habit)
     return Job(
         job_id=safe_filename(latin),
         common=common,

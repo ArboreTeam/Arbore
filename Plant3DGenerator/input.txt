@@ -1,5 +1,5 @@
 # Plant3DGenerator input — 30 decorative plants for the Arbore catalogue
-# Format: Common Name | Latin Name | hint | height_m
+# Format: Common Name | Latin Name | hint | height_m | habit
 #   - column 3 (hint) describes ONLY le plant (foliage, color, habit).
 #     Convention "ligne de terre" : le mesh n'inclut PAS de motte / root
 #     ball / soil clump. La plante est coupée net à la base de la tige
@@ -10,6 +10,15 @@
 #     dans le prompt avec Meshy `auto_size=True` pour que le USDZ revienne
 #     déjà à l'échelle réelle ; sera aussi stockée backend-side en
 #     Plant.heightMeters pour le framing de la thumbnail du catalogue.
+#   - column 5 (habit, optional, default "upright") — pilote le bloc
+#     prompt cascade-aware (cf issue #185). Valeurs supportées :
+#       * upright   — port dressé, tout au-dessus de Y=0 (Sansevière, Olivier)
+#       * trailing  — vines retombantes hors du pot, Y<0 (Pothos, Bougainvillier)
+#       * arching   — frondes/tiges qui s'arquent vers l'extérieur (Fougère Boston, Gaura)
+#       * bushy     — feuillage dense compact au-dessus (Monstera, Buis, Hortensia)
+#     L'omission ou une valeur inconnue retombe sur "upright" (safe default).
+#     Côté backend, sera stocké en Plant.habit pour driver le pot scaling
+#     runtime côté iOS (issue #185 solution C).
 # Lines starting with # are ignored.
 #
 # Usage principal — interface web :
@@ -58,7 +67,7 @@ Olivier nain | Olea europaea | small olive tree with twisted woody trunk and sil
 Bougainvillier | Bougainvillea glabra | bright magenta bougainvillea bracts cascading from a clay pot
 Cyprès de Provence | Cupressus sempervirens | tall narrow dark green cypress column in a stone pot
 Stipa | Stipa tenuissima | flowing golden fine ornamental grass tuft in a low ceramic pot
-Monstera | Monstera deliciosa | large tropical leaves with deep fenestrations and holes, glossy dark green | 1.20
+Monstera | Monstera deliciosa | large tropical leaves with deep fenestrations and holes, glossy dark green | 1.20 | bushy
 Ficus lyre | Ficus lyrata | tall plant with large violin-shaped glossy green leaves in a tall white pot
 Pothos | Epipremnum aureum | trailing variegated green and yellow heart-shaped leaves in a hanging clay pot
 Fougère de Boston | Nephrolepis exaltata | arching bright green fern fronds in a hanging ceramic pot

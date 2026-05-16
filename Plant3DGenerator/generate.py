@@ -26,11 +26,13 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 def parse_input(path: Path):
     """Parse input.txt — one plant per non-comment line.
 
-    Format: `Common Name | Latin Name | hint | height_m`
-      - column 4 (height_m, optional) is a real-world height in meters that
-        we pass to Meshy as a textual hint when building the prompt. Combined
-        with Meshy's `auto_size=True`, this anchors the mesh dimensions to
-        the species' realistic size (cf Plant3DGenerator pot/size revamp).
+    Format: `Common Name | Latin Name | hint | height_m | habit`
+      - column 4 (height_m, optional) : real-world height in meters
+        forwarded to Meshy via the prompt + `auto_size=True`.
+      - column 5 (habit, optional, default "upright") : drives the
+        cascade-aware prompt block (cf issue #185). Valid values :
+        upright | trailing | arching | bushy. Anything unrecognised
+        falls back to "upright".
     """
     plants = []
     with open(path) as f:
@@ -47,11 +49,13 @@ def parse_input(path: Path):
                     height_m = float(parts[3])
                 except ValueError:
                     height_m = 0.0
+            habit = parts[4].lower() if len(parts) >= 5 and parts[4] else "upright"
             plants.append({
                 "common": parts[0],
                 "latin": parts[1],
                 "hint": parts[2] if len(parts) >= 3 else "",
                 "height_m": height_m,
+                "habit": habit,
             })
     return plants
 
@@ -108,7 +112,8 @@ def main() -> None:
 
     ok = 0
     for pl in plants:
-        job = make_job(pl["common"], pl["latin"], pl["hint"], height_m=pl["height_m"])
+        job = make_job(pl["common"], pl["latin"], pl["hint"],
+                       height_m=pl["height_m"], habit=pl["habit"])
         runner.run(job, preview_only=args.preview_only)
         last_stage = "preview" if args.preview_only else "refine"
         if job.stages[last_stage].status == "done":

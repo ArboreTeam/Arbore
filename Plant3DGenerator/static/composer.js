@@ -86,6 +86,45 @@ function initComposer() {
   const loadGLB = (url) =>
     new Promise((resolve, reject) => loader.load(url, resolve, undefined, reject));
 
+  // Normalize the mesh's scale to its declared real-world dimension.
+  // Meshy auto_size estimates from the prompt and is unreliable (×4 drift
+  // observed between stone_grey and glossy_black). At runtime we measure
+  // the bbox and apply a uniform scale so the declared dimension matches.
+  //
+  //   - plant : declared `height_m` → scale so bbox.height == height_m
+  //   - pot   : declared `diameter_cm` → scale so max(bbox.x, bbox.z) == diameter
+  //
+  // If no declared value, leave the mesh as-is.
+  function normalizeScale(obj, kind, declared) {
+    obj.scale.set(1, 1, 1);
+    obj.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(obj);
+    const size = box.getSize(new THREE.Vector3());
+    let scale = 1;
+    if (kind === "plant" && declared.height_m > 0 && size.y > 1e-4) {
+      scale = declared.height_m / size.y;
+    } else if (kind === "pot" && declared.diameter_m > 0) {
+      const horiz = Math.max(size.x, size.z);
+      if (horiz > 1e-4) {
+        scale = declared.diameter_m / horiz;
+      }
+    }
+    obj.scale.setScalar(scale);
+    obj.updateMatrixWorld(true);
+  }
+
+  // Read declared dimensions from the selected <option>'s dataset.
+  function readDeclared(selectEl) {
+    const opt = selectEl.selectedOptions[0];
+    if (!opt) return { height_m: 0, diameter_m: 0 };
+    const heightM = parseFloat(opt.dataset.heightM || "0");
+    const diameterCm = parseFloat(opt.dataset.diameterCm || "0");
+    return {
+      height_m: isFinite(heightM) ? heightM : 0,
+      diameter_m: isFinite(diameterCm) ? diameterCm / 100 : 0,
+    };
+  }
+
   // Replace the current plant or pot with a new GLB. `kind` is "plant" or "pot".
   async function replace(kind, filename) {
     const slot = kind === "plant" ? plantObj : potObj;
@@ -105,6 +144,8 @@ function initComposer() {
     try {
       const gltf = await loadGLB(url);
       const obj = gltf.scene;
+      const declared = readDeclared(kind === "plant" ? plantSelect : potSelect);
+      normalizeScale(obj, kind, declared);
       if (kind === "plant") {
         plantObj = obj;
       } else {
@@ -121,13 +162,12 @@ function initComposer() {
   }
 
   // Translate the plant so its Y=0 (soil line in our convention) sits at
-  // the pot's rim (top of pot bbox). If no pot loaded, plant sits on the
-  // ground disc directly.
+  // the pot's rim (top of pot bbox, AFTER normalize-scale). If no pot
+  // loaded, plant sits on the ground disc directly.
   function placePlantOnRim() {
     rimY = 0;
     if (potObj) {
       potObj.position.set(0, 0, 0);
-      // Force matrices to be up to date before bbox computation.
       potObj.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(potObj);
       rimY = box.max.y;

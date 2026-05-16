@@ -175,6 +175,11 @@ function refreshComposerSelects() {
     const opt = document.createElement("option");
     opt.value = `${capitalizeLatin(p.latin)}.usdz`;   // matches safe_filename
     opt.textContent = `${p.common} · ${p.latin}`;
+    // Composer.js reads ces data-attributes pour normaliser le scale
+    // au runtime — auto_size Meshy est imprécis (variances ×4 observées
+    // sur stone_grey vs glossy_black). On scale ici à la valeur déclarée.
+    if (p.height_m) opt.dataset.heightM = p.height_m;
+    if (p.habit) opt.dataset.habit = p.habit;
     plantSel.appendChild(opt);
   }
   if (prevPlant) plantSel.value = prevPlant;
@@ -184,6 +189,8 @@ function refreshComposerSelects() {
     const opt = document.createElement("option");
     opt.value = `pot_${p.pot_id.toLowerCase().replace(/[-]/g, "_")}.usdz`;
     opt.textContent = `${p.display_name} (⌀ ${p.top_diameter_cm} cm)`;
+    if (p.top_diameter_cm) opt.dataset.diameterCm = p.top_diameter_cm;
+    if (p.height_cm) opt.dataset.heightCm = p.height_cm;
     potSel.appendChild(opt);
   }
   if (prevPot) potSel.value = prevPot;

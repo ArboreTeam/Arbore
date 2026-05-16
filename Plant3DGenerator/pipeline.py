@@ -30,6 +30,7 @@ class Job:
     hint: str
     prompt: str
     texture_prompt: str
+    negative_prompt: str = ""
     stages: dict = field(default_factory=dict)
     final_glb: str = ""
     final_usdz: str = ""
@@ -148,23 +149,115 @@ def build_pot_prompt(style: str, height_m: float = 0.0) -> str:
     de terre" la plante est cut clean à sa base — c'est le pot qui rend
     visible la transition terre/air.
 
-    Aucune plante, aucune feuille — uniquement le contenant + son disque
-    de terre. Base plate et stable pour que le pot tienne droit en AR.
+    Framing : "still life of an empty X" + "only contains soil" biaisé
+    explicitement away from le default "pot = plante incluse" du corpus
+    Meshy. Le vrai filet est le `negative_prompt` retourné par
+    `build_pot_negative_prompt()` — à passer en parallèle à l'API.
     """
     parts = [
-        style,
-        "filled with rich dark brown potting soil at the top",
-        "soil disc visible just below the rim, flat and level surface of compacted earth",
-        "soil texture: dark brown organic material, fine grain, slightly textured",
-        "no plant, no leaves, no foliage, no stem",
-        "flat stable base, sits cleanly on the ground",
-        "realistic PBR texture",
+        f"still life product photography of an empty {style}",
+        "interior filled to the rim with dark brown potting soil",
+        "soil surface flat at the rim level, smooth slightly textured organic earth",
+        "hollow ceramic container with soil contents only, no plant inside",
+        "clean exterior with flat stable base",
+        "realistic PBR materials",
         "studio lighting",
         "white background",
     ]
     if height_m > 0:
         parts.append(f"approximately {height_m:.2f} meters tall")
     return ", ".join(parts)
+
+
+def build_pot_negative_prompt() -> str:
+    """Negative-prompt envoyé en parallèle à `build_pot_prompt`. Meshy v2
+    le supporte natif. Sans ça, l'API génère systématiquement une plante
+    dans le pot — son corpus d'entraînement associe pot ↔ plante.
+
+    En plus du bloc anti-plante, ajoute les classiques anti-bugs Meshy :
+    topology fragmentée (très fréquent), style hors-spec, multi-pots,
+    parasites (text/watermark/humains)."""
+    return ", ".join([
+        # — Anti-plante (mission critique pour les pots)
+        "plant", "houseplant", "indoor plant", "vegetation",
+        "leaves", "leaf", "foliage",
+        "stem", "stems", "stalks", "branches", "branch", "twig", "tendril",
+        "roots", "root", "rhizome",
+        "flowers", "flower", "blooms", "petals", "bud",
+        "tree", "shrub", "bush", "vine", "creeper",
+        "succulent", "cactus", "fern", "moss",
+        "grass", "frond", "herb", "weed",
+        "sprout", "seedling", "bouquet", "bonsai",
+        "fake plant", "artificial plant",
+        # — Pot deformation
+        "broken pot", "cracked", "chipped", "shattered",
+        "deformed pot", "asymmetric pot", "lopsided", "wonky",
+        "tilted pot", "tipped over", "fallen over",
+        # — Topology / floating geometry (fréquent chez Meshy)
+        "floating soil chunks", "soil in mid-air",
+        "holes in pot wall", "missing surfaces", "missing parts",
+        "broken mesh", "disconnected geometry", "fragments separated",
+        "non-manifold geometry",
+        # — Style hors-spec (on veut realistic PBR)
+        "cartoon", "toy", "stylized", "anime",
+        "painting", "watercolor", "illustration", "sketch", "drawing", "2D",
+        "blurry", "fuzzy", "low quality", "ugly",
+        # — Multi-pots (Meshy sort parfois plusieurs spécimens)
+        "multiple pots", "stack of pots", "group of pots", "row of pots",
+        # — Parasites
+        "human", "person", "hand", "fingers",
+        "text", "watermark", "label", "signage", "logo",
+        "hard ground shadow", "shadow plane below",
+    ])
+
+
+def build_plant_negative_prompt(habit: str = "upright") -> str:
+    """Negative-prompt envoyé en parallèle à `build_preview_prompt` pour
+    les plantes. Couvre 6 axes :
+      1. Containers / motte (convention "ligne de terre")
+      2. Anatomy distortions (plante écrasée, déformée)
+      3. Topology / floating geometry (feuilles dans le vide — très
+         fréquent chez Meshy)
+      4. Style hors-spec (cartoon, painted, 2D)
+      5. Santé (wilted, dying, browning leaves)
+      6. Multi-plant (Meshy sort parfois un cluster au lieu d'un specimen)
+    """
+    return ", ".join([
+        # — 1. Containers / soil (convention "ligne de terre")
+        "pot", "container", "vessel", "planter", "vase", "tray", "saucer", "basin",
+        "soil", "potting soil", "earth", "dirt", "mulch",
+        "root ball", "rootball", "motte", "soil clump", "soil at base",
+        "exposed roots", "roots visible", "rhizome",
+        "plinth", "base", "pedestal", "platform",
+        "stones", "pebbles", "decorative gravel",
+        # — 2. Anatomy distortions
+        "squashed plant", "compressed plant", "flattened plant", "crushed plant",
+        "stretched unnaturally", "elongated awkwardly",
+        "deformed", "warped", "melted", "twisted unnaturally",
+        "leaves squashed together",
+        # — 3. Topology / floating geometry (signature failure de Meshy)
+        "floating leaves", "floating petals", "floating fragments",
+        "isolated leaf in mid-air", "leaf detached from stem",
+        "disconnected geometry", "broken mesh",
+        "fragments separated from plant", "parts floating in void",
+        "geometry clipping into itself", "self-intersecting",
+        "non-manifold geometry", "holes in leaves",
+        # — 4. Style hors-spec (on veut realistic)
+        "cartoon", "toy", "toy-like", "stylized", "anime", "manga",
+        "painting", "watercolor", "illustration", "sketch", "drawing", "2D flat",
+        "blurry", "fuzzy", "soft focus", "low quality", "ugly",
+        # — 5. État de santé (le specimen doit être sain)
+        "wilted", "withered", "dying", "dead leaves", "diseased",
+        "rotting", "brown dried foliage", "yellowing leaves",
+        "pest damage", "holes eaten in leaves",
+        # — 6. Multi-plant (un seul specimen attendu)
+        "multiple plants", "two plants", "three plants",
+        "cluster of separate plants", "group of plants", "row of plants",
+        # — Parasites scène
+        "human", "person", "hand", "fingers", "people",
+        "text", "watermark", "label", "logo", "signage",
+        "hard ground shadow", "shadow plane below the plant",
+    ])
 
 
 def build_texture_prompt(latin: str, hint: str) -> str:
@@ -280,6 +373,7 @@ def make_pot_job(pot_id: str, display_name: str, style: str,
         hint=style,
         prompt=prompt,
         texture_prompt=prompt,
+        negative_prompt=build_pot_negative_prompt(),
     )
 
 
@@ -297,6 +391,7 @@ def make_job(common: str, latin: str, hint: str = "", height_m: float = 0.0,
         hint=hint,
         prompt=prompt,
         texture_prompt=prompt,
+        negative_prompt=build_plant_negative_prompt(habit=habit),
     )
 
 
@@ -325,7 +420,11 @@ class PipelineRunner:
         s.started_at = time.time()
         self.on_event(job)
         try:
-            task_id = self.client.create_preview(job.prompt, lowpoly=True)
+            task_id = self.client.create_preview(
+                job.prompt,
+                lowpoly=True,
+                negative_prompt=job.negative_prompt,
+            )
             s.task_id = task_id
             self.on_event(job)
 
@@ -363,7 +462,11 @@ class PipelineRunner:
         self.on_event(job)
         try:
             task_id = self.client.create_refine(
-                preview_id, texture_prompt=job.texture_prompt, enable_pbr=True)
+                preview_id,
+                texture_prompt=job.texture_prompt,
+                enable_pbr=True,
+                negative_prompt=job.negative_prompt,
+            )
             s.task_id = task_id
             self.on_event(job)
 

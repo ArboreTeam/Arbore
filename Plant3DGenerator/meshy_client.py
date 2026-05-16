@@ -49,7 +49,8 @@ class MeshyClient:
     def create_preview(self, prompt: str, *, lowpoly: bool = True,
                        formats: Optional[list] = None,
                        auto_size: bool = True,
-                       origin_at: str = "bottom") -> str:
+                       origin_at: str = "bottom",
+                       negative_prompt: str = "") -> str:
         """Create a Meshy preview task.
 
         `auto_size=True` lets Meshy resize the mesh to a realistic height
@@ -59,6 +60,12 @@ class MeshyClient:
         `origin_at="bottom"` parks the mesh origin at the base of the bbox
         so iOS can drop the USDZ at the raycast hit point without computing
         a pivot offset for the model's lowest vertex.
+
+        `negative_prompt` (Meshy v2 native) suppresses concepts that should
+        NOT appear in the mesh. Bias-breaking : Meshy's training corpus
+        strongly associates "pot" with "plant inside", so saying "no plant"
+        in the positive prompt is often ignored — negative prompt is far
+        more effective.
         """
         payload = {
             "mode": "preview",
@@ -68,6 +75,8 @@ class MeshyClient:
             "auto_size": auto_size,
             "origin_at": origin_at,
         }
+        if negative_prompt:
+            payload["negative_prompt"] = negative_prompt
         r = _request_with_retry("POST", BASE_URL, session=self.session,
                                 json=payload, timeout=30)
         r.raise_for_status()
@@ -75,7 +84,8 @@ class MeshyClient:
 
     def create_refine(self, preview_id: str, *, texture_prompt: str = "",
                       enable_pbr: bool = True, remove_lighting: bool = True,
-                      ai_model: str = "meshy-6") -> str:
+                      ai_model: str = "meshy-6",
+                      negative_prompt: str = "") -> str:
         payload = {
             "mode": "refine",
             "preview_task_id": preview_id,
@@ -85,6 +95,8 @@ class MeshyClient:
         }
         if texture_prompt:
             payload["texture_prompt"] = texture_prompt
+        if negative_prompt:
+            payload["negative_prompt"] = negative_prompt
         r = _request_with_retry("POST", BASE_URL, session=self.session,
                                 json=payload, timeout=30)
         r.raise_for_status()

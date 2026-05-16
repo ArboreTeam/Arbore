@@ -47,25 +47,67 @@ def safe_filename(latin: str) -> str:
     return "_".join(p.capitalize() for p in latin.split() if p)
 
 
-def build_preview_prompt(latin: str, hint: str) -> str:
-    parts = [f"a potted {latin}"]
+def build_preview_prompt(latin: str, hint: str, height_m: float = 0.0) -> str:
+    """Build the preview prompt for a plant-only mesh (no pot).
+
+    The hint is expected to describe ONLY the plant (foliage, color, shape) —
+    pot descriptions are dropped because pots are generated separately as a
+    swappable library on the iOS side. The mesh base must show a clean root
+    ball / soil clump so the plant looks natural when dropped into any pot.
+
+    `height_m` is appended to the prompt only as a textual hint for Meshy's
+    auto_size feature ("approx 1.2 meters tall"). The actual scaling is done
+    by Meshy server-side when `auto_size=True` is set on the API payload.
+    """
+    parts = [f"a {latin} houseplant"]
     if hint:
         parts.append(hint)
     parts.extend([
-        "realistic houseplant",
+        "no pot, no container",
+        "exposed root ball at base",
+        "compact soil clump under the plant",
+        "realistic plant only",
         "symmetric front view",
         "studio lighting",
         "white background",
-        "full plant visible including pot",
     ])
+    if height_m > 0:
+        parts.append(f"approximately {height_m:.2f} meters tall")
+    return ", ".join(parts)
+
+
+def build_pot_prompt(style: str, height_m: float = 0.0) -> str:
+    """Build the preview prompt for a pot-only mesh.
+
+    Style is a free-form English description ("terracotta pot, modern ceramic
+    white pot, hanging clay pot"). The pot must be empty (no soil, no plant)
+    and have a stable flat base so it sits cleanly on the ground in AR.
+    """
+    parts = [
+        style,
+        "empty",
+        "no plant",
+        "no soil",
+        "flat stable base",
+        "realistic PBR texture",
+        "studio lighting",
+        "white background",
+    ]
+    if height_m > 0:
+        parts.append(f"approximately {height_m:.2f} meters tall")
     return ", ".join(parts)
 
 
 def build_texture_prompt(latin: str, hint: str) -> str:
-    parts = [f"realistic PBR texture of {latin}"]
+    """Texture refinement prompt. Plant-only — no pot mention so the
+    refine step doesn't bake pot materials onto the plant geometry."""
+    parts = [f"realistic PBR texture of {latin} plant"]
     if hint:
         parts.append(hint)
-    parts.append("natural terracotta pot")
+    parts.extend([
+        "natural plant materials only",
+        "visible soil and root ball at base",
+    ])
     return ", ".join(parts)
 
 
@@ -137,12 +179,12 @@ def scan_existing_jobs(output_dir: Path, known_plants: list[dict]) -> list[Job]:
     return jobs
 
 
-def make_job(common: str, latin: str, hint: str = "") -> Job:
+def make_job(common: str, latin: str, hint: str = "", height_m: float = 0.0) -> Job:
     # Mirror the Meshy website's "Texture" button behavior: it auto-fills the
     # texture prompt with the original preview prompt. We do the same by
     # aliasing texture_prompt to prompt. Override manually if you need to
     # force specific material hints later (call build_texture_prompt).
-    prompt = build_preview_prompt(latin, hint)
+    prompt = build_preview_prompt(latin, hint, height_m=height_m)
     return Job(
         job_id=safe_filename(latin),
         common=common,

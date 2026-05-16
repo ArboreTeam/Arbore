@@ -24,6 +24,14 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 
 def parse_input(path: Path):
+    """Parse input.txt — one plant per non-comment line.
+
+    Format: `Common Name | Latin Name | hint | height_m`
+      - column 4 (height_m, optional) is a real-world height in meters that
+        we pass to Meshy as a textual hint when building the prompt. Combined
+        with Meshy's `auto_size=True`, this anchors the mesh dimensions to
+        the species' realistic size (cf Plant3DGenerator pot/size revamp).
+    """
     plants = []
     with open(path) as f:
         for raw in f:
@@ -33,10 +41,17 @@ def parse_input(path: Path):
             parts = [p.strip() for p in line.split("|")]
             if len(parts) < 2:
                 continue
+            height_m = 0.0
+            if len(parts) >= 4 and parts[3]:
+                try:
+                    height_m = float(parts[3])
+                except ValueError:
+                    height_m = 0.0
             plants.append({
                 "common": parts[0],
                 "latin": parts[1],
                 "hint": parts[2] if len(parts) >= 3 else "",
+                "height_m": height_m,
             })
     return plants
 
@@ -93,7 +108,7 @@ def main() -> None:
 
     ok = 0
     for pl in plants:
-        job = make_job(pl["common"], pl["latin"], pl["hint"])
+        job = make_job(pl["common"], pl["latin"], pl["hint"], height_m=pl["height_m"])
         runner.run(job, preview_only=args.preview_only)
         last_stage = "preview" if args.preview_only else "refine"
         if job.stages[last_stage].status == "done":

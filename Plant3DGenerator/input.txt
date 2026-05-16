@@ -1,5 +1,12 @@
 # Plant3DGenerator input — 30 decorative plants for the Arbore catalogue
-# Format: Common Name | Latin Name | optional style hint (English, meshy-friendly)
+# Format: Common Name | Latin Name | hint | height_m
+#   - column 3 (hint) describes ONLY the plant (foliage, color, habit).
+#     Pot descriptions are now generated separately (cf pots.txt + Meshy
+#     pot library) and replaceable côté iOS — never include "pot" in hint.
+#   - column 4 (height_m) is the realistic indoor height in meters. Used
+#     in the prompt with Meshy `auto_size=True` so the USDZ comes back at
+#     real-world scale; also stored backend-side as Plant.heightMeters
+#     for the catalogue thumbnail's framing.
 # Lines starting with # are ignored.
 #
 # Default behavior:
@@ -7,6 +14,13 @@
 #   - Full batch CLI:         python generate.py --all
 #   - Web UI batch:           click "Generate All" in the browser at server.py
 # Already-generated plants (matching {Latin_Name}.usdz in output/) are skipped.
+#
+# Migration note (2026-05-16) : the original 30 lines below still mention
+# pots in column 3 — they were generated BEFORE the pot-separation pivot.
+# Only Monstera has been migrated as the pilot. Once the pilot validates,
+# strip pot mentions from the other 29 hints and add their height_m
+# column. Until then those lines will keep producing potted meshes if
+# re-run, which is fine for backward compat.
 
 Sansevière | Sansevieria trifasciata | tall upright sword-shaped leaves dark green with yellow margins, in a small modern ceramic pot
 Fétuque bleue | Festuca glauca | round blue-silver ornamental grass clump in a low ceramic pot
@@ -33,7 +47,7 @@ Olivier nain | Olea europaea | small olive tree with twisted woody trunk and sil
 Bougainvillier | Bougainvillea glabra | bright magenta bougainvillea bracts cascading from a clay pot
 Cyprès de Provence | Cupressus sempervirens | tall narrow dark green cypress column in a stone pot
 Stipa | Stipa tenuissima | flowing golden fine ornamental grass tuft in a low ceramic pot
-Monstera | Monstera deliciosa | large tropical leaves with deep splits and holes in a white ceramic pot
+Monstera | Monstera deliciosa | large tropical leaves with deep fenestrations and holes, glossy dark green | 1.20
 Ficus lyre | Ficus lyrata | tall plant with large violin-shaped glossy green leaves in a tall white pot
 Pothos | Epipremnum aureum | trailing variegated green and yellow heart-shaped leaves in a hanging clay pot
 Fougère de Boston | Nephrolepis exaltata | arching bright green fern fronds in a hanging ceramic pot

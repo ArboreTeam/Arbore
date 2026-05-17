@@ -19,7 +19,7 @@ final class VoxelGridTests: XCTestCase {
     func test_insert_intoEmptyGrid_returnsTrueAndStores() {
         let grid = VoxelGrid(voxelSize: 0.04)
         let created = grid.insert(point: SIMD3<Float>(0, 0, 0),
-                                  color: SIMD3<Float>(1, 0, 0),
+                                  categoryIndex: 0,
                                   now: 1.0)
         XCTAssertTrue(created)
         XCTAssertEqual(grid.count, 1)
@@ -28,10 +28,10 @@ final class VoxelGridTests: XCTestCase {
     func test_insert_samePoint_returnsFalseAndKeepsSingleCell() {
         let grid = VoxelGrid(voxelSize: 0.04)
         _ = grid.insert(point: SIMD3<Float>(0.01, 0.01, 0.01),
-                        color: SIMD3<Float>(1, 0, 0),
+                        categoryIndex: 0,
                         now: 1.0)
         let secondCreated = grid.insert(point: SIMD3<Float>(0.02, 0.02, 0.02),
-                                        color: SIMD3<Float>(0, 1, 0),
+                                        categoryIndex: 0,
                                         now: 2.0)
         // Both points are inside the same 0.04m voxel.
         XCTAssertFalse(secondCreated, "Second insert in same cell must return false")
@@ -40,8 +40,8 @@ final class VoxelGridTests: XCTestCase {
 
     func test_insert_nearbyButDifferentCells_createsTwoVoxels() {
         let grid = VoxelGrid(voxelSize: 0.04)
-        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), color: .zero, now: 1.0)
-        _ = grid.insert(point: SIMD3<Float>(0.05, 0, 0), color: .zero, now: 1.0)
+        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), categoryIndex: 0, now: 1.0)
+        _ = grid.insert(point: SIMD3<Float>(0.05, 0, 0), categoryIndex: 0, now: 1.0)
         XCTAssertEqual(grid.count, 2)
     }
 
@@ -49,8 +49,8 @@ final class VoxelGridTests: XCTestCase {
         let grid = VoxelGrid(voxelSize: 0.04)
         // -0.01 and 0.01 should land in DIFFERENT cells because of the
         // floor() convention — anything <0 maps to a cell with x = -1.
-        _ = grid.insert(point: SIMD3<Float>(-0.01, 0, 0), color: .zero, now: 1.0)
-        _ = grid.insert(point: SIMD3<Float>(0.01, 0, 0), color: .zero, now: 1.0)
+        _ = grid.insert(point: SIMD3<Float>(-0.01, 0, 0), categoryIndex: 0, now: 1.0)
+        _ = grid.insert(point: SIMD3<Float>(0.01, 0, 0), categoryIndex: 0, now: 1.0)
         XCTAssertEqual(grid.count, 2)
     }
 
@@ -58,9 +58,9 @@ final class VoxelGridTests: XCTestCase {
 
     func test_snapshot_returnsIndependentCopy() {
         let grid = VoxelGrid(voxelSize: 0.04)
-        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), color: .zero, now: 1.0)
+        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), categoryIndex: 0, now: 1.0)
         let snap1 = grid.snapshot()
-        _ = grid.insert(point: SIMD3<Float>(1, 0, 0), color: .zero, now: 1.0)
+        _ = grid.insert(point: SIMD3<Float>(1, 0, 0), categoryIndex: 0, now: 1.0)
         // Snapshot must not see the second insert.
         XCTAssertEqual(snap1.count, 1)
         XCTAssertEqual(grid.snapshot().count, 2)
@@ -71,10 +71,10 @@ final class VoxelGridTests: XCTestCase {
     func test_eviction_dropsOldestPastCap() {
         let grid = VoxelGrid(voxelSize: 1.0, maxVoxels: 3)
         // 4 distinct cells inserted → first one must be evicted.
-        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), color: .zero, now: 1.0)
-        _ = grid.insert(point: SIMD3<Float>(1, 0, 0), color: .zero, now: 2.0)
-        _ = grid.insert(point: SIMD3<Float>(2, 0, 0), color: .zero, now: 3.0)
-        _ = grid.insert(point: SIMD3<Float>(3, 0, 0), color: .zero, now: 4.0)
+        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), categoryIndex: 0, now: 1.0)
+        _ = grid.insert(point: SIMD3<Float>(1, 0, 0), categoryIndex: 0, now: 2.0)
+        _ = grid.insert(point: SIMD3<Float>(2, 0, 0), categoryIndex: 0, now: 3.0)
+        _ = grid.insert(point: SIMD3<Float>(3, 0, 0), categoryIndex: 0, now: 4.0)
         XCTAssertEqual(grid.count, 3)
         // The (0,0,0) cell should have been evicted.
         let cells = grid.snapshot()
@@ -87,10 +87,10 @@ final class VoxelGridTests: XCTestCase {
         // then fill past cap. The eviction must not crash trying to
         // remove an already-replaced key and must instead skip ahead.
         let grid = VoxelGrid(voxelSize: 1.0, maxVoxels: 2)
-        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), color: .zero, now: 1.0)
-        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), color: .zero, now: 2.0) // update
-        _ = grid.insert(point: SIMD3<Float>(1, 0, 0), color: .zero, now: 3.0)
-        _ = grid.insert(point: SIMD3<Float>(2, 0, 0), color: .zero, now: 4.0)
+        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), categoryIndex: 0, now: 1.0)
+        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), categoryIndex: 0, now: 2.0) // update
+        _ = grid.insert(point: SIMD3<Float>(1, 0, 0), categoryIndex: 0, now: 3.0)
+        _ = grid.insert(point: SIMD3<Float>(2, 0, 0), categoryIndex: 0, now: 4.0)
         XCTAssertEqual(grid.count, 2)
     }
 
@@ -100,7 +100,7 @@ final class VoxelGridTests: XCTestCase {
         let grid = VoxelGrid(voxelSize: 1.0, maxVoxels: 100)
         for i in 0..<10 {
             _ = grid.insert(point: SIMD3<Float>(Float(i), 0, 0),
-                            color: .zero, now: TimeInterval(i))
+                            categoryIndex: 0, now: TimeInterval(i))
         }
         XCTAssertEqual(grid.count, 10)
         grid.clear()
@@ -108,7 +108,7 @@ final class VoxelGridTests: XCTestCase {
         XCTAssertEqual(grid.snapshot().count, 0)
         // After clear we can still insert without weirdness from a
         // stale ring head.
-        _ = grid.insert(point: .zero, color: .zero, now: 1)
+        _ = grid.insert(point: .zero, categoryIndex: 0, now: 1)
         XCTAssertEqual(grid.count, 1)
     }
 
@@ -121,6 +121,59 @@ final class VoxelGridTests: XCTestCase {
         XCTAssertEqual(centre.x, 0.02, accuracy: 1e-6)
         XCTAssertEqual(centre.y, 0.02, accuracy: 1e-6)
         XCTAssertEqual(centre.z, 0.02, accuracy: 1e-6)
+    }
+
+    // MARK: - Noise filters (#189 post-processing)
+
+    func test_confirmedKeys_dropsCellsBelowObservationThreshold() {
+        let grid = VoxelGrid(voxelSize: 1.0)
+        grid.minObservations = 3
+        grid.minNeighbors = 0   // isolate the observation filter
+
+        // Cell observed 2 times → below threshold, dropped.
+        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), categoryIndex: 0, now: 1.0)
+        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), categoryIndex: 0, now: 2.0)
+        // Cell observed 3 times → at threshold, kept.
+        _ = grid.insert(point: SIMD3<Float>(5, 0, 0), categoryIndex: 0, now: 1.0)
+        _ = grid.insert(point: SIMD3<Float>(5, 0, 0), categoryIndex: 0, now: 2.0)
+        _ = grid.insert(point: SIMD3<Float>(5, 0, 0), categoryIndex: 0, now: 3.0)
+
+        let confirmed = grid.confirmedKeys()
+        XCTAssertEqual(confirmed.count, 1)
+        XCTAssertTrue(confirmed.contains(VoxelGrid.Key(x: 5, y: 0, z: 0)))
+    }
+
+    func test_confirmedKeys_dropsIsolatedCellsWithoutNeighbours() {
+        let grid = VoxelGrid(voxelSize: 1.0)
+        grid.minObservations = 1   // any observation counts
+        grid.minNeighbors = 2      // require 2 neighbours
+
+        // 3 cells in a line — middle has 2 neighbours, ends have 1 each.
+        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), categoryIndex: 0, now: 1.0)
+        _ = grid.insert(point: SIMD3<Float>(1, 0, 0), categoryIndex: 0, now: 1.0)
+        _ = grid.insert(point: SIMD3<Float>(2, 0, 0), categoryIndex: 0, now: 1.0)
+        // Isolated cell far away.
+        _ = grid.insert(point: SIMD3<Float>(10, 10, 10), categoryIndex: 0, now: 1.0)
+
+        let confirmed = grid.confirmedKeys()
+        // Only the middle of the line passes.
+        XCTAssertEqual(confirmed.count, 1)
+        XCTAssertTrue(confirmed.contains(VoxelGrid.Key(x: 1, y: 0, z: 0)))
+    }
+
+    func test_winningCategory_returnsMajorityVote() {
+        let grid = VoxelGrid(voxelSize: 1.0)
+        // Cell sees category 5 once, category 3 three times → 3 wins.
+        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), categoryIndex: 5, now: 1.0)
+        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), categoryIndex: 3, now: 2.0)
+        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), categoryIndex: 3, now: 3.0)
+        _ = grid.insert(point: SIMD3<Float>(0, 0, 0), categoryIndex: 3, now: 4.0)
+
+        let cells = grid.snapshot()
+        let cell = cells[VoxelGrid.Key(x: 0, y: 0, z: 0)]
+        XCTAssertNotNil(cell)
+        XCTAssertEqual(cell?.observationCount, 4)
+        XCTAssertEqual(cell?.winningCategory, 3)
     }
 
     // MARK: - Concurrency
@@ -139,7 +192,7 @@ final class VoxelGridTests: XCTestCase {
                 group.addTask {
                     for i in 0..<perWriter {
                         let p = SIMD3<Float>(Float(w * perWriter + i), 0, 0)
-                        _ = grid.insert(point: p, color: .zero, now: 1.0)
+                        _ = grid.insert(point: p, categoryIndex: 0, now: 1.0)
                     }
                 }
             }

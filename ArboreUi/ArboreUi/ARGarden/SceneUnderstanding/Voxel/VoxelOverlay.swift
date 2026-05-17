@@ -87,8 +87,12 @@ final class VoxelOverlay {
         root.childNodes.forEach { $0.removeFromParentNode() }
         Self.refreshCount += 1
         // Log every 5 refreshes (every ~5s at 1Hz) to avoid spamming.
+        // Includes both the raw cell count and the rendered count
+        // (= confirmedKeys) so the noise filter ratio is visible.
         if Self.refreshCount % 5 == 0 {
-            AppLog.sceneML.notice("VoxelOverlay refresh count=\(grid.count, privacy: .public)")
+            let raw = grid.count
+            let rendered = grid.confirmedKeys().count
+            AppLog.sceneML.notice("VoxelOverlay refresh raw=\(raw, privacy: .public) rendered=\(rendered, privacy: .public)")
         }
         guard let geometry = Self.makeGeometry(from: grid, pointSize: pointSize) else { return }
         let node = SCNNode(geometry: geometry)
@@ -101,18 +105,36 @@ final class VoxelOverlay {
         // so we can iterate without racing against an in-flight `insert`
         // from the ML worker thread.
         let cells = grid.snapshot()
-        let n = cells.count
+        // Apply the noise filters (#189 #1 hit-count + #2 spatial
+        // neighbours). The grid computes both in one locked pass.
+        let confirmed = grid.confirmedKeys()
+        let n = confirmed.count
         guard n > 0 else { return nil }
+
+        let allCats = COCOPanopticCategory.allCases
 
         var positions = [SCNVector3]()
         positions.reserveCapacity(n)
         var colors = [SIMD3<Float>]()
         colors.reserveCapacity(n)
 
-        for (key, cell) in cells {
+        for key in confirmed {
+            guard let cell = cells[key],
+                  let catIdx = cell.winningCategory,
+                  Int(catIdx) >= 0, Int(catIdx) < allCats.count else { continue }
             let world = grid.worldCenter(of: key)
             positions.append(SCNVector3(world.x, world.y, world.z))
-            colors.append(cell.color)
+            // Resolve the winning category to its debug colour at render
+            // time (#189 #3). Same UIColor → RGB extraction we used to
+            // do at insert time, now done once per cell instead of once
+            // per pixel.
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            allCats[Int(catIdx)].debugColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+            colors.append(SIMD3<Float>(
+                Float(max(0, min(1, r))),
+                Float(max(0, min(1, g))),
+                Float(max(0, min(1, b)))
+            ))
         }
 
         let vertexSource = SCNGeometrySource(vertices: positions)

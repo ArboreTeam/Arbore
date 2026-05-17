@@ -195,10 +195,6 @@ enum SceneFusion {
     }
 }
 
-private extension COCOPanopticCategory {
-    /// Stable integer index for fast equality checks during flood-fill
-    /// (string comparison would be the hot path bottleneck).
-    var indexInAllCases: Int {
-        Self.allCases.firstIndex(of: self) ?? -1
-    }
-}
+// `indexInAllCases` moved to COCOPanopticClass.swift and made internal
+// so VoxelAccumulator can reuse it. The implementation is also now
+// O(1) via a cached lookup table (was O(n) firstIndex(of:) per pixel).

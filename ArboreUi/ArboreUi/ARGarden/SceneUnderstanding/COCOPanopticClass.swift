@@ -217,4 +217,19 @@ enum COCOPanopticCategory: String, CaseIterable {
 
         return t
     }()
+
+    /// Stable integer index of `self` in `allCases`, computed once via a
+    /// cached lookup table — used by the fusion + voxel code to pack a
+    /// category into a single Int8 instead of carrying around the full
+    /// SwiftUI-friendly enum value.
+    var indexInAllCases: Int {
+        Self.indexLookup[self] ?? -1
+    }
+
+    private static let indexLookup: [COCOPanopticCategory: Int] = {
+        var d: [COCOPanopticCategory: Int] = [:]
+        d.reserveCapacity(Self.allCases.count)
+        for (i, c) in Self.allCases.enumerated() { d[c] = i }
+        return d
+    }()
 }

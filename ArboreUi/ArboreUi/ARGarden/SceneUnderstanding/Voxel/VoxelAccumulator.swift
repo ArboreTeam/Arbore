@@ -68,11 +68,14 @@ enum VoxelAccumulator {
                     intrinsics: segIntrinsics,
                     cameraTransform: cameraTransform
                 )
-                let color = cat.debugColor
-                var r4: CGFloat = 0, g4: CGFloat = 0, b4: CGFloat = 0, a: CGFloat = 0
-                color.getRed(&r4, green: &g4, blue: &b4, alpha: &a)
+                // We pass the category index (1 byte) instead of the
+                // resolved colour : the grid keeps a per-cell vote
+                // histogram and the overlay resolves the winning
+                // category to colour at render time (cf #189 #3).
+                let idx = cat.indexInAllCases
+                guard idx >= 0, idx < Int(Int8.max) else { continue }
                 grid.insert(point: world,
-                            color: SIMD3<Float>(Float(r4), Float(g4), Float(b4)),
+                            categoryIndex: Int8(idx),
                             now: now)
             }
         }

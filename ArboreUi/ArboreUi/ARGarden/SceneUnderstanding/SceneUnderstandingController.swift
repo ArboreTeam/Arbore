@@ -57,11 +57,14 @@ final class SceneUnderstandingController {
     /// we backed off.
     var throttleSeconds: Double = 1.0
 
-    /// Stop ticking as soon as the device leaves `.nominal` thermal state.
-    /// The .fair state already means "elevated, performance may be
-    /// throttled" — by then the ARSession is already competing with us
-    /// for the GPU/CPU. .nominal = "everything fine" only.
-    var maxThermalState: ProcessInfo.ThermalState = .nominal
+    /// Allow ticking up to `.fair` thermal state. On non-LiDAR devices
+    /// the AR session + WorldMap relocalization push the device to
+    /// `.fair` within seconds of opening a garden — gating on
+    /// `.nominal` (the previous default) means the ML pipeline never
+    /// runs in practice. `.serious` would let us keep going under heavy
+    /// throttle, but at that point AR itself stutters, so `.fair` is
+    /// the right ceiling.
+    var maxThermalState: ProcessInfo.ThermalState = .fair
 
     /// Fired on the main queue every time a new snapshot is ready. Set
     /// from the Coordinator to update the overlays. Cleared on `stop()`.
@@ -88,6 +91,11 @@ final class SceneUnderstandingController {
     /// Fitted once when the first valid floor anchor is reachable —
     /// reused across subsequent ticks. Cleared on `stop()`.
     private var inverseScale: Float?
+
+    /// Tracks the last reason tick() exited early so we can log only on
+    /// transitions (avoids 60Hz spam).
+    private enum TickGate: String { case ok, unavailable, inflight, throttled, thermal }
+    private var lastTickGate: TickGate = .ok
 
     /// Loads the models. Idempotent ; safe to call repeatedly.
     func start() {
@@ -146,19 +154,41 @@ final class SceneUnderstandingController {
             let depth: DepthPredictor
             let cachedScale: Float?
         }
-        let go: TickGo? = lock.withLock {
-            guard self.isAvailable,
-                  let semseg = self.semseg,
-                  let depth = self.depth,
-                  self.inflightTask == nil else { return nil }
-            let now = frame.timestamp
-            if now - self.lastTickAt < self.throttleSeconds { return nil }
-            let thermal = ProcessInfo.processInfo.thermalState
-            if thermal.rawValue > self.maxThermalState.rawValue { return nil }
-            self.lastTickAt = now
-            return TickGo(semseg: semseg, depth: depth, cachedScale: self.inverseScale)
+        struct TickGateResult {
+            let go: TickGo?
+            let reason: TickGate
+            let transitioned: Bool
+            let thermalRaw: Int
         }
-        guard let go = go else { return }
+        let result: TickGateResult = lock.withLock {
+            let thermal = ProcessInfo.processInfo.thermalState
+            let now = frame.timestamp
+            let reason: TickGate
+            var go: TickGo? = nil
+            if !self.isAvailable || self.semseg == nil || self.depth == nil {
+                reason = .unavailable
+            } else if self.inflightTask != nil {
+                reason = .inflight
+            } else if now - self.lastTickAt < self.throttleSeconds {
+                reason = .throttled
+            } else if thermal.rawValue > self.maxThermalState.rawValue {
+                reason = .thermal
+            } else {
+                reason = .ok
+                self.lastTickAt = now
+                go = TickGo(semseg: self.semseg!, depth: self.depth!, cachedScale: self.inverseScale)
+            }
+            let transitioned = reason != self.lastTickGate
+            self.lastTickGate = reason
+            return TickGateResult(go: go, reason: reason, transitioned: transitioned, thermalRaw: thermal.rawValue)
+        }
+        if result.transitioned && result.reason != .throttled {
+            // .throttled is the expected 59 out of 60 frames — don't log it.
+            // Log every other transition, INCLUDING the resume to .ok so we
+            // can see when inference recovers from thermal / unavailable.
+            AppLog.sceneML.notice("tick gate=\(result.reason.rawValue, privacy: .public) thermal=\(result.thermalRaw, privacy: .public)")
+        }
+        guard let go = result.go else { return }
 
         // Snapshot the frame data — ARFrame isn't safe across async boundaries.
         let pixelBuffer = frame.capturedImage

@@ -2913,15 +2913,15 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             ) {
                 let anyOn = semSegEnabled || depthEnabled || fusedEnabled || voxelScanEnabled
                 if anyOn && sceneCtl == nil {
+                    // start() is now async — `isAvailable` won't be true
+                    // until the models finish loading on a background task.
+                    // We wire everything up immediately ; tick() exits early
+                    // with gate=unavailable until the loader publishes.
                     let ctl = SceneUnderstandingController()
-                    ctl.start()
-                    if !ctl.isAvailable {
-                        AppLog.sceneML.notice("Models unavailable — Phase 3 overlays stay off")
-                        return
-                    }
                     ctl.onSnapshot = { [weak self] snap in
                         self?.applySceneSnapshot(snap)
                     }
+                    ctl.start()
                     sceneCtl = ctl
                 }
 

@@ -97,7 +97,11 @@ final class VoxelOverlay {
     }
 
     private static func makeGeometry(from grid: VoxelGrid, pointSize: CGFloat) -> SCNGeometry? {
-        let n = grid.count
+        // Atomic snapshot — copies the dict under the grid's internal lock
+        // so we can iterate without racing against an in-flight `insert`
+        // from the ML worker thread.
+        let cells = grid.snapshot()
+        let n = cells.count
         guard n > 0 else { return nil }
 
         var positions = [SCNVector3]()
@@ -105,7 +109,7 @@ final class VoxelOverlay {
         var colors = [SIMD3<Float>]()
         colors.reserveCapacity(n)
 
-        for (key, cell) in grid.cells {
+        for (key, cell) in cells {
             let world = grid.worldCenter(of: key)
             positions.append(SCNVector3(world.x, world.y, world.z))
             colors.append(cell.color)

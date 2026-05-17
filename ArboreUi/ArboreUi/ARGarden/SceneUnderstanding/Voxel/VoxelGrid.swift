@@ -1,4 +1,5 @@
 import Foundation
+import os
 import simd
 
 /// Sparse 3D voxel grid that accumulates back-projected depth points over
@@ -13,7 +14,15 @@ import simd
 /// move correctly in 3D).
 ///
 /// Capped at `maxVoxels` (~100k by default) to keep SceneKit responsive.
-/// Once full, the oldest cells are dropped FIFO via a `Deque` of keys.
+/// Once full, the oldest cells are dropped FIFO via a circular buffer of
+/// keys (true O(1) eviction — see `evict()` below).
+///
+/// Thread-safety : reads happen on the SceneKit render thread (via
+/// `snapshot()` from `VoxelOverlay.refresh`) while writes come from the
+/// ML worker thread (via `insert()` from `SceneUnderstandingController`).
+/// All mutating + reading entrypoints go through `lock` to keep the
+/// underlying `Dictionary` safe — Swift Dictionary is NOT thread-safe and
+/// concurrent access is UB.
 final class VoxelGrid {
     /// 4cm edges = good detail for indoor scenes, ~25 voxels / m of wall.
     let voxelSize: Float
@@ -33,11 +42,14 @@ final class VoxelGrid {
         var lastTouchedAt: TimeInterval
     }
 
-    private(set) var cells: [Key: Cell] = [:]
-    /// Insertion-order queue used to evict oldest when over `maxVoxels`.
-    /// Use a simple array as a circular buffer — for 100k voxels the
-    /// O(n) `removeFirst` cost is amortised across hundreds of inserts.
-    private var insertionOrder: [Key] = []
+    private let lock = OSAllocatedUnfairLock()
+    /// Underlying storage — only ever accessed under `lock`.
+    private var _cells: [Key: Cell] = [:]
+    /// Ring buffer of insertion order — `_orderHead` is the index of the
+    /// oldest element ; appends go to the end ; eviction increments head
+    /// rather than shifting (true O(1) instead of `Array.removeFirst`).
+    private var _order: [Key] = []
+    private var _orderHead: Int = 0
 
     init(voxelSize: Float = 0.04, maxVoxels: Int = 100_000) {
         self.voxelSize = voxelSize
@@ -52,32 +64,37 @@ final class VoxelGrid {
         )
     }
 
-    /// Insert or refresh a voxel. O(1) amortized. Returns true if the
-    /// cell was new (so a re-render can be triggered on insertion deltas).
+    /// Insert or refresh a voxel. O(1) — true O(1) eviction via ring head.
+    /// Returns true if the cell was new (so a re-render can be triggered
+    /// on insertion deltas).
     @discardableResult
     func insert(point: SIMD3<Float>, color: SIMD3<Float>, now: TimeInterval) -> Bool {
         let key = quantize(point)
-        if var existing = cells[key] {
-            existing.color = color           // last-write-wins
-            existing.lastTouchedAt = now
-            cells[key] = existing
-            return false
+        return lock.withLock {
+            if var existing = self._cells[key] {
+                existing.color = color           // last-write-wins
+                existing.lastTouchedAt = now
+                self._cells[key] = existing
+                return false
+            }
+            self._cells[key] = Cell(color: color, lastTouchedAt: now)
+            self._order.append(key)
+            if self._cells.count > self.maxVoxels {
+                self.evictOldestLocked()
+            }
+            return true
         }
-        cells[key] = Cell(color: color, lastTouchedAt: now)
-        insertionOrder.append(key)
-        if cells.count > maxVoxels {
-            let evict = insertionOrder.removeFirst()
-            cells.removeValue(forKey: evict)
-        }
-        return true
     }
 
     /// Drop every cell. Use this when the user dismisses the toggle or
     /// switches gardens — voxels are tied to the current ARKit world
     /// origin and become stale across sessions.
     func clear() {
-        cells.removeAll(keepingCapacity: true)
-        insertionOrder.removeAll(keepingCapacity: true)
+        lock.withLock {
+            self._cells.removeAll(keepingCapacity: true)
+            self._order.removeAll(keepingCapacity: true)
+            self._orderHead = 0
+        }
     }
 
     /// World-space centre of a voxel given its key. Adds half-voxel
@@ -91,5 +108,37 @@ final class VoxelGrid {
         )
     }
 
-    var count: Int { cells.count }
+    /// Thread-safe count of currently stored voxels.
+    var count: Int { lock.withLock { self._cells.count } }
+
+    /// Atomically copy the cell dictionary under the lock so a caller
+    /// (typically the SceneKit overlay) can iterate it without racing
+    /// against an in-flight `insert`. The copy is a value type so the
+    /// reader sees a stable snapshot.
+    func snapshot() -> [Key: Cell] {
+        lock.withLock { self._cells }
+    }
+
+    // MARK: - Private
+
+    /// Caller must hold `lock`. Walks the ring head forward past tombstones
+    /// (keys that were already overwritten by a more recent insert into the
+    /// same cell — `_cells.removeValue` returns nil) until it finds a live
+    /// key, then evicts it. Compacts the array if the head drifts too far.
+    private func evictOldestLocked() {
+        while _orderHead < _order.count {
+            let candidate = _order[_orderHead]
+            _orderHead += 1
+            if _cells.removeValue(forKey: candidate) != nil {
+                break
+            }
+            // Tombstone — already replaced ; keep walking.
+        }
+        // Compact when the dead-prefix gets too large (avoids unbounded
+        // memory growth for the ring buffer itself).
+        if _orderHead > 4096 && _orderHead > _order.count / 2 {
+            _order.removeFirst(_orderHead)
+            _orderHead = 0
+        }
+    }
 }

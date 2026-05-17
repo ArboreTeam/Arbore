@@ -72,7 +72,12 @@ final class SceneUnderstandingController {
 
     private(set) var isAvailable: Bool = false
     private(set) var lastErrorDescription: String?
-    private(set) var snapshot: SceneUnderstandingSnapshot?
+    // Note : we deliberately do NOT store the last snapshot here. Holding
+    // a snapshot pins its `CVPixelBuffer` (depth map) and `MLShapedArray`
+    // (semantic map) alive ; with ARKit's image-buffer pool capped, this
+    // ties up frames that ARKit then can't recycle — exactly the
+    // "ARSession is retaining N ARFrames" warning. Snapshot lifetime is
+    // now bounded by the main-queue closure that fans out to overlays.
 
     /// Optional voxel accumulator — when non-nil, every successful tick
     /// also back-projects the depth+semseg into 3D voxels for the "scan
@@ -97,22 +102,54 @@ final class SceneUnderstandingController {
     private enum TickGate: String { case ok, unavailable, inflight, throttled, thermal }
     private var lastTickGate: TickGate = .ok
 
-    /// Loads the models. Idempotent ; safe to call repeatedly.
+    /// Set to true while the async loader is in flight, so re-entrant
+    /// calls to `start()` don't kick off duplicate loaders. Reset in
+    /// the loader's completion (success or failure).
+    private var isLoading = false
+
+    /// Kicks off model loading on a background task and returns
+    /// immediately. `isAvailable` flips to true when both predictors
+    /// have initialised. Callers should not wait synchronously — the
+    /// `tick()` gate already handles the "not yet available" state by
+    /// skipping with reason=.unavailable.
+    ///
+    /// Loading both predictors involves `MLModel(contentsOf:)` which is
+    /// synchronous I/O (~200-500ms on a non-LiDAR phone). Doing it under
+    /// our state lock froze the UI and starved subsequent `tick()` calls.
+    /// Idempotent ; safe to call from main repeatedly.
     func start() {
-        lock.withLock {
-            guard !self.isAvailable else { return }
-            do {
-                self.semseg = try SemSegPredictor()
-                self.depth = try DepthPredictor()
-                self.isAvailable = true
-                self.lastErrorDescription = nil
+        let shouldLoad: Bool = lock.withLock {
+            guard !self.isAvailable, !self.isLoading else { return false }
+            self.isLoading = true
+            return true
+        }
+        guard shouldLoad else { return }
+
+        Task.detached(priority: .userInitiated) { [weak self] in
+            // Heavy I/O happens OUTSIDE the lock — Apple's CoreML init
+            // compiles the model and mmaps weights, totally fine to do
+            // in parallel with anything else.
+            let result: (semseg: SemSegPredictor?, depth: DepthPredictor?, error: String?) = {
+                do {
+                    let semseg = try SemSegPredictor()
+                    let depth = try DepthPredictor()
+                    return (semseg, depth, nil)
+                } catch {
+                    return (nil, nil, String(describing: error))
+                }
+            }()
+            guard let strong = self else { return }
+            strong.lock.withLock {
+                strong.isLoading = false
+                strong.semseg = result.semseg
+                strong.depth = result.depth
+                strong.lastErrorDescription = result.error
+                strong.isAvailable = (result.semseg != nil && result.depth != nil)
+            }
+            if result.error == nil {
                 AppLog.sceneML.notice("SceneUnderstandingController online (semseg + depth)")
-            } catch {
-                self.semseg = nil
-                self.depth = nil
-                self.isAvailable = false
-                self.lastErrorDescription = String(describing: error)
-                AppLog.sceneML.error("SceneUnderstandingController init failed: \(String(describing: error), privacy: .public)")
+            } else {
+                AppLog.sceneML.error("SceneUnderstandingController init failed: \(result.error ?? "", privacy: .public)")
             }
         }
     }
@@ -124,7 +161,6 @@ final class SceneUnderstandingController {
             self.inflightTask = nil
             self.semseg = nil
             self.depth = nil
-            self.snapshot = nil
             self.inverseScale = nil
             self.isAvailable = false
         }
@@ -316,12 +352,11 @@ final class SceneUnderstandingController {
                 cameraTransform: cameraTransform,
                 captureSize: captureSize
             )
-            // Voxel accumulation (scan mode). Same backprojection pass
-            // as fusion but quantizes onto a 4cm world-space grid and
-            // colours each cell by its SemSeg category. Cheap : the
-            // grid hashmap insert is O(1) per pixel.
+            // Voxel accumulation (scan mode). Drops back-projected
+            // points into a 4cm world-space grid keyed by semantic
+            // colour. The grid handles its own thread-safety.
             if let grid = (lock.withLock { self.voxelGrid }) {
-                Self.accumulateVoxels(
+                VoxelAccumulator.accumulate(
                     into: grid,
                     semanticMap: semanticMap,
                     depthMap: depthMap,
@@ -352,81 +387,10 @@ final class SceneUnderstandingController {
         )
         let callback: ((SceneUnderstandingSnapshot) -> Void)? = lock.withLock {
             self.inverseScale = resolvedScale
-            self.snapshot = snap
             return self.onSnapshot
         }
         if let callback = callback {
             DispatchQueue.main.async { callback(snap) }
-        }
-    }
-
-    // MARK: - Voxel accumulator
-
-    /// Per-pixel back-projection identical to `SceneFusion.fuse`, but
-    /// instead of building region clusters we drop each labelled point
-    /// into the voxel grid keyed by its quantised world position. Runs
-    /// at the same 1 Hz cadence as the rest of the tick.
-    private static func accumulateVoxels(
-        into grid: VoxelGrid,
-        semanticMap: SemanticMap,
-        depthMap: CVPixelBuffer,
-        inverseScale: Float,
-        intrinsics: simd_float3x3,
-        cameraTransform: simd_float4x4,
-        captureSize: CGSize
-    ) {
-        let now = CFAbsoluteTimeGetCurrent()
-        let segW = semanticMap.width
-        let segH = semanticMap.height
-
-        let segIntrinsics = BackProjector.scaledIntrinsics(
-            intrinsics,
-            from: captureSize,
-            to: CGSize(width: segW, height: segH)
-        )
-
-        let depthW = CVPixelBufferGetWidth(depthMap)
-        let depthH = CVPixelBufferGetHeight(depthMap)
-        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
-        guard let depthBase = CVPixelBufferGetBaseAddress(depthMap) else { return }
-        let depthBpr = CVPixelBufferGetBytesPerRow(depthMap)
-        let depthFmt = CVPixelBufferGetPixelFormatType(depthMap)
-
-        // Stride 8 = ~3000 voxels per frame on a 448×448 input — gentle
-        // enough that we don't tank framerate building 200k cells in a
-        // single tick, dense enough to fill the room in a few seconds.
-        let stride = 8
-
-        for r in Swift.stride(from: 0, to: segH, by: stride) {
-            let dRow = min(Int(Float(r) / Float(segH) * Float(depthH)), depthH - 1)
-            for c in Swift.stride(from: 0, to: segW, by: stride) {
-                let dCol = min(Int(Float(c) / Float(segW) * Float(depthW)), depthW - 1)
-                let raw = DepthPixelBufferAccess.sampleRaw(
-                    x: dCol, y: dRow,
-                    base: depthBase, bytesPerRow: depthBpr,
-                    format: depthFmt, width: depthW, height: depthH
-                )
-                let metric = DepthCalibration.metric(raw: raw, inverseScale: inverseScale)
-                guard SceneFusion.validMetricRange.contains(metric) else { continue }
-                let rawId = Int(semanticMap.pixels[scalarAt: [r, c]])
-                let label = semanticMap.labels[rawId] ?? ""
-                let cat = COCOPanopticCategory.category(for: label)
-                if cat == .other { continue }
-
-                let world = BackProjector.worldPosition(
-                    u: Float(c), v: Float(r),
-                    dMetric: metric,
-                    intrinsics: segIntrinsics,
-                    cameraTransform: cameraTransform
-                )
-                let color = cat.debugColor
-                var r4: CGFloat = 0, g4: CGFloat = 0, b4: CGFloat = 0, a: CGFloat = 0
-                color.getRed(&r4, green: &g4, blue: &b4, alpha: &a)
-                grid.insert(point: world,
-                            color: SIMD3<Float>(Float(r4), Float(g4), Float(b4)),
-                            now: now)
-            }
         }
     }
 

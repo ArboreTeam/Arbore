@@ -67,6 +67,13 @@ final class SemSegOverlay {
 
     // MARK: - CPU rasterizer
 
+    /// Safe float-to-byte conversion. UIColor on extended-range colour
+    /// spaces can yield channel values slightly outside [0, 1] ; the
+    /// raw `UInt8(x * 255)` cast traps when the result overflows.
+    private static func clampByte(_ x: CGFloat) -> UInt8 {
+        UInt8(max(0, min(255, x * 255)))
+    }
+
     private static var didLogPaletteOnce = false
 
     private static func renderImage(from map: SemanticMap) -> CGImage? {
@@ -85,7 +92,10 @@ final class SemSegOverlay {
             let c = category.debugColor
             var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
             c.getRed(&r, green: &g, blue: &b, alpha: &a)
-            palette[Int32(id)] = (UInt8(r * 255), UInt8(g * 255), UInt8(b * 255), 230)
+            // Clamp before UInt8 conversion — getRed can return
+            // slightly >1 on extended-range colour spaces and the cast
+            // traps on overflow.
+            palette[Int32(id)] = (clampByte(r), clampByte(g), clampByte(b), 230)
         }
         if !didLogPaletteOnce {
             didLogPaletteOnce = true

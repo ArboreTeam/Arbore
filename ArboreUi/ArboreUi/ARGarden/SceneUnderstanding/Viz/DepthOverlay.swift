@@ -133,9 +133,11 @@ final class DepthOverlay {
                 let hue = CGFloat(t) * 0.66    // 0 = red (close), 0.66 = blue (far)
                 let (r, g, b) = hsvToRgb(h: hue, s: 0.85, v: 1.0)
                 let offset = (y * w + x) * 4
-                bytes[offset]     = UInt8(r * 255)
-                bytes[offset + 1] = UInt8(g * 255)
-                bytes[offset + 2] = UInt8(b * 255)
+                // Clamp before UInt8 conversion — float rounding around
+                // the case boundaries of hsvToRgb can yield 1.0 + epsilon.
+                bytes[offset]     = Self.clampByte(r)
+                bytes[offset + 1] = Self.clampByte(g)
+                bytes[offset + 2] = Self.clampByte(b)
                 bytes[offset + 3] = 230
             }
         }
@@ -156,6 +158,12 @@ final class DepthOverlay {
             decode: nil, shouldInterpolate: false,
             intent: .defaultIntent
         )
+    }
+
+    /// Safe float-to-byte conversion. The HSV→RGB conversion can yield
+    /// values like 1.0 + epsilon at case boundaries ; the raw cast traps.
+    private static func clampByte(_ x: CGFloat) -> UInt8 {
+        UInt8(max(0, min(255, x * 255)))
     }
 
     private static func hsvToRgb(h: CGFloat, s: CGFloat, v: CGFloat) -> (CGFloat, CGFloat, CGFloat) {

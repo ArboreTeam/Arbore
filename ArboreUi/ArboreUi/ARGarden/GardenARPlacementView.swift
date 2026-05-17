@@ -80,10 +80,14 @@ struct GardenARPlacementView: View {
     // instead of letting the user spin on the scanning overlay forever.
     @State private var gardenUnavailable: Bool = false
 
-    // Debug overlay (issue #186) : colors each ARKit-detected plane by
-    // SurfaceClassifier verdict (floor / wall / shelf / table / ceiling …).
-    // Off by default ; opt-in via the `cube.transparent` toggle in topBar.
+    // Debug overlays — four independent toggles surfaced via the
+    // bottom-sheet that opens on tap of the `cube.transparent` button.
+    // Each persists across sessions via @AppStorage. Cf #186 + #187.
     @AppStorage("arDebugSurfaceViz") private var surfaceVizEnabled: Bool = false
+    @AppStorage("arDebugSemSegViz")  private var semSegVizEnabled: Bool = false
+    @AppStorage("arDebugDepthViz")   private var depthVizEnabled: Bool = false
+    @AppStorage("arDebugFusedViz")   private var fusedVizEnabled: Bool = false
+    @State private var showDebugPanel = false
 
     // 🤖 AI Auto-placement
     @State private var isAutoPlacing = false
@@ -97,7 +101,63 @@ struct GardenARPlacementView: View {
             gardenUnavailableView
         } else {
             placementBody
+                .sheet(isPresented: $showDebugPanel) {
+                    debugPanelSheet
+                        .presentationDetents([.height(380)])
+                        .presentationDragIndicator(.visible)
+                }
         }
+    }
+
+    /// True when any of the four debug overlays is on — drives the topBar
+    /// button color (green when active).
+    private var anyDebugVizOn: Bool {
+        surfaceVizEnabled || semSegVizEnabled || depthVizEnabled || fusedVizEnabled
+    }
+
+    /// Bottom-sheet that surfaces the four debug toggles. Each is
+    /// persisted via @AppStorage so the dev keeps their pick across
+    /// app restarts.
+    @ViewBuilder
+    private var debugPanelSheet: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Image(systemName: "cube.transparent.fill")
+                Text("Debug overlays").font(.title2.bold())
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+
+            VStack(spacing: 4) {
+                Toggle(isOn: $surfaceVizEnabled) {
+                    Label("ARKit surfaces", systemImage: "square.stack.3d.up")
+                }
+                Toggle(isOn: $semSegVizEnabled) {
+                    Label("SemSeg mask (DETR)", systemImage: "paintpalette")
+                }
+                Toggle(isOn: $depthVizEnabled) {
+                    Label("Depth heatmap (DA V2)", systemImage: "rectangle.stack.fill")
+                }
+                Toggle(isOn: $fusedVizEnabled) {
+                    Label("Fused 3D regions", systemImage: "cube")
+                }
+            }
+            .padding(.horizontal, 20)
+            .toggleStyle(.switch)
+
+            Divider().padding(.horizontal, 20)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Phase 1 = ARKit-native plane classification.").font(.caption)
+                Text("Phase 3 = ML inference @ ~0.5 Hz, requires models in bundle.").font(.caption)
+                Text("Long-press the topBar button to panic-off everything.").font(.caption)
+            }
+            .foregroundColor(.secondary)
+            .padding(.horizontal, 20)
+
+            Spacer(minLength: 8)
+        }
+        .padding(.bottom, 12)
     }
 
     private var placementBody: some View {
@@ -122,6 +182,9 @@ struct GardenARPlacementView: View {
                 capturedShareImage: $capturedShareImage,
                 isCapturingSharePhoto: $isCapturingSharePhoto,
                 surfaceVizEnabled: $surfaceVizEnabled,
+                semSegVizEnabled: $semSegVizEnabled,
+                depthVizEnabled: $depthVizEnabled,
+                fusedVizEnabled: $fusedVizEnabled,
                 plantsToAutoPlace: selectedPlants,
                 uid: uid,
                 wizard: wizard,
@@ -446,12 +509,22 @@ struct GardenARPlacementView: View {
                     Button { NotificationCenter.default.post(name: .gardenARRedo, object: nil) } label: {
                         Image(systemName: "arrow.uturn.forward").modifier(GlassButtonStyle())
                     }
-                    // Issue #186 — debug toggle : highlight detected
-                    // surfaces colored by SurfaceClassifier verdict.
-                    Button { surfaceVizEnabled.toggle() } label: {
-                        Image(systemName: surfaceVizEnabled
+                    // Issue #186 + #187 — debug overlays panel : tap to
+                    // open a sheet with the 4 toggles ; long-press = panic-
+                    // off everything. Icon turns green when any overlay
+                    // is active, red when all four are on (thermal warning).
+                    Button {
+                        showDebugPanel = true
+                    } label: {
+                        Image(systemName: anyDebugVizOn
                               ? "cube.transparent.fill" : "cube.transparent")
-                            .modifier(GlassButtonStyle(isGreen: surfaceVizEnabled))
+                            .modifier(GlassButtonStyle(isGreen: anyDebugVizOn))
+                    }
+                    .onLongPressGesture {
+                        surfaceVizEnabled = false
+                        semSegVizEnabled = false
+                        depthVizEnabled = false
+                        fusedVizEnabled = false
                     }
                 }
             }
@@ -751,9 +824,14 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var capturedShareImage: UIImage?
     @Binding var isCapturingSharePhoto: Bool
 
-    /// Debug toggle (issue #186) — colour each detected plane by its
-    /// `SurfaceType` so the user can see what ARKit understands.
+    /// Phase 1 (#186) — colour each detected plane by its `SurfaceType`.
     @Binding var surfaceVizEnabled: Bool
+    /// Phase 3 (#187) — 2D mask overlay from DETR Semantic Segmentation.
+    @Binding var semSegVizEnabled: Bool
+    /// Phase 3 (#187) — 2D heatmap overlay from Depth Anything V2.
+    @Binding var depthVizEnabled: Bool
+    /// Phase 3 (#187) — 3D bbox + label overlay from SemSeg+Depth fusion.
+    @Binding var fusedVizEnabled: Bool
 
     let plantsToAutoPlace: [Plant]
 
@@ -845,6 +923,12 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     func updateUIView(_ uiView: ARSCNView, context: Context) {
         context.coordinator.updateCachedBounds()
         context.coordinator.syncSurfaceVizEnabled(surfaceVizEnabled, sceneView: uiView)
+        context.coordinator.syncSceneUnderstanding(
+            semSegEnabled: semSegVizEnabled,
+            depthEnabled: depthVizEnabled,
+            fusedEnabled: fusedVizEnabled,
+            sceneView: uiView
+        )
 
         if shouldCaptureSharePhoto {
             DispatchQueue.main.async {
@@ -924,6 +1008,18 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             /// Cached camera Y to avoid `session.currentFrame` reads in the
             /// classification hot path. Updated each frame in `renderer(_:updateAtTime:)`.
             private var lastCameraY: Float = 1.6
+
+            // Issue #187 — SemSeg + Depth scene understanding pipeline.
+            // The controller stays nil until at least one of the three
+            // Phase 3 overlays is toggled on (cf syncSceneUnderstanding) ;
+            // each overlay starts/stops independently of the others. The
+            // controller exposes a single onSnapshot callback that fans
+            // out to whichever overlays are active when the snapshot
+            // arrives.
+            private var sceneCtl: SceneUnderstandingController?
+            private let semSegOverlay = SemSegOverlay()
+            private let depthOverlay = DepthOverlay()
+            private let fusedOverlay = FusedSceneOverlay()
 
             // Issue #113 — ARAnchor-based placement.
             // anchor.identifier (UUID, unique per placement) → its ARAnchor.
@@ -1041,6 +1137,11 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             private let restoreMaxWait: TimeInterval = 4.0
 
             func session(_ session: ARSession, didUpdate frame: ARFrame) {
+                // Issue #187 — opportunistic SemSeg + Depth inference.
+                // 0.5 Hz internal throttle, no-op when sceneCtl is nil
+                // (no Phase-3 overlay enabled).
+                sceneCtl?.tick(frame: frame, floorY: floorY)
+
                 let mapStatus = frame.worldMappingStatus
                 let trackingState = frame.camera.trackingState
 
@@ -2697,6 +2798,59 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     }
                 } else {
                     surfaceViz.stop()
+                }
+            }
+
+            /// Issue #187 — sync the three Phase-3 ML overlays with the
+            /// SwiftUI toggles. Lazy-creates the underlying
+            /// `SceneUnderstandingController` the first time any overlay
+            /// is enabled, releases it when ALL three go off (so the
+            /// ~134 MB of CoreML weights are freed).
+            func syncSceneUnderstanding(
+                semSegEnabled: Bool,
+                depthEnabled: Bool,
+                fusedEnabled: Bool,
+                sceneView: ARSCNView
+            ) {
+                let anyOn = semSegEnabled || depthEnabled || fusedEnabled
+                if anyOn && sceneCtl == nil {
+                    let ctl = SceneUnderstandingController()
+                    ctl.start()
+                    if !ctl.isAvailable {
+                        AppLog.sceneML.notice("Models unavailable — Phase 3 overlays stay off")
+                        return
+                    }
+                    ctl.onSnapshot = { [weak self] snap in
+                        self?.applySceneSnapshot(snap)
+                    }
+                    sceneCtl = ctl
+                }
+
+                if anyOn {
+                    if semSegEnabled { semSegOverlay.attach(to: sceneView) } else { semSegOverlay.detach() }
+                    if depthEnabled { depthOverlay.attach(to: sceneView) } else { depthOverlay.detach() }
+                    if fusedEnabled { fusedOverlay.attach(to: sceneView.scene) } else { fusedOverlay.detach() }
+                } else {
+                    semSegOverlay.detach()
+                    depthOverlay.detach()
+                    fusedOverlay.detach()
+                    sceneCtl?.stop()
+                    sceneCtl = nil
+                }
+            }
+
+            /// Called on the main queue every ~0.5s (the controller throttle)
+            /// when a fresh SemSeg+Depth pass completes. Fans out to the
+            /// currently-attached overlays.
+            private func applySceneSnapshot(_ snap: SceneUnderstandingSnapshot) {
+                if semSegOverlay.isActive, let map = snap.semanticMap {
+                    semSegOverlay.update(with: map)
+                }
+                if depthOverlay.isActive, let dmap = snap.depthMap {
+                    depthOverlay.update(with: dmap, inverseScale: snap.inverseScale)
+                }
+                if fusedOverlay.isActive {
+                    fusedOverlay.update(regions: snap.regions)
                 }
             }
 

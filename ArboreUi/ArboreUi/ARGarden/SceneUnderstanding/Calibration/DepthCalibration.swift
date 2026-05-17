@@ -97,6 +97,53 @@ enum DepthCalibration {
         return AffineFit(a: a, b: b)
     }
 
+    /// RANSAC variant of `fitAffine` — robust to outliers (cf #190
+    /// Niveau 3). For `iterations` rounds, picks 2 random samples,
+    /// fits a candidate model, counts the inliers (samples whose
+    /// predicted metric is within `inlierMetricRatio` of observed),
+    /// keeps the model with the most inliers, then re-fits by LS on
+    /// the best inlier set.
+    ///
+    /// Returns nil if `samples.count < 4` (no outlier rejection
+    /// possible) — caller falls back to `fitAffine` in that case.
+    /// Also returns nil if no model reaches `minInliers` inliers.
+    static func fitAffineRANSAC(
+        samples: [Sample],
+        iterations: Int = 50,
+        inlierMetricRatio: Float = 0.20,
+        minInliers: Int = 5
+    ) -> (fit: AffineFit, inlierCount: Int)? {
+        // Below 4 samples RANSAC isn't useful — fall back to plain LS.
+        if samples.count < 4 {
+            return fitAffine(samples: samples).map { ($0, samples.count) }
+        }
+
+        var bestInliers: [Sample] = []
+        for _ in 0..<iterations {
+            let i = Int.random(in: 0..<samples.count)
+            var j = Int.random(in: 0..<samples.count)
+            while j == i { j = Int.random(in: 0..<samples.count) }
+            guard let candidate = fitAffine(samples: [samples[i], samples[j]]) else { continue }
+
+            var inliers: [Sample] = []
+            for s in samples {
+                let predicted = candidate.metric(raw: s.raw)
+                guard predicted.isFinite, predicted > 0.05, predicted < 50 else { continue }
+                let err = abs(predicted - s.metric) / s.metric
+                if err < inlierMetricRatio {
+                    inliers.append(s)
+                }
+            }
+            if inliers.count > bestInliers.count {
+                bestInliers = inliers
+            }
+        }
+
+        guard bestInliers.count >= minInliers else { return nil }
+        guard let refined = fitAffine(samples: bestInliers) else { return nil }
+        return (refined, bestInliers.count)
+    }
+
     // MARK: - Sample collection
 
     /// Project each world anchor into the depth image and pair it with

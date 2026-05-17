@@ -100,10 +100,19 @@ final class SceneUnderstandingController {
     private var depth: (any DepthPredicting)?
     private var lastTickAt: TimeInterval = 0
     private var inflightTask: Task<Void, Never>?
-    /// Most recently fitted depth model. Updated every tick (with a
-    /// fresh sample set) instead of cached forever — see #186 Niveau 2.
-    /// Cleared on `stop()`.
+    /// Most recently smoothed depth model. Updated every tick (with a
+    /// fresh sample set) — see #186 Niveau 2 + #190 Niveau 3. Cleared
+    /// on `stop()`.
     private var depthFit: DepthCalibration.AffineFit?
+
+    /// Sliding window of the last few RAW (per-tick) RANSAC fits. The
+    /// median across this window is what gets published downstream as
+    /// `depthFit` — kills the frame-to-frame oscillation we observed
+    /// where one bad set of ARKit feature points pulled the LS fit
+    /// way off (cf #190 Niveau 3 logs : ≈inverseScale jumping from 1.7
+    /// to 15.0 between consecutive ticks).
+    private var fitHistory: [DepthCalibration.AffineFit] = []
+    private let fitHistoryMax = 5
 
     /// Tracks the last reason tick() exited early so we can log only on
     /// transitions (avoids 60Hz spam).
@@ -171,6 +180,7 @@ final class SceneUnderstandingController {
             self.semseg = nil
             self.depth = nil
             self.depthFit = nil
+            self.fitHistory.removeAll()
             self.isAvailable = false
         }
         AppLog.sceneML.notice("SceneUnderstandingController stopped")
@@ -179,7 +189,10 @@ final class SceneUnderstandingController {
     /// Force-refit the depth scale on the next tick (use after the user
     /// changes garden / floor anchor moves significantly).
     func recalibrate() {
-        lock.withLock { self.depthFit = nil }
+        lock.withLock {
+            self.depthFit = nil
+            self.fitHistory.removeAll()
+        }
     }
 
     /// Per-AR-frame entrypoint. The expected call site is the
@@ -280,18 +293,14 @@ final class SceneUnderstandingController {
                                                          pixelBuffer: pixelBuffer)
         recordOutcome(semanticOK: semanticMap != nil, depthOK: depthMap != nil)
 
-        // 2. Calibration — re-fit every tick from the current anchors
-        //    instead of caching forever. If the new fit fails (no
-        //    anchors in view, all anchors degenerate), we fall back to
-        //    the previous one so accumulation can keep running through
-        //    transient gaps.
-        let previousFit = lock.withLock { self.depthFit }
+        // 2. Calibration — RANSAC fit on current frame, fed into a
+        //    sliding-window median across the last N ticks. Both fits
+        //    and history-handling live in fitDepth.
         let fit = fitDepth(depthMap: depthMap,
                            anchors: calibrationAnchors,
                            cameraTransform: cameraTransform,
                            intrinsics: intrinsics,
-                           captureSize: captureSize,
-                           previous: previousFit)
+                           captureSize: captureSize)
 
         // 3. Fusion + voxel accumulation (only when all inputs are valid).
         let regions = fuseAndAccumulate(semanticMap: semanticMap,
@@ -342,25 +351,21 @@ final class SceneUnderstandingController {
     }
 
     /// Fit the depth model `1/metric = a·raw + b` from the current
-    /// ARKit anchor set (#190 Niveau 2). On failure, returns the
-    /// previous fit so the pipeline keeps running through transient
-    /// gaps (anchor briefly out of FoV, etc.).
-    ///
-    /// Logs the inlier count + the resulting `equivalentInverseScale`
-    /// so device traces remain readable in the old "scale=0.9-ish"
-    /// mental model. RANSAC + temporal smoothing is tracked in #190.
+    /// ARKit anchor set, with RANSAC outlier rejection (#190 Niveau 3)
+    /// then temporal-median smoothing over the last `fitHistoryMax`
+    /// ticks. On a per-tick failure (no anchors, all degenerate, not
+    /// enough RANSAC inliers), the history isn't touched and we
+    /// return its current median — so a single bad frame doesn't
+    /// pollute downstream.
     private func fitDepth(
         depthMap: CVPixelBuffer?,
         anchors: [SIMD3<Float>],
         cameraTransform: simd_float4x4,
         intrinsics: simd_float3x3,
-        captureSize: CGSize,
-        previous: DepthCalibration.AffineFit?
+        captureSize: CGSize
     ) -> DepthCalibration.AffineFit? {
-        guard let depthMap = depthMap else { return previous }
-        guard !anchors.isEmpty else {
-            // No anchors visible this frame — keep last good fit.
-            return previous
+        guard let depthMap = depthMap, !anchors.isEmpty else {
+            return lock.withLock { self.smoothedFitLocked() }
         }
         let samples = DepthCalibration.collectSamples(
             depthMap: depthMap,
@@ -369,16 +374,34 @@ final class SceneUnderstandingController {
             intrinsics: intrinsics,
             captureSize: captureSize
         )
-        guard let fit = DepthCalibration.fitAffine(samples: samples) else {
-            AppLog.sceneML.notice("Depth fit skipped : anchors=\(anchors.count, privacy: .public) usable=\(samples.count, privacy: .public)")
-            return previous
+        guard let result = DepthCalibration.fitAffineRANSAC(samples: samples) else {
+            AppLog.sceneML.notice("Depth RANSAC fit skipped : anchors=\(anchors.count, privacy: .public) samples=\(samples.count, privacy: .public) (not enough inliers)")
+            return lock.withLock { self.smoothedFitLocked() }
         }
-        // Edge-triggered log so we don't spam at 1Hz with the same numbers.
-        let equiv = fit.equivalentInverseScale ?? .nan
-        if previous == nil || previous != fit {
-            AppLog.sceneML.notice("Depth fit anchors=\(anchors.count, privacy: .public) inliers=\(samples.count, privacy: .public) a=\(fit.a, privacy: .public) b=\(fit.b, privacy: .public) ≈inverseScale=\(equiv, privacy: .public)")
+        // Push to history under lock + return the post-smoothing median.
+        return lock.withLock {
+            self.fitHistory.append(result.fit)
+            if self.fitHistory.count > self.fitHistoryMax {
+                self.fitHistory.removeFirst()
+            }
+            let smoothed = self.smoothedFitLocked()
+            let raw = result.fit
+            let equivRaw = raw.equivalentInverseScale ?? .nan
+            let equivSmoothed = smoothed?.equivalentInverseScale ?? .nan
+            AppLog.sceneML.notice("Depth RANSAC anchors=\(anchors.count, privacy: .public) samples=\(samples.count, privacy: .public) inliers=\(result.inlierCount, privacy: .public) raw≈\(equivRaw, privacy: .public) smoothed≈\(equivSmoothed, privacy: .public)")
+            return smoothed
         }
-        return fit
+    }
+
+    /// Component-wise median of the fit history. Caller must hold
+    /// `lock`. With N=5 fits, this kills 1-2 wild outliers per window
+    /// while staying reactive to genuine scene changes in 2-3 ticks.
+    private func smoothedFitLocked() -> DepthCalibration.AffineFit? {
+        guard !fitHistory.isEmpty else { return nil }
+        let sortedA = fitHistory.map(\.a).sorted()
+        let sortedB = fitHistory.map(\.b).sorted()
+        let mid = sortedA.count / 2
+        return DepthCalibration.AffineFit(a: sortedA[mid], b: sortedB[mid])
     }
 
     private func fuseAndAccumulate(

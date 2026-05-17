@@ -100,4 +100,50 @@ final class DepthCalibrationTests: XCTestCase {
         let fit = Fit(a: 1 / 0.95, b: 0)
         XCTAssertEqual(fit.equivalentInverseScale ?? -1, 0.95, accuracy: 1e-5)
     }
+
+    // MARK: - RANSAC (Niveau 3 / #190)
+
+    func test_fitAffineRANSAC_recoversParametersDespiteOutliers() {
+        // 15 clean samples on `1/metric = 1.2·raw + 0.3`, mixed with
+        // 5 wild outliers. Plain LS would drift ; RANSAC must lock
+        // onto the inlier line.
+        let a: Float = 1.2, b: Float = 0.3
+        var samples: [Sample] = (1...15).map { i in
+            let raw = Float(i) * 0.05
+            return Sample(raw: raw, metric: 1 / (a * raw + b))
+        }
+        for _ in 0..<5 {
+            samples.append(Sample(raw: Float.random(in: 0.1...1.0),
+                                  metric: Float.random(in: 0.05...0.3)))
+        }
+        guard let result = DepthCalibration.fitAffineRANSAC(samples: samples) else {
+            return XCTFail("RANSAC returned nil despite ≥5 inliers available")
+        }
+        XCTAssertEqual(result.fit.a, a, accuracy: 0.1)
+        XCTAssertEqual(result.fit.b, b, accuracy: 0.1)
+        XCTAssertGreaterThanOrEqual(result.inlierCount, 10)
+    }
+
+    func test_fitAffineRANSAC_fallsBackToLSWithFewSamples() {
+        // <4 samples → RANSAC isn't meaningful, the function
+        // delegates to the LS path so callers don't have to handle
+        // two failure modes.
+        let samples: [Sample] = [
+            Sample(raw: 0.1, metric: 5.0),
+            Sample(raw: 0.5, metric: 1.5),
+        ]
+        let result = DepthCalibration.fitAffineRANSAC(samples: samples)
+        XCTAssertNotNil(result, "expected LS fallback for n=2")
+    }
+
+    func test_fitAffineRANSAC_returnsNilWithStrictMinInliersOnNoise() {
+        // All-noise samples → no consensus model exists at high
+        // minInliers requirement.
+        let samples: [Sample] = (0..<20).map { _ in
+            Sample(raw: Float.random(in: 0.1...1.0),
+                   metric: Float.random(in: 0.5...5.0))
+        }
+        let result = DepthCalibration.fitAffineRANSAC(samples: samples, minInliers: 18)
+        XCTAssertNil(result)
+    }
 }

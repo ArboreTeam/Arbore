@@ -26,15 +26,73 @@ import simd
 /// fusion that drives debug viz + region detection.
 enum DepthCalibration {
 
-    /// Fit the multiplicative scale `s` such that `metric = s / raw`.
-    /// Returns nil if the centre depth is degenerate (the model can't
-    /// see anything, or the floor reference is unreliable).
+    /// **Preferred.** Fit the inverse-depth scale by projecting a KNOWN
+    /// world point onto the depth image and reading the raw value there.
+    /// Much more reliable than the centre-pixel assumption — the centre
+    /// is only on the floor when the user is pointing straight down,
+    /// which never happens in practice. Pass any anchored point you
+    /// know the geometry of (usually an `ARPlaneAnchor.floor` centroid).
     ///
     /// - Parameter depthMap: Depth Anything's CVPixelBuffer output.
-    /// - Parameter cameraHeightMeters: distance camera → floor in
-    ///   metres (typically `camera.transform.columns.3.y - floorPlaneY`).
-    /// - Parameter minRaw: reject if the centre raw value is below this
-    ///   threshold (would amplify noise to absurd metric values).
+    /// - Parameter worldPoint: a 3D point in world coords we want to use
+    ///   as the calibration reference (e.g. floor anchor centre).
+    /// - Parameter cameraTransform: ARFrame.camera.transform.
+    /// - Parameter intrinsics: ARFrame.camera.intrinsics in capture coords.
+    /// - Parameter captureSize: ARFrame.camera.imageResolution.
+    /// - Parameter minRaw: reject if the sampled raw is below threshold.
+    static func fitInverseScale(
+        depthMap: CVPixelBuffer,
+        worldPoint: SIMD3<Float>,
+        cameraTransform: simd_float4x4,
+        intrinsics: simd_float3x3,
+        captureSize: CGSize,
+        minRaw: Float = 0.001
+    ) -> Float? {
+        // Transform world point → camera frame.
+        let invCam = cameraTransform.inverse
+        let camPoint4 = invCam * SIMD4<Float>(worldPoint, 1)
+        // ARKit camera looks toward -Z, so a point in front has z < 0.
+        // Skip if behind us or grazing the lens.
+        guard camPoint4.z < -0.1 else { return nil }
+        let camZ = -camPoint4.z   // positive distance to image plane
+
+        let fx = intrinsics[0, 0]
+        let fy = intrinsics[1, 1]
+        let cx = intrinsics[2, 0]
+        let cy = intrinsics[2, 1]
+        // Project. Image v axis points down, camera +Y points up → negate.
+        let u = fx * (camPoint4.x / camZ) + cx
+        let v = fy * (-camPoint4.y / camZ) + cy
+
+        // Rescale to depth buffer coordinates (depth model output is
+        // typically smaller than the original capture).
+        let depthW = CVPixelBufferGetWidth(depthMap)
+        let depthH = CVPixelBufferGetHeight(depthMap)
+        let dx = Int(u / Float(captureSize.width) * Float(depthW))
+        let dy = Int(v / Float(captureSize.height) * Float(depthH))
+        guard dx >= 0, dx < depthW, dy >= 0, dy < depthH else { return nil }
+
+        CVPixelBufferLockBaseAddress(depthMap, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+        guard let base = CVPixelBufferGetBaseAddress(depthMap) else { return nil }
+        let bpr = CVPixelBufferGetBytesPerRow(depthMap)
+        let fmt = CVPixelBufferGetPixelFormatType(depthMap)
+        let raw = DepthPixelBufferAccess.sampleRaw(
+            x: dx, y: dy, base: base,
+            bytesPerRow: bpr, format: fmt,
+            width: depthW, height: depthH
+        )
+        guard raw > minRaw else { return nil }
+
+        // Euclidean distance camera→point.
+        let metric = simd_length(SIMD3<Float>(camPoint4.x, camPoint4.y, camPoint4.z))
+        let scale = metric * raw
+        return scale.isFinite ? scale : nil
+    }
+
+    /// **Fallback** — centre-pixel-on-floor assumption. Use only when no
+    /// known world point is available. Often produces a scale that's
+    /// off by 2-3× because the user almost never points straight down.
     static func fitInverseScale(
         depthMap: CVPixelBuffer,
         cameraHeightMeters: Float,

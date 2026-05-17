@@ -132,7 +132,13 @@ final class SceneUnderstandingController {
     /// Per-AR-frame entrypoint. The expected call site is the
     /// `ARSCNViewDelegate.session(_:didUpdate:)` of the placement view.
     /// Internally throttles ; safe to call at 60 Hz.
-    func tick(frame: ARFrame, floorY: Float?) {
+    ///
+    /// - Parameter floorWorldPoint: optional centroid of a known floor
+    ///   plane anchor in world coordinates. Preferred over `floorY` for
+    ///   calibration — single-point fit assuming the centre pixel sits
+    ///   on the floor (the old API) is wrong 90% of the time because
+    ///   users don't point straight down.
+    func tick(frame: ARFrame, floorY: Float?, floorWorldPoint: SIMD3<Float>? = nil) {
         // Snapshot the runnable state under the lock — returns nil if
         // the tick should be skipped.
         struct TickGo {
@@ -171,6 +177,7 @@ final class SceneUnderstandingController {
                 cameraTransform: cameraTransform,
                 cameraY: cameraY,
                 floorY: floorY,
+                floorWorldPoint: floorWorldPoint,
                 cachedScale: go.cachedScale
             )
             // Strong-capture self inside the lock body — the outer weak
@@ -192,6 +199,7 @@ final class SceneUnderstandingController {
         cameraTransform: simd_float4x4,
         cameraY: Float,
         floorY: Float?,
+        floorWorldPoint: SIMD3<Float>?,
         cachedScale: Float?
     ) async {
         let startMs = CFAbsoluteTimeGetCurrent() * 1000
@@ -224,17 +232,35 @@ final class SceneUnderstandingController {
         // resize size is now wrong, or the model file is corrupt.
         recordOutcome(semanticOK: semanticMap != nil, depthOK: depthMap != nil)
 
-        // Calibrate (fit once, reuse). Only possible when depth + floor available.
+        // Calibrate (fit once, reuse). Prefer the floor-anchor-point
+        // method when we have one — projects a known world point onto
+        // the depth image, way more reliable than the centre-pixel
+        // assumption. Falls back to camera-height/centre-pixel only
+        // when no floor anchor centroid is known.
         var scale = cachedScale
-        if scale == nil, let depthMap = depthMap, let floorY = floorY {
-            let height = cameraY - floorY
-            if height > 0.3 {
+        if scale == nil, let depthMap = depthMap {
+            if let worldPoint = floorWorldPoint {
                 scale = DepthCalibration.fitInverseScale(
                     depthMap: depthMap,
-                    cameraHeightMeters: height
+                    worldPoint: worldPoint,
+                    cameraTransform: cameraTransform,
+                    intrinsics: intrinsics,
+                    captureSize: captureSize
                 )
                 if let scale = scale {
-                    AppLog.sceneML.notice("Calibrated inverseScale=\(scale, privacy: .public) h=\(height, privacy: .public)m")
+                    AppLog.sceneML.notice("Calibrated via floor anchor inverseScale=\(scale, privacy: .public)")
+                }
+            }
+            if scale == nil, let floorY = floorY {
+                let height = cameraY - floorY
+                if height > 0.3 {
+                    scale = DepthCalibration.fitInverseScale(
+                        depthMap: depthMap,
+                        cameraHeightMeters: height
+                    )
+                    if let scale = scale {
+                        AppLog.sceneML.notice("Calibrated via centre-pixel inverseScale=\(scale, privacy: .public) h=\(height, privacy: .public)m (less reliable)")
+                    }
                 }
             }
         }

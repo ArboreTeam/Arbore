@@ -1179,7 +1179,33 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 // Issue #187 — opportunistic SemSeg + Depth inference.
                 // 0.5 Hz internal throttle, no-op when sceneCtl is nil
                 // (no Phase-3 overlay enabled).
-                sceneCtl?.tick(frame: frame, floorY: surfacesLock.withLock { self.floorY })
+                // Pick the centroid of the lowest horizontal plane we've
+                // seen — used by the depth calibrator to fit a metric
+                // scale via projection (cf #187 #150). Way more reliable
+                // than camera-height + centre-pixel guesswork.
+                let calibrationData: (floorY: Float?, point: SIMD3<Float>?) = surfacesLock.withLock {
+                    let floor = self.floorY
+                    var best: SIMD3<Float>? = nil
+                    if let floorY = floor {
+                        var bestDistance: Float = .greatestFiniteMagnitude
+                        for f in self.planeFeatures.values where f.alignment == .horizontal {
+                            if abs(f.center.y - floorY) < 0.10 {
+                                let camPos = frame.camera.transform.columns.3
+                                let dx = f.center.x - camPos.x
+                                let dz = f.center.z - camPos.z
+                                let d = dx*dx + dz*dz
+                                if d < bestDistance {
+                                    bestDistance = d
+                                    best = f.center
+                                }
+                            }
+                        }
+                    }
+                    return (floor, best)
+                }
+                sceneCtl?.tick(frame: frame,
+                               floorY: calibrationData.floorY,
+                               floorWorldPoint: calibrationData.point)
 
                 let mapStatus = frame.worldMappingStatus
                 let trackingState = frame.camera.trackingState

@@ -34,9 +34,10 @@ extension GardenARPlacementContainerView.Coordinator {
         fusedEnabled: Bool,
         voxelScanEnabled: Bool,
         scanViewEnabled: Bool,
+        tsdfScanEnabled: Bool,
         sceneView: ARSCNView
     ) {
-        let anyOn = semSegEnabled || depthEnabled || fusedEnabled || voxelScanEnabled
+        let anyOn = semSegEnabled || depthEnabled || fusedEnabled || voxelScanEnabled || tsdfScanEnabled
         if anyOn && sceneCtl == nil {
             // start() is now async — `isAvailable` won't be true until
             // the models finish loading on a background task. We wire
@@ -76,18 +77,33 @@ extension GardenARPlacementContainerView.Coordinator {
             } else {
                 voxelOverlay.showCamera()
             }
+
+            // TSDF iso-surface (#189). Same OFF→ON edge semantics as
+            // voxel scan : a fresh start wipes any previous mesh and
+            // attaches a new overlay ; a toggle-off pauses integration
+            // but keeps the rendered iso-surface visible.
+            if tsdfScanEnabled && !tsdfScanWasOn {
+                tsdfGrid = TSDFGrid()
+                tsdfOverlay.attach(to: sceneView.scene)
+            }
+            if tsdfScanEnabled {
+                sceneCtl?.tsdfGrid = tsdfGrid
+            } else {
+                sceneCtl?.tsdfGrid = nil
+            }
         } else {
             semSegOverlay.detach()
             depthOverlay.detach()
             fusedOverlay.detach()
-            // Voxel cloud is intentionally NOT torn down here — user
-            // wants to keep viewing their scan after toggling everything
-            // off. It only goes away on dismantle.
+            // Voxel cloud + TSDF mesh are intentionally NOT torn down
+            // here — user wants to keep viewing their scan after
+            // toggling everything off. They only go away on dismantle.
             voxelOverlay.showCamera()
             sceneCtl?.stop()
             sceneCtl = nil
         }
         voxelScanWasOn = voxelScanEnabled
+        tsdfScanWasOn = tsdfScanEnabled
     }
 
     /// Called on the main queue every ~1s (the controller throttle)
@@ -105,6 +121,9 @@ extension GardenARPlacementContainerView.Coordinator {
         }
         if voxelOverlay.isVoxelRootAttached, let grid = voxelGrid {
             voxelOverlay.refresh(grid: grid)
+        }
+        if tsdfOverlay.isAttached, let grid = tsdfGrid {
+            tsdfOverlay.refresh(grid: grid)
         }
     }
 }

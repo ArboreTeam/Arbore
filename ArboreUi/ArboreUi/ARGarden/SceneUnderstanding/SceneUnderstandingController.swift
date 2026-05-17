@@ -106,6 +106,12 @@ final class SceneUnderstandingController {
     /// when the user toggles voxel scan on.
     var voxelGrid: VoxelGrid?
 
+    /// Optional TSDF accumulator — when non-nil, every successful tick
+    /// ray-casts the depth into a signed-distance field (cf #189).
+    /// Coexists with `voxelGrid` so the two overlays can be compared
+    /// side-by-side in debug.
+    var tsdfGrid: TSDFGrid?
+
     /// `OSAllocatedUnfairLock` (iOS 16+) is async-safe — Swift 6 won't
     /// flag `.lock()` / `.unlock()` calls inside `runOnce`'s async body
     /// the way it would for NSLock.
@@ -450,9 +456,21 @@ final class SceneUnderstandingController {
             cameraTransform: cameraTransform,
             captureSize: captureSize
         )
-        if let grid = (lock.withLock { self.voxelGrid }) {
+        let (vGrid, tGrid) = lock.withLock { (self.voxelGrid, self.tsdfGrid) }
+        if let grid = vGrid {
             VoxelAccumulator.accumulate(
                 into: grid,
+                semanticMap: semanticMap,
+                depthMap: depthMap,
+                fit: fit,
+                intrinsics: intrinsics,
+                cameraTransform: cameraTransform,
+                captureSize: captureSize
+            )
+        }
+        if let tsdf = tGrid {
+            TSDFIntegrator.integrate(
+                into: tsdf,
                 semanticMap: semanticMap,
                 depthMap: depthMap,
                 fit: fit,

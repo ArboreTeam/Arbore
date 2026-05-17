@@ -93,6 +93,10 @@ struct GardenARPlacementView: View {
     // user can inspect the voxel cloud as a 3D model. Cf #187.
     @AppStorage("arDebugVoxelScan")  private var voxelScanEnabled: Bool = false
     @AppStorage("arDebugScanView")   private var scanViewEnabled: Bool = false
+    // Issue #189 — TSDF iso-surface reconstruction (multi-view fusion).
+    // Independent of the raw voxel point cloud above ; both can be on at
+    // the same time for visual comparison.
+    @AppStorage("arDebugTSDFScan")   private var tsdfScanEnabled: Bool = false
     @State private var showDebugPanel = false
 
     // 🤖 AI Auto-placement
@@ -119,6 +123,7 @@ struct GardenARPlacementView: View {
     private var anyDebugVizOn: Bool {
         surfaceVizEnabled || semSegVizEnabled || depthVizEnabled
             || fusedVizEnabled || voxelScanEnabled || scanViewEnabled
+            || tsdfScanEnabled
     }
 
     /// Bottom-sheet that surfaces the four debug toggles. Each is
@@ -156,6 +161,9 @@ struct GardenARPlacementView: View {
                     Label("Scan view (hide camera)", systemImage: "eye.slash")
                 }
                 .disabled(!voxelScanEnabled)
+                Toggle(isOn: $tsdfScanEnabled) {
+                    Label("TSDF iso-surface (#189)", systemImage: "shippingbox.fill")
+                }
             }
             .padding(.horizontal, 20)
             .toggleStyle(.switch)
@@ -201,6 +209,7 @@ struct GardenARPlacementView: View {
                 fusedVizEnabled: $fusedVizEnabled,
                 voxelScanEnabled: $voxelScanEnabled,
                 scanViewEnabled: $scanViewEnabled,
+                tsdfScanEnabled: $tsdfScanEnabled,
                 plantsToAutoPlace: selectedPlants,
                 uid: uid,
                 wizard: wizard,
@@ -860,6 +869,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
     /// Phase 3 (#187) — hide the AR camera feed so the user sees only
     /// the voxel cloud (works only with `voxelScanEnabled` on).
     @Binding var scanViewEnabled: Bool
+    /// Issue #189 — TSDF iso-surface reconstruction (multi-view fusion).
+    @Binding var tsdfScanEnabled: Bool
 
     let plantsToAutoPlace: [Plant]
 
@@ -957,6 +968,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             fusedEnabled: fusedVizEnabled,
             voxelScanEnabled: voxelScanEnabled,
             scanViewEnabled: scanViewEnabled,
+            tsdfScanEnabled: tsdfScanEnabled,
             sceneView: uiView
         )
 
@@ -1071,6 +1083,13 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             /// OFF→ON edges (clear + start fresh) and ON→OFF edges
             /// (pause accumulation, keep cloud visible).
             var voxelScanWasOn = false
+
+            // Issue #189 — TSDF iso-surface reconstruction. Same coexist
+            // pattern as the voxel cloud above : grid + overlay survive
+            // a toggle-off so the user can keep viewing their mesh.
+            let tsdfOverlay = TSDFOverlay()
+            var tsdfGrid: TSDFGrid?
+            var tsdfScanWasOn = false
 
             // Issue #113 — ARAnchor-based placement.
             // anchor.identifier (UUID, unique per placement) → its ARAnchor.

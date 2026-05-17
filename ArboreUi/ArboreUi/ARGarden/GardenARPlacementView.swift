@@ -908,18 +908,22 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
 
             // Issue #186 — surface classification cache + viz controller.
             //
-            // `planeFeatures` snapshots each detected plane's geometric
-            // features ; `planeTypes` records the classification the
-            // heuristic returned. Both are keyed by anchor identifier and
-            // updated on didAdd / didUpdate / didRemove plane anchor.
-            //
-            // `floorY` is the lowest Y among horizontal planes seen so far,
-            // used as the "this is the floor" reference for classification.
-            // Nil until the first horizontal plane arrives.
+            // `planeAnchors` keeps the ARPlaneAnchor itself (ARKit owns it,
+            // we keep a reference so the viz can replay without going
+            // through `session.currentFrame` — that lookup retains an
+            // ARFrame every call and triggers the "delegate is retaining
+            // N ARFrames" warning under fast plane updates).
+            // `planeFeatures` snapshots geometric features per anchor.
+            // `planeTypes` records the heuristic verdict.
+            // `floorY` is the lowest Y among horizontal planes seen so far.
+            private var planeAnchors: [UUID: ARPlaneAnchor] = [:]
             private var planeFeatures: [UUID: PlaneFeatures] = [:]
             private var planeTypes: [UUID: SurfaceType] = [:]
             private var floorY: Float?
             private let surfaceViz = SurfaceVizController()
+            /// Cached camera Y to avoid `session.currentFrame` reads in the
+            /// classification hot path. Updated each frame in `renderer(_:updateAtTime:)`.
+            private var lastCameraY: Float = 1.6
 
             // Issue #113 — ARAnchor-based placement.
             // anchor.identifier (UUID, unique per placement) → its ARAnchor.
@@ -1166,9 +1170,15 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
                 guard let arView = arView, let reticle = reticleNode else { return }
 
-                // 💡 Update Lux from ARKit light estimation
-                if let lightEstimate = arView.session.currentFrame?.lightEstimate {
-                    let lux = Int(lightEstimate.ambientIntensity)
+                // 💡 Update Lux from ARKit light estimation. We piggyback
+                // on this once-per-frame currentFrame read to refresh the
+                // cached `lastCameraY` used by SurfaceClassifier — avoids
+                // additional currentFrame queries in the classification
+                // hot path (which would retain extra ARFrames, cf
+                // "delegate is retaining N ARFrames" warnings).
+                if let frame = arView.session.currentFrame {
+                    let lux = Int(frame.lightEstimate?.ambientIntensity ?? 0)
+                    lastCameraY = frame.camera.transform.columns.3.y
                     DispatchQueue.main.async { [weak self] in
                         withAnimation(.linear(duration: 0.2)) {
                             self?.parentProps?.currentLux = lux
@@ -2593,6 +2603,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             /// planes, so even a full pass is ~µs of work.
             func handlePlaneAnchorChange(_ anchor: ARPlaneAnchor) {
                 let features = PlaneFeatures(anchor)
+                planeAnchors[anchor.identifier] = anchor
                 planeFeatures[anchor.identifier] = features
 
                 // Update floorY if this horizontal plane is the new lowest.
@@ -2604,7 +2615,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     }
                 }
 
-                let cameraY = arView?.session.currentFrame?.camera.transform.columns.3.y ?? 1.6
+                let cameraY = lastCameraY
                 let verticals = planeFeatures.values.filter { $0.alignment == .vertical }
 
                 let kind = SurfaceClassifier.classify(
@@ -2619,7 +2630,9 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 if previous != kind {
                     AppLog.surfaces.notice("plane=\(anchor.identifier.uuidString.prefix(8), privacy: .public) \(previous?.rawValue ?? "—", privacy: .public) → \(kind.rawValue, privacy: .public) y=\(features.center.y, privacy: .public)")
                 }
-                surfaceViz.upsert(anchor: anchor, type: kind)
+                if surfaceViz.isActive {
+                    surfaceViz.upsert(anchor: anchor, type: kind)
+                }
 
                 // If `floorY` just shifted, re-classify other cached planes —
                 // a plane that used to be `.floor` (no reference yet) may
@@ -2641,12 +2654,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     if previous != kind {
                         planeTypes[id] = kind
                         AppLog.surfaces.debug("reclassify \(id.uuidString.prefix(8), privacy: .public) \(previous?.rawValue ?? "—", privacy: .public) → \(kind.rawValue, privacy: .public)")
-                        // We need the ARPlaneAnchor itself to push the viz
-                        // update ; look it up via the ARSession.
-                        if let anchor = arView?.session.currentFrame?.anchors
-                            .compactMap({ $0 as? ARPlaneAnchor })
-                            .first(where: { $0.identifier == id })
-                        {
+                        if surfaceViz.isActive, let anchor = planeAnchors[id] {
                             surfaceViz.upsert(anchor: anchor, type: kind)
                         }
                     }
@@ -2654,6 +2662,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             }
 
             func handlePlaneAnchorRemoved(_ id: UUID) {
+                planeAnchors.removeValue(forKey: id)
                 planeFeatures.removeValue(forKey: id)
                 planeTypes.removeValue(forKey: id)
                 surfaceViz.remove(id: id)
@@ -2671,7 +2680,9 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             }
 
             /// Issue #186 — bring the surface debug viz in sync with the
-            /// SwiftUI toggle. Idempotent.
+            /// SwiftUI toggle. Idempotent. Uses the cached `planeAnchors`
+            /// dictionary so we never touch `session.currentFrame` (which
+            /// retains an ARFrame on each access).
             func syncSurfaceVizEnabled(_ enabled: Bool, sceneView: ARSCNView) {
                 if enabled {
                     if !surfaceViz.isActive {
@@ -2679,10 +2690,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         // Replay every cached classification — the viz starts
                         // empty even if planes were detected before toggle-on.
                         for (id, kind) in planeTypes {
-                            if let anchor = sceneView.session.currentFrame?.anchors
-                                .compactMap({ $0 as? ARPlaneAnchor })
-                                .first(where: { $0.identifier == id })
-                            {
+                            if let anchor = planeAnchors[id] {
                                 surfaceViz.upsert(anchor: anchor, type: kind)
                             }
                         }

@@ -103,26 +103,27 @@ final class SurfaceVizController {
         root.addChildNode(fillNode)
 
         // 2. Outline rectangle (thin border so the shape is still visible
-        //    even when the filled material is occluded).
+        //    even when the filled material is occluded). The outline is
+        //    constructed directly in the anchor's local XZ plane (corners
+        //    at y=0), so unlike the SCNPlane fill it does NOT need an
+        //    extra rotation — it already lies in the right plane.
         let outline = makeOutlineRect(width: w, height: d, color: color)
-        outline.eulerAngles.x = -.pi / 2
         outline.position = centerOffset
         root.addChildNode(outline)
 
-        // 3. Normal arrow at the centroid, 25cm long.
+        // 3. Normal arrow at the centroid, 25cm long, points along the
+        //    plane's local +Y (ARKit's plane normal convention).
         let arrow = makeNormalArrow(length: 0.25, color: color)
         arrow.position = centerOffset
         root.addChildNode(arrow)
 
-        // 4. Text label floating above the centroid.
+        // 4. Text label floating 15cm along the plane's normal (local +Y).
+        //    Same offset rule for horizontal and vertical anchors — what
+        //    "above the plane" means is encoded in `anchor.transform`.
         let extentString = String(format: "%.1f×%.1fm", w, d)
         let labelStr = "\(type.label.uppercased()) · \(extentString)"
         let label = makeLabel(text: labelStr, color: color)
-        label.position = SCNVector3(
-            centerOffset.x,
-            centerOffset.y + (anchor.alignment == .vertical ? 0 : 0.15),
-            centerOffset.z + (anchor.alignment == .vertical ? -0.15 : 0)
-        )
+        label.position = SCNVector3(centerOffset.x, centerOffset.y + 0.15, centerOffset.z)
         root.addChildNode(label)
 
         return root

@@ -1,64 +1,69 @@
 import CoreVideo
 import Foundation
-import QuartzCore
 import UIKit
 
-/// 2D camera-aligned overlay that draws the calibrated depth map as a
-/// heatmap (cf #187). Blue = far (8m+), red = close (<50cm). Same
-/// CALayer pattern as `SemSegOverlay`.
+/// 2D camera-aligned overlay that draws the depth map as a heatmap
+/// (cf #187). Blue = far, red = close.
+///
+/// **Calibration-aware** : when we have a fitted `inverseScale`
+/// (= we know how to convert the model's relative-depth output to
+/// metric meters), the colour bands map to absolute meters in
+/// [minMeters, maxMeters]. When the scale isn't fitted yet (no floor
+/// anchor detected), we fall back to **relative depth** — the
+/// near→far range of the current frame mapped to red→blue. That way
+/// the overlay always renders something, even before metric calibration.
 final class DepthOverlay {
-    private let layer = CALayer()
+    private let imageView = UIImageView()
     private weak var host: UIView?
 
-    var alpha: CGFloat = 0.5 {
-        didSet { layer.opacity = Float(alpha) }
+    var alpha: CGFloat = 0.55 {
+        didSet { imageView.alpha = alpha }
     }
 
-    /// Min / max metric depth mapped to red / blue respectively.
-    var minMeters: Float = 0.5
-    var maxMeters: Float = 8.0
+    /// Metric range mapped when calibration is available.
+    var minMeters: Float = 0.3
+    var maxMeters: Float = 6.0
 
-    var isActive: Bool { layer.superlayer != nil }
+    var isActive: Bool { imageView.superview != nil }
+
+    init() {
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        imageView.alpha = alpha
+        imageView.isUserInteractionEnabled = false
+        imageView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+    }
 
     func attach(to host: UIView) {
-        if layer.superlayer === host.layer { return }
-        layer.frame = host.bounds
-        layer.contentsGravity = .resizeAspectFill
-        layer.opacity = Float(alpha)
-        layer.isOpaque = false
-        host.layer.addSublayer(layer)
+        if imageView.superview === host { return }
+        imageView.frame = host.bounds
+        host.addSubview(imageView)
         self.host = host
+        AppLog.sceneML.notice("DepthOverlay attached frame=\(NSCoder.string(for: host.bounds), privacy: .public)")
     }
 
     func detach() {
-        layer.contents = nil
-        layer.removeFromSuperlayer()
+        imageView.image = nil
+        imageView.removeFromSuperview()
         host = nil
     }
 
-    func updateLayout() {
-        guard let host = host else { return }
-        layer.frame = host.bounds
-    }
-
-    /// Refresh contents using the raw depth buffer + the fitted inverse
-    /// scale. Skips if scale is nil (no metric calibration yet).
+    /// Refresh contents. If `inverseScale` is nil we render the raw
+    /// inverse-depth normalised to [0,1] across the frame's actual
+    /// min/max — handy for debugging before the floor is detected.
     func update(with depthMap: CVPixelBuffer, inverseScale: Float?) {
-        guard isActive, let inverseScale = inverseScale else { return }
-        if let image = Self.renderImage(depthMap: depthMap,
-                                         inverseScale: inverseScale,
-                                         minMeters: minMeters,
-                                         maxMeters: maxMeters) {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            layer.contents = image
-            CATransaction.commit()
+        guard isActive else { return }
+        if let cg = Self.renderImage(depthMap: depthMap,
+                                      inverseScale: inverseScale,
+                                      minMeters: minMeters,
+                                      maxMeters: maxMeters) {
+            imageView.image = UIImage(cgImage: cg)
         }
     }
 
     private static func renderImage(
         depthMap: CVPixelBuffer,
-        inverseScale: Float,
+        inverseScale: Float?,
         minMeters: Float,
         maxMeters: Float
     ) -> CGImage? {
@@ -69,27 +74,58 @@ final class DepthOverlay {
         let h = CVPixelBufferGetHeight(depthMap)
         let bpr = CVPixelBufferGetBytesPerRow(depthMap)
         let fmt = CVPixelBufferGetPixelFormatType(depthMap)
-        let span = max(maxMeters - minMeters, 0.01)
 
+        // Pass 1 : if no metric scale, find the raw min/max so we can
+        // colour by relative position in the frame's depth range.
+        var rawMin: Float = .greatestFiniteMagnitude
+        var rawMax: Float = -.greatestFiniteMagnitude
+        if inverseScale == nil {
+            // Sample every 4 pixels for speed — we just need a range.
+            for y in stride(from: 0, to: h, by: 4) {
+                for x in stride(from: 0, to: w, by: 4) {
+                    let v = DepthPixelBufferAccess.sampleRaw(
+                        x: x, y: y, base: base,
+                        bytesPerRow: bpr, format: fmt,
+                        width: w, height: h
+                    )
+                    guard v > 0.0001, v.isFinite else { continue }
+                    if v < rawMin { rawMin = v }
+                    if v > rawMax { rawMax = v }
+                }
+            }
+            // If the depth output is degenerate (uniform), bail.
+            if !(rawMax > rawMin) { return nil }
+        }
+
+        let span = max(maxMeters - minMeters, 0.01)
         var bytes = [UInt8](repeating: 0, count: w * h * 4)
         for y in 0..<h {
             for x in 0..<w {
                 let raw = DepthPixelBufferAccess.sampleRaw(
-                    x: x, y: y,
-                    base: base, bytesPerRow: bpr,
-                    format: fmt, width: w, height: h
+                    x: x, y: y, base: base,
+                    bytesPerRow: bpr, format: fmt,
+                    width: w, height: h
                 )
                 guard raw > 0.0001 else { continue }
-                let metric = inverseScale / raw
-                let t = max(0, min(1, (metric - minMeters) / span))
-                // t=0 (close) → red, t=1 (far) → blue, midway through green.
-                let hue: CGFloat = CGFloat(t) * 0.66
+
+                let t: Float
+                if let scale = inverseScale {
+                    // Metric : map [minMeters, maxMeters] to [0, 1].
+                    let metric = scale / raw
+                    t = max(0, min(1, (metric - minMeters) / span))
+                } else {
+                    // Relative : map this frame's raw range to [0, 1].
+                    // raw is inverse-depth, so SMALL raw = far, big raw = close.
+                    // We want t=0 close, t=1 far → invert.
+                    t = max(0, min(1, 1 - (raw - rawMin) / (rawMax - rawMin)))
+                }
+                let hue = CGFloat(t) * 0.66    // 0 = red (close), 0.66 = blue (far)
                 let (r, g, b) = hsvToRgb(h: hue, s: 0.85, v: 1.0)
                 let offset = (y * w + x) * 4
                 bytes[offset]     = UInt8(r * 255)
                 bytes[offset + 1] = UInt8(g * 255)
                 bytes[offset + 2] = UInt8(b * 255)
-                bytes[offset + 3] = 255
+                bytes[offset + 3] = 230
             }
         }
 

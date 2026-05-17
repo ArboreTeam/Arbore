@@ -56,21 +56,36 @@ final class SceneUnderstandingController {
         self.predictorFactory = predictorFactory
     }
 
-    /// 1 Hz default — DETR ~40ms, DA V2 ~30ms, fusion ~10ms = ~80ms of
-    /// ANE work per inference. At 1 Hz = 8% ANE utilization. Earlier
-    /// builds tried 2 Hz (0.5s) but that triggered the iOS "device is
-    /// getting hot" warning after a few minutes of continuous use, so
-    /// we backed off.
+    /// Base throttle (thermal `.nominal`). DETR ~40ms, DA V2 ~30ms,
+    /// fusion ~10ms = ~80ms of ANE work per inference. At 1 Hz =
+    /// 8% ANE utilization in cold state. Effective throttle scales
+    /// up with thermal — see `effectiveThrottleSeconds(for:)`.
     var throttleSeconds: Double = 1.0
 
-    /// Allow ticking up to `.fair` thermal state. On non-LiDAR devices
-    /// the AR session + WorldMap relocalization push the device to
-    /// `.fair` within seconds of opening a garden — gating on
-    /// `.nominal` (the previous default) means the ML pipeline never
-    /// runs in practice. `.serious` would let us keep going under heavy
-    /// throttle, but at that point AR itself stutters, so `.fair` is
-    /// the right ceiling.
-    var maxThermalState: ProcessInfo.ThermalState = .fair
+    /// Dynamic thermal throttling — instead of hard-cutting at `.fair`
+    /// (which made the pipeline stop entirely once the device warmed
+    /// up), we now scale the per-thermal-state rate :
+    ///
+    /// | thermal    | rate    | throttle |
+    /// |------------|---------|----------|
+    /// | .nominal   | 1   Hz  | 1.0s     |
+    /// | .fair      | 0.5 Hz  | 2.0s     |
+    /// | .serious   | 0.25 Hz | 4.0s     |
+    /// | .critical  | cut     | ∞        |
+    ///
+    /// Combined RAM + CPU pressure stay flat as the device heats up
+    /// instead of spiking and forcing iOS to kill us. Critical thermal
+    /// is the only state where we genuinely back out — the OS itself
+    /// throttles the ANE there, no point sending more work.
+    func effectiveThrottleSeconds(for thermal: ProcessInfo.ThermalState) -> Double {
+        switch thermal {
+        case .nominal:  return throttleSeconds
+        case .fair:     return throttleSeconds * 2
+        case .serious:  return throttleSeconds * 4
+        case .critical: return .infinity
+        @unknown default: return throttleSeconds * 4
+        }
+    }
 
     /// Fired on the main queue every time a new snapshot is ready. Set
     /// from the Coordinator to update the overlays. Cleared on `stop()`.
@@ -118,6 +133,10 @@ final class SceneUnderstandingController {
     /// transitions (avoids 60Hz spam).
     private enum TickGate: String { case ok, unavailable, inflight, throttled, thermal }
     private var lastTickGate: TickGate = .ok
+    /// `ProcessInfo.ThermalState.rawValue` of the last tick — used to
+    /// re-fire the edge-triggered log when thermal state shifts even
+    /// if the gate reason stays the same.
+    private var lastThermalRaw: Int = -1
 
     /// Set to true while the async loader is in flight, so re-entrant
     /// calls to `start()` don't kick off duplicate loaders. Reset in
@@ -221,6 +240,7 @@ final class SceneUnderstandingController {
         }
         let result: TickGateResult = lock.withLock {
             let thermal = ProcessInfo.processInfo.thermalState
+            let effectiveThrottle = self.effectiveThrottleSeconds(for: thermal)
             let now = frame.timestamp
             let reason: TickGate
             var go: TickGo? = nil
@@ -228,24 +248,30 @@ final class SceneUnderstandingController {
                 reason = .unavailable
             } else if self.inflightTask != nil {
                 reason = .inflight
-            } else if now - self.lastTickAt < self.throttleSeconds {
-                reason = .throttled
-            } else if thermal.rawValue > self.maxThermalState.rawValue {
+            } else if effectiveThrottle.isInfinite {
+                // .critical thermal — OS will throttle us anyway, back off.
                 reason = .thermal
+            } else if now - self.lastTickAt < effectiveThrottle {
+                reason = .throttled
             } else {
                 reason = .ok
                 self.lastTickAt = now
                 go = TickGo(semseg: self.semseg!, depth: self.depth!)
             }
-            let transitioned = reason != self.lastTickGate
+            // Edge-trigger : log gate transitions AND thermal-state shifts
+            // (the latter shows up as cadence change without a gate change).
+            let transitioned = reason != self.lastTickGate || thermal.rawValue != self.lastThermalRaw
             self.lastTickGate = reason
+            self.lastThermalRaw = thermal.rawValue
             return TickGateResult(go: go, reason: reason, transitioned: transitioned, thermalRaw: thermal.rawValue)
         }
         if result.transitioned && result.reason != .throttled {
             // .throttled is the expected 59 out of 60 frames — don't log it.
             // Log every other transition, INCLUDING the resume to .ok so we
             // can see when inference recovers from thermal / unavailable.
-            AppLog.sceneML.notice("tick gate=\(result.reason.rawValue, privacy: .public) thermal=\(result.thermalRaw, privacy: .public)")
+            // Includes the active rate so the dynamic throttle is visible.
+            let rateHz = 1.0 / effectiveThrottleSeconds(for: ProcessInfo.processInfo.thermalState)
+            AppLog.sceneML.notice("tick gate=\(result.reason.rawValue, privacy: .public) thermal=\(result.thermalRaw, privacy: .public) rate=\(rateHz, privacy: .public)Hz")
         }
         guard let go = result.go else { return }
 

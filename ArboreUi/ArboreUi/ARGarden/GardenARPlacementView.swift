@@ -819,7 +819,12 @@ struct GardenARPlacementView: View {
 }
 
 // MARK: - 3. Container AR
-fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
+//
+// Internal access (was fileprivate) so that the Coordinator's methods
+// can be split across multiple files via extensions — see
+// `GardenARPlacementView+SceneUnderstanding.swift` and
+// `GardenARPlacementView+ManualReplacement.swift`.
+struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var selectedPlant: Plant?
     @Binding var downloadedModelURL: URL?
     @Binding var isDownloadingModel: Bool
@@ -1049,20 +1054,23 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             // controller exposes a single onSnapshot callback that fans
             // out to whichever overlays are active when the snapshot
             // arrives.
-            private var sceneCtl: SceneUnderstandingController?
-            private let semSegOverlay = SemSegOverlay()
-            private let depthOverlay = DepthOverlay()
-            private let fusedOverlay = FusedSceneOverlay()
-            private let voxelOverlay = VoxelOverlay()
+            // Accessed by the SceneUnderstanding+sync extension (split
+            // out to its own file) — internal access required so cross-
+            // file extensions can reach them.
+            var sceneCtl: SceneUnderstandingController?
+            let semSegOverlay = SemSegOverlay()
+            let depthOverlay = DepthOverlay()
+            let fusedOverlay = FusedSceneOverlay()
+            let voxelOverlay = VoxelOverlay()
             /// Shared with the sceneCtl when voxel-scan is enabled.
             /// Survives a voxelScan toggle-off so the user can keep
             /// admiring their scan with no live accumulation. Reset
             /// on each OFF→ON edge (fresh scan) and on view dismantle.
-            private var voxelGrid: VoxelGrid?
+            var voxelGrid: VoxelGrid?
             /// Last seen value of `voxelScanEnabled` — used to detect
             /// OFF→ON edges (clear + start fresh) and ON→OFF edges
             /// (pause accumulation, keep cloud visible).
-            private var voxelScanWasOn = false
+            var voxelScanWasOn = false
 
             // Issue #113 — ARAnchor-based placement.
             // anchor.identifier (UUID, unique per placement) → its ARAnchor.
@@ -1153,7 +1161,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             }
 
             // MARK: - WorldMap relocalization tracking
-            private var didRestoreGarden = false
+            // Internal access for the ManualReplacement extension (#188 P3.1).
+            var didRestoreGarden = false
 
             // Throttle session-state logs (called ~60 Hz). We keep last seen
             // values and only emit a `notice` line when something changes.
@@ -2184,7 +2193,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             /// Removes every ARAnchor we tracked (so all plant nodes disappear via
             /// ARKit), and clears our id→anchor map.
             @MainActor
-            private func removeAllPlantAnchors() {
+            func removeAllPlantAnchors() {
                 guard let arView = arView else { return }
                 for anchor in plantAnchorMap.values {
                     arView.session.remove(anchor: anchor)
@@ -2197,7 +2206,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             /// - Nom de fichier seul : "Pothos.usdz"     → Bundle.main lookup
             /// - URL absolue bundle  : "file:///...app/Pothos.usdz" → extrait le filename → Bundle
             /// - URL absolue Documents : "file:///...Documents/foo.usdz" → Documents lookup
-            private func resolveLocalModelURL(_ raw: String) -> URL? {
+            func resolveLocalModelURL(_ raw: String) -> URL? {
                 // 1. Extraire le nom de fichier (gère les anciens chemins absolus)
                 let fileName: String
                 if let url = URL(string: raw), url.isFileURL {
@@ -2898,90 +2907,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
             }
 
-            /// Issue #187 — sync the Phase-3 ML overlays + voxel scan
-            /// toggles. Lazy-creates the underlying
-            /// `SceneUnderstandingController` the first time any overlay
-            /// is enabled, releases it when ALL go off (so the ~134 MB
-            /// of CoreML weights are freed).
-            func syncSceneUnderstanding(
-                semSegEnabled: Bool,
-                depthEnabled: Bool,
-                fusedEnabled: Bool,
-                voxelScanEnabled: Bool,
-                scanViewEnabled: Bool,
-                sceneView: ARSCNView
-            ) {
-                let anyOn = semSegEnabled || depthEnabled || fusedEnabled || voxelScanEnabled
-                if anyOn && sceneCtl == nil {
-                    // start() is now async — `isAvailable` won't be true
-                    // until the models finish loading on a background task.
-                    // We wire everything up immediately ; tick() exits early
-                    // with gate=unavailable until the loader publishes.
-                    let ctl = SceneUnderstandingController()
-                    ctl.onSnapshot = { [weak self] snap in
-                        self?.applySceneSnapshot(snap)
-                    }
-                    ctl.start()
-                    sceneCtl = ctl
-                }
-
-                if anyOn {
-                    if semSegEnabled { semSegOverlay.attach(to: sceneView) } else { semSegOverlay.detach() }
-                    if depthEnabled { depthOverlay.attach(to: sceneView) } else { depthOverlay.detach() }
-                    if fusedEnabled { fusedOverlay.attach(to: sceneView.scene) } else { fusedOverlay.detach() }
-
-                    // Voxel scan : accumulator + cloud overlay.
-                    // Fresh scan on every OFF→ON edge — wipes the previous
-                    // cloud. ON→OFF only pauses : grid + overlay stay alive
-                    // so the user can admire the result without the live
-                    // model running.
-                    if voxelScanEnabled && !voxelScanWasOn {
-                        voxelGrid = VoxelGrid()
-                        voxelOverlay.attachVoxels(to: sceneView.scene)
-                    }
-                    if voxelScanEnabled {
-                        sceneCtl?.voxelGrid = voxelGrid
-                    } else {
-                        sceneCtl?.voxelGrid = nil
-                    }
-
-                    // Scan view : hide the AR camera background.
-                    if scanViewEnabled, voxelScanEnabled, let cam = sceneView.pointOfView {
-                        voxelOverlay.hideCamera(cameraNode: cam)
-                    } else {
-                        voxelOverlay.showCamera()
-                    }
-                } else {
-                    semSegOverlay.detach()
-                    depthOverlay.detach()
-                    fusedOverlay.detach()
-                    // Voxel cloud is intentionally NOT torn down here —
-                    // user wants to keep viewing their scan after toggling
-                    // everything off. It only goes away on dismantle.
-                    voxelOverlay.showCamera()
-                    sceneCtl?.stop()
-                    sceneCtl = nil
-                }
-                voxelScanWasOn = voxelScanEnabled
-            }
-
-            /// Called on the main queue every ~1s (the controller throttle)
-            /// when a fresh SemSeg+Depth pass completes. Fans out to the
-            /// currently-attached overlays.
-            private func applySceneSnapshot(_ snap: SceneUnderstandingSnapshot) {
-                if semSegOverlay.isActive, let map = snap.semanticMap {
-                    semSegOverlay.update(with: map)
-                }
-                if depthOverlay.isActive, let dmap = snap.depthMap {
-                    depthOverlay.update(with: dmap, inverseScale: snap.inverseScale)
-                }
-                if fusedOverlay.isActive {
-                    fusedOverlay.update(regions: snap.regions)
-                }
-                if voxelOverlay.isVoxelRootAttached, let grid = voxelGrid {
-                    voxelOverlay.refresh(grid: grid)
-                }
-            }
+            // syncSceneUnderstanding + applySceneSnapshot moved to
+            // GardenARPlacementView+SceneUnderstanding.swift (#188 P3.1).
 
             private func stripPotIfNeeded(from root: SCNNode) {
                 guard let props = parentProps else { return }
@@ -3109,7 +3036,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             /// outline. Called when entering .adjusting. Cheap enough to run
             /// once per phase entry — for 100+ plants we'd want batching, but
             /// in practice gardens have <30 instances.
-            private func applyOutlinesToAllPlants() {
+            func applyOutlinesToAllPlants() {
                 guard let arView = arView else { return }
                 let plants: [SCNNode] = arView.scene.rootNode.childNodes.flatMap { rootChild -> [SCNNode] in
                     if rootChild.name?.starts(with: "plant_") == true { return [rootChild] }
@@ -3147,7 +3074,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 applyOutline(to: node, color: Self.outlineSelectedColor, opacity: 0.7)
             }
 
-            private func deselectAll() {
+            func deselectAll() {
                 if let node = selectedNode {
                     if parentProps?.relocationPhase == .adjusting {
                         applyOutline(to: node, color: Self.outlineDefaultColor)
@@ -3181,368 +3108,24 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 return node
             }
 
-            // MARK: - Manual Replacement (Issue #111)
+            // MARK: - Manual Replacement (Issue #111) — state only ;
+            // handlers moved to GardenARPlacementView+ManualReplacement.swift
+            // (#188 P3.1). Internal access required so the extension in
+            // that file can reach the storage.
 
             // Old garden data loaded from JSON (no WorldMap dependency).
-            private var oldBoundaryPoints: [SIMD3<Float>] = []
-            private var oldPersistedPlants: [PersistedPlant] = []
-            private var oldDataLoaded = false
+            var oldBoundaryPoints: [SIMD3<Float>] = []
+            var oldPersistedPlants: [PersistedPlant] = []
+            var oldDataLoaded = false
 
             // Snapshot taken right after morphing, used to revert manual adjustments.
-            private var preMorphAdjustment: [String: simd_float4x4] = [:]
-            // Map plantId → URL string used to instantiate the model post-morph.
+            var preMorphAdjustment: [String: simd_float4x4] = [:]
             // List of morphed plants pending confirmation. Keyed by index, NOT
             // plantId — multiple instances of the same catalog plant must
             // each survive (dedup-by-id was a bug: 5 Arecas collapsed to 1).
-            private var pendingMorphedPlants: [MorphedPlant] = []
+            var pendingMorphedPlants: [MorphedPlant] = []
 
-            /// Loads scene_{id}.json off the main thread; stores boundary + plants
-            /// for use in the manual replacement flow. Independent of WorldMap.
-            func loadOldGardenData(gardenId: String) {
-                guard !oldDataLoaded else { return }
-                let sceneURL = GardenLocalStore.sceneURL(for: gardenId)
-                DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-                    guard let self = self else { return }
-                    var boundary: [SIMD3<Float>] = []
-                    var plants: [PersistedPlant] = []
-                    if FileManager.default.fileExists(atPath: sceneURL.path),
-                       let data = try? Data(contentsOf: sceneURL),
-                       let scene = try? JSONDecoder().decode(PersistedARScene.self, from: data).normalizedToWorldFrame() {
-                        plants = scene.plants
-                        boundary = (scene.boundaryPoints ?? []).compactMap { arr in
-                            guard arr.count >= 3 else { return nil }
-                            return SIMD3<Float>(arr[0], arr[1], arr[2])
-                        }
-                    }
-                    DispatchQueue.main.async {
-                        self.oldBoundaryPoints = boundary
-                        self.oldPersistedPlants = plants
-                        self.oldDataLoaded = true
-                    }
-                }
-            }
-
-            @objc func handleEnterManualReplacement() {
-                guard let arView = arView else { return }
-                // Stop relying on automatic relocalization.
-                cancelPendingRestore()
-                pendingRestoreGardenId = nil
-                didRestoreGarden = true
-                DispatchQueue.main.async {
-                    self.parentProps?.isRelocating = false
-                    self.parentProps?.relocationPhase = .tracingBoundary
-                    self.parentProps?.newBoundaryPoints = []
-                    self.parentProps?.newBoundaryArea = 0
-                }
-                // Clean any partially restored plants (anchors + legacy nodes).
-                removeAllPlantAnchors()
-                arView.scene.rootNode.childNodes
-                    .filter { $0.name?.starts(with: "plant_") == true }
-                    .forEach { $0.removeFromParentNode() }
-                // Show the OLD boundary as a faint dashed grey outline (visual cue).
-                if !oldBoundaryPoints.isEmpty {
-                    GhostRenderer.drawBoundary(
-                        points: oldBoundaryPoints,
-                        color: UIColor.lightGray,
-                        opacity: 0.3,
-                        in: arView.scene,
-                        name: "manual_replacement_old_boundary"
-                    )
-                }
-                clearNewBoundaryVisuals()
-            }
-
-            @objc func handleCancelManualReplacement() {
-                guard let arView = arView else { return }
-                let phase = parentProps?.relocationPhase ?? .scanning
-                switch phase {
-                case .tracingBoundary:
-                    // Wipe everything and return to scanning.
-                    clearNewBoundaryVisuals()
-                    GhostRenderer.removeBoundary(named: "manual_replacement_old_boundary", from: arView.scene)
-                    DispatchQueue.main.async {
-                        self.parentProps?.relocationPhase = .scanning
-                        self.parentProps?.isRelocating = true
-                        self.parentProps?.newBoundaryPoints = []
-                        self.parentProps?.newBoundaryArea = 0
-                    }
-                case .morphingPreview:
-                    // Step back one phase: clear ghost plants, return to tracing.
-                    arView.scene.rootNode.childNodes
-                        .filter { $0.name?.starts(with: "ghost_morphed_") == true }
-                        .forEach { $0.removeFromParentNode() }
-                    DispatchQueue.main.async {
-                        self.parentProps?.relocationPhase = .tracingBoundary
-                        self.parentProps?.distortionWarnings = []
-                    }
-                default:
-                    break
-                }
-            }
-
-            func addBoundaryPoint(at transform: simd_float4x4) {
-                let p = SIMD3<Float>(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
-                guard let arView = arView else { return }
-
-                // Add a green sphere marker (same visual as the wizard's measurement view).
-                let sphere = SCNSphere(radius: 0.025)
-                sphere.firstMaterial?.diffuse.contents = UIColor(hex: "#2BEE79")
-                sphere.firstMaterial?.lightingModel = .constant
-                let node = SCNNode(geometry: sphere)
-                node.simdPosition = p
-                node.name = "manual_replacement_new_boundary_point"
-                arView.scene.rootNode.addChildNode(node)
-
-                DispatchQueue.main.async {
-                    self.parentProps?.newBoundaryPoints.append(p)
-                    self.refreshNewBoundaryArea()
-                    self.refreshNewBoundaryEdges()
-                }
-            }
-
-            @objc func handleBoundaryUndoLast() {
-                guard let arView = arView else { return }
-                // Remove the most recent green sphere if any.
-                let spheres = arView.scene.rootNode.childNodes
-                    .filter { $0.name == "manual_replacement_new_boundary_point" }
-                if let last = spheres.last { last.removeFromParentNode() }
-
-                DispatchQueue.main.async {
-                    if let _ = self.parentProps?.newBoundaryPoints.popLast() {
-                        self.refreshNewBoundaryArea()
-                        self.refreshNewBoundaryEdges()
-                    }
-                }
-            }
-
-            @objc func handleValidateNewBoundary() {
-                guard let props = parentProps, let arView = arView else { return }
-                let newBoundary = props.newBoundaryPoints
-                guard newBoundary.count >= 3 else { return }
-
-                // Validate that the old garden's data finished loading from disk
-                // (Issue #111 I1). Without it, GardenMorpher would silently
-                // produce an empty result and the user would see nothing happen.
-                guard oldDataLoaded else {
-                    AppLog.manualReplace.warning("validateNewBoundary blocked — old data not loaded yet")
-                    // Stay in tracingBoundary; the user can retry shortly.
-                    return
-                }
-                guard !oldPersistedPlants.isEmpty else {
-                    AppLog.manualReplace.warning("validateNewBoundary — old garden has no plants, nothing to morph")
-                    DispatchQueue.main.async {
-                        self.parentProps?.relocationPhase = .completed
-                    }
-                    return
-                }
-                guard !oldBoundaryPoints.isEmpty else {
-                    AppLog.manualReplace.warning("validateNewBoundary — old garden has no boundary, falling back to centroid placement")
-                    // Morpher's fallback path will place plants near the new
-                    // centroid; user can fine-tune in .adjusting.
-                    let result = GardenMorpher.morph(
-                        oldPlants: oldPersistedPlants,
-                        oldBoundary: [],
-                        newBoundary: newBoundary,
-                        floorY: averageY(of: newBoundary)
-                    )
-                    self.applyMorphResult(result, in: arView)
-                    return
-                }
-
-                // The old boundary may have a different vertex count than the new one;
-                // if so, resample so MVC weights have matching arities.
-                let resampled = resamplePolygon(oldBoundaryPoints, toCount: newBoundary.count)
-                let result = GardenMorpher.morph(
-                    oldPlants: oldPersistedPlants,
-                    oldBoundary: resampled,
-                    newBoundary: newBoundary,
-                    floorY: averageY(of: newBoundary)
-                )
-
-                applyMorphResult(result, in: arView)
-            }
-
-            /// Renders morph result as ghost markers and transitions to
-            /// `.morphingPreview`. Called from both the normal MVC path and
-            /// the no-boundary fallback (Issue #111 I1).
-            private func applyMorphResult(_ result: MorphResult, in arView: ARSCNView) {
-                arView.scene.rootNode.childNodes
-                    .filter { $0.name?.starts(with: "ghost_morphed_") == true }
-                    .forEach { $0.removeFromParentNode() }
-
-                pendingMorphedPlants = result.morphedPlants
-                for (idx, mp) in result.morphedPlants.enumerated() {
-                    drawGhostMarker(for: mp, instanceIndex: idx, in: arView.scene)
-                }
-
-                DispatchQueue.main.async {
-                    self.parentProps?.distortionWarnings = result.warnings
-                    self.parentProps?.relocationPhase = .morphingPreview
-                }
-            }
-
-            @objc func handleConfirmMorphedPlacement() {
-                guard let arView = arView else { return }
-
-                // Take a snapshot of morphed transforms before any user adjustment.
-                preMorphAdjustment.removeAll()
-
-                // Hide old-boundary ghost outline and ghost markers.
-                arView.scene.rootNode.childNodes
-                    .filter { $0.name?.starts(with: "ghost_morphed_") == true }
-                    .forEach { $0.removeFromParentNode() }
-                GhostRenderer.removeBoundary(named: "manual_replacement_old_boundary", from: arView.scene)
-                clearNewBoundaryVisuals()
-
-                // Instantiate real plants concurrently using the existing placement
-                // pipeline. Iterate the MorphedPlant list directly — multiple
-                // instances of the same catalog plant must each survive (was a
-                // dedup bug: 5 Arecas collapsed to 1 because the dict key was
-                // the catalog plantId).
-                let snapshot = pendingMorphedPlants
-                Task {
-                    await withTaskGroup(of: Void.self) { group in
-                        for mp in snapshot {
-                            let persisted = mp.originalPlant
-                            let transform = mp.newTransform
-                            let finalScale = SCNVector3(persisted.scale[0], persisted.scale[1], persisted.scale[2])
-                            group.addTask {
-                                do {
-                                    let url = try await ModelCacheManager.shared.getModelURL(for: persisted.modelURLString, forceDownload: false)
-                                    await MainActor.run {
-                                        // Propagate surface info so future
-                                        // restores can snap properly (Issue #111 B1).
-                                        self.placeObject(
-                                            at: transform,
-                                            modelURL: url,
-                                            id: persisted.plantID,
-                                            name: persisted.plantName,
-                                            finalScale: finalScale,
-                                            modelURLString: persisted.modelURLString,
-                                            upAxis: persisted.upAxis,
-                                            surfaceType: persisted.surfaceType,
-                                            surfaceHeight: persisted.surfaceHeight,
-                                            autoSelect: false  // batch — entering .adjusting
-                                        )
-                                    }
-                                } catch {
-                                    if let fallback = await MainActor.run(body: { self.resolveLocalModelURL(persisted.modelURLString) }) {
-                                        await MainActor.run {
-                                            self.placeObject(
-                                                at: transform,
-                                                modelURL: fallback,
-                                                id: persisted.plantID,
-                                                name: persisted.plantName,
-                                                finalScale: finalScale,
-                                                modelURLString: persisted.modelURLString,
-                                                upAxis: persisted.upAxis,
-                                                surfaceType: persisted.surfaceType,
-                                                surfaceHeight: persisted.surfaceHeight,
-                                                autoSelect: false
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    await MainActor.run {
-                        self.pendingMorphedPlants.removeAll()
-                        self.snapshotPreMorphAdjustment()
-                        self.parentProps?.relocationPhase = .adjusting
-                        self.applyOutlinesToAllPlants()
-                    }
-                }
-            }
-
-            @objc func handleRevertToMorphed() {
-                guard let arView = arView else { return }
-                // Issue #113 — plants are anchor children; walk one level deeper
-                // and revert their world transform (not local).
-                let plantNodes: [SCNNode] = arView.scene.rootNode.childNodes.flatMap { rootChild -> [SCNNode] in
-                    if rootChild.name?.starts(with: "plant_") == true { return [rootChild] }
-                    return rootChild.childNodes.filter { $0.name?.starts(with: "plant_") == true }
-                }
-                for node in plantNodes {
-                    let id = plantId(of: node)
-                    if let snapshot = preMorphAdjustment[id] {
-                        node.simdWorldTransform = snapshot
-                    }
-                }
-                deselectAll()
-            }
-
-            // MARK: - Manual replacement helpers
-
-            private func clearNewBoundaryVisuals() {
-                guard let arView = arView else { return }
-                arView.scene.rootNode.childNodes
-                    .filter { $0.name == "manual_replacement_new_boundary_point" || $0.name == "manual_replacement_new_boundary_edges" }
-                    .forEach { $0.removeFromParentNode() }
-            }
-
-            private func refreshNewBoundaryArea() {
-                let pts = parentProps?.newBoundaryPoints ?? []
-                guard pts.count > 2 else {
-                    parentProps?.newBoundaryArea = 0
-                    return
-                }
-                var sum: Float = 0
-                for i in 0..<pts.count {
-                    let j = (i + 1) % pts.count
-                    sum += (pts[i].x * pts[j].z) - (pts[i].z * pts[j].x)
-                }
-                parentProps?.newBoundaryArea = abs(sum) / 2
-            }
-
-            private func refreshNewBoundaryEdges() {
-                guard let arView = arView else { return }
-                let pts = parentProps?.newBoundaryPoints ?? []
-                arView.scene.rootNode.childNodes
-                    .filter { $0.name == "manual_replacement_new_boundary_edges" }
-                    .forEach { $0.removeFromParentNode() }
-                guard pts.count >= 2 else { return }
-                GhostRenderer.drawBoundary(
-                    points: pts,
-                    color: UIColor(hex: "#2BEE79"),
-                    opacity: 0.85,
-                    in: arView.scene,
-                    name: "manual_replacement_new_boundary_edges"
-                )
-            }
-
-            private func drawGhostMarker(for mp: MorphedPlant, instanceIndex: Int, in scene: SCNScene) {
-                // Lightweight marker: small floating sphere at the morphed XZ
-                // (we don't load USDZ here to keep preview cheap and snappy).
-                // The name embeds the instance INDEX so multiple instances of
-                // the same catalog plant get distinct, identifiable markers.
-                let isWarn = mp.warning != nil
-                let color: UIColor = isWarn ? UIColor.systemOrange : UIColor(hex: "#FFD86F")
-                let sphere = SCNSphere(radius: 0.06)
-                sphere.firstMaterial?.diffuse.contents = color
-                sphere.firstMaterial?.emission.contents = color
-                sphere.firstMaterial?.lightingModel = .constant
-                let node = SCNNode(geometry: sphere)
-                node.opacity = 0.7
-                node.simdTransform = mp.newTransform
-                node.name = "ghost_morphed_\(instanceIndex)_\(mp.plantId)"
-                scene.rootNode.addChildNode(node)
-            }
-
-            private func snapshotPreMorphAdjustment() {
-                guard let arView = arView else { return }
-                preMorphAdjustment.removeAll()
-                // Walk anchor children too (Issue #113).
-                let plantNodes: [SCNNode] = arView.scene.rootNode.childNodes.flatMap { rootChild -> [SCNNode] in
-                    if rootChild.name?.starts(with: "plant_") == true { return [rootChild] }
-                    return rootChild.childNodes.filter { $0.name?.starts(with: "plant_") == true }
-                }
-                for node in plantNodes {
-                    let id = plantId(of: node)
-                    preMorphAdjustment[id] = node.simdWorldTransform
-                }
-            }
-
+            // Manual-replacement handlers moved to GardenARPlacementView+ManualReplacement.swift (#188 P3.1).
             // Identity readers — prefer KVC values stashed on the node
             // (audit item 7). Legacy fallback parses the name for older nodes
             // that pre-date the KVC migration; safe to remove once we confirm
@@ -3565,48 +3148,6 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 return parts[safe: 2]
             }
 
-            private func averageY(of points: [SIMD3<Float>]) -> Float {
-                guard !points.isEmpty else { return 0 }
-                return points.reduce(Float(0)) { $0 + $1.y } / Float(points.count)
-            }
-
-            /// Resamples a polygon to a target vertex count by uniform arc-length
-            /// interpolation along its edges. Required because the OLD boundary may
-            /// have a different number of vertices than the user-traced new one.
-            private func resamplePolygon(_ poly: [SIMD3<Float>], toCount target: Int) -> [SIMD3<Float>] {
-                guard poly.count >= 2, target >= 3 else { return poly }
-                if poly.count == target { return poly }
-
-                // Total perimeter (closed polygon).
-                var perimeter: Float = 0
-                let n = poly.count
-                for i in 0..<n {
-                    perimeter += simd_length(poly[(i + 1) % n] - poly[i])
-                }
-                guard perimeter > 1e-5 else { return poly }
-
-                let step = perimeter / Float(target)
-                var result: [SIMD3<Float>] = []
-                var edgeIdx = 0
-                var distAlongEdge: Float = 0
-                var edgeStart = poly[0]
-                var edgeEnd = poly[1 % n]
-                var edgeLen = simd_length(edgeEnd - edgeStart)
-
-                for i in 0..<target {
-                    let target = Float(i) * step
-                    while distAlongEdge + edgeLen < target && edgeIdx < n - 1 {
-                        distAlongEdge += edgeLen
-                        edgeIdx += 1
-                        edgeStart = poly[edgeIdx]
-                        edgeEnd = poly[(edgeIdx + 1) % n]
-                        edgeLen = simd_length(edgeEnd - edgeStart)
-                    }
-                    let t = edgeLen > 1e-5 ? (target - distAlongEdge) / edgeLen : 0
-                    result.append(edgeStart + (edgeEnd - edgeStart) * simd_clamp(t, 0, 1))
-                }
-                return result
-            }
         }
 }
 

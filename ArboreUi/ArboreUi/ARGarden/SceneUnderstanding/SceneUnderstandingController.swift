@@ -50,6 +50,12 @@ struct SceneUnderstandingSnapshot: @unchecked Sendable {
 /// snapshot fires on the main queue via `onSnapshot`.
 final class SceneUnderstandingController {
 
+    /// Inject a custom `PredictorFactory` for tests ; production uses the
+    /// default which constructs the real CoreML-backed predictors.
+    init(predictorFactory: PredictorFactory = .default) {
+        self.predictorFactory = predictorFactory
+    }
+
     /// 1 Hz default — DETR ~40ms, DA V2 ~30ms, fusion ~10ms = ~80ms of
     /// ANE work per inference. At 1 Hz = 8% ANE utilization. Earlier
     /// builds tried 2 Hz (0.5s) but that triggered the iOS "device is
@@ -89,8 +95,9 @@ final class SceneUnderstandingController {
     /// flag `.lock()` / `.unlock()` calls inside `runOnce`'s async body
     /// the way it would for NSLock.
     private let lock = OSAllocatedUnfairLock()
-    private var semseg: SemSegPredictor?
-    private var depth: DepthPredictor?
+    private let predictorFactory: PredictorFactory
+    private var semseg: (any SemSegPredicting)?
+    private var depth: (any DepthPredicting)?
     private var lastTickAt: TimeInterval = 0
     private var inflightTask: Task<Void, Never>?
     /// Fitted once when the first valid floor anchor is reachable —
@@ -125,14 +132,15 @@ final class SceneUnderstandingController {
         }
         guard shouldLoad else { return }
 
+        let factory = self.predictorFactory
         Task.detached(priority: .userInitiated) { [weak self] in
             // Heavy I/O happens OUTSIDE the lock — Apple's CoreML init
             // compiles the model and mmaps weights, totally fine to do
             // in parallel with anything else.
-            let result: (semseg: SemSegPredictor?, depth: DepthPredictor?, error: String?) = {
+            let result: (semseg: (any SemSegPredicting)?, depth: (any DepthPredicting)?, error: String?) = {
                 do {
-                    let semseg = try SemSegPredictor()
-                    let depth = try DepthPredictor()
+                    let semseg = try factory.makeSemSeg()
+                    let depth = try factory.makeDepth()
                     return (semseg, depth, nil)
                 } catch {
                     return (nil, nil, String(describing: error))
@@ -186,8 +194,8 @@ final class SceneUnderstandingController {
         // Snapshot the runnable state under the lock — returns nil if
         // the tick should be skipped.
         struct TickGo {
-            let semseg: SemSegPredictor
-            let depth: DepthPredictor
+            let semseg: any SemSegPredicting
+            let depth: any DepthPredicting
             let cachedScale: Float?
         }
         struct TickGateResult {
@@ -257,8 +265,8 @@ final class SceneUnderstandingController {
     }
 
     private func runOnce(
-        semseg: SemSegPredictor,
-        depth: DepthPredictor,
+        semseg: any SemSegPredicting,
+        depth: any DepthPredicting,
         pixelBuffer: CVPixelBuffer,
         intrinsics: simd_float3x3,
         captureSize: CGSize,
@@ -270,11 +278,54 @@ final class SceneUnderstandingController {
     ) async {
         let startMs = CFAbsoluteTimeGetCurrent() * 1000
 
-        // Run both predictors in parallel. Each one is wrapped in its own
-        // do/catch so a failure in one doesn't bubble up and kill the other
-        // — we publish whatever we got. Important on device when one of
-        // the two models gets re-released by Apple with a different input
-        // size : we still want the working overlay to render.
+        // 1. Inference — both models run in parallel, each isolated so a
+        //    failure in one doesn't kill the other.
+        let (semanticMap, depthMap) = await runInference(semseg: semseg,
+                                                         depth: depth,
+                                                         pixelBuffer: pixelBuffer)
+        recordOutcome(semanticOK: semanticMap != nil, depthOK: depthMap != nil)
+
+        // 2. Calibration — fit metric depth scale (preferred from a known
+        //    floor world point ; fallback to camera-height/centre-pixel).
+        let scale = cachedScale ?? fitInverseScale(depthMap: depthMap,
+                                                   floorWorldPoint: floorWorldPoint,
+                                                   floorY: floorY,
+                                                   cameraY: cameraY,
+                                                   cameraTransform: cameraTransform,
+                                                   intrinsics: intrinsics,
+                                                   captureSize: captureSize)
+
+        // 3. Fusion + voxel accumulation (only when all inputs are valid).
+        let regions = fuseAndAccumulate(semanticMap: semanticMap,
+                                        depthMap: depthMap,
+                                        inverseScale: scale,
+                                        intrinsics: intrinsics,
+                                        cameraTransform: cameraTransform,
+                                        captureSize: captureSize)
+
+        // 4. Publish — only when at least one predictor produced output.
+        guard semanticMap != nil || depthMap != nil else {
+            lock.withLock { self.lastErrorDescription = "both models failed" }
+            return
+        }
+        let elapsed = Int(CFAbsoluteTimeGetCurrent() * 1000 - startMs)
+        publish(SceneUnderstandingSnapshot(
+            timestamp: CFAbsoluteTimeGetCurrent(),
+            regions: regions,
+            semanticMap: semanticMap,
+            depthMap: depthMap,
+            inverseScale: scale,
+            inferenceMs: elapsed
+        ))
+    }
+
+    // MARK: - runOnce helpers
+
+    private func runInference(
+        semseg: any SemSegPredicting,
+        depth: any DepthPredicting,
+        pixelBuffer: CVPixelBuffer
+    ) async -> (SemanticMap?, CVPixelBuffer?) {
         async let semOptional: SemanticMap? = {
             do { return try await semseg.predict(pixelBuffer) }
             catch {
@@ -289,62 +340,79 @@ final class SceneUnderstandingController {
                 return nil
             }
         }()
-        let semanticMap = await semOptional
-        let depthMap = await depthOptional
+        return (await semOptional, await depthOptional)
+    }
 
-        // Auto-disable after `maxRepeatedFailures` consecutive failures
-        // of one model. Stops burning GPU on inputs the model will never
-        // accept — typically a sign Apple updated the .mlpackage and our
-        // resize size is now wrong, or the model file is corrupt.
-        recordOutcome(semanticOK: semanticMap != nil, depthOK: depthMap != nil)
+    /// Fit the metric depth scale `s` such that `metric = s / raw`. Tries
+    /// the floor-anchor projection first (reliable), falls back to the
+    /// camera-height + centre-pixel assumption (less reliable — only
+    /// correct when the user happens to be aiming straight down). Logs
+    /// the path taken for debugging.
+    private func fitInverseScale(
+        depthMap: CVPixelBuffer?,
+        floorWorldPoint: SIMD3<Float>?,
+        floorY: Float?,
+        cameraY: Float,
+        cameraTransform: simd_float4x4,
+        intrinsics: simd_float3x3,
+        captureSize: CGSize
+    ) -> Float? {
+        guard let depthMap = depthMap else { return nil }
+        AppLog.sceneML.notice("Calibration attempt floorAnchor=\(floorWorldPoint != nil, privacy: .public) floorY=\(floorY ?? -999, privacy: .public) cameraY=\(cameraY, privacy: .public)")
 
-        // Calibrate (fit once, reuse). Prefer the floor-anchor-point
-        // method when we have one — projects a known world point onto
-        // the depth image, way more reliable than the centre-pixel
-        // assumption. Falls back to camera-height/centre-pixel only
-        // when no floor anchor centroid is known.
-        var scale = cachedScale
-        if scale == nil, let depthMap = depthMap {
-            // Diagnostic : log once per attempt so we can see why
-            // calibration isn't firing.
-            AppLog.sceneML.notice("Calibration attempt floorAnchor=\(floorWorldPoint != nil, privacy: .public) floorY=\(floorY ?? -999, privacy: .public) cameraY=\(cameraY, privacy: .public)")
-            if let worldPoint = floorWorldPoint {
-                scale = DepthCalibration.fitInverseScale(
-                    depthMap: depthMap,
-                    worldPoint: worldPoint,
-                    cameraTransform: cameraTransform,
-                    intrinsics: intrinsics,
-                    captureSize: captureSize
-                )
-                if let scale = scale {
-                    AppLog.sceneML.notice("Calibrated via floor anchor inverseScale=\(scale, privacy: .public) worldPoint=(\(worldPoint.x, privacy: .public),\(worldPoint.y, privacy: .public),\(worldPoint.z, privacy: .public))")
-                } else {
-                    AppLog.sceneML.notice("Calibration via floor anchor returned nil — projection out of bounds or raw depth degenerate")
-                }
+        if let worldPoint = floorWorldPoint {
+            let scale = DepthCalibration.fitInverseScale(
+                depthMap: depthMap,
+                worldPoint: worldPoint,
+                cameraTransform: cameraTransform,
+                intrinsics: intrinsics,
+                captureSize: captureSize
+            )
+            if let scale = scale {
+                AppLog.sceneML.notice("Calibrated via floor anchor inverseScale=\(scale, privacy: .public) worldPoint=(\(worldPoint.x, privacy: .public),\(worldPoint.y, privacy: .public),\(worldPoint.z, privacy: .public))")
+                return scale
             }
-            if scale == nil, let floorY = floorY {
-                let height = cameraY - floorY
-                if height > 0.3 {
-                    scale = DepthCalibration.fitInverseScale(
-                        depthMap: depthMap,
-                        cameraHeightMeters: height
-                    )
-                    if let scale = scale {
-                        AppLog.sceneML.notice("Calibrated via centre-pixel inverseScale=\(scale, privacy: .public) h=\(height, privacy: .public)m (less reliable)")
-                    } else {
-                        AppLog.sceneML.notice("Centre-pixel calibration returned nil (h=\(height, privacy: .public)m)")
-                    }
-                } else {
-                    AppLog.sceneML.notice("Skipping centre-pixel fallback : camera height \(height, privacy: .public)m < 0.3m")
-                }
-            }
+            AppLog.sceneML.notice("Calibration via floor anchor returned nil — projection out of bounds or raw depth degenerate")
         }
 
-        // Fuse only when ALL inputs are available. Otherwise the snapshot
-        // ships with regions = [] but still carries the partial 2D overlays.
-        var regions: [SceneRegion] = []
-        if let semanticMap = semanticMap, let depthMap = depthMap, let scale = scale {
-            regions = SceneFusion.fuse(
+        guard let floorY = floorY else { return nil }
+        let height = cameraY - floorY
+        guard height > 0.3 else {
+            AppLog.sceneML.notice("Skipping centre-pixel fallback : camera height \(height, privacy: .public)m < 0.3m")
+            return nil
+        }
+        let scale = DepthCalibration.fitInverseScale(depthMap: depthMap, cameraHeightMeters: height)
+        if let scale = scale {
+            AppLog.sceneML.notice("Calibrated via centre-pixel inverseScale=\(scale, privacy: .public) h=\(height, privacy: .public)m (less reliable)")
+        } else {
+            AppLog.sceneML.notice("Centre-pixel calibration returned nil (h=\(height, privacy: .public)m)")
+        }
+        return scale
+    }
+
+    private func fuseAndAccumulate(
+        semanticMap: SemanticMap?,
+        depthMap: CVPixelBuffer?,
+        inverseScale: Float?,
+        intrinsics: simd_float3x3,
+        cameraTransform: simd_float4x4,
+        captureSize: CGSize
+    ) -> [SceneRegion] {
+        guard let semanticMap = semanticMap,
+              let depthMap = depthMap,
+              let scale = inverseScale else { return [] }
+
+        let regions = SceneFusion.fuse(
+            semanticMap: semanticMap,
+            depthMap: depthMap,
+            inverseScale: scale,
+            intrinsics: intrinsics,
+            cameraTransform: cameraTransform,
+            captureSize: captureSize
+        )
+        if let grid = (lock.withLock { self.voxelGrid }) {
+            VoxelAccumulator.accumulate(
+                into: grid,
                 semanticMap: semanticMap,
                 depthMap: depthMap,
                 inverseScale: scale,
@@ -352,41 +420,15 @@ final class SceneUnderstandingController {
                 cameraTransform: cameraTransform,
                 captureSize: captureSize
             )
-            // Voxel accumulation (scan mode). Drops back-projected
-            // points into a 4cm world-space grid keyed by semantic
-            // colour. The grid handles its own thread-safety.
-            if let grid = (lock.withLock { self.voxelGrid }) {
-                VoxelAccumulator.accumulate(
-                    into: grid,
-                    semanticMap: semanticMap,
-                    depthMap: depthMap,
-                    inverseScale: scale,
-                    intrinsics: intrinsics,
-                    cameraTransform: cameraTransform,
-                    captureSize: captureSize
-                )
-            }
         }
+        return regions
+    }
 
-        // No point publishing if BOTH predictors failed and we had no
-        // previous data to update — the overlays would just stay empty.
-        guard semanticMap != nil || depthMap != nil else {
-            lock.withLock { self.lastErrorDescription = "both models failed" }
-            return
-        }
-
-        let elapsed = Int(CFAbsoluteTimeGetCurrent() * 1000 - startMs)
-        let resolvedScale = scale
-        let snap = SceneUnderstandingSnapshot(
-            timestamp: CFAbsoluteTimeGetCurrent(),
-            regions: regions,
-            semanticMap: semanticMap,
-            depthMap: depthMap,
-            inverseScale: resolvedScale,
-            inferenceMs: elapsed
-        )
+    /// Fire the onSnapshot callback on main and update the cached scale.
+    /// We never store the snapshot itself — see the property comment.
+    private func publish(_ snap: SceneUnderstandingSnapshot) {
         let callback: ((SceneUnderstandingSnapshot) -> Void)? = lock.withLock {
-            self.inverseScale = resolvedScale
+            self.inverseScale = snap.inverseScale
             return self.onSnapshot
         }
         if let callback = callback {

@@ -11,7 +11,7 @@ import Foundation
 ///
 /// Same gating contract as `SemSegPredictor` : `init()` throws if the
 /// `.mlpackage` isn't bundled — caller disables the feature gracefully.
-final class DepthPredictor {
+final class DepthPredictor: DepthPredicting {
 
     enum PredictorError: Error, CustomStringConvertible {
         case modelMissing

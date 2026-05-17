@@ -16,7 +16,7 @@ import Foundation
 /// The model isn't committed (86 MB, too large) — `scripts/fetch-ml-models.sh`
 /// downloads it once into the bundle. If absent, `init()` throws and the
 /// caller is expected to disable the scene-understanding feature gracefully.
-final class SemSegPredictor {
+final class SemSegPredictor: SemSegPredicting {
 
     enum PredictorError: Error, CustomStringConvertible {
         case modelMissing

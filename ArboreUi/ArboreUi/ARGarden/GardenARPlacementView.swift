@@ -88,6 +88,11 @@ struct GardenARPlacementView: View {
     @AppStorage("arDebugSemSegViz")  private var semSegVizEnabled: Bool = false
     @AppStorage("arDebugDepthViz")   private var depthVizEnabled: Bool = false
     @AppStorage("arDebugFusedViz")   private var fusedVizEnabled: Bool = false
+    // Voxel scan accumulates depth+semseg into a 3D point cloud that
+    // persists across frames. `scanView` hides the camera feed so the
+    // user can inspect the voxel cloud as a 3D model. Cf #187.
+    @AppStorage("arDebugVoxelScan")  private var voxelScanEnabled: Bool = false
+    @AppStorage("arDebugScanView")   private var scanViewEnabled: Bool = false
     @State private var showDebugPanel = false
 
     // 🤖 AI Auto-placement
@@ -110,10 +115,10 @@ struct GardenARPlacementView: View {
         }
     }
 
-    /// True when any of the four debug overlays is on — drives the topBar
-    /// button color (green when active).
+    /// True when any debug overlay is on — drives the topBar button color.
     private var anyDebugVizOn: Bool {
-        surfaceVizEnabled || semSegVizEnabled || depthVizEnabled || fusedVizEnabled
+        surfaceVizEnabled || semSegVizEnabled || depthVizEnabled
+            || fusedVizEnabled || voxelScanEnabled || scanViewEnabled
     }
 
     /// Bottom-sheet that surfaces the four debug toggles. Each is
@@ -143,6 +148,14 @@ struct GardenARPlacementView: View {
                 Toggle(isOn: $fusedVizEnabled) {
                     Label("Fused 3D regions", systemImage: "cube")
                 }
+                Divider().padding(.vertical, 6)
+                Toggle(isOn: $voxelScanEnabled) {
+                    Label("Voxel scan (accumulate)", systemImage: "square.grid.3x3.fill")
+                }
+                Toggle(isOn: $scanViewEnabled) {
+                    Label("Scan view (hide camera)", systemImage: "eye.slash")
+                }
+                .disabled(!voxelScanEnabled)
             }
             .padding(.horizontal, 20)
             .toggleStyle(.switch)
@@ -186,6 +199,8 @@ struct GardenARPlacementView: View {
                 semSegVizEnabled: $semSegVizEnabled,
                 depthVizEnabled: $depthVizEnabled,
                 fusedVizEnabled: $fusedVizEnabled,
+                voxelScanEnabled: $voxelScanEnabled,
+                scanViewEnabled: $scanViewEnabled,
                 plantsToAutoPlace: selectedPlants,
                 uid: uid,
                 wizard: wizard,
@@ -526,6 +541,8 @@ struct GardenARPlacementView: View {
                         semSegVizEnabled = false
                         depthVizEnabled = false
                         fusedVizEnabled = false
+                        voxelScanEnabled = false
+                        scanViewEnabled = false
                     }
                 }
             }
@@ -833,6 +850,11 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var depthVizEnabled: Bool
     /// Phase 3 (#187) — 3D bbox + label overlay from SemSeg+Depth fusion.
     @Binding var fusedVizEnabled: Bool
+    /// Phase 3 (#187) — accumulate backprojected depth into a voxel cloud.
+    @Binding var voxelScanEnabled: Bool
+    /// Phase 3 (#187) — hide the AR camera feed so the user sees only
+    /// the voxel cloud (works only with `voxelScanEnabled` on).
+    @Binding var scanViewEnabled: Bool
 
     let plantsToAutoPlace: [Plant]
 
@@ -928,6 +950,8 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             semSegEnabled: semSegVizEnabled,
             depthEnabled: depthVizEnabled,
             fusedEnabled: fusedVizEnabled,
+            voxelScanEnabled: voxelScanEnabled,
+            scanViewEnabled: scanViewEnabled,
             sceneView: uiView
         )
 
@@ -1029,6 +1053,12 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             private let semSegOverlay = SemSegOverlay()
             private let depthOverlay = DepthOverlay()
             private let fusedOverlay = FusedSceneOverlay()
+            private let voxelOverlay = VoxelOverlay()
+            /// Shared with the sceneCtl when voxel-scan is enabled.
+            /// Keeps accumulating between toggle-off and toggle-on cycles
+            /// of the camera-feed hider, so the user can flip back and
+            /// forth without losing the cloud.
+            private var voxelGrid: VoxelGrid?
 
             // Issue #113 — ARAnchor-based placement.
             // anchor.identifier (UUID, unique per placement) → its ARAnchor.
@@ -2838,18 +2868,20 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
             }
 
-            /// Issue #187 — sync the three Phase-3 ML overlays with the
-            /// SwiftUI toggles. Lazy-creates the underlying
+            /// Issue #187 — sync the Phase-3 ML overlays + voxel scan
+            /// toggles. Lazy-creates the underlying
             /// `SceneUnderstandingController` the first time any overlay
-            /// is enabled, releases it when ALL three go off (so the
-            /// ~134 MB of CoreML weights are freed).
+            /// is enabled, releases it when ALL go off (so the ~134 MB
+            /// of CoreML weights are freed).
             func syncSceneUnderstanding(
                 semSegEnabled: Bool,
                 depthEnabled: Bool,
                 fusedEnabled: Bool,
+                voxelScanEnabled: Bool,
+                scanViewEnabled: Bool,
                 sceneView: ARSCNView
             ) {
-                let anyOn = semSegEnabled || depthEnabled || fusedEnabled
+                let anyOn = semSegEnabled || depthEnabled || fusedEnabled || voxelScanEnabled
                 if anyOn && sceneCtl == nil {
                     let ctl = SceneUnderstandingController()
                     ctl.start()
@@ -2867,16 +2899,37 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     if semSegEnabled { semSegOverlay.attach(to: sceneView) } else { semSegOverlay.detach() }
                     if depthEnabled { depthOverlay.attach(to: sceneView) } else { depthOverlay.detach() }
                     if fusedEnabled { fusedOverlay.attach(to: sceneView.scene) } else { fusedOverlay.detach() }
+
+                    // Voxel scan : accumulator + cloud overlay.
+                    if voxelScanEnabled {
+                        if voxelGrid == nil { voxelGrid = VoxelGrid() }
+                        sceneCtl?.voxelGrid = voxelGrid
+                        voxelOverlay.attachVoxels(to: sceneView.scene)
+                    } else {
+                        sceneCtl?.voxelGrid = nil
+                        voxelOverlay.detachVoxels()
+                        voxelGrid = nil
+                    }
+
+                    // Scan view : hide the AR camera background.
+                    if scanViewEnabled, voxelScanEnabled, let cam = sceneView.pointOfView {
+                        voxelOverlay.hideCamera(cameraNode: cam)
+                    } else {
+                        voxelOverlay.showCamera()
+                    }
                 } else {
                     semSegOverlay.detach()
                     depthOverlay.detach()
                     fusedOverlay.detach()
+                    voxelOverlay.detachVoxels()
+                    voxelOverlay.showCamera()
+                    voxelGrid = nil
                     sceneCtl?.stop()
                     sceneCtl = nil
                 }
             }
 
-            /// Called on the main queue every ~0.5s (the controller throttle)
+            /// Called on the main queue every ~1s (the controller throttle)
             /// when a fresh SemSeg+Depth pass completes. Fans out to the
             /// currently-attached overlays.
             private func applySceneSnapshot(_ snap: SceneUnderstandingSnapshot) {
@@ -2888,6 +2941,9 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
                 if fusedOverlay.isActive {
                     fusedOverlay.update(regions: snap.regions)
+                }
+                if voxelOverlay.isVoxelRootAttached, let grid = voxelGrid {
+                    voxelOverlay.refresh(grid: grid)
                 }
             }
 

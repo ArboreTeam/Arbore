@@ -51,7 +51,10 @@ final class SemSegOverlay {
     func update(with semanticMap: SemanticMap) {
         guard isActive else { return }
         if let cg = Self.renderImage(from: semanticMap) {
-            imageView.image = UIImage(cgImage: cg)
+            // Same orientation correction as DepthOverlay — ARFrame is
+            // landscape natively, ARSCNView rotates for display, we have
+            // to rotate the model output to match.
+            imageView.image = UIImage(cgImage: cg, scale: 1, orientation: .right)
         }
     }
 

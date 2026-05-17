@@ -50,13 +50,18 @@ struct SceneUnderstandingSnapshot: @unchecked Sendable {
 /// snapshot fires on the main queue via `onSnapshot`.
 final class SceneUnderstandingController {
 
-    /// 0.5 Hz default — DETR takes ~40ms, DA V2 ~30ms, fusion ~10ms,
-    /// so we sit at ~10% ANE utilization. Toggleable from the debug panel.
-    var throttleSeconds: Double = 0.5
+    /// 1 Hz default — DETR ~40ms, DA V2 ~30ms, fusion ~10ms = ~80ms of
+    /// ANE work per inference. At 1 Hz = 8% ANE utilization. Earlier
+    /// builds tried 2 Hz (0.5s) but that triggered the iOS "device is
+    /// getting hot" warning after a few minutes of continuous use, so
+    /// we backed off.
+    var throttleSeconds: Double = 1.0
 
-    /// Don't run if the device's thermal state has reached `.serious`
-    /// or worse. The ARSession needs the budget for tracking.
-    var maxThermalState: ProcessInfo.ThermalState = .fair
+    /// Stop ticking as soon as the device leaves `.nominal` thermal state.
+    /// The .fair state already means "elevated, performance may be
+    /// throttled" — by then the ARSession is already competing with us
+    /// for the GPU/CPU. .nominal = "everything fine" only.
+    var maxThermalState: ProcessInfo.ThermalState = .nominal
 
     /// Fired on the main queue every time a new snapshot is ready. Set
     /// from the Coordinator to update the overlays. Cleared on `stop()`.

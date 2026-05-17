@@ -57,7 +57,13 @@ final class DepthOverlay {
                                       inverseScale: inverseScale,
                                       minMeters: minMeters,
                                       maxMeters: maxMeters) {
-            imageView.image = UIImage(cgImage: cg)
+            // ARFrame.capturedImage is always landscape (1920×1440 typically)
+            // even when the phone is held portrait — ARSCNView rotates the
+            // camera feed internally for display. The depth model output
+            // inherits that landscape orientation, so we must rotate the
+            // overlay 90° CW (UIImage.Orientation.right) to match what the
+            // user sees on screen.
+            imageView.image = UIImage(cgImage: cg, scale: 1, orientation: .right)
         }
     }
 

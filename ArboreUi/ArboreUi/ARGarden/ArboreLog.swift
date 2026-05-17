@@ -32,6 +32,9 @@ enum AppLog {
 
     /// Manual replacement (Issue #111): boundary tracing, morphing, ghost preview.
     static let manualReplace = Logger(subsystem: subsystem, category: "AR.ManualReplace")
+
+    /// Depth-anything mesh viz pipeline (non-LiDAR scene reconstruction).
+    static let depthMesh = Logger(subsystem: subsystem, category: "AR.DepthMesh")
 }
 
 // MARK: - Compact descriptions for SIMD / matrix types

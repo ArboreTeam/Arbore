@@ -80,6 +80,10 @@ struct GardenARPlacementView: View {
     // instead of letting the user spin on the scanning overlay forever.
     @State private var gardenUnavailable: Bool = false
 
+    // Debug overlay : neural-depth mesh viz (non-LiDAR). Off by default;
+    // toggleable from the topBar when no manual-replacement phase is active.
+    @State private var depthMeshEnabled: Bool = false
+
     // 🤖 AI Auto-placement
     @State private var isAutoPlacing = false
     @State private var autoPlaceToast: String? = nil
@@ -116,6 +120,7 @@ struct GardenARPlacementView: View {
                 shouldCaptureSharePhoto: $shouldCaptureSharePhoto,
                 capturedShareImage: $capturedShareImage,
                 isCapturingSharePhoto: $isCapturingSharePhoto,
+                depthMeshEnabled: $depthMeshEnabled,
                 plantsToAutoPlace: selectedPlants,
                 uid: uid,
                 wizard: wizard,
@@ -440,6 +445,11 @@ struct GardenARPlacementView: View {
                     Button { NotificationCenter.default.post(name: .gardenARRedo, object: nil) } label: {
                         Image(systemName: "arrow.uturn.forward").modifier(GlassButtonStyle())
                     }
+                    Button { depthMeshEnabled.toggle() } label: {
+                        Image(systemName: depthMeshEnabled
+                              ? "cube.transparent.fill" : "cube.transparent")
+                            .modifier(GlassButtonStyle(isGreen: depthMeshEnabled))
+                    }
                 }
             }
 
@@ -737,6 +747,11 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var shouldCaptureSharePhoto: Bool
     @Binding var capturedShareImage: UIImage?
     @Binding var isCapturingSharePhoto: Bool
+
+    // Debug toggle for the neural-depth mesh overlay (issue : Quest-style
+    // scene visualization on non-LiDAR devices).
+    @Binding var depthMeshEnabled: Bool
+
     let plantsToAutoPlace: [Plant]
 
     let uid: String
@@ -822,6 +837,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
 
     func updateUIView(_ uiView: ARSCNView, context: Context) {
         context.coordinator.updateCachedBounds()
+        context.coordinator.syncDepthMeshEnabled(depthMeshEnabled, sceneView: uiView)
 
         if shouldCaptureSharePhoto {
             DispatchQueue.main.async {
@@ -878,6 +894,11 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             private var plantUpAxisMap: [String: String] = [:]
             // Garden ID pending restore after WorldMap relocalization
             var pendingRestoreGardenId: String?
+
+            // Depth-anything mesh viz controller (non-LiDAR scene reconstruction).
+            // Lazy-loaded on first toggle-on; stays nil if the CoreML model is
+            // missing from the bundle (graceful degradation).
+            private var depthMesh: DepthMeshController?
 
             // Issue #113 — ARAnchor-based placement.
             // anchor.identifier (UUID, unique per placement) → its ARAnchor.
@@ -995,6 +1016,11 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             private let restoreMaxWait: TimeInterval = 4.0
 
             func session(_ session: ARSession, didUpdate frame: ARFrame) {
+                // Depth-mesh viz : opportunistic per-frame inference, internal
+                // throttling. No-op when the controller is nil (model missing
+                // or toggle off).
+                depthMesh?.tick(frame: frame)
+
                 let mapStatus = frame.worldMappingStatus
                 let trackingState = frame.camera.trackingState
 
@@ -1119,6 +1145,27 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             func updateCachedBounds() {
                 guard let arView = arView else { return }
                 cachedViewCenter = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+            }
+
+            /// Brings the depth-mesh viz controller in sync with the SwiftUI
+            /// toggle. Lazy-creates on first toggle-on; releases everything
+            /// on toggle-off (the CoreML model footprint is non-trivial).
+            func syncDepthMeshEnabled(_ enabled: Bool, sceneView: ARSCNView) {
+                if enabled {
+                    if depthMesh == nil {
+                        let ctl = DepthMeshController()
+                        if !ctl.isAvailable {
+                            AppLog.depthMesh.notice("Toggle on but model missing — overlay stays off.")
+                            // Keep depthMesh nil so subsequent ticks are no-ops.
+                            return
+                        }
+                        depthMesh = ctl
+                    }
+                    depthMesh?.start(in: sceneView.scene)
+                } else {
+                    depthMesh?.stop()
+                    depthMesh = nil
+                }
             }
 
             func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {

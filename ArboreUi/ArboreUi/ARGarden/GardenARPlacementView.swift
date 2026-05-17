@@ -80,6 +80,11 @@ struct GardenARPlacementView: View {
     // instead of letting the user spin on the scanning overlay forever.
     @State private var gardenUnavailable: Bool = false
 
+    // Debug overlay (issue #186) : colors each ARKit-detected plane by
+    // SurfaceClassifier verdict (floor / wall / shelf / table / ceiling …).
+    // Off by default ; opt-in via the `cube.transparent` toggle in topBar.
+    @AppStorage("arDebugSurfaceViz") private var surfaceVizEnabled: Bool = false
+
     // 🤖 AI Auto-placement
     @State private var isAutoPlacing = false
     @State private var autoPlaceToast: String? = nil
@@ -116,6 +121,7 @@ struct GardenARPlacementView: View {
                 shouldCaptureSharePhoto: $shouldCaptureSharePhoto,
                 capturedShareImage: $capturedShareImage,
                 isCapturingSharePhoto: $isCapturingSharePhoto,
+                surfaceVizEnabled: $surfaceVizEnabled,
                 plantsToAutoPlace: selectedPlants,
                 uid: uid,
                 wizard: wizard,
@@ -440,6 +446,13 @@ struct GardenARPlacementView: View {
                     Button { NotificationCenter.default.post(name: .gardenARRedo, object: nil) } label: {
                         Image(systemName: "arrow.uturn.forward").modifier(GlassButtonStyle())
                     }
+                    // Issue #186 — debug toggle : highlight detected
+                    // surfaces colored by SurfaceClassifier verdict.
+                    Button { surfaceVizEnabled.toggle() } label: {
+                        Image(systemName: surfaceVizEnabled
+                              ? "cube.transparent.fill" : "cube.transparent")
+                            .modifier(GlassButtonStyle(isGreen: surfaceVizEnabled))
+                    }
                 }
             }
 
@@ -737,6 +750,11 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var shouldCaptureSharePhoto: Bool
     @Binding var capturedShareImage: UIImage?
     @Binding var isCapturingSharePhoto: Bool
+
+    /// Debug toggle (issue #186) — colour each detected plane by its
+    /// `SurfaceType` so the user can see what ARKit understands.
+    @Binding var surfaceVizEnabled: Bool
+
     let plantsToAutoPlace: [Plant]
 
     let uid: String
@@ -761,9 +779,13 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
         sceneView.session.delegate = context.coordinator
         
         let config = ARWorldTrackingConfiguration()
-        config.planeDetection = [.horizontal]
+        // Issue #186 — detect vertical planes (walls) in addition to floors.
+        // Cheap on all devices ; ARKit just looks for vertical feature-point
+        // clusters. The actual classification (floor / wall / shelf / …)
+        // happens in `SurfaceClassifier` based on Y / extent / adjacency.
+        config.planeDetection = [.horizontal, .vertical]
         config.environmentTexturing = ARQuality.recommended.environmentTexturing
-        
+
         sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
 
         // Load WorldMap on a background thread so main thread is not blocked.
@@ -792,7 +814,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
                 DispatchQueue.main.async {
                     let restartConfig = ARWorldTrackingConfiguration()
-                    restartConfig.planeDetection = [.horizontal]
+                    restartConfig.planeDetection = [.horizontal, .vertical]
                     restartConfig.environmentTexturing = ARQuality.recommended.environmentTexturing
                     restartConfig.initialWorldMap = worldMap
                     sceneView.session.run(restartConfig, options: [.resetTracking, .removeExistingAnchors])
@@ -822,6 +844,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
 
     func updateUIView(_ uiView: ARSCNView, context: Context) {
         context.coordinator.updateCachedBounds()
+        context.coordinator.syncSurfaceVizEnabled(surfaceVizEnabled, sceneView: uiView)
 
         if shouldCaptureSharePhoto {
             DispatchQueue.main.async {
@@ -863,8 +886,12 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             private var lastReticleTransform: simd_float4x4?
             // Quality of the surface under the reticle. Drives color feedback
             // and decides whether boundary taps are accepted reliably.
-            private enum ReticleQuality { case none, estimated, geometry }
+            private enum ReticleQuality: String { case none, estimated, geometry }
             private var reticleQuality: ReticleQuality = .none
+            /// Combined quality + surfaceType key used to detect a "real"
+            /// transition (so we only re-apply the reticle's diffuse colour
+            /// when it actually needs to change). Issue #186.
+            private var lastReticleColorKey: String = ""
             // Rate-limit "no surface" warnings during boundary tracing.
             private var lastNoSurfaceWarnAt: TimeInterval = 0
             private var selectedNode: SCNNode?
@@ -878,6 +905,21 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             private var plantUpAxisMap: [String: String] = [:]
             // Garden ID pending restore after WorldMap relocalization
             var pendingRestoreGardenId: String?
+
+            // Issue #186 — surface classification cache + viz controller.
+            //
+            // `planeFeatures` snapshots each detected plane's geometric
+            // features ; `planeTypes` records the classification the
+            // heuristic returned. Both are keyed by anchor identifier and
+            // updated on didAdd / didUpdate / didRemove plane anchor.
+            //
+            // `floorY` is the lowest Y among horizontal planes seen so far,
+            // used as the "this is the floor" reference for classification.
+            // Nil until the first horizontal plane arrives.
+            private var planeFeatures: [UUID: PlaneFeatures] = [:]
+            private var planeTypes: [UUID: SurfaceType] = [:]
+            private var floorY: Float?
+            private let surfaceViz = SurfaceVizController()
 
             // Issue #113 — ARAnchor-based placement.
             // anchor.identifier (UUID, unique per placement) → its ARAnchor.
@@ -1141,17 +1183,39 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 // guesses a plausible plane from feature points — less precise but
                 // usable in low-light or poorly-textured scenes). Both keep the
                 // reticle interactive; only the color changes.
+                //
+                // The reticle stays on horizontal surfaces (placement
+                // contract for now). Issue #186 will widen this when the
+                // tap handler learns plant-surface compatibility rules
+                // (item 7-8 in the implementation order).
                 var newQuality: ReticleQuality = .none
                 var newTransform: simd_float4x4?
+                var newSurfaceType: SurfaceType? = nil
 
                 if let q = arView.raycastQuery(from: center, allowing: .existingPlaneGeometry, alignment: .horizontal),
                    let r = arView.session.raycast(q).first {
                     newQuality = .geometry
                     newTransform = r.worldTransform
+                    if let plane = r.anchor as? ARPlaneAnchor {
+                        newSurfaceType = planeTypes[plane.identifier]
+                    }
                 } else if let q = arView.raycastQuery(from: center, allowing: .estimatedPlane, alignment: .horizontal),
                           let r = arView.session.raycast(q).first {
                     newQuality = .estimated
                     newTransform = r.worldTransform
+                }
+
+                // Surface-type **look** (informational, doesn't affect
+                // placement) — peek what's under the centre regardless of
+                // alignment. The reticle colours itself with this verdict
+                // when it's stronger than the placement-friendly horizontal
+                // result (e.g. user points at a wall : reticle goes orange
+                // even though it visually still sits on the floor).
+                if newSurfaceType == nil,
+                   let q = arView.raycastQuery(from: center, allowing: .existingPlaneGeometry, alignment: .any),
+                   let peek = arView.session.raycast(q).first,
+                   let plane = peek.anchor as? ARPlaneAnchor {
+                    newSurfaceType = planeTypes[plane.identifier]
                 }
 
                 lastReticleTransform = newTransform
@@ -1198,13 +1262,23 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     }
 
                     // Update color only on transition (avoid per-frame material churn).
-                    if newQuality != reticleQuality {
+                    //
+                    // Issue #186 — when the reticle sits on a classified
+                    // plane, the colour reflects the surface type (orange
+                    // wall, green table, …). Falls back to the prior
+                    // green/amber logic for unclassified hits.
+                    let transitionKey = "\(newQuality.rawValue)|\(newSurfaceType?.rawValue ?? "")"
+                    if transitionKey != lastReticleColorKey {
+                        lastReticleColorKey = transitionKey
                         reticleQuality = newQuality
                         let color: UIColor
                         switch newQuality {
-                        case .geometry:  color = UIColor(hex: "#2BEE79")  // green: solid surface
-                        case .estimated: color = UIColor(hex: "#FFB020")  // amber: approximate
-                        case .none:      color = UIColor(hex: "#2BEE79")  // hidden anyway
+                        case .geometry:
+                            color = newSurfaceType?.debugColor ?? UIColor(hex: "#2BEE79")
+                        case .estimated:
+                            color = UIColor(hex: "#FFB020")
+                        case .none:
+                            color = UIColor(hex: "#2BEE79")
                         }
                         reticle.geometry?.firstMaterial?.diffuse.contents = color
                     }
@@ -2469,9 +2543,10 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 // plane that arrives extends the debounce window. This lets
                 // ARKit's plane-detection finish converging before we run the
                 // snap-to-plane lookup in restoreScene.
-                if anchor is ARPlaneAnchor {
+                if let plane = anchor as? ARPlaneAnchor {
                     DispatchQueue.main.async { [weak self] in
                         self?.bumpRestoreDebounce()
+                        self?.handlePlaneAnchorChange(plane)
                     }
                 }
                 DispatchQueue.main.async { [weak self] in
@@ -2483,9 +2558,137 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
             }
 
+            func renderer(_ renderer: SCNSceneRenderer, didUpdate node: SCNNode, for anchor: ARAnchor) {
+                if let plane = anchor as? ARPlaneAnchor {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.handlePlaneAnchorChange(plane)
+                    }
+                }
+            }
+
             func renderer(_ renderer: SCNSceneRenderer, didRemove node: SCNNode, for anchor: ARAnchor) {
                 DispatchQueue.main.async { [weak self] in
                     _ = self?.anchorPendingPlacements.removeValue(forKey: anchor.identifier)
+                    if anchor is ARPlaneAnchor {
+                        self?.handlePlaneAnchorRemoved(anchor.identifier)
+                    }
+                }
+            }
+
+            /// Issue #186 — refresh classification + debug viz for a plane.
+            ///
+            /// Called from didAdd / didUpdate on the main thread. Each call
+            /// :
+            ///  1. extracts a `PlaneFeatures` snapshot,
+            ///  2. updates the global `floorY` reference if the plane is a
+            ///     new lowest horizontal,
+            ///  3. (re)classifies it, possibly cascading a re-classification
+            ///     of previously cached planes whose verdict depended on
+            ///     `floorY`,
+            ///  4. notifies the debug viz controller of the new verdict.
+            ///
+            /// Reclassification is O(n) over the cached planes but only
+            /// happens when `floorY` actually shifts — rare, since the
+            /// lowest plane stabilises quickly. Typical scene = 10-30
+            /// planes, so even a full pass is ~µs of work.
+            func handlePlaneAnchorChange(_ anchor: ARPlaneAnchor) {
+                let features = PlaneFeatures(anchor)
+                planeFeatures[anchor.identifier] = features
+
+                // Update floorY if this horizontal plane is the new lowest.
+                var floorChanged = false
+                if features.alignment == .horizontal {
+                    if floorY == nil || features.center.y < (floorY ?? .infinity) - 0.01 {
+                        floorY = features.center.y
+                        floorChanged = true
+                    }
+                }
+
+                let cameraY = arView?.session.currentFrame?.camera.transform.columns.3.y ?? 1.6
+                let verticals = planeFeatures.values.filter { $0.alignment == .vertical }
+
+                let kind = SurfaceClassifier.classify(
+                    plane: features,
+                    floorY: floorY,
+                    cameraY: cameraY,
+                    nearbyVerticals: verticals
+                )
+                let previous = planeTypes[anchor.identifier]
+                planeTypes[anchor.identifier] = kind
+
+                if previous != kind {
+                    AppLog.surfaces.notice("plane=\(anchor.identifier.uuidString.prefix(8), privacy: .public) \(previous?.rawValue ?? "—", privacy: .public) → \(kind.rawValue, privacy: .public) y=\(features.center.y, privacy: .public)")
+                }
+                surfaceViz.upsert(anchor: anchor, type: kind)
+
+                // If `floorY` just shifted, re-classify other cached planes —
+                // a plane that used to be `.floor` (no reference yet) may
+                // become `.shelf` now that we found a lower one.
+                if floorChanged {
+                    reclassifyCachedPlanes(except: anchor.identifier, cameraY: cameraY, verticals: verticals)
+                }
+            }
+
+            private func reclassifyCachedPlanes(except skipId: UUID, cameraY: Float, verticals: [PlaneFeatures]) {
+                for (id, features) in planeFeatures where id != skipId {
+                    let kind = SurfaceClassifier.classify(
+                        plane: features,
+                        floorY: floorY,
+                        cameraY: cameraY,
+                        nearbyVerticals: verticals
+                    )
+                    let previous = planeTypes[id]
+                    if previous != kind {
+                        planeTypes[id] = kind
+                        AppLog.surfaces.debug("reclassify \(id.uuidString.prefix(8), privacy: .public) \(previous?.rawValue ?? "—", privacy: .public) → \(kind.rawValue, privacy: .public)")
+                        // We need the ARPlaneAnchor itself to push the viz
+                        // update ; look it up via the ARSession.
+                        if let anchor = arView?.session.currentFrame?.anchors
+                            .compactMap({ $0 as? ARPlaneAnchor })
+                            .first(where: { $0.identifier == id })
+                        {
+                            surfaceViz.upsert(anchor: anchor, type: kind)
+                        }
+                    }
+                }
+            }
+
+            func handlePlaneAnchorRemoved(_ id: UUID) {
+                planeFeatures.removeValue(forKey: id)
+                planeTypes.removeValue(forKey: id)
+                surfaceViz.remove(id: id)
+                // If we lost the floor, recompute it from the remaining cache.
+                if let floor = floorY {
+                    let candidates = planeFeatures.values
+                        .filter { $0.alignment == .horizontal }
+                        .map { $0.center.y }
+                    if let newFloor = candidates.min(), abs(newFloor - floor) > 0.001 {
+                        floorY = newFloor
+                    } else if candidates.isEmpty {
+                        floorY = nil
+                    }
+                }
+            }
+
+            /// Issue #186 — bring the surface debug viz in sync with the
+            /// SwiftUI toggle. Idempotent.
+            func syncSurfaceVizEnabled(_ enabled: Bool, sceneView: ARSCNView) {
+                if enabled {
+                    if !surfaceViz.isActive {
+                        surfaceViz.start(in: sceneView.scene)
+                        // Replay every cached classification — the viz starts
+                        // empty even if planes were detected before toggle-on.
+                        for (id, kind) in planeTypes {
+                            if let anchor = sceneView.session.currentFrame?.anchors
+                                .compactMap({ $0 as? ARPlaneAnchor })
+                                .first(where: { $0.identifier == id })
+                            {
+                                surfaceViz.upsert(anchor: anchor, type: kind)
+                            }
+                        }
+                    }
+                } else {
+                    surfaceViz.stop()
                 }
             }
 

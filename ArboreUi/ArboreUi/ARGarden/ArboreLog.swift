@@ -32,6 +32,9 @@ enum AppLog {
 
     /// Manual replacement (Issue #111): boundary tracing, morphing, ghost preview.
     static let manualReplace = Logger(subsystem: subsystem, category: "AR.ManualReplace")
+
+    /// Surface classification + multi-surface placement (Issue #186).
+    static let surfaces = Logger(subsystem: subsystem, category: "AR.Surfaces")
 }
 
 // MARK: - Compact descriptions for SIMD / matrix types

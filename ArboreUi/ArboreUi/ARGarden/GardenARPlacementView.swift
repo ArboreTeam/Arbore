@@ -1055,10 +1055,14 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             private let fusedOverlay = FusedSceneOverlay()
             private let voxelOverlay = VoxelOverlay()
             /// Shared with the sceneCtl when voxel-scan is enabled.
-            /// Keeps accumulating between toggle-off and toggle-on cycles
-            /// of the camera-feed hider, so the user can flip back and
-            /// forth without losing the cloud.
+            /// Survives a voxelScan toggle-off so the user can keep
+            /// admiring their scan with no live accumulation. Reset
+            /// on each OFF→ON edge (fresh scan) and on view dismantle.
             private var voxelGrid: VoxelGrid?
+            /// Last seen value of `voxelScanEnabled` — used to detect
+            /// OFF→ON edges (clear + start fresh) and ON→OFF edges
+            /// (pause accumulation, keep cloud visible).
+            private var voxelScanWasOn = false
 
             // Issue #113 — ARAnchor-based placement.
             // anchor.identifier (UUID, unique per placement) → its ARAnchor.
@@ -2927,14 +2931,18 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     if fusedEnabled { fusedOverlay.attach(to: sceneView.scene) } else { fusedOverlay.detach() }
 
                     // Voxel scan : accumulator + cloud overlay.
-                    if voxelScanEnabled {
-                        if voxelGrid == nil { voxelGrid = VoxelGrid() }
-                        sceneCtl?.voxelGrid = voxelGrid
+                    // Fresh scan on every OFF→ON edge — wipes the previous
+                    // cloud. ON→OFF only pauses : grid + overlay stay alive
+                    // so the user can admire the result without the live
+                    // model running.
+                    if voxelScanEnabled && !voxelScanWasOn {
+                        voxelGrid = VoxelGrid()
                         voxelOverlay.attachVoxels(to: sceneView.scene)
+                    }
+                    if voxelScanEnabled {
+                        sceneCtl?.voxelGrid = voxelGrid
                     } else {
                         sceneCtl?.voxelGrid = nil
-                        voxelOverlay.detachVoxels()
-                        voxelGrid = nil
                     }
 
                     // Scan view : hide the AR camera background.
@@ -2947,12 +2955,14 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     semSegOverlay.detach()
                     depthOverlay.detach()
                     fusedOverlay.detach()
-                    voxelOverlay.detachVoxels()
+                    // Voxel cloud is intentionally NOT torn down here —
+                    // user wants to keep viewing their scan after toggling
+                    // everything off. It only goes away on dismantle.
                     voxelOverlay.showCamera()
-                    voxelGrid = nil
                     sceneCtl?.stop()
                     sceneCtl = nil
                 }
+                voxelScanWasOn = voxelScanEnabled
             }
 
             /// Called on the main queue every ~1s (the controller throttle)

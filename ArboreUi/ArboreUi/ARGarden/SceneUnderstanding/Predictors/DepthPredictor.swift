@@ -30,7 +30,16 @@ final class DepthPredictor {
         }
     }
 
-    static let inputSize = CGSize(width: 686, height: 518)
+    /// Fallback used only if the runtime model description doesn't expose
+    /// an `imageConstraint`. The Apple-published `.mlpackage` we ship does
+    /// expose one, so this is rarely hit in practice — we query the model
+    /// at init time and store the actual accepted size in `runtimeInputSize`.
+    static let fallbackInputSize = CGSize(width: 518, height: 518)
+
+    /// The actual input size the loaded model accepts. Read from
+    /// `modelDescription.inputDescriptionsByName["image"]?.imageConstraint`
+    /// at init time. Always preferred over `fallbackInputSize`.
+    let runtimeInputSize: CGSize
 
     private let model: MLModel
     private let context: CIContext
@@ -52,9 +61,21 @@ final class DepthPredictor {
         } else {
             compiled = try MLModel.compileModel(at: url)
         }
-        self.model = try MLModel(contentsOf: compiled, configuration: config)
+        let m = try MLModel(contentsOf: compiled, configuration: config)
+        self.model = m
         self.context = CIContext()
-        AppLog.sceneML.notice("DepthPredictor ready")
+
+        // Read the actual accepted input size from the model description.
+        // Apple's published `.mlpackage` updates the accepted size between
+        // model revisions (it used to be 686×518 per the CLI sample, but
+        // current builds reject anything other than 518×518). Querying the
+        // constraint at init time future-proofs us.
+        if let img = m.modelDescription.inputDescriptionsByName["image"]?.imageConstraint {
+            self.runtimeInputSize = CGSize(width: img.pixelsWide, height: img.pixelsHigh)
+        } else {
+            self.runtimeInputSize = Self.fallbackInputSize
+        }
+        AppLog.sceneML.notice("DepthPredictor ready (input=\(Int(self.runtimeInputSize.width), privacy: .public)×\(Int(self.runtimeInputSize.height), privacy: .public))")
     }
 
     /// Run a single inference. Output is a CVPixelBuffer of shape
@@ -70,9 +91,10 @@ final class DepthPredictor {
     }
 
     private func resizeToModelInput(_ source: CVPixelBuffer) throws -> CVPixelBuffer {
+        let target = runtimeInputSize
         let ci = CIImage(cvPixelBuffer: source)
-        let sx = Self.inputSize.width / ci.extent.width
-        let sy = Self.inputSize.height / ci.extent.height
+        let sx = target.width / ci.extent.width
+        let sy = target.height / ci.extent.height
         var resized = ci.transformed(by: CGAffineTransform(scaleX: sx, y: sy))
         resized = resized.transformed(by: CGAffineTransform(
             translationX: -resized.extent.origin.x,
@@ -82,8 +104,8 @@ final class DepthPredictor {
         var buf: CVPixelBuffer?
         let status = CVPixelBufferCreate(
             kCFAllocatorDefault,
-            Int(Self.inputSize.width),
-            Int(Self.inputSize.height),
+            Int(target.width),
+            Int(target.height),
             kCVPixelFormatType_32ARGB,
             nil, &buf
         )

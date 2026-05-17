@@ -184,63 +184,119 @@ final class SceneUnderstandingController {
         cachedScale: Float?
     ) async {
         let startMs = CFAbsoluteTimeGetCurrent() * 1000
-        do {
-            // Inference in parallel — both models are independent.
-            async let semTask = semseg.predict(pixelBuffer)
-            async let depthTask = depth.predict(pixelBuffer)
-            let (semanticMap, depthMap) = try await (semTask, depthTask)
 
-            // Calibrate (fit once, reuse).
-            var scale = cachedScale
-            if scale == nil, let floorY = floorY {
-                let height = cameraY - floorY
-                if height > 0.3 {
-                    scale = DepthCalibration.fitInverseScale(
-                        depthMap: depthMap,
-                        cameraHeightMeters: height
-                    )
-                    if let scale = scale {
-                        AppLog.sceneML.notice("Calibrated inverseScale=\(scale, privacy: .public) h=\(height, privacy: .public)m")
-                    }
+        // Run both predictors in parallel. Each one is wrapped in its own
+        // do/catch so a failure in one doesn't bubble up and kill the other
+        // — we publish whatever we got. Important on device when one of
+        // the two models gets re-released by Apple with a different input
+        // size : we still want the working overlay to render.
+        async let semOptional: SemanticMap? = {
+            do { return try await semseg.predict(pixelBuffer) }
+            catch {
+                AppLog.sceneML.error("semseg failed: \(String(describing: error), privacy: .public)")
+                return nil
+            }
+        }()
+        async let depthOptional: CVPixelBuffer? = {
+            do { return try await depth.predict(pixelBuffer) }
+            catch {
+                AppLog.sceneML.error("depth failed: \(String(describing: error), privacy: .public)")
+                return nil
+            }
+        }()
+        let semanticMap = await semOptional
+        let depthMap = await depthOptional
+
+        // Auto-disable after `maxRepeatedFailures` consecutive failures
+        // of one model. Stops burning GPU on inputs the model will never
+        // accept — typically a sign Apple updated the .mlpackage and our
+        // resize size is now wrong, or the model file is corrupt.
+        recordOutcome(semanticOK: semanticMap != nil, depthOK: depthMap != nil)
+
+        // Calibrate (fit once, reuse). Only possible when depth + floor available.
+        var scale = cachedScale
+        if scale == nil, let depthMap = depthMap, let floorY = floorY {
+            let height = cameraY - floorY
+            if height > 0.3 {
+                scale = DepthCalibration.fitInverseScale(
+                    depthMap: depthMap,
+                    cameraHeightMeters: height
+                )
+                if let scale = scale {
+                    AppLog.sceneML.notice("Calibrated inverseScale=\(scale, privacy: .public) h=\(height, privacy: .public)m")
                 }
             }
+        }
 
-            // Fuse into regions if we have a metric scale.
-            let regions: [SceneRegion]
-            if let scale = scale {
-                regions = SceneFusion.fuse(
-                    semanticMap: semanticMap,
-                    depthMap: depthMap,
-                    inverseScale: scale,
-                    intrinsics: intrinsics,
-                    cameraTransform: cameraTransform,
-                    captureSize: captureSize
-                )
-            } else {
-                regions = []
-            }
-
-            let elapsed = Int(CFAbsoluteTimeGetCurrent() * 1000 - startMs)
-            let resolvedScale = scale
-            let snap = SceneUnderstandingSnapshot(
-                timestamp: CFAbsoluteTimeGetCurrent(),
-                regions: regions,
+        // Fuse only when ALL inputs are available. Otherwise the snapshot
+        // ships with regions = [] but still carries the partial 2D overlays.
+        var regions: [SceneRegion] = []
+        if let semanticMap = semanticMap, let depthMap = depthMap, let scale = scale {
+            regions = SceneFusion.fuse(
                 semanticMap: semanticMap,
                 depthMap: depthMap,
-                inverseScale: resolvedScale,
-                inferenceMs: elapsed
+                inverseScale: scale,
+                intrinsics: intrinsics,
+                cameraTransform: cameraTransform,
+                captureSize: captureSize
             )
-            let callback: ((SceneUnderstandingSnapshot) -> Void)? = lock.withLock {
-                self.inverseScale = resolvedScale
-                self.snapshot = snap
-                return self.onSnapshot
+        }
+
+        // No point publishing if BOTH predictors failed and we had no
+        // previous data to update — the overlays would just stay empty.
+        guard semanticMap != nil || depthMap != nil else {
+            lock.withLock { self.lastErrorDescription = "both models failed" }
+            return
+        }
+
+        let elapsed = Int(CFAbsoluteTimeGetCurrent() * 1000 - startMs)
+        let resolvedScale = scale
+        let snap = SceneUnderstandingSnapshot(
+            timestamp: CFAbsoluteTimeGetCurrent(),
+            regions: regions,
+            semanticMap: semanticMap,
+            depthMap: depthMap,
+            inverseScale: resolvedScale,
+            inferenceMs: elapsed
+        )
+        let callback: ((SceneUnderstandingSnapshot) -> Void)? = lock.withLock {
+            self.inverseScale = resolvedScale
+            self.snapshot = snap
+            return self.onSnapshot
+        }
+        if let callback = callback {
+            DispatchQueue.main.async { callback(snap) }
+        }
+    }
+
+    /// Track per-model consecutive failures and auto-disable models that
+    /// keep failing — they're never going to succeed (most likely a Apple
+    /// model revision changed the input size). After `maxRepeatedFailures`
+    /// we set `semseg` / `depth` to nil and stop ticking that one.
+    private static let maxRepeatedFailures = 6
+    private var semsegFailureStreak = 0
+    private var depthFailureStreak = 0
+
+    private func recordOutcome(semanticOK: Bool, depthOK: Bool) {
+        lock.withLock {
+            if semanticOK {
+                self.semsegFailureStreak = 0
+            } else {
+                self.semsegFailureStreak += 1
+                if self.semsegFailureStreak >= Self.maxRepeatedFailures {
+                    AppLog.sceneML.error("SemSeg auto-disabled after \(Self.maxRepeatedFailures, privacy: .public) consecutive failures.")
+                    self.semseg = nil
+                }
             }
-            if let callback = callback {
-                DispatchQueue.main.async { callback(snap) }
+            if depthOK {
+                self.depthFailureStreak = 0
+            } else {
+                self.depthFailureStreak += 1
+                if self.depthFailureStreak >= Self.maxRepeatedFailures {
+                    AppLog.sceneML.error("Depth auto-disabled after \(Self.maxRepeatedFailures, privacy: .public) consecutive failures.")
+                    self.depth = nil
+                }
             }
-        } catch {
-            AppLog.sceneML.error("tick failed: \(String(describing: error), privacy: .public)")
-            lock.withLock { self.lastErrorDescription = String(describing: error) }
         }
     }
 }

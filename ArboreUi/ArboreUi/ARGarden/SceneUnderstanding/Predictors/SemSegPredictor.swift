@@ -38,14 +38,16 @@ final class SemSegPredictor {
         }
     }
 
-    /// Apple-published model expects this exact extent (W×H, in pixels).
-    /// Derived from huggingface/coreml-examples/SemanticSegmentationCLI.
-    static let inputSize = CGSize(width: 448, height: 448)
+    /// Fallback only — runtime size is queried from the model at init.
+    static let fallbackInputSize = CGSize(width: 448, height: 448)
 
     /// Maps the raw class id (as it appears in the model's output array)
     /// to its human-readable COCO panoptic label. Built once at init from
     /// the model's metadata.
     let idsToLabels: [Int: String]
+
+    /// Actual accepted input size, read from the model description.
+    let runtimeInputSize: CGSize
 
     private let model: MLModel
     private let context: CIContext
@@ -71,7 +73,12 @@ final class SemSegPredictor {
         self.model = m
         self.context = CIContext()
         self.idsToLabels = try Self.extractLabels(from: m)
-        AppLog.sceneML.notice("SemSegPredictor ready (classes=\(self.idsToLabels.count, privacy: .public))")
+        if let img = m.modelDescription.inputDescriptionsByName["image"]?.imageConstraint {
+            self.runtimeInputSize = CGSize(width: img.pixelsWide, height: img.pixelsHigh)
+        } else {
+            self.runtimeInputSize = Self.fallbackInputSize
+        }
+        AppLog.sceneML.notice("SemSegPredictor ready (classes=\(self.idsToLabels.count, privacy: .public) input=\(Int(self.runtimeInputSize.width), privacy: .public)×\(Int(self.runtimeInputSize.height), privacy: .public))")
     }
 
     /// Run a single inference. Returns the raw class-id array + the
@@ -110,9 +117,10 @@ final class SemSegPredictor {
     }
 
     private func resizeToModelInput(_ source: CVPixelBuffer) throws -> CVPixelBuffer {
+        let target = runtimeInputSize
         let ci = CIImage(cvPixelBuffer: source)
-        let sx = Self.inputSize.width / ci.extent.width
-        let sy = Self.inputSize.height / ci.extent.height
+        let sx = target.width / ci.extent.width
+        let sy = target.height / ci.extent.height
         var resized = ci.transformed(by: CGAffineTransform(scaleX: sx, y: sy))
         resized = resized.transformed(by: CGAffineTransform(
             translationX: -resized.extent.origin.x,
@@ -122,8 +130,8 @@ final class SemSegPredictor {
         var buf: CVPixelBuffer?
         let status = CVPixelBufferCreate(
             kCFAllocatorDefault,
-            Int(Self.inputSize.width),
-            Int(Self.inputSize.height),
+            Int(target.width),
+            Int(target.height),
             kCVPixelFormatType_32ARGB,
             nil, &buf
         )

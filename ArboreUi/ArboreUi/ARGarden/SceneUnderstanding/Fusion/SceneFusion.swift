@@ -48,7 +48,7 @@ enum SceneFusion {
     ///
     /// - Parameter semanticMap: output of `SemSegPredictor`.
     /// - Parameter depthMap: output of `DepthPredictor` (raw inverse depth).
-    /// - Parameter inverseScale: fitted scale s such that metric = s / raw.
+    /// - Parameter fit: fitted affine depth model (cf #190 / #186 Niveau 2).
     /// - Parameter intrinsics: ARKit camera intrinsics, in capture coords.
     /// - Parameter cameraTransform: ARKit camera transform (camera-to-world).
     /// - Parameter captureSize: original `ARFrame.camera.imageResolution`.
@@ -56,7 +56,7 @@ enum SceneFusion {
     static func fuse(
         semanticMap: SemanticMap,
         depthMap: CVPixelBuffer,
-        inverseScale: Float,
+        fit: DepthCalibration.AffineFit,
         intrinsics: simd_float3x3,
         cameraTransform: simd_float4x4,
         captureSize: CGSize,
@@ -106,7 +106,7 @@ enum SceneFusion {
                     base: depthBase, bytesPerRow: depthBpr,
                     format: depthFmt, width: depthW, height: depthH
                 )
-                let metric = DepthCalibration.metric(raw: raw, inverseScale: inverseScale)
+                let metric = DepthCalibration.metric(raw: raw, fit: fit)
                 guard validMetricRange.contains(metric) else { continue }
 
                 let idx = r * cols + c

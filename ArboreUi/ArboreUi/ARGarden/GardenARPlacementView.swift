@@ -1189,36 +1189,41 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             private let restoreMaxWait: TimeInterval = 4.0
 
             func session(_ session: ARSession, didUpdate frame: ARFrame) {
-                // Issue #187 — opportunistic SemSeg + Depth inference.
-                // 0.5 Hz internal throttle, no-op when sceneCtl is nil
-                // (no Phase-3 overlay enabled).
-                // Pick the centroid of the lowest horizontal plane we've
-                // seen — used by the depth calibrator to fit a metric
-                // scale via projection (cf #187 #150). Way more reliable
-                // than camera-height + centre-pixel guesswork.
-                let calibrationData: (floorY: Float?, point: SIMD3<Float>?) = surfacesLock.withLock {
-                    let floor = self.floorY
-                    var best: SIMD3<Float>? = nil
-                    if let floorY = floor {
-                        var bestDistance: Float = .greatestFiniteMagnitude
-                        for f in self.planeFeatures.values where f.alignment == .horizontal {
-                            if abs(f.center.y - floorY) < 0.10 {
-                                let camPos = frame.camera.transform.columns.3
-                                let dx = f.center.x - camPos.x
-                                let dz = f.center.z - camPos.z
-                                let d = dx*dx + dz*dz
-                                if d < bestDistance {
-                                    bestDistance = d
-                                    best = f.center
-                                }
-                            }
+                // Issue #187 / #186 Niveau 2 — opportunistic SemSeg + Depth
+                // inference. 1 Hz internal throttle, no-op when sceneCtl
+                // is nil (no Phase-3 overlay enabled).
+                //
+                // We feed the calibrator with two sources of world-space
+                // anchors :
+                //  - all known ARPlaneAnchor centroids (5-15 indoors)
+                //  - a sample of `frame.rawFeaturePoints` (~50-500 raw
+                //    VIO points per frame ; we cap to 30 random ones to
+                //    keep the LS fit fast and balanced).
+                //
+                // The controller then fits `1/metric = a·raw + b` by
+                // least squares against ALL these anchors at once —
+                // way more robust than the single-floor-centroid we
+                // used to pass (which was the source of the device
+                // calibration drift we saw on #188).
+                let planeCentroids: [SIMD3<Float>] = surfacesLock.withLock {
+                    self.planeFeatures.values.map(\.center)
+                }
+                var anchors = planeCentroids
+                if let cloud = frame.rawFeaturePoints {
+                    let pts = cloud.points
+                    if pts.count <= 30 {
+                        anchors.append(contentsOf: pts)
+                    } else {
+                        // Stride-sample evenly to avoid bias toward the
+                        // first part of the cloud.
+                        let step = max(1, pts.count / 30)
+                        anchors.reserveCapacity(anchors.count + 30)
+                        for i in stride(from: 0, to: pts.count, by: step) {
+                            anchors.append(pts[i])
                         }
                     }
-                    return (floor, best)
                 }
-                sceneCtl?.tick(frame: frame,
-                               floorY: calibrationData.floorY,
-                               floorWorldPoint: calibrationData.point)
+                sceneCtl?.tick(frame: frame, calibrationAnchors: anchors)
 
                 let mapStatus = frame.worldMappingStatus
                 let trackingState = frame.camera.trackingState

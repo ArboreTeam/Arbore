@@ -23,7 +23,7 @@ enum VoxelAccumulator {
         into grid: VoxelGrid,
         semanticMap: SemanticMap,
         depthMap: CVPixelBuffer,
-        inverseScale: Float,
+        fit: DepthCalibration.AffineFit,
         intrinsics: simd_float3x3,
         cameraTransform: simd_float4x4,
         captureSize: CGSize
@@ -55,7 +55,7 @@ enum VoxelAccumulator {
                     base: depthBase, bytesPerRow: depthBpr,
                     format: depthFmt, width: depthW, height: depthH
                 )
-                let metric = DepthCalibration.metric(raw: raw, inverseScale: inverseScale)
+                let metric = DepthCalibration.metric(raw: raw, fit: fit)
                 guard SceneFusion.validMetricRange.contains(metric) else { continue }
                 let rawId = Int(semanticMap.pixels[scalarAt: [r, c]])
                 let label = semanticMap.labels[rawId] ?? ""

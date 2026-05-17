@@ -48,10 +48,10 @@ final class DepthOverlay {
         host = nil
     }
 
-    /// Refresh contents. If `inverseScale` is nil we render the raw
-    /// inverse-depth normalised to [0,1] across the frame's actual
-    /// min/max — handy for debugging before the floor is detected.
-    func update(with depthMap: CVPixelBuffer, inverseScale: Float?) {
+    /// Refresh contents. If `fit` is nil we render the raw inverse-depth
+    /// normalised to [0,1] across the frame's actual min/max — handy for
+    /// debugging before any calibration has converged.
+    func update(with depthMap: CVPixelBuffer, fit: DepthCalibration.AffineFit?) {
         guard isActive else { return }
         // Sync frame in case the host was resized (or attached pre-layout
         // with bounds = .zero, which is the common case on first toggle).
@@ -59,7 +59,7 @@ final class DepthOverlay {
             imageView.frame = host.bounds
         }
         if let cg = Self.renderImage(depthMap: depthMap,
-                                      inverseScale: inverseScale,
+                                      fit: fit,
                                       minMeters: minMeters,
                                       maxMeters: maxMeters) {
             // ARFrame.capturedImage is always landscape (1920×1440 typically)
@@ -74,7 +74,7 @@ final class DepthOverlay {
 
     private static func renderImage(
         depthMap: CVPixelBuffer,
-        inverseScale: Float?,
+        fit: DepthCalibration.AffineFit?,
         minMeters: Float,
         maxMeters: Float
     ) -> CGImage? {
@@ -90,7 +90,7 @@ final class DepthOverlay {
         // colour by relative position in the frame's depth range.
         var rawMin: Float = .greatestFiniteMagnitude
         var rawMax: Float = -.greatestFiniteMagnitude
-        if inverseScale == nil {
+        if fit == nil {
             // Sample every 4 pixels for speed — we just need a range.
             for y in stride(from: 0, to: h, by: 4) {
                 for x in stride(from: 0, to: w, by: 4) {
@@ -120,9 +120,9 @@ final class DepthOverlay {
                 guard raw > 0.0001 else { continue }
 
                 let t: Float
-                if let scale = inverseScale {
+                if let fit = fit {
                     // Metric : map [minMeters, maxMeters] to [0, 1].
-                    let metric = scale / raw
+                    let metric = fit.metric(raw: raw)
                     t = max(0, min(1, (metric - minMeters) / span))
                 } else {
                     // Relative : map this frame's raw range to [0, 1].

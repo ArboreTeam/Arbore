@@ -21,9 +21,9 @@ struct SceneUnderstandingSnapshot: @unchecked Sendable {
     let semanticMap: SemanticMap?
     /// Optional raw depth buffer for the depth-heatmap overlay.
     let depthMap: CVPixelBuffer?
-    /// Last fitted scale (`metric = inverseScale / raw`). nil if no
-    /// floor reference was available.
-    let inverseScale: Float?
+    /// Last fitted depth calibration (affine model — cf #190 Niveau 2).
+    /// nil if not enough ARKit anchors are visible to fit.
+    let depthFit: DepthCalibration.AffineFit?
     /// Wall-clock duration of the inference (sum of SemSeg + Depth +
     /// fusion). Surfaced in the debug panel.
     let inferenceMs: Int
@@ -100,9 +100,10 @@ final class SceneUnderstandingController {
     private var depth: (any DepthPredicting)?
     private var lastTickAt: TimeInterval = 0
     private var inflightTask: Task<Void, Never>?
-    /// Fitted once when the first valid floor anchor is reachable —
-    /// reused across subsequent ticks. Cleared on `stop()`.
-    private var inverseScale: Float?
+    /// Most recently fitted depth model. Updated every tick (with a
+    /// fresh sample set) instead of cached forever — see #186 Niveau 2.
+    /// Cleared on `stop()`.
+    private var depthFit: DepthCalibration.AffineFit?
 
     /// Tracks the last reason tick() exited early so we can log only on
     /// transitions (avoids 60Hz spam).
@@ -169,7 +170,7 @@ final class SceneUnderstandingController {
             self.inflightTask = nil
             self.semseg = nil
             self.depth = nil
-            self.inverseScale = nil
+            self.depthFit = nil
             self.isAvailable = false
         }
         AppLog.sceneML.notice("SceneUnderstandingController stopped")
@@ -178,25 +179,26 @@ final class SceneUnderstandingController {
     /// Force-refit the depth scale on the next tick (use after the user
     /// changes garden / floor anchor moves significantly).
     func recalibrate() {
-        lock.withLock { self.inverseScale = nil }
+        lock.withLock { self.depthFit = nil }
     }
 
     /// Per-AR-frame entrypoint. The expected call site is the
     /// `ARSCNViewDelegate.session(_:didUpdate:)` of the placement view.
     /// Internally throttles ; safe to call at 60 Hz.
     ///
-    /// - Parameter floorWorldPoint: optional centroid of a known floor
-    ///   plane anchor in world coordinates. Preferred over `floorY` for
-    ///   calibration — single-point fit assuming the centre pixel sits
-    ///   on the floor (the old API) is wrong 90% of the time because
-    ///   users don't point straight down.
-    func tick(frame: ARFrame, floorY: Float?, floorWorldPoint: SIMD3<Float>? = nil) {
+    /// - Parameter calibrationAnchors: world-space points known to be on
+    ///   real surfaces (ARKit plane centroids, raw feature points...).
+    ///   We project them into the depth image and fit `1/metric = a·raw + b`
+    ///   by least squares — see #190 Niveau 2. Pass as many as you have ;
+    ///   ≥5 gives a robust fit, but we also accept 1 (degenerate to old
+    ///   single-point behaviour) so the pipeline starts producing
+    ///   something quickly while ARKit catches up.
+    func tick(frame: ARFrame, calibrationAnchors: [SIMD3<Float>]) {
         // Snapshot the runnable state under the lock — returns nil if
         // the tick should be skipped.
         struct TickGo {
             let semseg: any SemSegPredicting
             let depth: any DepthPredicting
-            let cachedScale: Float?
         }
         struct TickGateResult {
             let go: TickGo?
@@ -220,7 +222,7 @@ final class SceneUnderstandingController {
             } else {
                 reason = .ok
                 self.lastTickAt = now
-                go = TickGo(semseg: self.semseg!, depth: self.depth!, cachedScale: self.inverseScale)
+                go = TickGo(semseg: self.semseg!, depth: self.depth!)
             }
             let transitioned = reason != self.lastTickGate
             self.lastTickGate = reason
@@ -239,7 +241,6 @@ final class SceneUnderstandingController {
         let intrinsics = frame.camera.intrinsics
         let captureSize = frame.camera.imageResolution
         let cameraTransform = frame.camera.transform
-        let cameraY = cameraTransform.columns.3.y
 
         let task = Task.detached(priority: .utility) { [weak self] in
             await self?.runOnce(
@@ -249,10 +250,7 @@ final class SceneUnderstandingController {
                 intrinsics: intrinsics,
                 captureSize: captureSize,
                 cameraTransform: cameraTransform,
-                cameraY: cameraY,
-                floorY: floorY,
-                floorWorldPoint: floorWorldPoint,
-                cachedScale: go.cachedScale
+                calibrationAnchors: calibrationAnchors
             )
             // Strong-capture self inside the lock body — the outer weak
             // closure already gates the call ; we only want to silence
@@ -271,10 +269,7 @@ final class SceneUnderstandingController {
         intrinsics: simd_float3x3,
         captureSize: CGSize,
         cameraTransform: simd_float4x4,
-        cameraY: Float,
-        floorY: Float?,
-        floorWorldPoint: SIMD3<Float>?,
-        cachedScale: Float?
+        calibrationAnchors: [SIMD3<Float>]
     ) async {
         let startMs = CFAbsoluteTimeGetCurrent() * 1000
 
@@ -285,20 +280,23 @@ final class SceneUnderstandingController {
                                                          pixelBuffer: pixelBuffer)
         recordOutcome(semanticOK: semanticMap != nil, depthOK: depthMap != nil)
 
-        // 2. Calibration — fit metric depth scale (preferred from a known
-        //    floor world point ; fallback to camera-height/centre-pixel).
-        let scale = cachedScale ?? fitInverseScale(depthMap: depthMap,
-                                                   floorWorldPoint: floorWorldPoint,
-                                                   floorY: floorY,
-                                                   cameraY: cameraY,
-                                                   cameraTransform: cameraTransform,
-                                                   intrinsics: intrinsics,
-                                                   captureSize: captureSize)
+        // 2. Calibration — re-fit every tick from the current anchors
+        //    instead of caching forever. If the new fit fails (no
+        //    anchors in view, all anchors degenerate), we fall back to
+        //    the previous one so accumulation can keep running through
+        //    transient gaps.
+        let previousFit = lock.withLock { self.depthFit }
+        let fit = fitDepth(depthMap: depthMap,
+                           anchors: calibrationAnchors,
+                           cameraTransform: cameraTransform,
+                           intrinsics: intrinsics,
+                           captureSize: captureSize,
+                           previous: previousFit)
 
         // 3. Fusion + voxel accumulation (only when all inputs are valid).
         let regions = fuseAndAccumulate(semanticMap: semanticMap,
                                         depthMap: depthMap,
-                                        inverseScale: scale,
+                                        fit: fit,
                                         intrinsics: intrinsics,
                                         cameraTransform: cameraTransform,
                                         captureSize: captureSize)
@@ -314,7 +312,7 @@ final class SceneUnderstandingController {
             regions: regions,
             semanticMap: semanticMap,
             depthMap: depthMap,
-            inverseScale: scale,
+            depthFit: fit,
             inferenceMs: elapsed
         ))
     }
@@ -343,69 +341,62 @@ final class SceneUnderstandingController {
         return (await semOptional, await depthOptional)
     }
 
-    /// Fit the metric depth scale `s` such that `metric = s / raw`. Tries
-    /// the floor-anchor projection first (reliable), falls back to the
-    /// camera-height + centre-pixel assumption (less reliable — only
-    /// correct when the user happens to be aiming straight down). Logs
-    /// the path taken for debugging.
-    private func fitInverseScale(
+    /// Fit the depth model `1/metric = a·raw + b` from the current
+    /// ARKit anchor set (#190 Niveau 2). On failure, returns the
+    /// previous fit so the pipeline keeps running through transient
+    /// gaps (anchor briefly out of FoV, etc.).
+    ///
+    /// Logs the inlier count + the resulting `equivalentInverseScale`
+    /// so device traces remain readable in the old "scale=0.9-ish"
+    /// mental model. RANSAC + temporal smoothing is tracked in #190.
+    private func fitDepth(
         depthMap: CVPixelBuffer?,
-        floorWorldPoint: SIMD3<Float>?,
-        floorY: Float?,
-        cameraY: Float,
+        anchors: [SIMD3<Float>],
         cameraTransform: simd_float4x4,
         intrinsics: simd_float3x3,
-        captureSize: CGSize
-    ) -> Float? {
-        guard let depthMap = depthMap else { return nil }
-        AppLog.sceneML.notice("Calibration attempt floorAnchor=\(floorWorldPoint != nil, privacy: .public) floorY=\(floorY ?? -999, privacy: .public) cameraY=\(cameraY, privacy: .public)")
-
-        if let worldPoint = floorWorldPoint {
-            let scale = DepthCalibration.fitInverseScale(
-                depthMap: depthMap,
-                worldPoint: worldPoint,
-                cameraTransform: cameraTransform,
-                intrinsics: intrinsics,
-                captureSize: captureSize
-            )
-            if let scale = scale {
-                AppLog.sceneML.notice("Calibrated via floor anchor inverseScale=\(scale, privacy: .public) worldPoint=(\(worldPoint.x, privacy: .public),\(worldPoint.y, privacy: .public),\(worldPoint.z, privacy: .public))")
-                return scale
-            }
-            AppLog.sceneML.notice("Calibration via floor anchor returned nil — projection out of bounds or raw depth degenerate")
+        captureSize: CGSize,
+        previous: DepthCalibration.AffineFit?
+    ) -> DepthCalibration.AffineFit? {
+        guard let depthMap = depthMap else { return previous }
+        guard !anchors.isEmpty else {
+            // No anchors visible this frame — keep last good fit.
+            return previous
         }
-
-        guard let floorY = floorY else { return nil }
-        let height = cameraY - floorY
-        guard height > 0.3 else {
-            AppLog.sceneML.notice("Skipping centre-pixel fallback : camera height \(height, privacy: .public)m < 0.3m")
-            return nil
+        let samples = DepthCalibration.collectSamples(
+            depthMap: depthMap,
+            worldAnchors: anchors,
+            cameraTransform: cameraTransform,
+            intrinsics: intrinsics,
+            captureSize: captureSize
+        )
+        guard let fit = DepthCalibration.fitAffine(samples: samples) else {
+            AppLog.sceneML.notice("Depth fit skipped : anchors=\(anchors.count, privacy: .public) usable=\(samples.count, privacy: .public)")
+            return previous
         }
-        let scale = DepthCalibration.fitInverseScale(depthMap: depthMap, cameraHeightMeters: height)
-        if let scale = scale {
-            AppLog.sceneML.notice("Calibrated via centre-pixel inverseScale=\(scale, privacy: .public) h=\(height, privacy: .public)m (less reliable)")
-        } else {
-            AppLog.sceneML.notice("Centre-pixel calibration returned nil (h=\(height, privacy: .public)m)")
+        // Edge-triggered log so we don't spam at 1Hz with the same numbers.
+        let equiv = fit.equivalentInverseScale ?? .nan
+        if previous == nil || previous != fit {
+            AppLog.sceneML.notice("Depth fit anchors=\(anchors.count, privacy: .public) inliers=\(samples.count, privacy: .public) a=\(fit.a, privacy: .public) b=\(fit.b, privacy: .public) ≈inverseScale=\(equiv, privacy: .public)")
         }
-        return scale
+        return fit
     }
 
     private func fuseAndAccumulate(
         semanticMap: SemanticMap?,
         depthMap: CVPixelBuffer?,
-        inverseScale: Float?,
+        fit: DepthCalibration.AffineFit?,
         intrinsics: simd_float3x3,
         cameraTransform: simd_float4x4,
         captureSize: CGSize
     ) -> [SceneRegion] {
         guard let semanticMap = semanticMap,
               let depthMap = depthMap,
-              let scale = inverseScale else { return [] }
+              let fit = fit else { return [] }
 
         let regions = SceneFusion.fuse(
             semanticMap: semanticMap,
             depthMap: depthMap,
-            inverseScale: scale,
+            fit: fit,
             intrinsics: intrinsics,
             cameraTransform: cameraTransform,
             captureSize: captureSize
@@ -415,7 +406,7 @@ final class SceneUnderstandingController {
                 into: grid,
                 semanticMap: semanticMap,
                 depthMap: depthMap,
-                inverseScale: scale,
+                fit: fit,
                 intrinsics: intrinsics,
                 cameraTransform: cameraTransform,
                 captureSize: captureSize
@@ -424,11 +415,11 @@ final class SceneUnderstandingController {
         return regions
     }
 
-    /// Fire the onSnapshot callback on main and update the cached scale.
+    /// Fire the onSnapshot callback on main and update the cached fit.
     /// We never store the snapshot itself — see the property comment.
     private func publish(_ snap: SceneUnderstandingSnapshot) {
         let callback: ((SceneUnderstandingSnapshot) -> Void)? = lock.withLock {
-            self.inverseScale = snap.inverseScale
+            self.depthFit = snap.depthFit
             return self.onSnapshot
         }
         if let callback = callback {

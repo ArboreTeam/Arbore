@@ -98,7 +98,7 @@ extension GardenARPlacementContainerView.Coordinator {
             semSegOverlay.update(with: map)
         }
         if depthOverlay.isActive, let dmap = snap.depthMap {
-            depthOverlay.update(with: dmap, inverseScale: snap.inverseScale)
+            depthOverlay.update(with: dmap, fit: snap.depthFit)
         }
         if fusedOverlay.isActive {
             fusedOverlay.update(regions: snap.regions)

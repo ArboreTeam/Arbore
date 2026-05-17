@@ -2,6 +2,7 @@ import SwiftUI
 import ARKit
 import SceneKit
 import Foundation
+import os
 import simd
 import UIKit
 
@@ -1000,6 +1001,14 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             // `planeFeatures` snapshots geometric features per anchor.
             // `planeTypes` records the heuristic verdict.
             // `floorY` is the lowest Y among horizontal planes seen so far.
+            //
+            // **Threading** : `renderer(_:updateAtTime:)` runs on the SCN
+            // render queue while mutations happen on the main queue. Direct
+            // dict access from both = Swift Dictionary internal storage
+            // gets corrupted, manifests as
+            // `-[__NSCFNumber objectForKey:]` crashes on tagged pointers.
+            // `surfacesLock` serialises every read + write below.
+            private let surfacesLock = OSAllocatedUnfairLock()
             private var planeAnchors: [UUID: ARPlaneAnchor] = [:]
             private var planeFeatures: [UUID: PlaneFeatures] = [:]
             private var planeTypes: [UUID: SurfaceType] = [:]
@@ -1140,7 +1149,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                 // Issue #187 — opportunistic SemSeg + Depth inference.
                 // 0.5 Hz internal throttle, no-op when sceneCtl is nil
                 // (no Phase-3 overlay enabled).
-                sceneCtl?.tick(frame: frame, floorY: floorY)
+                sceneCtl?.tick(frame: frame, floorY: surfacesLock.withLock { self.floorY })
 
                 let mapStatus = frame.worldMappingStatus
                 let trackingState = frame.camera.trackingState
@@ -1308,7 +1317,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                     newQuality = .geometry
                     newTransform = r.worldTransform
                     if let plane = r.anchor as? ARPlaneAnchor {
-                        newSurfaceType = planeTypes[plane.identifier]
+                        newSurfaceType = surfacesLock.withLock { self.planeTypes[plane.identifier] }
                     }
                 } else if let q = arView.raycastQuery(from: center, allowing: .estimatedPlane, alignment: .horizontal),
                           let r = arView.session.raycast(q).first {
@@ -1326,7 +1335,7 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                    let q = arView.raycastQuery(from: center, allowing: .existingPlaneGeometry, alignment: .any),
                    let peek = arView.session.raycast(q).first,
                    let plane = peek.anchor as? ARPlaneAnchor {
-                    newSurfaceType = planeTypes[plane.identifier]
+                    newSurfaceType = surfacesLock.withLock { self.planeTypes[plane.identifier] }
                 }
 
                 lastReticleTransform = newTransform
@@ -2704,80 +2713,102 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
             /// planes, so even a full pass is ~µs of work.
             func handlePlaneAnchorChange(_ anchor: ARPlaneAnchor) {
                 let features = PlaneFeatures(anchor)
-                planeAnchors[anchor.identifier] = anchor
-                planeFeatures[anchor.identifier] = features
+                let cameraY = lastCameraY
 
-                // Update floorY if this horizontal plane is the new lowest.
-                var floorChanged = false
-                if features.alignment == .horizontal {
-                    if floorY == nil || features.center.y < (floorY ?? .infinity) - 0.01 {
-                        floorY = features.center.y
-                        floorChanged = true
+                // All mutations + the classification read happen under the
+                // surfaces lock so the SCN renderer thread can't observe a
+                // half-rebuilt dictionary (cf #186 crash log).
+                struct ChangeResult {
+                    let kind: SurfaceType
+                    let previous: SurfaceType?
+                    let floorChanged: Bool
+                    let verticals: [PlaneFeatures]
+                }
+                let result = surfacesLock.withLock { () -> ChangeResult in
+                    self.planeAnchors[anchor.identifier] = anchor
+                    self.planeFeatures[anchor.identifier] = features
+
+                    var floorChanged = false
+                    if features.alignment == .horizontal {
+                        if self.floorY == nil || features.center.y < (self.floorY ?? .infinity) - 0.01 {
+                            self.floorY = features.center.y
+                            floorChanged = true
+                        }
                     }
+                    let verticals = self.planeFeatures.values.filter { $0.alignment == .vertical }
+                    let kind = SurfaceClassifier.classify(
+                        plane: features,
+                        floorY: self.floorY,
+                        cameraY: cameraY,
+                        nearbyVerticals: verticals
+                    )
+                    let previous = self.planeTypes[anchor.identifier]
+                    self.planeTypes[anchor.identifier] = kind
+                    return ChangeResult(kind: kind, previous: previous,
+                                        floorChanged: floorChanged, verticals: verticals)
                 }
 
-                let cameraY = lastCameraY
-                let verticals = planeFeatures.values.filter { $0.alignment == .vertical }
-
-                let kind = SurfaceClassifier.classify(
-                    plane: features,
-                    floorY: floorY,
-                    cameraY: cameraY,
-                    nearbyVerticals: verticals
-                )
-                let previous = planeTypes[anchor.identifier]
-                planeTypes[anchor.identifier] = kind
-
-                if previous != kind {
-                    AppLog.surfaces.notice("plane=\(anchor.identifier.uuidString.prefix(8), privacy: .public) \(previous?.rawValue ?? "—", privacy: .public) → \(kind.rawValue, privacy: .public) y=\(features.center.y, privacy: .public)")
+                if result.previous != result.kind {
+                    AppLog.surfaces.notice("plane=\(anchor.identifier.uuidString.prefix(8), privacy: .public) \(result.previous?.rawValue ?? "—", privacy: .public) → \(result.kind.rawValue, privacy: .public) y=\(features.center.y, privacy: .public)")
                 }
                 if surfaceViz.isActive {
-                    surfaceViz.upsert(anchor: anchor, type: kind)
+                    surfaceViz.upsert(anchor: anchor, type: result.kind)
                 }
-
-                // If `floorY` just shifted, re-classify other cached planes —
-                // a plane that used to be `.floor` (no reference yet) may
-                // become `.shelf` now that we found a lower one.
-                if floorChanged {
-                    reclassifyCachedPlanes(except: anchor.identifier, cameraY: cameraY, verticals: verticals)
+                if result.floorChanged {
+                    reclassifyCachedPlanes(except: anchor.identifier,
+                                            cameraY: cameraY,
+                                            verticals: result.verticals)
                 }
             }
 
             private func reclassifyCachedPlanes(except skipId: UUID, cameraY: Float, verticals: [PlaneFeatures]) {
-                for (id, features) in planeFeatures where id != skipId {
-                    let kind = SurfaceClassifier.classify(
-                        plane: features,
-                        floorY: floorY,
-                        cameraY: cameraY,
-                        nearbyVerticals: verticals
-                    )
-                    let previous = planeTypes[id]
-                    if previous != kind {
-                        planeTypes[id] = kind
-                        AppLog.surfaces.debug("reclassify \(id.uuidString.prefix(8), privacy: .public) \(previous?.rawValue ?? "—", privacy: .public) → \(kind.rawValue, privacy: .public)")
-                        if surfaceViz.isActive, let anchor = planeAnchors[id] {
-                            surfaceViz.upsert(anchor: anchor, type: kind)
+                // Build the list of (id, anchor, newKind) entries under the
+                // lock, then push the viz updates outside the lock.
+                struct Update { let id: UUID; let anchor: ARPlaneAnchor; let kind: SurfaceType }
+                let updates: [Update] = surfacesLock.withLock {
+                    var out: [Update] = []
+                    for (id, features) in self.planeFeatures where id != skipId {
+                        let kind = SurfaceClassifier.classify(
+                            plane: features,
+                            floorY: self.floorY,
+                            cameraY: cameraY,
+                            nearbyVerticals: verticals
+                        )
+                        let previous = self.planeTypes[id]
+                        if previous != kind {
+                            self.planeTypes[id] = kind
+                            if let anchor = self.planeAnchors[id] {
+                                out.append(Update(id: id, anchor: anchor, kind: kind))
+                            }
+                            AppLog.surfaces.debug("reclassify \(id.uuidString.prefix(8), privacy: .public) \(previous?.rawValue ?? "—", privacy: .public) → \(kind.rawValue, privacy: .public)")
                         }
+                    }
+                    return out
+                }
+                if surfaceViz.isActive {
+                    for u in updates {
+                        surfaceViz.upsert(anchor: u.anchor, type: u.kind)
                     }
                 }
             }
 
             func handlePlaneAnchorRemoved(_ id: UUID) {
-                planeAnchors.removeValue(forKey: id)
-                planeFeatures.removeValue(forKey: id)
-                planeTypes.removeValue(forKey: id)
-                surfaceViz.remove(id: id)
-                // If we lost the floor, recompute it from the remaining cache.
-                if let floor = floorY {
-                    let candidates = planeFeatures.values
-                        .filter { $0.alignment == .horizontal }
-                        .map { $0.center.y }
-                    if let newFloor = candidates.min(), abs(newFloor - floor) > 0.001 {
-                        floorY = newFloor
-                    } else if candidates.isEmpty {
-                        floorY = nil
+                surfacesLock.withLock {
+                    self.planeAnchors.removeValue(forKey: id)
+                    self.planeFeatures.removeValue(forKey: id)
+                    self.planeTypes.removeValue(forKey: id)
+                    if let floor = self.floorY {
+                        let candidates = self.planeFeatures.values
+                            .filter { $0.alignment == .horizontal }
+                            .map { $0.center.y }
+                        if let newFloor = candidates.min(), abs(newFloor - floor) > 0.001 {
+                            self.floorY = newFloor
+                        } else if candidates.isEmpty {
+                            self.floorY = nil
+                        }
                     }
                 }
+                surfaceViz.remove(id: id)
             }
 
             /// Issue #186 — bring the surface debug viz in sync with the
@@ -2790,10 +2821,16 @@ fileprivate struct GardenARPlacementContainerView: UIViewRepresentable {
                         surfaceViz.start(in: sceneView.scene)
                         // Replay every cached classification — the viz starts
                         // empty even if planes were detected before toggle-on.
-                        for (id, kind) in planeTypes {
-                            if let anchor = planeAnchors[id] {
-                                surfaceViz.upsert(anchor: anchor, type: kind)
+                        // Snapshot the dictionaries under the lock to avoid
+                        // mutating-while-iterating with the AR session thread.
+                        struct Replay { let anchor: ARPlaneAnchor; let kind: SurfaceType }
+                        let replay: [Replay] = surfacesLock.withLock {
+                            self.planeTypes.compactMap { (id, kind) in
+                                self.planeAnchors[id].map { Replay(anchor: $0, kind: kind) }
                             }
+                        }
+                        for r in replay {
+                            surfaceViz.upsert(anchor: r.anchor, type: r.kind)
                         }
                     }
                 } else {

@@ -50,6 +50,13 @@ final class SemSegOverlay {
     /// Refresh contents with a new SemanticMap. Safe to call from main.
     func update(with semanticMap: SemanticMap) {
         guard isActive else { return }
+        // ARSCNView's bounds can be zero at attach time (SwiftUI
+        // updateUIView fires before layout completes). The
+        // autoresizingMask doesn't always kick in on ARSCNView. Sync
+        // the frame to the live host bounds every tick — cheap.
+        if let host = host {
+            imageView.frame = host.bounds
+        }
         if let cg = Self.renderImage(from: semanticMap) {
             // Same orientation correction as DepthOverlay — ARFrame is
             // landscape natively, ARSCNView rotates for display, we have

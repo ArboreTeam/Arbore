@@ -239,6 +239,9 @@ final class SceneUnderstandingController {
         // when no floor anchor centroid is known.
         var scale = cachedScale
         if scale == nil, let depthMap = depthMap {
+            // Diagnostic : log once per attempt so we can see why
+            // calibration isn't firing.
+            AppLog.sceneML.notice("Calibration attempt floorAnchor=\(floorWorldPoint != nil, privacy: .public) floorY=\(floorY ?? -999, privacy: .public) cameraY=\(cameraY, privacy: .public)")
             if let worldPoint = floorWorldPoint {
                 scale = DepthCalibration.fitInverseScale(
                     depthMap: depthMap,
@@ -248,7 +251,9 @@ final class SceneUnderstandingController {
                     captureSize: captureSize
                 )
                 if let scale = scale {
-                    AppLog.sceneML.notice("Calibrated via floor anchor inverseScale=\(scale, privacy: .public)")
+                    AppLog.sceneML.notice("Calibrated via floor anchor inverseScale=\(scale, privacy: .public) worldPoint=(\(worldPoint.x, privacy: .public),\(worldPoint.y, privacy: .public),\(worldPoint.z, privacy: .public))")
+                } else {
+                    AppLog.sceneML.notice("Calibration via floor anchor returned nil — projection out of bounds or raw depth degenerate")
                 }
             }
             if scale == nil, let floorY = floorY {
@@ -260,7 +265,11 @@ final class SceneUnderstandingController {
                     )
                     if let scale = scale {
                         AppLog.sceneML.notice("Calibrated via centre-pixel inverseScale=\(scale, privacy: .public) h=\(height, privacy: .public)m (less reliable)")
+                    } else {
+                        AppLog.sceneML.notice("Centre-pixel calibration returned nil (h=\(height, privacy: .public)m)")
                     }
+                } else {
+                    AppLog.sceneML.notice("Skipping centre-pixel fallback : camera height \(height, privacy: .public)m < 0.3m")
                 }
             }
         }

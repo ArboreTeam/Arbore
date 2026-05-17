@@ -53,6 +53,11 @@ final class DepthOverlay {
     /// min/max — handy for debugging before the floor is detected.
     func update(with depthMap: CVPixelBuffer, inverseScale: Float?) {
         guard isActive else { return }
+        // Sync frame in case the host was resized (or attached pre-layout
+        // with bounds = .zero, which is the common case on first toggle).
+        if let host = host {
+            imageView.frame = host.bounds
+        }
         if let cg = Self.renderImage(depthMap: depthMap,
                                       inverseScale: inverseScale,
                                       minMeters: minMeters,

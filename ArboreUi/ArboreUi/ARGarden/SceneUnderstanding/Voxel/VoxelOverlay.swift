@@ -38,6 +38,7 @@ final class VoxelOverlay {
         scene.rootNode.addChildNode(parent)
         self.voxelRoot = parent
         self.scene = scene
+        AppLog.sceneML.notice("VoxelOverlay attached")
     }
 
     func detachVoxels() {
@@ -77,11 +78,18 @@ final class VoxelOverlay {
 
     // MARK: - Voxel mesh rebuild
 
+    private static var refreshCount = 0
+
     /// Rebuilds the SCNGeometry from the current grid. O(n) over the
     /// grid count. Call after a tick of inserts.
     func refresh(grid: VoxelGrid) {
         guard let root = voxelRoot else { return }
         root.childNodes.forEach { $0.removeFromParentNode() }
+        Self.refreshCount += 1
+        // Log every 5 refreshes (every ~5s at 1Hz) to avoid spamming.
+        if Self.refreshCount % 5 == 0 {
+            AppLog.sceneML.notice("VoxelOverlay refresh count=\(grid.count, privacy: .public)")
+        }
         guard let geometry = Self.makeGeometry(from: grid, pointSize: pointSize) else { return }
         let node = SCNNode(geometry: geometry)
         node.name = "voxelCloud"

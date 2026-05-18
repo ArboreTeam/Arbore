@@ -25,7 +25,18 @@ final class VoxelOverlay {
     private var voxelRoot: SCNNode?
     private var cameraOcclusion: SCNNode?
 
-    var pointSize: CGFloat = 12
+    /// World-space size of each rendered splat (in metres). Smaller
+    /// than the voxel itself so the cloud doesn't blur into a single
+    /// blob up close. The actual on-screen pixel radius scales with
+    /// perspective via SceneKit's point shader.
+    var worldPointSize: CGFloat = 0.06
+    /// Minimum screen-space radius — never let a point shrink below
+    /// 2 pixels (it'd disappear into background noise on the far wall).
+    var minScreenRadius: CGFloat = 2
+    /// Maximum screen-space radius — caps the apparent size when the
+    /// camera is right next to a voxel, so we still see the underlying
+    /// 4cm grid resolution instead of one giant overlapping splat.
+    var maxScreenRadius: CGFloat = 30
 
     var isVoxelRootAttached: Bool { voxelRoot?.parent != nil }
     var isCameraHidden: Bool { cameraOcclusion?.parent != nil }
@@ -94,13 +105,23 @@ final class VoxelOverlay {
             let rendered = grid.confirmedKeys().count
             AppLog.sceneML.notice("VoxelOverlay refresh raw=\(raw, privacy: .public) rendered=\(rendered, privacy: .public)")
         }
-        guard let geometry = Self.makeGeometry(from: grid, pointSize: pointSize) else { return }
+        guard let geometry = Self.makeGeometry(
+            from: grid,
+            worldSize: worldPointSize,
+            minRadius: minScreenRadius,
+            maxRadius: maxScreenRadius
+        ) else { return }
         let node = SCNNode(geometry: geometry)
         node.name = "voxelCloud"
         root.addChildNode(node)
     }
 
-    private static func makeGeometry(from grid: VoxelGrid, pointSize: CGFloat) -> SCNGeometry? {
+    private static func makeGeometry(
+        from grid: VoxelGrid,
+        worldSize: CGFloat,
+        minRadius: CGFloat,
+        maxRadius: CGFloat
+    ) -> SCNGeometry? {
         // Atomic snapshot — copies the dict under the grid's internal lock
         // so we can iterate without racing against an in-flight `insert`
         // from the ML worker thread.
@@ -159,9 +180,14 @@ final class VoxelOverlay {
             primitiveCount: n,
             bytesPerIndex: MemoryLayout<UInt32>.size
         )
-        element.pointSize = pointSize
-        element.minimumPointScreenSpaceRadius = 1
-        element.maximumPointScreenSpaceRadius = CGFloat(pointSize)
+        // World-space size + screen-space clamps. SceneKit projects the
+        // world point through perspective : close voxels render bigger,
+        // far voxels render smaller — exactly the "near = precise"
+        // visual feel (cf #189 discussion). The min/max bounds prevent
+        // either extreme from looking broken.
+        element.pointSize = worldSize
+        element.minimumPointScreenSpaceRadius = minRadius
+        element.maximumPointScreenSpaceRadius = maxRadius
 
         let geo = SCNGeometry(sources: [vertexSource, colorSource], elements: [element])
         let mat = SCNMaterial()

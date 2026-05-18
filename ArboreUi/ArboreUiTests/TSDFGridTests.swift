@@ -126,21 +126,10 @@ final class TSDFGridTests: XCTestCase {
         XCTAssertEqual(grid.count, 0)
     }
 
-    // MARK: - Iso-surface dynamics (still useful even after reverting
-    // the dedicated free-space carving — the underlying integrate math
-    // is what would power a future weight-aware carve).
+    // MARK: - Weight-aware integration (#189 follow-up B v2)
 
     func test_freeSpaceObservations_pullCellTowardEmpty() {
-        // The cell starts marked as on-surface (tsdf ≈ 0) — a single
-        // bad observation. Subsequent free-space observations (large
-        // positive sdf, clamped to +truncation in integrate()) pull
-        // the running average toward +truncation, eventually removing
-        // the cell from any iso-surface extraction.
-        //
-        // This is the building block for a future weight-aware carve :
-        // the math is correct, only the integrator's march range
-        // currently doesn't reach that region (see TSDFIntegrator
-        // comments on the reverted #189 follow-up B).
+        // Sanity check : equally-weighted observations average linearly.
         let grid = TSDFGrid(voxelSize: 1.0, truncationDistance: 0.5, maxWeight: 100)
         let key = TSDFGrid.Key(x: 0, y: 0, z: 0)
         grid.integrate(key: key, sdf: 0.0, categoryIndex: 0, now: 1.0)
@@ -150,6 +139,47 @@ final class TSDFGridTests: XCTestCase {
         let final = grid.cell(at: key)!.tsdf
         XCTAssertGreaterThan(final, 0.25,
                              "Free-space observations pull the cell out of the iso-surface")
+    }
+
+    func test_lowWeightCarve_doesNotOverpowerHighWeightSurface() {
+        // Real surface seen 5 times with weight=1, then "carved" 5
+        // times with weight=0.3 (noisy neighbour ray classifying it
+        // as free space). Surface should still win the running average.
+        let grid = TSDFGrid(voxelSize: 1.0, truncationDistance: 0.5, maxWeight: 100)
+        let key = TSDFGrid.Key(x: 0, y: 0, z: 0)
+        for _ in 0..<5 {
+            grid.integrate(key: key, sdf: 0.0, weight: 1.0, categoryIndex: 0, now: 1.0)
+        }
+        for _ in 0..<5 {
+            grid.integrate(key: key, sdf: 0.5, weight: 0.3, categoryIndex: nil, now: 1.0)
+        }
+        let final = grid.cell(at: key)!.tsdf
+        // Mean = (5·0 + 5·0.3·0.5) / (5 + 5·0.3) = 0.75/6.5 ≈ 0.115
+        XCTAssertLessThan(final, 0.2,
+                          "5 carves × weight 0.3 must NOT erase 5 surface observations")
+    }
+
+    func test_lowWeightCarve_doesEraseGhostWithFewSurfaceObs() {
+        // Ghost voxel : 1 wrong on-surface observation (weight 1),
+        // then many carves at weight 0.3 from new viewpoints.
+        // After enough carves, the ghost should leave the iso-surface.
+        let grid = TSDFGrid(voxelSize: 1.0, truncationDistance: 0.5, maxWeight: 100)
+        let key = TSDFGrid.Key(x: 0, y: 0, z: 0)
+        grid.integrate(key: key, sdf: 0.0, weight: 1.0, categoryIndex: 0, now: 1.0)
+        for _ in 0..<20 {
+            grid.integrate(key: key, sdf: 0.5, weight: 0.3, categoryIndex: nil, now: 1.0)
+        }
+        let final = grid.cell(at: key)!.tsdf
+        // Mean = (1·0 + 20·0.3·0.5) / (1 + 6) = 3/7 ≈ 0.43
+        XCTAssertGreaterThan(final, 0.3,
+                             "20 weighted carves should drag the ghost out of the iso-surface")
+    }
+
+    func test_integrate_zeroWeightIsNoOp() {
+        let grid = TSDFGrid(voxelSize: 1.0)
+        let key = TSDFGrid.Key(x: 0, y: 0, z: 0)
+        grid.integrate(key: key, sdf: 0.5, weight: 0.0, categoryIndex: 0, now: 1.0)
+        XCTAssertNil(grid.cell(at: key))
     }
 
 

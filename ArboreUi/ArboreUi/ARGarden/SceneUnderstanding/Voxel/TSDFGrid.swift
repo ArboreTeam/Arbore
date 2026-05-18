@@ -91,16 +91,25 @@ final class TSDFGrid {
     }
 
     /// Integrate one observation `(sdf, categoryIndex)` into a cell.
-    /// The TSDF update is a weighted average :
-    ///     new_tsdf = (weight·tsdf + sdf) / (weight + 1)
-    /// with the weight capped at `maxWeight`.
-    func integrate(key: Key, sdf: Float, categoryIndex: Int8?, now: TimeInterval) {
+    /// The TSDF update is a weight-pondered running average :
+    ///     new_tsdf = (w_old·tsdf_old + w_new·sdf) / (w_old + w_new)
+    /// with the cumulative weight capped at `maxWeight`.
+    ///
+    /// - Parameter weight: observation strength. Defaults to 1.0 for
+    ///   on-surface observations from the integrator. Pass smaller
+    ///   values (e.g. 0.3) for "low-confidence" observations like
+    ///   free-space carving — a single on-surface observation will
+    ///   then outweigh many carve observations, so real surfaces
+    ///   don't get eroded by noisy neighbouring rays.
+    func integrate(key: Key, sdf: Float, weight: Float = 1.0, categoryIndex: Int8?, now: TimeInterval) {
         // Clamp the observed SDF before integrating.
         let clamped = max(-truncationDistance, min(truncationDistance, sdf))
+        let w = max(0, weight)
+        guard w > 0 else { return }
         lock.withLock {
             if var existing = self._cells[key] {
-                let newWeight = min(existing.weight + 1, self.maxWeight)
-                existing.tsdf = (existing.weight * existing.tsdf + clamped) / (existing.weight + 1)
+                let newWeight = min(existing.weight + w, self.maxWeight)
+                existing.tsdf = (existing.weight * existing.tsdf + w * clamped) / (existing.weight + w)
                 existing.weight = newWeight
                 if let cat = categoryIndex {
                     existing.votes[cat, default: 0] += 1
@@ -114,7 +123,7 @@ final class TSDFGrid {
                 }
                 self._cells[key] = Cell(
                     tsdf: clamped,
-                    weight: 1,
+                    weight: w,
                     votes: votes,
                     lastTouchedAt: now
                 )

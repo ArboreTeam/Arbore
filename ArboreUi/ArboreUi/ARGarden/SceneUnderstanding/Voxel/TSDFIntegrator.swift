@@ -25,28 +25,29 @@ enum TSDFIntegrator {
     /// the voxel-cloud accumulator.
     static let pixelStride = 8
 
-    /// Voxel-half-steps to march in the **surface band** (centred on
-    /// the observed depth). `truncationDistance / (voxelSize/2)`.
-    private static let stepsPerHalfBand: Int = 6
-
     /// Minimum metric distance for any voxel we update — never march
     /// through the lens. 30 cm matches `validMetricRange.lowerBound`.
     private static let nearClip: Float = 0.30
 
-    // NOTE — earlier this file extended the march far into the free
-    // space in front of the surface to actively "carve" ghost voxels
-    // (cf #189 follow-up B). The implementation was both miscounted
-    // (the surface band never got reached because the step count was
-    // wrong) AND too aggressive in concept on noisy mono-depth :
-    // neighbouring rays predicting slightly different surface depths
-    // would carve each other's real surface. Result : marching cubes
-    // produced 0 triangles even with 100k+ voxels in the grid.
-    //
-    // Reverted to the symmetric ±truncation band. Motion gating (#189
-    // A) still prevents NEW ghosts when the camera is held still ;
-    // erasing PRE-EXISTING ghosts will need a weight-aware carve where
-    // a single surface observation outweighs many free-space ones —
-    // tracked as a follow-up.
+    /// Half-voxel step relative to a grid's voxelSize is computed at
+    /// call time (we need access to `grid.voxelSize`).
+
+    /// Weight assigned to a single carve observation. Lower than the
+    /// surface observation weight (1.0) so that one in-band on-surface
+    /// observation outweighs ~3 carve observations from neighbouring
+    /// rays whose noisy depth wrongly classifies this voxel as empty.
+    /// Without this asymmetry, ±20 cm DA V2 noise between adjacent
+    /// pixels erodes real surfaces by the time a few ticks have run
+    /// (cf #189 follow-up B post-mortem on the device test).
+    private static let carveWeight: Float = 0.3
+
+    /// Carve band depth, in units of `truncationDistance`. The carve
+    /// march covers `[metric - carveBandMultiplier · truncation,
+    ///                 metric - truncation]` — i.e. just in front of
+    /// the surface band. 2× keeps the corridor narrow enough that
+    /// the depth-noise level (±20 cm) on adjacent rays doesn't tank
+    /// real surfaces.
+    private static let carveBandMultiplier: Float = 2.0
 
     static func integrate(
         into grid: TSDFGrid,
@@ -119,18 +120,45 @@ enum TSDFIntegrator {
                 let cat = COCOPanopticCategory.category(for: label)
                 let catIndex: Int8? = (cat == .other) ? nil : Int8(cat.indexInAllCases)
 
-                // March along the ray over [metric - truncation,
-                // metric + truncation]. The step is half a voxel so we
-                // don't skip voxels when the ray grazes a cell boundary.
-                let stepCount = stepsPerHalfBand * 2 + 1
-                let start = metric - truncation
-                for k in 0..<stepCount {
-                    let t = start + halfStep * Float(k)
-                    guard t > nearClip else { continue }
+                // Two-band march along the ray :
+                //   1. Surface band [metric - trunc, metric + trunc]
+                //      with weight 1.0 + category vote — this is the
+                //      classic TSDF integration.
+                //   2. Carve band [metric - 2·trunc, metric - trunc]
+                //      with weight 0.3 and no category — pulls existing
+                //      ghost voxels toward "definitely empty" without
+                //      eroding real surfaces (the surface band's full-
+                //      weight observations dominate the running
+                //      average — see TSDFGrid.integrate doc).
+                // The step is half a voxel so we don't skip voxels
+                // when the ray grazes a cell boundary.
+
+                // 1. Surface band.
+                let surfStart = metric - truncation
+                let surfEnd = metric + truncation
+                var t = surfStart
+                while t <= surfEnd {
+                    if t > nearClip {
+                        let world = cameraOrigin + dirWorld * t
+                        let key = grid.quantize(world)
+                        let sdf = metric - t
+                        grid.integrate(key: key, sdf: sdf, weight: 1.0,
+                                       categoryIndex: catIndex, now: now)
+                    }
+                    t += halfStep
+                }
+
+                // 2. Carve band.
+                let carveStart = max(nearClip, metric - carveBandMultiplier * truncation)
+                let carveEnd = metric - truncation
+                t = carveStart
+                while t < carveEnd {
                     let world = cameraOrigin + dirWorld * t
                     let key = grid.quantize(world)
-                    let sdf = metric - t   // positive in front of surface
-                    grid.integrate(key: key, sdf: sdf, categoryIndex: catIndex, now: now)
+                    let sdf = metric - t   // large positive, clamped to +trunc in integrate
+                    grid.integrate(key: key, sdf: sdf, weight: carveWeight,
+                                   categoryIndex: nil, now: now)
+                    t += halfStep
                 }
             }
         }

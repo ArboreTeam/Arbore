@@ -126,29 +126,30 @@ final class TSDFGridTests: XCTestCase {
         XCTAssertEqual(grid.count, 0)
     }
 
-    // MARK: - Free-space carving (#189 follow-up B)
+    // MARK: - Iso-surface dynamics (still useful even after reverting
+    // the dedicated free-space carving — the underlying integrate math
+    // is what would power a future weight-aware carve).
 
-    func test_freeSpaceCarving_pullsGhostVoxelTowardEmpty() {
-        // Simulate a "ghost" voxel : initially observed as on-surface
-        // (tsdf ≈ 0) from one viewpoint. Then a series of new
-        // observations come in from a new pose where the voxel is
-        // clearly in free space — sdf observation ≈ +truncation.
-        // After several such observations, the cell's running tsdf
-        // should converge near +truncation (cell is now "definitely
-        // empty"), which removes it from the iso-surface mesh.
+    func test_freeSpaceObservations_pullCellTowardEmpty() {
+        // The cell starts marked as on-surface (tsdf ≈ 0) — a single
+        // bad observation. Subsequent free-space observations (large
+        // positive sdf, clamped to +truncation in integrate()) pull
+        // the running average toward +truncation, eventually removing
+        // the cell from any iso-surface extraction.
+        //
+        // This is the building block for a future weight-aware carve :
+        // the math is correct, only the integrator's march range
+        // currently doesn't reach that region (see TSDFIntegrator
+        // comments on the reverted #189 follow-up B).
         let grid = TSDFGrid(voxelSize: 1.0, truncationDistance: 0.5, maxWeight: 100)
         let key = TSDFGrid.Key(x: 0, y: 0, z: 0)
-        // Initial bad observation : ghost on-surface.
         grid.integrate(key: key, sdf: 0.0, categoryIndex: 0, now: 1.0)
-        XCTAssertEqual(grid.cell(at: key)?.tsdf ?? .nan, 0.0, accuracy: 1e-6)
-        // 20 free-space observations.
         for _ in 0..<20 {
             grid.integrate(key: key, sdf: 1.0, categoryIndex: 0, now: 1.0)
         }
         let final = grid.cell(at: key)!.tsdf
-        // tsdf must have moved at least halfway toward +truncation.
         XCTAssertGreaterThan(final, 0.25,
-                             "Free-space observations should pull the cell out of the iso-surface")
+                             "Free-space observations pull the cell out of the iso-surface")
     }
 
 

@@ -18,8 +18,12 @@ final class TSDFOverlay {
 
     /// Discard cells with fewer than this accumulated weight before
     /// running marching cubes — kills single-observation noise around
-    /// the iso-surface.
-    var minWeight: Float = 3
+    /// the iso-surface. Lower = more triangles emitted (incl. some
+    /// noise), higher = sparser but cleaner. Marching cubes also
+    /// requires ALL 8 corners of a cube to clear this bar, so at 3+
+    /// we lose a lot of partially-observed cubes on the edges of the
+    /// scan.
+    var minWeight: Float = 2
 
     var isAttached: Bool { meshRoot?.parent != nil }
 

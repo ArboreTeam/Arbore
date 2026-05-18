@@ -25,10 +25,23 @@ enum TSDFIntegrator {
     /// the voxel-cloud accumulator.
     static let pixelStride = 8
 
-    /// Number of voxel-half-steps to march on either side of the
-    /// observed depth (`truncationDistance / (voxelSize/2)`). Computed
-    /// from the grid at call time.
+    /// Voxel-half-steps to march in the **surface band** (centred on
+    /// the observed depth). `truncationDistance / (voxelSize/2)`.
     private static let stepsPerHalfBand: Int = 6
+
+    /// Free-space carving extension : how far in front of the observed
+    /// surface we extend the march, in units of `truncationDistance`.
+    /// 5× = ~80 cm of free-space corridor at the default 16 cm
+    /// truncation. Every voxel we touch in this region receives a
+    /// "very-positive" SDF observation (clamped to +truncation) which
+    /// pulls the running average toward "definitely empty space" —
+    /// ghost voxels in the air get carved out as the camera moves
+    /// around them (cf #189 follow-up B).
+    private static let freeSpaceCarveMultiplier: Int = 5
+
+    /// Minimum metric distance for any voxel we update — never march
+    /// through the lens. 30 cm matches `validMetricRange.lowerBound`.
+    private static let nearClip: Float = 0.30
 
     static func integrate(
         into grid: TSDFGrid,
@@ -101,14 +114,26 @@ enum TSDFIntegrator {
                 let cat = COCOPanopticCategory.category(for: label)
                 let catIndex: Int8? = (cat == .other) ? nil : Int8(cat.indexInAllCases)
 
-                // March along the ray over [metric - truncation, metric + truncation].
-                // The step is half a voxel so we don't skip voxels when the
-                // ray grazes a cell boundary.
-                let stepCount = stepsPerHalfBand * 2 + 1
-                let start = metric - truncation
+                // March along the ray from (metric - 5·truncation) → free-
+                // space carving region — up to (metric + truncation) → the
+                // far edge of the surface band. Anything beyond that is
+                // occluded, we don't know what's there.
+                //
+                // The step is half a voxel so we don't skip voxels when
+                // the ray grazes a cell boundary.
+                //
+                // SDF semantics : `sdf = metric - t`, so :
+                //   - t much smaller than metric → sdf > +truncation, clamped
+                //     in TSDFGrid.integrate → voxel pulls toward "empty" :
+                //     this is the carving.
+                //   - t ≈ metric → sdf ≈ 0 → voxel pulls toward "on surface" :
+                //     this is the integration.
+                let carveSteps = stepsPerHalfBand * freeSpaceCarveMultiplier
+                let stepCount = carveSteps + stepsPerHalfBand + 1
+                let start = metric - Float(freeSpaceCarveMultiplier) * truncation
                 for k in 0..<stepCount {
                     let t = start + halfStep * Float(k)
-                    guard t > 0.1 else { continue }
+                    guard t > nearClip else { continue }
                     let world = cameraOrigin + dirWorld * t
                     let key = grid.quantize(world)
                     let sdf = metric - t   // positive in front of surface

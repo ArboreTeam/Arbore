@@ -135,6 +135,21 @@ final class SceneUnderstandingController {
     private var fitHistory: [DepthCalibration.AffineFit] = []
     private let fitHistoryMax = 5
 
+    /// Camera transform at the last tick that actually integrated into
+    /// the voxel + TSDF grids. We compare the current transform against
+    /// this to decide if the camera has moved enough to integrate again
+    /// (#189 follow-up A — motion-gated integration).
+    /// Without this gate, holding the phone still feeds the same
+    /// observation N times into TSDF, which corrupts the running
+    /// average with correlated noise instead of averaging it out
+    /// (cf KinectFusion ego-motion frame culling).
+    private var lastIntegratedCameraTransform: simd_float4x4?
+    /// Minimum translation delta (metres) since last integration.
+    var motionGateTranslation: Float = 0.05
+    /// Minimum forward-vector rotation (radians) since last integration.
+    var motionGateRotation: Float = .pi / 36   // 5°
+    private var lastIntegrationGate: Bool = true
+
     /// Tracks the last reason tick() exited early so we can log only on
     /// transitions (avoids 60Hz spam).
     private enum TickGate: String { case ok, unavailable, inflight, throttled, thermal }
@@ -206,6 +221,7 @@ final class SceneUnderstandingController {
             self.depth = nil
             self.depthFit = nil
             self.fitHistory.removeAll()
+            self.lastIntegratedCameraTransform = nil
             self.isAvailable = false
         }
         AppLog.sceneML.notice("SceneUnderstandingController stopped")
@@ -217,6 +233,7 @@ final class SceneUnderstandingController {
         lock.withLock {
             self.depthFit = nil
             self.fitHistory.removeAll()
+            self.lastIntegratedCameraTransform = nil
         }
     }
 
@@ -448,6 +465,8 @@ final class SceneUnderstandingController {
               let depthMap = depthMap,
               let fit = fit else { return [] }
 
+        // SceneFusion runs every tick — it's stateless per-frame
+        // analysis, no risk of accumulating correlated noise.
         let regions = SceneFusion.fuse(
             semanticMap: semanticMap,
             depthMap: depthMap,
@@ -456,6 +475,16 @@ final class SceneUnderstandingController {
             cameraTransform: cameraTransform,
             captureSize: captureSize
         )
+
+        // Motion gate (#189 follow-up A) : skip voxel + TSDF
+        // accumulation when the camera hasn't moved enough since the
+        // last integrated frame. Repeated observations from the same
+        // pose feed correlated noise into TSDF's running average,
+        // which is exactly what produces the "ghost points in the
+        // air" the user reported.
+        let shouldIntegrate = shouldIntegrateForMotion(cameraTransform: cameraTransform)
+        guard shouldIntegrate else { return regions }
+
         let (vGrid, tGrid) = lock.withLock { (self.voxelGrid, self.tsdfGrid) }
         if let grid = vGrid {
             VoxelAccumulator.accumulate(
@@ -479,7 +508,52 @@ final class SceneUnderstandingController {
                 captureSize: captureSize
             )
         }
+        // shouldIntegrateForMotion already updated lastIntegratedCameraTransform
+        // as part of returning true — no separate "mark integrated" step needed.
         return regions
+    }
+
+    /// Returns true if the camera has moved enough since the last
+    /// integration to justify another one. Tunable via
+    /// `motionGateTranslation` and `motionGateRotation` ; sensible
+    /// defaults are 5 cm / 5°. Edge-triggered logging so gate
+    /// transitions are visible without spamming.
+    ///
+    /// A positive decision atomically updates the cached "last
+    /// integrated" transform, so callers can rely on this as the
+    /// single source of truth without having to also call a separate
+    /// "mark as integrated" method.
+    func shouldIntegrateForMotion(cameraTransform current: simd_float4x4) -> Bool {
+        let (decision, translation, rotation, transitioned): (Bool, Float, Float, Bool) = lock.withLock {
+            let previous = self.lastIntegratedCameraTransform
+            let decision: Bool
+            let translation: Float
+            let rotation: Float
+            if let prev = previous {
+                let dt = simd_distance(prev.columns.3, current.columns.3)
+                let prevForward = simd_normalize(SIMD3<Float>(-prev.columns.2.x, -prev.columns.2.y, -prev.columns.2.z))
+                let currForward = simd_normalize(SIMD3<Float>(-current.columns.2.x, -current.columns.2.y, -current.columns.2.z))
+                let dot = max(-1, min(1, simd_dot(prevForward, currForward)))
+                let dr = acos(dot)
+                translation = dt
+                rotation = dr
+                decision = (dt >= self.motionGateTranslation || dr >= self.motionGateRotation)
+            } else {
+                translation = 0
+                rotation = 0
+                decision = true   // first tick — always integrate
+            }
+            if decision {
+                self.lastIntegratedCameraTransform = current
+            }
+            let changed = decision != self.lastIntegrationGate
+            self.lastIntegrationGate = decision
+            return (decision, translation, rotation, changed)
+        }
+        if transitioned {
+            AppLog.sceneML.notice("motion gate=\(decision ? "integrate" : "skip", privacy: .public) dt=\(translation, privacy: .public)m dr=\(rotation, privacy: .public)rad")
+        }
+        return decision
     }
 
     /// Fire the onSnapshot callback on main and update the cached fit.

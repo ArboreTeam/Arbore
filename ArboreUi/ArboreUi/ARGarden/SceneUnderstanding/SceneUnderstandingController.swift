@@ -354,6 +354,7 @@ final class SceneUnderstandingController {
         // 3. Fusion + voxel accumulation (only when all inputs are valid).
         let regions = fuseAndAccumulate(semanticMap: semanticMap,
                                         depthMap: depthMap,
+                                        capturedImage: pixelBuffer,
                                         fit: fit,
                                         intrinsics: intrinsics,
                                         cameraTransform: cameraTransform,
@@ -456,6 +457,7 @@ final class SceneUnderstandingController {
     private func fuseAndAccumulate(
         semanticMap: SemanticMap?,
         depthMap: CVPixelBuffer?,
+        capturedImage: CVPixelBuffer?,
         fit: DepthCalibration.AffineFit?,
         intrinsics: simd_float3x3,
         cameraTransform: simd_float4x4,
@@ -502,6 +504,7 @@ final class SceneUnderstandingController {
                 into: tsdf,
                 semanticMap: semanticMap,
                 depthMap: depthMap,
+                capturedImage: capturedImage,
                 fit: fit,
                 intrinsics: intrinsics,
                 cameraTransform: cameraTransform,

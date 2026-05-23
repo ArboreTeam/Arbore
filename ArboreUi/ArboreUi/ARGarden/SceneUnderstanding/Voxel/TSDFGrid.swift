@@ -51,6 +51,13 @@ final class TSDFGrid {
         var tsdf: Float
         /// Accumulated observation weight (capped at `maxWeight`).
         var weight: Float
+        /// Weighted running average of camera RGB at observation time,
+        /// in [0, 1]. Used by the integrator's photometric gate
+        /// (#189 follow-up C) : when a carve-band observation arrives
+        /// and the camera RGB at that pixel matches the cell's
+        /// accumulated colour, the voxel is plausibly a real surface
+        /// the current depth missed, and the carve is skipped.
+        var color: SIMD3<Float>
         /// Per-category vote count — same scheme as `VoxelGrid` so
         /// the mesh can be coloured by majority-voted SemSeg class.
         var votes: [Int8: UInt16]
@@ -101,7 +108,19 @@ final class TSDFGrid {
     ///   free-space carving — a single on-surface observation will
     ///   then outweigh many carve observations, so real surfaces
     ///   don't get eroded by noisy neighbouring rays.
-    func integrate(key: Key, sdf: Float, weight: Float = 1.0, categoryIndex: Int8?, now: TimeInterval) {
+    /// - Parameter color: camera RGB at the pixel that produced this
+    ///   observation, in [0, 1]. Accumulated as a weight-averaged
+    ///   running mean alongside `tsdf`. Pass nil to leave the existing
+    ///   colour untouched (typical for carve-band observations — they
+    ///   say "this voxel should be empty", not "this voxel looks
+    ///   like X"). For new cells, nil falls back to a neutral grey
+    ///   placeholder that converges as surface obs arrive.
+    func integrate(key: Key,
+                   sdf: Float,
+                   weight: Float = 1.0,
+                   color: SIMD3<Float>? = nil,
+                   categoryIndex: Int8?,
+                   now: TimeInterval) {
         // Clamp the observed SDF before integrating.
         let clamped = max(-truncationDistance, min(truncationDistance, sdf))
         let w = max(0, weight)
@@ -110,6 +129,9 @@ final class TSDFGrid {
             if var existing = self._cells[key] {
                 let newWeight = min(existing.weight + w, self.maxWeight)
                 existing.tsdf = (existing.weight * existing.tsdf + w * clamped) / (existing.weight + w)
+                if let observed = color {
+                    existing.color = (existing.weight * existing.color + w * observed) / (existing.weight + w)
+                }
                 existing.weight = newWeight
                 if let cat = categoryIndex {
                     existing.votes[cat, default: 0] += 1
@@ -124,6 +146,7 @@ final class TSDFGrid {
                 self._cells[key] = Cell(
                     tsdf: clamped,
                     weight: w,
+                    color: color ?? SIMD3<Float>(repeating: 0.5),
                     votes: votes,
                     lastTouchedAt: now
                 )

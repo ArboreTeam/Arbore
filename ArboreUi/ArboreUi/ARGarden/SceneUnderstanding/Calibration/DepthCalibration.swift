@@ -3,17 +3,27 @@ import Foundation
 import simd
 
 /// Calibrates Depth Anything V2's relative inverse-depth output to
-/// **metric meters** using a 2-parameter affine model fitted against
-/// world-space anchor points known via ARKit (cf #187, #190).
+/// **metric Z-depth in meters** using a 2-parameter affine model fitted
+/// against world-space anchor points known via ARKit (cf #187, #190).
 ///
 /// The model is :
 ///
-///     1 / metric = a · raw + b
+///     1 / Z_depth = a · raw + b
 ///
-/// equivalently `metric = 1 / (a · raw + b)`. The two parameters `(a, b)`
-/// are fitted by least squares on a set of `(raw, knownMetric)` pairs
-/// where `knownMetric` comes from projecting an ARKit anchor (plane
-/// centroid, raw feature point, etc.) into the depth image.
+/// equivalently `Z_depth = 1 / (a · raw + b)`. `Z_depth` is the
+/// component of an anchor's camera-frame position perpendicular to
+/// the image plane — NOT the Euclidean ray length. This is the
+/// quantity DA V2 actually predicts ; pairing raw with Euclidean
+/// distance instead used to bake an average `K(u,v) = √(1 + xCam² + yCam²)`
+/// factor into `a`, biasing off-axis pixels by 5-15 % at iPhone FoV
+/// (the closer-than-true positions the user reported on device,
+/// 2026-05-17).
+///
+/// Callers that need Euclidean ray length apply the per-pixel `K`
+/// factor explicitly (`TSDFIntegrator`). `BackProjector.worldPosition`
+/// already treats its `dMetric` parameter as Z-depth, so consumers
+/// downstream (`VoxelAccumulator`, `SceneFusion`) become geometrically
+/// consistent for free once calibration is in Z-depth.
 ///
 /// Compared to the old single-scalar fit (`metric = scale / raw`), this :
 ///  - uses many anchors per frame instead of one (robust to a single bad
@@ -29,15 +39,18 @@ enum DepthCalibration {
     // MARK: - Affine fit
 
     /// Two-parameter affine model. `metric(raw:)` is the only call site
-    /// the rest of the pipeline needs.
+    /// the rest of the pipeline needs. The returned value is **metric
+    /// Z-depth** (perpendicular distance to the image plane), NOT
+    /// Euclidean ray length — see the file-level doc for the rationale.
+    /// Callers that need ray length apply the per-pixel `K` factor.
     struct AffineFit: Equatable {
-        /// `metric = 1 / (a · raw + b)`. `a` is the slope of inverse
-        /// depth against raw model output.
+        /// `1 / Z_depth = a · raw + b`. `a` is the slope of inverse
+        /// Z-depth against raw model output.
         let a: Float
         let b: Float
 
         /// Convenience for callers that still think in terms of the old
-        /// single-scale API : when `b == 0` we have `metric = (1/a) / raw`,
+        /// single-scale API : when `b == 0` we have `Z_depth = (1/a) / raw`,
         /// so `inverseScale = 1/a`. Used for the device-side log and
         /// the DepthOverlay's metric range mapping.
         var equivalentInverseScale: Float? {
@@ -45,6 +58,9 @@ enum DepthCalibration {
             return 1 / a
         }
 
+        /// Returns Z-depth (perpendicular distance to image plane), in
+        /// meters. For Euclidean ray length, multiply by the per-pixel
+        /// K factor `√(1 + xCam² + yCam²)`.
         func metric(raw: Float) -> Float {
             let den = a * raw + b
             guard abs(den) > 1e-6 else { return .infinity }
@@ -104,19 +120,19 @@ enum DepthCalibration {
     /// keeps the model with the most inliers, then re-fits by LS on
     /// the best inlier set.
     ///
-    /// Returns nil if `samples.count < 4` (no outlier rejection
-    /// possible) — caller falls back to `fitAffine` in that case.
-    /// Also returns nil if no model reaches `minInliers` inliers.
+    /// Returns nil if `samples.count < minInliers` (we explicitly do
+    /// NOT fall back to plain LS — a 2-3 sample LS fit was the source
+    /// of sign-flipped `a` values that corrupted the smoothed history
+    /// downstream, cf device log post-mortem 2026-05).
+    /// Also returns nil if no candidate reaches `minInliers` inliers,
+    /// or if the refined fit fails the sign / magnitude sanity check.
     static func fitAffineRANSAC(
         samples: [Sample],
         iterations: Int = 50,
         inlierMetricRatio: Float = 0.20,
-        minInliers: Int = 5
+        minInliers: Int = 8
     ) -> (fit: AffineFit, inlierCount: Int)? {
-        // Below 4 samples RANSAC isn't useful — fall back to plain LS.
-        if samples.count < 4 {
-            return fitAffine(samples: samples).map { ($0, samples.count) }
-        }
+        guard samples.count >= minInliers else { return nil }
 
         var bestInliers: [Sample] = []
         for _ in 0..<iterations {
@@ -141,6 +157,13 @@ enum DepthCalibration {
 
         guard bestInliers.count >= minInliers else { return nil }
         guard let refined = fitAffine(samples: bestInliers) else { return nil }
+        // Sanity check : raw inverse-depth and metric distance are both
+        // positive, so the slope `a` of `1/metric = a·raw + b` must be
+        // positive too. A negative `a` is the sign-flipped fit that
+        // produced `raw≈-7.4`, `raw≈-3.3` etc. in the device logs and
+        // corrupted the smoothed median. Bounds [0.05, 10] also catch
+        // saturated/degenerate fits where `a` is nearly zero or huge.
+        guard refined.a > 0.05, refined.a < 10 else { return nil }
         return (refined, bestInliers.count)
     }
 
@@ -190,9 +213,13 @@ enum DepthCalibration {
             // grazing the lens.
             guard cam4.z < -0.1 else { continue }
             let dist = simd_length(SIMD3<Float>(cam4.x, cam4.y, cam4.z))
+            // Filter on Euclidean distance — more meaningful for "is
+            // this anchor a useful calibration sample" — but the
+            // SAMPLE we store pairs raw with **Z-depth**, see file
+            // doc.
             guard dist > 0.3, dist < maxDistance else { continue }
 
-            let camZ = -cam4.z   // positive depth to image plane
+            let camZ = -cam4.z   // positive Z-depth to image plane
             let u = fx * (cam4.x / camZ) + cx
             let v = fy * (-cam4.y / camZ) + cy   // image v points down
             // Project capture-coord pixel into depth-buffer coords.
@@ -206,7 +233,7 @@ enum DepthCalibration {
                 width: depthW, height: depthH
             )
             guard raw > minRaw, raw.isFinite else { continue }
-            samples.append(Sample(raw: raw, metric: dist))
+            samples.append(Sample(raw: raw, metric: camZ))
         }
         return samples
     }

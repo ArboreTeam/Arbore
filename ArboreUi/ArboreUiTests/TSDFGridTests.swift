@@ -182,6 +182,70 @@ final class TSDFGridTests: XCTestCase {
         XCTAssertNil(grid.cell(at: key))
     }
 
+    // MARK: - Color accumulation (#189 follow-up C)
+
+    func test_integrate_storesColorOnNewCell() {
+        let grid = TSDFGrid(voxelSize: 1.0)
+        let key = TSDFGrid.Key(x: 0, y: 0, z: 0)
+        let red = SIMD3<Float>(0.9, 0.1, 0.1)
+        grid.integrate(key: key, sdf: 0, weight: 1.0, color: red,
+                       categoryIndex: 0, now: 1.0)
+        let stored = grid.cell(at: key)!.color
+        XCTAssertEqual(stored.x, red.x, accuracy: 1e-5)
+        XCTAssertEqual(stored.y, red.y, accuracy: 1e-5)
+        XCTAssertEqual(stored.z, red.z, accuracy: 1e-5)
+    }
+
+    func test_integrate_averagesColorAcrossObservations() {
+        // 3 obs : pure red, pure green, pure blue with equal weight.
+        // Mean = (1/3, 1/3, 1/3).
+        let grid = TSDFGrid(voxelSize: 1.0)
+        let key = TSDFGrid.Key(x: 0, y: 0, z: 0)
+        grid.integrate(key: key, sdf: 0, weight: 1.0,
+                       color: SIMD3<Float>(1, 0, 0), categoryIndex: 0, now: 1.0)
+        grid.integrate(key: key, sdf: 0, weight: 1.0,
+                       color: SIMD3<Float>(0, 1, 0), categoryIndex: 0, now: 1.0)
+        grid.integrate(key: key, sdf: 0, weight: 1.0,
+                       color: SIMD3<Float>(0, 0, 1), categoryIndex: 0, now: 1.0)
+        let stored = grid.cell(at: key)!.color
+        XCTAssertEqual(stored.x, 1.0/3.0, accuracy: 1e-5)
+        XCTAssertEqual(stored.y, 1.0/3.0, accuracy: 1e-5)
+        XCTAssertEqual(stored.z, 1.0/3.0, accuracy: 1e-5)
+    }
+
+    func test_integrate_nilColorLeavesExistingColorUntouched() {
+        // First obs sets the colour, second obs passes nil (e.g. a
+        // carve observation in the integrator). Stored colour must
+        // still be the first one.
+        let grid = TSDFGrid(voxelSize: 1.0)
+        let key = TSDFGrid.Key(x: 0, y: 0, z: 0)
+        let teal = SIMD3<Float>(0.2, 0.8, 0.7)
+        grid.integrate(key: key, sdf: 0, weight: 1.0, color: teal,
+                       categoryIndex: 0, now: 1.0)
+        grid.integrate(key: key, sdf: 0, weight: 1.0, color: nil,
+                       categoryIndex: 0, now: 2.0)
+        let stored = grid.cell(at: key)!.color
+        XCTAssertEqual(stored.x, teal.x, accuracy: 1e-5)
+        XCTAssertEqual(stored.y, teal.y, accuracy: 1e-5)
+        XCTAssertEqual(stored.z, teal.z, accuracy: 1e-5)
+    }
+
+    func test_integrate_nilColorOnNewCellSeedsNeutralGray() {
+        // Integrator may seed a cell with nil colour (e.g. legacy
+        // callers / test paths without a captured image). The cell
+        // must still construct cleanly — we seed neutral grey so
+        // subsequent colour-bearing obs converge from the middle of
+        // the cube rather than from black.
+        let grid = TSDFGrid(voxelSize: 1.0)
+        let key = TSDFGrid.Key(x: 0, y: 0, z: 0)
+        grid.integrate(key: key, sdf: 0, weight: 1.0, color: nil,
+                       categoryIndex: 0, now: 1.0)
+        let stored = grid.cell(at: key)!.color
+        XCTAssertEqual(stored.x, 0.5, accuracy: 1e-5)
+        XCTAssertEqual(stored.y, 0.5, accuracy: 1e-5)
+        XCTAssertEqual(stored.z, 0.5, accuracy: 1e-5)
+    }
+
 
     func test_concurrentIntegrate_isThreadSafe() async {
         let grid = TSDFGrid(voxelSize: 1.0)

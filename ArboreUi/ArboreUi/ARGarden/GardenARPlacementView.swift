@@ -534,10 +534,10 @@ struct GardenARPlacementView: View {
                     Button { NotificationCenter.default.post(name: .gardenARRedo, object: nil) } label: {
                         Image(systemName: "arrow.uturn.forward").modifier(GlassButtonStyle())
                     }
-                    // Issue #186 + #187 — debug overlays panel : tap to
-                    // open a sheet with the 4 toggles ; long-press = panic-
-                    // off everything. Icon turns green when any overlay
-                    // is active, red when all four are on (thermal warning).
+                    // BETA #191: debug overlays button hidden for beta —
+                    // the Scene Understanding pipeline is dormant. Restore
+                    // when the post-jury reactivation lands.
+                    /*
                     Button {
                         showDebugPanel = true
                     } label: {
@@ -553,6 +553,7 @@ struct GardenARPlacementView: View {
                         voxelScanEnabled = false
                         scanViewEnabled = false
                     }
+                    */
                 }
             }
 
@@ -896,11 +897,11 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
         sceneView.session.delegate = context.coordinator
         
         let config = ARWorldTrackingConfiguration()
-        // Issue #186 — detect vertical planes (walls) in addition to floors.
-        // Cheap on all devices ; ARKit just looks for vertical feature-point
-        // clusters. The actual classification (floor / wall / shelf / …)
-        // happens in `SurfaceClassifier` based on Y / extent / adjacency.
-        config.planeDetection = [.horizontal, .vertical]
+        // BETA #191: floor-only detection for the beta build. Vertical
+        // plane detection (walls — needed by #186) is paused until the
+        // post-jury Scene Understanding reactivation. Was:
+        //     config.planeDetection = [.horizontal, .vertical]
+        config.planeDetection = [.horizontal]
         config.environmentTexturing = ARQuality.recommended.environmentTexturing
 
         sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
@@ -931,7 +932,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
                 DispatchQueue.main.async {
                     let restartConfig = ARWorldTrackingConfiguration()
-                    restartConfig.planeDetection = [.horizontal, .vertical]
+                    // BETA #191: same floor-only override as the initial config above.
+                    restartConfig.planeDetection = [.horizontal]
                     restartConfig.environmentTexturing = ARQuality.recommended.environmentTexturing
                     restartConfig.initialWorldMap = worldMap
                     sceneView.session.run(restartConfig, options: [.resetTracking, .removeExistingAnchors])
@@ -961,6 +963,11 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
 
     func updateUIView(_ uiView: ARSCNView, context: Context) {
         context.coordinator.updateCachedBounds()
+        // BETA #191: ARKit surface viz + Scene Understanding wiring paused
+        // for beta — even if a stale @AppStorage flag is still true on a
+        // dev device, the calls below stay no-op'd so no guizmo can appear.
+        // Restore on post-jury reactivation.
+        /*
         context.coordinator.syncSurfaceVizEnabled(surfaceVizEnabled, sceneView: uiView)
         context.coordinator.syncSceneUnderstanding(
             semSegEnabled: semSegVizEnabled,
@@ -971,6 +978,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             tsdfScanEnabled: tsdfScanEnabled,
             sceneView: uiView
         )
+        */
 
         if shouldCaptureSharePhoto {
             DispatchQueue.main.async {
@@ -1208,6 +1216,11 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             private let restoreMaxWait: TimeInterval = 4.0
 
             func session(_ session: ARSession, didUpdate frame: ARFrame) {
+                // BETA #191: Scene Understanding ML tick disabled for beta.
+                // No DA V2 / DETR inference runs, no calibration anchors
+                // are collected. Re-enable with the rest of the pipeline
+                // when post-jury reactivation lands. Original block below.
+                /*
                 // Issue #187 / #186 Niveau 2 — opportunistic SemSeg + Depth
                 // inference. 1 Hz internal throttle, no-op when sceneCtl
                 // is nil (no Phase-3 overlay enabled).
@@ -1243,6 +1256,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     }
                 }
                 sceneCtl?.tick(frame: frame, calibrationAnchors: anchors)
+                */
 
                 let mapStatus = frame.worldMappingStatus
                 let trackingState = frame.camera.trackingState

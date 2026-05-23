@@ -124,16 +124,17 @@ final class DepthCalibrationTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(result.inlierCount, 10)
     }
 
-    func test_fitAffineRANSAC_fallsBackToLSWithFewSamples() {
-        // <4 samples → RANSAC isn't meaningful, the function
-        // delegates to the LS path so callers don't have to handle
-        // two failure modes.
+    func test_fitAffineRANSAC_returnsNilBelowMinInliers() {
+        // <8 samples → no trustworthy fit. We deliberately do NOT
+        // fall back to plain LS because 2-3 noisy anchors regularly
+        // produced sign-flipped `a` values on device that polluted
+        // the temporal-median smoothing for several ticks (cf
+        // device log post-mortem 2026-05).
         let samples: [Sample] = [
             Sample(raw: 0.1, metric: 5.0),
             Sample(raw: 0.5, metric: 1.5),
         ]
-        let result = DepthCalibration.fitAffineRANSAC(samples: samples)
-        XCTAssertNotNil(result, "expected LS fallback for n=2")
+        XCTAssertNil(DepthCalibration.fitAffineRANSAC(samples: samples))
     }
 
     func test_fitAffineRANSAC_returnsNilWithStrictMinInliersOnNoise() {
@@ -145,5 +146,20 @@ final class DepthCalibrationTests: XCTestCase {
         }
         let result = DepthCalibration.fitAffineRANSAC(samples: samples, minInliers: 18)
         XCTAssertNil(result)
+    }
+
+    func test_fitAffineRANSAC_rejectsSignFlippedFits() {
+        // 10 samples that perfectly fit a negative-slope affine model
+        // (`a = -0.5`). RANSAC's outlier-rejection alone would happily
+        // lock onto them, but the sanity guard rejects because raw
+        // inverse-depth and metric distance must both rise together —
+        // a negative slope is non-physical and was the root cause of
+        // the `raw≈-7`, `raw≈-3` device log lines.
+        let a: Float = -0.5, b: Float = 1.0
+        let samples: [Sample] = (1...10).map { i in
+            let raw = Float(i) * 0.1
+            return Sample(raw: raw, metric: 1 / (a * raw + b))
+        }
+        XCTAssertNil(DepthCalibration.fitAffineRANSAC(samples: samples))
     }
 }

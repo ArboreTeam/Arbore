@@ -23,6 +23,7 @@ final class MarchingCubesTests: XCTestCase {
         return Cell(
             tsdf: tsdf,
             weight: 10,
+            color: SIMD3<Float>(repeating: 0.5),
             votes: [category: 1],
             lastTouchedAt: 0
         )
@@ -127,6 +128,7 @@ final class MarchingCubesTests: XCTestCase {
             cells[Key(x: o.0, y: o.1, z: o.2)] = Cell(
                 tsdf: i == 0 ? -1.0 : 1.0,
                 weight: 1,   // below default minWeight=3
+                color: SIMD3<Float>(repeating: 0.5),
                 votes: [0: 1],
                 lastTouchedAt: 0
             )

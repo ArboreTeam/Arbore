@@ -40,6 +40,17 @@
                ReferencedContainer = "container:ArboreUi.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "77DD7AF62D84270800A6F6F1"
+               BuildableName = "ArboreUiUITests.xctest"
+               BlueprintName = "ArboreUiUITests"
+               ReferencedContainer = "container:ArboreUi.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

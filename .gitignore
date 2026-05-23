@@ -190,3 +190,10 @@ fastlane/.env.local
 # Deepl translations
 .deepl_api.backups/
 backups/
+
+# CoreML model bundles — too large to commit (DETR Semantic Seg = 86 MB).
+# Auto-fetched by scripts/fetch-ml-models.sh via the Xcode Run Script
+# build phase, then auto-included by PBXFileSystemSynchronizedRootGroup
+# (cf ArboreUi/ArboreUi/ARGarden/SceneUnderstanding/README.md).
+*.mlpackage/
+*.mlmodelc/

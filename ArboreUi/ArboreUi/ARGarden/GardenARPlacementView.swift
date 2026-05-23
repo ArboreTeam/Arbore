@@ -102,6 +102,13 @@ struct GardenARPlacementView: View {
     // 🤖 AI Auto-placement
     @State private var isAutoPlacing = false
     @State private var autoPlaceToast: String? = nil
+    /// Issue #169 — set true the first time AI auto-placement actually
+    /// triggers (i.e. the reticle reached the floor + stability). Used
+    /// to hide the "Pointez vers le sol" coaching banner once the user
+    /// successfully fired the batch. Stays true for the rest of the
+    /// session ; placement won't re-trigger anyway (Coordinator gates
+    /// it with `didAutoPlace`).
+    @State private var hasTriggeredAutoPlace = false
     
     // 💡 Lux widget
     @State private var currentLux: Int = 0
@@ -292,6 +299,21 @@ struct GardenARPlacementView: View {
                         .padding(.top, 6)
                 }
 
+                // Issue #169 — AI placement coaching. Visible whenever
+                // the user lands on the AR screen with AI plants queued
+                // but hasn't yet pointed at the floor long enough to
+                // trigger the batch. Disappears as soon as auto-place
+                // fires (the autoPlacingOverlay + toast take over).
+                if mode == .create,
+                   !selectedPlants.isEmpty,
+                   !isAutoPlacing,
+                   !hasTriggeredAutoPlace {
+                    awaitingFloorPointBanner
+                        .padding(.horizontal, 16)
+                        .padding(.top, 6)
+                        .transition(.opacity)
+                }
+
                 Spacer()
 
                 // 🤖 Auto-place toast
@@ -408,6 +430,12 @@ struct GardenARPlacementView: View {
         .onChange(of: capturedShareImage) { _, image in
             guard image != nil else { return }
             showSharePreview = true
+        }
+        .onChange(of: isAutoPlacing) { _, new in
+            // Issue #169 — latch the "auto-place fired at least once"
+            // flag so the coaching banner doesn't re-appear after the
+            // batch finishes (isAutoPlacing flips back to false).
+            if new { hasTriggeredAutoPlace = true }
         }
         .fullScreenCover(isPresented: $showSharePreview) {
             if let capturedShareImage {
@@ -732,6 +760,43 @@ struct GardenARPlacementView: View {
     }
 
     // MARK: - 🤖 Auto-Placement Overlay
+
+    /// Issue #169 — coaching banner. The Coordinator only triggers the
+    /// AI batch when the reticle sits within ±20 cm of `detectedFloorY()` ;
+    /// without this banner, the user just sees nothing happen if they
+    /// hold the phone naturally pointing at a desk. Self-contained — no
+    /// binding bubbled from the Coordinator, since the prompt is
+    /// applicable for the whole pre-trigger window regardless of the
+    /// exact reticle Y.
+    private var awaitingFloorPointBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.down")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(Color(hex: "#2BEE79"))
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Pointez votre téléphone vers le sol")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.white)
+                Text("Le placement automatique démarre dès que le sol est détecté.")
+                    .font(.system(size: 12))
+                    .foregroundColor(.white.opacity(0.75))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(Color(hex: "#2BEE79").opacity(0.25), lineWidth: 1)
+                )
+        )
+        .background(Color.black.opacity(0.55).clipShape(RoundedRectangle(cornerRadius: 14)))
+        .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+    }
 
     private var autoPlacingOverlay: some View {
         ZStack {

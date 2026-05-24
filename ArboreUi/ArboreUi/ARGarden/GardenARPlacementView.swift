@@ -109,6 +109,13 @@ struct GardenARPlacementView: View {
     /// session ; placement won't re-trigger anyway (Coordinator gates
     /// it with `didAutoPlace`).
     @State private var hasTriggeredAutoPlace = false
+    /// #169 follow-up — diagnostic state of the AI auto-placement
+    /// trigger, computed in the Coordinator's `renderer(_:updateAtTime:)`
+    /// and bubbled up here so the coaching banner can show *which*
+    /// condition is currently blocking the auto-place instead of a
+    /// generic "Pointez vers le sol" that lies when the user IS
+    /// pointing at the floor.
+    @State private var autoPlaceCoaching: AutoPlaceCoachingState = .analyzing
     
     // 💡 Lux widget
     @State private var currentLux: Int = 0
@@ -205,6 +212,7 @@ struct GardenARPlacementView: View {
                 newBoundaryArea: $newBoundaryArea,
                 distortionWarnings: $distortionWarnings,
                 isAutoPlacing: $isAutoPlacing,
+                autoPlaceCoaching: $autoPlaceCoaching,
                 autoPlaceToast: $autoPlaceToast,
                 currentLux: $currentLux,
                 shouldCaptureSharePhoto: $shouldCaptureSharePhoto,
@@ -761,23 +769,93 @@ struct GardenARPlacementView: View {
 
     // MARK: - 🤖 Auto-Placement Overlay
 
-    /// Issue #169 — coaching banner. The Coordinator only triggers the
-    /// AI batch when the reticle sits within ±20 cm of `detectedFloorY()` ;
-    /// without this banner, the user just sees nothing happen if they
-    /// hold the phone naturally pointing at a desk. Self-contained — no
-    /// binding bubbled from the Coordinator, since the prompt is
-    /// applicable for the whole pre-trigger window regardless of the
-    /// exact reticle Y.
+    /// #169 follow-up — diagnostic states reflecting which condition
+    /// of the AI auto-placement trigger is currently blocking. Bubbled
+    /// from the Coordinator on transition only (not every frame) via
+    /// `parentProps?.autoPlaceCoaching = ...`. Equatable so the
+    /// Coordinator can dedupe-suppress identical updates.
+    enum AutoPlaceCoachingState: Equatable {
+        /// No `ARPlaneAnchor` classified as floor yet. ARKit is still
+        /// scanning ; the user should keep moving the phone.
+        case analyzing
+        /// Floor known, but the reticle has no `.geometry` quality —
+        /// either no raycast hit, or hit only an `.estimatedPlane`
+        /// (ARKit hasn't bound it to a real `ARPlaneAnchor` yet).
+        case adjustReticle
+        /// Reticle solidly on a horizontal `.geometry` surface but its
+        /// Y is > 20 cm above the floor (user pointing at a table /
+        /// rug edge / cushion). `deltaCm` is the rounded-to-5 height
+        /// delta so the banner doesn't flicker on every cm of movement.
+        case pointLower(deltaCm: Int)
+        /// All gates pass — accumulating frames toward the
+        /// `stablePlaneThreshold`. Banner becomes a progress bar.
+        case stabilizing(progress: Int, threshold: Int)
+
+        var symbolName: String {
+            switch self {
+            case .analyzing: return "viewfinder.circle"
+            case .adjustReticle: return "viewfinder"
+            case .pointLower: return "arrow.down"
+            case .stabilizing: return "checkmark.circle"
+            }
+        }
+
+        var tint: Color {
+            switch self {
+            case .analyzing, .adjustReticle: return Color(hex: "#FFB020")
+            case .pointLower: return Color(hex: "#FF8030")
+            case .stabilizing: return Color(hex: "#2BEE79")
+            }
+        }
+
+        var title: String {
+            switch self {
+            case .analyzing:
+                return "Analyse de l'environnement…"
+            case .adjustReticle:
+                return "Bouge un peu pour fixer le sol"
+            case .pointLower(let cm):
+                return "Pointe plus bas (\(cm) cm trop haut)"
+            case .stabilizing(let p, let t):
+                return "Sol détecté, ne bouge plus… \(p)/\(t)"
+            }
+        }
+
+        var subtitle: String {
+            switch self {
+            case .analyzing:
+                return "Bouge ton téléphone lentement pour qu'ARKit détecte le sol."
+            case .adjustReticle:
+                return "Le réticule n'a pas encore accroché une surface stable."
+            case .pointLower:
+                return "Vise le sol plat, pas un meuble ou un tapis épais."
+            case .stabilizing:
+                return "Le placement automatique démarre dès la stabilité atteinte."
+            }
+        }
+    }
+
+    /// Issue #169 follow-up — coaching banner driven by the diagnostic
+    /// state computed in the Coordinator (`AutoPlaceCoachingState`).
+    /// The original static banner ("Pointez vers le sol") was lying when
+    /// the user WAS pointing at the floor but another gate was failing
+    /// (no .geometry quality yet, no floor classified, reticle slightly
+    /// too high, etc.) — silent failure mode with no actionable hint.
+    ///
+    /// This version reflects the actual blocking condition so the user
+    /// can self-correct. Gate logic itself unchanged (cf. #169 fix in
+    /// `renderer(_:updateAtTime:)` — same ±20 cm tolerance, same
+    /// .geometry requirement, same 15-frame stability).
     private var awaitingFloorPointBanner: some View {
         HStack(spacing: 12) {
-            Image(systemName: "arrow.down")
+            Image(systemName: autoPlaceCoaching.symbolName)
                 .font(.system(size: 18, weight: .bold))
-                .foregroundColor(Color(hex: "#2BEE79"))
+                .foregroundColor(autoPlaceCoaching.tint)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Pointez votre téléphone vers le sol")
+                Text(autoPlaceCoaching.title)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white)
-                Text("Le placement automatique démarre dès que le sol est détecté.")
+                Text(autoPlaceCoaching.subtitle)
                     .font(.system(size: 12))
                     .foregroundColor(.white.opacity(0.75))
                     .fixedSize(horizontal: false, vertical: true)
@@ -791,11 +869,12 @@ struct GardenARPlacementView: View {
                 .fill(.ultraThinMaterial)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
-                        .strokeBorder(Color(hex: "#2BEE79").opacity(0.25), lineWidth: 1)
+                        .strokeBorder(autoPlaceCoaching.tint.opacity(0.25), lineWidth: 1)
                 )
         )
         .background(Color.black.opacity(0.55).clipShape(RoundedRectangle(cornerRadius: 14)))
         .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+        .animation(.easeInOut(duration: 0.2), value: autoPlaceCoaching)
     }
 
     private var autoPlacingOverlay: some View {
@@ -916,6 +995,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
 
     // 🤖 AI Auto-placement bindings
     @Binding var isAutoPlacing: Bool
+    /// #169 follow-up — Coordinator writes here on transition only.
+    @Binding var autoPlaceCoaching: GardenARPlacementView.AutoPlaceCoachingState
     @Binding var autoPlaceToast: String?
     @Binding var currentLux: Int
     @Binding var shouldCaptureSharePhoto: Bool
@@ -1197,6 +1278,10 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             private var didAutoPlace = false
             private var stablePlaneFrameCount = 0
             private let stablePlaneThreshold = 15  // ~0.5s at 30fps before auto-placing
+            /// #169 follow-up — last value pushed to `parentProps.autoPlaceCoaching`.
+            /// We only dispatch on transition, not every frame (60 fps update
+            /// would tank SwiftUI re-renders). `nil` = nothing pushed yet.
+            private var lastAutoPlaceCoaching: GardenARPlacementView.AutoPlaceCoachingState?
 
             init(_ parent: GardenARPlacementContainerView) { self.parentProps = parent }
 
@@ -1553,6 +1638,28 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         }
                     }
 
+                    // #169 follow-up — bubble the diagnostic state up so the
+                    // coaching banner reflects which condition is currently
+                    // blocking the trigger. Only push on transition to keep
+                    // SwiftUI re-renders cheap (was 60 fps churn otherwise).
+                    if !didAutoPlace,
+                       let props = parentProps,
+                       props.mode == .create,
+                       !props.plantsToAutoPlace.isEmpty {
+                        let newCoaching = self.computeCoachingState(
+                            reticleTransform: t,
+                            reticleQuality: newQuality,
+                            stableFrames: stablePlaneFrameCount,
+                            threshold: stablePlaneThreshold
+                        )
+                        if newCoaching != lastAutoPlaceCoaching {
+                            lastAutoPlaceCoaching = newCoaching
+                            DispatchQueue.main.async { [weak self] in
+                                self?.parentProps?.autoPlaceCoaching = newCoaching
+                            }
+                        }
+                    }
+
                     // Update color only on transition (avoid per-frame material churn).
                     //
                     // Issue #186 — when the reticle sits on a classified
@@ -1578,7 +1685,58 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     reticle.opacity = 0
                     // Reset stability counter if we lose the plane
                     if !didAutoPlace { stablePlaneFrameCount = 0 }
+
+                    // #169 follow-up — no raycast hit at all : show the
+                    // weakest diagnostic state so the banner stays
+                    // honest instead of frozen on the last good value.
+                    if !didAutoPlace,
+                       let props = parentProps,
+                       props.mode == .create,
+                       !props.plantsToAutoPlace.isEmpty {
+                        let newCoaching: GardenARPlacementView.AutoPlaceCoachingState =
+                            (self.detectedFloorY() == nil) ? .analyzing : .adjustReticle
+                        if newCoaching != lastAutoPlaceCoaching {
+                            lastAutoPlaceCoaching = newCoaching
+                            DispatchQueue.main.async { [weak self] in
+                                self?.parentProps?.autoPlaceCoaching = newCoaching
+                            }
+                        }
+                    }
                 }
+            }
+
+            /// #169 follow-up — pure mapping from the trigger conditions to
+            /// the diagnostic state shown in the coaching banner. Called
+            /// from `renderer(_:updateAtTime:)` when at least the reticle
+            /// has a transform ; the no-transform case is handled inline.
+            private func computeCoachingState(
+                reticleTransform t: simd_float4x4,
+                reticleQuality: ReticleQuality,
+                stableFrames: Int,
+                threshold: Int
+            ) -> GardenARPlacementView.AutoPlaceCoachingState {
+                guard let floorY = self.detectedFloorY() else {
+                    return .analyzing
+                }
+                guard reticleQuality == .geometry else {
+                    return .adjustReticle
+                }
+                let deltaM = t.columns.3.y - floorY
+                if deltaM > 0.20 {
+                    // Round to nearest 5 cm so the banner doesn't flicker
+                    // on each cm of hand-shake. Min 5 cm to avoid
+                    // displaying "0 cm trop haut" when delta is in
+                    // (0.20, 0.025] m.
+                    let rounded = max(5, Int((deltaM * 100 / 5).rounded()) * 5)
+                    return .pointLower(deltaCm: rounded)
+                }
+                if deltaM < -0.20 {
+                    // Reticle BELOW the floor — pathological (would
+                    // mean a plane lower than the detected floor was
+                    // hit). Fall back to a generic message.
+                    return .adjustReticle
+                }
+                return .stabilizing(progress: min(stableFrames, threshold), threshold: threshold)
             }
 
             // MARK: - 🤖 AI Auto-Placement

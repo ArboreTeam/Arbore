@@ -245,6 +245,17 @@ Le fichier `.github/CODEOWNERS` définit les reviewers automatiques par composan
 - [CodeQL](https://codeql.github.com/)
 - [Trivy](https://aquasecurity.github.io/trivy/)
 
+## 🧹 Cron de cleanup VPS
+
+Deux jobs cron sur la VPS de prod (`fedora@terraformid-171`) maintiennent la base propre :
+
+| Job | Cron | Script | Rôle |
+|---|---|---|---|
+| `cleanup-test-db` | `0 4 * * *` (daily) | `/home/fedora/Arbore/scripts/cleanup-test-db.sh` | Vide la DB `arbore_test` (cf. #159 séparation prod/test) |
+| `cleanup-test-users` | `0 4 * * 0` (Sunday) | `ArboreBackend/scripts/cleanup-test-users.sh` | Filet de sécurité : supprime cascade les comptes `@arbore.test` qui auraient fuité en `arbore` (cf. #160) |
+
+Logs : `/home/fedora/Arbore/logs/cleanup-test-{db,users}.log`. Toujours backup `mongodump` avant tout cleanup manuel — exemple dans `/home/fedora/Arbore/.backups/pre-cleanup-160-*/`.
+
 ## 🆘 Support
 
 Pour toute question sur la CI/CD, ouvrez une issue avec le label `ci/cd`.

@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Arbore app-level Privacy Manifest (Apple required since 2024-05).
+    Cf. issue #202. Co-existing with each Pod's own PrivacyInfo.xcprivacy
+    (Firebase, GoogleSignIn, Facebook, etc. — they ship their own).
+
+    Sources d'inventaire :
+      - Required Reason APIs : audit grep le 2026-05-24 sur
+        ArboreUi/ArboreUi/**/*.swift (UserDefaults via @AppStorage,
+        FileManager.attributesOfItem dans ManageGardenView +
+        ModelCacheManager). Pas de disk space / boot time / keyboard.
+      - Collected data : ce qui sort effectivement de l'appareil
+        (Firebase Auth + backend Mongo /users, /gardens). Tout reste
+        lié à l'identité Firebase UID. Aucun tracking cross-app.
+
+    Quand on ajoute un nouveau SDK ou un nouveau type de collecte,
+    mettre à jour ce fichier ET les Privacy Nutrition Labels dans
+    App Store Connect (#206) en miroir — Apple compare les deux.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Pas de tracking cross-app. Aucun SDK n'est utilisé pour suivre
+         l'utilisateur à travers d'autres apps / sites. Si l'audit
+         Facebook SDK (#204) conclut qu'il est effectivement utilisé
+         pour du tracking, basculer NSPrivacyTracking à true ET ajouter
+         les domaines CDN concernés dans NSPrivacyTrackingDomains. -->
+    <key>NSPrivacyTracking</key>
+    <false/>
+    <key>NSPrivacyTrackingDomains</key>
+    <array/>
+
+    <key>NSPrivacyCollectedDataTypes</key>
+    <array>
+        <!-- Email : créé via Firebase Auth, stocké dans Mongo users.email. -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeEmailAddress</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!-- Nom : Firebase displayName + Mongo users.name (PATCH /users/me). -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeName</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!-- Firebase UID : identifiant utilisateur stable, sert de clé
+             primaire dans toutes les collections backend. -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeUserID</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!-- Photo de profil : upload via POST /users/:uid/photo, stockée
+             dans Mongo users.photo (binary). Pas de capture caméra
+             auto, c'est un picker utilisateur explicite. -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypePhotosorVideos</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!-- Garden data : positions des plantes, WorldMaps, JSON de
+             scène, modèles 3D sélectionnés. Stocké dans Mongo
+             /gardens. Pas d'analyse cross-user. -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!--
+            Note : NSPrivacyCollectedDataTypeCrashData et
+            NSPrivacyCollectedDataTypeOtherDiagnosticData seront ajoutés
+            quand #205 (intégration Sentry) sera mergée. Côté
+            actuel : aucun crash reporting → rien à déclarer.
+        -->
+
+        <!--
+            Note : caméra (AR), calendrier (rappels arrosage), micro,
+            localisation (position du soleil), LiDAR (scan), Face ID :
+            ces permissions sont déclarées dans Info.plist mais leurs
+            données ne quittent JAMAIS l'appareil — donc pas à déclarer
+            ici en tant que \"collected data\" au sens d'Apple.
+        -->
+    </array>
+
+    <key>NSPrivacyAccessedAPITypes</key>
+    <array>
+        <!-- UserDefaults : @AppStorage partout dans l'app (thèmes,
+             préférences, debug toggles, etc.). Tous les accès sont
+             dans le container de l'app, jamais shared/group.
+             Reason CA92.1 : \"Access info from same app, per documentation\". -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>CA92.1</string>
+            </array>
+        </dict>
+
+        <!-- File timestamps : deux usages distincts.
+             - ManageGardenView lit modificationDate pour trier les
+               jardins par récence dans l'UI (\"Inside-app file
+               metadata to display to the user\" → reason C617.1).
+             - ModelCacheManager lit modificationDate pour l'éviction
+               du cache des modèles 3D (LRU) → reason 0A2A.1
+               (\"Inside-app file metadata for app functionality\"). -->
+        <dict>
+            <key>NSPrivacyAccessedAPIType</key>
+            <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+            <key>NSPrivacyAccessedAPITypeReasons</key>
+            <array>
+                <string>C617.1</string>
+                <string>0A2A.1</string>
+            </array>
+        </dict>
+
+        <!--
+            Note : on n'utilise pas DiskSpace, SystemBootTime, ni
+            ActiveKeyboard côté code app. Si on ajoute par exemple
+            un disk-space-check avant un model download, ajouter ici
+            la catégorie NSPrivacyAccessedAPICategoryDiskSpace.
+        -->
+    </array>
+</dict>
+</plist>

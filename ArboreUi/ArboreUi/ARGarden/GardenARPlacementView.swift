@@ -2136,29 +2136,186 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
 
                     DispatchQueue.main.async {
                         self.isRestoring = true
-                        if !persistedPlants.isEmpty {
-                            self.restoreScene(from: persistedPlants)
-                        } else {
+                        if persistedPlants.isEmpty {
                             self.isRestoring = false
+                            return
+                        }
+                        // #113 part 2 — Reduce save→reopen drift on X/Y/Z.
+                        //
+                        // The WorldMap restored by ARKit already contains the
+                        // plant_* ARAnchors created in the previous session.
+                        // They re-surface in `session.currentFrame.anchors`
+                        // with their transforms expressed in the freshly
+                        // *relocalized* world frame — i.e. no extra drift
+                        // beyond ARKit's relocalization residual.
+                        //
+                        // Up to now, `restoreScene` ignored those and re-built
+                        // anchors from scratch using the JSON transforms,
+                        // which were saved in the *original* session's frame.
+                        // The relocalization shift (1-3 cm typical) was baked
+                        // into every restored anchor → visible drift.
+                        //
+                        // The claim pass below matches each restored anchor
+                        // to its JSON metadata, attaches the model directly
+                        // to the existing anchor's node, and returns the
+                        // unmatched leftovers (plants whose anchor didn't
+                        // come back — e.g. WorldMap was saved without them,
+                        // or scene JSON has more plants than the WorldMap)
+                        // for the legacy `restoreScene` path.
+                        let leftover = self.claimWorldMapAnchors(from: persistedPlants)
+                        if leftover.isEmpty {
+                            // All plants restored from the WorldMap. No need
+                            // to run the fallback path (which would call
+                            // `removeAllPlantAnchors` and nuke what we just
+                            // attached).
+                            self.isRestoring = false
+                        } else {
+                            // Pass `clearExisting: false` so the snap-to-plane
+                            // fallback doesn't blow away the WorldMap-restored
+                            // anchors we just claimed.
+                            self.restoreScene(from: leftover, clearExisting: false)
                         }
                     }
                 }
             }
+
+            /// Issue #113 part 2 — claim plant_* anchors restored from the
+            /// WorldMap by matching them to entries in the just-loaded scene
+            /// JSON. Side effects per match : register the anchor in
+            /// `plantAnchorMap`, kick off async model resolution + attach
+            /// the 3D model to the anchor's existing SCNNode (preserving
+            /// the relocalized transform — no recreation drift).
+            ///
+            /// Returns the persistedPlants that had no matching WorldMap
+            /// anchor ; caller passes them to `restoreScene` to recreate
+            /// from scratch via `placeObject`.
+            ///
+            /// Matching rule : anchor.name format is `plant_<plantID>` (cf.
+            /// `placeObject`). For each restored anchor we keep only the
+            /// candidate PersistedPlants with the same plantID, then pick
+            /// the one whose saved position is closest to the anchor's
+            /// current world position. This handles multiple instances of
+            /// the same catalog plant (e.g. three Succulent placed in a
+            /// row) — even with relocalization drift the per-instance
+            /// distance distinguishes them as long as they're > a few cm
+            /// apart, which is always the case in practice.
+            @MainActor
+            private func claimWorldMapAnchors(from persistedPlants: [PersistedPlant]) -> [PersistedPlant] {
+                guard let arView = arView,
+                      let frame = arView.session.currentFrame else {
+                    return persistedPlants
+                }
+
+                // Anchors in the current frame named "plant_*" that we
+                // haven't registered ourselves (= came from the WorldMap,
+                // and `session(_:didAdd:)` couldn't find a pending
+                // placement to attach them to).
+                let unclaimed = frame.anchors.filter { a in
+                    guard let n = a.name, n.starts(with: "plant_") else { return false }
+                    return self.plantAnchorMap[a.identifier] == nil
+                }
+                if unclaimed.isEmpty {
+                    AppLog.gardenLoad.notice("worldMapClaim: 0 unclaimed plant anchors — full fallback for \(persistedPlants.count, privacy: .public) plants")
+                    return persistedPlants
+                }
+
+                var remaining = persistedPlants
+                var matched = 0
+
+                for anchor in unclaimed {
+                    guard let name = anchor.name else { continue }
+                    let plantID = String(name.dropFirst("plant_".count))
+                    let anchorPos = SIMD3<Float>(anchor.transform.columns.3.x,
+                                                 anchor.transform.columns.3.y,
+                                                 anchor.transform.columns.3.z)
+                    guard let bestIdx = remaining.indices
+                        .filter({ remaining[$0].plantID == plantID })
+                        .min(by: { lhs, rhs in
+                            let lpos = SIMD3<Float>(remaining[lhs].position[0], remaining[lhs].position[1], remaining[lhs].position[2])
+                            let rpos = SIMD3<Float>(remaining[rhs].position[0], remaining[rhs].position[1], remaining[rhs].position[2])
+                            return simd_distance(lpos, anchorPos) < simd_distance(rpos, anchorPos)
+                        })
+                    else {
+                        AppLog.gardenLoad.notice("worldMapClaim: restored anchor plantID=\(plantID, privacy: .public) has no JSON match")
+                        continue
+                    }
+                    let match = remaining.remove(at: bestIdx)
+                    matched += 1
+                    self.plantAnchorMap[anchor.identifier] = anchor
+                    self.attachModelToRestoredAnchor(anchor: anchor, persistedPlant: match)
+                }
+
+                AppLog.gardenLoad.notice("worldMapClaim: matched=\(matched, privacy: .public) leftover=\(remaining.count, privacy: .public)")
+                return remaining
+            }
+
+            /// Async model resolution + attach for a single WorldMap-restored
+            /// anchor. Mirrors the model-URL fallback chain that
+            /// `restoreScene` already uses (remote → local resolver).
+            @MainActor
+            private func attachModelToRestoredAnchor(anchor: ARAnchor, persistedPlant p: PersistedPlant) {
+                guard let arView = arView, !p.modelURLString.isEmpty else { return }
+                guard let node = arView.node(for: anchor) else {
+                    AppLog.gardenLoad.error("attach: no SCNNode for anchor=\(anchor.identifier.uuidString.prefix(8), privacy: .public)")
+                    return
+                }
+                let finalScale = SCNVector3(p.scale[0], p.scale[1], p.scale[2])
+                let anchorTransform = anchor.transform
+
+                Task { [weak self] in
+                    guard let self = self else { return }
+                    let modelURL: URL? = await {
+                        do {
+                            return try await ModelCacheManager.shared.getModelURL(for: p.modelURLString, forceDownload: false)
+                        } catch {
+                            AppLog.plants.error("worldMapAttach: download failed url=\(p.modelURLString, privacy: .public) error=\(String(describing: error), privacy: .public)")
+                            return await MainActor.run(body: { self.resolveLocalModelURL(p.modelURLString) })
+                        }
+                    }()
+                    guard let modelURL = modelURL else {
+                        AppLog.plants.error("worldMapAttach: model unresolvable url=\(p.modelURLString, privacy: .public)")
+                        return
+                    }
+                    await MainActor.run {
+                        let pending = PendingPlantPlacement(
+                            modelURL: modelURL,
+                            plantId: p.plantID,
+                            plantName: p.plantName,
+                            finalScale: finalScale,
+                            modelURLString: p.modelURLString,
+                            upAxis: p.upAxis,
+                            allowRetry: true,
+                            isRestore: true,
+                            surfaceType: p.surfaceType,
+                            surfaceHeight: p.surfaceHeight,
+                            instanceId: anchor.identifier,
+                            autoSelect: false
+                        )
+                        self.instantiatePlantNode(into: node, pending: pending, anchorTransform: anchorTransform)
+                    }
+                }
+            }
             
-            private func restoreScene(from plants: [PersistedPlant]) {
+            private func restoreScene(from plants: [PersistedPlant], clearExisting: Bool = true) {
                 guard let arView = arView else {
                     isRestoring = false
                     return
                 }
 
-                // Nettoyage : retirer toutes les anciennes plantes (anchors + nodes legacy).
-                removeAllPlantAnchors()
-                arView.scene.rootNode.childNodes.forEach { node in
-                    if node.name?.starts(with: "plant_") == true {
-                        node.removeFromParentNode()
+                if clearExisting {
+                    // Undo/redo + legacy load paths : wipe everything before
+                    // recreating. The fresh-from-disk load path passes
+                    // `clearExisting: false` to preserve the WorldMap-restored
+                    // anchors that `claimWorldMapAnchors` just attached
+                    // models to (cf. #113 part 2).
+                    removeAllPlantAnchors()
+                    arView.scene.rootNode.childNodes.forEach { node in
+                        if node.name?.starts(with: "plant_") == true {
+                            node.removeFromParentNode()
+                        }
                     }
+                    deselectAll()
                 }
-                deselectAll()
 
                 Task {
                     // Smart snap-to-plane (Option 1) — applies to BOTH floor and

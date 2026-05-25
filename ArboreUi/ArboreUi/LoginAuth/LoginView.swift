@@ -6,6 +6,7 @@ import GoogleSignInSwift
 
 struct LoginView: View {
     @StateObject private var authViewModel = AuthenticationView()
+    @StateObject private var appleAuth = AppleAuthService()
 
     @State private var showSignUp = false
     @State private var showReset = false
@@ -165,7 +166,7 @@ struct LoginView: View {
                             .padding(.horizontal, 30)
 
                             VStack(spacing: 12) {
-                                Button(action: {}) {
+                                Button(action: { appleAuth.signInWithApple() }) {
                                     HStack {
                                         Image(systemName: "apple.logo")
                                             .resizable()

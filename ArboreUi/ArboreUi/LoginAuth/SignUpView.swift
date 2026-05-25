@@ -18,6 +18,7 @@ struct SignUpView: View {
     @State private var showVerificationScreen = false
     @State private var registeredEmail: String = ""
     @StateObject private var authViewModel = AuthenticationView()
+    @StateObject private var appleAuth = AppleAuthService()
     @FocusState private var focusedField: Field?
 
     enum Field {
@@ -214,7 +215,7 @@ struct SignUpView: View {
                     .padding(.horizontal, 30)
 
                     VStack(spacing: 12) {
-                        Button(action: {}) {
+                        Button(action: { appleAuth.signInWithApple() }) {
                             HStack {
                                 Image(systemName: "apple.logo")
                                     .resizable()

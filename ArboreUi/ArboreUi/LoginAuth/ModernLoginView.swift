@@ -6,6 +6,7 @@ import GoogleSignInSwift
 
 struct ModernLoginView: View {
     @StateObject internal var authViewModel = AuthenticationView()
+    @StateObject internal var appleAuth = AppleAuthService()
     @EnvironmentObject var themeManager: ThemeManager
 
     @State internal var showSignUp = false
@@ -252,7 +253,7 @@ struct ModernLoginView: View {
                     icon: "apple.logo",
                     backgroundColor: themeManager.textColor,
                     foregroundColor: themeManager.backgroundColor,
-                    action: {}
+                    action: { appleAuth.signInWithApple() }
                 )
 
                 ArborSocialButton(

@@ -50,6 +50,7 @@ final class GardenAPI {
         var wizard: GardenWizardDTO? = nil
         var plants: [PlacedPlantDTO]? = nil
         var thumbnailKey: String? = nil
+        var measurements: GardenMeasurementsDTO? = nil
     }
 
     func updateGarden(id: String, patch: GardenPatch) async throws {

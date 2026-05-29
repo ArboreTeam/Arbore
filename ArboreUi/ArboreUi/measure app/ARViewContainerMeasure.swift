@@ -416,7 +416,12 @@ struct ARViewContainerMesure: View {
             name: gardenName,
             wizard: wizard,
             plants: [],
-            thumbnailKey: thumbnailKey
+            thumbnailKey: thumbnailKey,
+            measurements: GardenMeasurementsDTO(
+                boundaryPoints: boundary.map { [$0.x, $0.y, $0.z] },
+                area: gardenManager.area,
+                perimeter: gardenManager.perimeter
+            )
         )
 
         do {

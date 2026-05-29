@@ -7,4 +7,5 @@ struct GardenCreateDTO: Codable {
     var wizard: GardenWizardDTO
     var plants: [PlacedPlantDTO]
     var thumbnailKey: String?
+    var measurements: GardenMeasurementsDTO? = nil
 }

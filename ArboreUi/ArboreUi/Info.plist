@@ -41,14 +41,6 @@
 	<true/>
 	<key>GIDClientID</key>
 	<string>66927287937-72cn4i6cjliekvs01mr0i0ac3tdm7fsp.apps.googleusercontent.com</string>
-	<!--
-		Export-compliance declaration : Arbore n'utilise que du chiffrement
-		« exempté » au sens d'Apple (HTTPS standard, auth Firebase, etc.) — pas
-		de crypto custom. Évite la modale "Missing Compliance" sur chaque
-		upload TestFlight. Si on ajoute un jour du chiffrement non-exempt
-		(E2E messaging, crypto wallet, etc.), repasser à `true` ET soumettre
-		une déclaration ERN annuelle au Bureau of Industry and Security US.
-	-->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSRequiresIPhoneOS</key>

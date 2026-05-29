@@ -463,9 +463,9 @@ struct GardenWizardView: View {
                 wizard: wizardDTO,
                 gardenName: gardenName,
                 thumbnailKey: thumbnailKey,
-                onTraceValidated: { gardenId, area, perimeter in
+                onTraceValidated: { gardenId, boundary, area, perimeter in
                     state.createdGardenId = gardenId
-                    state.measuredBoundaryPoints = []
+                    state.measuredBoundaryPoints = boundary
                     state.measuredArea = area
                     state.measuredPerimeter = perimeter
                     showLiDARFlow = false

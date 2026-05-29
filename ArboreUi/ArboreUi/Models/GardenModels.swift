@@ -10,6 +10,12 @@ struct GardenWizardDTO: Codable {
     var scanMethod: String?
 }
 
+struct GardenMeasurementsDTO: Codable {
+    var boundaryPoints: [[Float]]?
+    var area: Float?
+    var perimeter: Float?
+}
+
 struct PlacedPlantDTO: Codable, Identifiable {
     // Identifiable pour SwiftUI si besoin
     var id: String { plantId }
@@ -31,6 +37,7 @@ struct GardenDTO: Codable, Identifiable {
     var wizard: GardenWizardDTO
     var plants: [PlacedPlantDTO]
     var thumbnailKey: String?
+    var measurements: GardenMeasurementsDTO?
 
     var createdAt: Date?
     var updatedAt: Date?

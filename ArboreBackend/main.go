@@ -222,14 +222,21 @@ type PlacedPlant struct {
 	Note string `json:"note,omitempty" bson:"note,omitempty"`
 }
 
+type GardenMeasurements struct {
+	BoundaryPoints [][]float64 `json:"boundaryPoints,omitempty" bson:"boundaryPoints,omitempty"`
+	Area           float64     `json:"area,omitempty" bson:"area,omitempty"`
+	Perimeter      float64     `json:"perimeter,omitempty" bson:"perimeter,omitempty"`
+}
+
 type Garden struct {
 	ID primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 
 	UID  string `json:"uid" bson:"uid"`
 	Name string `json:"name" bson:"name"`
 
-	Wizard GardenWizardData `json:"wizard" bson:"wizard"`
-	Plants []PlacedPlant    `json:"plants" bson:"plants"`
+	Wizard       GardenWizardData    `json:"wizard" bson:"wizard"`
+	Plants       []PlacedPlant       `json:"plants" bson:"plants"`
+	Measurements *GardenMeasurements `json:"measurements,omitempty" bson:"measurements,omitempty"`
 
 	// Pour ta Home: image selon type/style (ex: "modern", "zen", ...)
 	ThumbnailKey string `json:"thumbnailKey,omitempty" bson:"thumbnailKey,omitempty"`
@@ -1172,10 +1179,11 @@ func updateGarden(c *gin.Context) {
 
 	// PATCH style (champs optionnels)
 	var payload struct {
-		Name         *string           `json:"name"`
-		Wizard       *GardenWizardData `json:"wizard"`
-		Plants       *[]PlacedPlant    `json:"plants"`
-		ThumbnailKey *string           `json:"thumbnailKey"`
+		Name         *string             `json:"name"`
+		Wizard       *GardenWizardData   `json:"wizard"`
+		Plants       *[]PlacedPlant      `json:"plants"`
+		ThumbnailKey *string             `json:"thumbnailKey"`
+		Measurements *GardenMeasurements `json:"measurements"`
 	}
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -1194,6 +1202,9 @@ func updateGarden(c *gin.Context) {
 	}
 	if payload.ThumbnailKey != nil {
 		set["thumbnailKey"] = *payload.ThumbnailKey
+	}
+	if payload.Measurements != nil {
+		set["measurements"] = *payload.Measurements
 	}
 
 	collection := getDatabaseForRequest(c).Collection("gardens")

@@ -1608,13 +1608,20 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     // naturally. We accept ±20 cm of reticle slack around the
                     // detected floor; if the user points at a piece of
                     // furniture, nothing fires and the user lowers the phone.
+                    let currentProps = parentProps
+                    let acceptsEstimatedSurface = currentProps.map { self.acceptsEstimatedAutoPlace(for: $0) } ?? false
+                    let hasAutoPlaceSurface = newQuality == .geometry || (newQuality == .estimated && acceptsEstimatedSurface)
                     let reticleNearFloor: Bool = {
-                        guard let floorY = self.detectedFloorY() else { return false }
-                        return abs(t.columns.3.y - floorY) <= 0.20
+                        guard let props = currentProps else { return false }
+                        guard let floorY = self.autoPlaceFloorY(for: props) else {
+                            return newQuality == .estimated && acceptsEstimatedSurface
+                        }
+                        let tolerance: Float = newQuality == .estimated ? 0.35 : 0.20
+                        return abs(t.columns.3.y - floorY) <= tolerance
                     }()
                     if !didAutoPlace,
-                       newQuality == .geometry,
-                       let props = parentProps,
+                       hasAutoPlaceSurface,
+                       let props = currentProps,
                        props.mode == .create,
                        !props.plantsToAutoPlace.isEmpty,
                        reticleNearFloor {
@@ -1630,7 +1637,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         // Lost floor proximity (user tilted up) — reset counter
                         // so the next "valid" pointing has to re-accumulate
                         // stability. Avoids triggering on a brief floor hit.
-                        if let props = parentProps,
+                        if let props = currentProps,
                            props.mode == .create,
                            !props.plantsToAutoPlace.isEmpty,
                            !reticleNearFloor {
@@ -1647,6 +1654,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                        props.mode == .create,
                        !props.plantsToAutoPlace.isEmpty {
                         let newCoaching = self.computeCoachingState(
+                            props: props,
                             reticleTransform: t,
                             reticleQuality: newQuality,
                             stableFrames: stablePlaneFrameCount,
@@ -1694,7 +1702,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                        props.mode == .create,
                        !props.plantsToAutoPlace.isEmpty {
                         let newCoaching: GardenARPlacementView.AutoPlaceCoachingState =
-                            (self.detectedFloorY() == nil) ? .analyzing : .adjustReticle
+                            (self.autoPlaceFloorY(for: props) == nil) ? .analyzing : .adjustReticle
                         if newCoaching != lastAutoPlaceCoaching {
                             lastAutoPlaceCoaching = newCoaching
                             DispatchQueue.main.async { [weak self] in
@@ -1709,16 +1717,34 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             /// the diagnostic state shown in the coaching banner. Called
             /// from `renderer(_:updateAtTime:)` when at least the reticle
             /// has a transform ; the no-transform case is handled inline.
+            private func acceptsEstimatedAutoPlace(for props: GardenARPlacementContainerView) -> Bool {
+                props.wizard.scanMethod == ScanMethod.roomScan.rawValue
+                    || (props.measurementWorldMapId != nil && props.boundaryPoints.count >= 3)
+            }
+
+            private func measurementFloorY(for props: GardenARPlacementContainerView) -> Float? {
+                guard !props.boundaryPoints.isEmpty else { return nil }
+                let total = props.boundaryPoints.reduce(Float(0)) { $0 + $1.y }
+                return total / Float(props.boundaryPoints.count)
+            }
+
+            private func autoPlaceFloorY(for props: GardenARPlacementContainerView) -> Float? {
+                detectedFloorY() ?? measurementFloorY(for: props)
+            }
+
             private func computeCoachingState(
+                props: GardenARPlacementContainerView,
                 reticleTransform t: simd_float4x4,
                 reticleQuality: ReticleQuality,
                 stableFrames: Int,
                 threshold: Int
             ) -> GardenARPlacementView.AutoPlaceCoachingState {
-                guard let floorY = self.detectedFloorY() else {
+                guard let floorY = self.autoPlaceFloorY(for: props) else {
                     return .analyzing
                 }
-                guard reticleQuality == .geometry else {
+                let hasUsableSurface = reticleQuality == .geometry
+                    || (reticleQuality == .estimated && acceptsEstimatedAutoPlace(for: props))
+                guard hasUsableSurface else {
                     return .adjustReticle
                 }
                 let deltaM = t.columns.3.y - floorY
@@ -1796,7 +1822,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         // download still benefits the placement. Fallback to
                         // the reticle Y only in the unlikely case the floor
                         // anchor was removed between trigger and execute.
-                        let placementY: Float = self.detectedFloorY() ?? centerTransform.columns.3.y
+                        let placementY: Float = self.autoPlaceFloorY(for: props) ?? centerTransform.columns.3.y
 
                         for item in downloadedModels {
                             var transform = centerTransform
@@ -2098,6 +2124,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         let tempID = props.existingGardenId ?? UUID().uuidString
                         AppLog.gardenSave.notice("local save tempID=\(tempID, privacy: .public) plants=\(plantsForSave.count, privacy: .public)")
                         self.saveToDisk(id: tempID, plants: plantsForSave, arView: arView)
+                        let measurementsForSave = self.measurementsForSave(id: tempID, props: props)
                         
                         let placedDTOs = plantsForSave.map { p in
                             PlacedPlantDTO(plantId: p.plantID, x: Double(p.position[0]), y: Double(p.position[1]), z: Double(p.position[2]), note: p.plantName)
@@ -2121,7 +2148,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                             name: props.gardenName,
                                             wizard: props.wizard,
                                             plants: placedDTOs,
-                                            thumbnailKey: props.thumbnailKey
+                                            thumbnailKey: props.thumbnailKey,
+                                            measurements: measurementsForSave
                                         )
                                     )
                                     finalServerID = existingId
@@ -2136,7 +2164,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                             name: props.gardenName,
                                             wizard: props.wizard,
                                             plants: placedDTOs,
-                                            thumbnailKey: props.thumbnailKey
+                                            thumbnailKey: props.thumbnailKey,
+                                            measurements: measurementsForSave
                                         )
                                     )
 
@@ -2256,6 +2285,32 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         }
                     }
                 }
+            }
+
+            private func measurementsForSave(id: String, props: GardenARPlacementContainerView) -> GardenMeasurementsDTO? {
+                var boundaryPointsArray: [[Float]] = props.boundaryPoints.map { [$0.x, $0.y, $0.z] }
+                var savedArea: Float = props.area
+                var savedPerimeter: Float = props.perimeter
+
+                if boundaryPointsArray.isEmpty {
+                    let existingURL = GardenLocalStore.sceneURL(for: id)
+                    if let existingData = try? Data(contentsOf: existingURL),
+                       let existingScene = try? JSONDecoder().decode(PersistedARScene.self, from: existingData).normalizedToWorldFrame() {
+                        boundaryPointsArray = existingScene.boundaryPoints ?? []
+                        savedArea = existingScene.area ?? savedArea
+                        savedPerimeter = existingScene.perimeter ?? savedPerimeter
+                    }
+                }
+
+                guard !boundaryPointsArray.isEmpty || savedArea > 0 || savedPerimeter > 0 else {
+                    return nil
+                }
+
+                return GardenMeasurementsDTO(
+                    boundaryPoints: boundaryPointsArray.isEmpty ? nil : boundaryPointsArray,
+                    area: savedArea > 0 ? savedArea : nil,
+                    perimeter: savedPerimeter > 0 ? savedPerimeter : nil
+                )
             }
             
             // MARK: - Restauration (Chargement)

@@ -1,5 +1,6 @@
 import SwiftUI
 import RoomPlan
+import simd
 
 struct LiDARScanWizardView: View {
     // Entrées du wizard
@@ -9,9 +10,9 @@ struct LiDARScanWizardView: View {
     let gardenName: String
     let thumbnailKey: String?
     /// Callback wizard : appelé quand le scan est validé ET que
-    /// `POST /gardens` a renvoyé un id Mongo. Fournit (serverId, area,
-    /// perimeter). Si nil, on retombe sur le flow legacy (nested AR placement).
-    let onTraceValidated: ((String, Float, Float) -> Void)?
+    /// `POST /gardens` a renvoyé un id Mongo. Fournit (serverId, boundary,
+    /// area, perimeter). Si nil, on retombe sur le flow legacy (nested AR placement).
+    let onTraceValidated: ((String, [SIMD3<Float>], Float, Float) -> Void)?
     let onCancel: (() -> Void)?
     /// Callback legacy conservé pour compatibilité avec un éventuel appel
     /// hors-wizard. Ignoré quand `onTraceValidated` est fourni.
@@ -27,6 +28,7 @@ struct LiDARScanWizardView: View {
     @State private var createGardenError: String? = nil
 
     // Mesures extraites
+    @State private var extractedBoundaryPoints: [SIMD3<Float>] = []
     @State private var extractedArea: Float = 0.0
     @State private var extractedPerimeter: Float = 0.0
     // UUID pour la WorldMap et l'identification du jardin AR (avant POST)
@@ -38,7 +40,7 @@ struct LiDARScanWizardView: View {
         wizard: GardenWizardDTO,
         gardenName: String,
         thumbnailKey: String?,
-        onTraceValidated: ((String, Float, Float) -> Void)? = nil,
+        onTraceValidated: ((String, [SIMD3<Float>], Float, Float) -> Void)? = nil,
         onCancel: (() -> Void)? = nil,
         onSuccess: @escaping () -> Void = {}
     ) {
@@ -159,7 +161,7 @@ struct LiDARScanWizardView: View {
                 thumbnailKey: thumbnailKey,
                 existingGardenId: nil,
                 mode: .create,
-                boundaryPoints: [],
+                boundaryPoints: extractedBoundaryPoints,
                 area: extractedArea,
                 perimeter: extractedPerimeter,
                 measurementWorldMapId: tempGardenId,
@@ -190,47 +192,39 @@ struct LiDARScanWizardView: View {
                 }
             }
 
-            var area: Float = 0.0
-            var perimeter: Float = 0.0
+            let measurements = Self.extractMeasurements(from: captureController.finalResult)
+            let boundary = measurements.boundary
+            let area = measurements.area
+            let perimeter = measurements.perimeter
 
-            if let room = captureController.finalResult {
-                for floor in room.floors {
-                    area += Float(floor.dimensions.x * floor.dimensions.y)
-                }
-                for wall in room.walls {
-                    perimeter += Float(wall.dimensions.x)
-                }
-            }
+            print("📐 LiDAR: Surface calculée \(area) m², Périmètre \(perimeter) m, boundary \(boundary.count) points")
 
-            if area == 0 {
-                area = 10.0
-                perimeter = 12.6
-            }
+            DispatchQueue.main.async {
+                self.extractedBoundaryPoints = boundary
+                self.extractedArea = area
+                self.extractedPerimeter = perimeter
 
-            self.extractedArea = area
-            self.extractedPerimeter = perimeter
-            print("📐 LiDAR: Surface calculée \(area) m², Périmètre \(perimeter) m")
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                if onTraceValidated != nil {
-                    // 🆕 Flow wizard : POST /gardens et callback.
-                    Task { await self.createGardenAfterScan(area: area, perimeter: perimeter) }
-                } else {
-                    // Legacy : ouvrir la nested placement view.
-                    isProcessing = false
-                    showARPlacement = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    if onTraceValidated != nil {
+                        // 🆕 Flow wizard : POST /gardens et callback.
+                        Task { await self.createGardenAfterScan(boundary: boundary, area: area, perimeter: perimeter) }
+                    } else {
+                        // Legacy : ouvrir la nested placement view.
+                        isProcessing = false
+                        showARPlacement = true
+                    }
                 }
             }
         }
     }
 
     @MainActor
-    private func createGardenAfterScan(area: Float, perimeter: Float) async {
-        // Écrit la scene JSON avec aire/périmètre (pas de boundary 2D en LiDAR).
+    private func createGardenAfterScan(boundary: [SIMD3<Float>], area: Float, perimeter: Float) async {
+        // Écrit la scene JSON avec aire/périmètre et une boundary 2D dérivée du scan RoomPlan.
         let scene = PersistedARScene(
             savedAt: Date(),
             plants: [],
-            boundaryPoints: [],
+            boundaryPoints: boundary.map { [$0.x, $0.y, $0.z] },
             area: area,
             perimeter: perimeter
         )
@@ -241,7 +235,12 @@ struct LiDARScanWizardView: View {
             name: gardenName,
             wizard: wizard,
             plants: [],
-            thumbnailKey: thumbnailKey
+            thumbnailKey: thumbnailKey,
+            measurements: GardenMeasurementsDTO(
+                boundaryPoints: boundary.map { [$0.x, $0.y, $0.z] },
+                area: area,
+                perimeter: perimeter
+            )
         )
 
         do {
@@ -253,7 +252,7 @@ struct LiDARScanWizardView: View {
             }
 
             isProcessing = false
-            onTraceValidated?(serverId, area, perimeter)
+            onTraceValidated?(serverId, boundary, area, perimeter)
         } catch {
             print("❌ POST /gardens (LiDAR) a échoué: \(error)")
             isProcessing = false
@@ -285,5 +284,151 @@ struct LiDARScanWizardView: View {
                 print("⚠️ scene copy (LiDAR) failed: \(error)")
             }
         }
+    }
+
+    private static func extractMeasurements(from room: CapturedRoom?) -> (boundary: [SIMD3<Float>], area: Float, perimeter: Float) {
+        var area: Float = 0
+        var perimeter: Float = 0
+        var floorCorners: [SIMD3<Float>] = []
+
+        if let room {
+            for floor in room.floors {
+                let width = max(Float(floor.dimensions.x), 0)
+                let depth = max(Float(floor.dimensions.y), 0)
+                guard width > 0, depth > 0 else { continue }
+
+                area += width * depth
+                floorCorners.append(contentsOf: rectangleCorners(transform: floor.transform, width: width, depth: depth))
+            }
+
+            for wall in room.walls {
+                perimeter += max(Float(wall.dimensions.x), 0)
+            }
+        }
+
+        var boundary = convexHullXZ(floorCorners)
+
+        if area <= 0, !boundary.isEmpty {
+            area = polygonArea(boundary)
+        }
+        if perimeter <= 0, !boundary.isEmpty {
+            perimeter = polygonPerimeter(boundary)
+        }
+        if area <= 0 {
+            area = 10.0
+        }
+        if perimeter <= 0 {
+            perimeter = 12.6
+        }
+        if boundary.count < 3 {
+            boundary = fallbackBoundary(area: area, perimeter: perimeter)
+        }
+
+        return (boundary, area, perimeter)
+    }
+
+    private static func rectangleCorners(transform: simd_float4x4, width: Float, depth: Float) -> [SIMD3<Float>] {
+        let halfW = width / 2
+        let halfD = depth / 2
+        let localCorners = [
+            SIMD4<Float>(-halfW, -halfD, 0, 1),
+            SIMD4<Float>(halfW, -halfD, 0, 1),
+            SIMD4<Float>(halfW, halfD, 0, 1),
+            SIMD4<Float>(-halfW, halfD, 0, 1)
+        ]
+
+        return localCorners.map { local in
+            let world = transform * local
+            return SIMD3<Float>(world.x, world.y, world.z)
+        }
+    }
+
+    private static func convexHullXZ(_ points: [SIMD3<Float>]) -> [SIMD3<Float>] {
+        guard points.count > 3 else { return points }
+
+        var seen = Set<String>()
+        let unique = points.filter { point in
+            let key = "\(Int((point.x * 1000).rounded())):\(Int((point.z * 1000).rounded()))"
+            if seen.contains(key) { return false }
+            seen.insert(key)
+            return true
+        }
+        .sorted {
+            if abs($0.x - $1.x) > 0.0001 { return $0.x < $1.x }
+            return $0.z < $1.z
+        }
+
+        guard unique.count > 3 else { return unique }
+
+        func cross(_ origin: SIMD3<Float>, _ a: SIMD3<Float>, _ b: SIMD3<Float>) -> Float {
+            (a.x - origin.x) * (b.z - origin.z) - (a.z - origin.z) * (b.x - origin.x)
+        }
+
+        var lower: [SIMD3<Float>] = []
+        for point in unique {
+            while lower.count >= 2, cross(lower[lower.count - 2], lower[lower.count - 1], point) <= 0 {
+                lower.removeLast()
+            }
+            lower.append(point)
+        }
+
+        var upper: [SIMD3<Float>] = []
+        for point in unique.reversed() {
+            while upper.count >= 2, cross(upper[upper.count - 2], upper[upper.count - 1], point) <= 0 {
+                upper.removeLast()
+            }
+            upper.append(point)
+        }
+
+        lower.removeLast()
+        upper.removeLast()
+        return lower + upper
+    }
+
+    private static func polygonArea(_ boundary: [SIMD3<Float>]) -> Float {
+        guard boundary.count >= 3 else { return 0 }
+
+        var sum: Float = 0
+        for index in boundary.indices {
+            let next = boundary[(index + 1) % boundary.count]
+            sum += boundary[index].x * next.z - next.x * boundary[index].z
+        }
+        return abs(sum) * 0.5
+    }
+
+    private static func polygonPerimeter(_ boundary: [SIMD3<Float>]) -> Float {
+        guard boundary.count >= 2 else { return 0 }
+
+        var total: Float = 0
+        for index in boundary.indices {
+            let next = boundary[(index + 1) % boundary.count]
+            total += simd_length(next - boundary[index])
+        }
+        return total
+    }
+
+    private static func fallbackBoundary(area: Float, perimeter: Float) -> [SIMD3<Float>] {
+        let safeArea = max(Double(area), 1.0)
+        let halfPerimeter = max(Double(perimeter) / 2.0, 4.0)
+        let discriminant = halfPerimeter * halfPerimeter - 4.0 * safeArea
+
+        let width: Double
+        let depth: Double
+        if discriminant >= 0 {
+            width = max((halfPerimeter + discriminant.squareRoot()) / 2.0, 1.0)
+            depth = max(safeArea / width, 1.0)
+        } else {
+            width = safeArea.squareRoot()
+            depth = width
+        }
+
+        let halfW = Float(width / 2.0)
+        let halfD = Float(depth / 2.0)
+        return [
+            SIMD3<Float>(-halfW, 0, -halfD),
+            SIMD3<Float>(halfW, 0, -halfD),
+            SIMD3<Float>(halfW, 0, halfD),
+            SIMD3<Float>(-halfW, 0, halfD)
+        ]
     }
 }

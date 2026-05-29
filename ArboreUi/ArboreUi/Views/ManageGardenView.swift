@@ -622,6 +622,7 @@ struct GardenDetailsPage: View {
                 gardenDetails = garden
                 currentGardenName = garden.name
                 mapTextureKind = MapTextureKind(spaceType: garden.wizard.spaceType)
+                mapViewModel.applyRemoteMeasurementsIfNeeded(from: garden)
             }
         } catch {
             await MainActor.run {
@@ -1389,24 +1390,20 @@ class Garden2DViewModel: ObservableObject {
         if FileManager.default.fileExists(atPath: url.path) {
             do {
                 let data = try Data(contentsOf: url)
-                let scene = try JSONDecoder().decode(PersistedARScene.self, from: data)
+                let scene = try JSONDecoder().decode(PersistedARScene.self, from: data).normalizedToWorldFrame()
                 DispatchQueue.main.async {
                     self.displayPlants = scene.plants.map { DisplayPlant(data: $0) }
                     
                     // 🆕 Charger les bordures du jardin si disponibles
-                    self.boundaryPoints = scene.boundaryPoints ?? []
                     self.area = scene.area ?? 0
                     self.perimeter = scene.perimeter ?? 0
+                    self.boundaryPoints = Self.resolvedBoundaryPoints(
+                        scene.boundaryPoints,
+                        area: self.area,
+                        perimeter: self.perimeter
+                    )
                     
-                    // 🔧 Calculer le centroïd des bordures pour normalisation
-                    if !self.boundaryPoints.isEmpty {
-                        let sumX = self.boundaryPoints.reduce(0.0) { $0 + $1[0] }
-                        let sumZ = self.boundaryPoints.reduce(0.0) { $0 + $1[2] }
-                        self.boundaryCentroid = (
-                            x: sumX / Float(self.boundaryPoints.count),
-                            z: sumZ / Float(self.boundaryPoints.count)
-                        )
-                    }
+                    self.refreshBoundaryCentroid()
                     
                     print("🗺️ Jardin chargé: \(self.displayPlants.count) plantes, \(self.boundaryPoints.count) points de bordure")
                     print("📍 Centroïd bordures: x=\(self.boundaryCentroid.x), z=\(self.boundaryCentroid.z)")
@@ -1434,6 +1431,20 @@ class Garden2DViewModel: ObservableObject {
         }
     }
 
+    @MainActor
+    func applyRemoteMeasurementsIfNeeded(from garden: GardenDTO) {
+        guard boundaryPoints.count < 3, let measurements = garden.measurements else { return }
+
+        area = measurements.area ?? area
+        perimeter = measurements.perimeter ?? perimeter
+        boundaryPoints = Self.resolvedBoundaryPoints(
+            measurements.boundaryPoints,
+            area: area,
+            perimeter: perimeter
+        )
+        refreshBoundaryCentroid()
+    }
+
     private func clearGarden() {
         displayPlants = []
         selectedPlant = nil
@@ -1443,6 +1454,59 @@ class Garden2DViewModel: ObservableObject {
         area = 0
         perimeter = 0
         boundaryCentroid = (0, 0)
+    }
+
+    private func refreshBoundaryCentroid() {
+        let validPoints = Self.sanitizedBoundaryPoints(boundaryPoints)
+        boundaryPoints = validPoints
+
+        guard !validPoints.isEmpty else {
+            boundaryCentroid = (0, 0)
+            return
+        }
+
+        let sumX = validPoints.reduce(Float(0)) { $0 + $1[0] }
+        let sumZ = validPoints.reduce(Float(0)) { $0 + $1[2] }
+        boundaryCentroid = (
+            x: sumX / Float(validPoints.count),
+            z: sumZ / Float(validPoints.count)
+        )
+    }
+
+    private static func resolvedBoundaryPoints(_ points: [[Float]]?, area: Float, perimeter: Float) -> [[Float]] {
+        let valid = sanitizedBoundaryPoints(points ?? [])
+        if valid.count >= 3 { return valid }
+        guard area > 0 || perimeter > 0 else { return [] }
+        return fallbackBoundary(area: area, perimeter: perimeter)
+    }
+
+    private static func sanitizedBoundaryPoints(_ points: [[Float]]) -> [[Float]] {
+        points.filter { $0.count >= 3 }
+    }
+
+    private static func fallbackBoundary(area: Float, perimeter: Float) -> [[Float]] {
+        let safeArea = max(Double(area), 1.0)
+        let halfPerimeter = max(Double(perimeter) / 2.0, 4.0)
+        let discriminant = halfPerimeter * halfPerimeter - 4.0 * safeArea
+
+        let width: Double
+        let depth: Double
+        if discriminant >= 0 {
+            width = max((halfPerimeter + discriminant.squareRoot()) / 2.0, 1.0)
+            depth = max(safeArea / width, 1.0)
+        } else {
+            width = safeArea.squareRoot()
+            depth = width
+        }
+
+        let halfW = Float(width / 2.0)
+        let halfD = Float(depth / 2.0)
+        return [
+            [-halfW, 0, -halfD],
+            [halfW, 0, -halfD],
+            [halfW, 0, halfD],
+            [-halfW, 0, halfD]
+        ]
     }
 }
 

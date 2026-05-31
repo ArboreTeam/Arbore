@@ -10,11 +10,14 @@ use_frameworks!
 inhibit_all_warnings!
 
 target 'ArboreUi' do
-  # Firebase et GoogleSignIn sont gérés via Swift Package Manager (voir project.pbxproj)
-  # Seul Facebook SDK reste dans CocoaPods (pas disponible via SPM)
-
-  # --- Facebook Login ---
-  pod 'FBSDKLoginKit', '~> 18.0'
+  # Firebase et GoogleSignIn sont gérés via Swift Package Manager (voir project.pbxproj).
+  #
+  # Facebook SDK retiré (issue #204) : l'audit a montré qu'il était vestigial —
+  # aucun appel FBSDK/LoginKit dans le code, aucun FacebookAppID ni URL scheme
+  # dans Info.plist (il ne pouvait donc pas fonctionner), et la connexion se fait
+  # via email / Google / Apple. Apple traite ces SDK comme du tracking par défaut :
+  # les supprimer évite un prompt ATT et garde NSPrivacyTracking = false.
+  # Aucune dépendance CocoaPods restante à ce jour.
 end
 
 # post_install minimal et sur

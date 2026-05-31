@@ -21,10 +21,12 @@
 <plist version="1.0">
 <dict>
     <!-- Pas de tracking cross-app. Aucun SDK n'est utilisé pour suivre
-         l'utilisateur à travers d'autres apps / sites. Si l'audit
-         Facebook SDK (#204) conclut qu'il est effectivement utilisé
-         pour du tracking, basculer NSPrivacyTracking à true ET ajouter
-         les domaines CDN concernés dans NSPrivacyTrackingDomains. -->
+         l'utilisateur à travers d'autres apps / sites. L'audit Facebook SDK
+         (#204, 2026-05-31) a conclu qu'il était vestigial : retiré du Podfile
+         (aucun appel FBSDK dans le code, aucun FacebookAppID dans Info.plist).
+         Donc NSPrivacyTracking reste false et NSPrivacyTrackingDomains vide.
+         Si un SDK de tracking est réintroduit un jour, basculer à true ET
+         lister les domaines concernés ici. -->
     <key>NSPrivacyTracking</key>
     <false/>
     <key>NSPrivacyTrackingDomains</key>

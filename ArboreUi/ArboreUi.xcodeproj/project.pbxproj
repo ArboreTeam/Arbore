@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		5E27A0010000000000000003 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 5E27A0010000000000000002 /* Sentry */; };
 		77F4355D2D86E1AC00E8E78D /* RealityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 77F4355C2D86E1AC00E8E78D /* RealityKit.framework */; };
 		77F4355F2D86E1B400E8E78D /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 77F4355E2D86E1B400E8E78D /* ARKit.framework */; };
 		974EF1E72EC2AFC900565B6A /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 974EF1E62EC2AFC900565B6A /* FirebaseAuth */; };
@@ -111,6 +112,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				77F4355F2D86E1B400E8E78D /* ARKit.framework in Frameworks */,
+				5E27A0010000000000000003 /* Sentry in Frameworks */,
 				974EF1E72EC2AFC900565B6A /* FirebaseAuth in Frameworks */,
 				974EF1EF2EC2B48F00565B6A /* GoogleSignInSwift in Frameworks */,
 				974EF1E92EC2AFC900565B6A /* FirebaseCore in Frameworks */,
@@ -289,6 +291,7 @@
 			mainGroup = 77DD7AD42D84270700A6F6F1;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				5E27A0010000000000000001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */,
 				77A24D4A2D877E9D00D5DBD3 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 				97AE3ED12DD2989D008631AF /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */,
 				974EF1E52EC2AFC900565B6A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
@@ -719,6 +722,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		5E27A0010000000000000001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/getsentry/sentry-cocoa";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 8.0.0;
+			};
+		};
 		77A24D4A2D877E9D00D5DBD3 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
@@ -746,6 +757,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		5E27A0010000000000000002 /* Sentry */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5E27A0010000000000000001 /* XCRemoteSwiftPackageReference "sentry-cocoa" */;
+			productName = Sentry;
+		};
 		974EF1E62EC2AFC900565B6A /* FirebaseAuth */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 974EF1E52EC2AFC900565B6A /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;

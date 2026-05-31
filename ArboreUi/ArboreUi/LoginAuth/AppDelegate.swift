@@ -13,7 +13,22 @@ import GoogleSignInSwift
 
 class AppDelegate: NSObject, UIApplicationDelegate{
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool{
+        // Sentry en premier (issue #205), AVANT Firebase, pour capturer aussi un
+        // éventuel crash pendant l'init de Firebase. No-op si pas de DSN.
+        SentryManager.start()
+
         FirebaseApp.configure()
+
+        // Le contexte user Sentry suit l'état d'auth Firebase (login → UID,
+        // logout → nil). Centralisé ici : inutile de toucher chaque écran de
+        // connexion/déconnexion.
+        Auth.auth().addStateDidChangeListener { _, user in
+            if let uid = user?.uid {
+                SentryManager.setUser(uid: uid)
+            } else {
+                SentryManager.clearUser()
+            }
+        }
 
         // Release heavy RealityKit caches when iOS signals memory pressure.
         // Without this, the singleton ThumbnailRenderHost's ARView accumulates

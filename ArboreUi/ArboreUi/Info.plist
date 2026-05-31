@@ -8,6 +8,12 @@
 	<string>$(ARBORE_BACKEND_HOST)</string>
 	<key>ARBORE_BACKEND_PROTOCOL</key>
 	<string>$(ARBORE_BACKEND_PROTOCOL)</string>
+	<key>SENTRY_DSN_PUBLIC_KEY</key>
+	<string>$(SENTRY_DSN_PUBLIC_KEY)</string>
+	<key>SENTRY_DSN_HOST</key>
+	<string>$(SENTRY_DSN_HOST)</string>
+	<key>SENTRY_DSN_PROJECT_ID</key>
+	<string>$(SENTRY_DSN_PROJECT_ID)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>

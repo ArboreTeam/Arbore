@@ -1,0 +1,20 @@
+# Sentry CLI config — dSYM upload pour la symbolication des crashes (#205).
+#
+# Copier ce fichier en `.sentryclirc` (gitignored) et coller le token.
+#   cp .sentryclirc.example .sentryclirc
+#
+# Créer le token : sentry.io → Settings → Account → Auth Tokens (ou
+# Organization → Auth Tokens), scopes : project:releases + project:write.
+#
+# Alternative : exporter la variable d'env SENTRY_AUTH_TOKEN à la place de
+# ce fichier — la lane `fastlane beta` accepte les deux.
+#
+# org / project sont déjà câblés dans fastlane/Fastfile (epi-apps /
+# arbore-frontend) ; pas besoin de les répéter ici sauf override.
+
+[auth]
+token = sntrys_VOTRE_TOKEN_ICI
+
+[defaults]
+org = epi-apps
+project = arbore-frontend

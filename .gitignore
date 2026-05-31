@@ -175,6 +175,9 @@ fastlane/AuthKey.json
 fastlane/AuthKey*.json
 fastlane/AuthKey*.p8
 fastlane/report.xml
+
+# Sentry CLI auth token (dSYM upload) — never commit. Cf .sentryclirc.example
+.sentryclirc
 fastlane/Preview.html
 fastlane/screenshots
 fastlane/test_output

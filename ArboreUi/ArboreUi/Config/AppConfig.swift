@@ -92,4 +92,43 @@ struct AppConfig {
 
     /// Numéro de build
     static let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+
+    // MARK: - Observability (Sentry — issue #205)
+
+    /// Environnement reporté à Sentry pour filtrer les events.
+    /// DEBUG = "debug" (builds Xcode locaux), sinon "beta" (TestFlight / release).
+    static var environment: String {
+        #if DEBUG
+        return "debug"
+        #else
+        return "beta"
+        #endif
+    }
+
+    /// Nom de release Sentry, au format `version+build` (ex. "1.0+10").
+    /// Doit matcher le release créé à l'upload des dSYM pour la symbolication.
+    static var sentryReleaseName: String { "\(appVersion)+\(buildNumber)" }
+
+    /// DSN Sentry reconstruit depuis 3 champs de Secrets.xcconfig.
+    ///
+    /// Un DSN est une URL `https://<publicKey>@<host>/<projectID>`. Or les
+    /// fichiers .xcconfig traitent `//` comme un commentaire : on ne peut pas y
+    /// stocker l'URL telle quelle (même raison que le split protocol/host pour
+    /// le backend). On stocke donc les 3 composants séparément et on
+    /// reconstruit le DSN ici.
+    ///
+    /// Retourne "" si non configuré → Sentry reste désactivé (cf. SentryManager).
+    static var sentryDSN: String {
+        func value(_ key: String) -> String? {
+            guard let v = Bundle.main.object(forInfoDictionaryKey: key) as? String,
+                  !v.isEmpty, !v.hasPrefix("$(") else { return nil }
+            return v
+        }
+        guard let publicKey = value("SENTRY_DSN_PUBLIC_KEY"),
+              let host = value("SENTRY_DSN_HOST"),
+              let projectID = value("SENTRY_DSN_PROJECT_ID") else {
+            return ""
+        }
+        return "https://\(publicKey)@\(host)/\(projectID)"
+    }
 }

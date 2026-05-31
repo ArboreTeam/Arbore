@@ -91,7 +91,45 @@ platform :ios do
       changelog: "Build interne automatique (lane: beta)."
     )
 
+    # --- Sentry : upload des dSYM pour symboliser les crashes (#205) ---
+    # Skippé proprement si non configuré, pour ne pas casser la lane chez
+    # quelqu'un sans Sentry. Nécessite `sentry-cli`
+    # (brew install getsentry/tools/sentry-cli) + variables d'env :
+    #   SENTRY_AUTH_TOKEN  (token org : scopes project:releases + project:write)
+    #   SENTRY_ORG         (ex. "arboreteam")
+    #   SENTRY_PROJECT     (ex. "arbore-ios")
+    upload_dsyms_to_sentry(version: version, build: latest + 1)
+
     UI.success("✅ Build #{latest + 1} déployée sur TestFlight → groupe #{INTERNAL_GROUP}")
+  end
+
+  desc "Upload des dSYM vers Sentry (no-op si non configuré)."
+  private_lane :upload_dsyms_to_sentry do |options|
+    missing = %w[SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT].select { |k| ENV[k].to_s.empty? }
+    if missing.any?
+      UI.important("Sentry dSYM upload ignoré (variables manquantes : #{missing.join(', ')}).")
+      next
+    end
+    if `which sentry-cli`.strip.empty?
+      UI.important("Sentry dSYM upload ignoré : sentry-cli introuvable (brew install getsentry/tools/sentry-cli).")
+      next
+    end
+
+    dsym_zip = File.expand_path("./fastlane/builds/Arbore.app.dSYM.zip")
+    unless File.exist?(dsym_zip)
+      UI.important("Sentry dSYM upload ignoré : #{dsym_zip} introuvable.")
+      next
+    end
+
+    org     = ENV["SENTRY_ORG"]
+    project = ENV["SENTRY_PROJECT"]
+    release = "#{options[:version]}+#{options[:build]}"
+
+    # Crée la release puis associe les dSYM (symbolication des stacktraces).
+    sh("sentry-cli releases -o #{org} -p #{project} new '#{release}' || true")
+    sh("sentry-cli debug-files upload -o #{org} -p #{project} '#{dsym_zip}'")
+    sh("sentry-cli releases -o #{org} -p #{project} finalize '#{release}' || true")
+    UI.success("✅ dSYM uploadés sur Sentry (release #{release}).")
   end
 
   error do |lane, exception|

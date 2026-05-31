@@ -249,6 +249,17 @@ struct ProfileView: View {
                     )
                 }
                 .buttonStyle(.plain)
+
+                // Sentry (#205) : envoie un event de test pour vérifier le DSN.
+                // No-op si Sentry n'est pas configuré dans Secrets.xcconfig.
+                Button(action: { SentryManager.sendTestEvent() }) {
+                    SettingsRow(
+                        systemImage: "ladybug",
+                        title: "Send Sentry test event",
+                        tint: ArboreDesign.Colors.accentGold
+                    )
+                }
+                .buttonStyle(.plain)
             }
             #endif
         }

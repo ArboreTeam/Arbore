@@ -109,12 +109,36 @@
             </array>
         </dict>
 
-        <!--
-            Note : NSPrivacyCollectedDataTypeCrashData et
-            NSPrivacyCollectedDataTypeOtherDiagnosticData seront ajoutés
-            quand #205 (intégration Sentry) sera mergée. Côté
-            actuel : aucun crash reporting → rien à déclarer.
-        -->
+        <!-- Crash data : stacktraces / rapports de crash envoyés à Sentry
+             (#205). Rattachés à l'UID Firebase (Linked) pour le debug par
+             user, mais pas utilisés pour du tracking cross-app. -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeCrashData</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
+        <!-- Other diagnostic data : performance / breadcrumbs Sentry
+             (tracesSampleRate = 0.1). Même régime que les crash data. -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeOtherDiagnosticData</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
 
         <!--
             Note : caméra (AR), calendrier (rappels arrosage), micro,

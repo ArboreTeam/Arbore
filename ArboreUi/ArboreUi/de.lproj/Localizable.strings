@@ -227,9 +227,9 @@
 "PRIVACY_SECTION_DATA_TITLE" = "Daten, die wir verarbeiten";
 "PRIVACY_SECTION_DATA_ITEM1" = "Identität: E-Mail, Name, Firebase-ID und der genutzte Anmeldedienst (E-Mail, Google oder Apple).";
 "PRIVACY_SECTION_DATA_ITEM2" = "Profilbild: nur, wenn du eines hinzufügst.";
-"PRIVACY_SECTION_DATA_ITEM3" = "Gärten & AR: ausgewählte Pflanzen, 3D-Positionen, ARKit-Weltkarten, Antworten im Fragebogen.";
+"PRIVACY_SECTION_DATA_ITEM3" = "Gärten & AR: ausgewählte Pflanzen, 3D-Positionen, Antworten im Fragebogen.";
 "PRIVACY_SECTION_DATA_ITEM4" = "Einwilligungen: Typ, Version und Datum sowie IP-Adresse und User-Agent als Nachweis.";
-"PRIVACY_SECTION_DATA_ITEM5" = "Nur auf deinem Gerät (nie hochgeladen): Kamera und LiDAR für AR, Bewegung, Standort für Sonnenlicht, Kalender für Erinnerungen, Face ID.";
+"PRIVACY_SECTION_DATA_ITEM5" = "Nur auf deinem Gerät (nie hochgeladen): Kamera und LiDAR für AR, Bewegung, ARKit-Weltkarten, Standort für Sonnenlicht, Kalender für Erinnerungen, Face ID.";
 
 // Warum wir sie nutzen
 "PRIVACY_SECTION_USAGE_TITLE" = "Warum wir diese Daten nutzen";

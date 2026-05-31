@@ -93,9 +93,12 @@
             </array>
         </dict>
 
-        <!-- Garden data : positions des plantes, WorldMaps, JSON de
-             scène, modèles 3D sélectionnés. Stocké dans Mongo
-             /gardens. Pas d'analyse cross-user. -->
+        <!-- Garden data : plantes sélectionnées, positions/disposition 3D,
+             réponses au questionnaire. Stocké dans Mongo /gardens.
+             NB : les ARKit WorldMaps restent en LOCAL sur l'appareil
+             (GardenLocalStore, fichier archivé), jamais uploadées — donc
+             ni "collected" au sens d'Apple ni "Environment Scanning".
+             Pas d'analyse cross-user. -->
         <dict>
             <key>NSPrivacyCollectedDataType</key>
             <string>NSPrivacyCollectedDataTypeOtherUserContent</string>

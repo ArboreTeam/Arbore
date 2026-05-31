@@ -220,64 +220,64 @@
 "PRIVACY_TITLE" = "Política de privacidad";
 
 "PRIVACY_HEADER_TITLE" = "%@ respeta tu privacidad.";
-"PRIVACY_HEADER_SUBTITLE" = "Esta política explica qué datos recopilamos, cómo los usamos y qué opciones tienes.";
+"PRIVACY_HEADER_SUBTITLE" = "Esta política explica qué datos personales tratamos, por qué, con quién, durante cuánto tiempo y los derechos que tienes según el RGPD.";
 "PRIVACY_LAST_UPDATED" = "Última actualización: %@";
 
 // Datos que recopilamos
-"PRIVACY_SECTION_DATA_TITLE" = "Datos que recopilamos";
-"PRIVACY_SECTION_DATA_ITEM1" = "Identidad: nombre, dirección de correo electrónico, identificador de Firebase.";
-"PRIVACY_SECTION_DATA_ITEM2" = "Uso: escaneos de plantas, preferencias de visualización, interacciones en la app.";
-"PRIVACY_SECTION_DATA_ITEM3" = "Dispositivo y diagnósticos: versión de la app, modelo del dispositivo, registros de fallos.";
-"PRIVACY_SECTION_DATA_ITEM4" = "Contenido del usuario: fotos/visuales que importas para la identificación.";
-"PRIVACY_SECTION_DATA_ITEM5" = "Compras: historial de suscripciones (a través de App Store / Play Store).";
+"PRIVACY_SECTION_DATA_TITLE" = "Datos que tratamos";
+"PRIVACY_SECTION_DATA_ITEM1" = "Identidad: correo electrónico, nombre, identificador de Firebase y el proveedor de inicio de sesión que uses (correo, Google o Apple).";
+"PRIVACY_SECTION_DATA_ITEM2" = "Foto de perfil: solo si añades una.";
+"PRIVACY_SECTION_DATA_ITEM3" = "Jardines y RA: plantas seleccionadas, posiciones 3D, mapas espaciales de ARKit, respuestas del cuestionario.";
+"PRIVACY_SECTION_DATA_ITEM4" = "Consentimientos: tipo, versión y fecha, además de dirección IP y agente de usuario conservados como prueba.";
+"PRIVACY_SECTION_DATA_ITEM5" = "Solo en tu dispositivo (nunca se envía): cámara y LiDAR para la RA, movimiento, ubicación para la luz solar, calendario para los recordatorios, Face ID.";
 
 // Por qué los usamos
 "PRIVACY_SECTION_USAGE_TITLE" = "Por qué usamos estos datos";
-"PRIVACY_SECTION_USAGE_ITEM1" = "Proporcionar las funciones principales de %@ (escaneos, recomendaciones, copias de seguridad).";
-"PRIVACY_SECTION_USAGE_ITEM2" = "Personalizar tu experiencia (estilos, notificaciones meteorológicas, consejos).";
-"PRIVACY_SECTION_USAGE_ITEM3" = "Mejorar la calidad (análisis de uso, corrección de errores, seguridad).";
-"PRIVACY_SECTION_USAGE_ITEM4" = "Gestionar las suscripciones y la atención al cliente.";
-"PRIVACY_SECTION_USAGE_ITEM5" = "Cumplir con nuestras obligaciones legales.";
+"PRIVACY_SECTION_USAGE_ITEM1" = "Ofrecer las funciones principales de %@: crear, guardar y restaurar tus jardines en RA.";
+"PRIVACY_SECTION_USAGE_ITEM2" = "Generar recomendaciones de cuidado personalizadas a partir de tus respuestas.";
+"PRIVACY_SECTION_USAGE_ITEM3" = "Seguridad, prevención de abusos, depuración y mejora de la app.";
+"PRIVACY_SECTION_USAGE_ITEM4" = "Respetar los permisos de iOS que concedes (cámara, fotos, ubicación, calendario, notificaciones).";
+"PRIVACY_SECTION_USAGE_ITEM5" = "Conservar la prueba de tus consentimientos y cumplir nuestras obligaciones legales.";
 
 // Base legal (RGPD)
 "PRIVACY_SECTION_LEGAL_TITLE" = "Base legal (RGPD)";
-"PRIVACY_SECTION_LEGAL_ITEM1" = "Ejecución del contrato: proporcionar la app y sus servicios.";
-"PRIVACY_SECTION_LEGAL_ITEM2" = "Intereses legítimos: mejorar y asegurar %@.";
-"PRIVACY_SECTION_LEGAL_ITEM3" = "Consentimiento: notificaciones, acceso a cámara/fotos.";
-"PRIVACY_SECTION_LEGAL_ITEM4" = "Obligación legal: conservación de datos relacionada con la facturación.";
+"PRIVACY_SECTION_LEGAL_ITEM1" = "Ejecución del contrato: proporcionar la app y sus funciones.";
+"PRIVACY_SECTION_LEGAL_ITEM2" = "Intereses legítimos: proteger y mejorar %@.";
+"PRIVACY_SECTION_LEGAL_ITEM3" = "Consentimiento: cámara, fotos, ubicación, calendario y notificaciones.";
+"PRIVACY_SECTION_LEGAL_ITEM4" = "Obligación legal y responsabilidad proactiva: conservar la prueba del consentimiento.";
 
 // Conservación
 "PRIVACY_SECTION_RETENTION_TITLE" = "Conservación";
-"PRIVACY_SECTION_RETENTION_ITEM1" = "Conservamos tus datos solo el tiempo necesario para prestar el servicio.";
-"PRIVACY_SECTION_RETENTION_ITEM2" = "Puedes eliminar tu cuenta desde tu perfil; los datos asociados se eliminan o se anonimizan, salvo cuando la ley exija conservarlos.";
+"PRIVACY_SECTION_RETENTION_ITEM1" = "Tu cuenta, tu perfil y tus jardines se conservan mientras exista tu cuenta.";
+"PRIVACY_SECTION_RETENTION_ITEM2" = "Eliminar tu cuenta borra tu cuenta, tus jardines y tus consentimientos; las pruebas de consentimiento pueden conservarse hasta 3 años.";
 
 // Compartición
-"PRIVACY_SECTION_SHARING_TITLE" = "Compartición y destinatarios";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Proveedores técnicos: alojamiento, analítica, informes de fallos.";
-"PRIVACY_SECTION_SHARING_ITEM2" = "Pagos y suscripciones: App Store / Play Store.";
-"PRIVACY_SECTION_SHARING_ITEM3" = "No vendemos tus datos. Las transferencias se limitan a lo necesario y están reguladas por contrato.";
+"PRIVACY_SECTION_SHARING_TITLE" = "Comparticion y destinatarios";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Encargados del tratamiento: Firebase, Apple, MongoDB Atlas, Cloudflare, Unsplash, generación con IA.";
+"PRIVACY_SECTION_SHARING_ITEM2" = "Sin publicidad y sin seguimiento entre aplicaciones.";
+"PRIVACY_SECTION_SHARING_ITEM3" = "Nunca vendemos tus datos. Las transferencias se limitan a lo necesario y están reguladas por contrato.";
 
 // Tus derechos
 "PRIVACY_SECTION_RIGHTS_TITLE" = "Tus derechos";
 "PRIVACY_SECTION_RIGHTS_ITEM1" = "Acceso, rectificación, portabilidad y supresión.";
 "PRIVACY_SECTION_RIGHTS_ITEM2" = "Oposición y limitación en los casos previstos por la ley.";
-"PRIVACY_SECTION_RIGHTS_ITEM3" = "Retirada del consentimiento (por ejemplo, notificaciones) en cualquier momento.";
-"PRIVACY_SECTION_RIGHTS_ITEM4" = "Para ejercer tus derechos, contáctanos en: %@.";
+"PRIVACY_SECTION_RIGHTS_ITEM3" = "Retirar el consentimiento en cualquier momento; eliminar tu cuenta desde la app en cualquier momento.";
+"PRIVACY_SECTION_RIGHTS_ITEM4" = "Para ejercer tus derechos, escríbenos a: %@. También puedes reclamar ante la CNIL.";
 
 // Seguridad
 "PRIVACY_SECTION_SECURITY_TITLE" = "Seguridad";
-"PRIVACY_SECTION_SECURITY_ITEM1" = "Cifrado en tránsito (HTTPS) y buenas prácticas de seguridad.";
-"PRIVACY_SECTION_SECURITY_ITEM2" = "Acceso restringido únicamente a las personas autorizadas.";
+"PRIVACY_SECTION_SECURITY_ITEM1" = "Cifrado en tránsito (HTTPS/TLS) para todos los intercambios con nuestros servidores.";
+"PRIVACY_SECTION_SECURITY_ITEM2" = "Las contraseñas las gestiona Firebase y nunca las almacenamos; el acceso está restringido a los miembros autorizados.";
 "PRIVACY_SECTION_SECURITY_ITEM3" = "En el móvil, protege tu dispositivo (código, Face/Touch ID).";
 
 // Menores
 "PRIVACY_SECTION_CHILDREN_TITLE" = "Menores";
-"PRIVACY_SECTION_CHILDREN_ITEM1" = "%@ no está dirigida a menores de 13 años (o la edad legal local).";
-"PRIVACY_SECTION_CHILDREN_ITEM2" = "Si se nos notifica una recogida inadecuada de datos, eliminaremos la información correspondiente.";
+"PRIVACY_SECTION_CHILDREN_ITEM1" = "%@ no está dirigida a menores de 15 años (13 en algunos países).";
+"PRIVACY_SECTION_CHILDREN_ITEM2" = "Si se nos informa de una recogida inapropiada, eliminaremos los datos afectados.";
 
 // Transferencias internacionales
 "PRIVACY_SECTION_TRANSFERS_TITLE" = "Transferencias internacionales";
-"PRIVACY_SECTION_TRANSFERS_ITEM1" = "Cuando los datos se tratan fuera de la UE/EEE, aplicamos garantías adecuadas (cláusulas contractuales tipo, medidas adicionales) conforme al RGPD.";
+"PRIVACY_SECTION_TRANSFERS_ITEM1" = "Cuando se tratan datos fuera de la UE/EEE (p. ej. por Google, Apple, MongoDB, Cloudflare), aplicamos garantías adecuadas: cláusulas contractuales tipo y, cuando corresponde, el Marco UE–EE. UU. de Privacidad de Datos.";
 
 // Contacto
 "PRIVACY_CONTACT_TITLE" = "Contactar con nosotros";
@@ -328,12 +328,12 @@
 
 // Descripción del servicio
 "TERMS_SECTION_SERVICE_TITLE" = "Descripción del servicio";
-"TERMS_SECTION_SERVICE_ITEM1" = "%@ ofrece funciones relacionadas con la jardinería: escaneo de plantas, recomendaciones, visualizaciones, notificaciones y sincronización.";
-"TERMS_SECTION_SERVICE_ITEM2" = "Algunas funciones son de pago y están disponibles a través de suscripciones.";
+"TERMS_SECTION_SERVICE_ITEM1" = "%@ es una app de jardinería con realidad aumentada: elegir plantas, visualizarlas en 3D y RA, guardar jardines y obtener recomendaciones de cuidado y recordatorios de riego.";
+"TERMS_SECTION_SERVICE_ITEM2" = "Arbore es actualmente gratuita y está en beta: no hay suscripciones ni compras dentro de la app.";
 
 // Cuentas y seguridad
 "TERMS_SECTION_ACCOUNT_TITLE" = "Cuentas y seguridad";
-"TERMS_SECTION_ACCOUNT_ITEM1" = "Eres responsable de la exactitud de la información de tu cuenta y de la confidencialidad de tus credenciales.";
+"TERMS_SECTION_ACCOUNT_ITEM1" = "Debes tener al menos 15 años (o la edad de consentimiento digital aplicable), y eres responsable de la exactitud de los datos de tu cuenta y de la confidencialidad de tus credenciales.";
 "TERMS_SECTION_ACCOUNT_ITEM2" = "Infórmanos de inmediato en caso de uso no autorizado de tu cuenta.";
 
 // Suscripciones y facturación
@@ -371,18 +371,18 @@
 
 // Servicios de terceros
 "TERMS_SECTION_THIRDPARTY_TITLE" = "Servicios de terceros";
-"TERMS_SECTION_THIRDPARTY_ITEM1" = "La app puede integrar servicios de terceros (alojamiento, analítica, pagos).";
-"TERMS_SECTION_THIRDPARTY_ITEM2" = "No somos responsables de las prácticas o del contenido de estos servicios de terceros.";
+"TERMS_SECTION_THIRDPARTY_ITEM1" = "Arbore se apoya en servicios de terceros (Firebase, Apple, MongoDB, Cloudflare, Unsplash); se aplican sus propias condiciones.";
+"TERMS_SECTION_THIRDPARTY_ITEM2" = "Estas Condiciones son entre tú y Arbore, no Apple. El EULA estándar de Apple se aplica cuando Arbore no proporciona uno propio, y Apple es tercero beneficiario de estas Condiciones.";
 
 // Disponibilidad y modificaciones
 "TERMS_SECTION_AVAILABILITY_TITLE" = "Disponibilidad y modificaciones";
-"TERMS_SECTION_AVAILABILITY_ITEM1" = "Podemos actualizar, suspender o interrumpir todo o parte del servicio en cualquier momento, con o sin previo aviso.";
-"TERMS_SECTION_AVAILABILITY_ITEM2" = "No garantizamos una disponibilidad ininterrumpida.";
+"TERMS_SECTION_AVAILABILITY_ITEM1" = "El servicio se ofrece «tal cual» y «según disponibilidad». Al ser una beta, puede modificarse, suspenderse o interrumpirse en cualquier momento, con o sin aviso.";
+"TERMS_SECTION_AVAILABILITY_ITEM2" = "No garantizamos disponibilidad ininterrumpida ni la ausencia de pérdida de datos; guarda una copia de todo contenido importante.";
 
 // Limitación de responsabilidad
 "TERMS_SECTION_LIABILITY_TITLE" = "Limitación de responsabilidad";
 "TERMS_SECTION_LIABILITY_ITEM1" = "En la medida máxima permitida por la ley, %@ no será responsable de daños indirectos, especiales, incidentales o consecuentes, ni de pérdida de datos o beneficios.";
-"TERMS_SECTION_LIABILITY_ITEM2" = "Tu único recurso en caso de insatisfacción es dejar de usar la app y, en su caso, cancelar tu suscripción.";
+"TERMS_SECTION_LIABILITY_ITEM2" = "Tus derechos imperativos como consumidor no se ven afectados. Si no estás satisfecho, puedes dejar de usar la app y eliminar tu cuenta en cualquier momento.";
 
 // Indemnización
 "TERMS_SECTION_INDEMNITY_TITLE" = "Indemnización";

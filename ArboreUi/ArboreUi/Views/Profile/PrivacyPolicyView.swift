@@ -6,7 +6,7 @@ struct PrivacyPolicyView: View {
 
     private let brandName = "Arbore"
     private let contactEmail = "support@arbore.app"
-    private let lastUpdated = "11 Nov 2025"
+    private let lastUpdated = "31 May 2026"
 
     var body: some View {
         SettingsPage(title: NSLocalizedString("PRIVACY_TITLE", comment: "Privacy policy title")) {

@@ -6,7 +6,7 @@ struct TermsConditionsView: View {
 
     private let brandName = "Arbore"
     private let contactEmail = "support@arbore.app"
-    private let lastUpdated = "11 Nov 2025"
+    private let lastUpdated = "31 May 2026"
 
     var body: some View {
         SettingsPage(title: NSLocalizedString("TERMS_TITLE", comment: "")) {
@@ -38,27 +38,6 @@ struct TermsConditionsView: View {
                 items: [
                     NSLocalizedString("TERMS_SECTION_ACCOUNT_ITEM1", comment: ""),
                     NSLocalizedString("TERMS_SECTION_ACCOUNT_ITEM2", comment: "")
-                ],
-                themeManager: themeManager
-            )
-
-            TermsCard(
-                title: NSLocalizedString("TERMS_SECTION_SUBS_TITLE", comment: ""),
-                icon: "creditcard",
-                items: [
-                    NSLocalizedString("TERMS_SECTION_SUBS_ITEM1", comment: ""),
-                    NSLocalizedString("TERMS_SECTION_SUBS_ITEM2", comment: ""),
-                    NSLocalizedString("TERMS_SECTION_SUBS_ITEM3", comment: "")
-                ],
-                themeManager: themeManager
-            )
-
-            TermsCard(
-                title: NSLocalizedString("TERMS_SECTION_TRIALS_TITLE", comment: ""),
-                icon: "clock.badge.checkmark",
-                items: [
-                    NSLocalizedString("TERMS_SECTION_TRIALS_ITEM1", comment: ""),
-                    NSLocalizedString("TERMS_SECTION_TRIALS_ITEM2", comment: "")
                 ],
                 themeManager: themeManager
             )

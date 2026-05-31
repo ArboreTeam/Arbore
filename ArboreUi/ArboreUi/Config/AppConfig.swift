@@ -69,11 +69,21 @@ struct AppConfig {
 
     // MARK: - RGPD Configuration
 
-    /// Version actuelle de la politique de confidentialité
-    static let privacyPolicyVersion = "1.0"
+    /// Version actuelle de la politique de confidentialité.
+    /// Bumpée à 2.0 (31 mai 2026) : refonte complète, RGPD, FR/EN, alignée sur
+    /// https://arbore.app/privacy et https://arbore.app/terms. Les nouveaux
+    /// consentements sont horodatés avec cette version.
+    static let privacyPolicyVersion = "2.0"
 
     /// Date de dernière mise à jour de la politique
-    static let privacyPolicyLastUpdate = "20 Jan 2026"
+    static let privacyPolicyLastUpdate = "31 May 2026"
+
+    /// URL publique de la politique de confidentialité (FR/EN).
+    /// Champ obligatoire App Store Connect + liens in-app.
+    static let privacyPolicyURL = "https://arbore.app/privacy"
+
+    /// URL publique des conditions générales d'utilisation (FR/EN).
+    static let termsOfServiceURL = "https://arbore.app/terms"
 
     // MARK: - App Information
 

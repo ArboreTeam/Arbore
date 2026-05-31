@@ -227,9 +227,9 @@
 "PRIVACY_SECTION_DATA_TITLE" = "Datos que tratamos";
 "PRIVACY_SECTION_DATA_ITEM1" = "Identidad: correo electrónico, nombre, identificador de Firebase y el proveedor de inicio de sesión que uses (correo, Google o Apple).";
 "PRIVACY_SECTION_DATA_ITEM2" = "Foto de perfil: solo si añades una.";
-"PRIVACY_SECTION_DATA_ITEM3" = "Jardines y RA: plantas seleccionadas, posiciones 3D, mapas espaciales de ARKit, respuestas del cuestionario.";
+"PRIVACY_SECTION_DATA_ITEM3" = "Jardines y RA: plantas seleccionadas, posiciones 3D, respuestas del cuestionario.";
 "PRIVACY_SECTION_DATA_ITEM4" = "Consentimientos: tipo, versión y fecha, además de dirección IP y agente de usuario conservados como prueba.";
-"PRIVACY_SECTION_DATA_ITEM5" = "Solo en tu dispositivo (nunca se envía): cámara y LiDAR para la RA, movimiento, ubicación para la luz solar, calendario para los recordatorios, Face ID.";
+"PRIVACY_SECTION_DATA_ITEM5" = "Solo en tu dispositivo (nunca se envía): cámara y LiDAR para la RA, movimiento, mapas espaciales de ARKit, ubicación para la luz solar, calendario para los recordatorios, Face ID.";
 
 // Por qué los usamos
 "PRIVACY_SECTION_USAGE_TITLE" = "Por qué usamos estos datos";

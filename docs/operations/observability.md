@@ -32,8 +32,8 @@ Options set: `environment` (`debug`/`beta`), `releaseName = version+build`,
 
 ### 1. DSN → `Secrets.xcconfig`
 
-The DSN is a URL `https://<publicKey>@<host>/<projectID>`. Because `.xcconfig`
-treats `//` as a comment, it is stored as **three fields** and reassembled in
+The DSN is a URL `https://<publicKey>@<host>/<projectID>`. Because an xcconfig
+file treats `//` as a comment, it is stored as **three fields** and reassembled in
 `AppConfig.sentryDSN`. From the iOS project DSN
 (`sentry.io → arbore-frontend → Settings → Client Keys`):
 

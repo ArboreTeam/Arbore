@@ -95,22 +95,77 @@ final class CalendarService {
         frequency: WateringFrequency,
         customDays: Int,
         reminderTime: Date,
+        firstDate: Date = Date(),
         amount: String,
         notes: String
     ) throws -> String {
+        var eventNotes: [String] = []
+        if !amount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            eventNotes.append("💧 Quantité : \(amount)")
+        }
+        if !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            eventNotes.append("📝 \(notes)")
+        }
 
+        return try createRoutineEvent(
+            title: "💧 Arroser \(plantName)",
+            frequency: frequency,
+            customDays: customDays,
+            reminderTime: reminderTime,
+            firstDate: firstDate,
+            notes: eventNotes
+        )
+    }
+
+    /// Crée un événement récurrent générique pour une action d'entretien.
+    func createCareEvent(
+        plantName: String,
+        actionTitle: String,
+        frequency: WateringFrequency,
+        customDays: Int,
+        reminderTime: Date,
+        firstDate: Date = Date(),
+        detailLabel: String,
+        detail: String,
+        notes: String
+    ) throws -> String {
+        var eventNotes: [String] = []
+        if !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            eventNotes.append("📌 \(detailLabel) : \(detail)")
+        }
+        if !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            eventNotes.append("📝 \(notes)")
+        }
+
+        return try createRoutineEvent(
+            title: "🌱 \(actionTitle) - \(plantName)",
+            frequency: frequency,
+            customDays: customDays,
+            reminderTime: reminderTime,
+            firstDate: firstDate,
+            notes: eventNotes
+        )
+    }
+
+    private func createRoutineEvent(
+        title: String,
+        frequency: WateringFrequency,
+        customDays: Int,
+        reminderTime: Date,
+        firstDate: Date,
+        notes: [String]
+    ) throws -> String {
         let calendar = try getOrCreateArboreCalendar()
 
         let event = EKEvent(eventStore: eventStore)
         event.calendar = calendar
 
-        // Titre
-        event.title = "💧 Arroser \(plantName)"
+        event.title = title
 
-        // Date de début — aujourd'hui à l'heure choisie
+        // Date de début — jour choisi à l'heure choisie
         let cal = Calendar.current
         let timeComponents = cal.dateComponents([.hour, .minute], from: reminderTime)
-        var startComponents = cal.dateComponents([.year, .month, .day], from: Date())
+        var startComponents = cal.dateComponents([.year, .month, .day], from: firstDate)
         startComponents.hour = timeComponents.hour
         startComponents.minute = timeComponents.minute
 
@@ -122,14 +177,7 @@ final class CalendarService {
         // Événement de 30 minutes par défaut
         event.endDate = cal.date(byAdding: .minute, value: 30, to: startDate)
 
-        // Notes
-        var eventNotes: [String] = []
-        if !amount.isEmpty {
-            eventNotes.append("💧 Quantité : \(amount)")
-        }
-        if !notes.isEmpty {
-            eventNotes.append("📝 \(notes)")
-        }
+        var eventNotes = notes
         eventNotes.append("\n🌱 Créé par Arbore")
         event.notes = eventNotes.joined(separator: "\n")
 

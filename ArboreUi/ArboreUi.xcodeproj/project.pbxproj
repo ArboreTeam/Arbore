@@ -77,8 +77,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		774C3B512ED1FFB100324E07 /* scanRoom */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = scanRoom;
 			sourceTree = "<group>";
 		};
@@ -92,15 +90,11 @@
 		};
 		77DD7AF02D84270800A6F6F1 /* ArboreUiTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = ArboreUiTests;
 			sourceTree = "<group>";
 		};
 		77DD7AFA2D84270800A6F6F1 /* ArboreUiUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = ArboreUiUITests;
 			sourceTree = "<group>";
 		};
@@ -531,7 +525,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_ASSET_PATHS = "\"ArboreUi/Preview Content\"";
-				DEVELOPMENT_TEAM = 582QH9652J;
+				DEVELOPMENT_TEAM = XRS7C6AA96;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -558,7 +552,7 @@
 				);
 				MARKETING_VERSION = 0.1.12;
 				MTL_ENABLE_DEBUG_INFO = None;
-				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore;
+				PRODUCT_BUNDLE_IDENTIFIER = com.arbore.arbore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -578,7 +572,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_ASSET_PATHS = "\"ArboreUi/Preview Content\"";
-				DEVELOPMENT_TEAM = 582QH9652J;
+				DEVELOPMENT_TEAM = XRS7C6AA96;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = "$(inherited)";
@@ -604,7 +598,7 @@
 					"$(inherited)",
 				);
 				MARKETING_VERSION = 0.1.12;
-				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore;
+				PRODUCT_BUNDLE_IDENTIFIER = com.arbore.arbore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;

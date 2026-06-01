@@ -18,21 +18,107 @@ struct DisplayPlant: Identifiable {
     let data: PersistedPlant
 }
 
-// Modèle pour la liste d'achats (Ton code)
-struct PurchaseItem: Identifiable {
-    let id = UUID()
+enum GardenShopCategory: String, Codable, CaseIterable {
+    case plant
+    case soil
+    case watering
+    case care
+    case accessory
+
+    var title: String {
+        switch self {
+        case .plant: return "Plantes"
+        case .soil: return "Terreau"
+        case .watering: return "Arrosage"
+        case .care: return "Entretien"
+        case .accessory: return "Accessoires"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .plant: return "leaf.fill"
+        case .soil: return "shippingbox.fill"
+        case .watering: return "drop.fill"
+        case .care: return "scissors"
+        case .accessory: return "tray.full.fill"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .plant: return ArboreDesign.Colors.primaryGreen
+        case .soil: return Color(hex: "#8F6A3D")
+        case .watering: return Color(hex: "#3A93B8")
+        case .care: return Color(hex: "#D8A85B")
+        case .accessory: return Color(hex: "#607466")
+        }
+    }
+}
+
+struct GardenShopItem: Identifiable, Codable, Equatable {
+    let id: String
     let name: String
     let subtitle: String
     let priceRange: String
-    let imageName: String?
-    let systemIcon: String?
+    let estimatedPrice: Double
+    let category: GardenShopCategory
+    let systemIcon: String
+    let sourcePlantId: String?
+    let sourcePlantName: String?
+    let recommendation: String?
     let priority: Int
+
+    init(
+        id: String,
+        name: String,
+        subtitle: String,
+        priceRange: String,
+        estimatedPrice: Double,
+        category: GardenShopCategory,
+        systemIcon: String? = nil,
+        sourcePlantId: String? = nil,
+        sourcePlantName: String? = nil,
+        recommendation: String? = nil,
+        priority: Int = 1
+    ) {
+        self.id = id
+        self.name = name
+        self.subtitle = subtitle
+        self.priceRange = priceRange
+        self.estimatedPrice = estimatedPrice
+        self.category = category
+        self.systemIcon = systemIcon ?? category.icon
+        self.sourcePlantId = sourcePlantId
+        self.sourcePlantName = sourcePlantName
+        self.recommendation = recommendation
+        self.priority = priority
+    }
+}
+
+struct GardenCartEntry: Identifiable, Codable, Equatable {
+    var id: String { item.id }
+    var item: GardenShopItem
+    var quantity: Int
+
+    var total: Double {
+        item.estimatedPrice * Double(quantity)
+    }
+}
+
+struct GardenPlantPurchaseGroup: Identifiable {
+    let plant: PersistedPlant
+    let count: Int
+
+    var id: String {
+        "\(plant.plantID)-\(plant.plantName)"
+    }
 }
 
 // MARK: - 2. SERVICE DE DONNÉES (Scan des fichiers)
 class GardenLocalStorageService: ObservableObject {
     @Published var projects: [GardenModel] = []
-    
+
     func refreshProjects() {
         let fileManager = FileManager.default
         let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -73,7 +159,7 @@ struct ManageGardenView: View {
     @State private var showingGardenList = false
     @State private var isResolvingInitialGarden = true
     @State private var selectedProject: GardenModel?
-    
+
     var body: some View {
         NavigationStack {
             AppBackground {
@@ -115,7 +201,7 @@ struct ManageGardenView: View {
         }
         .preferredColorScheme(themeManager.colorScheme)
     }
-    
+
     private var allGardensPickerContent: some View {
         AllGardensView(
             currentGardenId: selectedProject?.id,
@@ -241,10 +327,12 @@ struct GardenDetailsPage: View {
     let onOpenGardenList: (() -> Void)?
     let onGardenRenamed: ((String) -> Void)?
     
+    @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) var dismiss
     
     // ViewModel pour la Map
     @StateObject private var mapViewModel = Garden2DViewModel()
+    @StateObject private var wateringStore = WateringRoutineStore.shared
     @State private var mapTextureKind: MapTextureKind = .garden
     @State private var gardenDetails: GardenDTO?
     @State private var showMeasurementApp = false
@@ -254,6 +342,17 @@ struct GardenDetailsPage: View {
     @State private var isRenamingGarden = false
     @State private var renameError: String?
     @State private var showARShareCapture = false
+    @State private var showRoutineCreation = false
+    @State private var plantForRoutine: PersistedPlant?
+    @State private var visibleCareMonth = Date()
+    @State private var selectedCareDate = Date()
+    @State private var cartItems: [GardenCartEntry] = []
+    @State private var cataloguePlants: [Plant] = []
+    @State private var purchaseSearchText = ""
+    @State private var isLoadingPurchaseCatalog = false
+    @State private var purchaseCatalogError: String?
+    @State private var hasLoadedPurchaseCatalog = false
+    @State private var showCheckoutSummary = false
     
     // États pour l'interface "Purchase"
     enum Tab: String, CaseIterable {
@@ -281,13 +380,6 @@ struct GardenDetailsPage: View {
         self.onGardenRenamed = onGardenRenamed
         _currentGardenName = State(initialValue: gardenName)
     }
-    
-    // Données Mock pour la liste d'achats
-    @State private var purchaseItems: [PurchaseItem] = [
-        .init(name: "Hydrangea macrophylla", subtitle: "Plante recommandée pour compléter votre composition", priceRange: "À partir de 24,90 €", imageName: nil, systemIcon: "leaf.fill", priority: 1),
-        .init(name: "Terreau plantes fleuries", subtitle: "Substrat adapté aux besoins du jardin", priceRange: "8,90 € - 14,90 €", imageName: nil, systemIcon: "shippingbox.fill", priority: 2),
-        .init(name: "Arrosoir précision", subtitle: "Pour un arrosage doux au pied des plantes", priceRange: "12,90 € - 19,90 €", imageName: nil, systemIcon: "drop.fill", priority: 2)
-    ]
     
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -321,9 +413,9 @@ struct GardenDetailsPage: View {
             
             // FAB (Floating Action Button)
             Button {
-                // Action ajouter
+                handleFloatingAction()
             } label: {
-                Image(systemName: "plus")
+                Image(systemName: floatingActionIcon)
                     .font(.system(size: 18, weight: .bold))
                     .foregroundStyle(Color.white)
                     .frame(width: 56, height: 56)
@@ -345,6 +437,11 @@ struct GardenDetailsPage: View {
             .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } message: {
             Text("Choisissez un nom facile à reconnaître.")
+        }
+        .alert("Commande préparée", isPresented: $showCheckoutSummary) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(checkoutSummaryText)
         }
         .fullScreenCover(isPresented: $showMeasurementApp) {
             ARViewContainerMesure(
@@ -379,8 +476,25 @@ struct GardenDetailsPage: View {
                 }
             )
         }
+        .sheet(isPresented: $showRoutineCreation) {
+            if let plantForRoutine = plantForRoutine ?? placedPlants.first {
+                CreateWateringRoutineView(
+                    plantName: plantForRoutine.plantName,
+                    waterInfo: nil,
+                    gardenId: gardenId,
+                    plantId: plantForRoutine.plantID,
+                    availablePlants: placedPlants,
+                    initialPlantId: plantForRoutine.plantID,
+                    allowedActions: GardenRoutinePlanningKind.allPlanningCases
+                )
+                .environmentObject(themeManager)
+            }
+        }
         .onAppear {
             mapViewModel.loadGarden(gardenId: gardenId)
+            wateringStore.reload()
+            loadPurchaseCart()
+            loadPurchaseCatalogIfNeeded()
             currentGardenName = gardenDetails?.name ?? gardenName
             Task { await loadMapTextureKind() }
         }
@@ -514,7 +628,7 @@ struct GardenDetailsPage: View {
     }
 
     private var pendingTaskCount: Int {
-        min(2, max(mapViewModel.displayPlants.count, 0))
+        dueCareItems.count
     }
 
     private var hasMeasuredSpace: Bool {
@@ -524,95 +638,1008 @@ struct GardenDetailsPage: View {
     private var careContent: some View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xl) {
             VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
-                SectionTitle(title: "Aujourd’hui")
+                HStack {
+                    SectionTitle(title: "Aujourd’hui")
 
-                Text("Les gestes simples à faire pour garder votre jardin en forme.")
+                    Spacer()
+
+                    if !placedPlants.isEmpty {
+                        Button(action: { openRoutineCreation() }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "plus")
+                                    .font(.system(size: 11, weight: .bold))
+                                Text("Planifier")
+                                    .font(.system(size: 12, weight: .bold))
+                            }
+                            .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                            .padding(.horizontal, ArboreDesign.Spacing.sm)
+                            .frame(height: 30)
+                            .background(ArboreDesign.Colors.softSurface)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Text("Les soins viennent des routines créées pour les plantes placées dans ce jardin.")
                     .font(ArboreDesign.Typography.bodySmall)
                     .foregroundColor(ArboreDesign.Colors.textSecondary)
             }
 
-            VStack(spacing: ArboreDesign.Spacing.md) {
-                CareTaskCard(
-                    systemImage: "drop.fill",
-                    title: "Arroser \(carePlantName(at: 0, fallback: "Hydrangea macrophylla"))",
-                    subtitle: "Sol à garder légèrement humide",
-                    actionTitle: "Marquer comme fait",
-                    tint: Color(hex: "#6EA7C8")
+            if placedPlants.isEmpty {
+                GardenInlineMessage(
+                    systemImage: "leaf",
+                    text: "Ajoutez d’abord des plantes au jardin pour suivre leurs soins."
                 )
-
-                CareTaskCard(
-                    systemImage: "leaf.arrow.circlepath",
-                    title: "Nettoyer les feuilles",
-                    subtitle: "\(carePlantName(at: 1, fallback: "Pothos")) profitera d’un feuillage dépoussiéré",
-                    actionTitle: "Noter comme fait",
-                    tint: ArboreDesign.Colors.primaryGreen
-                )
-            }
-
-            CareWeekTimeline()
-
-            VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
-                SectionTitle(title: "État des plantes")
-
-                VStack(spacing: ArboreDesign.Spacing.sm) {
-                    CarePlantStatusRow(name: carePlantName(at: 0, fallback: "Hydrangea"), status: "OK", tint: ArboreDesign.Colors.success)
-                    CarePlantStatusRow(name: carePlantName(at: 1, fallback: "Pothos"), status: "Arrosage demain", tint: Color(hex: "#6EA7C8"))
-                    CarePlantStatusRow(name: carePlantName(at: 2, fallback: "Lavande"), status: "Besoin de taille", tint: ArboreDesign.Colors.accentGold)
-                    CarePlantStatusRow(name: carePlantName(at: 3, fallback: "Monstera"), status: "À surveiller", tint: Color(hex: "#D98B4A"))
+            } else {
+                if careItems.isEmpty {
+                    CareEmptyRoutineCard(
+                        plantName: placedPlants.first?.plantName ?? "votre première plante",
+                        onCreate: { openRoutineCreation() }
+                    )
+                } else if dueCareItems.isEmpty {
+                    GardenInlineMessage(
+                        systemImage: "checkmark.circle",
+                        text: "Aucune action prévue aujourd’hui. Les prochains soins restent visibles dans le calendrier."
+                    )
+                } else {
+                    VStack(spacing: ArboreDesign.Spacing.md) {
+                        ForEach(Array(dueCareItems.prefix(5))) { item in
+                            CareTaskCard(
+                                systemImage: item.icon,
+                                title: item.title,
+                                subtitle: item.subtitle,
+                                detail: statusText(for: item.date).text,
+                                tint: statusText(for: item.date).color,
+                                completionTitle: item.completionTitle,
+                                onComplete: {
+                                    withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                                        completeCareItem(item)
+                                    }
+                                },
+                                onSkip: {
+                                    withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                                        deferCareItem(item)
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
-            }
 
-            CareRecommendationCard(plantName: carePlantName(at: 0, fallback: "Hydrangea"))
+                CareMonthCalendar(
+                    items: careItems,
+                    selectedDate: $selectedCareDate,
+                    visibleMonth: $visibleCareMonth
+                )
 
-            VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
-                SectionTitle(title: "Dernières actions")
+                VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+                    SectionTitle(title: selectedDateSectionTitle)
 
-                AppCard {
-                    VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
-                        CareHistoryRow(text: "\(carePlantName(at: 0, fallback: "Hydrangea")) arrosée hier")
-                        CareHistoryRow(text: "\(carePlantName(at: 1, fallback: "Pothos")) ajouté il y a 3 jours")
-                        CareHistoryRow(text: "\(carePlantName(at: 2, fallback: "Lavande")) taillée la semaine dernière")
+                    AppCard {
+                        VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
+                            if selectedDateCareItems.isEmpty {
+                                CareHistoryRow(text: "Aucune action planifiée ce jour-là.")
+                            } else {
+                                ForEach(selectedDateCareItems) { item in
+                                    CareCalendarAgendaRow(
+                                        item: item,
+                                        status: statusText(for: item.date),
+                                        onComplete: {
+                                            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                                                completeCareItem(item)
+                                            }
+                                        },
+                                        onSkip: {
+                                            withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
+                                                deferCareItem(item)
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if !upcomingCareItems.isEmpty {
+                    VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+                        SectionTitle(title: "Prochains soins")
+
+                        VStack(spacing: ArboreDesign.Spacing.sm) {
+                            ForEach(Array(upcomingCareItems.prefix(5))) { item in
+                                CareUpcomingRow(
+                                    systemImage: item.icon,
+                                    plantName: item.plantName,
+                                    title: item.title,
+                                    subtitle: item.subtitle,
+                                    status: statusText(for: item.date).text,
+                                    tint: statusText(for: item.date).color
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if !plantsWithoutRoutine.isEmpty {
+                    VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+                        SectionTitle(title: "Routines à créer")
+
+                        AppCard {
+                            VStack(spacing: ArboreDesign.Spacing.sm) {
+                                ForEach(Array(plantsWithoutRoutine.prefix(4)), id: \.plantID) { plant in
+                                    CareRoutineSetupRow(
+                                        plantName: plant.plantName,
+                                        onCreate: { openRoutineCreation(for: plant) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+                    SectionTitle(title: "État des plantes")
+
+                    VStack(spacing: ArboreDesign.Spacing.sm) {
+                        ForEach(Array(placedPlants.prefix(6)), id: \.plantID) { plant in
+                            let status = plantCareStatus(for: plant)
+                            CarePlantStatusRow(
+                                name: plant.plantName,
+                                status: status.text,
+                                tint: status.color
+                            )
+                        }
+                    }
+                }
+
+                CareRecommendationCard(
+                    message: recommendationMessage
+                )
+
+                VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+                    SectionTitle(title: "Dernières actions")
+
+                    AppCard {
+                        VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
+                            if careActions.isEmpty {
+                                CareHistoryRow(text: "Aucune action enregistrée pour ce jardin.")
+                            } else {
+                                ForEach(Array(careActions.prefix(5))) { action in
+                                    CareHistoryRow(text: historyText(for: action))
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
 
-    private func carePlantName(at index: Int, fallback: String) -> String {
-        guard mapViewModel.displayPlants.indices.contains(index) else { return fallback }
-        return mapViewModel.displayPlants[index].data.plantName
+    private var placedPlants: [PersistedPlant] {
+        mapViewModel.displayPlants.map { $0.data }
+    }
+
+    private var careItems: [GardenCareScheduleItem] {
+        let wateringItems = gardenWateringRoutines.map { routine in
+            GardenCareScheduleItem(
+                source: .watering(routine.id),
+                plantId: routine.plantId,
+                plantName: routine.plantName,
+                title: "Arroser",
+                subtitle: wateringSubtitle(for: routine),
+                date: routine.nextWateringDate,
+                icon: "drop.fill",
+                tint: Color(hex: "#3A93B8"),
+                completionTitle: "Arrosée"
+            )
+        }
+
+        let careRoutineItems = gardenPlantCareRoutines.map { routine in
+            GardenCareScheduleItem(
+                source: .care(routine.id),
+                plantId: routine.plantId,
+                plantName: routine.plantName,
+                title: routine.title,
+                subtitle: careRoutineSubtitle(for: routine),
+                date: routine.nextCareDate,
+                icon: routine.kind.icon,
+                tint: Color(hex: routine.kind.tintHex),
+                completionTitle: routine.kind.completionLabel
+            )
+        }
+
+        return (wateringItems + careRoutineItems).sorted { $0.date < $1.date }
+    }
+
+    private var dueCareItems: [GardenCareScheduleItem] {
+        careItems.filter { daysUntil($0.date) <= 0 }
+    }
+
+    private var upcomingCareItems: [GardenCareScheduleItem] {
+        careItems.filter { daysUntil($0.date) > 0 }
+    }
+
+    private var selectedDateCareItems: [GardenCareScheduleItem] {
+        let calendar = Calendar.current
+        let selectedDay = calendar.startOfDay(for: selectedCareDate)
+        let today = calendar.startOfDay(for: Date())
+
+        return careItems.filter { item in
+            let itemDay = calendar.startOfDay(for: item.date)
+            if selectedDay == today {
+                return itemDay <= today
+            }
+            return itemDay == selectedDay
+        }
+    }
+
+    private var gardenWateringRoutines: [WateringRoutine] {
+        let plantIds = Set(placedPlants.map { $0.plantID })
+        let plantNames = Set(placedPlants.map { normalizedPlantName($0.plantName) })
+        let gardenRoutineNames = Set(wateringStore.routines.compactMap { routine -> String? in
+            routine.gardenId == gardenId ? normalizedPlantName(routine.plantName) : nil
+        })
+
+        return wateringStore.routines
+            .filter { routine in
+                guard routine.isActive else { return false }
+
+                if routine.gardenId == gardenId {
+                    if let plantId = routine.plantId {
+                        return plantIds.contains(plantId)
+                    }
+                    return plantNames.contains(normalizedPlantName(routine.plantName))
+                }
+
+                if let routineGardenId = routine.gardenId, routineGardenId != gardenId {
+                    return false
+                }
+
+                if let plantId = routine.plantId, plantIds.contains(plantId) {
+                    return !gardenRoutineNames.contains(normalizedPlantName(routine.plantName))
+                }
+
+                let routineName = normalizedPlantName(routine.plantName)
+                return plantNames.contains(routineName) && !gardenRoutineNames.contains(routineName)
+            }
+            .sorted { $0.nextWateringDate < $1.nextWateringDate }
+    }
+
+    private var gardenPlantCareRoutines: [PlantCareRoutine] {
+        let plantIds = Set(placedPlants.map { $0.plantID })
+        let plantNames = Set(placedPlants.map { normalizedPlantName($0.plantName) })
+        let gardenRoutineNames = Set(wateringStore.careRoutines.compactMap { routine -> String? in
+            routine.gardenId == gardenId ? normalizedPlantName(routine.plantName) : nil
+        })
+
+        return wateringStore.careRoutines
+            .filter { routine in
+                guard routine.isActive else { return false }
+
+                if routine.gardenId == gardenId {
+                    if let plantId = routine.plantId {
+                        return plantIds.contains(plantId)
+                    }
+                    return plantNames.contains(normalizedPlantName(routine.plantName))
+                }
+
+                if let routineGardenId = routine.gardenId, routineGardenId != gardenId {
+                    return false
+                }
+
+                if let plantId = routine.plantId, plantIds.contains(plantId) {
+                    return !gardenRoutineNames.contains(normalizedPlantName(routine.plantName))
+                }
+
+                let routineName = normalizedPlantName(routine.plantName)
+                return plantNames.contains(routineName) && !gardenRoutineNames.contains(routineName)
+            }
+            .sorted { $0.nextCareDate < $1.nextCareDate }
+    }
+
+    private var plantsWithoutRoutine: [PersistedPlant] {
+        let routinePlantIds = Set(gardenWateringRoutines.compactMap { $0.plantId } + gardenPlantCareRoutines.compactMap { $0.plantId })
+        let routineNames = Set(
+            gardenWateringRoutines.map { normalizedPlantName($0.plantName) }
+            + gardenPlantCareRoutines.map { normalizedPlantName($0.plantName) }
+        )
+        return placedPlants.filter { plant in
+            !routinePlantIds.contains(plant.plantID)
+            && !routineNames.contains(normalizedPlantName(plant.plantName))
+        }
+    }
+
+    private var careActions: [GardenCareAction] {
+        let plantIds = Set(placedPlants.map { $0.plantID })
+        let plantNames = Set(placedPlants.map { normalizedPlantName($0.plantName) })
+
+        return wateringStore.actions
+            .filter { action in
+                if action.gardenId == gardenId { return true }
+                if let actionGardenId = action.gardenId, actionGardenId != gardenId { return false }
+                if let plantId = action.plantId, plantIds.contains(plantId) { return true }
+                return plantNames.contains(normalizedPlantName(action.plantName))
+            }
+            .sorted { $0.date > $1.date }
+    }
+
+    private var recommendationMessage: String {
+        if let item = dueCareItems.first {
+            return "\(item.plantName) a une action en attente : \(item.title.lowercased()). Validez-la après l’avoir faite pour recalculer automatiquement la prochaine date."
+        }
+
+        if let item = upcomingCareItems.first {
+            return "Prochain soin prévu pour \(item.plantName) : \(item.title.lowercased()), \(statusText(for: item.date).text.lowercased())."
+        }
+
+        return "Créez une routine d’arrosage ou d’entretien pour transformer cette page en vrai tableau de bord de jardin."
+    }
+
+    private var selectedDateSectionTitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.dateFormat = "d MMMM"
+        return "Agenda du \(formatter.string(from: selectedCareDate))"
+    }
+
+    private var floatingActionIcon: String {
+        selectedTab == .tasks ? "calendar.badge.plus" : "plus"
+    }
+
+    private func handleFloatingAction() {
+        if selectedTab == .tasks {
+            openRoutineCreation()
+        }
+    }
+
+    private func openRoutineCreation(for plant: PersistedPlant? = nil) {
+        guard let plant = plant ?? placedPlants.first else { return }
+        plantForRoutine = plant
+        showRoutineCreation = true
+    }
+
+    private func careItem(for plant: PersistedPlant) -> GardenCareScheduleItem? {
+        careItems.first { item in
+            if let plantId = item.plantId {
+                return plantId == plant.plantID
+            }
+            return normalizedPlantName(item.plantName) == normalizedPlantName(plant.plantName)
+        }
+    }
+
+    private func plantCareStatus(for plant: PersistedPlant) -> (text: String, color: Color) {
+        guard let item = careItem(for: plant) else {
+            return ("À planifier", ArboreDesign.Colors.textSecondary)
+        }
+        return statusText(for: item.date)
+    }
+
+    private func completeCareItem(_ item: GardenCareScheduleItem) {
+        switch item.source {
+        case .watering(let routineId):
+            wateringStore.markWatered(routineId: routineId)
+        case .care(let routineId):
+            wateringStore.completeCareRoutine(routineId: routineId)
+        }
+    }
+
+    private func deferCareItem(_ item: GardenCareScheduleItem) {
+        switch item.source {
+        case .watering(let routineId):
+            wateringStore.deferWatering(routineId: routineId)
+        case .care(let routineId):
+            wateringStore.deferCareRoutine(routineId: routineId)
+        }
+    }
+
+    private func statusText(for date: Date) -> (text: String, color: Color) {
+        let days = daysUntil(date)
+
+        if days < 0 {
+            return ("En retard", ArboreDesign.Colors.danger)
+        }
+        if days == 0 {
+            return ("Aujourd’hui", Color(hex: "#3A93B8"))
+        }
+        if days == 1 {
+            return ("Demain", Color(hex: "#3A93B8"))
+        }
+        return ("Dans \(days) j", ArboreDesign.Colors.success)
+    }
+
+    private func wateringSubtitle(for routine: WateringRoutine) -> String {
+        let amount = routine.amount.trimmingCharacters(in: .whitespacesAndNewlines)
+        let time = formattedTime(routine.reminderTime)
+
+        if amount.isEmpty {
+            return "\(routine.frequencySummary) • \(time)"
+        }
+        return "\(amount) • \(routine.frequencySummary) • \(time)"
+    }
+
+    private func careRoutineSubtitle(for routine: PlantCareRoutine) -> String {
+        let detail = (routine.detail ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let notes = routine.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let base = "\(routine.plantName) • \(routine.frequencySummary) • \(formattedTime(routine.reminderTime))"
+        let withDetail = detail.isEmpty ? base : "\(base) • \(detail)"
+        return notes.isEmpty ? withDetail : "\(withDetail) • \(notes)"
+    }
+
+    private func daysUntil(_ date: Date) -> Int {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let target = calendar.startOfDay(for: date)
+        return calendar.dateComponents([.day], from: today, to: target).day ?? 0
+    }
+
+    private func formattedTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter.string(from: date)
+    }
+
+    private func historyText(for action: GardenCareAction) -> String {
+        let dateText = relativeDateText(action.date)
+
+        switch action.type {
+        case .watered:
+            return "\(action.plantName) arrosée \(dateText)"
+        case .skipped:
+            return "\(action.plantName) reportée \(dateText)"
+        case .routineCreated:
+            return "Routine créée pour \(action.plantName) \(dateText)"
+        case .careCompleted:
+            return "\(action.title ?? action.careKind?.displayName ?? "Soin") fait pour \(action.plantName) \(dateText)"
+        case .careSkipped:
+            return "\(action.title ?? action.careKind?.displayName ?? "Soin") reporté pour \(action.plantName) \(dateText)"
+        case .careRoutineCreated:
+            return "Routine \(action.title ?? action.careKind?.displayName ?? "soin") créée pour \(action.plantName) \(dateText)"
+        }
+    }
+
+    private func relativeDateText(_ date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "aujourd’hui" }
+        if calendar.isDateInYesterday(date) { return "hier" }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return "le \(formatter.string(from: date))"
+    }
+
+    private func normalizedPlantName(_ name: String) -> String {
+        name
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .lowercased()
     }
 
     private var purchaseContent: some View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xl) {
-            PartnerHeroCard()
+            GardenShopHeroCard(
+                gardenName: currentGardenName,
+                plantCount: placedPlants.count,
+                cartCount: cartItemCount,
+                total: formattedPrice(cartTotal)
+            )
+
+            if !cartItems.isEmpty {
+                GardenCartSummaryCard(
+                    entries: cartItems,
+                    total: formattedPrice(cartTotal),
+                    onIncrement: { item in addItemToCart(item) },
+                    onDecrement: { item in decrementCartItem(item) },
+                    onRemove: { item in removeCartItem(item) },
+                    onClear: clearCart,
+                    onCheckout: { showCheckoutSummary = true }
+                )
+            }
 
             VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
-                SectionTitle(title: "Liste recommandée")
+                HStack(alignment: .center) {
+                    SectionTitle(title: "Plantes du jardin")
 
-                VStack(spacing: ArboreDesign.Spacing.md) {
-                    ForEach(purchaseItems) { item in
-                        PurchaseRow(item: item, primary: primary) {}
+                    Spacer()
+
+                    if !gardenPlantPurchaseGroups.isEmpty {
+                        Button(action: addAllGardenPlantsToCart) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "cart.badge.plus")
+                                    .font(.system(size: 11, weight: .bold))
+                                Text("Tout ajouter")
+                                    .font(.system(size: 12, weight: .bold))
+                            }
+                            .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                            .padding(.horizontal, ArboreDesign.Spacing.sm)
+                            .frame(height: 30)
+                            .background(ArboreDesign.Colors.softSurface)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                if gardenPlantPurchaseGroups.isEmpty {
+                    GardenInlineMessage(
+                        systemImage: "leaf",
+                        text: "Aucune plante placée dans ce jardin pour le moment."
+                    )
+                } else {
+                    VStack(spacing: ArboreDesign.Spacing.sm) {
+                        ForEach(gardenPlantPurchaseGroups) { group in
+                            let item = gardenPlantShopItem(for: group)
+                            GardenShopItemRow(
+                                item: item,
+                                quantityText: group.count > 1 ? "\(group.count) dans le jardin" : "Dans ce jardin",
+                                cartQuantity: cartQuantity(for: item),
+                                actionTitle: "Ajouter",
+                                onAdd: { addItemToCart(item) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if !purchaseRecommendations.isEmpty {
+                VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+                    SectionTitle(title: "Recommandations d’achat")
+
+                    VStack(spacing: ArboreDesign.Spacing.sm) {
+                        ForEach(purchaseRecommendations) { item in
+                            GardenShopRecommendationRow(
+                                item: item,
+                                cartQuantity: cartQuantity(for: item),
+                                onAdd: { addItemToCart(item) }
+                            )
+                        }
                     }
                 }
             }
 
             VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
-                SectionTitle(title: "Essentiels pour ce jardin")
+                SectionTitle(title: "Ajouter depuis le catalogue")
 
-                LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: ArboreDesign.Spacing.sm),
-                    GridItem(.flexible(), spacing: ArboreDesign.Spacing.sm)
-                ], spacing: ArboreDesign.Spacing.sm) {
-                    PartnerCategoryCard(systemImage: "leaf.fill", title: "Plantes", subtitle: "Catalogue compatible")
-                    PartnerCategoryCard(systemImage: "shippingbox.fill", title: "Terreau", subtitle: "Substrats adaptés")
-                    PartnerCategoryCard(systemImage: "drop.fill", title: "Arrosage", subtitle: "Accessoires utiles")
-                    PartnerCategoryCard(systemImage: "scissors", title: "Entretien", subtitle: "Outils & soins")
+                PurchaseSearchBar(text: $purchaseSearchText)
+
+                if isLoadingPurchaseCatalog {
+                    GardenInlineMessage(systemImage: "hourglass", text: "Chargement du catalogue de plantes...")
+                } else if let purchaseCatalogError {
+                    PurchaseCatalogErrorCard(message: purchaseCatalogError) {
+                        loadPurchaseCatalogIfNeeded(force: true)
+                    }
+                } else if catalogueShopItems.isEmpty {
+                    GardenInlineMessage(systemImage: "magnifyingglass", text: "Aucune plante trouvée dans le catalogue.")
+                } else {
+                    VStack(spacing: ArboreDesign.Spacing.sm) {
+                        ForEach(catalogueShopItems) { item in
+                            GardenShopItemRow(
+                                item: item,
+                                quantityText: item.recommendation ?? "Catalogue Arbore",
+                                cartQuantity: cartQuantity(for: item),
+                                actionTitle: "Ajouter",
+                                onAdd: { addItemToCart(item) }
+                            )
+                        }
+                    }
                 }
             }
 
-            PartnerTrustCard()
+            GardenShopTrustCard()
         }
+    }
+
+    private var gardenPlantPurchaseGroups: [GardenPlantPurchaseGroup] {
+        var groups: [GardenPlantPurchaseGroup] = []
+        var indexes: [String: Int] = [:]
+
+        for plant in placedPlants {
+            let key = "\(plant.plantID)-\(normalizedPlantName(plant.plantName))"
+            if let index = indexes[key] {
+                groups[index] = GardenPlantPurchaseGroup(
+                    plant: groups[index].plant,
+                    count: groups[index].count + 1
+                )
+            } else {
+                indexes[key] = groups.count
+                groups.append(GardenPlantPurchaseGroup(plant: plant, count: 1))
+            }
+        }
+
+        return groups.sorted { $0.plant.plantName.localizedCaseInsensitiveCompare($1.plant.plantName) == .orderedAscending }
+    }
+
+    private var cartItemCount: Int {
+        cartItems.reduce(0) { $0 + $1.quantity }
+    }
+
+    private var cartTotal: Double {
+        cartItems.reduce(0) { $0 + $1.total }
+    }
+
+    private var checkoutSummaryText: String {
+        "Votre liste contient \(cartItemCount) article\(cartItemCount > 1 ? "s" : "") pour un total estimé de \(formattedPrice(cartTotal)). Elle reste enregistrée dans ce jardin."
+    }
+
+    private var catalogueShopItems: [GardenShopItem] {
+        let gardenPlantIds = Set(gardenPlantPurchaseGroups.map { $0.plant.plantID })
+        let gardenPlantNames = Set(gardenPlantPurchaseGroups.map { normalizedPlantName($0.plant.plantName) })
+        let query = purchaseSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let wizardFilter = gardenDetails.map { WizardPlantFilter(wizard: $0.wizard) }
+
+        var plants = cataloguePlants.filter { plant in
+            !gardenPlantIds.contains(plant.id) && !gardenPlantNames.contains(normalizedPlantName(plant.name))
+        }
+
+        if !query.isEmpty {
+            plants = plants.filter {
+                $0.name.lowercased().contains(query)
+                || $0.type.lowercased().contains(query)
+                || preferredTranslation(for: $0)?.plantType.lowercased().contains(query) == true
+            }
+        }
+
+        plants = plants.sorted { lhs, rhs in
+            let leftMatches = wizardFilter?.matches(plant: lhs, locale: "fr") ?? false
+            let rightMatches = wizardFilter?.matches(plant: rhs, locale: "fr") ?? false
+            if leftMatches != rightMatches { return leftMatches }
+
+            let leftHasModel = lhs.modelURL?.isEmpty == false
+            let rightHasModel = rhs.modelURL?.isEmpty == false
+            if leftHasModel != rightHasModel { return leftHasModel }
+
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+
+        return plants.prefix(query.isEmpty ? 8 : 16).map { plant in
+            catalogShopItem(for: plant, isRecommended: wizardFilter?.matches(plant: plant, locale: "fr") ?? false)
+        }
+    }
+
+    private var purchaseRecommendations: [GardenShopItem] {
+        var items: [GardenShopItem] = []
+
+        for group in gardenPlantPurchaseGroups.prefix(6) {
+            if let soilItem = soilRecommendation(for: group.plant) {
+                items.append(soilItem)
+            }
+        }
+
+        if items.isEmpty && !placedPlants.isEmpty {
+            items.append(
+                GardenShopItem(
+                    id: "soil-universal-\(gardenId)",
+                    name: "Terreau drainant universel",
+                    subtitle: "Base légère adaptée à la majorité des plantes du jardin.",
+                    priceRange: "8,90 € - 14,90 €",
+                    estimatedPrice: 11.90,
+                    category: .soil,
+                    recommendation: "Fallback utile si les fiches plantes ne précisent pas encore le substrat.",
+                    priority: 2
+                )
+            )
+        }
+
+        if !placedPlants.isEmpty {
+            items.append(
+                GardenShopItem(
+                    id: "tool-watering-can-\(gardenId)",
+                    name: "Arrosoir à bec fin",
+                    subtitle: "Pour arroser au pied sans détremper les feuilles.",
+                    priceRange: "12,90 € - 19,90 €",
+                    estimatedPrice: 16.90,
+                    category: .watering,
+                    systemIcon: "drop.fill",
+                    recommendation: "Utile pour \(placedPlants.count) plante\(placedPlants.count > 1 ? "s" : "") placée\(placedPlants.count > 1 ? "s" : "").",
+                    priority: 3
+                )
+            )
+
+            items.append(
+                GardenShopItem(
+                    id: "tool-moisture-meter-\(gardenId)",
+                    name: "Hygromètre de sol",
+                    subtitle: "Aide à éviter les excès d’eau entre deux routines.",
+                    priceRange: "9,90 € - 16,90 €",
+                    estimatedPrice: 12.90,
+                    category: .watering,
+                    systemIcon: "gauge.with.dots.needle.67percent",
+                    recommendation: "Recommandé quand plusieurs plantes ont des besoins différents.",
+                    priority: 3
+                )
+            )
+
+            items.append(
+                GardenShopItem(
+                    id: "tool-pruner-\(gardenId)",
+                    name: "Sécateur compact",
+                    subtitle: "Pour couper les feuilles abîmées proprement.",
+                    priceRange: "10,90 € - 24,90 €",
+                    estimatedPrice: 17.90,
+                    category: .care,
+                    systemIcon: "scissors",
+                    recommendation: "Cohérent avec les routines de taille et d’entretien.",
+                    priority: 4
+                )
+            )
+        }
+
+        if gardenPlantCareRoutines.contains(where: { $0.kind == .fertilize }) || placedPlants.count >= 3 {
+            items.append(
+                GardenShopItem(
+                    id: "care-fertilizer-\(gardenId)",
+                    name: "Engrais plantes vertes",
+                    subtitle: "Nutrition douce pour soutenir la croissance.",
+                    priceRange: "7,90 € - 13,90 €",
+                    estimatedPrice: 9.90,
+                    category: .care,
+                    systemIcon: "leaf.arrow.circlepath",
+                    recommendation: "À garder sous la main pour les routines d’engrais.",
+                    priority: 4
+                )
+            )
+        }
+
+        if gardenPlantCareRoutines.contains(where: { $0.kind == .repot }) || gardenNeedsRepotSupport {
+            items.append(
+                GardenShopItem(
+                    id: "accessory-pot-\(gardenId)",
+                    name: "Pot avec drainage",
+                    subtitle: "Prévoir un pot légèrement plus grand et une soucoupe.",
+                    priceRange: "8,90 € - 29,90 €",
+                    estimatedPrice: 18.90,
+                    category: .accessory,
+                    systemIcon: "circle.hexagongrid.fill",
+                    recommendation: "Suggéré par les infos de rempotage ou les routines du jardin.",
+                    priority: 5
+                )
+            )
+        }
+
+        return uniqueShopItems(items)
+            .sorted { $0.priority < $1.priority }
+            .prefix(8)
+            .map { $0 }
+    }
+
+    private var gardenNeedsRepotSupport: Bool {
+        gardenPlantPurchaseGroups.contains { group in
+            guard let plant = cataloguePlant(for: group.plant),
+                  let translation = preferredTranslation(for: plant) else { return false }
+            return firstNonEmpty(translation.soilAndPot?.potSize, translation.soilAndPot?.repotFrequency) != nil
+        }
+    }
+
+    private func gardenPlantShopItem(for group: GardenPlantPurchaseGroup) -> GardenShopItem {
+        let plantDetail = cataloguePlant(for: group.plant)
+        let type = preferredTranslation(for: plantDetail)?.plantType ?? plantDetail?.type ?? "Plante du jardin"
+        let price = estimatedPlantPrice(for: plantDetail, fallbackName: group.plant.plantName)
+
+        return GardenShopItem(
+            id: "garden-plant-\(group.id)",
+            name: group.plant.plantName,
+            subtitle: type,
+            priceRange: priceRange(around: price),
+            estimatedPrice: price,
+            category: .plant,
+            systemIcon: "leaf.fill",
+            sourcePlantId: group.plant.plantID,
+            sourcePlantName: group.plant.plantName,
+            recommendation: group.count > 1 ? "\(group.count) exemplaires dans le plan" : "Déjà présent dans le jardin",
+            priority: 1
+        )
+    }
+
+    private func catalogShopItem(for plant: Plant, isRecommended: Bool) -> GardenShopItem {
+        let translation = preferredTranslation(for: plant)
+        let price = estimatedPlantPrice(for: plant, fallbackName: plant.name)
+        let subtitle = firstNonEmpty(translation?.plantType, plant.type) ?? "Plante du catalogue"
+
+        return GardenShopItem(
+            id: "catalog-plant-\(plant.id)",
+            name: plant.name,
+            subtitle: subtitle,
+            priceRange: priceRange(around: price),
+            estimatedPrice: price,
+            category: .plant,
+            systemIcon: "leaf.fill",
+            sourcePlantId: plant.id,
+            sourcePlantName: plant.name,
+            recommendation: isRecommended ? "Compatible avec les critères du jardin" : "Disponible dans le catalogue",
+            priority: isRecommended ? 1 : 2
+        )
+    }
+
+    private func soilRecommendation(for plant: PersistedPlant) -> GardenShopItem? {
+        let plantDetail = cataloguePlant(for: plant)
+        let translation = preferredTranslation(for: plantDetail)
+        let substrate = firstNonEmpty(
+            translation?.soilAndPot?.substrate,
+            gardenDetails?.wizard.soil
+        )
+        let drainage = firstNonEmpty(translation?.soilAndPot?.drainage)
+
+        guard let substrate else { return nil }
+
+        let subtitle: String
+        if let drainage {
+            subtitle = "\(substrate) • \(drainage)"
+        } else {
+            subtitle = substrate
+        }
+
+        return GardenShopItem(
+            id: "soil-\(plant.plantID)-\(normalizedForIdentifier(substrate))",
+            name: "Substrat pour \(plant.plantName)",
+            subtitle: subtitle,
+            priceRange: "8,90 € - 18,90 €",
+            estimatedPrice: 12.90,
+            category: .soil,
+            systemIcon: "shippingbox.fill",
+            sourcePlantId: plant.plantID,
+            sourcePlantName: plant.plantName,
+            recommendation: "Basé sur la fiche sol de la plante.",
+            priority: 2
+        )
+    }
+
+    private func addAllGardenPlantsToCart() {
+        for group in gardenPlantPurchaseGroups {
+            addItemToCart(gardenPlantShopItem(for: group), quantity: group.count)
+        }
+    }
+
+    private func addItemToCart(_ item: GardenShopItem, quantity: Int = 1) {
+        guard quantity > 0 else { return }
+        if let index = cartItems.firstIndex(where: { $0.item.id == item.id }) {
+            cartItems[index].quantity += quantity
+        } else {
+            cartItems.append(GardenCartEntry(item: item, quantity: quantity))
+        }
+        cartItems.sort { $0.item.category.rawValue < $1.item.category.rawValue }
+        persistPurchaseCart()
+    }
+
+    private func decrementCartItem(_ item: GardenShopItem) {
+        guard let index = cartItems.firstIndex(where: { $0.item.id == item.id }) else { return }
+        if cartItems[index].quantity <= 1 {
+            cartItems.remove(at: index)
+        } else {
+            cartItems[index].quantity -= 1
+        }
+        persistPurchaseCart()
+    }
+
+    private func removeCartItem(_ item: GardenShopItem) {
+        cartItems.removeAll { $0.item.id == item.id }
+        persistPurchaseCart()
+    }
+
+    private func clearCart() {
+        cartItems = []
+        persistPurchaseCart()
+    }
+
+    private func cartQuantity(for item: GardenShopItem) -> Int {
+        cartItems.first(where: { $0.item.id == item.id })?.quantity ?? 0
+    }
+
+    private var purchaseCartStorageKey: String {
+        "gardenPurchaseCart.\(gardenId)"
+    }
+
+    private func loadPurchaseCart() {
+        guard let data = UserDefaults.standard.data(forKey: purchaseCartStorageKey),
+              let decoded = try? JSONDecoder().decode([GardenCartEntry].self, from: data) else {
+            cartItems = []
+            return
+        }
+        cartItems = decoded
+    }
+
+    private func persistPurchaseCart() {
+        guard let data = try? JSONEncoder().encode(cartItems) else { return }
+        UserDefaults.standard.set(data, forKey: purchaseCartStorageKey)
+    }
+
+    private func loadPurchaseCatalogIfNeeded(force: Bool = false) {
+        guard force || !hasLoadedPurchaseCatalog else { return }
+        hasLoadedPurchaseCatalog = true
+        isLoadingPurchaseCatalog = true
+        purchaseCatalogError = nil
+
+        Task {
+            do {
+                let plants: [Plant] = try await NetworkManager.shared.request(
+                    endpoint: "/plants",
+                    method: .GET
+                )
+                await MainActor.run {
+                    cataloguePlants = plants
+                    isLoadingPurchaseCatalog = false
+                    purchaseCatalogError = nil
+                }
+            } catch {
+                await MainActor.run {
+                    isLoadingPurchaseCatalog = false
+                    purchaseCatalogError = "Impossible de charger le catalogue pour l’instant."
+                }
+            }
+        }
+    }
+
+    private func cataloguePlant(for persistedPlant: PersistedPlant) -> Plant? {
+        cataloguePlants.first { plant in
+            plant.id == persistedPlant.plantID
+            || normalizedPlantName(plant.name) == normalizedPlantName(persistedPlant.plantName)
+        }
+    }
+
+    private func preferredTranslation(for plant: Plant?) -> PlantTranslation? {
+        guard let plant else { return nil }
+        let locale = Locale.current.language.languageCode?.identifier ?? "fr"
+        return plant.translations[locale]
+            ?? plant.translations["fr"]
+            ?? plant.translations["en"]
+            ?? plant.translations.values.first
+    }
+
+    private func firstNonEmpty(_ values: String?...) -> String? {
+        values
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+    }
+
+    private func uniqueShopItems(_ items: [GardenShopItem]) -> [GardenShopItem] {
+        var seen = Set<String>()
+        var unique: [GardenShopItem] = []
+
+        for item in items {
+            if seen.insert(item.id).inserted {
+                unique.append(item)
+            }
+        }
+
+        return unique
+    }
+
+    private func estimatedPlantPrice(for plant: Plant?, fallbackName: String) -> Double {
+        let text = "\(plant?.type ?? "") \(plant?.name ?? fallbackName)".lowercased()
+        if text.contains("tree") || text.contains("arbre") || text.contains("palm") || text.contains("palmier") {
+            return 34.90
+        }
+        if text.contains("succulent") || text.contains("cactus") {
+            return 9.90
+        }
+        if text.contains("flower") || text.contains("fleur") || text.contains("orchid") {
+            return 18.90
+        }
+        return 16.90
+    }
+
+    private func priceRange(around price: Double) -> String {
+        let low = max(4.90, price - 4)
+        let high = price + 6
+        return "\(formattedPrice(low)) - \(formattedPrice(high))"
+    }
+
+    private func formattedPrice(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "EUR"
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f €", value)
+    }
+
+    private func normalizedForIdentifier(_ value: String) -> String {
+        normalizedPlantName(value)
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "/", with: "-")
     }
 
     private func loadMapTextureKind() async {
@@ -692,7 +1719,7 @@ struct GardenDetailsPage: View {
         )
         .padding(.horizontal, ArboreDesign.Spacing.screenHorizontal)
     }
-    
+
     private func headerIcon(_ systemName: String) -> some View {
         Image(systemName: systemName)
             .font(.system(size: 16, weight: .bold))
@@ -705,7 +1732,7 @@ struct GardenDetailsPage: View {
                     .stroke(ArboreDesign.Colors.border, lineWidth: 1)
             )
     }
-    
+
     private func tabButton(_ tab: Tab) -> some View {
         Button {
             withAnimation(.easeInOut(duration: 0.18)) {
@@ -724,7 +1751,7 @@ struct GardenDetailsPage: View {
         }
         .buttonStyle(.plain)
     }
-    
+
     private func placeholder(title: String, subtitle: String) -> some View {
         AppCard {
             VStack(spacing: ArboreDesign.Spacing.xs) {
@@ -811,6 +1838,100 @@ private struct PartnerHeroCard: View {
     }
 }
 
+private struct GardenShopHeroCard: View {
+    let gardenName: String
+    let plantCount: Int
+    let cartCount: Int
+    let total: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ArboreDesign.Spacing.lg) {
+            HStack(alignment: .top, spacing: ArboreDesign.Spacing.md) {
+                VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
+                    Text("Boutique du jardin")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(ArboreDesign.Colors.accentGold)
+                        .textCase(.uppercase)
+                        .tracking(0.8)
+
+                    Text(gardenName)
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text("Plantes, terreaux et outils recommandés à partir de ce qui est réellement placé dans votre jardin.")
+                        .font(ArboreDesign.Typography.bodySmall)
+                        .foregroundColor(.white.opacity(0.74))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "cart.fill")
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundColor(Color(hex: "#162016"))
+                    .frame(width: 44, height: 44)
+                    .background(ArboreDesign.Colors.accentGold)
+                    .clipShape(Circle())
+            }
+
+            HStack(spacing: ArboreDesign.Spacing.sm) {
+                GardenShopMetricPill(systemImage: "leaf.fill", title: "Plantes", value: "\(plantCount)")
+                GardenShopMetricPill(systemImage: "cart.fill", title: "Panier", value: "\(cartCount)")
+                GardenShopMetricPill(systemImage: "creditcard.fill", title: "Total", value: total)
+            }
+        }
+        .padding(ArboreDesign.Spacing.lg)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(hex: "#202922"),
+                    Color(hex: "#111512")
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.16), radius: 16, x: 0, y: 8)
+    }
+}
+
+private struct GardenShopMetricPill: View {
+    let systemImage: String
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(ArboreDesign.Colors.accentGold)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.56))
+
+                Text(value)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .frame(height: 44)
+        .background(Color.white.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
+    }
+}
+
 private struct GardenMeasurementPromptCard: View {
     let onMeasure: () -> Void
 
@@ -865,54 +1986,323 @@ private struct GardenMeasurementPromptCard: View {
     }
 }
 
-private struct PurchaseRow: View {
-    let item: PurchaseItem
-    let primary: Color
-    let onBuy: () -> Void
-    
+private struct GardenCartSummaryCard: View {
+    let entries: [GardenCartEntry]
+    let total: String
+    let onIncrement: (GardenShopItem) -> Void
+    let onDecrement: (GardenShopItem) -> Void
+    let onRemove: (GardenShopItem) -> Void
+    let onClear: () -> Void
+    let onCheckout: () -> Void
+
     var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
-                    .fill(ArboreDesign.Colors.softSurface)
-                    .frame(width: 58, height: 58)
-                if let icon = item.systemIcon {
-                    Image(systemName: icon)
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(primary)
-                } else {
-                    Image(systemName: "leaf.fill")
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(primary)
+        VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+            HStack(alignment: .center) {
+                SectionTitle(title: "Panier")
+
+                Spacer()
+
+                Button(action: onClear) {
+                    Text("Vider")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
+                        .padding(.horizontal, ArboreDesign.Spacing.sm)
+                        .frame(height: 30)
+                        .background(ArboreDesign.Colors.softSurface)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+
+            AppCard {
+                VStack(spacing: ArboreDesign.Spacing.sm) {
+                    ForEach(entries) { entry in
+                        GardenCartEntryRow(
+                            entry: entry,
+                            onIncrement: { onIncrement(entry.item) },
+                            onDecrement: { onDecrement(entry.item) },
+                            onRemove: { onRemove(entry.item) }
+                        )
+                    }
+
+                    Divider()
+                        .background(ArboreDesign.Colors.border)
+
+                    HStack {
+                        Text("Total estimé")
+                            .font(ArboreDesign.Typography.body)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
+
+                        Spacer()
+
+                        Text(total)
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                    }
+
+                    Button(action: onCheckout) {
+                        HStack(spacing: ArboreDesign.Spacing.xs) {
+                            Image(systemName: "bag.fill")
+                            Text("Préparer la commande")
+                        }
+                        .font(ArboreDesign.Typography.button)
+                        .foregroundColor(Color.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(ArboreDesign.Colors.primaryButton)
+                        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-            
-            VStack(alignment: .leading, spacing: 6) {
-                Text(item.name)
-                    .font(ArboreDesign.Typography.cardTitle)
+        }
+    }
+}
+
+private struct GardenCartEntryRow: View {
+    let entry: GardenCartEntry
+    let onIncrement: () -> Void
+    let onDecrement: () -> Void
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: ArboreDesign.Spacing.sm) {
+            Image(systemName: entry.item.systemIcon)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(entry.item.category.tint)
+                .frame(width: 30, height: 30)
+                .background(entry.item.category.tint.opacity(0.12))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.item.name)
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundColor(ArboreDesign.Colors.textPrimary)
+                    .lineLimit(1)
+
+                Text(entry.item.priceRange)
+                    .font(ArboreDesign.Typography.caption)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: ArboreDesign.Spacing.sm)
+
+            HStack(spacing: 7) {
+                Button(action: onDecrement) {
+                    Image(systemName: "minus")
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 26, height: 26)
+                }
+
+                Text("\(entry.quantity)")
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(minWidth: 18)
+
+                Button(action: onIncrement) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .bold))
+                        .frame(width: 26, height: 26)
+                }
+            }
+            .foregroundColor(ArboreDesign.Colors.primaryGreen)
+            .background(ArboreDesign.Colors.softSurface)
+            .clipShape(Capsule())
+
+            Button(action: onRemove) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                    .frame(width: 26, height: 26)
+            }
+            .buttonStyle(.plain)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct GardenShopItemRow: View {
+    let item: GardenShopItem
+    let quantityText: String
+    let cartQuantity: Int
+    let actionTitle: String
+    let onAdd: () -> Void
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: item.systemIcon)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(item.category.tint)
+                .frame(width: 56, height: 56)
+                .background(item.category.tint.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    Text(item.name)
+                        .font(ArboreDesign.Typography.cardTitle)
+                        .foregroundColor(ArboreDesign.Colors.textPrimary)
+                        .lineLimit(1)
+
+                    if cartQuantity > 0 {
+                        Text("x\(cartQuantity)")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(Color.white)
+                            .padding(.horizontal, 6)
+                            .frame(height: 18)
+                            .background(ArboreDesign.Colors.primaryGreen)
+                            .clipShape(Capsule())
+                    }
+                }
+
                 Text(item.subtitle)
                     .font(ArboreDesign.Typography.caption)
                     .foregroundColor(ArboreDesign.Colors.textSecondary)
-                Text(item.priceRange)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                    .lineLimit(2)
+
+                HStack(spacing: 6) {
+                    Text(item.priceRange)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(ArboreDesign.Colors.primaryGreen)
+
+                    Text(quantityText)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
+                        .lineLimit(1)
+                }
             }
-            Spacer()
-            Button(action: onBuy) {
-                Image(systemName: "arrow.up.right")
+
+            Spacer(minLength: ArboreDesign.Spacing.sm)
+
+            Button(action: onAdd) {
+                Image(systemName: "cart.badge.plus")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(Color.white)
-                    .frame(width: 38, height: 38)
+                    .frame(width: 40, height: 40)
                     .background(ArboreDesign.Colors.primaryButton)
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Ouvrir chez le partenaire")
+            .accessibilityLabel(actionTitle)
         }
         .padding(ArboreDesign.Spacing.md)
         .background(CardContainer(cornerRadius: ArboreDesign.Radius.large))
         .shadow(color: ArboreDesign.Colors.shadow, radius: 10, x: 0, y: 4)
+    }
+}
+
+private struct GardenShopRecommendationRow: View {
+    let item: GardenShopItem
+    let cartQuantity: Int
+    let onAdd: () -> Void
+
+    var body: some View {
+        GardenShopItemRow(
+            item: item,
+            quantityText: item.recommendation ?? item.category.title,
+            cartQuantity: cartQuantity,
+            actionTitle: "Ajouter",
+            onAdd: onAdd
+        )
+    }
+}
+
+private struct PurchaseSearchBar: View {
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: ArboreDesign.Spacing.sm) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(ArboreDesign.Colors.textSecondary)
+
+            TextField("Rechercher une plante du catalogue", text: $text)
+                .font(ArboreDesign.Typography.body)
+                .foregroundColor(ArboreDesign.Colors.textPrimary)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled(true)
+
+            if !text.isEmpty {
+                Button(action: { text = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, ArboreDesign.Spacing.md)
+        .frame(height: 48)
+        .background(ArboreDesign.Colors.card)
+        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+        )
+    }
+}
+
+private struct PurchaseCatalogErrorCard: View {
+    let message: String
+    let onRetry: () -> Void
+
+    var body: some View {
+        HStack(spacing: ArboreDesign.Spacing.sm) {
+            SettingsIconBadge(systemImage: "wifi.exclamationmark", tint: ArboreDesign.Colors.danger, size: 38)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(message)
+                    .font(ArboreDesign.Typography.bodySmall)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button(action: onRetry) {
+                    Text("Réessayer")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(ArboreDesign.Spacing.md)
+        .background(ArboreDesign.Colors.card)
+        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+        )
+    }
+}
+
+private struct GardenShopTrustCard: View {
+    var body: some View {
+        AppCard {
+            VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+                HStack(spacing: ArboreDesign.Spacing.sm) {
+                    SettingsIconBadge(systemImage: "checkmark.seal.fill", tint: ArboreDesign.Colors.success, size: 40)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Liste liée au jardin")
+                            .font(ArboreDesign.Typography.cardTitle)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
+
+                        Text("Le panier reste sauvegardé pour ce jardin. Les prix affichés sont des estimations pour préparer une vraie liste d’achat avant redirection partenaire.")
+                            .font(ArboreDesign.Typography.bodySmall)
+                            .foregroundColor(ArboreDesign.Colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                Divider()
+                    .background(ArboreDesign.Colors.border)
+
+                HStack(spacing: ArboreDesign.Spacing.sm) {
+                    PartnerTrustPill(systemImage: "leaf.fill", text: "Plantes du plan")
+                    PartnerTrustPill(systemImage: "sparkles", text: "Recommandations Arbore")
+                }
+            }
+        }
     }
 }
 
@@ -1157,45 +2547,330 @@ private struct GardenInlineMessage: View {
     }
 }
 
+private enum GardenCareScheduleSource {
+    case watering(String)
+    case care(String)
+}
+
+private struct GardenCareScheduleItem: Identifiable {
+    let source: GardenCareScheduleSource
+    let plantId: String?
+    let plantName: String
+    let title: String
+    let subtitle: String
+    let date: Date
+    let icon: String
+    let tint: Color
+    let completionTitle: String
+
+    var id: String {
+        switch source {
+        case .watering(let routineId):
+            return "watering-\(routineId)"
+        case .care(let routineId):
+            return "care-\(routineId)"
+        }
+    }
+}
+
+private struct CareMonthCalendar: View {
+    let items: [GardenCareScheduleItem]
+    @Binding var selectedDate: Date
+    @Binding var visibleMonth: Date
+
+    private let calendar = Calendar.current
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 6), count: 7)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+            SectionTitle(title: "Calendrier d’entretien")
+
+            AppCard {
+                VStack(spacing: ArboreDesign.Spacing.md) {
+                    HStack(spacing: ArboreDesign.Spacing.sm) {
+                        Button(action: previousMonth) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(ArboreDesign.Colors.textPrimary)
+                                .frame(width: 34, height: 34)
+                                .background(ArboreDesign.Colors.softSurface)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Mois précédent")
+
+                        Text(monthTitle)
+                            .font(.system(size: 17, weight: .bold, design: .rounded))
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
+                            .frame(maxWidth: .infinity)
+
+                        Button(action: nextMonth) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(ArboreDesign.Colors.textPrimary)
+                                .frame(width: 34, height: 34)
+                                .background(ArboreDesign.Colors.softSurface)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Mois suivant")
+                    }
+
+                    Button(action: jumpToToday) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 11, weight: .bold))
+                            Text("Aujourd’hui")
+                                .font(.system(size: 12, weight: .bold))
+                        }
+                        .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                        .padding(.horizontal, ArboreDesign.Spacing.sm)
+                        .frame(height: 30)
+                        .background(ArboreDesign.Colors.softSurface)
+                        .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    LazyVGrid(columns: columns, spacing: 8) {
+                        ForEach(weekdaySymbols, id: \.self) { day in
+                            Text(day)
+                                .font(.system(size: 11, weight: .bold))
+                                .foregroundColor(ArboreDesign.Colors.textSecondary)
+                                .frame(maxWidth: .infinity)
+                        }
+
+                        ForEach(monthDates, id: \.self) { date in
+                            calendarDay(date)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func calendarDay(_ date: Date) -> some View {
+        let dayItems = itemsForDay(date)
+        let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+        let isToday = calendar.isDateInToday(date)
+        let isCurrentMonth = calendar.isDate(date, equalTo: visibleMonth, toGranularity: .month)
+
+        return Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                selectedDate = date
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Text("\(calendar.component(.day, from: date))")
+                    .font(.system(size: 13, weight: isSelected || isToday ? .bold : .semibold))
+                    .foregroundColor(isSelected ? .white : (isCurrentMonth ? ArboreDesign.Colors.textPrimary : ArboreDesign.Colors.textSecondary.opacity(0.55)))
+                    .frame(width: 30, height: 30)
+                    .background(isSelected ? ArboreDesign.Colors.primaryGreen : (isToday ? ArboreDesign.Colors.softSurface : Color.clear))
+                    .clipShape(Circle())
+
+                HStack(spacing: 2) {
+                    ForEach(Array(dayItems.prefix(3))) { item in
+                        Circle()
+                            .fill(item.tint)
+                            .frame(width: 4, height: 4)
+                    }
+                }
+                .frame(height: 5)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .opacity(isCurrentMonth ? 1 : 0.55)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(calendar.component(.day, from: date)) \(dayItems.count) action\(dayItems.count > 1 ? "s" : "")")
+    }
+
+    private var monthTitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.dateFormat = "LLLL yyyy"
+        return formatter.string(from: visibleMonth).capitalized
+    }
+
+    private var weekdaySymbols: [String] {
+        let symbols = calendar.shortStandaloneWeekdaySymbols
+        let first = calendar.firstWeekday - 1
+        return (Array(symbols[first...]) + Array(symbols[..<first])).map { $0.replacingOccurrences(of: ".", with: "").capitalized }
+    }
+
+    private var monthDates: [Date] {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: visibleMonth) else { return [] }
+        let firstOfMonth = monthInterval.start
+        let firstWeekday = calendar.component(.weekday, from: firstOfMonth)
+        let leadingDays = (firstWeekday - calendar.firstWeekday + 7) % 7
+        let gridStart = calendar.date(byAdding: .day, value: -leadingDays, to: firstOfMonth) ?? firstOfMonth
+
+        return (0..<42).compactMap { offset in
+            calendar.date(byAdding: .day, value: offset, to: gridStart)
+        }
+    }
+
+    private func itemsForDay(_ date: Date) -> [GardenCareScheduleItem] {
+        let day = calendar.startOfDay(for: date)
+        let today = calendar.startOfDay(for: Date())
+
+        return items.filter { item in
+            let itemDay = calendar.startOfDay(for: item.date)
+            if day == today {
+                return itemDay <= today
+            }
+            return itemDay == day
+        }
+    }
+
+    private func previousMonth() {
+        visibleMonth = calendar.date(byAdding: .month, value: -1, to: visibleMonth) ?? visibleMonth
+    }
+
+    private func nextMonth() {
+        visibleMonth = calendar.date(byAdding: .month, value: 1, to: visibleMonth) ?? visibleMonth
+    }
+
+    private func jumpToToday() {
+        let today = Date()
+        visibleMonth = today
+        selectedDate = today
+    }
+}
+
+private struct CareCalendarAgendaRow: View {
+    let item: GardenCareScheduleItem
+    let status: (text: String, color: Color)
+    let onComplete: () -> Void
+    let onSkip: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: ArboreDesign.Spacing.sm) {
+            Image(systemName: item.icon)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundColor(item.tint)
+                .frame(width: 32, height: 32)
+                .background(item.tint.opacity(0.12))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: ArboreDesign.Spacing.xs) {
+                    Text(item.title)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(ArboreDesign.Colors.textPrimary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 0)
+
+                    Text(status.text)
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(status.color)
+                        .padding(.horizontal, 7)
+                        .frame(height: 24)
+                        .background(status.color.opacity(0.12))
+                        .clipShape(Capsule())
+                        .lineLimit(1)
+                }
+
+                Text("\(item.plantName) • \(item.subtitle)")
+                    .font(ArboreDesign.Typography.caption)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                    .lineLimit(2)
+
+                HStack(spacing: ArboreDesign.Spacing.sm) {
+                    Button(action: onComplete) {
+                        Label(item.completionTitle, systemImage: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                            .padding(.horizontal, ArboreDesign.Spacing.sm)
+                            .frame(height: 30)
+                            .background(ArboreDesign.Colors.softSurface)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: onSkip) {
+                        Text("Reporter")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(ArboreDesign.Colors.textSecondary)
+                            .padding(.horizontal, ArboreDesign.Spacing.sm)
+                            .frame(height: 30)
+                            .background(ArboreDesign.Colors.softSurface.opacity(0.7))
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.top, 2)
+            }
+        }
+    }
+}
+
 private struct CareTaskCard: View {
     let systemImage: String
     let title: String
     let subtitle: String
-    let actionTitle: String
+    let detail: String
     let tint: Color
-    @State private var isDone = false
+    let completionTitle: String
+    let onComplete: () -> Void
+    let onSkip: () -> Void
 
     var body: some View {
         AppCard {
             HStack(alignment: .top, spacing: ArboreDesign.Spacing.md) {
-                SettingsIconBadge(systemImage: isDone ? "checkmark" : systemImage, tint: isDone ? ArboreDesign.Colors.success : tint, size: 44)
+                SettingsIconBadge(systemImage: systemImage, tint: tint, size: 44)
 
-                VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
-                    Text(title)
-                        .font(ArboreDesign.Typography.cardTitle)
-                        .foregroundColor(ArboreDesign.Colors.textPrimary)
-                        .strikethrough(isDone, color: ArboreDesign.Colors.textSecondary)
+                VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
+                    HStack(alignment: .firstTextBaseline, spacing: ArboreDesign.Spacing.sm) {
+                        Text(title)
+                            .font(ArboreDesign.Typography.cardTitle)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
 
-                    Text(isDone ? "Terminé pour aujourd’hui" : subtitle)
+                        Spacer(minLength: 0)
+
+                        Text(detail)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(tint)
+                            .padding(.horizontal, ArboreDesign.Spacing.sm)
+                            .frame(height: 26)
+                            .background(tint.opacity(0.12))
+                            .clipShape(Capsule())
+                            .lineLimit(1)
+                    }
+
+                    Text(subtitle)
                         .font(ArboreDesign.Typography.bodySmall)
                         .foregroundColor(ArboreDesign.Colors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Button {
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
-                            isDone.toggle()
-                        }
-                    } label: {
-                        Text(isDone ? "Annuler" : actionTitle)
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(isDone ? ArboreDesign.Colors.textSecondary : ArboreDesign.Colors.primaryGreen)
+                    HStack(spacing: ArboreDesign.Spacing.sm) {
+                        Button(action: onComplete) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 11, weight: .bold))
+                                Text(completionTitle)
+                                    .font(.system(size: 13, weight: .bold))
+                            }
+                            .foregroundColor(Color.white)
                             .padding(.horizontal, ArboreDesign.Spacing.md)
                             .frame(height: 34)
-                            .background(isDone ? ArboreDesign.Colors.softSurface.opacity(0.65) : ArboreDesign.Colors.softSurface)
+                            .background(ArboreDesign.Colors.primaryButton)
                             .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+
+                        Button(action: onSkip) {
+                            Text("Reporter")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(ArboreDesign.Colors.textSecondary)
+                                .padding(.horizontal, ArboreDesign.Spacing.md)
+                                .frame(height: 34)
+                                .background(ArboreDesign.Colors.softSurface)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                    .padding(.top, ArboreDesign.Spacing.xs)
                 }
 
                 Spacer(minLength: 0)
@@ -1204,9 +2879,54 @@ private struct CareTaskCard: View {
     }
 }
 
+private struct CareEmptyRoutineCard: View {
+    let plantName: String
+    let onCreate: () -> Void
+
+    var body: some View {
+        AppCard {
+            VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
+                HStack(alignment: .top, spacing: ArboreDesign.Spacing.md) {
+                    SettingsIconBadge(systemImage: "calendar.badge.plus", tint: ArboreDesign.Colors.primaryGreen, size: 44)
+
+                    VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
+                        Text("Aucune routine active")
+                            .font(ArboreDesign.Typography.cardTitle)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
+
+                        Text("Commencez par \(plantName). Vous pouvez planifier l’arrosage, la taille, le nettoyage, l’engrais ou une action personnalisée.")
+                            .font(ArboreDesign.Typography.bodySmall)
+                            .foregroundColor(ArboreDesign.Colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                Button(action: onCreate) {
+                    HStack(spacing: ArboreDesign.Spacing.xs) {
+                        Image(systemName: "calendar.badge.plus")
+                        Text("Planifier une action")
+                    }
+                    .font(ArboreDesign.Typography.button)
+                    .foregroundColor(Color.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 46)
+                    .background(ArboreDesign.Colors.primaryButton)
+                    .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
 private struct CareWeekTimeline: View {
-    private let days = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
-    private let symbols = ["drop.fill", nil, "scissors", nil, "drop.fill", "sparkles", nil]
+    let routines: [WateringRoutine]
+
+    private var days: [Date] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        return (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
@@ -1215,27 +2935,145 @@ private struct CareWeekTimeline: View {
             AppCard {
                 HStack(spacing: ArboreDesign.Spacing.xs) {
                     ForEach(days.indices, id: \.self) { index in
+                        let date = days[index]
+                        let count = dueCount(on: date)
+
                         VStack(spacing: ArboreDesign.Spacing.xs) {
-                            Text(days[index])
+                            Text(dayLabel(for: date))
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(ArboreDesign.Colors.textSecondary)
 
                             ZStack {
                                 Circle()
-                                    .fill(symbols[index] == nil ? ArboreDesign.Colors.softSurface.opacity(0.55) : ArboreDesign.Colors.softSurface)
+                                    .fill(count == 0 ? ArboreDesign.Colors.softSurface.opacity(0.55) : ArboreDesign.Colors.softSurface)
                                     .frame(width: 34, height: 34)
 
-                                if let symbol = symbols[index] {
-                                    Image(systemName: symbol)
+                                if count > 0 {
+                                    Image(systemName: "drop.fill")
                                         .font(.system(size: 13, weight: .bold))
-                                        .foregroundColor(symbol == "scissors" ? ArboreDesign.Colors.accentGold : ArboreDesign.Colors.primaryGreen)
+                                        .foregroundColor(Color(hex: "#3A93B8"))
                                 }
                             }
+
+                            Text(count > 1 ? "\(count)" : " ")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(ArboreDesign.Colors.textSecondary)
+                                .frame(height: 10)
                         }
                         .frame(maxWidth: .infinity)
                     }
                 }
             }
+        }
+    }
+
+    private func dueCount(on date: Date) -> Int {
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: date)
+        let today = calendar.startOfDay(for: Date())
+
+        return routines.filter { routine in
+            let routineDay = calendar.startOfDay(for: routine.nextWateringDate)
+            if day == today {
+                return routineDay <= today
+            }
+            return routineDay == day
+        }.count
+    }
+
+    private func dayLabel(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale.current
+        formatter.dateFormat = "EEE"
+        return formatter.string(from: date).replacingOccurrences(of: ".", with: "").capitalized
+    }
+}
+
+private struct CareUpcomingRow: View {
+    let systemImage: String
+    let plantName: String
+    let title: String
+    let subtitle: String
+    let status: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: ArboreDesign.Spacing.sm) {
+            Image(systemName: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(tint)
+                .frame(width: 34, height: 34)
+                .background(tint.opacity(0.12))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(ArboreDesign.Typography.body)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+                    .lineLimit(1)
+
+                Text("\(plantName) • \(subtitle)")
+                    .font(ArboreDesign.Typography.caption)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+
+            Spacer(minLength: ArboreDesign.Spacing.sm)
+
+            Text(status)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(tint)
+                .padding(.horizontal, ArboreDesign.Spacing.sm)
+                .frame(height: 28)
+                .background(tint.opacity(0.12))
+                .clipShape(Capsule())
+                .lineLimit(1)
+        }
+        .padding(ArboreDesign.Spacing.md)
+        .background(ArboreDesign.Colors.card)
+        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                .stroke(ArboreDesign.Colors.border, lineWidth: 1)
+        )
+    }
+}
+
+private struct CareRoutineSetupRow: View {
+    let plantName: String
+    let onCreate: () -> Void
+
+    var body: some View {
+        HStack(spacing: ArboreDesign.Spacing.sm) {
+            Image(systemName: "leaf")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                .frame(width: 30, height: 30)
+                .background(ArboreDesign.Colors.softSurface)
+                .clipShape(Circle())
+
+            Text(plantName)
+                .font(ArboreDesign.Typography.body)
+                .foregroundColor(ArboreDesign.Colors.textPrimary)
+                .lineLimit(1)
+
+            Spacer(minLength: ArboreDesign.Spacing.sm)
+
+            Button(action: onCreate) {
+                HStack(spacing: 5) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .bold))
+                    Text("Planifier")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                .padding(.horizontal, ArboreDesign.Spacing.sm)
+                .frame(height: 30)
+                .background(ArboreDesign.Colors.softSurface)
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
         }
     }
 }
@@ -1278,7 +3116,7 @@ private struct CarePlantStatusRow: View {
 }
 
 private struct CareRecommendationCard: View {
-    let plantName: String
+    let message: String
 
     var body: some View {
         AppCard {
@@ -1290,7 +3128,7 @@ private struct CareRecommendationCard: View {
                         .font(ArboreDesign.Typography.cardTitle)
                         .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                    Text("Votre \(plantName) est placée en zone lumineuse. Évitez le soleil direct l’après-midi et gardez le sol légèrement humide.")
+                    Text(message)
                         .font(ArboreDesign.Typography.bodySmall)
                         .foregroundColor(ArboreDesign.Colors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)

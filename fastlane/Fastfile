@@ -100,11 +100,13 @@ platform :ios do
     # --- Sentry : upload des dSYM pour symboliser les crashes (#205) ---
     # Skippé proprement si non configuré, pour ne pas casser la lane chez
     # quelqu'un sans Sentry. Nécessite `sentry-cli`
-    # (brew install getsentry/tools/sentry-cli) + variables d'env :
-    #   SENTRY_AUTH_TOKEN  (token org : scopes project:releases + project:write)
-    #   SENTRY_ORG         (ex. "arboreteam")
-    #   SENTRY_PROJECT     (ex. "arbore-ios")
-    upload_dsyms_to_sentry(version: version, build: latest + 1)
+    # (brew install getsentry/tools/sentry-cli) + un token : SENTRY_AUTH_TOKEN
+    # ou un .sentryclirc. org/projet sont déjà câblés (epi-apps/arbore-frontend).
+    upload_dsyms_to_sentry(
+      version: version,
+      build: latest + 1,
+      dsym: lane_context[SharedValues::DSYM_OUTPUT_PATH]
+    )
 
     UI.success("✅ Build #{latest + 1} déployée sur TestFlight → groupe #{INTERNAL_GROUP}")
   end
@@ -126,9 +128,15 @@ platform :ios do
       next
     end
 
-    dsym_zip = File.expand_path("./fastlane/builds/Arbore.app.dSYM.zip")
-    unless File.exist?(dsym_zip)
-      UI.important("Sentry dSYM upload ignoré : #{dsym_zip} introuvable.")
+    # Chemin RÉEL du dSYM produit par build_app : le .app s'appelle ArboreUi
+    # (pas Arbore) — ne jamais coder le nom en dur. On prend le chemin exposé
+    # par gym (lane_context), avec fallback glob, puis le dossier builds
+    # lui-même (sentry-cli y cherche les debug files récursivement).
+    dsym = options[:dsym]
+    dsym = Dir.glob(File.expand_path("./fastlane/builds/*.dSYM.zip")).first unless dsym && File.exist?(dsym)
+    target = (dsym && File.exist?(dsym)) ? dsym : File.expand_path("./fastlane/builds")
+    unless File.exist?(target)
+      UI.important("Sentry dSYM upload ignoré : aucun dSYM trouvé (#{target}).")
       next
     end
 
@@ -136,7 +144,7 @@ platform :ios do
 
     # Crée la release puis associe les dSYM (symbolication des stacktraces).
     sh("sentry-cli releases -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} new '#{release}' || true")
-    sh("sentry-cli debug-files upload -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} '#{dsym_zip}'")
+    sh("sentry-cli debug-files upload -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} '#{target}'")
     sh("sentry-cli releases -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} finalize '#{release}' || true")
     UI.success("✅ dSYM uploadés sur Sentry (#{SENTRY_ORG}/#{SENTRY_PROJECT}, release #{release}).")
   end

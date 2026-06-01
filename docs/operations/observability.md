@@ -48,19 +48,20 @@ Leave empty to keep Sentry off.
 
 ### 2. dSYM symbolication (fastlane)
 
-The `beta` lane uploads dSYMs after the TestFlight upload, but only if these are
-set (otherwise it logs a skip and continues):
+The `beta` lane uploads dSYMs after the TestFlight upload. Org/project are
+already wired in the Fastfile (`epi-apps` / `arbore-frontend`), so the **only**
+thing to provide is an auth token. If no token is found it logs a skip and the
+lane continues.
 
 ```bash
 brew install getsentry/tools/sentry-cli
-export SENTRY_AUTH_TOKEN=<org token: scopes project:releases + project:write>
-export SENTRY_ORG=epi-apps
-export SENTRY_PROJECT=arbore-frontend
+cp .sentryclirc.example .sentryclirc   # then paste the token (gitignored)
 bundle exec fastlane beta
 ```
 
-Create the auth token at `sentry.io → Settings → Auth Tokens`. Keep it out of
-git (env var or `.sentryclirc`, which is gitignored).
+Create the token at `sentry.io → Settings → Auth Tokens` (scopes
+`project:releases` + `project:write`). Instead of `.sentryclirc` you can export
+`SENTRY_AUTH_TOKEN`; override `SENTRY_ORG` / `SENTRY_PROJECT` via env if needed.
 
 ## Verify
 

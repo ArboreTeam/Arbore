@@ -23,6 +23,12 @@ SCHEME    = "ArboreUi"
 AUTH_KEY  = File.expand_path("AuthKey.json", __dir__)
 INTERNAL_GROUP = "Internal QA"
 
+# Sentry (#205) — org/projet ne sont pas des secrets, donc valeurs par défaut.
+# Overridables par variable d'env. Le token, lui, reste hors-repo : variable
+# SENTRY_AUTH_TOKEN ou fichier ~/.sentryclirc / .sentryclirc (gitignored).
+SENTRY_ORG     = ENV["SENTRY_ORG"]     || "epi-apps"
+SENTRY_PROJECT = ENV["SENTRY_PROJECT"] || "arbore-frontend"
+
 default_platform(:ios)
 
 platform :ios do
@@ -105,13 +111,18 @@ platform :ios do
 
   desc "Upload des dSYM vers Sentry (no-op si non configuré)."
   private_lane :upload_dsyms_to_sentry do |options|
-    missing = %w[SENTRY_AUTH_TOKEN SENTRY_ORG SENTRY_PROJECT].select { |k| ENV[k].to_s.empty? }
-    if missing.any?
-      UI.important("Sentry dSYM upload ignoré (variables manquantes : #{missing.join(', ')}).")
-      next
-    end
     if `which sentry-cli`.strip.empty?
       UI.important("Sentry dSYM upload ignoré : sentry-cli introuvable (brew install getsentry/tools/sentry-cli).")
+      next
+    end
+
+    # Le token peut venir de l'env OU d'un fichier .sentryclirc (lu
+    # automatiquement par sentry-cli). On skippe proprement s'il n'y en a aucun.
+    has_token = !ENV["SENTRY_AUTH_TOKEN"].to_s.empty? ||
+                File.exist?(File.expand_path("~/.sentryclirc")) ||
+                File.exist?(".sentryclirc")
+    unless has_token
+      UI.important("Sentry dSYM upload ignoré : aucun token (SENTRY_AUTH_TOKEN ou .sentryclirc). Cf docs/operations/observability.md.")
       next
     end
 
@@ -121,15 +132,13 @@ platform :ios do
       next
     end
 
-    org     = ENV["SENTRY_ORG"]
-    project = ENV["SENTRY_PROJECT"]
     release = "#{options[:version]}+#{options[:build]}"
 
     # Crée la release puis associe les dSYM (symbolication des stacktraces).
-    sh("sentry-cli releases -o #{org} -p #{project} new '#{release}' || true")
-    sh("sentry-cli debug-files upload -o #{org} -p #{project} '#{dsym_zip}'")
-    sh("sentry-cli releases -o #{org} -p #{project} finalize '#{release}' || true")
-    UI.success("✅ dSYM uploadés sur Sentry (release #{release}).")
+    sh("sentry-cli releases -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} new '#{release}' || true")
+    sh("sentry-cli debug-files upload -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} '#{dsym_zip}'")
+    sh("sentry-cli releases -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} finalize '#{release}' || true")
+    UI.success("✅ dSYM uploadés sur Sentry (#{SENTRY_ORG}/#{SENTRY_PROJECT}, release #{release}).")
   end
 
   error do |lane, exception|

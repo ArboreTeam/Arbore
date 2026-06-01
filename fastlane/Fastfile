@@ -118,13 +118,21 @@ platform :ios do
       next
     end
 
-    # Le token peut venir de l'env OU d'un fichier .sentryclirc (lu
-    # automatiquement par sentry-cli). On skippe proprement s'il n'y en a aucun.
+    # Token : env, ~/.sentryclirc, ou .sentryclirc à la RACINE du repo.
+    # Piège : fastlane tourne dans fastlane/, donc un ".sentryclirc" relatif y
+    # chercherait fastlane/.sentryclirc, et sentry-cli (lancé depuis fastlane/)
+    # ne verrait pas non plus celui de la racine. On lit donc explicitement le
+    # fichier racine et on exporte le token en SENTRY_AUTH_TOKEN, que sentry-cli
+    # lit quel que soit le cwd.
+    repo_rc = File.expand_path("../.sentryclirc", __dir__)
+    if ENV["SENTRY_AUTH_TOKEN"].to_s.empty? && File.exist?(repo_rc)
+      token = File.read(repo_rc)[/^\s*token\s*=\s*(\S+)/, 1]
+      ENV["SENTRY_AUTH_TOKEN"] = token if token
+    end
     has_token = !ENV["SENTRY_AUTH_TOKEN"].to_s.empty? ||
-                File.exist?(File.expand_path("~/.sentryclirc")) ||
-                File.exist?(".sentryclirc")
+                File.exist?(File.expand_path("~/.sentryclirc"))
     unless has_token
-      UI.important("Sentry dSYM upload ignoré : aucun token (SENTRY_AUTH_TOKEN ou .sentryclirc). Cf docs/operations/observability.md.")
+      UI.important("Sentry dSYM upload ignoré : aucun token (SENTRY_AUTH_TOKEN ou .sentryclirc à la racine). Cf docs/operations/observability.md.")
       next
     end
 

@@ -19,6 +19,7 @@ enum NetworkError: Error {
     case serverError(String)
     case unauthorized
     case forbidden
+    case emailNotVerified
     case decodingError(Error)
 }
 
@@ -37,6 +38,8 @@ extension NetworkError: LocalizedError {
             return "Non autorisé - Token invalide ou expiré"
         case .forbidden:
             return "Accès interdit - Compte banni ou permissions insuffisantes"
+        case .emailNotVerified:
+            return "Email non vérifié - vérifie ta boîte mail pour activer ton compte"
         case .decodingError(let error):
             return "Erreur de décodage: \(error.localizedDescription)"
         }
@@ -155,7 +158,7 @@ class NetworkManager {
 
         case 403:
             print("❌ 403 Forbidden - Accès refusé")
-            throw NetworkError.forbidden
+            throw forbiddenError(from: data)
 
         default:
             if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -172,6 +175,22 @@ class NetworkManager {
         body: [String: Any]? = nil
     ) async throws {
         let _: EmptyResponse = try await request(endpoint: endpoint, method: method, body: body)
+    }
+
+    /// #110 : un 403 du backend peut signifier `EMAIL_NOT_VERIFIED` (le token
+    /// Firebase est valide mais l'email n'est pas vérifié). Dans ce cas, on coupe
+    /// la session (le compte ne devrait pas être connecté tant qu'il n'est pas
+    /// vérifié) et on remonte une erreur dédiée. Sinon, c'est un vrai forbidden.
+    private func forbiddenError(from data: Data) -> NetworkError {
+        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           (obj["code"] as? String) == "EMAIL_NOT_VERIFIED" {
+            DispatchQueue.main.async {
+                try? Auth.auth().signOut()
+                UserDefaults.standard.set(false, forKey: "isLoggedIn")
+            }
+            return .emailNotVerified
+        }
+        return .forbidden
     }
 
     func requestDictionary(
@@ -217,7 +236,7 @@ class NetworkManager {
             throw NetworkError.unauthorized
 
         case 403:
-            throw NetworkError.forbidden
+            throw forbiddenError(from: data)
 
         default:
             if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

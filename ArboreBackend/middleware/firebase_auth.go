@@ -162,6 +162,24 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 			}
 		}
 
+		// #110 : exiger un email vérifié, SAUF pour la création initiale du
+		// compte (POST /users) — le document Mongo doit pouvoir être créé juste
+		// après le signup, avant que l'utilisateur clique le lien de vérif.
+		// Google / Apple renvoient email_verified=true ; seuls les comptes
+		// email/mot de passe non vérifiés sont bloqués.
+		isUserCreation := c.Request.Method == "POST" && c.FullPath() == "/users"
+		if !isUserCreation {
+			verified, _ := token.Claims["email_verified"].(bool)
+			if !verified {
+				c.JSON(403, gin.H{
+					"error": "Email not verified",
+					"code":  "EMAIL_NOT_VERIFIED",
+				})
+				c.Abort()
+				return
+			}
+		}
+
 		c.Set("uid", uid)
 
 		if email, ok := token.Claims["email"].(string); ok {

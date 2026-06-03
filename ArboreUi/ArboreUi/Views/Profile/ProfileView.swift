@@ -184,15 +184,21 @@ struct ProfileView: View {
             SubscriptionPlanCard(currentPlanName: currentPlanLevel)
                 .environmentObject(themeManager)
 
-            Button(action: { showUpgradeSheet = true }) {
-                HStack(spacing: ArboreDesign.Spacing.xs) {
-                    Image(systemName: ctaIcon)
-                    Text(ctaText)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.86)
+            // En beta, tous les utilisateurs sont sur « Ultra » : on leur montre
+            // qu'ils testent la version complète, mais sans CTA « Gérer
+            // l'abonnement » (aucun abonnement réel à gérer, pas d'IAP). Le
+            // bouton n'apparaît que s'il y a un vrai upgrade à proposer.
+            if currentPlanLevel != "Ultra" {
+                Button(action: { showUpgradeSheet = true }) {
+                    HStack(spacing: ArboreDesign.Spacing.xs) {
+                        Image(systemName: ctaIcon)
+                        Text(ctaText)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.86)
+                    }
                 }
+                .buttonStyle(.arborePrimary)
             }
-            .buttonStyle(.arborePrimary)
         }
         .fullScreenCover(isPresented: $showUpgradeSheet) {
             UpgradePlanView().environmentObject(themeManager)

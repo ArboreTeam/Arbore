@@ -190,7 +190,8 @@ fastlane/.env.local
 # locale `bundle config set --local path 'vendor/bundle'`.
 .bundle/
 
-# Deepl translations
+# Deepl translations — API key + its backups, never commit
+.deepl_api
 .deepl_api.backups/
 backups/
 

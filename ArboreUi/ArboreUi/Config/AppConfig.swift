@@ -40,17 +40,11 @@ struct AppConfig {
             return "\(protocolScheme)://\(host)"
         }
 
-        #if DEBUG
-        // Fallback en développement — l'IP directe en HTTP reste utile
-        // pour le travail local. L'exception ATS dans Info.plist autorise
-        // ce host précis, uniquement en DEBUG.
-        return "http://79.137.92.154:8080"
-        #else
-        // Fallback en release — HTTPS via Cloudflare obligatoire (#121).
-        // Le TLD .app impose HSTS preload : URLSession refuserait HTTP
-        // de toute façon, donc ne jamais retomber sur l'IP nue en prod.
+        // Fallback HTTPS via Cloudflare (#121), en DEBUG comme en release :
+        // l'accès direct à l'origine est fermé par le firewall, on passe donc
+        // toujours par api.arbore.app. Le TLD .app impose HSTS preload —
+        // URLSession refuserait de toute façon tout HTTP.
         return "https://api.arbore.app"
-        #endif
     }()
 
     // MARK: - API Endpoints

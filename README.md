@@ -101,7 +101,8 @@ python main.py
 
    # Éditer Secrets.xcconfig et remplir les valeurs
    # ARBORE_API_KEY = votre_clé_api_backend
-   # ARBORE_BACKEND_URL = http://79.137.92.154:8080
+   # ARBORE_BACKEND_PROTOCOL = https
+   # ARBORE_BACKEND_HOST = api.arbore.app
    ```
 
 2. Ouvrez `ArboreUi.xcworkspace` dans Xcode

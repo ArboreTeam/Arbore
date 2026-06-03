@@ -19,14 +19,20 @@ the Go/Gin backend and the Python AiGenerator are Phase 2 (separate issues).
 | Privacy manifest | `ArboreUi/ArboreUi/PrivacyInfo.xcprivacy` (CrashData + OtherDiagnosticData) |
 | dSYM upload | `fastlane/Fastfile` → `beta` lane |
 
-`SentryManager` is **disabled unless a DSN is configured** — without secrets the
-app builds and runs exactly the same (handy for contributors and CI). The user
-context is the Firebase **UID only** (no email/name) and follows the auth state
-via a single `addStateDidChangeListener` in `AppDelegate`.
+`SentryManager` is **disabled unless a DSN is configured _and_ the user has
+opted in** to diagnostic data sharing (the `privacy_shareData` toggle in Privacy
+Settings, **off by default** — RGPD opt-in, issue #226). Without secrets or
+without consent the app builds and runs exactly the same (handy for contributors
+and CI). `start()` is a no-op until consent; toggling the consent starts/stops
+the SDK live via `updateConsent(granted:uid:)`. The user context is the Firebase
+**UID only** (no email/name) and follows the auth state via a single
+`addStateDidChangeListener` in `AppDelegate`.
 
 Options set: `environment` (`debug`/`beta`), `releaseName = version+build`,
 `dist = build`, `tracesSampleRate = 0.1`, `attachScreenshot = false` (privacy),
-`attachViewHierarchy = true`.
+`attachViewHierarchy = true`, `sendDefaultPii = false`, plus a `beforeSend` hook
+that strips IP / email / name / request body from every event (keeps only the
+UID pseudonym).
 
 ## Setup (one-shot)
 

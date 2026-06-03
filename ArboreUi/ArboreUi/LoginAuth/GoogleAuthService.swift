@@ -75,7 +75,9 @@ class AuthenticationView: ObservableObject {
 
                 saveUserToBackendIfNeeded(uid: user.uid, email: user.email ?? "", name: user.displayName ?? "", createdAt: Date())
 
+                #if DEBUG
                 print("✅ Google user signed in:", user.email ?? "unknown")
+                #endif
 
                 DispatchQueue.main.async {
                     self.isLoginSuccessed = true

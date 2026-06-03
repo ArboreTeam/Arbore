@@ -1147,13 +1147,19 @@ func getGardenByID(c *gin.Context) {
 		return
 	}
 
+	uid, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+
 	collection := getDatabaseForRequest(c).Collection("gardens")
 	var garden Garden
 
-	err = collection.FindOne(context.Background(), bson.M{"_id": objectID}).Decode(&garden)
+	err = collection.FindOne(context.Background(), bson.M{"_id": objectID, "uid": uid}).Decode(&garden)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			c.JSON(http.StatusNotFound, gin.H{"message": "Garden non trouvé"})
+			c.JSON(http.StatusNotFound, gin.H{"message": "Garden non trouvé ou accès refusé"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lecture garden"})

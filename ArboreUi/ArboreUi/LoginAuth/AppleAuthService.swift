@@ -180,7 +180,9 @@ extension AppleAuthService: ASAuthorizationControllerDelegate {
                 )
             }
 
+            #if DEBUG
             print("✅ Apple user signed in:", resolvedEmail.isEmpty ? "unknown" : resolvedEmail)
+            #endif
 
             DispatchQueue.main.async {
                 self?.isLoginSuccessed = true

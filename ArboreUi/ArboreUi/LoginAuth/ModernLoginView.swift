@@ -311,9 +311,11 @@ struct ModernLoginView: View {
                 self.isLoading = false
 
                 if let error = error as NSError? {
+                    #if DEBUG
                     print("❌ Firebase Auth error:")
                     print("Full error: \(error)")
                     print("UserInfo: \(error.userInfo)")
+                    #endif
 
                     if let underlyingError = error.userInfo[NSUnderlyingErrorKey] as? NSError,
                        let deserialized = underlyingError.userInfo["FIRAuthErrorUserInfoDeserializedResponseKey"] as? [String: Any],
@@ -344,12 +346,6 @@ struct ModernLoginView: View {
                         self.errorMessage = "Erreur d'authentification inconnue. Veuillez réessayer."
                     }
                     return
-                }
-
-                Task {
-                    if let token = try? await Auth.auth().currentUser?.getIDToken() {
-                        print("🔑 Firebase Token:", token)
-                    }
                 }
 
                 guard let user = result?.user else { return }

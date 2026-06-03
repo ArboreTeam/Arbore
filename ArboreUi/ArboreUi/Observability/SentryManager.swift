@@ -15,24 +15,42 @@ import Sentry
 
 enum SentryManager {
 
-    /// Vrai si un DSN est configuré → crash reporting actif.
-    static var isEnabled: Bool { !AppConfig.sentryDSN.isEmpty }
+    /// Clé `AppStorage` du consentement diagnostic/analytics (toggle « Partage
+    /// de données » dans PrivacySettingsView). Absente = `false` : opt-out par
+    /// défaut, Sentry ne démarre pas tant que l'utilisateur n'a pas accepté.
+    private static let consentKey = "privacy_shareData"
 
-    /// Démarre Sentry. À appeler tout au début de
-    /// `AppDelegate.didFinishLaunchingWithOptions`, AVANT
-    /// `FirebaseApp.configure()`, afin de capturer aussi un éventuel crash
-    /// pendant l'init de Firebase.
+    /// Vrai si un DSN est configuré dans Secrets.xcconfig.
+    static var isConfigured: Bool { !AppConfig.sentryDSN.isEmpty }
+
+    /// Vrai si l'utilisateur a consenti au partage des données de diagnostic.
+    static var hasConsent: Bool { UserDefaults.standard.bool(forKey: consentKey) }
+
+    /// Vrai si le crash reporting doit être actif : DSN présent ET consentement donné.
+    static var isEnabled: Bool { isConfigured && hasConsent }
+
+    /// Démarre Sentry si (et seulement si) un DSN est configuré ET que
+    /// l'utilisateur a donné son consentement diagnostic. Appelée au tout début
+    /// de `AppDelegate.didFinishLaunchingWithOptions`, AVANT
+    /// `FirebaseApp.configure()`, pour capturer un éventuel crash d'init — mais
+    /// sans consentement c'est un no-op (RGPD : aucune collecte avant opt-in).
+    /// Re-déclenchée par `updateConsent(...)` quand l'utilisateur accepte.
     static func start() {
-        let dsn = AppConfig.sentryDSN
-        guard !dsn.isEmpty else {
+        guard isConfigured else {
             #if DEBUG
             print("ℹ️ Sentry désactivé (aucun DSN dans Secrets.xcconfig).")
             #endif
             return
         }
+        guard hasConsent else {
+            #if DEBUG
+            print("ℹ️ Sentry en attente du consentement diagnostic (opt-in RGPD).")
+            #endif
+            return
+        }
 
         SentrySDK.start { options in
-            options.dsn = dsn
+            options.dsn = AppConfig.sentryDSN
             options.environment = AppConfig.environment
             options.releaseName = AppConfig.sentryReleaseName
             options.dist = AppConfig.buildNumber
@@ -47,9 +65,41 @@ enum SentryManager {
             options.attachScreenshot = false
             options.attachViewHierarchy = true
 
+            // Minimisation RGPD : ne jamais joindre les PII collectées « par
+            // défaut » par le SDK (adresse IP, etc.).
+            options.sendDefaultPii = false
+
+            // Défense en profondeur : on retire explicitement de chaque event
+            // l'IP, l'identité (e-mail/nom) et le payload de requête avant
+            // envoi. On conserve volontairement `user.userId` = UID Firebase,
+            // pseudonyme nécessaire pour corréler les crashs d'un même compte.
+            options.beforeSend = { event in
+                event.user?.ipAddress = nil
+                event.user?.email = nil
+                event.user?.username = nil
+                event.user?.name = nil
+                event.user?.data = nil
+                event.serverName = nil
+                event.request = nil
+                return event
+            }
+
             #if DEBUG
             options.debug = true
             #endif
+        }
+    }
+
+    /// Réagit à un changement du consentement diagnostic depuis
+    /// PrivacySettingsView : démarre Sentry à l'acceptation (et réattache le
+    /// contexte user si l'utilisateur était déjà connecté), le coupe au retrait.
+    static func updateConsent(granted: Bool, uid: String?) {
+        guard isConfigured else { return }
+        if granted {
+            if !SentrySDK.isEnabled { start() }
+            if let uid { setUser(uid: uid) }
+        } else {
+            SentrySDK.close()
         }
     }
 

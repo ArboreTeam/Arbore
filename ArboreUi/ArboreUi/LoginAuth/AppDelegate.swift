@@ -14,7 +14,9 @@ import GoogleSignInSwift
 class AppDelegate: NSObject, UIApplicationDelegate{
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool{
         // Sentry en premier (issue #205), AVANT Firebase, pour capturer aussi un
-        // éventuel crash pendant l'init de Firebase. No-op si pas de DSN.
+        // éventuel crash pendant l'init de Firebase. No-op si pas de DSN ou si
+        // l'utilisateur n'a pas consenti au diagnostic (opt-in RGPD, issue #226) ;
+        // réactivé par SentryManager.updateConsent dès qu'il accepte.
         SentryManager.start()
 
         FirebaseApp.configure()

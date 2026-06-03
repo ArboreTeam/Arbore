@@ -68,6 +68,9 @@ struct PrivacySettingsView: View {
                 )
                 .onChange(of: shareData) { _, newValue in
                     recordConsentChange(type: "analytics", granted: newValue)
+                    // Ce toggle gouverne le crash reporting Sentry : on démarre /
+                    // coupe le SDK selon le consentement diagnostic (issue #226).
+                    SentryManager.updateConsent(granted: newValue, uid: Auth.auth().currentUser?.uid)
                 }
             }
 

@@ -70,6 +70,8 @@
 	<string>Nécessaire pour calculer la position du soleil par rapport à votre fenêtre.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>L'application a besoin d'accéder au microphone pour certaines fonctionnalités.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Arbore accède à vos photos pour définir votre photo de profil.</string>
 	<key>NSWorldSensingUsageDescription</key>
 	<string>Nous utilisons le scanner LiDAR pour créer un plan 3D précis de votre espace.</string>
 	<key>SENTRY_DSN_HOST</key>

@@ -1349,14 +1349,12 @@ func loadDotEnv(path string) {
 func main() {
 	loadDotEnv(".env")
 
-	// ✅ Recommandé: passe l'URI via env
+	// L'URI Mongo est obligatoire et passée par l'environnement
+	// (.env ou variable système) — jamais de credentials en dur dans le code.
 	// export MONGODB_URI="mongodb+srv://..."
 	uri := os.Getenv("MONGODB_URI")
-
-	// ⚠️ Fallback (si tu veux garder ton test local):
 	if uri == "" {
-		// nolint:gosec // This is a fallback for local development only
-		uri = "mongodb+srv://hugorath1234:hugopapa@arbore.cew6l.mongodb.net/arbore?retryWrites=true&w=majority&appName=Arbore"
+		log.Fatal("❌ MONGODB_URI non défini : renseigne-le dans l'environnement avant de démarrer le backend.")
 	}
 
 	clientOptions := options.Client().ApplyURI(uri)

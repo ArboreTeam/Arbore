@@ -770,6 +770,13 @@
 "SIGNUP_ACCEPT" = "I accept the ";
 "SIGNUP_TERMS" = "Terms of Service";
 "SIGNUP_PRIVACY" = "Privacy Policy";
+
+// Auth — terms/privacy agreement shown on signup + login/SSO (issue #227)
+"AUTH_AGREE_SIGNUP" = "By signing up, you agree to our";
+"AUTH_AGREE_CONTINUE" = "By continuing, you agree to our";
+"AUTH_AGREE_TERMS" = "Terms & Conditions";
+"AUTH_AGREE_AND" = "and";
+"AUTH_AGREE_PRIVACY" = "Privacy Policy";
 "SIGNUP_BACKEND_UNAVAILABLE" = "Couldn’t complete signup. Check your connection and try again.";
 "SIGNUP_BACKEND_UNAUTHORIZED" = "Signup rejected by the server. Update the app and try again.";
 "SIGNUP_BACKEND_AUTH_ISSUE" = "Authentication issue. Please try again in a moment.";

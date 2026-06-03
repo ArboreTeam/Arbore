@@ -202,6 +202,38 @@ struct LoginView: View {
                                 .padding(.horizontal, 30)
                             }
 
+                            // Sign-in wrap : couvre l'email ET les SSO Apple/Google
+                            // (où le « sign in » crée le compte). Pas de checkbox —
+                            // l'action affirmative est le tap sur un bouton d'auth
+                            // (issue #227). Le consentement analytics/marketing est
+                            // géré à part, en opt-in (cf. PrivacySettings / #226).
+                            VStack(spacing: 4) {
+                                Text(NSLocalizedString("AUTH_AGREE_CONTINUE", comment: ""))
+                                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+
+                                HStack(spacing: 4) {
+                                    NavigationLink(destination: TermsConditionsView()) {
+                                        Text(NSLocalizedString("AUTH_AGREE_TERMS", comment: ""))
+                                            .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                                            .underline()
+                                    }
+
+                                    Text(NSLocalizedString("AUTH_AGREE_AND", comment: ""))
+                                        .foregroundColor(ArboreDesign.Colors.textSecondary)
+
+                                    NavigationLink(destination: PrivacyPolicyView()) {
+                                        Text(NSLocalizedString("AUTH_AGREE_PRIVACY", comment: ""))
+                                            .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                                            .underline()
+                                    }
+                                }
+                            }
+                            .font(.footnote)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 30)
+                            .padding(.top, 12)
+
                             HStack {
                                 Text("Don’t have an account?")
                                     .foregroundColor(ArboreDesign.Colors.textSecondary)

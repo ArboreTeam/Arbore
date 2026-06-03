@@ -180,21 +180,21 @@ struct SignUpView: View {
                     }
 
                     VStack(spacing: 4) {
-                        Text("By signing up, you agree to Arbore’s")
+                        Text(NSLocalizedString("AUTH_AGREE_SIGNUP", comment: ""))
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
 
                         HStack(spacing: 4) {
                             NavigationLink(destination: TermsConditionsView()) {
-                                Text("Terms & Conditions")
+                                Text(NSLocalizedString("AUTH_AGREE_TERMS", comment: ""))
                                     .foregroundColor(ArboreDesign.Colors.primaryGreen)
                                     .underline()
                             }
 
-                            Text("and")
+                            Text(NSLocalizedString("AUTH_AGREE_AND", comment: ""))
                                 .foregroundColor(ArboreDesign.Colors.textSecondary)
 
                             NavigationLink(destination: PrivacyPolicyView()) {
-                                Text("Privacy Policy")
+                                Text(NSLocalizedString("AUTH_AGREE_PRIVACY", comment: ""))
                                     .foregroundColor(ArboreDesign.Colors.primaryGreen)
                                     .underline()
                             }

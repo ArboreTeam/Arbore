@@ -8,10 +8,8 @@ struct PlantCard: View {
 
     private let cardHeight: CGFloat = 220
 
-    private let backendBaseURL = "http://79.137.92.154:8080"
-
     private var thumbnailURL: URL? {
-        URL(string: "\(backendBaseURL)/models/thumbnails/\(plant.id).png")
+        URL(string: "\(AppConfig.baseURL)/models/thumbnails/\(plant.id).png")
     }
 
     var body: some View {

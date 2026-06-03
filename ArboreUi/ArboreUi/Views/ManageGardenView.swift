@@ -353,7 +353,17 @@ struct GardenDetailsPage: View {
     @State private var purchaseCatalogError: String?
     @State private var hasLoadedPurchaseCatalog = false
     @State private var showCheckoutSummary = false
-    
+
+    // Caches des données d'achat (issue perf) : ces listes sont coûteuses à
+    // calculer (tri du catalogue avec matching wizard). On les recalcule
+    // UNIQUEMENT quand leurs entrées changent (catalogue, plantes du jardin,
+    // recherche, wizard) via recomputePurchaseData(), au lieu de le refaire à
+    // chaque render du body — sinon valider le panier (un simple changement
+    // d'état) re-trie tout le catalogue plusieurs fois et fait lager l'app.
+    @State private var cachedPurchaseGroups: [GardenPlantPurchaseGroup] = []
+    @State private var cachedCatalogueItems: [GardenShopItem] = []
+    @State private var cachedRecommendations: [GardenShopItem] = []
+
     // États pour l'interface "Purchase"
     enum Tab: String, CaseIterable {
         case plan2D = "Plan"
@@ -497,6 +507,14 @@ struct GardenDetailsPage: View {
             loadPurchaseCatalogIfNeeded()
             currentGardenName = gardenDetails?.name ?? gardenName
             Task { await loadMapTextureKind() }
+        }
+        // Recompute ciblé : recherche catalogue et plantes du jardin changent →
+        // on régénère les listes d'achat en cache (au lieu d'à chaque render).
+        .onChange(of: purchaseSearchText) { _, _ in
+            recomputePurchaseData()
+        }
+        .onChange(of: mapViewModel.displayPlants.map(\.id)) { _, _ in
+            recomputePurchaseData()
         }
     }
     
@@ -1146,7 +1164,7 @@ struct GardenDetailsPage: View {
 
                     Spacer()
 
-                    if !gardenPlantPurchaseGroups.isEmpty {
+                    if !cachedPurchaseGroups.isEmpty {
                         Button(action: addAllGardenPlantsToCart) {
                             HStack(spacing: 5) {
                                 Image(systemName: "cart.badge.plus")
@@ -1164,14 +1182,14 @@ struct GardenDetailsPage: View {
                     }
                 }
 
-                if gardenPlantPurchaseGroups.isEmpty {
+                if cachedPurchaseGroups.isEmpty {
                     GardenInlineMessage(
                         systemImage: "leaf",
                         text: "Aucune plante placée dans ce jardin pour le moment."
                     )
                 } else {
                     VStack(spacing: ArboreDesign.Spacing.sm) {
-                        ForEach(gardenPlantPurchaseGroups) { group in
+                        ForEach(cachedPurchaseGroups) { group in
                             let item = gardenPlantShopItem(for: group)
                             GardenShopItemRow(
                                 item: item,
@@ -1185,12 +1203,12 @@ struct GardenDetailsPage: View {
                 }
             }
 
-            if !purchaseRecommendations.isEmpty {
+            if !cachedRecommendations.isEmpty {
                 VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
                     SectionTitle(title: "Recommandations d’achat")
 
                     VStack(spacing: ArboreDesign.Spacing.sm) {
-                        ForEach(purchaseRecommendations) { item in
+                        ForEach(cachedRecommendations) { item in
                             GardenShopRecommendationRow(
                                 item: item,
                                 cartQuantity: cartQuantity(for: item),
@@ -1212,11 +1230,11 @@ struct GardenDetailsPage: View {
                     PurchaseCatalogErrorCard(message: purchaseCatalogError) {
                         loadPurchaseCatalogIfNeeded(force: true)
                     }
-                } else if catalogueShopItems.isEmpty {
+                } else if cachedCatalogueItems.isEmpty {
                     GardenInlineMessage(systemImage: "magnifyingglass", text: "Aucune plante trouvée dans le catalogue.")
                 } else {
                     VStack(spacing: ArboreDesign.Spacing.sm) {
-                        ForEach(catalogueShopItems) { item in
+                        ForEach(cachedCatalogueItems) { item in
                             GardenShopItemRow(
                                 item: item,
                                 quantityText: item.recommendation ?? "Catalogue Arbore",
@@ -1233,7 +1251,7 @@ struct GardenDetailsPage: View {
         }
     }
 
-    private var gardenPlantPurchaseGroups: [GardenPlantPurchaseGroup] {
+    private func computePurchaseGroups() -> [GardenPlantPurchaseGroup] {
         var groups: [GardenPlantPurchaseGroup] = []
         var indexes: [String: Int] = [:]
 
@@ -1265,9 +1283,9 @@ struct GardenDetailsPage: View {
         "Votre liste contient \(cartItemCount) article\(cartItemCount > 1 ? "s" : "") pour un total estimé de \(formattedPrice(cartTotal)). Elle reste enregistrée dans ce jardin."
     }
 
-    private var catalogueShopItems: [GardenShopItem] {
-        let gardenPlantIds = Set(gardenPlantPurchaseGroups.map { $0.plant.plantID })
-        let gardenPlantNames = Set(gardenPlantPurchaseGroups.map { normalizedPlantName($0.plant.plantName) })
+    private func computeCatalogueItems() -> [GardenShopItem] {
+        let gardenPlantIds = Set(cachedPurchaseGroups.map { $0.plant.plantID })
+        let gardenPlantNames = Set(cachedPurchaseGroups.map { normalizedPlantName($0.plant.plantName) })
         let query = purchaseSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         let wizardFilter = gardenDetails.map { WizardPlantFilter(wizard: $0.wizard) }
 
@@ -1283,9 +1301,16 @@ struct GardenDetailsPage: View {
             }
         }
 
+        // Fix perf : on évalue le matching wizard UNE seule fois par plante
+        // (O(N)) au lieu de l'appeler deux fois par comparaison dans le tri
+        // (O(N·log N) appels lourds). Le comparateur se réduit à un lookup O(1).
+        let matchedIDs: Set<String> = wizardFilter.map { filter in
+            Set(plants.filter { filter.matches(plant: $0, locale: "fr") }.map { $0.id })
+        } ?? []
+
         plants = plants.sorted { lhs, rhs in
-            let leftMatches = wizardFilter?.matches(plant: lhs, locale: "fr") ?? false
-            let rightMatches = wizardFilter?.matches(plant: rhs, locale: "fr") ?? false
+            let leftMatches = matchedIDs.contains(lhs.id)
+            let rightMatches = matchedIDs.contains(rhs.id)
             if leftMatches != rightMatches { return leftMatches }
 
             let leftHasModel = lhs.modelURL?.isEmpty == false
@@ -1296,14 +1321,14 @@ struct GardenDetailsPage: View {
         }
 
         return plants.prefix(query.isEmpty ? 8 : 16).map { plant in
-            catalogShopItem(for: plant, isRecommended: wizardFilter?.matches(plant: plant, locale: "fr") ?? false)
+            catalogShopItem(for: plant, isRecommended: matchedIDs.contains(plant.id))
         }
     }
 
-    private var purchaseRecommendations: [GardenShopItem] {
+    private func computeRecommendations() -> [GardenShopItem] {
         var items: [GardenShopItem] = []
 
-        for group in gardenPlantPurchaseGroups.prefix(6) {
+        for group in cachedPurchaseGroups.prefix(6) {
             if let soilItem = soilRecommendation(for: group.plant) {
                 items.append(soilItem)
             }
@@ -1407,7 +1432,7 @@ struct GardenDetailsPage: View {
     }
 
     private var gardenNeedsRepotSupport: Bool {
-        gardenPlantPurchaseGroups.contains { group in
+        cachedPurchaseGroups.contains { group in
             guard let plant = cataloguePlant(for: group.plant),
                   let translation = preferredTranslation(for: plant) else { return false }
             return firstNonEmpty(translation.soilAndPot?.potSize, translation.soilAndPot?.repotFrequency) != nil
@@ -1488,9 +1513,19 @@ struct GardenDetailsPage: View {
     }
 
     private func addAllGardenPlantsToCart() {
-        for group in gardenPlantPurchaseGroups {
+        for group in cachedPurchaseGroups {
             addItemToCart(gardenPlantShopItem(for: group), quantity: group.count)
         }
+    }
+
+    /// Recalcule les listes d'achat dérivées et les stocke en cache. Appelée
+    /// quand une entrée change (catalogue chargé, plantes du jardin, recherche,
+    /// wizard) — PAS à chaque render. Ordre important : les groupes d'abord,
+    /// car le catalogue et les recommandations lisent `cachedPurchaseGroups`.
+    private func recomputePurchaseData() {
+        cachedPurchaseGroups = computePurchaseGroups()
+        cachedCatalogueItems = computeCatalogueItems()
+        cachedRecommendations = computeRecommendations()
     }
 
     private func addItemToCart(_ item: GardenShopItem, quantity: Int = 1) {
@@ -1562,6 +1597,7 @@ struct GardenDetailsPage: View {
                     cataloguePlants = plants
                     isLoadingPurchaseCatalog = false
                     purchaseCatalogError = nil
+                    recomputePurchaseData()
                 }
             } catch {
                 await MainActor.run {
@@ -1650,6 +1686,7 @@ struct GardenDetailsPage: View {
                 currentGardenName = garden.name
                 mapTextureKind = MapTextureKind(spaceType: garden.wizard.spaceType)
                 mapViewModel.applyRemoteMeasurementsIfNeeded(from: garden)
+                recomputePurchaseData()
             }
         } catch {
             await MainActor.run {

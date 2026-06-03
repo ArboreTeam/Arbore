@@ -21,14 +21,15 @@ Composants installés à la fin de la procédure :
 | Composant | Rôle |
 |---|---|
 | Docker + Compose | Exécute `arbore-backend` (Go/Gin) et `arbore-ai-generator` (Python/FastAPI) |
-| Nginx | Reverse proxy `:80` → `127.0.0.1:8080` (backend) |
+| Nginx | Reverse proxy `:80` + `:443` (TLS, Cloudflare Origin cert) → `127.0.0.1:8080` (backend) |
 | MongoDB Atlas | DB hébergée (pas de Mongo local) ; `mongosh` et `mongodump` côté VPS pour cleanup et backups |
 | cronie | Lance `cleanup-test-db.sh` chaque nuit à 04:00 UTC |
 | gh CLI | Utilisé par `cleanup-test-db.sh` (optionnel, fallback curl) |
 
 L'AI Generator écoute en interne sur `:8000`, le backend l'appelle via le
-réseau Docker `arbore-net`. Ces ports sont exposés sur l'hôte mais l'accès
-public passe par Nginx sur `:80`.
+réseau Docker `arbore-net`. Ces ports sont exposés sur l'hôte mais leur accès
+externe direct est bloqué par le firewall (cf. annexe pare-feu) ; le trafic
+public passe par Nginx sur `:80`/`:443`, eux-mêmes restreints aux IP Cloudflare.
 
 ---
 
@@ -127,9 +128,12 @@ sudo nginx -t                # syntaxe OK ?
 sudo systemctl enable --now nginx
 ```
 
-> HTTPS : la migration vers HTTPS + cert Let's Encrypt est tracée par
-> l'issue #121. Tant que le backend reste en HTTP, ATS côté iOS doit
-> être configuré en conséquence.
+> HTTPS (issue #121) : **fait**. Le trafic public passe par Cloudflare en
+> mode `Full (strict)`. L'origine sert un vhost `:443 ssl http2` avec un
+> **Cloudflare Origin Certificate** (`/etc/ssl/cloudflare/origin.{pem,key}`,
+> cf. `arbore.conf`) ; nginx écoute en `:80` **et** `:443`, tous deux
+> restreints aux IP Cloudflare (cf. annexe pare-feu). L'exception ATS HTTP
+> côté iOS a été retirée — l'app ne parle plus qu'en HTTPS à `api.arbore.app`.
 
 ---
 
@@ -312,13 +316,18 @@ Cocher ces points avant de considérer le VPS opérationnel :
 
 Selon le provider, le pare-feu au niveau de la VM peut être géré par :
 
-- `firewalld` (Fedora par défaut, désactivé sur la VM actuelle)
-- Les règles "Network" du dashboard cloud (Oracle Cloud, OVH, etc.)
+- **`cf-http-firewall.service`** (en place sur la VM actuelle) : règles
+  `iptables` qui restreignent `:80` **et** `:443` aux seules **IP Cloudflare**
+  (chaîne `CF-HTTP`, plages auto-rafraîchies chaque semaine par
+  `cf-update-ranges.timer` avec validation + rollback) et **bloquent l'accès
+  externe direct** à `:8080`/`:8000` (chaîne `DOCKER-USER`, v4 + v6, scope
+  `eth0`). Script : `/usr/local/sbin/cf-http-firewall.sh`.
+- Les règles "Network" du dashboard cloud (Oracle Cloud, OVH, etc.), le cas échéant.
 
-Ports à ouvrir publiquement : **22** (SSH) et **80** (HTTP via nginx).
-**Ne PAS exposer** `:8080` et `:8000` publiquement — ils restent
-accessibles uniquement en localhost (via nginx pour `:8080`, jamais pour
-`:8000`).
+Ports publics : **22** (SSH), **80** et **443** (via nginx, **Cloudflare-only**).
+**Ne PAS exposer** `:8080` ni `:8000` : joignables uniquement en localhost
+(via nginx pour `:8080`) et en inter-conteneurs — l'accès externe direct est
+bloqué par le firewall ci-dessus.
 
 ---
 

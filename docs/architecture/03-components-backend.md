@@ -86,7 +86,7 @@ Les handlers sont regroupés thématiquement dans `main.go` et exposés sous le 
 |---|---|---|
 | `POST /gardens` | `createGarden` | uid issu du token, garden.UID forcé |
 | `GET /gardens` | `listGardens` | Filtre par `uid` |
-| `GET /gardens/:id` | `getGardenByID` | Lecture (pas de filtre `uid` à ce stade — revue pending) |
+| `GET /gardens/:id` | `getGardenByID` | Filtre `_id AND uid` pour l'ownership (issue #222) |
 | `PUT /gardens/:id` | `updateGarden` | Filtre `_id AND uid` pour l'ownership |
 | `DELETE /gardens/:id` | `deleteGarden` | Filtre `_id AND uid` pour l'ownership |
 

@@ -752,6 +752,13 @@
 "SIGNUP_ACCEPT" = "Ich akzeptiere ";
 "SIGNUP_TERMS" = "die Nutzungsbedingungen";
 "SIGNUP_PRIVACY" = "die Datenschutzerklärung";
+
+// Auth — Zustimmung zu Nutzungsbedingungen/Datenschutz bei Registrierung + Login/SSO (issue #227)
+"AUTH_AGREE_SIGNUP" = "Mit der Registrierung akzeptierst du unsere";
+"AUTH_AGREE_CONTINUE" = "Wenn du fortfährst, akzeptierst du unsere";
+"AUTH_AGREE_TERMS" = "Nutzungsbedingungen";
+"AUTH_AGREE_AND" = "und unsere";
+"AUTH_AGREE_PRIVACY" = "Datenschutzerklärung";
 "SIGNUP_BACKEND_UNAVAILABLE" = "Registrierung konnte nicht abgeschlossen werden. Verbindung prüfen und erneut versuchen.";
 "SIGNUP_BACKEND_UNAUTHORIZED" = "Registrierung vom Server abgelehnt. Aktualisiere die App und versuche es erneut.";
 "SIGNUP_BACKEND_AUTH_ISSUE" = "Authentifizierungsproblem. Bitte gleich erneut versuchen.";

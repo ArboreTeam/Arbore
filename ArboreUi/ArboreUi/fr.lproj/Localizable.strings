@@ -895,6 +895,13 @@
 "SIGNUP_ACCEPT" = "J'accepte ";
 "SIGNUP_TERMS" = "les Conditions Générales d'Utilisation";
 "SIGNUP_PRIVACY" = "la Politique de Confidentialité";
+
+// Auth — accord CGU/Confidentialité affiché au signup + login/SSO (issue #227)
+"AUTH_AGREE_SIGNUP" = "En vous inscrivant, vous acceptez nos";
+"AUTH_AGREE_CONTINUE" = "En continuant, vous acceptez nos";
+"AUTH_AGREE_TERMS" = "Conditions Générales d'Utilisation";
+"AUTH_AGREE_AND" = "et notre";
+"AUTH_AGREE_PRIVACY" = "Politique de Confidentialité";
 "SIGNUP_BACKEND_UNAVAILABLE" = "Impossible de finaliser l’inscription. Vérifie ta connexion et réessaie.";
 "SIGNUP_BACKEND_UNAUTHORIZED" = "Inscription refusée par le serveur. Mets à jour l’app puis réessaie.";
 "SIGNUP_BACKEND_AUTH_ISSUE" = "Problème d’authentification. Réessaie dans un instant.";

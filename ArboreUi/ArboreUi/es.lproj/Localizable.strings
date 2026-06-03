@@ -748,6 +748,13 @@
 "SIGNUP_ACCEPT" = "Acepto ";
 "SIGNUP_TERMS" = "los Términos de Servicio";
 "SIGNUP_PRIVACY" = "la Política de Privacidad";
+
+// Auth — aceptación de Términos/Privacidad en registro + inicio sesión/SSO (issue #227)
+"AUTH_AGREE_SIGNUP" = "Al registrarte, aceptas nuestras";
+"AUTH_AGREE_CONTINUE" = "Al continuar, aceptas nuestras";
+"AUTH_AGREE_TERMS" = "Condiciones de Uso";
+"AUTH_AGREE_AND" = "y nuestra";
+"AUTH_AGREE_PRIVACY" = "Política de Privacidad";
 "SIGNUP_BACKEND_UNAVAILABLE" = "No se pudo completar el registro. Comprueba tu conexión y vuelve a intentarlo.";
 "SIGNUP_BACKEND_UNAUTHORIZED" = "Registro rechazado por el servidor. Actualiza la app y vuelve a intentarlo.";
 "SIGNUP_BACKEND_AUTH_ISSUE" = "Problema de autenticación. Inténtalo de nuevo en un instante.";

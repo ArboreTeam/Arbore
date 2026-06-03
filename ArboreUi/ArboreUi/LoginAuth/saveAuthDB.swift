@@ -37,7 +37,9 @@ func saveUserToBackendThrowing(uid: String, email: String, name: String, created
                 method: .POST,
                 body: userData
             )
+            #if DEBUG
             print("✅ Utilisateur enregistré dans MongoDB (uid=\(uid)):", response.message ?? "success")
+            #endif
             return
         } catch NetworkError.unauthorized, NetworkError.forbidden {
             // 401/403: clé API ou token invalide — retry inutile, on remonte.

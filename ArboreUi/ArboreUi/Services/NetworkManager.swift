@@ -147,8 +147,10 @@ class NetworkManager {
                 let decoded = try decoder.decode(T.self, from: data)
                 return decoded
             } catch {
+                #if DEBUG
                 print("❌ Erreur décodage:", error)
                 print("📄 Data reçue:", String(data: data, encoding: .utf8) ?? "nil")
+                #endif
                 throw NetworkError.decodingError(error)
             }
 
@@ -290,8 +292,10 @@ class NetworkManager {
                 let decoded = try decoder.decode(T.self, from: data)
                 return decoded
             } catch {
+                #if DEBUG
                 print("❌ Erreur décodage:", error)
                 print("📄 Data reçue:", String(data: data, encoding: .utf8) ?? "nil")
+                #endif
                 throw NetworkError.decodingError(error)
             }
 

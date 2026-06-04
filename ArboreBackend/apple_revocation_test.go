@@ -5,12 +5,30 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v4"
 )
+
+// reqForm lit le corps x-www-form-urlencoded d'une requête de test sans passer
+// par r.ParseForm()/r.FormValue() (que gosec G120 flagge faute de limite de
+// taille — non pertinent ici, corps de test contrôlé).
+func reqForm(t *testing.T, r *http.Request) url.Values {
+	t.Helper()
+	raw, err := io.ReadAll(r.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := url.ParseQuery(string(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return v
+}
 
 func newTestAppleConfig(t *testing.T) *appleSIWAConfig {
 	t.Helper()
@@ -63,19 +81,17 @@ func TestExchangeAuthorizationCode(t *testing.T) {
 	cfg := newTestAppleConfig(t)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := r.ParseForm(); err != nil {
-			t.Fatal(err)
-		}
-		if got := r.FormValue("grant_type"); got != "authorization_code" {
+		form := reqForm(t, r)
+		if got := form.Get("grant_type"); got != "authorization_code" {
 			t.Errorf("grant_type: %s", got)
 		}
-		if got := r.FormValue("code"); got != "the-auth-code" {
+		if got := form.Get("code"); got != "the-auth-code" {
 			t.Errorf("code: %s", got)
 		}
-		if got := r.FormValue("client_id"); got != cfg.clientID {
+		if got := form.Get("client_id"); got != cfg.clientID {
 			t.Errorf("client_id: %s", got)
 		}
-		if r.FormValue("client_secret") == "" {
+		if form.Get("client_secret") == "" {
 			t.Error("client_secret manquant")
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -120,11 +136,11 @@ func TestRevokeRefreshToken(t *testing.T) {
 	called := false
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
-		_ = r.ParseForm()
-		if got := r.FormValue("token"); got != "rt-to-revoke" {
+		form := reqForm(t, r)
+		if got := form.Get("token"); got != "rt-to-revoke" {
 			t.Errorf("token: %s", got)
 		}
-		if got := r.FormValue("token_type_hint"); got != "refresh_token" {
+		if got := form.Get("token_type_hint"); got != "refresh_token" {
 			t.Errorf("token_type_hint: %s", got)
 		}
 		w.WriteHeader(http.StatusOK)

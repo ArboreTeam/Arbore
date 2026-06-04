@@ -5,14 +5,17 @@ struct PrivacySettingsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) var dismiss
 
-    // Consentements persistés localement avec AppStorage
-    @AppStorage("privacy_profilePublic") internal var profilePublic: Bool = true
-    @AppStorage("privacy_showActivity") internal var showActivity: Bool = true
-    @AppStorage("privacy_shareData") internal var shareData: Bool = false
-    @AppStorage("privacy_marketing") internal var marketingConsent: Bool = false
-    @AppStorage("privacy_camera") internal var cameraConsent: Bool = true
-    @AppStorage("privacy_ai") internal var aiConsent: Bool = true
-    @AppStorage("privacy_notifications") internal var notificationsConsent: Bool = true
+    // Consentements persistés localement avec AppStorage. Défauts = source unique
+    // ConsentDefaults (privacy-by-default, RGPD Art. 25 — issue #218). Ces défauts
+    // ne s'appliquent qu'aux clés absentes : les choix déjà faits par un utilisateur
+    // existant sont préservés.
+    @AppStorage("privacy_profilePublic") internal var profilePublic: Bool = ConsentDefaults.profilePublic
+    @AppStorage("privacy_showActivity") internal var showActivity: Bool = ConsentDefaults.showActivity
+    @AppStorage("privacy_shareData") internal var shareData: Bool = ConsentDefaults.analytics
+    @AppStorage("privacy_marketing") internal var marketingConsent: Bool = ConsentDefaults.marketing
+    @AppStorage("privacy_camera") internal var cameraConsent: Bool = ConsentDefaults.camera
+    @AppStorage("privacy_ai") internal var aiConsent: Bool = ConsentDefaults.ai
+    @AppStorage("privacy_notifications") internal var notificationsConsent: Bool = ConsentDefaults.notifications
 
     @State internal var showPrivacyPolicy: Bool = false
     @State internal var isSyncing: Bool = false

@@ -333,7 +333,7 @@ struct SignUpView: View {
                     )
 
                     // 2) Consentements RGPD (best-effort, on n'annule pas si ça loupe)
-                    recordInitialConsents(uid: user.uid, acceptedTerms: true, acceptedPrivacy: true)
+                    recordInitialConsents(uid: user.uid)
 
                     // 3) Envoyer l'email de vérification (best-effort aussi —
                     // l'utilisateur peut le renvoyer depuis l'écran de vérif)

@@ -90,58 +90,63 @@ func saveUserToBackendIfNeeded(uid: String, email: String, name: String, created
         let exists = await checkIfUserExists(uid: uid)
         if !exists {
             saveUserToBackend(uid: uid, email: email, name: name, createdAt: createdAt)
+            // Nouveau compte (SSO Google/Apple) → capture initiale des consentements (#218).
+            // L'inscription email passe par son propre appel dans SignUpView.
+            recordInitialConsents(uid: uid)
         } else {
             print("ℹ️ Utilisateur déjà existant dans MongoDB")
         }
     }
 }
 
-/// Enregistre les consentements initiaux (Terms + Privacy) lors de l'inscription
-func recordInitialConsents(uid: String, acceptedTerms: Bool, acceptedPrivacy: Bool) {
+/// Capture initiale des consentements au signup / première création de compte (issue #218).
+///
+/// - `terms` + `privacy` sont posés à `true` : l'inscription vaut acceptation
+///   (cf. le wrap « By signing up you agree… » de SignUpView / LoginView).
+/// - Les 7 consentements granulaires sont enregistrés à leur valeur **par défaut**
+///   (`ConsentDefaults`, privacy-by-default) afin de disposer d'une preuve datée
+///   dès l'inscription — accountability RGPD Art. 5(2) — même si l'utilisateur
+///   n'ouvre jamais l'écran Confidentialité.
+///
+/// Le backend dérive l'`uid` du token Firebase (le param sert au log) et exige
+/// `consentType` + `version` (cf. `recordConsent`, main.go) ; l'ancienne version
+/// envoyait `consentGiven`/`consentDate` sans `version` → 400 silencieux.
+func recordInitialConsents(uid: String) {
     Task {
-        do {
-            // Get user's IP address and user agent
-            let ipAddress = await getUserIPAddress()
-            let userAgent = "ArboreApp/iOS"
+        // IP + User-Agent récupérés une seule fois pour tout le snapshot.
+        let ipAddress = await getUserIPAddress()
+        let userAgent = "ArboreApp/iOS"
+        let version = AppConfig.privacyPolicyVersion
+        let timestamp = ISO8601DateFormatter().string(from: Date())
 
-            // Record Terms of Service consent
-            if acceptedTerms {
-                let termsConsent: [String: Any] = [
-                    "consentType": "terms",
-                    "consentGiven": true,
-                    "consentDate": ISO8601DateFormatter().string(from: Date()),
-                    "ipAddress": ipAddress,
-                    "userAgent": userAgent
-                ]
+        var snapshot: [(type: String, granted: Bool)] = [
+            ("terms", true),
+            ("privacy", true),
+        ]
+        snapshot.append(contentsOf: ConsentDefaults.initialSnapshot)
 
-                let _: ConsentResponse = try await NetworkManager.shared.request(
+        for entry in snapshot {
+            let body: [String: Any] = [
+                "consentType": entry.type,
+                "granted": entry.granted,
+                "version": version,
+                "timestamp": timestamp,
+                "ipAddress": ipAddress,
+                "userAgent": userAgent
+            ]
+            do {
+                try await NetworkManager.shared.requestNoResponse(
                     endpoint: "/consents",
                     method: .POST,
-                    body: termsConsent
+                    body: body
                 )
-                print("✅ Terms consent recorded")
+            } catch {
+                print("❌ Initial consent '\(entry.type)' failed:", error.localizedDescription)
             }
-
-            // Record Privacy Policy consent
-            if acceptedPrivacy {
-                let privacyConsent: [String: Any] = [
-                    "consentType": "privacy",
-                    "consentGiven": true,
-                    "consentDate": ISO8601DateFormatter().string(from: Date()),
-                    "ipAddress": ipAddress,
-                    "userAgent": userAgent
-                ]
-
-                let _: ConsentResponse = try await NetworkManager.shared.request(
-                    endpoint: "/consents",
-                    method: .POST,
-                    body: privacyConsent
-                )
-                print("✅ Privacy consent recorded")
-            }
-        } catch {
-            print("❌ Error recording consents:", error.localizedDescription)
         }
+        #if DEBUG
+        print("✅ Initial consent snapshot recorded (\(snapshot.count) types) for uid=\(uid)")
+        #endif
     }
 }
 

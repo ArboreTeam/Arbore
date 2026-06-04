@@ -124,6 +124,11 @@ extension AppleAuthService: ASAuthorizationControllerDelegate {
             return
         }
 
+        // #210 — authorization_code (à usage unique) pour la révocation Apple à
+        // la suppression du compte. Forwardé au backend après le signin Firebase.
+        let authorizationCode = appleCredential.authorizationCode
+            .flatMap { String(data: $0, encoding: .utf8) }
+
         // Capture du nom (premier signup uniquement, sinon nil).
         let firstName = appleCredential.fullName?.givenName ?? ""
         let lastName = appleCredential.fullName?.familyName ?? ""
@@ -178,6 +183,14 @@ extension AppleAuthService: ASAuthorizationControllerDelegate {
                     name: resolvedName,
                     createdAt: Date()
                 )
+            }
+
+            // #210 — forward l'authorization_code pour permettre la révocation
+            // du compte Apple à la suppression. Best-effort, hors chemin critique
+            // de login ; se ré-exécute aux signins suivants (code frais à chaque
+            // fois) si le tout premier passage a couru avec la création du user.
+            if let authorizationCode = authorizationCode, !authorizationCode.isEmpty {
+                linkAppleAccountWithBackend(authorizationCode: authorizationCode)
             }
 
             #if DEBUG

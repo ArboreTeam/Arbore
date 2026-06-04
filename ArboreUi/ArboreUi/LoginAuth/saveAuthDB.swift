@@ -150,6 +150,27 @@ func recordInitialConsents(uid: String) {
     }
 }
 
+/// Forwarde l'authorization_code Apple au backend (issue #210) afin qu'il
+/// l'échange contre un refresh_token Apple et le stocke chiffré. Indispensable
+/// pour révoquer le compte Apple à la suppression (Guideline 5.1.1(v)).
+/// Best-effort : n'impacte jamais le login (les échecs sont seulement logués).
+func linkAppleAccountWithBackend(authorizationCode: String) {
+    Task {
+        do {
+            try await NetworkManager.shared.requestNoResponse(
+                endpoint: "/users/me/apple-link",
+                method: .POST,
+                body: ["authorizationCode": authorizationCode]
+            )
+            #if DEBUG
+            print("✅ Apple authorization_code forwardé au backend")
+            #endif
+        } catch {
+            print("⚠️ apple-link forward échoué:", error.localizedDescription)
+        }
+    }
+}
+
 /// Récupère l'adresse IP de l'utilisateur
 private func getUserIPAddress() async -> String {
     do {

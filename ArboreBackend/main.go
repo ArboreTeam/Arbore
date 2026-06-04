@@ -98,6 +98,10 @@ type User struct {
 	PhotoData        string `json:"photoData,omitempty" bson:"photoData,omitempty"`
 	PhotoContentType string `json:"photoContentType,omitempty" bson:"photoContentType,omitempty"`
 	Banned           bool   `json:"banned" bson:"banned"` // Ban status for user moderation
+	// Refresh_token Apple chiffré (AES-GCM), pour révoquer le compte SIWA à la
+	// suppression (Guideline 5.1.1(v), issue #210). `json:"-"` : ne sort jamais
+	// vers le client. Nil si l'utilisateur ne s'est pas connecté via Apple.
+	AppleRefreshTokenEncrypted []byte `json:"-" bson:"appleRefreshTokenEncrypted,omitempty"`
 }
 
 // ---------- CONSENT STRUCTS (RGPD) ----------
@@ -470,8 +474,18 @@ func deleteUser(c *gin.Context) {
 	}
 	log.Printf("✅ %d consentement(s) supprimé(s)", consentsResult.DeletedCount)
 
-	// 3. Supprimer l'utilisateur
+	// 2bis. Révocation Apple (Guideline 5.1.1(v), #210) — best-effort, ne bloque
+	// jamais la suppression. Si l'utilisateur s'est connecté via Sign in with
+	// Apple, on révoque son refresh_token côté Apple avant d'effacer le compte.
 	usersCollection := db.Collection("users")
+	var userDoc User
+	if err := usersCollection.FindOne(ctx, bson.M{"uid": uid}).Decode(&userDoc); err == nil {
+		if len(userDoc.AppleRefreshTokenEncrypted) > 0 {
+			revokeAppleBestEffort(ctx, uid, userDoc.AppleRefreshTokenEncrypted)
+		}
+	}
+
+	// 3. Supprimer l'utilisateur
 	userResult, err := usersCollection.DeleteOne(ctx, bson.M{"uid": uid})
 	if err != nil {
 		log.Println("❌ Erreur lors de la suppression de l'utilisateur:", err)
@@ -493,6 +507,64 @@ func deleteUser(c *gin.Context) {
 		"gardensDeleted":  gardensResult.DeletedCount,
 		"consentsDeleted": consentsResult.DeletedCount,
 	})
+}
+
+// linkAppleAccount reçoit l'authorization_code Apple (capturé par l'app iOS au
+// premier signin Sign in with Apple), l'échange contre un refresh_token Apple
+// longue durée, le chiffre (AES-GCM) et le stocke sur le user. Indispensable
+// pour pouvoir révoquer le compte Apple à la suppression (Guideline 5.1.1(v),
+// issue #210). Best-effort produit : si la config Apple manque, on renvoie 200
+// sans rien stocker (la suppression future se fera sans révocation, loguée).
+func linkAppleAccount(c *gin.Context) {
+	authenticatedUID, exists := c.Get("uid")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	uid := authenticatedUID.(string)
+
+	var body struct {
+		AuthorizationCode string `json:"authorizationCode"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil || strings.TrimSpace(body.AuthorizationCode) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "authorizationCode requis"})
+		return
+	}
+
+	cfg, err := loadAppleSIWAConfig()
+	if err != nil {
+		log.Printf("⚠️ apple-link: config SIWA indisponible (%v) — skip pour %s", err, uid)
+		c.JSON(http.StatusOK, gin.H{"linked": false, "reason": "apple_siwa_not_configured"})
+		return
+	}
+
+	refreshToken, err := cfg.exchangeAuthorizationCode(c.Request.Context(), body.AuthorizationCode)
+	if err != nil {
+		log.Printf("❌ apple-link: échange du code échoué pour %s: %v", uid, err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "échange Apple échoué"})
+		return
+	}
+
+	encrypted, err := encrypt([]byte(refreshToken))
+	if err != nil {
+		log.Printf("❌ apple-link: chiffrement échoué pour %s: %v", uid, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "chiffrement échoué"})
+		return
+	}
+
+	_, err = getDatabaseForRequest(c).Collection("users").UpdateOne(
+		context.Background(),
+		bson.M{"uid": uid},
+		bson.M{"$set": bson.M{"appleRefreshTokenEncrypted": encrypted}},
+	)
+	if err != nil {
+		log.Printf("❌ apple-link: update Mongo échoué pour %s: %v", uid, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "stockage échoué"})
+		return
+	}
+
+	log.Printf("✅ apple-link: refresh_token Apple stocké (chiffré) pour %s", uid)
+	c.JSON(http.StatusOK, gin.H{"linked": true})
 }
 
 // ---------- CONSENTS (RGPD) ----------
@@ -1497,6 +1569,7 @@ func main() {
 		protected.GET("/users/:uid/photo", getUserPhoto)
 		protected.GET("/users/export", exportUserData)
 		protected.PATCH("/users/me", updateUserSelf)
+		protected.POST("/users/me/apple-link", linkAppleAccount)
 		protected.DELETE("/users", deleteUser)
 
 		// Plants

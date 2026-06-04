@@ -138,6 +138,11 @@ Les handlers sont regroupés thématiquement dans `main.go` et exposés sous le 
 | `AI_GENERATOR_URL` | URL interne Docker (`http://ai-generator:8000`) | configuration |
 | `THUMBNAILS_DIR` | Chemin disque pour les thumbnails PNG | configuration |
 | `THUMBNAIL_UPLOAD_ALLOWED_UIDS` | Liste d'UIDs autorisés à uploader des thumbnails | configuration |
+| `MASTER_ENCRYPTION_KEY` | Clé AES-256 (32 octets en **hex**, 64 caractères) pour chiffrer au repos les secrets utilisateur (refresh_token Apple, #210). Si absente, la liaison/révocation Apple est désactivée (best-effort). | 🔒 **secret** |
+| `APPLE_TEAM_ID` | Team ID Apple Developer (révocation SIWA, #210) | configuration |
+| `APPLE_KEY_ID` | Key ID de la clé `.p8` dédiée SIWA | configuration |
+| `APPLE_SIWA_CLIENT_ID` | `client_id` OAuth Apple. **Flux natif iOS = bundle ID** (`com.arboreteam.arbore`), pas le Service ID web. | configuration |
+| `APPLE_SIWA_KEY_PATH` | Chemin vers la clé privée `.p8` (PKCS8 EC) SIWA. Alternative : `APPLE_SIWA_PRIVATE_KEY` (contenu PEM). | 🔒 **secret** |
 | `GIN_MODE` | `release` en prod, `debug` en local | configuration |
 | `PORT` | Port d'écoute HTTP (8080 par défaut) | configuration |
 

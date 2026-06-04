@@ -35,6 +35,7 @@ const appleAudience = "https://appleid.apple.com"
 // Endpoints OAuth Apple. Déclarés en var (et non const) pour être surchargés
 // par les tests (httptest). En prod ils pointent sur appleid.apple.com.
 var (
+	//nolint:gosec // G101 faux positif : URL d'endpoint OAuth public, pas un credential.
 	appleTokenURL  = "https://appleid.apple.com/auth/token"
 	appleRevokeURL = "https://appleid.apple.com/auth/revoke"
 )
@@ -72,6 +73,7 @@ func loadAppleSIWAConfig() (*appleSIWAConfig, error) {
 func loadApplePrivateKey() (*ecdsa.PrivateKey, error) {
 	var pemBytes []byte
 	if path := strings.TrimSpace(os.Getenv("APPLE_SIWA_KEY_PATH")); path != "" {
+		//nolint:gosec // G304 : chemin .p8 fourni par l'opérateur via env de confiance, pas un input utilisateur.
 		b, err := os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("lecture APPLE_SIWA_KEY_PATH: %w", err)
@@ -188,7 +190,7 @@ func applePostForm(ctx context.Context, endpoint string, form url.Values, out in
 	if err != nil {
 		return err
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(res.Body)
 		return fmt.Errorf("apple %s: status %d: %s", endpoint, res.StatusCode, strings.TrimSpace(string(body)))

@@ -14,7 +14,7 @@ struct AISuggestionStepView: View {
     /// Dernier step du wizard : à l'activation du CTA, le parent ouvre
     /// `GardenARPlacementView` sur le jardin tout neuf créé au step
     /// `scanMethod`. La sélection de plantes est passée en `selectedPlants`.
-    let onPlaceInAR: () -> Void
+    let onPlaceInAR: ([Plant]) -> Void
     let onBack: () -> Void
 
     /// Plants accepted by the user for the garden
@@ -295,13 +295,9 @@ struct AISuggestionStepView: View {
     private var bottomBar: some View {
         VStack(spacing: 12) {
             Button(action: {
-                // Update selected plants from accepted list
-                if let suggestion = suggestion {
-                    selectedPlants = suggestion.plants
-                        .filter { acceptedPlantIds.contains($0.plant.id) }
-                        .map(\.plant)
-                }
-                onPlaceInAR()
+                let plantsForPlacement = acceptedPlantsForPlacement()
+                selectedPlants = plantsForPlacement
+                onPlaceInAR(plantsForPlacement)
             }) {
                 HStack {
                     Text(acceptedPlantIds.isEmpty
@@ -375,6 +371,13 @@ struct AISuggestionStepView: View {
                 acceptedPlantIds.insert(plant.id)
             }
         }
+    }
+
+    private func acceptedPlantsForPlacement() -> [Plant] {
+        guard let suggestion else { return [] }
+        return suggestion.plants
+            .filter { acceptedPlantIds.contains($0.plant.id) }
+            .map(\.plant)
     }
 }
 

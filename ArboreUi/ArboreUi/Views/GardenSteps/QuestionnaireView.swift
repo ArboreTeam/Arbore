@@ -250,11 +250,17 @@ struct GardenWizardView: View {
     // en mode `.create` avec le `createdGardenId` posé au step `scanMethod`,
     // ce qui chargera la WorldMap déjà sauvée et déclenchera
     // l'auto-placement IA des plantes sélectionnées.
-    @State private var showFinalPlacement = false
+    struct FinalPlacementData: Identifiable {
+        let id = UUID()
+        let gardenId: String
+        let plants: [Plant]
+    }
+    @State private var finalPlacementData: FinalPlacementData? = nil
 
     // 🤖 AI Suggestion: all catalogue plants + user's selection
     @State private var allCataloguePlants: [Plant] = []
     @State private var aiSelectedPlants: [Plant] = []
+    @State private var finalPlacementPlants: [Plant] = []
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -318,17 +324,16 @@ struct GardenWizardView: View {
     /// `GardenARPlacementView` sur le jardin déjà créé au step précédent
     /// (`state.createdGardenId` non nil). L'AR placement view chargera la
     /// WorldMap depuis disque et auto-placera les plantes sélectionnées.
-    private func startFinalPlacement() {
-        guard state.createdGardenId != nil else {
-            // Garde-fou : si l'utilisateur arrive ici sans avoir validé le
-            // tracé, on le renvoie au step scanMethod plutôt que d'ouvrir
-            // une session AR sans contexte. Ne devrait pas arriver — le
-            // wizard ne propose pas `aiSuggestion` sans passer par
-            // `scanMethod` au préalable.
-            currentStep = .scanMethod
-            return
+    private func startFinalPlacement(with plants: [Plant]) {
+        guard let gardenId = state.createdGardenId else { return }
+        finalPlacementPlants = plants
+        aiSelectedPlants = plants
+        Task {
+            await prewarmSelectedPlantModels(plants)
+            await MainActor.run {
+                finalPlacementData = FinalPlacementData(gardenId: gardenId, plants: plants)
+            }
         }
-        showFinalPlacement = true
     }
 
     // ✅ state -> DTO pour AR + backend
@@ -398,7 +403,7 @@ struct GardenWizardView: View {
                     AISuggestionStepView(
                         state: state,
                         allPlants: allCataloguePlants,
-                        onPlaceInAR: startFinalPlacement,
+                        onPlaceInAR: startFinalPlacement(with:),
                         onBack: goToPrevious,
                         selectedPlants: $aiSelectedPlants
                     )
@@ -485,28 +490,27 @@ struct GardenWizardView: View {
         // disque qui n'existe pas encore). À la validation finale, la save
         // logic de `GardenARPlacementView` détecte `existingGardenId != nil`
         // et déclenche un `PUT /gardens/:id` au lieu d'un POST.
-        .fullScreenCover(isPresented: $showFinalPlacement) {
-            if let gardenId = state.createdGardenId {
-                GardenARPlacementView(
-                    selectedPlants: aiSelectedPlants.isEmpty ? selectedPlants : aiSelectedPlants,
-                    uid: uid,
-                    wizard: wizardDTO,
-                    gardenName: gardenName,
-                    thumbnailKey: thumbnailKey,
-                    existingGardenId: gardenId,
-                    mode: .create,
-                    boundaryPoints: state.measuredBoundaryPoints,
-                    area: state.measuredArea,
-                    perimeter: state.measuredPerimeter,
-                    measurementWorldMapId: gardenId,
-                    onValidated: {
-                        showFinalPlacement = false
-                        onFinish(state)
-                        tabRouter.selectedTab = .home
-                        dismiss()
-                    }
-                )
-            }
+        .fullScreenCover(item: $finalPlacementData) { data in
+            GardenARPlacementView(
+                selectedPlants: data.plants,
+                uid: uid,
+                wizard: wizardDTO,
+                gardenName: gardenName,
+                thumbnailKey: thumbnailKey,
+                existingGardenId: data.gardenId,
+                mode: .create,
+                boundaryPoints: state.measuredBoundaryPoints,
+                area: state.measuredArea,
+                perimeter: state.measuredPerimeter,
+                measurementWorldMapId: data.gardenId,
+                onValidated: {
+                    finalPlacementData = nil
+                    onFinish(state)
+                    tabRouter.selectedTab = .home
+                    dismiss()
+                }
+            )
+            .id(data.id)
         }
         // ✅ super important: quand tu ré-ouvres un wizard, on repart de 0
         .onAppear {
@@ -520,6 +524,8 @@ struct GardenWizardView: View {
             state.measuredBoundaryPoints = []
             state.measuredArea = 0
             state.measuredPerimeter = 0
+            finalPlacementPlants = []
+            aiSelectedPlants = []
 
             // 🤖 Fetch all catalogue plants for AI suggestion
             fetchCataloguePlants()
@@ -556,7 +562,26 @@ struct GardenWizardView: View {
             }
         }
     }
-}
+    
+    /// Prefetch USDZ models for selected plants so AR placement can start immediately on first entry.
+    private func prewarmSelectedPlantModels(_ plants: [Plant]) async {
+        guard !plants.isEmpty else { return }
+        await withTaskGroup(of: Void.self) { group in
+            for plant in plants {
+                if let model = plant.modelURL, !model.isEmpty {
+                    group.addTask {
+                        do {
+                            _ = try await ModelCacheManager.shared.getModelURL(for: model)
+                        } catch {
+                            // Non-blocking: AR will retry on demand if needed
+                            print("⚠️ Prefetch model failed for \(model): \(error)")
+                        }
+                    }
+                }
+            }
+        }
+    }
+} // <-- Added to properly close GardenWizardView struct
 
 // MARK: - Progress Header
 
@@ -915,3 +940,4 @@ struct QuestionnaireView_Previews: PreviewProvider {
         }
     }
 }
+

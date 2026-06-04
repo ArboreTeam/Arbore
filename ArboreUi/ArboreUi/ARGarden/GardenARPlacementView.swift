@@ -102,6 +102,10 @@ struct GardenARPlacementView: View {
     // 🤖 AI Auto-placement
     @State private var isAutoPlacing = false
     @State private var autoPlaceToast: String? = nil
+    /// Per-plant progress during staggered auto-placement.
+    @State private var autoPlacePlaced: Int = 0
+    @State private var autoPlaceTotal: Int = 0
+    @State private var autoPlaceCurrentName: String = ""
     /// Issue #169 — set true the first time AI auto-placement actually
     /// triggers (i.e. the reticle reached the floor + stability). Used
     /// to hide the "Pointez vers le sol" coaching banner once the user
@@ -214,6 +218,9 @@ struct GardenARPlacementView: View {
                 isAutoPlacing: $isAutoPlacing,
                 autoPlaceCoaching: $autoPlaceCoaching,
                 autoPlaceToast: $autoPlaceToast,
+                autoPlacePlaced: $autoPlacePlaced,
+                autoPlaceTotal: $autoPlaceTotal,
+                autoPlaceCurrentName: $autoPlaceCurrentName,
                 currentLux: $currentLux,
                 shouldCaptureSharePhoto: $shouldCaptureSharePhoto,
                 capturedShareImage: $capturedShareImage,
@@ -775,6 +782,13 @@ struct GardenARPlacementView: View {
     /// `parentProps?.autoPlaceCoaching = ...`. Equatable so the
     /// Coordinator can dedupe-suppress identical updates.
     enum AutoPlaceCoachingState: Equatable {
+        /// ARKit is relocalizing against the measurement WorldMap loaded in
+        /// `makeUIView` (mode `.create`). Until `trackingState == .normal`
+        /// the floor anchors from the saved map aren't restored, so the
+        /// auto-place gate can't fire. The user must sweep the space to let
+        /// ARKit re-match its mapped viewpoint. Without this state the banner
+        /// stayed on `analyzing` and gave no hint that movement was needed.
+        case relocalizing
         /// No `ARPlaneAnchor` classified as floor yet. ARKit is still
         /// scanning ; the user should keep moving the phone.
         case analyzing
@@ -793,6 +807,7 @@ struct GardenARPlacementView: View {
 
         var symbolName: String {
             switch self {
+            case .relocalizing: return "arrow.triangle.2.circlepath"
             case .analyzing: return "viewfinder.circle"
             case .adjustReticle: return "viewfinder"
             case .pointLower: return "arrow.down"
@@ -802,7 +817,7 @@ struct GardenARPlacementView: View {
 
         var tint: Color {
             switch self {
-            case .analyzing, .adjustReticle: return Color(hex: "#FFB020")
+            case .analyzing, .adjustReticle, .relocalizing: return Color(hex: "#FFB020")
             case .pointLower: return Color(hex: "#FF8030")
             case .stabilizing: return Color(hex: "#2BEE79")
             }
@@ -810,6 +825,8 @@ struct GardenARPlacementView: View {
 
         var title: String {
             switch self {
+            case .relocalizing:
+                return "Reconnaissance de la zone…"
             case .analyzing:
                 return "Analyse de l'environnement…"
             case .adjustReticle:
@@ -823,6 +840,8 @@ struct GardenARPlacementView: View {
 
         var subtitle: String {
             switch self {
+            case .relocalizing:
+                return "Balaie lentement ton espace pour qu'ARKit retrouve le jardin mesuré."
             case .analyzing:
                 return "Bouge ton téléphone lentement pour qu'ARKit détecte le sol."
             case .adjustReticle:
@@ -878,33 +897,83 @@ struct GardenARPlacementView: View {
     }
 
     private var autoPlacingOverlay: some View {
-        ZStack {
+        let progress: Double = autoPlaceTotal > 0
+            ? Double(autoPlacePlaced) / Double(autoPlaceTotal)
+            : 0
+
+        return ZStack {
             Color.black.opacity(0.3)
                 .ignoresSafeArea()
 
-            VStack(spacing: 16) {
-                ProgressView()
-                    .tint(.white)
-                    .scaleEffect(1.3)
+            VStack(spacing: 18) {
+                // Animated progress ring
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.15), lineWidth: 4)
+                        .frame(width: 56, height: 56)
 
-                Text("Placement des plantes…")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.white)
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(
+                            Color(hex: "#2BEE79"),
+                            style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                        )
+                        .frame(width: 56, height: 56)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.easeInOut(duration: 0.35), value: progress)
 
-                Text("L'IA place vos \(selectedPlants.count) plantes")
-                    .font(.system(size: 13))
-                    .foregroundColor(.white.opacity(0.7))
+                    if autoPlaceTotal > 0 {
+                        Text("\(autoPlacePlaced)/\(autoPlaceTotal)")
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                    } else {
+                        ProgressView()
+                            .tint(.white)
+                            .scaleEffect(0.9)
+                    }
+                }
+
+                VStack(spacing: 6) {
+                    Text(autoPlaceTotal > 0
+                         ? "Placement en cours…"
+                         : "Téléchargement des modèles…")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.white)
+
+                    if !autoPlaceCurrentName.isEmpty {
+                        Text("🌱 \(autoPlaceCurrentName)")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(Color(hex: "#2BEE79"))
+                            .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                            .id("plantName_\(autoPlaceCurrentName)")
+                    }
+
+                    if autoPlaceTotal > 0 {
+                        Text("\(autoPlacePlaced) sur \(autoPlaceTotal) plantes placées")
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                }
+                .animation(.easeInOut(duration: 0.2), value: autoPlaceCurrentName)
             }
-            .padding(28)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 28)
             .background(
-                RoundedRectangle(cornerRadius: 20)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .fill(.ultraThinMaterial)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 20)
-                            .strokeBorder(.white.opacity(0.15), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [Color(hex: "#2BEE79").opacity(0.3), .white.opacity(0.1)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
                     )
             )
-            .shadow(color: .black.opacity(0.3), radius: 20)
+            .shadow(color: .black.opacity(0.35), radius: 24)
         }
         .transition(.opacity.animation(.easeInOut(duration: 0.3)))
     }
@@ -998,6 +1067,10 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
     /// #169 follow-up — Coordinator writes here on transition only.
     @Binding var autoPlaceCoaching: GardenARPlacementView.AutoPlaceCoachingState
     @Binding var autoPlaceToast: String?
+    /// Per-plant staggered placement progress.
+    @Binding var autoPlacePlaced: Int
+    @Binding var autoPlaceTotal: Int
+    @Binding var autoPlaceCurrentName: String
     @Binding var currentLux: Int
     @Binding var shouldCaptureSharePhoto: Bool
     @Binding var capturedShareImage: UIImage?
@@ -1037,6 +1110,9 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
     let onValidated: () -> Void
 
     func makeUIView(context: Context) -> ARSCNView {
+        let isCreate = self.mode == .create
+        let mapId = self.measurementWorldMapId ?? "nil"
+        AppLog.gardenLoad.notice("🤖 [makeUIView] boundaryPoints=\(self.boundaryPoints.count) isCreate=\(isCreate) mapId=\(mapId) plantsCount=\(self.plantsToAutoPlace.count)")
         let sceneView = ARSCNView(frame: .zero)
         sceneView.autoenablesDefaultLighting = true
         sceneView.delegate = context.coordinator
@@ -1067,6 +1143,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             return nil
         }()
         if let mapId = worldMapToLoad {
+            context.coordinator.isWaitingForWorldMapLoad = true
             let mapURL = GardenLocalStore.worldMapURL(for: mapId)
             DispatchQueue.global(qos: .userInitiated).async {
                 guard FileManager.default.fileExists(atPath: mapURL.path),
@@ -1074,6 +1151,9 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                       let worldMap = try? NSKeyedUnarchiver.unarchivedObject(ofClass: ARWorldMap.self, from: mapData)
                 else {
                     AppLog.gardenLoad.notice("WorldMap missing or unreadable id=\(mapId, privacy: .public)")
+                    DispatchQueue.main.async {
+                        context.coordinator.isWaitingForWorldMapLoad = false
+                    }
                     return
                 }
                 DispatchQueue.main.async {
@@ -1083,6 +1163,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     restartConfig.environmentTexturing = ARQuality.recommended.environmentTexturing
                     restartConfig.initialWorldMap = worldMap
                     sceneView.session.run(restartConfig, options: [.resetTracking, .removeExistingAnchors])
+                    context.coordinator.worldMapLoadedAt = CACurrentMediaTime()
+                    context.coordinator.isWaitingForWorldMapLoad = false
                     AppLog.gardenLoad.notice("WorldMap loaded id=\(mapId, privacy: .public)")
                 }
             }
@@ -1108,6 +1190,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: ARSCNView, context: Context) {
+        context.coordinator.parentProps = self
         context.coordinator.updateCachedBounds()
         // BETA #191: ARKit surface viz + Scene Understanding wiring paused
         // for beta — even if a stale @AppStorage flag is still true on a
@@ -1176,6 +1259,9 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             private var lastNoSurfaceWarnAt: TimeInterval = 0
             private var selectedNode: SCNNode?
             private var isRestoring = false
+            var isWaitingForWorldMapLoad = false
+            var worldMapLoadedAt: TimeInterval = 0
+            private var lastAutoPlaceLogTime: TimeInterval = 0
 
             private var undoStack: [[PersistedPlant]] = []
             private var redoStack: [[PersistedPlant]] = []
@@ -1431,6 +1517,67 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     lastLoggedTrackingState = trackingDesc
                 }
 
+                let mapStatusOK = mapStatus == .mapped || mapStatus == .extending
+                let trackingNormal: Bool = {
+                    if case .normal = trackingState { return true }
+                    return false
+                }()
+
+                // 🤖 AI Auto-placement for boundaries: trigger once tracking is normal
+                // AND the floor is detected (or boundary Y is available as fallback).
+                // Bug fix #198: we used to trigger on trackingNormal alone, before
+                // ARKit had a floor plane → Y=0 (session origin, chest height) → plants in the air.
+                if let props = parentProps,
+                   props.mode == .create,
+                   props.measurementWorldMapId != nil,
+                   props.boundaryPoints.count >= 3,
+                   !didAutoPlace,
+                   !isWaitingForWorldMapLoad,
+                   trackingNormal,
+                   !props.plantsToAutoPlace.isEmpty {
+
+                    let timeSinceLoad = CACurrentMediaTime() - worldMapLoadedAt
+                    if timeSinceLoad > 0.5 {
+                        DispatchQueue.main.async { [weak self] in
+                            guard let self = self, !self.didAutoPlace else { return }
+                            // Prefer ARKit floor; boundary Y is a reliable fallback.
+                            let hasFloor = self.detectedFloorY() != nil
+                            let hasBoundaryY = !props.boundaryPoints.isEmpty
+                            if hasFloor || hasBoundaryY {
+                                self.didAutoPlace = true
+                                self.autoPlaceAIPlants(at: nil)
+                            } else {
+                                // Floor not yet detected — retry after 1 s.
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                                    guard let self = self, !self.didAutoPlace else { return }
+                                    self.didAutoPlace = true
+                                    self.autoPlaceAIPlants(at: nil)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 🤖 Coaching pendant la relocalisation (mode .create). Tant que la
+                // WorldMap de mesure n'est pas chargée OU que le tracking n'est pas
+                // .normal, l'auto-placement ne peut pas se déclencher : on l'indique
+                // à l'utilisateur ("balaie la zone") au lieu de laisser la bannière
+                // coincée sur "analyse". Dès que la relocalisation aboutit, le
+                // renderer reprend la main avec ses états fins (analyzing/…).
+                if let props = parentProps,
+                   props.mode == .create,
+                   props.measurementWorldMapId != nil,
+                   !props.plantsToAutoPlace.isEmpty,
+                   !didAutoPlace,
+                   isWaitingForWorldMapLoad || !trackingNormal {
+                    if lastAutoPlaceCoaching != .relocalizing {
+                        lastAutoPlaceCoaching = .relocalizing
+                        DispatchQueue.main.async { [weak self] in
+                            self?.parentProps?.autoPlaceCoaching = .relocalizing
+                        }
+                    }
+                }
+
                 guard let gardenId = pendingRestoreGardenId, !didRestoreGarden else { return }
                 // If the user already took manual control, ignore relocalization events.
                 if let phase = parentProps?.relocationPhase, phase.isManualReplacement { return }
@@ -1443,11 +1590,6 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 // Adding ARAnchors while still relocalizing locks them to the
                 // wrong real-world location, which manifests as the whole
                 // garden being rotated 90° or 180° once relocalization settles.
-                let mapStatusOK = mapStatus == .mapped || mapStatus == .extending
-                let trackingNormal: Bool = {
-                    if case .normal = trackingState { return true }
-                    return false
-                }()
                 guard mapStatusOK, trackingNormal else { return }
 
                 if !restoreScheduled {
@@ -1554,6 +1696,25 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
 
                 let center = cachedViewCenter
+                let trackingNormal: Bool = {
+                    if let trackingState = arView.session.currentFrame?.camera.trackingState,
+                       case .normal = trackingState {
+                        return true
+                    }
+                    return false
+                }()
+
+                let now = CACurrentMediaTime()
+                if now - lastAutoPlaceLogTime > 1.5 {
+                    lastAutoPlaceLogTime = now
+                    let trackingStateDesc = arView.session.currentFrame?.camera.trackingState.logDescription ?? "nil"
+                    let propsDesc = parentProps == nil ? "nil" : "non-nil"
+                    let modeDesc = parentProps?.mode == .create ? "create" : "reopen"
+                    let mapIdDesc = parentProps?.measurementWorldMapId ?? "nil"
+                    let boundaryCount = parentProps?.boundaryPoints.count ?? 0
+                    let plantsCount = parentProps?.plantsToAutoPlace.count ?? 0
+                    AppLog.plants.notice("🤖 [AUTOPLACE CHECK] props=\(propsDesc, privacy: .public) mode=\(modeDesc, privacy: .public) mapId=\(mapIdDesc, privacy: .public) boundaryPoints=\(boundaryCount, privacy: .public) didAutoPlace=\(self.didAutoPlace, privacy: .public) isWaiting=\(self.isWaitingForWorldMapLoad, privacy: .public) trackingState=\(trackingStateDesc, privacy: .public) plantsToAutoPlace=\(plantsCount, privacy: .public) trackingNormal=\(trackingNormal, privacy: .public)")
+                }
 
                 // Two-tier raycast: prefer a real detected plane (.existingPlaneGeometry,
                 // surveyed surface — reliable). Fall back to .estimatedPlane (ARKit
@@ -1600,48 +1761,26 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     reticle.simdTransform = t
                     reticle.opacity = (newQuality == .geometry) ? 1.0 : 0.6
 
-                    // 🤖 AI Auto-placement: wait for stable plane detection AND
-                    // require the user to be pointing close to the actual floor
-                    // (cf issue #169). Without this gate the AI batch lands on
-                    // whatever the reticle happens to hit when stability is
-                    // reached — typically a desk if the user holds the phone
-                    // naturally. We accept ±20 cm of reticle slack around the
-                    // detected floor; if the user points at a piece of
-                    // furniture, nothing fires and the user lowers the phone.
+                    // 🤖 AI Auto-placement: Place instantly as soon as a surface is found,
+                    // without requiring the user to aim specifically at the floor or wait for stability.
                     let currentProps = parentProps
                     let acceptsEstimatedSurface = currentProps.map { self.acceptsEstimatedAutoPlace(for: $0) } ?? false
                     let hasAutoPlaceSurface = newQuality == .geometry || (newQuality == .estimated && acceptsEstimatedSurface)
-                    let reticleNearFloor: Bool = {
-                        guard let props = currentProps else { return false }
-                        guard let floorY = self.autoPlaceFloorY(for: props) else {
-                            return newQuality == .estimated && acceptsEstimatedSurface
-                        }
-                        let tolerance: Float = newQuality == .estimated ? 0.35 : 0.20
-                        return abs(t.columns.3.y - floorY) <= tolerance
-                    }()
+                    
+                    let timeSinceLoad = CACurrentMediaTime() - worldMapLoadedAt
+                    
                     if !didAutoPlace,
+                       !isWaitingForWorldMapLoad,
+                       trackingNormal,
+                       timeSinceLoad > 0.5,
                        hasAutoPlaceSurface,
                        let props = currentProps,
                        props.mode == .create,
-                       !props.plantsToAutoPlace.isEmpty,
-                       reticleNearFloor {
-                        stablePlaneFrameCount += 1
-                        if stablePlaneFrameCount >= stablePlaneThreshold {
-                            didAutoPlace = true
-                            let transform = t
-                            DispatchQueue.main.async { [weak self] in
-                                self?.autoPlaceAIPlants(at: transform)
-                            }
-                        }
-                    } else if !didAutoPlace {
-                        // Lost floor proximity (user tilted up) — reset counter
-                        // so the next "valid" pointing has to re-accumulate
-                        // stability. Avoids triggering on a brief floor hit.
-                        if let props = currentProps,
-                           props.mode == .create,
-                           !props.plantsToAutoPlace.isEmpty,
-                           !reticleNearFloor {
-                            stablePlaneFrameCount = 0
+                       !props.plantsToAutoPlace.isEmpty {
+                        didAutoPlace = true
+                        let transform = t
+                        DispatchQueue.main.async { [weak self] in
+                            self?.autoPlaceAIPlants(at: transform)
                         }
                     }
 
@@ -1768,100 +1907,272 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             // MARK: - 🤖 AI Auto-Placement
 
             /// Automatically places all AI-selected plants in a style-aware layout.
-            private func autoPlaceAIPlants(at centerTransform: simd_float4x4) {
+            private func autoPlaceAIPlants(at centerTransform: simd_float4x4?) {
                 guard let props = parentProps else { return }
-                let plants = props.plantsToAutoPlace.filter { $0.modelURL != nil && !($0.modelURL?.isEmpty ?? true) }
+                // Don't pre-filter on modelURL — getModelURL() has fallback
+                // logic that resolves from the plant name alone (e.g.
+                // "Monstera.usdz"). Plants without an explicit modelURL are
+                // still downloadable. The download loop below handles failures
+                // gracefully (async download → bundle fallback → skip).
+                let plants = props.plantsToAutoPlace
                 guard !plants.isEmpty else { return }
 
                 props.isAutoPlacing = true
+                // Reset progress counters
+                props.autoPlacePlaced = 0
+                props.autoPlaceTotal = 0
+                props.autoPlaceCurrentName = ""
+
                 let style = props.wizard.style.lowercased()
-                let count = plants.count
+                let lux = props.currentLux
+                let boundaryPoints = props.boundaryPoints
 
-                // Calculate positions based on style
-                let positions = calculateLayoutPositions(count: count, style: style)
+                // ── Résolution du Y de placement ────────────────────────────
+                // Priorité : floor ARKit détecté > moyenne Y boundary > Y reticle > 0.
+                // Bug fix #198: l'ancien code utilisait Y=0 (origine de session,
+                // hauteur poitrine) quand le sol n'était pas encore détecté.
+                let placementY: Float
+                if let floorY = detectedFloorY() {
+                    placementY = floorY
+                } else if !boundaryPoints.isEmpty {
+                    placementY = boundaryPoints.reduce(0) { $0 + $1.y } / Float(boundaryPoints.count)
+                } else if let t = centerTransform {
+                    placementY = autoPlaceFloorY(for: props) ?? t.columns.3.y
+                } else {
+                    placementY = 0
+                }
 
-                // Extract center position from transform. The Y is overridden by
-                // the detected floor when available (cf issue #169) — the
-                // reticle is only used for the XZ origin of the layout.
-                let centerX = centerTransform.columns.3.x
-                let centerZ = centerTransform.columns.3.z
+                // ── Calcul des positions world-space absolues ─────────────────
+                // Bug fix #198 : calculateWorldPositions renvoie des coordonnées
+                // ARKit ABSOLUES — plus d'offset à ajouter (l'ancien
+                // calculateBoundaryLayout retournait des offsets relatifs au
+                // centroïde, mais autoPlaceAIPlants ajoutait ensuite centerX/Z
+                // = le centroïde → double centroïde → plantes hors boundary).
+                let worldPositions = calculateWorldPositions(
+                    plants: plants,
+                    style: style,
+                    lux: lux,
+                    boundaryPoints: boundaryPoints,
+                    centerTransform: centerTransform,
+                    placementY: placementY
+                )
 
                 Task { [weak self] in
                     guard let self = self else { return }
 
                     // Download all models in parallel
-                    var downloadedModels: [(plant: Plant, url: URL, offset: SIMD2<Float>)] = []
+                    var downloadedModels: [(plant: Plant, url: URL, worldPos: SIMD3<Float>)] = []
 
-                    await withTaskGroup(of: (Plant, URL?, SIMD2<Float>)?.self) { group in
+                    await withTaskGroup(of: (Plant, URL?, SIMD3<Float>)?.self) { group in
                         for (index, plant) in plants.enumerated() {
-                            let offset = index < positions.count ? positions[index] : SIMD2<Float>(0, 0)
+                            let pos = index < worldPositions.count
+                                ? worldPositions[index]
+                                : SIMD3<Float>(
+                                    worldPositions.first?.x ?? 0,
+                                    placementY,
+                                    worldPositions.first?.z ?? 0
+                                  )
                             group.addTask {
                                 do {
                                     let url = try await plant.getModelURL(forceDownload: false)
-                                    return (plant, url, offset)
+                                    return (plant, url, pos)
                                 } catch {
                                     // Try bundle fallback
-                                    return (plant, plant.bundleModelURL, offset)
+                                    let fallback = plant.bundleModelURL
+                                    if fallback == nil {
+                                        AppLog.plants.warning(
+                                            "autoPlace: no model for plant=\(plant.name, privacy: .public) id=\(plant.id, privacy: .public) modelURL=\(plant.modelURL ?? "<nil>", privacy: .public) error=\(String(describing: error), privacy: .public)"
+                                        )
+                                    }
+                                    return (plant, fallback, pos)
                                 }
                             }
                         }
 
                         for await result in group {
                             if let result = result, let url = result.1 {
-                                downloadedModels.append((plant: result.0, url: url, offset: result.2))
+                                downloadedModels.append((plant: result.0, url: url, worldPos: result.2))
                             }
                         }
                     }
 
-                    // Place all models on main thread
+                    // ── Staggered placement ─────────────────────────────────
+                    // Place models one-by-one with a short delay between each
+                    // so the main thread has breathing room for SceneKit's USDZ
+                    // loading + halo cache + rendering. This prevents the UI
+                    // freeze that occurred when all anchors were added in one
+                    // synchronous burst.
                     await MainActor.run {
+                        guard !downloadedModels.isEmpty else {
+                            // All plants failed to resolve a model — tell the user
+                            // instead of silently dismissing the overlay.
+                            props.isAutoPlacing = false
+                            props.autoPlacePlaced = 0
+                            props.autoPlaceTotal = 0
+                            props.autoPlaceCurrentName = ""
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                props.autoPlaceToast = "Aucun modèle 3D disponible — ajoutez vos plantes manuellement"
+                            }
+                            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                            return
+                        }
+
                         self.saveStateForUndo()
 
-                        // Floor Y is re-fetched here (not snapshotted at trigger
-                        // time) so that any plane discovered during the model
-                        // download still benefits the placement. Fallback to
-                        // the reticle Y only in the unlikely case the floor
-                        // anchor was removed between trigger and execute.
-                        let placementY: Float = self.autoPlaceFloorY(for: props) ?? centerTransform.columns.3.y
+                        // Initialize progress with total count
+                        props.autoPlaceTotal = downloadedModels.count
+                        props.autoPlacePlaced = 0
 
-                        for item in downloadedModels {
-                            var transform = centerTransform
-                            transform.columns.3.x = centerX + item.offset.x
-                            transform.columns.3.y = placementY
-                            transform.columns.3.z = centerZ + item.offset.y
+                        // Re-fetch floor Y at placement time so any plane
+                        // discovered during model download is taken into account.
+                        let finalY: Float = self.detectedFloorY() ?? placementY
 
-                            if let axis = item.plant.upAxis {
-                                self.plantUpAxisMap[item.plant.id] = axis
+                        // Stagger: place one plant every ~250ms to let the main
+                        // thread breathe between USDZ loads. Each dispatch gives
+                        // SceneKit a full run-loop cycle to finish loading the
+                        // previous model before the next anchor is added.
+                        let staggerDelay: TimeInterval = 0.25
+                        let totalCount = downloadedModels.count
+                        let skipped = plants.count - totalCount
+
+                        for (idx, item) in downloadedModels.enumerated() {
+                            let delay = staggerDelay * Double(idx)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                                guard let self = self else { return }
+
+                                // Update progress UI
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    props.autoPlaceCurrentName = item.plant.name
+                                }
+
+                                // Build a rigid identity-rotation transform at the
+                                // world-space position computed by calculateWorldPositions.
+                                // No centerX/centerZ offset here — positions are absolute.
+                                var transform = centerTransform ?? matrix_identity_float4x4
+                                if centerTransform == nil {
+                                    transform.columns.0 = [1, 0, 0, 0]
+                                    transform.columns.1 = [0, 1, 0, 0]
+                                    transform.columns.2 = [0, 0, 1, 0]
+                                }
+                                transform.columns.3.x = item.worldPos.x
+                                transform.columns.3.y = finalY
+                                transform.columns.3.z = item.worldPos.z
+
+                                if let axis = item.plant.upAxis {
+                                    self.plantUpAxisMap[item.plant.id] = axis
+                                }
+
+                                self.placeObject(
+                                    at: transform,
+                                    modelURL: item.url,
+                                    id: item.plant.id,
+                                    name: item.plant.name,
+                                    modelURLString: item.plant.modelURL,
+                                    upAxis: item.plant.upAxis,
+                                    autoSelect: false   // batch — no halo flicker
+                                )
+
+                                // Light haptic per plant
+                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+
+                                // Update placed counter
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    props.autoPlacePlaced = idx + 1
+                                }
+
+                                // Final plant → dismiss overlay after a short beat
+                                if idx == totalCount - 1 {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                        props.isAutoPlacing = false
+                                        props.autoPlaceCurrentName = ""
+                                        let toastText: String
+                                        if skipped > 0 {
+                                            toastText = "\(totalCount) plantes placées (\(skipped) sans modèle) — Déplacez-les !"
+                                        } else {
+                                            toastText = "\(totalCount) plantes placées — Déplacez-les !"
+                                        }
+                                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                            props.autoPlaceToast = toastText
+                                        }
+                                        UINotificationFeedbackGenerator().notificationOccurred(.success)
+                                    }
+                                }
                             }
-
-                            self.placeObject(
-                                at: transform,
-                                modelURL: item.url,
-                                id: item.plant.id,
-                                name: item.plant.name,
-                                modelURLString: item.plant.modelURL,
-                                upAxis: item.plant.upAxis,
-                                autoSelect: false   // batch — no halo flicker
-                            )
                         }
-
-                        // No deselectAll needed — autoSelect:false kept all
-                        // plants unselected to begin with.
-
-                        props.isAutoPlacing = false
-                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                            props.autoPlaceToast = "\(downloadedModels.count) plantes placées — Déplacez-les !"
-                        }
-
-                        UINotificationFeedbackGenerator().notificationOccurred(.success)
                     }
+                }
+            }
+
+            /// Retourne des positions ABSOLUES en world space (SIMD3<Float>),
+            /// prêtes à être utilisées directement dans un simd_float4x4 transform.
+            ///
+            /// Bug fix #198 : les anciennes méthodes retournaient des offsets 2D
+            /// relatifs au centroïde, et autoPlaceAIPlants les additionnait au
+            /// centroïde → double centroïde → toutes les plantes hors boundary.
+            ///
+            /// Nouveautés :
+            ///  - Prise en compte du lux (currentLux) pour orienter les plantes
+            ///    héliophiles vers la zone exposée de la boundary.
+            ///  - Poisson-disk sampling avec distance minimale adaptative
+            ///    = sqrt(area / count) × 0.65 pour une distribution harmonieuse.
+            private func calculateWorldPositions(
+                plants: [Plant],
+                style: String,
+                lux: Int,
+                boundaryPoints: [SIMD3<Float>],
+                centerTransform: simd_float4x4?,
+                placementY: Float
+            ) -> [SIMD3<Float>] {
+                let count = plants.count
+                guard count > 0 else { return [] }
+
+                if count == 1 {
+                    let cx = boundaryPoints.isEmpty
+                        ? (centerTransform?.columns.3.x ?? 0)
+                        : boundaryPoints.reduce(0) { $0 + $1.x } / Float(boundaryPoints.count)
+                    let cz = boundaryPoints.isEmpty
+                        ? (centerTransform?.columns.3.z ?? 0)
+                        : boundaryPoints.reduce(0) { $0 + $1.z } / Float(boundaryPoints.count)
+                    return [SIMD3<Float>(cx, placementY, cz)]
+                }
+
+                // Chemin avec boundary → Poisson-disk world space
+                if boundaryPoints.count >= 3 {
+                    return calculateBoundaryWorldPositions(
+                        plants: plants,
+                        lux: lux,
+                        boundaryPoints: boundaryPoints,
+                        placementY: placementY
+                    )
+                }
+
+                // Chemin sans boundary → offsets style autour du reticle/origine
+                let originX = centerTransform?.columns.3.x ?? 0
+                let originZ = centerTransform?.columns.3.z ?? 0
+                let spacing: Float = 0.7
+
+                let offsets: [SIMD2<Float>]
+                if style.contains("zen") || style.contains("japonais") {
+                    offsets = calculateZenLayout(count: count, spacing: spacing)
+                } else if style.contains("moderne") || style.contains("minimaliste") {
+                    offsets = calculateGridLayout(count: count, spacing: spacing)
+                } else if style.contains("champêtre") || style.contains("sauvage") {
+                    offsets = calculateWildLayout(count: count, spacing: spacing)
+                } else {
+                    offsets = calculateCircleLayout(count: count, spacing: spacing)
+                }
+
+                return offsets.map { off in
+                    SIMD3<Float>(originX + off.x, placementY, originZ + off.y)
                 }
             }
 
             /// Calculate layout positions based on garden style.
             /// Returns array of (x, z) offsets from center.
-            private func calculateLayoutPositions(count: Int, style: String) -> [SIMD2<Float>] {
+            /// Utilisé uniquement pour le chemin sans boundary (mode reticle).
+            private func calculateLayoutPositions(count: Int, style: String, boundaryPoints: [SIMD3<Float>]) -> [SIMD2<Float>] {
                 guard count > 0 else { return [] }
+
                 if count == 1 { return [SIMD2<Float>(0, 0)] }
 
                 let spacing: Float = 0.7 // meters between plants (enough for 3D model width)
@@ -1939,6 +2250,212 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
             }
             
+            /// Poisson-disk sampling dans le polygone de boundary.
+            ///
+            /// Bug fix #198 : retourne des positions ABSOLUES en world space ARKit
+            /// (x, placementY, z) — pas d'offsets relatifs au centroïde.
+            /// L'ancienne calculateBoundaryLayout retournait `point - centroid`,
+            /// et autoPlaceAIPlants ajoutait centerX/Z (= le centroïde) → résultat
+            /// à 2 × centroïde, hors boundary.
+            ///
+            /// Nouveautés :
+            ///  - Distance minimale adaptative = sqrt(area / count) × 0.65
+            ///    (s'adapte à la taille réelle du jardin mesuré).
+            ///  - Prise en compte du lux : plantes héliophiles placées en priorité
+            ///    dans la zone la plus exposée de la boundary (Z max en hémisphère N).
+            ///  - Fallback cercle autour du centroïde si le sampling échoue.
+            private func calculateBoundaryWorldPositions(
+                plants: [Plant],
+                lux: Int,
+                boundaryPoints: [SIMD3<Float>],
+                placementY: Float
+            ) -> [SIMD3<Float>] {
+                let count = plants.count
+                let polygon2D = boundaryPoints.map { SIMD2<Float>($0.x, $0.z) }
+
+                // ── Centroïde world space ──────────────────────────────────────
+                let centroidX = polygon2D.reduce(0) { $0 + $1.x } / Float(polygon2D.count)
+                let centroidZ = polygon2D.reduce(0) { $0 + $1.y } / Float(polygon2D.count)
+
+                // ── Surface (shoelace) ─────────────────────────────────────────
+                var area: Float = 0
+                let n = polygon2D.count
+                for i in 0..<n {
+                    let j = (i + 1) % n
+                    area += polygon2D[i].x * polygon2D[j].y
+                    area -= polygon2D[j].x * polygon2D[i].y
+                }
+                area = abs(area) / 2.0
+
+                // ── Distance minimale Poisson-disk ─────────────────────────────
+                // Chaque plante occupe environ area/count m² → rayon idéal ×0.65
+                // pour garder de l'espace visuel entre modèles 3D.
+                let idealSpacing = (area > 0 && count > 0)
+                    ? max(0.35, sqrt(area / Float(count)) * 0.65)
+                    : 0.7
+
+                // ── Bounding box ───────────────────────────────────────────────
+                let minX = polygon2D.map { $0.x }.min() ?? (centroidX - 1)
+                let maxX = polygon2D.map { $0.x }.max() ?? (centroidX + 1)
+                let minZ = polygon2D.map { $0.y }.min() ?? (centroidZ - 1)
+                let maxZ = polygon2D.map { $0.y }.max() ?? (centroidZ + 1)
+                let midZ  = (minZ + maxZ) / 2
+
+                // ── Tri des plantes par besoin en lumière ──────────────────────
+                // Valeur : 2 = plein soleil, 1 = mi-ombre, 0 = ombre.
+                // On utilise le nom comme heuristique (pas de modèle Plant dédié).
+                func lightNeed(_ plant: Plant) -> Int {
+                    let name = plant.name.lowercased()
+                    let sunKw = ["soleil", "cactus", "succulente", "lavande", "rosier",
+                                 "tomate", "basilic", "géranium", "pelargonium",
+                                 "agave", "yucca", "bougainvillée", "palm", "olivier"]
+                    let shdKw = ["fougère", "hostas", "begonia", "impatiens",
+                                 "monstera", "pothos", "alocasia", "ficus",
+                                 "calathea", "dieffenbachia", "broméliacée", "ivy",
+                                 "lierre", "spathiphyllum", "zamioculcas"]
+                    if sunKw.contains(where: { name.contains($0) }) { return 2 }
+                    if shdKw.contains(where: { name.contains($0) }) { return 0 }
+                    return 1
+                }
+
+                // Lux élevé (>500) : plantes soleil en zones exposées (Z max),
+                // ombre en zones intérieures (Z min). Inversé pour lux faible.
+                let sortedPlants = plants.sorted { a, b in
+                    lux > 500
+                        ? lightNeed(a) > lightNeed(b)
+                        : lightNeed(a) < lightNeed(b)
+                }
+
+                // ── Poisson-disk sampling ──────────────────────────────────────
+                var worldPositions: [SIMD2<Float>] = []
+                var minDist = idealSpacing
+                var attempts = 0
+                let maxAttempts = max(3000, count * 600)
+
+                while worldPositions.count < count && attempts < maxAttempts {
+                    let idx = worldPositions.count
+                    let need = idx < sortedPlants.count ? lightNeed(sortedPlants[idx]) : 1
+
+                    // Zone Z de tirage selon besoin en lumière
+                    let zLo: Float
+                    let zHi: Float
+                    if lux > 500 {
+                        switch need {
+                        case 2:  (zLo, zHi) = (midZ, maxZ)        // plein soleil → zone exposée
+                        case 0:  (zLo, zHi) = (minZ, midZ)        // ombre → zone intérieure
+                        default: (zLo, zHi) = (minZ, maxZ)        // mi-ombre → toute la zone
+                        }
+                    } else {
+                        switch need {
+                        case 0:  (zLo, zHi) = (minZ, maxZ)        // ombre → partout (lux faible = bien)
+                        case 2:  (zLo, zHi) = (centroidZ - 0.3, centroidZ + 0.3) // soleil → centre
+                        default: (zLo, zHi) = (minZ, maxZ)
+                        }
+                    }
+
+                    let rx = Float.random(in: minX...maxX)
+                    let rz = Float.random(in: max(minZ, zLo)...min(maxZ, zHi))
+                    let candidate = SIMD2<Float>(rx, rz)
+
+                    if pointInPolygon(candidate, polygon: polygon2D) {
+                        let tooClose = worldPositions.contains {
+                            simd_distance($0, candidate) < minDist
+                        }
+                        if !tooClose {
+                            worldPositions.append(candidate)
+                        }
+                    }
+
+                    attempts += 1
+                    // Relaxation progressive : −5% toutes les 200 tentatives.
+                    if attempts % 200 == 0 { minDist *= 0.95 }
+                }
+
+                // Fallback : compléter avec un cercle autour du centroïde
+                // si le sampling ne remplit pas tous les slots.
+                if worldPositions.count < count {
+                    let missing = count - worldPositions.count
+                    let fallbackR: Float = max(0.3, idealSpacing * 0.5)
+                    for i in 0..<missing {
+                        let angle = (2.0 * Float.pi * Float(i)) / Float(missing)
+                        worldPositions.append(SIMD2<Float>(
+                            centroidX + cos(angle) * fallbackR,
+                            centroidZ + sin(angle) * fallbackR
+                        ))
+                    }
+                    AppLog.plants.notice(
+                        "autoPlace: boundary sampling added \(missing, privacy: .public) fallback positions"
+                    )
+                }
+
+                AppLog.plants.notice(
+                    "autoPlace: \(worldPositions.count, privacy: .public) positions, area=\(String(format: "%.2f", area), privacy: .public)m² minDist=\(String(format: "%.2f", idealSpacing), privacy: .public)m lux=\(lux, privacy: .public)"
+                )
+
+                // Retourner en SIMD3 world space absolu (x, Y_sol, z).
+                // Bug fix #198 : pas d'offset centroïde — positions absolues.
+                return worldPositions.map { SIMD3<Float>($0.x, placementY, $0.y) }
+            }
+
+            // calculateBoundaryLayout conservé pour compatibilité (appelé
+            // uniquement depuis calculateLayoutPositions, qui lui-même n'est
+            // plus appelé depuis autoPlaceAIPlants — il reste disponible pour
+            // d'éventuels futurs usages).
+            private func calculateBoundaryLayout(count: Int, boundaryPoints: [SIMD3<Float>]) -> [SIMD2<Float>] {
+                var points: [SIMD2<Float>] = []
+                let polygon2D = boundaryPoints.map { SIMD2<Float>($0.x, $0.z) }
+                
+                // Centroid
+                let centroidX = polygon2D.reduce(0) { $0 + $1.x } / Float(polygon2D.count)
+                let centroidY = polygon2D.reduce(0) { $0 + $1.y } / Float(polygon2D.count)
+                let centroid = SIMD2<Float>(centroidX, centroidY)
+                
+                // Bounding Box
+                let minX = polygon2D.map { $0.x }.min() ?? 0
+                let maxX = polygon2D.map { $0.x }.max() ?? 0
+                let minY = polygon2D.map { $0.y }.min() ?? 0
+                let maxY = polygon2D.map { $0.y }.max() ?? 0
+                
+                var minDistance: Float = 0.7
+                var attempts = 0
+                
+                while points.count < count && attempts < 2000 {
+                    let rx = Float.random(in: minX...maxX)
+                    let ry = Float.random(in: minY...maxY)
+                    let candidate = SIMD2<Float>(rx, ry)
+                    
+                    if pointInPolygon(candidate, polygon: polygon2D) {
+                        let tooClose = points.contains { simd_distance($0, candidate) < minDistance }
+                        if !tooClose {
+                            points.append(candidate)
+                        }
+                    }
+                    
+                    attempts += 1
+                    if attempts % 100 == 0 { minDistance *= 0.9 }
+                }
+                
+                // Return offsets relative to centroid
+                return points.map { $0 - centroid }
+            }
+
+            private func pointInPolygon(_ p: SIMD2<Float>, polygon: [SIMD2<Float>]) -> Bool {
+                guard polygon.count >= 3 else { return false }
+                var inside = false
+                var j = polygon.count - 1
+                for i in 0..<polygon.count {
+                    let pi = polygon[i]
+                    let pj = polygon[j]
+                    if ((pi.y > p.y) != (pj.y > p.y)) &&
+                       (p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y) + pi.x) {
+                        inside.toggle()
+                    }
+                    j = i
+                }
+                return inside
+            }
+
+
             /// Returns the Y of the largest detected horizontal plane (the floor).
             /// Falls back to nil if no horizontal planes are detected yet.
             /// Used to classify a plant as `floor` vs `elevated` independently
@@ -3013,7 +3530,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 arView.session.add(anchor: anchor)
 
                 AppLog.arAnchor.notice("""
-                    placeObject id=\(id, privacy: .public) \
+                        placeObject id=\(id, privacy: .public) \
                     anchor=\(anchor.identifier.uuidString.prefix(8), privacy: .public) \
                     isRestore=\(self.isRestoring, privacy: .public) \
                     rigid=\(rigidTransform.logDescription, privacy: .public) \

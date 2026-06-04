@@ -89,12 +89,39 @@ class NetworkManager {
         }
     }
 
-    /// Obtient le token Firebase du user actuel
+    /// Token Firebase du user courant. Le SDK rafraîchit automatiquement
+    /// l'ID token quand il est expiré ou proche de l'expiration : inutile
+    /// de forcer un round-trip réseau à chaque requête. Le refresh forcé
+    /// est réservé au retry après un 401 (cf. `getFreshFirebaseToken`).
     func getFirebaseToken() async throws -> String {
         guard let currentUser = Auth.auth().currentUser else {
             throw NetworkError.noUser
         }
         return try await currentUser.getIDToken()
+    }
+
+    /// Force un rafraîchissement du token Firebase pour traiter les 401 dus
+    /// à un ID token en cache invalidé côté backend. Appelé uniquement en
+    /// retry, jamais sur le chemin nominal.
+    private func getFreshFirebaseToken() async throws -> String {
+        guard let currentUser = Auth.auth().currentUser else {
+            throw NetworkError.noUser
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            currentUser.getIDTokenForcingRefresh(true) { token, error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+
+                guard let token = token else {
+                    continuation.resume(throwing: NetworkError.noToken)
+                    return
+                }
+
+                continuation.resume(returning: token)
+            }
+        }
     }
 
     func request<T: Decodable>(
@@ -117,8 +144,33 @@ class NetworkManager {
         }
 
         do {
-            let idToken = try await currentUser.getIDToken()
+            let idToken = try await getFirebaseToken()
             request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
+
+            // 🔍 DEBUG: Decode JWT claims to diagnose 401 errors
+            #if DEBUG
+            let parts = idToken.split(separator: ".")
+            if parts.count >= 2 {
+                var payload = String(parts[1])
+                // JWT base64url → base64
+                payload = payload.replacingOccurrences(of: "-", with: "+")
+                                 .replacingOccurrences(of: "_", with: "/")
+                while payload.count % 4 != 0 { payload.append("=") }
+                if let data = Data(base64Encoded: payload),
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    print("🔍 TOKEN DEBUG — aud:", json["aud"] ?? "nil")
+                    print("🔍 TOKEN DEBUG — iss:", json["iss"] ?? "nil")
+                    print("🔍 TOKEN DEBUG — sub (uid):", json["sub"] ?? "nil")
+                    if let exp = json["exp"] as? TimeInterval {
+                        let expDate = Date(timeIntervalSince1970: exp)
+                        print("🔍 TOKEN DEBUG — exp:", expDate, "(now:", Date(), ")")
+                    }
+                    if let firebase = json["firebase"] as? [String: Any] {
+                        print("🔍 TOKEN DEBUG — firebase.sign_in_provider:", firebase["sign_in_provider"] ?? "nil")
+                    }
+                }
+            }
+            #endif
         } catch {
             print("❌ Erreur lors de la récupération du token Firebase:", error)
             throw NetworkError.noToken
@@ -133,10 +185,23 @@ class NetworkManager {
             }
         }
 
-        let (data, response) = try await performWithRetry(request)
+        var (data, response) = try await performWithRetry(request)
 
-        guard let httpResponse = response as? HTTPURLResponse else {
+        guard var httpResponse = response as? HTTPURLResponse else {
             throw NetworkError.serverError("Réponse invalide")
+        }
+
+        // 401 → l'ID token en cache a peut-être été invalidé côté backend.
+        // On force UN refresh et on retente une seule fois. Le chemin nominal
+        // reste sans refresh forcé (perf : pas de round-trip Firebase par appel).
+        if httpResponse.statusCode == 401 {
+            let freshToken = try await getFreshFirebaseToken()
+            request.setValue("Bearer \(freshToken)", forHTTPHeaderField: "Authorization")
+            (data, response) = try await performWithRetry(request)
+            guard let retried = response as? HTTPURLResponse else {
+                throw NetworkError.serverError("Réponse invalide")
+            }
+            httpResponse = retried
         }
 
         switch httpResponse.statusCode {
@@ -155,7 +220,13 @@ class NetworkManager {
             }
 
         case 401:
-            print("❌ 401 Unauthorized - Token invalide")
+            #if DEBUG
+            if let errorStr = String(data: data, encoding: .utf8) {
+                print("❌ 401 Unauthorized - Backend response:", errorStr)
+            } else {
+                print("❌ 401 Unauthorized - Token invalide")
+            }
+            #endif
             throw NetworkError.unauthorized
 
         case 403:
@@ -213,7 +284,7 @@ class NetworkManager {
             throw NetworkError.noUser
         }
 
-        let idToken = try await currentUser.getIDToken()
+        let idToken = try await getFirebaseToken()
         request.setValue("Bearer \(idToken)", forHTTPHeaderField: "Authorization")
 
         if let body = body {
@@ -221,10 +292,21 @@ class NetworkManager {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
 
-        let (data, response) = try await performWithRetry(request)
+        var (data, response) = try await performWithRetry(request)
 
-        guard let httpResponse = response as? HTTPURLResponse else {
+        guard var httpResponse = response as? HTTPURLResponse else {
             throw NetworkError.serverError("Réponse invalide")
+        }
+
+        // 401 → refresh forcé + un seul retry (cf. request<T>).
+        if httpResponse.statusCode == 401 {
+            let freshToken = try await getFreshFirebaseToken()
+            request.setValue("Bearer \(freshToken)", forHTTPHeaderField: "Authorization")
+            (data, response) = try await performWithRetry(request)
+            guard let retried = response as? HTTPURLResponse else {
+                throw NetworkError.serverError("Réponse invalide")
+            }
+            httpResponse = retried
         }
 
         switch httpResponse.statusCode {
@@ -235,6 +317,11 @@ class NetworkManager {
             return json
 
         case 401:
+            #if DEBUG
+            if let errorStr = String(data: data, encoding: .utf8) {
+                print("❌ 401 Unauthorized - Backend response:", errorStr)
+            }
+            #endif
             throw NetworkError.unauthorized
 
         case 403:

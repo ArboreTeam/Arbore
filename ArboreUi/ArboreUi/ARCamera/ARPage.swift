@@ -42,6 +42,7 @@ struct SinglePlantARContainer: UIViewRepresentable {
             // config.frameSemantics.insert(.sceneDepth) // Désactivé pour stabilité
         }
         
+        sceneView.delegate = context.coordinator
         sceneView.session.delegate = context.coordinator
         sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
         
@@ -107,6 +108,20 @@ struct SinglePlantARContainer: UIViewRepresentable {
         deinit {
             currentPlantNode = nil
             print("🧹 SinglePlantARContainer.Coordinator deinit")
+        }
+        
+        // MARK: - ARSCNViewDelegate (Placement Automatique)
+        func renderer(_ renderer: SCNSceneRenderer, didAdd node: SCNNode, for anchor: ARAnchor) {
+            guard let planeAnchor = anchor as? ARPlaneAnchor else { return }
+            
+            // Ne placer qu'une seule plante automatiquement
+            guard currentPlantNode == nil else { return }
+            
+            let transform = planeAnchor.transform
+            
+            DispatchQueue.main.async {
+                self.placeModel(at: transform)
+            }
         }
         
         @objc func handleTap(_ sender: UITapGestureRecognizer) {
@@ -244,8 +259,9 @@ struct ARViewWrapper: View {
                 Spacer()
                 
                 // Instruction text
-                Text("Touchez le sol pour placer la plante")
+                Text("Scannez le sol pour placer la plante automatiquement\n(Vous pouvez la déplacer en touchant un autre endroit)")
                     .font(.caption)
+                    .multilineTextAlignment(.center)
                     .padding(8)
                     .background(Color.black.opacity(0.5))
                     .foregroundColor(.white)

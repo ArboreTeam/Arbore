@@ -33,6 +33,11 @@ struct LiDARScanWizardView: View {
     @State private var extractedPerimeter: Float = 0.0
     // UUID pour la WorldMap et l'identification du jardin AR (avant POST)
     @State private var tempGardenId = UUID().uuidString
+    // Manual finish button — visible after a short delay so the user
+    // can stop the scan at will instead of waiting for RoomPlan to
+    // decide it's done (which may never happen in complex scenes).
+    @State private var showFinishButton = false
+    @State private var scanStartTimer: Timer? = nil
 
     init(
         uid: String,
@@ -66,8 +71,19 @@ struct LiDARScanWizardView: View {
                     captureController.showSaveButton = false
                     captureController.isScanComplete = false
                     captureController.startSession()
+                    // Show "Terminer le scan" after 3 s of scanning
+                    scanStartTimer?.invalidate()
+                    scanStartTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
+                        DispatchQueue.main.async {
+                            withAnimation(.easeOut(duration: 0.35)) {
+                                showFinishButton = true
+                            }
+                        }
+                    }
                 }
                 .onDisappear {
+                    scanStartTimer?.invalidate()
+                    scanStartTimer = nil
                     captureController.stopSession()
                 }
 
@@ -98,10 +114,39 @@ struct LiDARScanWizardView: View {
 
                     Spacer()
 
-                    Color.clear.frame(width: 44, height: 44)
+                    // "Terminer le scan" button — top right, out of the way
+                    // of the 3D room rendering at the bottom.
+                    if showFinishButton && !isProcessing && !captureController.showSaveButton {
+                        Button(action: {
+                            finishScanManually()
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 15, weight: .semibold))
+                                Text("Terminer")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(
+                                Capsule()
+                                    .fill(.ultraThinMaterial)
+                                    .overlay(
+                                        Capsule()
+                                            .strokeBorder(.white.opacity(0.25), lineWidth: 1)
+                                    )
+                            )
+                            .shadow(color: .black.opacity(0.3), radius: 8, y: 3)
+                        }
+                        .transition(.scale(scale: 0.8).combined(with: .opacity))
+                    } else {
+                        Color.clear.frame(width: 44, height: 44)
+                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 50)
+                .animation(.easeOut(duration: 0.3), value: showFinishButton)
 
                 Spacer()
 
@@ -174,6 +219,18 @@ struct LiDARScanWizardView: View {
                     }
                 }
             )
+        }
+    }
+    /// Called when the user taps "Terminer le scan". Stops the RoomPlan
+    /// session (which triggers `captureView(didPresent:error:)` filling
+    /// `finalResult`) then processes whatever was captured so far.
+    private func finishScanManually() {
+        showFinishButton = false
+        captureController.stopSession()
+        // Give RoomPlan a beat to finalize its CapturedRoom result
+        // via the delegate before we read `finalResult`.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            processScanAndContinue()
         }
     }
 

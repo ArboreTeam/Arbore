@@ -1,0 +1,9 @@
+Welcome to the Arbore beta!
+
+• Design your garden in AR: place true-to-scale 3D plants in your space and arrange them freely.
+• Smarter automatic placement that lays out your selected plants for you.
+• Personalized plant suggestions from a quick questionnaire.
+• Plant catalog with care guides and watering reminders.
+• Sign in with Apple or Google.
+
+Thanks for testing — your feedback shapes what comes next!

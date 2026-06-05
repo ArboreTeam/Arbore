@@ -29,6 +29,16 @@ INTERNAL_GROUP = "Internal QA"
 SENTRY_ORG     = ENV["SENTRY_ORG"]     || "epi-apps"
 SENTRY_PROJECT = ENV["SENTRY_PROJECT"] || "arbore-frontend"
 
+# TestFlight — Test Information (lane `sync_beta_info`). Ces infos restent côté
+# TestFlight : tant que `distribute_external: false` + `skip_submission: true`,
+# RIEN n'est soumis ni publié sur l'App Store public.
+BETA_APP_DESCRIPTION = ENV["ARBORE_BETA_DESCRIPTION"] ||
+  "Arbore lets you design your future garden in augmented reality: answer a " \
+  "short questionnaire, accept the suggested plants, then place true-to-scale " \
+  "3D plants in your space. Includes a plant catalog with care guides and " \
+  "watering reminders. Free, non-commercial student beta."
+BETA_FEEDBACK_EMAIL = ENV["ARBORE_FEEDBACK_EMAIL"] || "contact@arbore.app"
+
 default_platform(:ios)
 
 platform :ios do
@@ -102,13 +112,76 @@ platform :ios do
     # quelqu'un sans Sentry. Nécessite `sentry-cli`
     # (brew install getsentry/tools/sentry-cli) + un token : SENTRY_AUTH_TOKEN
     # ou un .sentryclirc. org/projet sont déjà câblés (epi-apps/arbore-frontend).
-    upload_dsyms_to_sentry(
-      version: version,
-      build: latest + 1,
-      dsym: lane_context[SharedValues::DSYM_OUTPUT_PATH]
-    )
+    # Le build est DÉJÀ sur TestFlight à ce stade : un échec d'upload dSYM
+    # (réseau, sleep macOS pendant le transfert…) ne doit PAS marquer le
+    # déploiement comme raté. On log et on continue ; relançable à la main.
+    begin
+      upload_dsyms_to_sentry(
+        version: version,
+        build: latest + 1,
+        dsym: lane_context[SharedValues::DSYM_OUTPUT_PATH]
+      )
+    rescue => e
+      UI.important("⚠️ Upload dSYM Sentry échoué (build déjà livré sur TestFlight) : #{e.message}")
+      UI.important("   Relance : sentry-cli debug-files upload -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} ./fastlane/builds/Arbore.app.dSYM.zip")
+    end
 
     UI.success("✅ Build #{latest + 1} déployée sur TestFlight → groupe #{INTERNAL_GROUP}")
+  end
+
+  desc "Pousse les TEXTES du listing App Store (fastlane/metadata) vers ASC."
+  desc "Brouillon uniquement : ne soumet PAS, n'upload ni binaire ni screenshots."
+  lane :upload_metadata do
+    version = get_version_number(xcodeproj: "ArboreUi/ArboreUi.xcodeproj")
+    upload_to_app_store(
+      api_key_path: AUTH_KEY,
+      app_version: version,
+      skip_binary_upload: true,          # on ne touche pas au build
+      skip_screenshots: true,            # pas de screenshots gérés ici
+      skip_metadata: false,              # … seulement les textes
+      submit_for_review: false,          # NE SOUMET PAS — remplit le brouillon
+      force: true,                       # pas de prompt preview HTML (non-interactif)
+      run_precheck_before_submit: false,
+      precheck_include_in_app_purchases: false
+    )
+    UI.success("✅ Textes poussés dans le brouillon ASC (version #{version}). Rien n'a été soumis.")
+    UI.message("Prérequis : une version App Store éditable doit exister dans ASC (App Store → + VERSION).")
+  end
+
+  desc "Pousse les infos TestFlight (description testeurs + compte démo de Beta"
+  desc "App Review) vers ASC. TestFlight UNIQUEMENT — ne soumet rien, ne publie"
+  desc "rien sur l'App Store public. Compte démo lu depuis l'ENV (jamais en git)."
+  lane :sync_beta_info do
+    # Beta App Review info (compte démo + contact). Lus depuis l'ENV pour ne
+    # JAMAIS committer d'identifiants. Apple exige un téléphone de contact :
+    # sans ARBORE_REVIEW_PHONE on pousse seulement la description testeurs.
+    review_info = nil
+    if ENV["ARBORE_DEMO_USER"] && ENV["ARBORE_DEMO_PASSWORD"] && ENV["ARBORE_REVIEW_PHONE"]
+      review_info = {
+        contact_email: BETA_FEEDBACK_EMAIL,
+        contact_first_name: ENV["ARBORE_REVIEW_FIRST_NAME"] || "Arbore",
+        contact_last_name: ENV["ARBORE_REVIEW_LAST_NAME"] || "Team",
+        contact_phone: ENV["ARBORE_REVIEW_PHONE"],
+        demo_account_name: ENV["ARBORE_DEMO_USER"],
+        demo_account_password: ENV["ARBORE_DEMO_PASSWORD"],
+        demo_account_required: true,
+        notes: "Sign in with the demo account, then design a garden and place plants in AR. Camera + LiDAR are used for AR plant placement."
+      }
+    else
+      UI.important("Compte démo non câblé : définis ARBORE_DEMO_USER / ARBORE_DEMO_PASSWORD / ARBORE_REVIEW_PHONE pour l'inclure. On pousse seulement la description testeurs.")
+    end
+
+    upload_to_testflight(
+      api_key_path: AUTH_KEY,
+      app_identifier: "com.arboreteam.arbore",
+      distribute_external: false,        # pas de distribution externe
+      skip_submission: true,             # NE SOUMET PAS
+      skip_waiting_for_build_processing: true,
+      beta_app_description: BETA_APP_DESCRIPTION,
+      beta_app_feedback_email: BETA_FEEDBACK_EMAIL,
+      beta_app_review_info: review_info
+    )
+    UI.success("✅ Infos TestFlight poussées (TestFlight only, aucune publication App Store).")
   end
 
   desc "Upload des dSYM vers Sentry (no-op si non configuré)."
@@ -152,7 +225,19 @@ platform :ios do
 
     # Crée la release puis associe les dSYM (symbolication des stacktraces).
     sh("sentry-cli releases -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} new '#{release}' || true")
-    sh("sentry-cli debug-files upload -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} '#{target}'")
+    # Retry sur blip réseau transitoire (ex. interface qui change au réveil du Mac).
+    attempts = 0
+    begin
+      attempts += 1
+      sh("sentry-cli debug-files upload -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} '#{target}'")
+    rescue
+      if attempts < 3
+        UI.important("Upload dSYM échoué (tentative #{attempts}/3) — nouvel essai dans 5s…")
+        sleep(5)
+        retry
+      end
+      raise
+    end
     sh("sentry-cli releases -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} finalize '#{release}' || true")
     UI.success("✅ dSYM uploadés sur Sentry (#{SENTRY_ORG}/#{SENTRY_PROJECT}, release #{release}).")
   end

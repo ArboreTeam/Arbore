@@ -166,21 +166,9 @@ struct LoginView: View {
                             .padding(.horizontal, 30)
 
                             VStack(spacing: 12) {
-                                Button(action: { appleAuth.signInWithApple() }) {
-                                    HStack {
-                                        Image(systemName: "apple.logo")
-                                            .resizable()
-                                            .frame(width: 18, height: 18)
-                                        Text("Continue with Apple")
-                                            .fontWeight(.medium)
-                                    }
-                                    .padding()
-                                    .frame(maxWidth: .infinity)
-                                    .background(ArboreDesign.Colors.textPrimary)
-                                    .foregroundColor(ArboreDesign.Colors.background)
-                                    .cornerRadius(ArboreDesign.Radius.button)
-                                }
-                                .padding(.horizontal, 30)
+                                // Bouton SIWA natif (conforme HIG) — cf. AppleSignInButton.
+                                AppleSignInButton(appleAuth: appleAuth)
+                                    .padding(.horizontal, 30)
 
                                 Button(action: {
                                     authViewModel.signInWithGoogle()

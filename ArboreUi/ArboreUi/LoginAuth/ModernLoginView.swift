@@ -248,13 +248,8 @@ struct ModernLoginView: View {
 
             // ── Boutons sociaux ───────────────────────────────────────
             VStack(spacing: 12) {
-                ArborSocialButton(
-                    title: "Continuer avec Apple",
-                    icon: "apple.logo",
-                    backgroundColor: themeManager.textColor,
-                    foregroundColor: themeManager.backgroundColor,
-                    action: { appleAuth.signInWithApple() }
-                )
+                // Bouton SIWA natif (conforme HIG) — cf. AppleSignInButton.
+                AppleSignInButton(appleAuth: appleAuth)
 
                 ArborSocialButton(
                     title: "Continuer avec Google",

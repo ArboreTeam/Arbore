@@ -8,6 +8,7 @@ struct ReAuthView: View {
 
     @Environment(\.dismiss) var dismiss
     @StateObject private var authViewModel = AuthenticationView()
+    @StateObject private var appleAuth = AppleAuthService()
 
     @State private var email = ""
     @State private var password = ""
@@ -87,22 +88,14 @@ struct ReAuthView: View {
                             .padding(.horizontal, 30)
 
                             VStack(spacing: 12) {
-                                Button(action: {
-                                    // Apple sign-in logic to be implemented
-                                }) {
-                                    HStack {
-                                        Image(systemName: "apple.logo")
-                                            .resizable()
-                                            .frame(width: 18, height: 18)
-                                        Text("Continue with Apple")
-                                            .fontWeight(.medium)
+                                // Bouton SIWA natif (conforme HIG). Le re-signin
+                                // Apple rétablit une session récemment authentifiée,
+                                // ce qui satisfait l'exigence de re-auth Firebase
+                                // avant une action sensible (style .black : fond clair).
+                                AppleSignInButton(appleAuth: appleAuth, style: .black)
+                                    .onChange(of: appleAuth.isLoginSuccessed) { _, success in
+                                        if success { onSuccess() }
                                     }
-                                    .padding()
-                                    .frame(maxWidth: .infinity)
-                                    .background(Color.black)
-                                    .foregroundColor(.white)
-                                    .cornerRadius(10)
-                                }
 
                                 Button(action: handleGoogleDeletion) {
                                     HStack {

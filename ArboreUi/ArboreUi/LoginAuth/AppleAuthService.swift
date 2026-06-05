@@ -41,18 +41,130 @@ final class AppleAuthService: NSObject, ObservableObject {
     /// l'enchaînement Firebase → backend → flip de `isLoggedIn`. La
     /// caller (vue SwiftUI) observe `isLoginSuccessed` pour réagir.
     func signInWithApple() {
-        let nonce = randomNonceString()
-        currentNonce = nonce
-
         let provider = ASAuthorizationAppleIDProvider()
         let request = provider.createRequest()
-        request.requestedScopes = [.fullName, .email]
-        request.nonce = sha256(nonce)
+        configureRequest(request)
 
         let controller = ASAuthorizationController(authorizationRequests: [request])
         controller.delegate = self
         controller.presentationContextProvider = self
         controller.performRequests()
+    }
+
+    /// Configure une requête SIWA (scopes + nonce SHA-256) et mémorise le nonce
+    /// brut pour l'échange Firebase. Appelée par le bouton natif
+    /// `SignInWithAppleButton` (`onRequest`) ET par `signInWithApple()`.
+    func configureRequest(_ request: ASAuthorizationAppleIDRequest) {
+        let nonce = randomNonceString()
+        currentNonce = nonce
+        request.requestedScopes = [.fullName, .email]
+        request.nonce = sha256(nonce)
+    }
+
+    /// Traite une autorisation SIWA réussie : échange Firebase → backend →
+    /// forward de l'authorization_code (#210) → flip `isLoggedIn`. Partagé par
+    /// le bouton natif (`onCompletion`) et le delegate `ASAuthorizationController`.
+    func handleAuthorization(_ authorization: ASAuthorization) {
+        guard let appleCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+            print("❌ Apple Sign-In: credential is not an AppleIDCredential")
+            return
+        }
+        guard let nonce = currentNonce else {
+            // Programmer error : configureRequest n'a pas été appelée avant le
+            // callback. Crash en debug, log en release.
+            assertionFailure("Apple Sign-In callback without a prior request — nonce missing.")
+            return
+        }
+        guard let identityTokenData = appleCredential.identityToken,
+              let idTokenString = String(data: identityTokenData, encoding: .utf8) else {
+            print("❌ Apple Sign-In: identityToken missing or not UTF-8")
+            return
+        }
+
+        // #210 — authorization_code (à usage unique) pour la révocation Apple à
+        // la suppression du compte. Forwardé au backend après le signin Firebase.
+        let authorizationCode = appleCredential.authorizationCode
+            .flatMap { String(data: $0, encoding: .utf8) }
+
+        // Capture du nom (premier signup uniquement, sinon nil).
+        let firstName = appleCredential.fullName?.givenName ?? ""
+        let lastName = appleCredential.fullName?.familyName ?? ""
+        let fullName = [firstName, lastName].filter { !$0.isEmpty }.joined(separator: " ")
+        let appleEmail = appleCredential.email ?? ""
+
+        let credential = OAuthProvider.appleCredential(
+            withIDToken: idTokenString,
+            rawNonce: nonce,
+            fullName: appleCredential.fullName
+        )
+
+        Auth.auth().signIn(with: credential) { [weak self] authResult, error in
+            if let error = error {
+                print("❌ Firebase Apple Auth Error:", error.localizedDescription)
+                return
+            }
+            guard let user = authResult?.user else {
+                print("❌ Firebase user is nil after Apple sign-in")
+                return
+            }
+
+            // Premier signup : Apple a fourni le nom. On le pousse à Firebase
+            // displayName (si pas déjà set) ET au backend Mongo. Aux signins
+            // suivants, fullName est nil — on trust ce qui existe déjà.
+            let resolvedName = fullName.isEmpty
+                ? (user.displayName ?? "")
+                : fullName
+            let resolvedEmail = user.email ?? appleEmail
+
+            if !fullName.isEmpty,
+               (user.displayName ?? "").isEmpty {
+                let change = user.createProfileChangeRequest()
+                change.displayName = fullName
+                change.commitChanges { commitError in
+                    if let commitError = commitError {
+                        print("⚠️ Failed to commit Firebase displayName for Apple user:", commitError.localizedDescription)
+                    }
+                    saveUserToBackendIfNeeded(
+                        uid: user.uid,
+                        email: resolvedEmail,
+                        name: resolvedName,
+                        createdAt: Date()
+                    )
+                }
+            } else {
+                saveUserToBackendIfNeeded(
+                    uid: user.uid,
+                    email: resolvedEmail,
+                    name: resolvedName,
+                    createdAt: Date()
+                )
+            }
+
+            // #210 — forward l'authorization_code (best-effort, hors chemin
+            // critique de login ; se ré-exécute aux signins suivants).
+            if let authorizationCode = authorizationCode, !authorizationCode.isEmpty {
+                linkAppleAccountWithBackend(authorizationCode: authorizationCode)
+            }
+
+            #if DEBUG
+            print("✅ Apple user signed in:", resolvedEmail.isEmpty ? "unknown" : resolvedEmail)
+            #endif
+
+            DispatchQueue.main.async {
+                self?.isLoginSuccessed = true
+                self?.isLoggedIn = true
+            }
+        }
+    }
+
+    /// Traite une erreur SIWA. L'annulation utilisateur (code 1001) est
+    /// silencieuse (comportement attendu). Partagé bouton natif + delegate.
+    func handleError(_ error: Error) {
+        if let asError = error as? ASAuthorizationError, asError.code == .canceled {
+            print("ℹ️ Apple Sign-In cancelled by user")
+            return
+        }
+        print("❌ Apple Sign-In Error:", error.localizedDescription)
     }
 
     /// Déconnexion symétrique du `GoogleAuthService.logout()`. Apple ne
@@ -107,111 +219,11 @@ final class AppleAuthService: NSObject, ObservableObject {
 extension AppleAuthService: ASAuthorizationControllerDelegate {
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        guard let appleCredential = authorization.credential as? ASAuthorizationAppleIDCredential else {
-            print("❌ Apple Sign-In: credential is not an AppleIDCredential")
-            return
-        }
-        guard let nonce = currentNonce else {
-            // Programmer error : signInWithApple n'a pas été appelée
-            // avant de recevoir un callback. Crash en debug, log en
-            // release.
-            assertionFailure("Apple Sign-In callback without a prior request — nonce missing.")
-            return
-        }
-        guard let identityTokenData = appleCredential.identityToken,
-              let idTokenString = String(data: identityTokenData, encoding: .utf8) else {
-            print("❌ Apple Sign-In: identityToken missing or not UTF-8")
-            return
-        }
-
-        // #210 — authorization_code (à usage unique) pour la révocation Apple à
-        // la suppression du compte. Forwardé au backend après le signin Firebase.
-        let authorizationCode = appleCredential.authorizationCode
-            .flatMap { String(data: $0, encoding: .utf8) }
-
-        // Capture du nom (premier signup uniquement, sinon nil).
-        let firstName = appleCredential.fullName?.givenName ?? ""
-        let lastName = appleCredential.fullName?.familyName ?? ""
-        let fullName = [firstName, lastName].filter { !$0.isEmpty }.joined(separator: " ")
-        let appleEmail = appleCredential.email ?? ""
-
-        let credential = OAuthProvider.appleCredential(
-            withIDToken: idTokenString,
-            rawNonce: nonce,
-            fullName: appleCredential.fullName
-        )
-
-        Auth.auth().signIn(with: credential) { [weak self] authResult, error in
-            if let error = error {
-                print("❌ Firebase Apple Auth Error:", error.localizedDescription)
-                return
-            }
-            guard let user = authResult?.user else {
-                print("❌ Firebase user is nil after Apple sign-in")
-                return
-            }
-
-            // Premier signup : Apple a fourni le nom. On le pousse à
-            // Firebase displayName (si pas déjà set) ET au backend
-            // Mongo pour qu'il soit disponible côté profil. Aux
-            // signins suivants, fullName est nil — on trust ce qui
-            // existe déjà.
-            let resolvedName = fullName.isEmpty
-                ? (user.displayName ?? "")
-                : fullName
-            let resolvedEmail = user.email ?? appleEmail
-
-            if !fullName.isEmpty,
-               (user.displayName ?? "").isEmpty {
-                let change = user.createProfileChangeRequest()
-                change.displayName = fullName
-                change.commitChanges { commitError in
-                    if let commitError = commitError {
-                        print("⚠️ Failed to commit Firebase displayName for Apple user:", commitError.localizedDescription)
-                    }
-                    saveUserToBackendIfNeeded(
-                        uid: user.uid,
-                        email: resolvedEmail,
-                        name: resolvedName,
-                        createdAt: Date()
-                    )
-                }
-            } else {
-                saveUserToBackendIfNeeded(
-                    uid: user.uid,
-                    email: resolvedEmail,
-                    name: resolvedName,
-                    createdAt: Date()
-                )
-            }
-
-            // #210 — forward l'authorization_code pour permettre la révocation
-            // du compte Apple à la suppression. Best-effort, hors chemin critique
-            // de login ; se ré-exécute aux signins suivants (code frais à chaque
-            // fois) si le tout premier passage a couru avec la création du user.
-            if let authorizationCode = authorizationCode, !authorizationCode.isEmpty {
-                linkAppleAccountWithBackend(authorizationCode: authorizationCode)
-            }
-
-            #if DEBUG
-            print("✅ Apple user signed in:", resolvedEmail.isEmpty ? "unknown" : resolvedEmail)
-            #endif
-
-            DispatchQueue.main.async {
-                self?.isLoginSuccessed = true
-                self?.isLoggedIn = true
-            }
-        }
+        handleAuthorization(authorization)
     }
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
-        // ASAuthorizationError.canceled (code 1001) = user a tapé Cancel
-        // dans la sheet Apple — comportement attendu, pas une erreur.
-        if let asError = error as? ASAuthorizationError, asError.code == .canceled {
-            print("ℹ️ Apple Sign-In cancelled by user")
-            return
-        }
-        print("❌ Apple Sign-In Error:", error.localizedDescription)
+        handleError(error)
     }
 }
 

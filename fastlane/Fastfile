@@ -179,17 +179,34 @@ platform :ios do
       UI.important("Compte démo non poussé : définis ARBORE_DEMO_USER / ARBORE_DEMO_PASSWORD / ARBORE_REVIEW_PHONE pour l'inclure.")
     end
 
-    # 2) Test Information (description testeurs + feedback email), par locale.
-    attrs = { feedbackEmail: BETA_FEEDBACK_EMAIL, description: BETA_APP_DESCRIPTION }
-    existing = app.get_beta_app_localizations
-    if existing.empty?
-      Spaceship::ConnectAPI.post_beta_app_localizations(app_id: app.id, attributes: attrs.merge(locale: "en-US"))
-      UI.success("✅ Test Information créée (en-US).")
-    else
-      existing.each do |loc|
-        Spaceship::ConnectAPI.patch_beta_app_localizations(localization_id: loc.id, attributes: attrs)
+    # 2) Test Information par locale (description testeurs + feedback + URLs).
+    #    Descriptions localisées lues depuis fastlane/metadata/<locale>/ (DRY :
+    #    réutilise les textes App Store). Crée la localization TestFlight si
+    #    absente, sinon la met à jour. Erreur par-locale isolée (une langue qui
+    #    échoue ne casse pas les autres).
+    locales = %w[en-US fr-FR es-ES de-DE]
+    existing = {}
+    app.get_beta_app_localizations.each { |l| existing[l.locale] = l }
+    locales.each do |loc|
+      desc_path = File.expand_path("metadata/#{loc}/description.txt", __dir__)
+      description = File.exist?(desc_path) ? File.read(desc_path).strip : BETA_APP_DESCRIPTION
+      attrs = {
+        feedbackEmail: BETA_FEEDBACK_EMAIL,
+        description: description,
+        marketingUrl: "https://arbore.app",
+        privacyPolicyUrl: "https://arbore.app/privacy"
+      }
+      begin
+        if (loc_obj = existing[loc])
+          Spaceship::ConnectAPI.patch_beta_app_localizations(localization_id: loc_obj.id, attributes: attrs)
+          UI.success("✅ Test Information mise à jour : #{loc}")
+        else
+          Spaceship::ConnectAPI.post_beta_app_localizations(app_id: app.id, attributes: attrs.merge(locale: loc))
+          UI.success("✅ Test Information créée : #{loc}")
+        end
+      rescue => e
+        UI.important("⚠️ Test Information #{loc} ignorée : #{e.message}")
       end
-      UI.success("✅ Test Information mise à jour (#{existing.map(&:locale).join(', ')}).")
     end
 
     UI.message("TestFlight uniquement — rien soumis ni publié sur l'App Store public.")

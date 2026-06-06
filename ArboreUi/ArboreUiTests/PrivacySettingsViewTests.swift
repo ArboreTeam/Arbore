@@ -112,8 +112,8 @@ class PrivacySettingsViewTests_OLD {
         let view = PrivacySettingsView()
 
         // Assert - Les valeurs par défaut selon @AppStorage
-        XCTAssertTrue(view.profilePublic, "profilePublic should default to true")
-        XCTAssertTrue(view.showActivity, "showActivity should default to true")
+        XCTAssertFalse(view.profilePublic, "profilePublic should default to false (privacy-by-default, #218)")
+        XCTAssertFalse(view.showActivity, "showActivity should default to false (privacy-by-default, #218)")
         XCTAssertFalse(view.shareData, "shareData should default to false")
         XCTAssertFalse(view.showPrivacyPolicy, "showPrivacyPolicy should default to false")
         XCTAssertFalse(view.isSyncing, "isSyncing should default to false")
@@ -831,8 +831,8 @@ class PrivacySettingsIntegrationTests: XCTestCase {
         // Attendre
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
             // Assert - Devrait garder les valeurs par défaut
-            XCTAssertTrue(view.profilePublic, "Should keep default value")
-            XCTAssertTrue(view.showActivity, "Should keep default value")
+            XCTAssertFalse(view.profilePublic, "Should keep default value (false — privacy-by-default, #218)")
+            XCTAssertFalse(view.showActivity, "Should keep default value (false — privacy-by-default, #218)")
             expectation.fulfill()
         }
 

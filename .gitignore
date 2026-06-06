@@ -184,6 +184,13 @@ fastlane/test_output
 fastlane/builds
 fastlane/.env
 fastlane/.env.local
+# App Review demo-account credentials (#206) — never commit the demo password.
+# The marketing metadata (descriptions/keywords/…) IS tracked; only the
+# review_information/ folder (demo_user / demo_password / notes) is excluded.
+fastlane/metadata/review_information/
+
+# Backup files — never ship in the bundle, never commit.
+*.bak
 
 # Bundler — gems sont installés en local au projet (vendor/bundle,
 # déjà couvert par `vendor/` plus haut). `.bundle/` contient la config
@@ -201,3 +208,7 @@ backups/
 # (cf ArboreUi/ArboreUi/ARGarden/SceneUnderstanding/README.md).
 *.mlpackage/
 *.mlmodelc/
+
+# Local backups + Claude Code project config — never commit.
+.backups/
+.claude/

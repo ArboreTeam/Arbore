@@ -139,7 +139,7 @@ class NetworkManager {
 
         request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
 
-        guard let currentUser = Auth.auth().currentUser else {
+        guard Auth.auth().currentUser != nil else {
             throw NetworkError.noUser
         }
 
@@ -280,7 +280,7 @@ class NetworkManager {
         request.httpMethod = method.rawValue
         request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
 
-        guard let currentUser = Auth.auth().currentUser else {
+        guard Auth.auth().currentUser != nil else {
             throw NetworkError.noUser
         }
 

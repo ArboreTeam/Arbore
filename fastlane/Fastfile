@@ -149,39 +149,50 @@ platform :ios do
   end
 
   desc "Pousse les infos TestFlight (description testeurs + compte démo de Beta"
-  desc "App Review) vers ASC. TestFlight UNIQUEMENT — ne soumet rien, ne publie"
-  desc "rien sur l'App Store public. Compte démo lu depuis l'ENV (jamais en git)."
+  desc "App Review) vers ASC, SANS build (via spaceship). TestFlight uniquement —"
+  desc "ne soumet rien, ne publie rien sur l'App Store public. Compte démo lu"
+  desc "depuis l'ENV (jamais en git)."
   lane :sync_beta_info do
-    # Beta App Review info (compte démo + contact). Lus depuis l'ENV pour ne
-    # JAMAIS committer d'identifiants. Apple exige un téléphone de contact :
-    # sans ARBORE_REVIEW_PHONE on pousse seulement la description testeurs.
-    review_info = nil
+    # `upload_to_testflight` (pilot) exige un build → inutilisable en
+    # métadonnées-seules. On passe par l'API ASC bas niveau (spaceship), même
+    # primitives que pilot (patch_beta_app_review_detail / *_beta_app_localizations).
+    require "spaceship"
+    Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.from_json_file(AUTH_KEY)
+    app = Spaceship::ConnectAPI::App.find("com.arboreteam.arbore")
+    UI.user_error!("App com.arboreteam.arbore introuvable dans ASC") unless app
+
+    # 1) Beta App Review detail (contact + compte démo). Lu depuis l'ENV pour ne
+    #    JAMAIS committer de secret. Apple exige un téléphone de contact.
     if ENV["ARBORE_DEMO_USER"] && ENV["ARBORE_DEMO_PASSWORD"] && ENV["ARBORE_REVIEW_PHONE"]
-      review_info = {
-        contact_email: BETA_FEEDBACK_EMAIL,
-        contact_first_name: ENV["ARBORE_REVIEW_FIRST_NAME"] || "Arbore",
-        contact_last_name: ENV["ARBORE_REVIEW_LAST_NAME"] || "Team",
-        contact_phone: ENV["ARBORE_REVIEW_PHONE"],
-        demo_account_name: ENV["ARBORE_DEMO_USER"],
-        demo_account_password: ENV["ARBORE_DEMO_PASSWORD"],
-        demo_account_required: true,
+      Spaceship::ConnectAPI.patch_beta_app_review_detail(app_id: app.id, attributes: {
+        contactEmail: BETA_FEEDBACK_EMAIL,
+        contactFirstName: ENV["ARBORE_REVIEW_FIRST_NAME"] || "Arbore",
+        contactLastName: ENV["ARBORE_REVIEW_LAST_NAME"] || "Team",
+        contactPhone: ENV["ARBORE_REVIEW_PHONE"],
+        demoAccountName: ENV["ARBORE_DEMO_USER"],
+        demoAccountPassword: ENV["ARBORE_DEMO_PASSWORD"],
+        demoAccountRequired: true,
         notes: "Sign in with the demo account, then design a garden and place plants in AR. Camera + LiDAR are used for AR plant placement."
-      }
+      })
+      UI.success("✅ Beta App Review info (contact + compte démo) mis à jour.")
     else
-      UI.important("Compte démo non câblé : définis ARBORE_DEMO_USER / ARBORE_DEMO_PASSWORD / ARBORE_REVIEW_PHONE pour l'inclure. On pousse seulement la description testeurs.")
+      UI.important("Compte démo non poussé : définis ARBORE_DEMO_USER / ARBORE_DEMO_PASSWORD / ARBORE_REVIEW_PHONE pour l'inclure.")
     end
 
-    upload_to_testflight(
-      api_key_path: AUTH_KEY,
-      app_identifier: "com.arboreteam.arbore",
-      distribute_external: false,        # pas de distribution externe
-      skip_submission: true,             # NE SOUMET PAS
-      skip_waiting_for_build_processing: true,
-      beta_app_description: BETA_APP_DESCRIPTION,
-      beta_app_feedback_email: BETA_FEEDBACK_EMAIL,
-      beta_app_review_info: review_info
-    )
-    UI.success("✅ Infos TestFlight poussées (TestFlight only, aucune publication App Store).")
+    # 2) Test Information (description testeurs + feedback email), par locale.
+    attrs = { feedbackEmail: BETA_FEEDBACK_EMAIL, description: BETA_APP_DESCRIPTION }
+    existing = app.get_beta_app_localizations
+    if existing.empty?
+      Spaceship::ConnectAPI.post_beta_app_localizations(app_id: app.id, attributes: attrs.merge(locale: "en-US"))
+      UI.success("✅ Test Information créée (en-US).")
+    else
+      existing.each do |loc|
+        Spaceship::ConnectAPI.patch_beta_app_localizations(localization_id: loc.id, attributes: attrs)
+      end
+      UI.success("✅ Test Information mise à jour (#{existing.map(&:locale).join(', ')}).")
+    end
+
+    UI.message("TestFlight uniquement — rien soumis ni publié sur l'App Store public.")
   end
 
   desc "Upload des dSYM vers Sentry (no-op si non configuré)."

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
-import { onAuthStateChange, getFirebaseToken } from '@/lib/authService';
+import { onAuthStateChange } from '@/lib/authService';
+import { API_URL, fetchWithAuth } from '@/lib/api';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
 import {
@@ -21,20 +22,6 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-
-const API_URL = '/api/backend';
-
-async function fetchWithAuth(url: string, options: RequestInit = {}) {
-  const token = await getFirebaseToken();
-  return fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      ...options.headers,
-    },
-  });
-}
 
 export default function PlantDetailPage() {
   const router = useRouter();

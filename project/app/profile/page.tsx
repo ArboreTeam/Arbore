@@ -38,7 +38,11 @@ export default function ProfilePage() {
     if (!currentUser) {
       router.push('/login');
     } else {
-      setUser(currentUser);
+      setUser({
+        uid: currentUser.uid,
+        email: currentUser.email ?? '',
+        displayName: currentUser.displayName ?? '',
+      });
       setLoading(false);
     }
   }, [router]);

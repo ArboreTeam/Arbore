@@ -2,26 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChange, getFirebaseToken } from '@/lib/authService';
+import { onAuthStateChange } from '@/lib/authService';
+import { API_URL, fetchWithAuth } from '@/lib/api';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
 import { ArrowLeft, Sparkles, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect } from 'react';
-
-const API_URL = '/api/backend';
-
-async function fetchWithAuth(url: string, options: RequestInit = {}) {
-  const token = await getFirebaseToken();
-  return fetch(url, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-      ...options.headers,
-    },
-  });
-}
 
 type Status = 'idle' | 'loading' | 'success' | 'exists' | 'error';
 

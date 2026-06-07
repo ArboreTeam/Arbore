@@ -2,23 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChange, getFirebaseToken } from '@/lib/authService';
+import { onAuthStateChange } from '@/lib/authService';
+import { API_URL, fetchWithAuth } from '@/lib/api';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
 import { ArrowLeft, Leaf, Search, Droplet, Sun, Loader2, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
-
-const API_URL = '/api/backend';
-
-async function fetchWithAuth(url: string) {
-  const token = await getFirebaseToken();
-  return fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-}
 
 export default function CataloguePage() {
   const router = useRouter();

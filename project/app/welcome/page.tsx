@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Sprout, Plus, Calendar, History, Cloud, Leaf, Zap, Lightbulb, MapPin, Sparkles, Trash2 } from 'lucide-react';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
-import { getCurrentUser, onAuthStateChange, getFirebaseToken } from '@/lib/authService';
+import { onAuthStateChange } from '@/lib/authService';
+import { API_URL, fetchWithAuth } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 
 export default function WelcomePage() {
@@ -46,14 +47,7 @@ export default function WelcomePage() {
       }
 
       // Appeler l'API backend
-      const token = await getFirebaseToken();
-      const response = await fetch(`/api/backend/gardens`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const response = await fetchWithAuth(`${API_URL}/gardens`);
 
       if (!response.ok) {
         throw new Error(`Erreur API: ${response.status}`);
@@ -77,14 +71,7 @@ export default function WelcomePage() {
   const deleteGarden = async (gardenId: string) => {
     if (!confirm('Supprimer ce jardin ? Cette action est irréversible.')) return;
     try {
-      const token = await getFirebaseToken();
-      const res = await fetch(`/api/backend/gardens/${gardenId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      const res = await fetchWithAuth(`${API_URL}/gardens/${gardenId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
       setGardens((prev) => prev.filter((g: any) => (g._id || g.id) !== gardenId));
     } catch {
@@ -329,13 +316,8 @@ function CreateGardenModal({ onClose, onSuccess, uid }: { onClose: () => void; o
       };
 
       // Appeler l'API backend
-      const token = await getFirebaseToken();
-      const response = await fetch('/api/backend/gardens', {
+      const response = await fetchWithAuth(`${API_URL}/gardens`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
         body: JSON.stringify(gardenData),
       });
 

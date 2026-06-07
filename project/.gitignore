@@ -24,8 +24,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
-.env
+# env files
+# .env est COMMITTÉ : config publique uniquement (DSN Sentry, etc.) — AUCUN secret.
+# Les secrets (ARBORE_API_KEY, clés Firebase, SENTRY_AUTH_TOKEN) passent par
+# l'environnement de déploiement et restent hors git via .env*.local.
 .env*.local
 
 # vercel

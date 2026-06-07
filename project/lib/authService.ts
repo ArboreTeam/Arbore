@@ -6,12 +6,27 @@ import {
   User,
   updateProfile,
   onAuthStateChanged,
+  onIdTokenChanged,
 } from 'firebase/auth';
 import { auth } from './firebase';
 
 // Proxy same-origin (voir app/api/backend/[...path]/route.ts) :
 // la clé API est injectée côté serveur, jamais exposée au navigateur.
 const BACKEND_URL = '/api/backend';
+
+// Cookie de session (UX) : permet à middleware.ts de protéger les routes
+// AVANT le rendu (redirection serveur). Ce n'est PAS la sécurité — le backend
+// vérifie le token Firebase sur chaque appel ; ce cookie ne fait que gater
+// l'affichage. onIdTokenChanged se déclenche à la connexion, à la déconnexion
+// et au rafraîchissement horaire du token, gardant le cookie à jour.
+const SESSION_COOKIE = 'arbore_auth';
+if (typeof document !== 'undefined') {
+  onIdTokenChanged(auth, (user) => {
+    document.cookie = user
+      ? `${SESSION_COOKIE}=1; path=/; max-age=3600; SameSite=Lax`
+      : `${SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+  });
+}
 
 // Sign up avec Firebase
 export const signUp = async (email: string, password: string, displayName: string) => {

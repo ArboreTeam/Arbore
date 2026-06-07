@@ -3,7 +3,9 @@ const { withSentryConfig } = require('@sentry/nextjs');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: {
-    ignoreDuringBuilds: true,
+    // Le lint s'exécute au build (les erreurs bloquent). Seuls des warnings
+    // subsistent (img/next-image, exhaustive-deps) — non bloquants.
+    ignoreDuringBuilds: false,
   },
   images: { unoptimized: true },
   // Requis en Next 13.5 pour charger instrumentation.ts (config Sentry serveur/edge).

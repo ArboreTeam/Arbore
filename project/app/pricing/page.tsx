@@ -59,7 +59,7 @@ export default function PricingPage() {
             <h1 className="text-5xl md:text-6xl font-bold text-[#234632] mb-6">
               Tarifs simples et transparents
             </h1>
-            <p className="text-xl text-gray-600">
+            <p className="text-xl text-arbore-muted">
               Choisissez le plan qui correspond à vos besoins
             </p>
           </motion.div>
@@ -82,7 +82,7 @@ export default function PricingPage() {
                   className={`p-8 h-full rounded-3xl ${
                     plan.popular
                       ? 'border-4 border-[#234632] shadow-2xl bg-white'
-                      : 'border-2 border-gray-200'
+                      : 'border-2 border-border'
                   }`}
                 >
                   {plan.popular && (
@@ -91,16 +91,16 @@ export default function PricingPage() {
                     </div>
                   )}
 
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                  <h3 className="text-2xl font-bold text-arbore-ink mb-2">
                     {plan.name}
                   </h3>
-                  <p className="text-gray-600 mb-6">{plan.description}</p>
+                  <p className="text-arbore-muted mb-6">{plan.description}</p>
 
                   <div className="mb-8">
                     <span className="text-5xl font-bold text-[#234632]">
                       {plan.price}
                     </span>
-                    <span className="text-gray-600 ml-2">{plan.period}</span>
+                    <span className="text-arbore-muted ml-2">{plan.period}</span>
                   </div>
 
                   <Button
@@ -119,7 +119,7 @@ export default function PricingPage() {
                         <div className="w-6 h-6 bg-[#8FAF8A]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                           <Check className="w-4 h-4 text-[#234632]" />
                         </div>
-                        <span className="text-gray-700">{feature}</span>
+                        <span className="text-arbore-ink">{feature}</span>
                       </li>
                     ))}
                   </ul>
@@ -144,27 +144,27 @@ export default function PricingPage() {
             </h2>
             <div className="space-y-6 text-left">
               <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                <h3 className="text-xl font-semibold text-arbore-ink mb-2">
                   Puis-je changer de plan à tout moment ?
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-arbore-muted">
                   Oui, vous pouvez passer à Premium ou revenir au plan gratuit à tout moment.
                   Aucun engagement, vous pouvez annuler quand vous voulez.
                 </p>
               </div>
               <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                <h3 className="text-xl font-semibold text-arbore-ink mb-2">
                   Y a-t-il une période d&apos;essai ?
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-arbore-muted">
                   Oui, vous bénéficiez de 7 jours d&apos;essai gratuit sur le plan Premium pour tester toutes les fonctionnalités.
                 </p>
               </div>
               <div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                <h3 className="text-xl font-semibold text-arbore-ink mb-2">
                   Quels moyens de paiement acceptez-vous ?
                 </h3>
-                <p className="text-gray-600">
+                <p className="text-arbore-muted">
                   Nous acceptons toutes les cartes bancaires (Visa, Mastercard, American Express) ainsi que PayPal.
                 </p>
               </div>

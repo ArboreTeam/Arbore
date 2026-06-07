@@ -86,7 +86,7 @@ export default function WelcomePage() {
         <div className="min-h-screen flex items-center justify-center pt-24">
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#234632]"></div>
-            <p className="mt-4 text-gray-600">Chargement...</p>
+            <p className="mt-4 text-arbore-muted">Chargement...</p>
           </div>
         </div>
         <Footer />
@@ -108,7 +108,7 @@ export default function WelcomePage() {
             <h1 className="text-5xl md:text-6xl font-bold text-[#234632] mb-2">
               Bonjour, {userName} 👋
             </h1>
-            <p className="text-xl text-gray-600">Sélectionnez un jardin pour commencer</p>
+            <p className="text-xl text-arbore-muted">Sélectionnez un jardin pour commencer</p>
           </motion.div>
         </section>
 
@@ -143,22 +143,22 @@ export default function WelcomePage() {
                         transition={{ duration: 0.6, delay: 0.1 * index }}
                         whileHover={{ scale: 1.03, y: -5 }}
                         whileTap={{ scale: 0.98 }}
-                        className="bg-white rounded-xl p-6 shadow-sm hover:shadow-lg transition-all border border-gray-200 cursor-pointer h-full"
+                        className="bg-white rounded-card p-6 shadow-soft hover:shadow-card transition-all border border-border cursor-pointer h-full"
                       >
                         <div className="flex items-start justify-between mb-4">
-                          <div className="bg-green-100 p-3 rounded-lg">
+                          <div className="bg-secondary p-3 rounded-lg">
                             <Sprout className="w-8 h-8 text-[#234632]" />
                           </div>
-                          <div className="flex items-center gap-1 text-sm text-gray-500">
+                          <div className="flex items-center gap-1 text-sm text-arbore-muted">
                             <MapPin className="w-4 h-4" />
                             {garden.wizard?.location || garden.location || 'Non défini'}
                           </div>
                         </div>
 
-                        <h3 className="text-xl font-bold text-gray-900 mb-2">
+                        <h3 className="text-xl font-bold text-arbore-ink mb-2">
                           {garden.name}
                         </h3>
-                        <p className="text-sm text-gray-600 mb-4">
+                        <p className="text-sm text-arbore-muted mb-4">
                           {garden.wizard?.description || garden.description || 'Aucune description'}
                         </p>
 
@@ -170,7 +170,7 @@ export default function WelcomePage() {
                     </Link>
                     <button
                       onClick={(e) => { e.preventDefault(); deleteGarden(gardenId); }}
-                      className="absolute top-3 right-3 p-2 bg-white rounded-lg shadow opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 text-gray-400 hover:text-red-500"
+                      className="absolute top-3 right-3 p-2 bg-white rounded-lg shadow opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 text-arbore-muted hover:text-red-500"
                       title="Supprimer le jardin"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -187,7 +187,7 @@ export default function WelcomePage() {
                 whileHover={{ scale: 1.03, y: -5 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setShowCreateModal(true)}
-                className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 shadow-sm hover:shadow-lg transition-all border-2 border-dashed border-[#234632] cursor-pointer h-full flex flex-col items-center justify-center text-center min-h-[200px]"
+                className="bg-gradient-to-br from-green-50 to-green-100 rounded-card p-6 shadow-soft hover:shadow-card transition-all border-2 border-dashed border-[#234632] cursor-pointer h-full flex flex-col items-center justify-center text-center min-h-[200px]"
               >
                 <div className="bg-white p-4 rounded-full mb-4">
                   <Plus className="w-10 h-10 text-[#234632]" />
@@ -195,7 +195,7 @@ export default function WelcomePage() {
                 <h3 className="text-xl font-bold text-[#234632] mb-2">
                   Créer un nouveau jardin
                 </h3>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-arbore-muted">
                   Ajoutez un espace pour vos plantes
                 </p>
               </motion.div>
@@ -219,15 +219,15 @@ export default function WelcomePage() {
                     <motion.div
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      className={`rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow border cursor-pointer h-full flex flex-col items-center text-center ${
+                      className={`rounded-card p-6 shadow-soft hover:shadow-card transition-shadow border cursor-pointer h-full flex flex-col items-center text-center ${
                         action.highlight
-                          ? 'bg-gradient-to-br from-purple-50 to-indigo-50 border-purple-200'
-                          : 'bg-white border-gray-200'
+                          ? 'bg-gradient-to-br from-arbore-gold/10 to-arbore-gold/10 border-arbore-gold/30'
+                          : 'bg-white border-border'
                       }`}
                     >
-                      <IconComponent className={`w-12 h-12 mb-4 ${action.highlight ? 'text-purple-500' : 'text-[#234632]'}`} />
-                      <h3 className={`font-semibold mb-1 ${action.highlight ? 'text-purple-700' : 'text-gray-900'}`}>{action.label}</h3>
-                      <p className="text-sm text-gray-600">{action.description}</p>
+                      <IconComponent className={`w-12 h-12 mb-4 ${action.highlight ? 'text-arbore-gold/100' : 'text-[#234632]'}`} />
+                      <h3 className={`font-semibold mb-1 ${action.highlight ? 'text-arbore-ink' : 'text-arbore-ink'}`}>{action.label}</h3>
+                      <p className="text-sm text-arbore-muted">{action.description}</p>
                     </motion.div>
                   </Link>
                 );
@@ -255,11 +255,11 @@ export default function WelcomePage() {
                   <motion.div
                     key={index}
                     whileHover={{ scale: 1.02 }}
-                    className="bg-white rounded-xl p-6 shadow-sm border border-gray-200"
+                    className="bg-white rounded-card p-6 shadow-soft border border-border"
                   >
                     <IconComponent className="w-10 h-10 text-[#234632] mb-4" />
-                    <h3 className="font-semibold text-gray-900 mb-2">{feature.title}</h3>
-                    <p className="text-sm text-gray-600">{feature.description}</p>
+                    <h3 className="font-semibold text-arbore-ink mb-2">{feature.title}</h3>
+                    <p className="text-sm text-arbore-muted">{feature.description}</p>
                   </motion.div>
                 );
               })}
@@ -343,13 +343,13 @@ function CreateGardenModal({ onClose, onSuccess, uid }: { onClose: () => void; o
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl"
+        className="bg-white rounded-card max-w-md w-full p-8 shadow-2xl"
       >
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-[#234632]">Créer un jardin</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl"
+            className="text-arbore-muted hover:text-arbore-muted text-2xl"
           >
             ×
           </button>
@@ -357,7 +357,7 @@ function CreateGardenModal({ onClose, onSuccess, uid }: { onClose: () => void; o
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-arbore-ink mb-2">
               Nom du jardin *
             </label>
             <input
@@ -365,32 +365,32 @@ function CreateGardenModal({ onClose, onSuccess, uid }: { onClose: () => void; o
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
+              className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
               placeholder="Mon jardin principal"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-arbore-ink mb-2">
               Description
             </label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
+              className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
               placeholder="Décrivez votre jardin..."
               rows={3}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
+            <label className="block text-sm font-semibold text-arbore-ink mb-2">
               Localisation
             </label>
             <select
               value={formData.location}
               onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
+              className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
             >
               <option value="Intérieur">Intérieur</option>
               <option value="Extérieur">Extérieur</option>
@@ -402,7 +402,7 @@ function CreateGardenModal({ onClose, onSuccess, uid }: { onClose: () => void; o
             <Button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg"
+              className="flex-1 bg-gray-200 hover:bg-gray-300 text-arbore-ink rounded-lg"
             >
               Annuler
             </Button>

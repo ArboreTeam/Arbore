@@ -60,7 +60,7 @@ export default function FeaturesPage() {
             <h1 className="text-5xl md:text-6xl font-bold text-[#234632] mb-6">
               Toutes les fonctionnalités
             </h1>
-            <p className="text-xl text-gray-600">
+            <p className="text-xl text-arbore-muted">
               Découvrez tous les outils qui font d&apos;Arbore la meilleure application de conception de jardins
             </p>
           </motion.div>
@@ -81,19 +81,19 @@ export default function FeaturesPage() {
               } gap-12 items-center`}
             >
               <div className="flex-1">
-                <div className="w-16 h-16 bg-[#8FAF8A]/10 rounded-2xl flex items-center justify-center mb-6">
+                <div className="w-16 h-16 bg-[#8FAF8A]/10 rounded-card flex items-center justify-center mb-6">
                   <feature.icon className="w-8 h-8 text-[#234632]" />
                 </div>
                 <h2 className="text-3xl font-bold text-[#234632] mb-4">
                   {feature.title}
                 </h2>
-                <p className="text-lg text-gray-600 leading-relaxed">
+                <p className="text-lg text-arbore-muted leading-relaxed">
                   {feature.description}
                 </p>
               </div>
 
               <div className="flex-1">
-                <div className="aspect-video rounded-2xl bg-gradient-to-br from-[#234632]/10 to-[#8FAF8A]/10 flex items-center justify-center border-2 border-[#234632]/20">
+                <div className="aspect-video rounded-card bg-gradient-to-br from-[#234632]/10 to-[#8FAF8A]/10 flex items-center justify-center border-2 border-[#234632]/20">
                   <feature.icon className="w-32 h-32 text-[#234632] opacity-30" />
                 </div>
               </div>

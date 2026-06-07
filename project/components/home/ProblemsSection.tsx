@@ -40,14 +40,14 @@ export function ProblemsSection() {
               transition={{ duration: 0.5, delay: index * 0.1 }}
               viewport={{ once: true }}
             >
-              <Card className="p-8 h-full hover:shadow-xl transition-shadow border-2 border-gray-100 rounded-2xl">
-                <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mb-6">
+              <Card className="p-8 h-full hover:shadow-card transition-shadow border-2 border-border rounded-card">
+                <div className="w-16 h-16 bg-red-100 rounded-card flex items-center justify-center mb-6">
                   <problem.icon className="w-8 h-8 text-red-600" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-4">
+                <h3 className="text-xl font-bold text-arbore-ink mb-4">
                   {problem.title}
                 </h3>
-                <p className="text-gray-600 leading-relaxed">
+                <p className="text-arbore-muted leading-relaxed">
                   {problem.description}
                 </p>
               </Card>

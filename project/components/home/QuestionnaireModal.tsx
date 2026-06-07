@@ -123,17 +123,17 @@ export function QuestionnaireModal({ isOpen, onClose }: QuestionnaireModalProps)
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            className="bg-white rounded-card shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
           >
             {/* Header */}
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
+            <div className="sticky top-0 bg-white border-b border-border p-6 flex items-center justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-[#234632]">Parlons de votre jardin</h2>
-                <p className="text-sm text-gray-600">Quelques questions pour vous proposer les meilleurs conseils</p>
+                <p className="text-sm text-arbore-muted">Quelques questions pour vous proposer les meilleurs conseils</p>
               </div>
               <button
                 onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
+                className="text-arbore-muted hover:text-arbore-muted transition-colors"
               >
                 <X className="w-6 h-6" />
               </button>
@@ -150,7 +150,7 @@ export function QuestionnaireModal({ isOpen, onClose }: QuestionnaireModalProps)
             </div>
 
             {/* Step Indicator */}
-            <div className="px-6 py-4 border-b border-gray-200">
+            <div className="px-6 py-4 border-b border-border">
               <div className="flex gap-2 justify-center">
                 {questions.map((_, index) => (
                   <motion.div
@@ -182,7 +182,7 @@ export function QuestionnaireModal({ isOpen, onClose }: QuestionnaireModalProps)
               <h3 className="text-2xl font-bold text-[#234632] mb-2">
                 {currentQuestion.title}
               </h3>
-              <p className="text-gray-600 mb-8">{currentQuestion.subtitle}</p>
+              <p className="text-arbore-muted mb-8">{currentQuestion.subtitle}</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {currentQuestion.options.map((option, index) => {
@@ -192,11 +192,11 @@ export function QuestionnaireModal({ isOpen, onClose }: QuestionnaireModalProps)
                       key={index}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className="p-4 border-2 border-gray-300 rounded-lg hover:border-[#234632] hover:bg-[#234632]/5 transition-all text-center"
+                      className="p-4 border-2 border-border rounded-lg hover:border-[#234632] hover:bg-[#234632]/5 transition-all text-center"
                     >
                       <IconComponent className="w-12 h-12 text-[#234632] mx-auto mb-3" />
                       <div className="font-semibold text-[#234632]">{option.label}</div>
-                      <div className="text-sm text-gray-600">{option.description}</div>
+                      <div className="text-sm text-arbore-muted">{option.description}</div>
                     </motion.button>
                   );
                 })}
@@ -204,7 +204,7 @@ export function QuestionnaireModal({ isOpen, onClose }: QuestionnaireModalProps)
             </motion.div>
 
             {/* Footer */}
-            <div className="border-t border-gray-200 p-6 flex items-center justify-between gap-4 bg-arbore-beige">
+            <div className="border-t border-border p-6 flex items-center justify-between gap-4 bg-arbore-beige">
               <button
                 onClick={onClose}
                 className="text-[#234632] hover:underline text-sm font-medium"

@@ -168,7 +168,7 @@ const seasons: SeasonInfo[] = [
     months: 'Décembre - Février',
     icon: Snowflake,
     color: 'from-blue-300 to-blue-600',
-    bgGradient: 'from-blue-50 to-indigo-50',
+    bgGradient: 'from-blue-50 to-arbore-gold/10',
     temperature: '-5°C - 10°C',
     rainfall: 'Variable (pluie/neige)',
     daylight: '8h - 10h',
@@ -252,8 +252,8 @@ export default function SeasonsPage() {
     switch(priority) {
       case 'haute': return 'bg-red-100 text-red-700 border-red-300';
       case 'moyenne': return 'bg-yellow-100 text-yellow-700 border-yellow-300';
-      case 'basse': return 'bg-green-100 text-green-700 border-green-300';
-      default: return 'bg-gray-100 text-gray-700 border-gray-300';
+      case 'basse': return 'bg-secondary text-green-700 border-green-300';
+      default: return 'bg-gray-100 text-arbore-ink border-border';
     }
   };
 
@@ -280,14 +280,14 @@ export default function SeasonsPage() {
             <div className="flex items-center gap-4 mb-4">
               <button
                 onClick={() => router.push('/garden')}
-                className="flex items-center gap-2 text-gray-600 hover:text-[#234632] transition-colors"
+                className="flex items-center gap-2 text-arbore-muted hover:text-[#234632] transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
                 <span>Retour au jardin</span>
               </button>
             </div>
             <h1 className="text-5xl font-bold text-[#234632] mb-2">Guide des Saisons</h1>
-            <p className="text-lg text-gray-600">Découvrez les tâches et conseils pour chaque saison</p>
+            <p className="text-lg text-arbore-muted">Découvrez les tâches et conseils pour chaque saison</p>
           </motion.div>
 
           {/* Season Selector */}
@@ -306,10 +306,10 @@ export default function SeasonsPage() {
                   onClick={() => setSelectedSeason(season)}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className={`relative overflow-hidden rounded-2xl p-6 text-left transition-all ${
+                  className={`relative overflow-hidden rounded-card p-6 text-left transition-all ${
                     isSelected
                       ? 'shadow-2xl ring-4 ring-[#234632] ring-opacity-50'
-                      : 'shadow-lg hover:shadow-xl'
+                      : 'shadow-lg hover:shadow-card'
                   }`}
                 >
                   <div className={`absolute inset-0 bg-gradient-to-br ${season.color} opacity-90`}></div>
@@ -341,20 +341,20 @@ export default function SeasonsPage() {
               transition={{ duration: 0.5 }}
             >
               {/* Overview Card */}
-              <div className={`bg-gradient-to-br ${selectedSeason.bgGradient} rounded-2xl shadow-xl p-8 mb-8 border-2 border-opacity-20`}>
+              <div className={`bg-gradient-to-br ${selectedSeason.bgGradient} rounded-card shadow-xl p-8 mb-8 border-2 border-opacity-20`}>
                 <div className="flex items-start gap-6 mb-6">
-                  <div className={`bg-gradient-to-br ${selectedSeason.color} p-4 rounded-2xl`}>
+                  <div className={`bg-gradient-to-br ${selectedSeason.color} p-4 rounded-card`}>
                     {(() => {
                       const Icon = selectedSeason.icon;
                       return <Icon className="w-12 h-12 text-white" />;
                     })()}
                   </div>
                   <div className="flex-1">
-                    <h2 className="text-4xl font-bold text-gray-800 mb-2">
+                    <h2 className="text-4xl font-bold text-arbore-ink mb-2">
                       {selectedSeason.name}
                     </h2>
-                    <p className="text-xl text-gray-600 mb-4">{selectedSeason.months}</p>
-                    <p className="text-lg text-gray-700 leading-relaxed">
+                    <p className="text-xl text-arbore-muted mb-4">{selectedSeason.months}</p>
+                    <p className="text-lg text-arbore-ink leading-relaxed">
                       {selectedSeason.description}
                     </p>
                   </div>
@@ -362,25 +362,25 @@ export default function SeasonsPage() {
 
                 {/* Weather Info */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-white bg-opacity-60 rounded-xl p-4 flex items-center gap-3">
+                  <div className="bg-white bg-opacity-60 rounded-card p-4 flex items-center gap-3">
                     <Thermometer className="w-8 h-8 text-red-500" />
                     <div>
-                      <p className="text-sm text-gray-600 font-medium">Température</p>
-                      <p className="text-lg font-bold text-gray-800">{selectedSeason.temperature}</p>
+                      <p className="text-sm text-arbore-muted font-medium">Température</p>
+                      <p className="text-lg font-bold text-arbore-ink">{selectedSeason.temperature}</p>
                     </div>
                   </div>
-                  <div className="bg-white bg-opacity-60 rounded-xl p-4 flex items-center gap-3">
+                  <div className="bg-white bg-opacity-60 rounded-card p-4 flex items-center gap-3">
                     <Droplet className="w-8 h-8 text-blue-500" />
                     <div>
-                      <p className="text-sm text-gray-600 font-medium">Précipitations</p>
-                      <p className="text-lg font-bold text-gray-800">{selectedSeason.rainfall}</p>
+                      <p className="text-sm text-arbore-muted font-medium">Précipitations</p>
+                      <p className="text-lg font-bold text-arbore-ink">{selectedSeason.rainfall}</p>
                     </div>
                   </div>
-                  <div className="bg-white bg-opacity-60 rounded-xl p-4 flex items-center gap-3">
+                  <div className="bg-white bg-opacity-60 rounded-card p-4 flex items-center gap-3">
                     <Sun className="w-8 h-8 text-yellow-500" />
                     <div>
-                      <p className="text-sm text-gray-600 font-medium">Ensoleillement</p>
-                      <p className="text-lg font-bold text-gray-800">{selectedSeason.daylight}</p>
+                      <p className="text-sm text-arbore-muted font-medium">Ensoleillement</p>
+                      <p className="text-lg font-bold text-arbore-ink">{selectedSeason.daylight}</p>
                     </div>
                   </div>
                 </div>
@@ -388,12 +388,12 @@ export default function SeasonsPage() {
 
               <div className="grid lg:grid-cols-2 gap-8">
                 {/* Tasks */}
-                <div className="bg-white rounded-2xl shadow-lg p-8">
+                <div className="bg-white rounded-card shadow-lg p-8">
                   <div className="flex items-center gap-3 mb-6">
                     <div className="bg-[#234632] p-2 rounded-lg">
                       <AlertCircle className="w-6 h-6 text-white" />
                     </div>
-                    <h3 className="text-2xl font-bold text-gray-800">Tâches principales</h3>
+                    <h3 className="text-2xl font-bold text-arbore-ink">Tâches principales</h3>
                   </div>
                   <div className="space-y-4">
                     {selectedSeason.tasks.map((task, index) => (
@@ -402,15 +402,15 @@ export default function SeasonsPage() {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.1 }}
-                        className="border-2 border-gray-200 rounded-xl p-4 hover:border-[#234632] transition-all"
+                        className="border-2 border-border rounded-card p-4 hover:border-[#234632] transition-all"
                       >
                         <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-bold text-gray-800 text-lg">{task.title}</h4>
+                          <h4 className="font-bold text-arbore-ink text-lg">{task.title}</h4>
                           <span className={`text-xs px-2 py-1 rounded-full border font-semibold ${getPriorityColor(task.priority)}`}>
                             {getPriorityLabel(task.priority)}
                           </span>
                         </div>
-                        <p className="text-gray-600">{task.description}</p>
+                        <p className="text-arbore-muted">{task.description}</p>
                       </motion.div>
                     ))}
                   </div>
@@ -419,12 +419,12 @@ export default function SeasonsPage() {
                 {/* Tips and Plants */}
                 <div className="space-y-8">
                   {/* Tips */}
-                  <div className="bg-white rounded-2xl shadow-lg p-8">
+                  <div className="bg-white rounded-card shadow-lg p-8">
                     <div className="flex items-center gap-3 mb-6">
                       <div className="bg-blue-500 p-2 rounded-lg">
                         <Info className="w-6 h-6 text-white" />
                       </div>
-                      <h3 className="text-2xl font-bold text-gray-800">Conseils</h3>
+                      <h3 className="text-2xl font-bold text-arbore-ink">Conseils</h3>
                     </div>
                     <ul className="space-y-3">
                       {selectedSeason.tips.map((tip, index) => (
@@ -433,7 +433,7 @@ export default function SeasonsPage() {
                           initial={{ opacity: 0, x: 20 }}
                           animate={{ opacity: 1, x: 0 }}
                           transition={{ delay: index * 0.1 }}
-                          className="flex items-start gap-3 text-gray-700"
+                          className="flex items-start gap-3 text-arbore-ink"
                         >
                           <span className="text-[#234632] mt-1">✓</span>
                           <span>{tip}</span>
@@ -443,12 +443,12 @@ export default function SeasonsPage() {
                   </div>
 
                   {/* Plants */}
-                  <div className="bg-white rounded-2xl shadow-lg p-8">
+                  <div className="bg-white rounded-card shadow-lg p-8">
                     <div className="flex items-center gap-3 mb-6">
                       <div className="bg-green-500 p-2 rounded-lg">
                         <Leaf className="w-6 h-6 text-white" />
                       </div>
-                      <h3 className="text-2xl font-bold text-gray-800">Plantes de saison</h3>
+                      <h3 className="text-2xl font-bold text-arbore-ink">Plantes de saison</h3>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {selectedSeason.plants.map((plant, index) => (

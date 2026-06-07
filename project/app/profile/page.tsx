@@ -63,7 +63,7 @@ export default function ProfilePage() {
         <div className="min-h-screen flex items-center justify-center pt-24">
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#234632]"></div>
-            <p className="mt-4 text-gray-600">Chargement...</p>
+            <p className="mt-4 text-arbore-muted">Chargement...</p>
           </div>
         </div>
         <Footer />
@@ -171,7 +171,7 @@ export default function ProfilePage() {
             {stats.map((stat, index) => (
               <div
                 key={index}
-                className={`bg-gradient-to-br ${stat.color} rounded-2xl shadow-lg p-8 text-white hover:shadow-xl transition-all transform hover:scale-105`}
+                className={`bg-gradient-to-br ${stat.color} rounded-card shadow-lg p-8 text-white hover:shadow-card transition-all transform hover:scale-105`}
               >
                 <p className="text-5xl font-bold mb-3">{stat.number}</p>
                 <p className="text-sm font-semibold opacity-90 tracking-wider">
@@ -200,21 +200,21 @@ export default function ProfilePage() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.3 + index * 0.05 }}
-                    className="bg-white rounded-2xl shadow-md p-6 hover:shadow-xl transition-all hover:scale-105 text-left group"
+                    className="bg-white rounded-card shadow-md p-6 hover:shadow-card transition-all hover:scale-105 text-left group"
                   >
                     <div className="flex items-start gap-4">
-                      <div className={`w-14 h-14 bg-gradient-to-br ${gradientColor} rounded-xl flex items-center justify-center flex-shrink-0 shadow-md group-hover:shadow-lg transition-all`}>
+                      <div className={`w-14 h-14 bg-gradient-to-br ${gradientColor} rounded-card flex items-center justify-center flex-shrink-0 shadow-md group-hover:shadow-card transition-all`}>
                         <IconComponent className="w-7 h-7 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-gray-900 text-lg mb-1 group-hover:text-[#234632] transition-colors">
+                        <h3 className="font-bold text-arbore-ink text-lg mb-1 group-hover:text-[#234632] transition-colors">
                           {item.title}
                         </h3>
-                        <p className="text-gray-600 text-sm">
+                        <p className="text-arbore-muted text-sm">
                           {item.description}
                         </p>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0 group-hover:text-[#234632] transition-colors mt-1" />
+                      <ChevronRight className="w-5 h-5 text-arbore-muted flex-shrink-0 group-hover:text-[#234632] transition-colors mt-1" />
                     </div>
                   </motion.button>
                 );
@@ -232,7 +232,7 @@ export default function ProfilePage() {
           >
             <button
               onClick={handleLogout}
-              className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-4 px-6 rounded-2xl transition-all shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-3 text-lg"
+              className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-4 px-6 rounded-card transition-all shadow-lg hover:shadow-card hover:scale-105 flex items-center justify-center gap-3 text-lg"
             >
               <LogOut className="w-6 h-6" />
               Déconnexion

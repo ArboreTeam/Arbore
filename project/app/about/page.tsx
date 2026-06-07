@@ -34,7 +34,7 @@ export default function AboutPage() {
             <h1 className="text-5xl md:text-6xl font-bold text-[#234632] mb-6">
               Notre mission
             </h1>
-            <p className="text-xl text-gray-600">
+            <p className="text-xl text-arbore-muted">
               Rendre le jardinage accessible à tous grâce à l&apos;intelligence artificielle
             </p>
           </motion.div>
@@ -50,17 +50,17 @@ export default function AboutPage() {
             viewport={{ once: true }}
             className="prose prose-lg max-w-none"
           >
-            <p className="text-lg text-gray-700 leading-relaxed mb-6">
+            <p className="text-lg text-arbore-ink leading-relaxed mb-6">
               Arbore est née d&apos;une frustration simple : créer et entretenir un beau jardin
               ne devrait pas être si compliqué. Trop souvent, les jardiniers amateurs se retrouvent
               dépassés par la quantité d&apos;informations à assimiler, les choix à faire et les erreurs coûteuses.
             </p>
-            <p className="text-lg text-gray-700 leading-relaxed mb-6">
+            <p className="text-lg text-arbore-ink leading-relaxed mb-6">
               Nous croyons que la technologie peut transformer cette expérience. En combinant
               intelligence artificielle, vision par ordinateur et expertise horticole, nous avons
               créé un assistant personnel qui guide chacun vers le jardin de ses rêves.
             </p>
-            <p className="text-lg text-gray-700 leading-relaxed">
+            <p className="text-lg text-arbore-ink leading-relaxed">
               Notre objectif est simple : que chaque personne puisse créer et profiter d&apos;un jardin
               magnifique, adapté à son environnement et facile à entretenir.
             </p>
@@ -101,14 +101,14 @@ export default function AboutPage() {
                 transition={{ duration: 0.5, delay: index * 0.1 }}
                 viewport={{ once: true }}
               >
-                <Card className="p-8 h-full text-center hover:shadow-xl transition-shadow border-2 border-gray-100 rounded-2xl">
+                <Card className="p-8 h-full text-center hover:shadow-card transition-shadow border-2 border-border rounded-card">
                   <div className="w-16 h-16 bg-[#8FAF8A]/10 rounded-full flex items-center justify-center mx-auto mb-6">
                     <value.icon className="w-8 h-8 text-[#234632]" />
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">
+                  <h3 className="text-xl font-bold text-arbore-ink mb-4">
                     {value.title}
                   </h3>
-                  <p className="text-gray-600 leading-relaxed">
+                  <p className="text-arbore-muted leading-relaxed">
                     {value.description}
                   </p>
                 </Card>
@@ -130,7 +130,7 @@ export default function AboutPage() {
               <h2 className="text-4xl font-bold text-[#234632] mb-4">
                 L&apos;équipe fondatrice
               </h2>
-              <p className="text-xl text-gray-600">
+              <p className="text-xl text-arbore-muted">
                 Deux passionnés qui transforment le jardinage
               </p>
             </motion.div>
@@ -145,19 +145,19 @@ export default function AboutPage() {
                 transition={{ duration: 0.5, delay: index * 0.1 }}
                 viewport={{ once: true }}
               >
-                <Card className="p-8 h-full hover:shadow-xl transition-shadow border-2 border-gray-100 rounded-2xl">
+                <Card className="p-8 h-full hover:shadow-card transition-shadow border-2 border-border rounded-card">
                   <div className="w-24 h-24 bg-gradient-to-br from-[#234632] to-[#8FAF8A] rounded-full mx-auto mb-6 flex items-center justify-center">
                     <span className="text-4xl font-bold text-white">
                       {member.name.split(' ').map(n => n[0]).join('')}
                     </span>
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2 text-center">
+                  <h3 className="text-2xl font-bold text-arbore-ink mb-2 text-center">
                     {member.name}
                   </h3>
                   <p className="text-[#234632] font-semibold mb-4 text-center">
                     {member.role}
                   </p>
-                  <p className="text-gray-600 leading-relaxed text-center">
+                  <p className="text-arbore-muted leading-relaxed text-center">
                     {member.bio}
                   </p>
                 </Card>

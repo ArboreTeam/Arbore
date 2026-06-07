@@ -90,11 +90,11 @@ export default function GeneratePage() {
             animate={{ opacity: 1, y: 0 }}
             className="text-center mb-10"
           >
-            <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+            <div className="w-16 h-16 bg-gradient-to-br from-arbore-gold/100 to-arbore-gold rounded-card flex items-center justify-center mx-auto mb-4 shadow-lg">
               <Sparkles className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Générer une plante avec l'IA</h1>
-            <p className="text-gray-500">Entrez le nom d'une plante et l'IA génère automatiquement toutes ses informations</p>
+            <h1 className="text-3xl font-bold text-arbore-ink mb-2">Générer une plante avec l'IA</h1>
+            <p className="text-arbore-muted">Entrez le nom d'une plante et l'IA génère automatiquement toutes ses informations</p>
           </motion.div>
 
           {/* Formulaire */}
@@ -102,11 +102,11 @@ export default function GeneratePage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="bg-white rounded-2xl shadow-md p-8 mb-6"
+            className="bg-white rounded-card shadow-md p-8 mb-6"
           >
             <form onSubmit={handleGenerate} className="space-y-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-arbore-ink mb-2">
                   Nom de la plante
                 </label>
                 <input
@@ -115,13 +115,13 @@ export default function GeneratePage() {
                   onChange={(e) => { setPlantName(e.target.value); setStatus('idle'); }}
                   placeholder="Ex: Monstera, Cactus, Orchidée..."
                   disabled={status === 'loading'}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 text-lg"
+                  className="w-full px-4 py-3 border border-border rounded-card focus:outline-none focus:ring-2 focus:ring-arbore-gold/100 disabled:opacity-50 text-lg"
                 />
               </div>
               <button
                 type="submit"
                 disabled={status === 'loading' || !plantName.trim()}
-                className="w-full py-3 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                className="w-full py-3 bg-gradient-to-r from-arbore-gold/100 to-arbore-gold hover:from-arbore-gold hover:to-arbore-gold disabled:opacity-50 text-white font-bold rounded-card shadow-md hover:shadow-card transition-all flex items-center justify-center gap-2"
               >
                 {status === 'loading' ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
@@ -143,11 +143,11 @@ export default function GeneratePage() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="bg-purple-50 border border-purple-200 rounded-2xl p-6 text-center"
+                className="bg-arbore-gold/10 border border-arbore-gold/30 rounded-card p-6 text-center"
               >
-                <Loader2 className="w-10 h-10 animate-spin text-purple-500 mx-auto mb-3" />
-                <p className="text-purple-700 font-semibold">{loadingMessages[msgIndex]}</p>
-                <p className="text-purple-500 text-sm mt-1">Cela peut prendre 10-20 secondes</p>
+                <Loader2 className="w-10 h-10 animate-spin text-arbore-gold/100 mx-auto mb-3" />
+                <p className="text-arbore-ink font-semibold">{loadingMessages[msgIndex]}</p>
+                <p className="text-arbore-gold/100 text-sm mt-1">Cela peut prendre 10-20 secondes</p>
               </motion.div>
             )}
 
@@ -157,7 +157,7 @@ export default function GeneratePage() {
                 key="success"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white rounded-2xl shadow-md overflow-hidden"
+                className="bg-white rounded-card shadow-md overflow-hidden"
               >
                 {/* Image */}
                 <div className="h-48 bg-gradient-to-br from-green-400 to-green-600 relative">
@@ -176,21 +176,21 @@ export default function GeneratePage() {
                 </div>
 
                 <div className="p-6">
-                  <h2 className="text-2xl font-bold text-gray-900 mb-1">{generatedPlant.name}</h2>
-                  <p className="text-gray-500 mb-3">{generatedPlant.translations?.fr?.plantType || generatedPlant.type}</p>
+                  <h2 className="text-2xl font-bold text-arbore-ink mb-1">{generatedPlant.name}</h2>
+                  <p className="text-arbore-muted mb-3">{generatedPlant.translations?.fr?.plantType || generatedPlant.type}</p>
                   {generatedPlant.translations?.fr?.description && (
-                    <p className="text-gray-600 text-sm line-clamp-3 mb-6">{generatedPlant.translations.fr.description}</p>
+                    <p className="text-arbore-muted text-sm line-clamp-3 mb-6">{generatedPlant.translations.fr.description}</p>
                   )}
                   <div className="flex gap-3">
                     <button
                       onClick={() => router.push(`/garden/plant/${generatedPlant.id}?from=catalogue`)}
-                      className="flex-1 py-3 bg-[#234632] hover:bg-[#16291D] text-white font-bold rounded-xl transition-all"
+                      className="flex-1 py-3 bg-[#234632] hover:bg-[#16291D] text-white font-bold rounded-card transition-all"
                     >
                       Voir la fiche complète
                     </button>
                     <button
                       onClick={() => { setPlantName(''); setStatus('idle'); setGeneratedPlant(null); }}
-                      className="flex-1 py-3 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-arbore-beige transition-all"
+                      className="flex-1 py-3 border border-border text-arbore-ink font-semibold rounded-card hover:bg-arbore-beige transition-all"
                     >
                       Générer une autre
                     </button>
@@ -205,14 +205,14 @@ export default function GeneratePage() {
                 key="exists"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-blue-50 border border-blue-200 rounded-2xl p-6 text-center"
+                className="bg-blue-50 border border-blue-200 rounded-card p-6 text-center"
               >
                 <CheckCircle2 className="w-10 h-10 text-blue-500 mx-auto mb-3" />
                 <p className="text-blue-700 font-semibold">Cette plante existe déjà dans le catalogue !</p>
                 <p className="text-blue-500 text-sm mt-1 mb-4">Retrouvez-la dans le catalogue</p>
                 <button
                   onClick={() => router.push('/garden/catalogue')}
-                  className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl transition-all"
+                  className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-card transition-all"
                 >
                   Voir le catalogue
                 </button>
@@ -225,7 +225,7 @@ export default function GeneratePage() {
                 key="error"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center"
+                className="bg-red-50 border border-red-200 rounded-card p-6 text-center"
               >
                 <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
                 <p className="text-red-700 font-semibold">Erreur lors de la génération</p>

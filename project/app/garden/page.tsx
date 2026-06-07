@@ -91,24 +91,24 @@ function GardenContent() {
             <h1 className="text-4xl font-bold text-[#234632] mb-1">
               {garden?.name || 'Mon Jardin'} 🌱
             </h1>
-            <p className="text-gray-500">{plants.length} plante{plants.length !== 1 ? 's' : ''}</p>
+            <p className="text-arbore-muted">{plants.length} plante{plants.length !== 1 ? 's' : ''}</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => router.push('/garden/calendar')}
-              className="bg-gradient-to-r from-[#234632] to-[#2F6B46] text-white font-bold py-2 px-5 rounded-full shadow hover:shadow-lg transition-all flex items-center gap-2"
+              className="bg-gradient-to-r from-[#234632] to-[#2F6B46] text-white font-bold py-2 px-5 rounded-full shadow hover:shadow-card transition-all flex items-center gap-2"
             >
               <Calendar className="w-4 h-4" /> Calendrier
             </button>
             <button
               onClick={() => router.push('/garden/seasons')}
-              className="bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold py-2 px-5 rounded-full shadow hover:shadow-lg transition-all flex items-center gap-2"
+              className="bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold py-2 px-5 rounded-full shadow hover:shadow-card transition-all flex items-center gap-2"
             >
               <CloudSun className="w-4 h-4" /> Saisons
             </button>
             <button
               onClick={() => router.push('/garden/catalogue')}
-              className="bg-gradient-to-r from-[#234632] to-[#2F6B46] text-white font-bold py-2 px-5 rounded-full shadow hover:shadow-lg transition-all flex items-center gap-2"
+              className="bg-gradient-to-r from-[#234632] to-[#2F6B46] text-white font-bold py-2 px-5 rounded-full shadow hover:shadow-card transition-all flex items-center gap-2"
             >
               <Plus className="w-4 h-4" /> Ajouter une plante
             </button>
@@ -129,8 +129,8 @@ function GardenContent() {
             className="text-center py-20"
           >
             <Leaf className="w-20 h-20 text-gray-200 mx-auto mb-4" />
-            <p className="text-xl text-gray-500 mb-2">Ce jardin est vide</p>
-            <p className="text-gray-400 mb-6">Ajoutez des plantes depuis le catalogue</p>
+            <p className="text-xl text-arbore-muted mb-2">Ce jardin est vide</p>
+            <p className="text-arbore-muted mb-6">Ajoutez des plantes depuis le catalogue</p>
             <button
               onClick={() => router.push('/garden/catalogue')}
               className="bg-[#234632] hover:bg-[#16291D] text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all inline-flex items-center gap-2"
@@ -147,7 +147,7 @@ function GardenContent() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: index * 0.1 }}
-                className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all overflow-hidden group cursor-pointer text-left w-full"
+                className="bg-white rounded-card shadow-md hover:shadow-card transition-all overflow-hidden group cursor-pointer text-left w-full"
               >
                 <div className="bg-gradient-to-br from-green-400 to-green-600 h-44 relative overflow-hidden">
                   {plant.imageURLs?.[0] ? (
@@ -163,13 +163,13 @@ function GardenContent() {
                   )}
                 </div>
                 <div className="p-5">
-                  <h3 className="text-lg font-bold text-gray-900 mb-1">{plant.name}</h3>
-                  <p className="text-gray-500 text-sm mb-3">{plant.translations?.fr?.plantType || plant.type}</p>
+                  <h3 className="text-lg font-bold text-arbore-ink mb-1">{plant.name}</h3>
+                  <p className="text-arbore-muted text-sm mb-3">{plant.translations?.fr?.plantType || plant.type}</p>
                   {plant.translations?.fr?.description && (
-                    <p className="text-gray-600 text-sm line-clamp-2 mb-3">{plant.translations.fr.description}</p>
+                    <p className="text-arbore-muted text-sm line-clamp-2 mb-3">{plant.translations.fr.description}</p>
                   )}
                   <div className="flex items-center justify-between text-sm bg-blue-50 -mx-5 -mb-5 px-5 py-3 rounded-b-2xl">
-                    <span className="text-gray-500 flex items-center gap-1">
+                    <span className="text-arbore-muted flex items-center gap-1">
                       <Droplet className="w-4 h-4 text-blue-500" /> Arrosage
                     </span>
                     <span className="font-semibold text-blue-600">

@@ -218,21 +218,21 @@ export default function CalendarPage() {
             <div className="flex items-center gap-4 mb-4">
               <button
                 onClick={() => router.back()}
-                className="flex items-center gap-2 text-gray-600 hover:text-[#234632] transition-colors"
+                className="flex items-center gap-2 text-arbore-muted hover:text-[#234632] transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
                 Retour
               </button>
             </div>
             <h1 className="text-5xl font-bold text-[#234632] mb-2">Calendrier d'Arrosage 📅</h1>
-            <p className="text-lg text-gray-600">Planifiez et suivez l'arrosage de vos plantes</p>
+            <p className="text-lg text-arbore-muted">Planifiez et suivez l'arrosage de vos plantes</p>
           </motion.div>
 
           {plants.length === 0 ? (
             <div className="text-center py-20">
               <Leaf className="w-16 h-16 text-gray-200 mx-auto mb-4" />
-              <p className="text-xl text-gray-500 mb-2">Aucune plante dans vos jardins</p>
-              <p className="text-gray-400 mb-6">Ajoutez des plantes depuis le catalogue pour voir votre calendrier</p>
+              <p className="text-xl text-arbore-muted mb-2">Aucune plante dans vos jardins</p>
+              <p className="text-arbore-muted mb-6">Ajoutez des plantes depuis le catalogue pour voir votre calendrier</p>
               <button
                 onClick={() => router.push('/garden/catalogue')}
                 className="bg-[#234632] hover:bg-[#16291D] text-white font-bold py-3 px-8 rounded-full"
@@ -245,22 +245,22 @@ export default function CalendarPage() {
               <div className="grid lg:grid-cols-3 gap-8">
                 {/* Calendrier */}
                 <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="lg:col-span-2">
-                  <div className="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                  <div className="bg-white rounded-card shadow-lg p-6 md:p-8">
                     <div className="flex items-center justify-between mb-8">
-                      <button onClick={prevMonth} className="p-3 hover:bg-gray-100 rounded-xl transition-colors">
-                        <ChevronLeft size={24} className="text-gray-700" />
+                      <button onClick={prevMonth} className="p-3 hover:bg-gray-100 rounded-card transition-colors">
+                        <ChevronLeft size={24} className="text-arbore-ink" />
                       </button>
-                      <h2 className="text-2xl md:text-3xl font-bold text-gray-800">
+                      <h2 className="text-2xl md:text-3xl font-bold text-arbore-ink">
                         {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
                       </h2>
-                      <button onClick={nextMonth} className="p-3 hover:bg-gray-100 rounded-xl transition-colors">
-                        <ChevronRight size={24} className="text-gray-700" />
+                      <button onClick={nextMonth} className="p-3 hover:bg-gray-100 rounded-card transition-colors">
+                        <ChevronRight size={24} className="text-arbore-ink" />
                       </button>
                     </div>
 
                     <div className="grid grid-cols-7 gap-2 mb-4">
                       {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d) => (
-                        <div key={d} className="text-center font-bold text-gray-700 py-2 text-sm">{d}</div>
+                        <div key={d} className="text-center font-bold text-arbore-ink py-2 text-sm">{d}</div>
                       ))}
                     </div>
 
@@ -277,7 +277,7 @@ export default function CalendarPage() {
                             onClick={() => dateStr && setSelectedDate(isSelected ? null : dateStr)}
                             whileHover={{ scale: day ? 1.05 : 1 }}
                             whileTap={{ scale: day ? 0.95 : 1 }}
-                            className={`aspect-square p-2 rounded-xl border-2 transition-all flex flex-col items-center justify-center ${
+                            className={`aspect-square p-2 rounded-card border-2 transition-all flex flex-col items-center justify-center ${
                               !day
                                 ? 'bg-arbore-beige border-transparent cursor-default'
                                 : isSelected
@@ -285,13 +285,13 @@ export default function CalendarPage() {
                                 : isToday
                                 ? 'bg-blue-50 border-blue-400 shadow-md'
                                 : plantsToWater.length > 0
-                                ? 'bg-green-50 border-green-400 hover:border-green-500 hover:shadow-md'
-                                : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm'
+                                ? 'bg-secondary border-green-400 hover:border-green-500 hover:shadow-card'
+                                : 'bg-white border-border hover:border-border hover:shadow-soft'
                             }`}
                           >
                             {day && (
                               <>
-                                <span className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-gray-800'}`}>{day}</span>
+                                <span className={`font-bold text-sm ${isSelected ? 'text-white' : 'text-arbore-ink'}`}>{day}</span>
                                 {plantsToWater.length > 0 && (
                                   <div className="mt-0.5 flex items-center gap-0.5">
                                     <Droplet size={10} className={`${isSelected ? 'text-white' : 'text-blue-500'} fill-current`} />
@@ -311,10 +311,10 @@ export default function CalendarPage() {
 
                 {/* Sidebar */}
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-                  <div className="bg-white rounded-2xl shadow-lg p-8 sticky top-28">
+                  <div className="bg-white rounded-card shadow-lg p-8 sticky top-28">
                     <div className="flex items-center gap-2 mb-6">
                       <CalendarIcon className="w-6 h-6 text-[#234632]" />
-                      <h3 className="text-xl font-bold text-gray-800">
+                      <h3 className="text-xl font-bold text-arbore-ink">
                         {selectedDate ? 'À arroser ce jour' : 'Sélectionnez une date'}
                       </h3>
                     </div>
@@ -329,18 +329,18 @@ export default function CalendarPage() {
                               initial={{ opacity: 0, y: 10 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: idx * 0.08 }}
-                              className={`p-5 rounded-xl border transition-all ${done ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'}`}
+                              className={`p-5 rounded-card border transition-all ${done ? 'bg-secondary border-green-300' : 'bg-white border-border'}`}
                             >
                               <div className="flex items-center gap-3">
                                 {plant.imageURL ? (
                                   <img src={plant.imageURL} alt={plant.name} className={`w-10 h-10 rounded-lg object-cover ${done ? 'opacity-50' : ''}`} />
                                 ) : (
-                                  <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                                  <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
                                     <Leaf className="w-5 h-5 text-green-600" />
                                   </div>
                                 )}
                                 <div className="flex-1 min-w-0">
-                                  <p className={`font-bold text-base truncate ${done ? 'line-through text-gray-400' : 'text-gray-800'}`}>{plant.name}</p>
+                                  <p className={`font-bold text-base truncate ${done ? 'line-through text-arbore-muted' : 'text-arbore-ink'}`}>{plant.name}</p>
                                   <div className="flex items-center gap-1 text-xs text-blue-500 mt-0.5">
                                     <Droplet size={10} className="fill-current" />
                                     <span>{plant.frequency || `Tous les ${plant.frequencyDays} jours`}</span>
@@ -364,30 +364,30 @@ export default function CalendarPage() {
                     ) : selectedDate ? (
                       <div className="text-center py-10">
                         <div className="text-5xl mb-3">✅</div>
-                        <p className="text-gray-500 font-medium">Aucune plante à arroser ce jour</p>
+                        <p className="text-arbore-muted font-medium">Aucune plante à arroser ce jour</p>
                       </div>
                     ) : (
                       <div className="text-center py-10">
                         <div className="text-5xl mb-3">👆</div>
-                        <p className="text-gray-500 font-medium text-sm">Cliquez sur une date pour voir les plantes à arroser</p>
+                        <p className="text-arbore-muted font-medium text-sm">Cliquez sur une date pour voir les plantes à arroser</p>
                       </div>
                     )}
 
                     {/* Légende */}
-                    <div className="mt-6 pt-4 border-t border-gray-200 space-y-2 text-sm">
+                    <div className="mt-6 pt-4 border-t border-border space-y-2 text-sm">
                       <div className="flex items-center gap-2">
                         <div className="w-5 h-5 rounded bg-blue-50 border-2 border-blue-400" />
-                        <span className="text-gray-600">Aujourd'hui</span>
+                        <span className="text-arbore-muted">Aujourd'hui</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded bg-green-50 border-2 border-green-400 flex items-center justify-center">
+                        <div className="w-5 h-5 rounded bg-secondary border-2 border-green-400 flex items-center justify-center">
                           <Droplet size={10} className="text-blue-500" />
                         </div>
-                        <span className="text-gray-600">À arroser</span>
+                        <span className="text-arbore-muted">À arroser</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-5 h-5 rounded bg-[#234632]" />
-                        <span className="text-gray-600">Sélectionné</span>
+                        <span className="text-arbore-muted">Sélectionné</span>
                       </div>
                     </div>
                   </div>
@@ -401,31 +401,31 @@ export default function CalendarPage() {
                 transition={{ delay: 0.3 }}
                 className="mt-10 grid md:grid-cols-3 gap-4"
               >
-                <div className="bg-white rounded-2xl border border-gray-200 p-5 flex items-center gap-4 shadow-sm">
-                  <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
+                <div className="bg-white rounded-card border border-border p-5 flex items-center gap-4 shadow-soft">
+                  <div className="w-12 h-12 rounded-card bg-secondary flex items-center justify-center shrink-0">
                     <Leaf className="w-6 h-6 text-[#234632]" />
                   </div>
                   <div>
-                    <p className="text-3xl font-bold text-gray-900">{plants.length}</p>
-                    <p className="text-sm text-gray-500">Plantes suivies</p>
+                    <p className="text-3xl font-bold text-arbore-ink">{plants.length}</p>
+                    <p className="text-sm text-arbore-muted">Plantes suivies</p>
                   </div>
                 </div>
-                <div className="bg-white rounded-2xl border border-gray-200 p-5 flex items-center gap-4 shadow-sm">
-                  <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                <div className="bg-white rounded-card border border-border p-5 flex items-center gap-4 shadow-soft">
+                  <div className="w-12 h-12 rounded-card bg-blue-100 flex items-center justify-center shrink-0">
                     <Droplet className="w-6 h-6 text-blue-500" />
                   </div>
                   <div>
-                    <p className="text-3xl font-bold text-gray-900">{totalWateringsThisMonth}</p>
-                    <p className="text-sm text-gray-500">Arrosages ce mois</p>
+                    <p className="text-3xl font-bold text-arbore-ink">{totalWateringsThisMonth}</p>
+                    <p className="text-sm text-arbore-muted">Arrosages ce mois</p>
                   </div>
                 </div>
-                <div className="bg-white rounded-2xl border border-gray-200 p-5 flex items-center gap-4 shadow-sm">
-                  <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
-                    <CalendarIcon className="w-6 h-6 text-purple-500" />
+                <div className="bg-white rounded-card border border-border p-5 flex items-center gap-4 shadow-soft">
+                  <div className="w-12 h-12 rounded-card bg-arbore-gold/15 flex items-center justify-center shrink-0">
+                    <CalendarIcon className="w-6 h-6 text-arbore-gold/100" />
                   </div>
                   <div>
-                    <p className="text-3xl font-bold text-gray-900">{daysWithWatering}</p>
-                    <p className="text-sm text-gray-500">Jours d'arrosage</p>
+                    <p className="text-3xl font-bold text-arbore-ink">{daysWithWatering}</p>
+                    <p className="text-sm text-arbore-muted">Jours d'arrosage</p>
                   </div>
                 </div>
               </motion.div>

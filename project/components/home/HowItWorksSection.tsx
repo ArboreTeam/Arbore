@@ -64,13 +64,13 @@ export function HowItWorksSection() {
                     {step.title}
                   </h3>
                 </div>
-                <p className="text-lg text-gray-600 leading-relaxed">
+                <p className="text-lg text-arbore-muted leading-relaxed">
                   {step.description}
                 </p>
               </div>
 
               <div className={`flex-1 ${index % 2 === 0 ? 'md:order-2' : 'md:order-1'}`}>
-                <div className="aspect-video rounded-2xl bg-gradient-to-br from-[#234632]/10 to-[#8FAF8A]/10 flex items-center justify-center border-2 border-[#234632]/20">
+                <div className="aspect-video rounded-card bg-gradient-to-br from-[#234632]/10 to-[#8FAF8A]/10 flex items-center justify-center border-2 border-[#234632]/20">
                   <step.icon className="w-24 h-24 text-[#234632]" />
                 </div>
               </div>

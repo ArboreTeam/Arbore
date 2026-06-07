@@ -148,7 +148,7 @@ export default function PlantDetailPage() {
         <div className="min-h-screen flex items-center justify-center pt-24">
           <div className="text-center">
             <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-xl text-gray-600">Plante non trouvée</p>
+            <p className="text-xl text-arbore-muted">Plante non trouvée</p>
             <button onClick={() => router.back()} className="mt-4 text-[#234632] font-semibold underline">
               Retour
             </button>
@@ -181,7 +181,7 @@ export default function PlantDetailPage() {
             <button
               onClick={removeFromGarden}
               disabled={removingFromGarden}
-              className="flex items-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white font-bold py-2 px-5 rounded-full shadow-md hover:shadow-lg transition-all"
+              className="flex items-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white font-bold py-2 px-5 rounded-full shadow-md hover:shadow-card transition-all"
             >
               {removingFromGarden ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
               Supprimer du jardin
@@ -189,7 +189,7 @@ export default function PlantDetailPage() {
           ) : (
             <button
               onClick={openGardenModal}
-              className="flex items-center gap-2 bg-[#234632] hover:bg-[#16291D] text-white font-bold py-2 px-5 rounded-full shadow-md hover:shadow-lg transition-all"
+              className="flex items-center gap-2 bg-[#234632] hover:bg-[#16291D] text-white font-bold py-2 px-5 rounded-full shadow-md hover:shadow-card transition-all"
             >
               <Plus className="w-4 h-4" />
               Ajouter à mon jardin
@@ -218,18 +218,18 @@ export default function PlantDetailPage() {
           {/* Description */}
           {fr?.description && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-              className="bg-white rounded-2xl shadow-md p-8">
+              className="bg-white rounded-card shadow-md p-8">
               <h2 className="text-2xl font-bold text-[#234632] mb-3 flex items-center gap-2">
                 <Leaf className="w-6 h-6" /> Description
               </h2>
-              <p className="text-gray-700 text-lg leading-relaxed">{fr.description}</p>
+              <p className="text-arbore-ink text-lg leading-relaxed">{fr.description}</p>
             </motion.div>
           )}
 
           {/* Lumière */}
           {fr?.sun && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-              className="bg-white rounded-2xl shadow-md p-8">
+              className="bg-white rounded-card shadow-md p-8">
               <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <Sun className="w-6 h-6 text-orange-500" /> Lumière
               </h2>
@@ -241,7 +241,7 @@ export default function PlantDetailPage() {
               </div>
               {fr.sun.recommendedRooms?.length > 0 && (
                 <div className="mt-4">
-                  <p className="text-sm font-semibold text-gray-600 mb-2">Pièces recommandées</p>
+                  <p className="text-sm font-semibold text-arbore-muted mb-2">Pièces recommandées</p>
                   <div className="flex flex-wrap gap-2">
                     {fr.sun.recommendedRooms.map((room: string, i: number) => (
                       <span key={i} className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm">{room}</span>
@@ -256,7 +256,7 @@ export default function PlantDetailPage() {
           {/* Arrosage */}
           {fr?.water && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-              className="bg-white rounded-2xl shadow-md p-8">
+              className="bg-white rounded-card shadow-md p-8">
               <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <Droplet className="w-6 h-6 text-blue-500" /> Arrosage
               </h2>
@@ -268,15 +268,15 @@ export default function PlantDetailPage() {
                 {fr.water.recommendedWater && <Info label="Eau recommandée" value={fr.water.recommendedWater} />}
               </div>
               {fr.water.signsLack && (
-                <div className="mt-4 p-4 bg-yellow-50 rounded-xl border border-yellow-200">
+                <div className="mt-4 p-4 bg-yellow-50 rounded-card border border-yellow-200">
                   <p className="text-sm font-semibold text-yellow-700 mb-1">Signes de manque d'eau</p>
-                  <p className="text-gray-700 text-sm">{fr.water.signsLack}</p>
+                  <p className="text-arbore-ink text-sm">{fr.water.signsLack}</p>
                 </div>
               )}
               {fr.water.signsExcess && (
-                <div className="mt-3 p-4 bg-red-50 rounded-xl border border-red-200">
+                <div className="mt-3 p-4 bg-red-50 rounded-card border border-red-200">
                   <p className="text-sm font-semibold text-red-700 mb-1">Signes d'excès d'eau</p>
-                  <p className="text-gray-700 text-sm">{fr.water.signsExcess}</p>
+                  <p className="text-arbore-ink text-sm">{fr.water.signsExcess}</p>
                 </div>
               )}
             </motion.div>
@@ -285,7 +285,7 @@ export default function PlantDetailPage() {
           {/* Santé */}
           {fr?.health && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-              className="bg-white rounded-2xl shadow-md p-8">
+              className="bg-white rounded-card shadow-md p-8">
               <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <ShieldCheck className="w-6 h-6 text-green-500" /> Santé & Maladies
               </h2>
@@ -299,7 +299,7 @@ export default function PlantDetailPage() {
           {/* Cycle de vie */}
           {fr?.lifeCycle && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-              className="bg-white rounded-2xl shadow-md p-8">
+              className="bg-white rounded-card shadow-md p-8">
               <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <Sprout className="w-6 h-6 text-emerald-500" /> Cycle de vie
               </h2>
@@ -316,7 +316,7 @@ export default function PlantDetailPage() {
           {/* Entretien */}
           {fr?.care && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-              className="bg-white rounded-2xl shadow-md p-8">
+              className="bg-white rounded-card shadow-md p-8">
               <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <Heart className="w-6 h-6 text-pink-500" /> Entretien
               </h2>
@@ -335,12 +335,12 @@ export default function PlantDetailPage() {
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-2xl shadow-2xl max-w-md w-full"
+              className="bg-white rounded-card shadow-2xl max-w-md w-full"
             >
-              <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between p-6 border-b border-border">
                 <h2 className="text-xl font-bold text-[#234632]">Choisir un jardin</h2>
                 <button onClick={() => setShowGardenModal(false)}>
-                  <X className="w-6 h-6 text-gray-500 hover:text-gray-700" />
+                  <X className="w-6 h-6 text-arbore-muted hover:text-arbore-ink" />
                 </button>
               </div>
 
@@ -352,7 +352,7 @@ export default function PlantDetailPage() {
                 ) : gardens.length === 0 ? (
                   <div className="text-center py-8">
                     <Leaf className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-gray-500">Aucun jardin trouvé</p>
+                    <p className="text-arbore-muted">Aucun jardin trouvé</p>
                     <button
                       onClick={() => { setShowGardenModal(false); router.push('/welcome'); }}
                       className="mt-3 text-[#234632] font-semibold underline text-sm"
@@ -370,19 +370,19 @@ export default function PlantDetailPage() {
                           key={garden.id}
                           onClick={() => !added && addToGarden(garden)}
                           disabled={added || isLoading}
-                          className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
+                          className={`w-full flex items-center justify-between p-4 rounded-card border-2 transition-all ${
                             added
-                              ? 'border-green-400 bg-green-50'
-                              : 'border-gray-200 hover:border-[#234632] hover:bg-arbore-beige'
+                              ? 'border-green-400 bg-secondary'
+                              : 'border-border hover:border-[#234632] hover:bg-arbore-beige'
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center">
+                            <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-card flex items-center justify-center">
                               <Leaf className="w-5 h-5 text-white" />
                             </div>
                             <div className="text-left">
-                              <p className="font-semibold text-gray-900">{garden.name}</p>
-                              <p className="text-xs text-gray-500">{garden.plants?.length || 0} plante(s)</p>
+                              <p className="font-semibold text-arbore-ink">{garden.name}</p>
+                              <p className="text-xs text-arbore-muted">{garden.plants?.length || 0} plante(s)</p>
                             </div>
                           </div>
                           {isLoading ? (
@@ -390,7 +390,7 @@ export default function PlantDetailPage() {
                           ) : added ? (
                             <CheckCircle2 className="w-5 h-5 text-green-500" />
                           ) : (
-                            <Plus className="w-5 h-5 text-gray-400" />
+                            <Plus className="w-5 h-5 text-arbore-muted" />
                           )}
                         </button>
                       );
@@ -403,7 +403,7 @@ export default function PlantDetailPage() {
                 <div className="px-6 pb-6">
                   <button
                     onClick={() => setShowGardenModal(false)}
-                    className="w-full py-2 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-arbore-beige"
+                    className="w-full py-2 border border-border text-arbore-ink font-semibold rounded-card hover:bg-arbore-beige"
                   >
                     Fermer
                   </button>
@@ -421,9 +421,9 @@ export default function PlantDetailPage() {
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-arbore-beige rounded-xl p-4">
-      <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-1">{label}</p>
-      <p className="text-gray-800 font-medium">{value}</p>
+    <div className="bg-arbore-beige rounded-card p-4">
+      <p className="text-xs text-arbore-muted font-semibold uppercase tracking-wide mb-1">{label}</p>
+      <p className="text-arbore-ink font-medium">{value}</p>
     </div>
   );
 }
@@ -432,12 +432,12 @@ function TagList({ label, items, color }: { label: string; items: string[]; colo
   const colors: any = {
     red: 'bg-red-100 text-red-700',
     orange: 'bg-orange-100 text-orange-700',
-    green: 'bg-green-100 text-green-700',
+    green: 'bg-secondary text-green-700',
     blue: 'bg-blue-100 text-blue-700',
   };
   return (
     <div className="mb-4">
-      <p className="text-sm font-semibold text-gray-600 mb-2">{label}</p>
+      <p className="text-sm font-semibold text-arbore-muted mb-2">{label}</p>
       <div className="flex flex-wrap gap-2">
         {items.map((item, i) => (
           <span key={i} className={`px-3 py-1 rounded-full text-sm ${colors[color]}`}>{item}</span>
@@ -450,10 +450,10 @@ function TagList({ label, items, color }: { label: string; items: string[]; colo
 function CareList({ label, items }: { label: string; items: string[] }) {
   return (
     <div className="mb-4">
-      <p className="text-sm font-semibold text-gray-600 mb-2">{label}</p>
+      <p className="text-sm font-semibold text-arbore-muted mb-2">{label}</p>
       <ul className="space-y-1">
         {items.map((item, i) => (
-          <li key={i} className="flex items-start gap-2 text-gray-700 text-sm">
+          <li key={i} className="flex items-start gap-2 text-arbore-ink text-sm">
             <span className="text-[#234632] mt-0.5">•</span> {item}
           </li>
         ))}
@@ -464,11 +464,11 @@ function CareList({ label, items }: { label: string; items: string[] }) {
 
 function Tips({ items }: { items: string[] }) {
   return (
-    <div className="mt-4 p-4 bg-green-50 rounded-xl border border-green-200">
+    <div className="mt-4 p-4 bg-secondary rounded-card border border-green-200">
       <p className="text-sm font-semibold text-green-700 mb-2">Conseils</p>
       <ul className="space-y-1">
         {items.map((tip, i) => (
-          <li key={i} className="text-gray-700 text-sm flex items-start gap-2">
+          <li key={i} className="text-arbore-ink text-sm flex items-start gap-2">
             <span className="text-green-500 mt-0.5">✓</span> {tip}
           </li>
         ))}

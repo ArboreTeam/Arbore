@@ -92,7 +92,7 @@ export default function HistoryPage() {
           <div className="flex items-center justify-between mb-8">
             <div>
               <h1 className="text-4xl font-bold text-[#234632] mb-1">Historique 📋</h1>
-              <p className="text-gray-500">Vos arrosages enregistrés</p>
+              <p className="text-arbore-muted">Vos arrosages enregistrés</p>
             </div>
             {history.length > 0 && (
               <button
@@ -108,8 +108,8 @@ export default function HistoryPage() {
           {history.length === 0 ? (
             <div className="text-center py-24">
               <History className="w-16 h-16 text-gray-200 mx-auto mb-4" />
-              <p className="text-xl text-gray-400 font-medium">Aucun arrosage enregistré</p>
-              <p className="text-gray-400 text-sm mt-2">Cochez vos arrosages dans le calendrier pour les voir ici</p>
+              <p className="text-xl text-arbore-muted font-medium">Aucun arrosage enregistré</p>
+              <p className="text-arbore-muted text-sm mt-2">Cochez vos arrosages dans le calendrier pour les voir ici</p>
               <button
                 onClick={() => router.push('/garden/calendar')}
                 className="mt-6 bg-[#234632] hover:bg-[#16291D] text-white font-bold py-3 px-8 rounded-full"
@@ -122,7 +122,7 @@ export default function HistoryPage() {
               <AnimatePresence>
                 {sortedDays.map((day) => (
                   <motion.div key={day} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                    <p className="text-sm font-bold text-gray-400 uppercase tracking-wide mb-3">
+                    <p className="text-sm font-bold text-arbore-muted uppercase tracking-wide mb-3">
                       {formatDate(day)}
                     </p>
                     <div className="space-y-3">
@@ -131,19 +131,19 @@ export default function HistoryPage() {
                           key={entry.key}
                           layout
                           exit={{ opacity: 0, x: -20 }}
-                          className="bg-white rounded-2xl border border-gray-200 p-4 flex items-center gap-4 shadow-sm"
+                          className="bg-white rounded-card border border-border p-4 flex items-center gap-4 shadow-soft"
                         >
                           {entry.imageURL ? (
-                            <img src={entry.imageURL} alt={entry.plantName} className="w-12 h-12 rounded-xl object-cover shrink-0" />
+                            <img src={entry.imageURL} alt={entry.plantName} className="w-12 h-12 rounded-card object-cover shrink-0" />
                           ) : (
-                            <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
+                            <div className="w-12 h-12 rounded-card bg-secondary flex items-center justify-center shrink-0">
                               <Leaf className="w-6 h-6 text-green-600" />
                             </div>
                           )}
 
                           <div className="flex-1 min-w-0">
-                            <p className="font-bold text-gray-800 truncate">{entry.plantName}</p>
-                            <p className="text-sm text-gray-500">{entry.plantType}</p>
+                            <p className="font-bold text-arbore-ink truncate">{entry.plantName}</p>
+                            <p className="text-sm text-arbore-muted">{entry.plantType}</p>
                             <div className="flex items-center gap-1 mt-1 text-xs text-blue-500">
                               <Droplet className="w-3 h-3 fill-current" />
                               <span>Arrosé · {formatDate(entry.date)} à {formatTime(entry.wateredAt)}</span>

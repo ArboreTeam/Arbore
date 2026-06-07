@@ -45,14 +45,14 @@ export function SolutionSection() {
               transition={{ duration: 0.5, delay: index * 0.1 }}
               viewport={{ once: true }}
             >
-              <Card className="p-6 h-full hover:shadow-xl transition-all hover:-translate-y-1 border-2 border-gray-100 rounded-2xl bg-white">
-                <div className="w-14 h-14 bg-[#8FAF8A]/10 rounded-xl flex items-center justify-center mb-4">
+              <Card className="p-6 h-full hover:shadow-card transition-all hover:-translate-y-1 border-2 border-border rounded-card bg-white">
+                <div className="w-14 h-14 bg-[#8FAF8A]/10 rounded-card flex items-center justify-center mb-4">
                   <feature.icon className="w-7 h-7 text-[#234632]" />
                 </div>
-                <h3 className="text-lg font-bold text-gray-900 mb-3">
+                <h3 className="text-lg font-bold text-arbore-ink mb-3">
                   {feature.title}
                 </h3>
-                <p className="text-gray-600 text-sm leading-relaxed">
+                <p className="text-arbore-muted text-sm leading-relaxed">
                   {feature.description}
                 </p>
               </Card>

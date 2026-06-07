@@ -8,14 +8,13 @@ import { Footer } from '@/components/shared/Footer';
 import { ChevronLeft, ChevronRight, Droplet, Calendar as CalendarIcon, ArrowLeft, Loader2, Leaf, CheckCircle2, Circle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_URL = '/api/backend';
 
 async function fetchWithAuth(url: string) {
   const token = await getFirebaseToken();
   return fetch(url, {
     headers: {
       'Content-Type': 'application/json',
-      'X-API-Key': process.env.NEXT_PUBLIC_ARBORE_API_KEY || '',
       'Authorization': `Bearer ${token}`,
     },
   });

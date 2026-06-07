@@ -47,11 +47,10 @@ export default function WelcomePage() {
 
       // Appeler l'API backend
       const token = await getFirebaseToken();
-      const response = await fetch(`http://localhost:8080/gardens`, {
+      const response = await fetch(`/api/backend/gardens`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': process.env.NEXT_PUBLIC_ARBORE_API_KEY || '',
           'Authorization': `Bearer ${token}`,
         },
       });
@@ -79,11 +78,10 @@ export default function WelcomePage() {
     if (!confirm('Supprimer ce jardin ? Cette action est irréversible.')) return;
     try {
       const token = await getFirebaseToken();
-      const res = await fetch(`http://localhost:8080/gardens/${gardenId}`, {
+      const res = await fetch(`/api/backend/gardens/${gardenId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': process.env.NEXT_PUBLIC_ARBORE_API_KEY || '',
           'Authorization': `Bearer ${token}`,
         },
       });
@@ -332,11 +330,10 @@ function CreateGardenModal({ onClose, onSuccess, uid }: { onClose: () => void; o
 
       // Appeler l'API backend
       const token = await getFirebaseToken();
-      const response = await fetch('http://localhost:8080/gardens', {
+      const response = await fetch('/api/backend/gardens', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-API-Key': process.env.NEXT_PUBLIC_ARBORE_API_KEY || '',
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(gardenData),

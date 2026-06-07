@@ -9,7 +9,9 @@ import {
 } from 'firebase/auth';
 import { auth } from './firebase';
 
-const BACKEND_URL = 'http://localhost:8080';
+// Proxy same-origin (voir app/api/backend/[...path]/route.ts) :
+// la clé API est injectée côté serveur, jamais exposée au navigateur.
+const BACKEND_URL = '/api/backend';
 
 // Sign up avec Firebase
 export const signUp = async (email: string, password: string, displayName: string) => {

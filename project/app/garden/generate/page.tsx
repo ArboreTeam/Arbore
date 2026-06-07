@@ -9,7 +9,7 @@ import { ArrowLeft, Sparkles, Loader2, CheckCircle2, AlertCircle } from 'lucide-
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect } from 'react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_URL = '/api/backend';
 
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const token = await getFirebaseToken();
@@ -17,7 +17,6 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      'X-API-Key': process.env.NEXT_PUBLIC_ARBORE_API_KEY || '',
       'Authorization': `Bearer ${token}`,
       ...options.headers,
     },

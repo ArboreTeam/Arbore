@@ -58,9 +58,13 @@ stopwords = [
   "test_api_key_12345",
 ]
 
-# Regex de secrets autorisés. La Firebase Web API key d'Arbore est
-# publique par design (bundlée dans GoogleService-Info.plist du .app
-# iOS et dans le futur bundle JS web). Cf. audit du 2026-05-13.
+# Regex de secrets autorisés. Les Firebase API keys d'Arbore sont publiques
+# par design (bundlées côté client : GoogleService-Info.plist du .app iOS,
+# et bundle JS web via project/.env). La sécurité repose sur les Authorized
+# domains + Security Rules, pas sur le masquage de l'apiKey. Cf. audit 2026-05-13.
 regexes = [
+  # apiKey app iOS (com.ArboreUi)
   '''AIzaSyDSqOesYSajdrZVEM5pyp9pydeImKkFRJ8''',
+  # apiKey app Web "Arbore Web" (project/.env)
+  '''AIzaSyB_ug1Nbt-Uoq_1knOA0fEScUghxs69S0M''',
 ]

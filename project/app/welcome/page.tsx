@@ -85,7 +85,7 @@ export default function WelcomePage() {
         <Navbar />
         <div className="min-h-screen flex items-center justify-center pt-24">
           <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#2D5A27]"></div>
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#234632]"></div>
             <p className="mt-4 text-gray-600">Chargement...</p>
           </div>
         </div>
@@ -97,7 +97,7 @@ export default function WelcomePage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-gray-50 pt-24">
+      <main className="min-h-screen bg-arbore-beige pt-24">
         {/* Welcome Section */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
           <motion.div
@@ -105,7 +105,7 @@ export default function WelcomePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h1 className="text-5xl md:text-6xl font-bold text-[#2D5A27] mb-2">
+            <h1 className="text-5xl md:text-6xl font-bold text-[#234632] mb-2">
               Bonjour, {userName} 👋
             </h1>
             <p className="text-xl text-gray-600">Sélectionnez un jardin pour commencer</p>
@@ -120,10 +120,10 @@ export default function WelcomePage() {
             transition={{ duration: 0.6, delay: 0.2 }}
           >
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-[#2D5A27]">Mes Jardins</h2>
+              <h2 className="text-2xl font-bold text-[#234632]">Mes Jardins</h2>
               <Button
                 onClick={() => setShowCreateModal(true)}
-                className="bg-[#2D5A27] hover:bg-[#234520] text-white rounded-lg px-6 flex items-center gap-2"
+                className="bg-[#234632] hover:bg-[#16291D] text-white rounded-lg px-6 flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
                 Créer un jardin
@@ -147,7 +147,7 @@ export default function WelcomePage() {
                       >
                         <div className="flex items-start justify-between mb-4">
                           <div className="bg-green-100 p-3 rounded-lg">
-                            <Sprout className="w-8 h-8 text-[#2D5A27]" />
+                            <Sprout className="w-8 h-8 text-[#234632]" />
                           </div>
                           <div className="flex items-center gap-1 text-sm text-gray-500">
                             <MapPin className="w-4 h-4" />
@@ -162,7 +162,7 @@ export default function WelcomePage() {
                           {garden.wizard?.description || garden.description || 'Aucune description'}
                         </p>
 
-                        <div className="flex items-center gap-2 text-[#2D5A27] font-semibold">
+                        <div className="flex items-center gap-2 text-[#234632] font-semibold">
                           <Leaf className="w-5 h-5" />
                           <span>{garden.plants?.length || 0} plantes</span>
                         </div>
@@ -187,12 +187,12 @@ export default function WelcomePage() {
                 whileHover={{ scale: 1.03, y: -5 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setShowCreateModal(true)}
-                className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 shadow-sm hover:shadow-lg transition-all border-2 border-dashed border-[#2D5A27] cursor-pointer h-full flex flex-col items-center justify-center text-center min-h-[200px]"
+                className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-6 shadow-sm hover:shadow-lg transition-all border-2 border-dashed border-[#234632] cursor-pointer h-full flex flex-col items-center justify-center text-center min-h-[200px]"
               >
                 <div className="bg-white p-4 rounded-full mb-4">
-                  <Plus className="w-10 h-10 text-[#2D5A27]" />
+                  <Plus className="w-10 h-10 text-[#234632]" />
                 </div>
-                <h3 className="text-xl font-bold text-[#2D5A27] mb-2">
+                <h3 className="text-xl font-bold text-[#234632] mb-2">
                   Créer un nouveau jardin
                 </h3>
                 <p className="text-sm text-gray-600">
@@ -210,7 +210,7 @@ export default function WelcomePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3 }}
           >
-            <h2 className="text-2xl font-bold text-[#2D5A27] mb-6">Actions rapides</h2>
+            <h2 className="text-2xl font-bold text-[#234632] mb-6">Actions rapides</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
               {quickActions.map((action, index) => {
                 const IconComponent = action.icon;
@@ -225,7 +225,7 @@ export default function WelcomePage() {
                           : 'bg-white border-gray-200'
                       }`}
                     >
-                      <IconComponent className={`w-12 h-12 mb-4 ${action.highlight ? 'text-purple-500' : 'text-[#2D5A27]'}`} />
+                      <IconComponent className={`w-12 h-12 mb-4 ${action.highlight ? 'text-purple-500' : 'text-[#234632]'}`} />
                       <h3 className={`font-semibold mb-1 ${action.highlight ? 'text-purple-700' : 'text-gray-900'}`}>{action.label}</h3>
                       <p className="text-sm text-gray-600">{action.description}</p>
                     </motion.div>
@@ -243,7 +243,7 @@ export default function WelcomePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.5 }}
           >
-            <h2 className="text-2xl font-bold text-[#2D5A27] mb-6">À découvrir</h2>
+            <h2 className="text-2xl font-bold text-[#234632] mb-6">À découvrir</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
                 { icon: Leaf, title: 'Diagnostic IA', description: 'Analysez la santé de vos plantes avec notre IA' },
@@ -257,7 +257,7 @@ export default function WelcomePage() {
                     whileHover={{ scale: 1.02 }}
                     className="bg-white rounded-xl p-6 shadow-sm border border-gray-200"
                   >
-                    <IconComponent className="w-10 h-10 text-[#2D5A27] mb-4" />
+                    <IconComponent className="w-10 h-10 text-[#234632] mb-4" />
                     <h3 className="font-semibold text-gray-900 mb-2">{feature.title}</h3>
                     <p className="text-sm text-gray-600">{feature.description}</p>
                   </motion.div>
@@ -346,7 +346,7 @@ function CreateGardenModal({ onClose, onSuccess, uid }: { onClose: () => void; o
         className="bg-white rounded-2xl max-w-md w-full p-8 shadow-2xl"
       >
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-[#2D5A27]">Créer un jardin</h2>
+          <h2 className="text-2xl font-bold text-[#234632]">Créer un jardin</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-2xl"
@@ -365,7 +365,7 @@ function CreateGardenModal({ onClose, onSuccess, uid }: { onClose: () => void; o
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2D5A27] focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
               placeholder="Mon jardin principal"
             />
           </div>
@@ -377,7 +377,7 @@ function CreateGardenModal({ onClose, onSuccess, uid }: { onClose: () => void; o
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2D5A27] focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
               placeholder="Décrivez votre jardin..."
               rows={3}
             />
@@ -390,7 +390,7 @@ function CreateGardenModal({ onClose, onSuccess, uid }: { onClose: () => void; o
             <select
               value={formData.location}
               onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2D5A27] focus:border-transparent"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
             >
               <option value="Intérieur">Intérieur</option>
               <option value="Extérieur">Extérieur</option>
@@ -409,7 +409,7 @@ function CreateGardenModal({ onClose, onSuccess, uid }: { onClose: () => void; o
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 bg-[#2D5A27] hover:bg-[#234520] text-white rounded-lg"
+              className="flex-1 bg-[#234632] hover:bg-[#16291D] text-white rounded-lg"
             >
               {isSubmitting ? 'Création...' : 'Créer'}
             </Button>

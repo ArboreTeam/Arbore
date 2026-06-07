@@ -33,7 +33,7 @@ const LoginPage = () => {
     return (
         <>
             <Navbar />
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center pt-24 px-4">
+            <div className="min-h-screen bg-arbore-beige flex items-center justify-center pt-24 px-4">
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -41,7 +41,7 @@ const LoginPage = () => {
                     className="max-w-md w-full"
                 >
                     <div className="bg-white rounded-2xl shadow-lg p-8">
-                        <h1 className="text-3xl font-bold text-[#2D5A27] mb-2 text-center">
+                        <h1 className="text-3xl font-bold text-[#234632] mb-2 text-center">
                             Connexion
                         </h1>
                         <p className="text-gray-600 text-center mb-8">
@@ -66,7 +66,7 @@ const LoginPage = () => {
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
                                     required
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2D5A27] focus:border-transparent"
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
                                     placeholder="votre@email.com"
                                 />
                             </div>
@@ -82,7 +82,7 @@ const LoginPage = () => {
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                     required
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2D5A27] focus:border-transparent"
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
                                     placeholder="••••••••"
                                 />
                             </div>
@@ -90,7 +90,7 @@ const LoginPage = () => {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="w-full bg-[#2D5A27] hover:bg-[#234520] text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="w-full bg-[#234632] hover:bg-[#16291D] text-white font-semibold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {loading ? 'Connexion...' : 'Se connecter'}
                             </button>
@@ -99,7 +99,7 @@ const LoginPage = () => {
                         <div className="mt-6 text-center">
                             <p className="text-gray-600">
                                 Pas encore de compte?{' '}
-                                <a href="/signup" className="text-[#2D5A27] font-semibold hover:underline">
+                                <a href="/signup" className="text-[#234632] font-semibold hover:underline">
                                     S'inscrire
                                 </a>
                             </p>

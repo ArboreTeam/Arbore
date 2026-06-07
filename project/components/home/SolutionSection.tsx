@@ -46,8 +46,8 @@ export function SolutionSection() {
               viewport={{ once: true }}
             >
               <Card className="p-6 h-full hover:shadow-xl transition-all hover:-translate-y-1 border-2 border-gray-100 rounded-2xl bg-white">
-                <div className="w-14 h-14 bg-[#84CC16]/10 rounded-xl flex items-center justify-center mb-4">
-                  <feature.icon className="w-7 h-7 text-[#2D5A27]" />
+                <div className="w-14 h-14 bg-[#8FAF8A]/10 rounded-xl flex items-center justify-center mb-4">
+                  <feature.icon className="w-7 h-7 text-[#234632]" />
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 mb-3">
                   {feature.title}

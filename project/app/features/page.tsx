@@ -57,7 +57,7 @@ export default function FeaturesPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h1 className="text-5xl md:text-6xl font-bold text-[#2D5A27] mb-6">
+            <h1 className="text-5xl md:text-6xl font-bold text-[#234632] mb-6">
               Toutes les fonctionnalités
             </h1>
             <p className="text-xl text-gray-600">
@@ -81,10 +81,10 @@ export default function FeaturesPage() {
               } gap-12 items-center`}
             >
               <div className="flex-1">
-                <div className="w-16 h-16 bg-[#84CC16]/10 rounded-2xl flex items-center justify-center mb-6">
-                  <feature.icon className="w-8 h-8 text-[#2D5A27]" />
+                <div className="w-16 h-16 bg-[#8FAF8A]/10 rounded-2xl flex items-center justify-center mb-6">
+                  <feature.icon className="w-8 h-8 text-[#234632]" />
                 </div>
-                <h2 className="text-3xl font-bold text-[#2D5A27] mb-4">
+                <h2 className="text-3xl font-bold text-[#234632] mb-4">
                   {feature.title}
                 </h2>
                 <p className="text-lg text-gray-600 leading-relaxed">
@@ -93,8 +93,8 @@ export default function FeaturesPage() {
               </div>
 
               <div className="flex-1">
-                <div className="aspect-video rounded-2xl bg-gradient-to-br from-[#2D5A27]/10 to-[#84CC16]/10 flex items-center justify-center border-2 border-[#2D5A27]/20">
-                  <feature.icon className="w-32 h-32 text-[#2D5A27] opacity-30" />
+                <div className="aspect-video rounded-2xl bg-gradient-to-br from-[#234632]/10 to-[#8FAF8A]/10 flex items-center justify-center border-2 border-[#234632]/20">
+                  <feature.icon className="w-32 h-32 text-[#234632] opacity-30" />
                 </div>
               </div>
             </motion.div>
@@ -102,7 +102,7 @@ export default function FeaturesPage() {
         </div>
       </section>
 
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-[#2D5A27]">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-[#234632]">
         <div className="max-w-4xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -116,7 +116,7 @@ export default function FeaturesPage() {
             <p className="text-xl text-green-100 mb-8">
               Commencez gratuitement dès aujourd&apos;hui
             </p>
-            <button className="bg-white text-[#2D5A27] hover:bg-gray-100 px-8 py-4 rounded-full font-semibold text-lg transition-colors">
+            <button className="bg-white text-[#234632] hover:bg-gray-100 px-8 py-4 rounded-full font-semibold text-lg transition-colors">
               Commencer maintenant
             </button>
           </motion.div>

@@ -62,7 +62,7 @@ export default function ProfilePage() {
         <Navbar />
         <div className="min-h-screen flex items-center justify-center pt-24">
           <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#2D5A27]"></div>
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#234632]"></div>
             <p className="mt-4 text-gray-600">Chargement...</p>
           </div>
         </div>
@@ -127,14 +127,14 @@ export default function ProfilePage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-gray-50 pt-24">
+      <main className="min-h-screen bg-arbore-beige pt-24">
         {/* Profile Header Card */}
         <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="bg-gradient-to-r from-[#2D5A27] via-green-600 to-[#3d7a37] rounded-3xl shadow-xl p-8 md:p-12 text-white"
+            className="bg-gradient-to-r from-[#234632] via-green-600 to-[#2F6B46] rounded-3xl shadow-xl p-8 md:p-12 text-white"
           >
             <div className="flex flex-col md:flex-row items-center gap-8">
               {/* Avatar */}
@@ -189,7 +189,7 @@ export default function ProfilePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            <h2 className="text-3xl font-bold text-[#2D5A27] mb-6">Paramètres du compte</h2>
+            <h2 className="text-3xl font-bold text-[#234632] mb-6">Paramètres du compte</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {menuItems.map((item, index) => {
                 const IconComponent = item.icon;
@@ -207,14 +207,14 @@ export default function ProfilePage() {
                         <IconComponent className="w-7 h-7 text-white" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-gray-900 text-lg mb-1 group-hover:text-[#2D5A27] transition-colors">
+                        <h3 className="font-bold text-gray-900 text-lg mb-1 group-hover:text-[#234632] transition-colors">
                           {item.title}
                         </h3>
                         <p className="text-gray-600 text-sm">
                           {item.description}
                         </p>
                       </div>
-                      <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0 group-hover:text-[#2D5A27] transition-colors mt-1" />
+                      <ChevronRight className="w-5 h-5 text-gray-400 flex-shrink-0 group-hover:text-[#234632] transition-colors mt-1" />
                     </div>
                   </motion.button>
                 );

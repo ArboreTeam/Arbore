@@ -128,7 +128,7 @@ export function QuestionnaireModal({ isOpen, onClose }: QuestionnaireModalProps)
             {/* Header */}
             <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-[#2D5A27]">Parlons de votre jardin</h2>
+                <h2 className="text-2xl font-bold text-[#234632]">Parlons de votre jardin</h2>
                 <p className="text-sm text-gray-600">Quelques questions pour vous proposer les meilleurs conseils</p>
               </div>
               <button
@@ -145,7 +145,7 @@ export function QuestionnaireModal({ isOpen, onClose }: QuestionnaireModalProps)
                 initial={{ width: 0 }}
                 animate={{ width: `${progress}%` }}
                 transition={{ duration: 0.3 }}
-                className="h-full bg-[#2D5A27]"
+                className="h-full bg-[#234632]"
               />
             </div>
 
@@ -158,7 +158,7 @@ export function QuestionnaireModal({ isOpen, onClose }: QuestionnaireModalProps)
                     initial={{ opacity: 0.5 }}
                     animate={{
                       opacity: index === currentStep ? 1 : 0.5,
-                      backgroundColor: index <= currentStep ? '#2D5A27' : '#e5e7eb',
+                      backgroundColor: index <= currentStep ? '#234632' : '#e5e7eb',
                     }}
                     className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold"
                     style={{
@@ -179,7 +179,7 @@ export function QuestionnaireModal({ isOpen, onClose }: QuestionnaireModalProps)
               exit={{ opacity: 0, y: -20 }}
               className="p-8"
             >
-              <h3 className="text-2xl font-bold text-[#2D5A27] mb-2">
+              <h3 className="text-2xl font-bold text-[#234632] mb-2">
                 {currentQuestion.title}
               </h3>
               <p className="text-gray-600 mb-8">{currentQuestion.subtitle}</p>
@@ -192,10 +192,10 @@ export function QuestionnaireModal({ isOpen, onClose }: QuestionnaireModalProps)
                       key={index}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className="p-4 border-2 border-gray-300 rounded-lg hover:border-[#2D5A27] hover:bg-[#2D5A27]/5 transition-all text-center"
+                      className="p-4 border-2 border-gray-300 rounded-lg hover:border-[#234632] hover:bg-[#234632]/5 transition-all text-center"
                     >
-                      <IconComponent className="w-12 h-12 text-[#2D5A27] mx-auto mb-3" />
-                      <div className="font-semibold text-[#2D5A27]">{option.label}</div>
+                      <IconComponent className="w-12 h-12 text-[#234632] mx-auto mb-3" />
+                      <div className="font-semibold text-[#234632]">{option.label}</div>
                       <div className="text-sm text-gray-600">{option.description}</div>
                     </motion.button>
                   );
@@ -204,10 +204,10 @@ export function QuestionnaireModal({ isOpen, onClose }: QuestionnaireModalProps)
             </motion.div>
 
             {/* Footer */}
-            <div className="border-t border-gray-200 p-6 flex items-center justify-between gap-4 bg-gray-50">
+            <div className="border-t border-gray-200 p-6 flex items-center justify-between gap-4 bg-arbore-beige">
               <button
                 onClick={onClose}
-                className="text-[#2D5A27] hover:underline text-sm font-medium"
+                className="text-[#234632] hover:underline text-sm font-medium"
               >
                 Passer le questionnaire →
               </button>
@@ -216,14 +216,14 @@ export function QuestionnaireModal({ isOpen, onClose }: QuestionnaireModalProps)
                   <Button
                     variant="outline"
                     onClick={handlePrevious}
-                    className="border-[#2D5A27] text-[#2D5A27]"
+                    className="border-[#234632] text-[#234632]"
                   >
                     ← Précédent
                   </Button>
                 )}
                 <Button
                   onClick={handleNext}
-                  className="bg-[#2D5A27] hover:bg-[#234520] text-white"
+                  className="bg-[#234632] hover:bg-[#16291D] text-white"
                 >
                   {currentStep === questions.length - 1 ? 'Créer mon compte ✓' : 'Suivant →'}
                 </Button>

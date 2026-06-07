@@ -240,7 +240,7 @@ export default function SeasonsPage() {
         <Navbar />
         <div className="min-h-screen flex items-center justify-center pt-24">
           <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#2D5A27]"></div>
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#234632]"></div>
           </div>
         </div>
         <Footer />
@@ -269,7 +269,7 @@ export default function SeasonsPage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-gray-50 pt-24 pb-12">
+      <main className="min-h-screen bg-arbore-beige pt-24 pb-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <motion.div
@@ -280,13 +280,13 @@ export default function SeasonsPage() {
             <div className="flex items-center gap-4 mb-4">
               <button
                 onClick={() => router.push('/garden')}
-                className="flex items-center gap-2 text-gray-600 hover:text-[#2D5A27] transition-colors"
+                className="flex items-center gap-2 text-gray-600 hover:text-[#234632] transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
                 <span>Retour au jardin</span>
               </button>
             </div>
-            <h1 className="text-5xl font-bold text-[#2D5A27] mb-2">Guide des Saisons</h1>
+            <h1 className="text-5xl font-bold text-[#234632] mb-2">Guide des Saisons</h1>
             <p className="text-lg text-gray-600">Découvrez les tâches et conseils pour chaque saison</p>
           </motion.div>
 
@@ -308,7 +308,7 @@ export default function SeasonsPage() {
                   whileTap={{ scale: 0.98 }}
                   className={`relative overflow-hidden rounded-2xl p-6 text-left transition-all ${
                     isSelected
-                      ? 'shadow-2xl ring-4 ring-[#2D5A27] ring-opacity-50'
+                      ? 'shadow-2xl ring-4 ring-[#234632] ring-opacity-50'
                       : 'shadow-lg hover:shadow-xl'
                   }`}
                 >
@@ -324,7 +324,7 @@ export default function SeasonsPage() {
                       animate={{ scale: 1 }}
                       className="absolute top-3 right-3 z-20 bg-white rounded-full p-1"
                     >
-                      <Calendar className="w-5 h-5 text-[#2D5A27]" />
+                      <Calendar className="w-5 h-5 text-[#234632]" />
                     </motion.div>
                   )}
                 </motion.button>
@@ -390,7 +390,7 @@ export default function SeasonsPage() {
                 {/* Tasks */}
                 <div className="bg-white rounded-2xl shadow-lg p-8">
                   <div className="flex items-center gap-3 mb-6">
-                    <div className="bg-[#2D5A27] p-2 rounded-lg">
+                    <div className="bg-[#234632] p-2 rounded-lg">
                       <AlertCircle className="w-6 h-6 text-white" />
                     </div>
                     <h3 className="text-2xl font-bold text-gray-800">Tâches principales</h3>
@@ -402,7 +402,7 @@ export default function SeasonsPage() {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: index * 0.1 }}
-                        className="border-2 border-gray-200 rounded-xl p-4 hover:border-[#2D5A27] transition-all"
+                        className="border-2 border-gray-200 rounded-xl p-4 hover:border-[#234632] transition-all"
                       >
                         <div className="flex items-start justify-between mb-2">
                           <h4 className="font-bold text-gray-800 text-lg">{task.title}</h4>
@@ -435,7 +435,7 @@ export default function SeasonsPage() {
                           transition={{ delay: index * 0.1 }}
                           className="flex items-start gap-3 text-gray-700"
                         >
-                          <span className="text-[#2D5A27] mt-1">✓</span>
+                          <span className="text-[#234632] mt-1">✓</span>
                           <span>{tip}</span>
                         </motion.li>
                       ))}

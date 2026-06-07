@@ -134,7 +134,7 @@ export default function PlantDetailPage() {
       <>
         <Navbar />
         <div className="min-h-screen flex items-center justify-center pt-24">
-          <Loader2 className="w-12 h-12 animate-spin text-[#2D5A27]" />
+          <Loader2 className="w-12 h-12 animate-spin text-[#234632]" />
         </div>
         <Footer />
       </>
@@ -149,7 +149,7 @@ export default function PlantDetailPage() {
           <div className="text-center">
             <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-xl text-gray-600">Plante non trouvée</p>
-            <button onClick={() => router.back()} className="mt-4 text-[#2D5A27] font-semibold underline">
+            <button onClick={() => router.back()} className="mt-4 text-[#234632] font-semibold underline">
               Retour
             </button>
           </div>
@@ -165,13 +165,13 @@ export default function PlantDetailPage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-gray-50 pt-24 pb-16">
+      <main className="min-h-screen bg-arbore-beige pt-24 pb-16">
 
         {/* Barre retour + bouton ajouter */}
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6 flex items-center justify-between">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-[#2D5A27] hover:text-[#1f4620] font-semibold transition-colors"
+            className="flex items-center gap-2 text-[#234632] hover:text-[#16291D] font-semibold transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
             Retour
@@ -189,7 +189,7 @@ export default function PlantDetailPage() {
           ) : (
             <button
               onClick={openGardenModal}
-              className="flex items-center gap-2 bg-[#2D5A27] hover:bg-[#1f4620] text-white font-bold py-2 px-5 rounded-full shadow-md hover:shadow-lg transition-all"
+              className="flex items-center gap-2 bg-[#234632] hover:bg-[#16291D] text-white font-bold py-2 px-5 rounded-full shadow-md hover:shadow-lg transition-all"
             >
               <Plus className="w-4 h-4" />
               Ajouter à mon jardin
@@ -219,7 +219,7 @@ export default function PlantDetailPage() {
           {fr?.description && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
               className="bg-white rounded-2xl shadow-md p-8">
-              <h2 className="text-2xl font-bold text-[#2D5A27] mb-3 flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-[#234632] mb-3 flex items-center gap-2">
                 <Leaf className="w-6 h-6" /> Description
               </h2>
               <p className="text-gray-700 text-lg leading-relaxed">{fr.description}</p>
@@ -230,7 +230,7 @@ export default function PlantDetailPage() {
           {fr?.sun && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
               className="bg-white rounded-2xl shadow-md p-8">
-              <h2 className="text-2xl font-bold text-[#2D5A27] mb-4 flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <Sun className="w-6 h-6 text-orange-500" /> Lumière
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -257,7 +257,7 @@ export default function PlantDetailPage() {
           {fr?.water && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
               className="bg-white rounded-2xl shadow-md p-8">
-              <h2 className="text-2xl font-bold text-[#2D5A27] mb-4 flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <Droplet className="w-6 h-6 text-blue-500" /> Arrosage
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -286,7 +286,7 @@ export default function PlantDetailPage() {
           {fr?.health && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
               className="bg-white rounded-2xl shadow-md p-8">
-              <h2 className="text-2xl font-bold text-[#2D5A27] mb-4 flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <ShieldCheck className="w-6 h-6 text-green-500" /> Santé & Maladies
               </h2>
               {fr.health.commonProblems?.length > 0 && <TagList label="Problèmes courants" items={fr.health.commonProblems} color="red" />}
@@ -300,7 +300,7 @@ export default function PlantDetailPage() {
           {fr?.lifeCycle && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
               className="bg-white rounded-2xl shadow-md p-8">
-              <h2 className="text-2xl font-bold text-[#2D5A27] mb-4 flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <Sprout className="w-6 h-6 text-emerald-500" /> Cycle de vie
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -317,7 +317,7 @@ export default function PlantDetailPage() {
           {fr?.care && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
               className="bg-white rounded-2xl shadow-md p-8">
-              <h2 className="text-2xl font-bold text-[#2D5A27] mb-4 flex items-center gap-2">
+              <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <Heart className="w-6 h-6 text-pink-500" /> Entretien
               </h2>
               {fr.care.weekly?.length > 0 && <CareList label="Chaque semaine" items={fr.care.weekly} />}
@@ -338,7 +338,7 @@ export default function PlantDetailPage() {
               className="bg-white rounded-2xl shadow-2xl max-w-md w-full"
             >
               <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                <h2 className="text-xl font-bold text-[#2D5A27]">Choisir un jardin</h2>
+                <h2 className="text-xl font-bold text-[#234632]">Choisir un jardin</h2>
                 <button onClick={() => setShowGardenModal(false)}>
                   <X className="w-6 h-6 text-gray-500 hover:text-gray-700" />
                 </button>
@@ -347,7 +347,7 @@ export default function PlantDetailPage() {
               <div className="p-6">
                 {loadingGardens ? (
                   <div className="flex justify-center py-8">
-                    <Loader2 className="w-8 h-8 animate-spin text-[#2D5A27]" />
+                    <Loader2 className="w-8 h-8 animate-spin text-[#234632]" />
                   </div>
                 ) : gardens.length === 0 ? (
                   <div className="text-center py-8">
@@ -355,7 +355,7 @@ export default function PlantDetailPage() {
                     <p className="text-gray-500">Aucun jardin trouvé</p>
                     <button
                       onClick={() => { setShowGardenModal(false); router.push('/welcome'); }}
-                      className="mt-3 text-[#2D5A27] font-semibold underline text-sm"
+                      className="mt-3 text-[#234632] font-semibold underline text-sm"
                     >
                       Créer un jardin
                     </button>
@@ -373,7 +373,7 @@ export default function PlantDetailPage() {
                           className={`w-full flex items-center justify-between p-4 rounded-xl border-2 transition-all ${
                             added
                               ? 'border-green-400 bg-green-50'
-                              : 'border-gray-200 hover:border-[#2D5A27] hover:bg-gray-50'
+                              : 'border-gray-200 hover:border-[#234632] hover:bg-arbore-beige'
                           }`}
                         >
                           <div className="flex items-center gap-3">
@@ -386,7 +386,7 @@ export default function PlantDetailPage() {
                             </div>
                           </div>
                           {isLoading ? (
-                            <Loader2 className="w-5 h-5 animate-spin text-[#2D5A27]" />
+                            <Loader2 className="w-5 h-5 animate-spin text-[#234632]" />
                           ) : added ? (
                             <CheckCircle2 className="w-5 h-5 text-green-500" />
                           ) : (
@@ -403,7 +403,7 @@ export default function PlantDetailPage() {
                 <div className="px-6 pb-6">
                   <button
                     onClick={() => setShowGardenModal(false)}
-                    className="w-full py-2 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50"
+                    className="w-full py-2 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-arbore-beige"
                   >
                     Fermer
                   </button>
@@ -421,7 +421,7 @@ export default function PlantDetailPage() {
 
 function Info({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-gray-50 rounded-xl p-4">
+    <div className="bg-arbore-beige rounded-xl p-4">
       <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide mb-1">{label}</p>
       <p className="text-gray-800 font-medium">{value}</p>
     </div>
@@ -454,7 +454,7 @@ function CareList({ label, items }: { label: string; items: string[] }) {
       <ul className="space-y-1">
         {items.map((item, i) => (
           <li key={i} className="flex items-start gap-2 text-gray-700 text-sm">
-            <span className="text-[#2D5A27] mt-0.5">•</span> {item}
+            <span className="text-[#234632] mt-0.5">•</span> {item}
           </li>
         ))}
       </ul>

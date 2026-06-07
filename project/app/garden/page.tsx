@@ -67,19 +67,19 @@ function GardenContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center pt-24">
-        <Loader2 className="w-12 h-12 animate-spin text-[#2D5A27]" />
+        <Loader2 className="w-12 h-12 animate-spin text-[#234632]" />
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 pt-24 pb-16">
+    <main className="min-h-screen bg-arbore-beige pt-24 pb-16">
       {/* Header */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-10">
         <div className="flex items-center gap-4 mb-6">
           <button
             onClick={() => router.push('/welcome')}
-            className="flex items-center gap-2 text-[#2D5A27] hover:text-[#1f4620] font-semibold transition-colors"
+            className="flex items-center gap-2 text-[#234632] hover:text-[#16291D] font-semibold transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
             Mes jardins
@@ -88,7 +88,7 @@ function GardenContent() {
 
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
-            <h1 className="text-4xl font-bold text-[#2D5A27] mb-1">
+            <h1 className="text-4xl font-bold text-[#234632] mb-1">
               {garden?.name || 'Mon Jardin'} 🌱
             </h1>
             <p className="text-gray-500">{plants.length} plante{plants.length !== 1 ? 's' : ''}</p>
@@ -96,7 +96,7 @@ function GardenContent() {
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => router.push('/garden/calendar')}
-              className="bg-gradient-to-r from-[#2D5A27] to-[#3d7a37] text-white font-bold py-2 px-5 rounded-full shadow hover:shadow-lg transition-all flex items-center gap-2"
+              className="bg-gradient-to-r from-[#234632] to-[#2F6B46] text-white font-bold py-2 px-5 rounded-full shadow hover:shadow-lg transition-all flex items-center gap-2"
             >
               <Calendar className="w-4 h-4" /> Calendrier
             </button>
@@ -108,7 +108,7 @@ function GardenContent() {
             </button>
             <button
               onClick={() => router.push('/garden/catalogue')}
-              className="bg-gradient-to-r from-[#2D5A27] to-[#3d7a37] text-white font-bold py-2 px-5 rounded-full shadow hover:shadow-lg transition-all flex items-center gap-2"
+              className="bg-gradient-to-r from-[#234632] to-[#2F6B46] text-white font-bold py-2 px-5 rounded-full shadow hover:shadow-lg transition-all flex items-center gap-2"
             >
               <Plus className="w-4 h-4" /> Ajouter une plante
             </button>
@@ -120,7 +120,7 @@ function GardenContent() {
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {loadingPlants ? (
           <div className="flex justify-center py-20">
-            <Loader2 className="w-10 h-10 animate-spin text-[#2D5A27]" />
+            <Loader2 className="w-10 h-10 animate-spin text-[#234632]" />
           </div>
         ) : plants.length === 0 ? (
           <motion.div
@@ -133,7 +133,7 @@ function GardenContent() {
             <p className="text-gray-400 mb-6">Ajoutez des plantes depuis le catalogue</p>
             <button
               onClick={() => router.push('/garden/catalogue')}
-              className="bg-[#2D5A27] hover:bg-[#1f4620] text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all inline-flex items-center gap-2"
+              className="bg-[#234632] hover:bg-[#16291D] text-white font-bold py-3 px-8 rounded-full shadow-lg transition-all inline-flex items-center gap-2"
             >
               <Plus className="w-5 h-5" /> Parcourir le catalogue
             </button>
@@ -192,7 +192,7 @@ export default function GardenPage() {
       <Navbar />
       <Suspense fallback={
         <div className="min-h-screen flex items-center justify-center pt-24">
-          <Loader2 className="w-12 h-12 animate-spin text-[#2D5A27]" />
+          <Loader2 className="w-12 h-12 animate-spin text-[#234632]" />
         </div>
       }>
         <GardenContent />

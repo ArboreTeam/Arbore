@@ -2,9 +2,16 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { Menu, X, LogOut, User, Settings } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Menu, X, LogOut, User, Settings, Leaf } from 'lucide-react';
 import { onAuthStateChange, logout } from '@/lib/authService';
+
+function Logo() {
+  return (
+    <div className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-primary shadow-soft">
+      <Leaf className="h-5 w-5 text-primary-foreground" />
+    </div>
+  );
+}
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -12,9 +19,7 @@ export function Navbar() {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChange((firebaseUser) => {
-      setUser(firebaseUser);
-    });
+    const unsubscribe = onAuthStateChange((firebaseUser) => setUser(firebaseUser));
     return () => unsubscribe();
   }, []);
 
@@ -25,134 +30,94 @@ export function Navbar() {
     window.location.href = '/';
   };
 
+  const initial = (user?.displayName || user?.email || '?').charAt(0).toUpperCase();
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <Link href={user ? "/welcome" : "/"} className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-[#2D5A27] rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-lg">A</span>
-            </div>
-            <span className="text-xl font-bold text-[#2D5A27]">Arbore</span>
+    <nav className="fixed inset-x-0 top-0 z-50 border-b border-border bg-background/80 backdrop-blur-xl">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between">
+          <Link href={user ? '/welcome' : '/'} className="flex items-center gap-2.5">
+            <Logo />
+            <span className="font-display text-xl font-extrabold text-arbore-green">Arbore</span>
           </Link>
 
-          {/* Menu non connecté */}
+          {/* Non connecté */}
           {!user && (
             <>
-              <div className="hidden md:flex items-center gap-8">
-                <Link
-                  href="/features"
-                  className="text-gray-700 hover:text-[#2D5A27] transition-colors"
-                >
+              <div className="hidden items-center gap-7 md:flex">
+                <Link href="/features" className="text-sm font-semibold text-arbore-muted transition-colors hover:text-arbore-green">
                   Fonctionnalités
                 </Link>
-                <Link
-                  href="/pricing"
-                  className="text-gray-700 hover:text-[#2D5A27] transition-colors"
-                >
+                <Link href="/pricing" className="text-sm font-semibold text-arbore-muted transition-colors hover:text-arbore-green">
                   Tarifs
                 </Link>
-                <Link
-                  href="/about"
-                  className="text-gray-700 hover:text-[#2D5A27] transition-colors"
-                >
+                <Link href="/about" className="text-sm font-semibold text-arbore-muted transition-colors hover:text-arbore-green">
                   À propos
                 </Link>
-                <Link href="/login">
-                  <Button variant="outline" className="border-[#2D5A27] text-[#2D5A27] hover:bg-[#2D5A27] hover:text-white rounded-full">
-                    Connexion
-                  </Button>
+                <Link href="/login" className="btn-arbore-ghost px-5 py-2 text-sm">
+                  Connexion
                 </Link>
-                <Link href="/signup">
-                  <Button className="bg-[#2D5A27] hover:bg-[#234520] text-white rounded-full">
-                    S'inscrire
-                  </Button>
+                <Link href="/signup" className="btn-arbore px-5 py-2 text-sm">
+                  S&apos;inscrire
                 </Link>
               </div>
 
-              <button
-                className="md:hidden"
-                onClick={() => setIsOpen(!isOpen)}
-                aria-label="Toggle menu"
-              >
-                {isOpen ? (
-                  <X className="w-6 h-6 text-gray-700" />
-                ) : (
-                  <Menu className="w-6 h-6 text-gray-700" />
-                )}
+              <button className="md:hidden" onClick={() => setIsOpen(!isOpen)} aria-label="Menu">
+                {isOpen ? <X className="h-6 w-6 text-arbore-green" /> : <Menu className="h-6 w-6 text-arbore-green" />}
               </button>
 
               {isOpen && (
-                <div className="md:hidden absolute top-16 left-0 right-0 bg-white border-b border-gray-200 py-4 px-4 space-y-4">
-                  <Link
-                    href="/features"
-                    className="block text-gray-700 hover:text-[#2D5A27] transition-colors"
-                    onClick={() => setIsOpen(false)}
-                  >
+                <div className="absolute inset-x-0 top-16 space-y-3 border-b border-border bg-background px-4 py-4 md:hidden">
+                  <Link href="/features" className="block font-semibold text-arbore-muted hover:text-arbore-green" onClick={() => setIsOpen(false)}>
                     Fonctionnalités
                   </Link>
-                  <Link
-                    href="/pricing"
-                    className="block text-gray-700 hover:text-[#2D5A27] transition-colors"
-                    onClick={() => setIsOpen(false)}
-                  >
+                  <Link href="/pricing" className="block font-semibold text-arbore-muted hover:text-arbore-green" onClick={() => setIsOpen(false)}>
                     Tarifs
                   </Link>
-                  <Link
-                    href="/about"
-                    className="block text-gray-700 hover:text-[#2D5A27] transition-colors"
-                    onClick={() => setIsOpen(false)}
-                  >
+                  <Link href="/about" className="block font-semibold text-arbore-muted hover:text-arbore-green" onClick={() => setIsOpen(false)}>
                     À propos
                   </Link>
-                  <Link href="/login" onClick={() => setIsOpen(false)} className="w-full block">
-                    <Button variant="outline" className="w-full border-[#2D5A27] text-[#2D5A27] hover:bg-[#2D5A27] hover:text-white rounded-full">
-                      Connexion
-                    </Button>
+                  <Link href="/login" className="btn-arbore-ghost w-full" onClick={() => setIsOpen(false)}>
+                    Connexion
                   </Link>
-                  <Link href="/signup" onClick={() => setIsOpen(false)} className="w-full block">
-                    <Button className="w-full bg-[#2D5A27] hover:bg-[#234520] text-white rounded-full">
-                      S'inscrire
-                    </Button>
+                  <Link href="/signup" className="btn-arbore w-full" onClick={() => setIsOpen(false)}>
+                    S&apos;inscrire
                   </Link>
                 </div>
               )}
             </>
           )}
 
-          {/* Menu connecté */}
+          {/* Connecté */}
           {user && (
-            <div className="flex items-center gap-4 relative">
+            <div className="relative flex items-center gap-4">
               <button
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
-                className="flex items-center gap-2 px-4 py-2 rounded-full hover:bg-gray-100 transition-colors"
+                className="flex items-center gap-2 rounded-pill px-2 py-1.5 transition-colors hover:bg-secondary"
               >
-                <div className="w-8 h-8 bg-[#2D5A27] rounded-full flex items-center justify-center">
-                  <span className="text-white font-bold text-sm">
-                    {user.displayName.charAt(0).toUpperCase()}
-                  </span>
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary">
+                  <span className="text-sm font-bold text-primary-foreground">{initial}</span>
                 </div>
-                <span className="text-sm font-medium text-gray-700 hidden sm:inline">
-                  {user.displayName}
+                <span className="hidden text-sm font-semibold text-arbore-green sm:inline">
+                  {user.displayName || user.email}
                 </span>
               </button>
 
-              {/* Profile Dropdown */}
               {isProfileOpen && (
-                <div className="absolute top-16 right-0 bg-white rounded-lg shadow-lg border border-gray-200 py-2 w-48 z-50">
-                  <Link href="/profile" className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors">
-                    <User className="w-4 h-4" />
+                <div className="arbore-card absolute right-0 top-16 w-52 overflow-hidden p-1.5">
+                  <Link href="/profile" className="flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-sm font-medium text-arbore-green transition-colors hover:bg-secondary">
+                    <User className="h-4 w-4" />
                     <span>Mon profil</span>
                   </Link>
-                  <Link href="/settings" className="flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors">
-                    <Settings className="w-4 h-4" />
+                  <Link href="/settings" className="flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-sm font-medium text-arbore-green transition-colors hover:bg-secondary">
+                    <Settings className="h-4 w-4" />
                     <span>Paramètres</span>
                   </Link>
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50 transition-colors"
+                    className="flex w-full items-center gap-3 rounded-[12px] px-3 py-2.5 text-sm font-medium text-arbore-danger transition-colors hover:bg-arbore-danger/10"
                   >
-                    <LogOut className="w-4 h-4" />
+                    <LogOut className="h-4 w-4" />
                     <span>Déconnexion</span>
                   </button>
                 </div>

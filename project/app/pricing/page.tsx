@@ -56,7 +56,7 @@ export default function PricingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h1 className="text-5xl md:text-6xl font-bold text-[#2D5A27] mb-6">
+            <h1 className="text-5xl md:text-6xl font-bold text-[#234632] mb-6">
               Tarifs simples et transparents
             </h1>
             <p className="text-xl text-gray-600">
@@ -81,12 +81,12 @@ export default function PricingPage() {
                 <Card
                   className={`p-8 h-full rounded-3xl ${
                     plan.popular
-                      ? 'border-4 border-[#2D5A27] shadow-2xl bg-white'
+                      ? 'border-4 border-[#234632] shadow-2xl bg-white'
                       : 'border-2 border-gray-200'
                   }`}
                 >
                   {plan.popular && (
-                    <div className="bg-[#84CC16] text-white text-sm font-bold px-4 py-2 rounded-full inline-block mb-4">
+                    <div className="bg-[#8FAF8A] text-white text-sm font-bold px-4 py-2 rounded-full inline-block mb-4">
                       Le plus populaire
                     </div>
                   )}
@@ -97,7 +97,7 @@ export default function PricingPage() {
                   <p className="text-gray-600 mb-6">{plan.description}</p>
 
                   <div className="mb-8">
-                    <span className="text-5xl font-bold text-[#2D5A27]">
+                    <span className="text-5xl font-bold text-[#234632]">
                       {plan.price}
                     </span>
                     <span className="text-gray-600 ml-2">{plan.period}</span>
@@ -106,8 +106,8 @@ export default function PricingPage() {
                   <Button
                     className={`w-full py-6 text-lg rounded-full mb-8 ${
                       plan.popular
-                        ? 'bg-[#2D5A27] hover:bg-[#234520] text-white'
-                        : 'bg-white border-2 border-[#2D5A27] text-[#2D5A27] hover:bg-[#2D5A27] hover:text-white'
+                        ? 'bg-[#234632] hover:bg-[#16291D] text-white'
+                        : 'bg-white border-2 border-[#234632] text-[#234632] hover:bg-[#234632] hover:text-white'
                     }`}
                   >
                     {plan.cta}
@@ -116,8 +116,8 @@ export default function PricingPage() {
                   <ul className="space-y-4">
                     {plan.features.map((feature, featureIndex) => (
                       <li key={featureIndex} className="flex items-start gap-3">
-                        <div className="w-6 h-6 bg-[#84CC16]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <Check className="w-4 h-4 text-[#2D5A27]" />
+                        <div className="w-6 h-6 bg-[#8FAF8A]/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <Check className="w-4 h-4 text-[#234632]" />
                         </div>
                         <span className="text-gray-700">{feature}</span>
                       </li>
@@ -139,7 +139,7 @@ export default function PricingPage() {
             viewport={{ once: true }}
             className="text-center"
           >
-            <h2 className="text-3xl font-bold text-[#2D5A27] mb-6">
+            <h2 className="text-3xl font-bold text-[#234632] mb-6">
               Questions fréquentes
             </h2>
             <div className="space-y-6 text-left">

@@ -31,7 +31,7 @@ export default function AboutPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h1 className="text-5xl md:text-6xl font-bold text-[#2D5A27] mb-6">
+            <h1 className="text-5xl md:text-6xl font-bold text-[#234632] mb-6">
               Notre mission
             </h1>
             <p className="text-xl text-gray-600">
@@ -71,7 +71,7 @@ export default function AboutPage() {
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-white/50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold text-[#2D5A27] mb-4">
+            <h2 className="text-4xl font-bold text-[#234632] mb-4">
               Nos valeurs
             </h2>
           </div>
@@ -102,8 +102,8 @@ export default function AboutPage() {
                 viewport={{ once: true }}
               >
                 <Card className="p-8 h-full text-center hover:shadow-xl transition-shadow border-2 border-gray-100 rounded-2xl">
-                  <div className="w-16 h-16 bg-[#84CC16]/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <value.icon className="w-8 h-8 text-[#2D5A27]" />
+                  <div className="w-16 h-16 bg-[#8FAF8A]/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <value.icon className="w-8 h-8 text-[#234632]" />
                   </div>
                   <h3 className="text-xl font-bold text-gray-900 mb-4">
                     {value.title}
@@ -127,7 +127,7 @@ export default function AboutPage() {
               transition={{ duration: 0.6 }}
               viewport={{ once: true }}
             >
-              <h2 className="text-4xl font-bold text-[#2D5A27] mb-4">
+              <h2 className="text-4xl font-bold text-[#234632] mb-4">
                 L&apos;équipe fondatrice
               </h2>
               <p className="text-xl text-gray-600">
@@ -146,7 +146,7 @@ export default function AboutPage() {
                 viewport={{ once: true }}
               >
                 <Card className="p-8 h-full hover:shadow-xl transition-shadow border-2 border-gray-100 rounded-2xl">
-                  <div className="w-24 h-24 bg-gradient-to-br from-[#2D5A27] to-[#84CC16] rounded-full mx-auto mb-6 flex items-center justify-center">
+                  <div className="w-24 h-24 bg-gradient-to-br from-[#234632] to-[#8FAF8A] rounded-full mx-auto mb-6 flex items-center justify-center">
                     <span className="text-4xl font-bold text-white">
                       {member.name.split(' ').map(n => n[0]).join('')}
                     </span>
@@ -154,7 +154,7 @@ export default function AboutPage() {
                   <h3 className="text-2xl font-bold text-gray-900 mb-2 text-center">
                     {member.name}
                   </h3>
-                  <p className="text-[#2D5A27] font-semibold mb-4 text-center">
+                  <p className="text-[#234632] font-semibold mb-4 text-center">
                     {member.role}
                   </p>
                   <p className="text-gray-600 leading-relaxed text-center">
@@ -167,7 +167,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-[#2D5A27]">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-[#234632]">
         <div className="max-w-4xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -182,7 +182,7 @@ export default function AboutPage() {
               Nous sommes toujours à l&apos;écoute de notre communauté.
               Vos retours nous aident à améliorer Arbore chaque jour.
             </p>
-            <button className="bg-white text-[#2D5A27] hover:bg-gray-100 px-8 py-4 rounded-full font-semibold text-lg transition-colors">
+            <button className="bg-white text-[#234632] hover:bg-gray-100 px-8 py-4 rounded-full font-semibold text-lg transition-colors">
               Nous contacter
             </button>
           </motion.div>

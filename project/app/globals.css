@@ -4,31 +4,32 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    /* Palette Arbore alignée sur l'app iOS (ArboreDesignSystem.swift) */
+    --background: 40 17% 93%; /* beige chaud #F0EEEA */
+    --foreground: 108 9% 11%; /* encre #1B1F1A */
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    --card-foreground: 108 9% 11%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 116 36% 25%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 84 81% 44%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
+    --popover-foreground: 108 9% 11%;
+    --primary: 146 33% 21%; /* vert forêt #234632 */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 100 23% 90%; /* vert tendre #E3EBDF */
+    --secondary-foreground: 146 33% 21%;
+    --muted: 40 17% 90%;
+    --muted-foreground: 100 4% 44%; /* #6E746B */
+    --accent: 100 23% 90%;
+    --accent-foreground: 146 33% 21%;
+    --destructive: 2 64% 58%; /* #D9534F */
+    --destructive-foreground: 0 0% 100%;
+    --border: 39 17% 84%; /* #DDD8CF */
+    --input: 39 17% 84%;
+    --ring: 146 33% 21%;
+    --chart-1: 146 33% 21%;
+    --chart-2: 112 19% 61%;
+    --chart-3: 37 62% 60%;
+    --chart-4: 131 29% 44%;
+    --chart-5: 100 23% 70%;
+    --radius: 1rem;
   }
 }
 
@@ -37,6 +38,61 @@
     @apply border-border;
   }
   body {
-    @apply bg-gray-50 text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display), system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  /* Carte standard façon iOS : blanche, coins doux, bordure fine, ombre légère */
+  .arbore-card {
+    @apply rounded-card border border-border bg-card shadow-soft;
+  }
+
+  /* Carte « héro » verte (écrans d'accueil / login) */
+  .arbore-hero {
+    @apply rounded-hero bg-primary text-primary-foreground shadow-hero;
+  }
+
+  /* Bouton primaire pilule */
+  .btn-arbore {
+    @apply inline-flex items-center justify-center gap-2 rounded-pill bg-primary px-6 py-3
+      font-semibold text-primary-foreground shadow-soft transition
+      hover:bg-arbore-green-dark active:scale-[0.98] disabled:opacity-60;
+  }
+
+  /* Bouton secondaire (vert tendre) */
+  .btn-arbore-soft {
+    @apply inline-flex items-center justify-center gap-2 rounded-pill bg-secondary px-6 py-3
+      font-semibold text-arbore-green transition hover:brightness-95 active:scale-[0.98];
+  }
+
+  /* Bouton fantôme (contour) */
+  .btn-arbore-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-pill border border-border
+      bg-card px-6 py-3 font-semibold text-arbore-green transition hover:bg-secondary
+      active:scale-[0.98];
+  }
+
+  /* Chip / filtre */
+  .arbore-chip {
+    @apply inline-flex items-center gap-1.5 rounded-pill bg-secondary px-3.5 py-1.5
+      text-sm font-semibold text-arbore-green;
+  }
+  .arbore-chip-active {
+    @apply bg-primary text-primary-foreground;
+  }
+
+  /* Champ de saisie */
+  .arbore-input {
+    @apply w-full rounded-[14px] border border-border bg-card px-4 py-3 text-foreground
+      outline-none transition placeholder:text-muted-foreground
+      focus:border-primary focus:shadow-focus;
   }
 }

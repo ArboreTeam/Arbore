@@ -9,6 +9,20 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: [
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'SF Pro Text',
+          'system-ui',
+          'Segoe UI',
+          'Roboto',
+          'Helvetica Neue',
+          'Arial',
+          'sans-serif',
+        ],
+        display: ['var(--font-display)', 'system-ui', 'sans-serif'],
+      },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic':
@@ -18,8 +32,35 @@ const config: Config = {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
+        // Échelle de rayons iOS (continuous curves)
+        card: '20px',
+        hero: '22px',
+        soft: '28px',
+        pill: '999px',
+      },
+      boxShadow: {
+        // Ombres douces façon iOS (faible opacité, large blur)
+        soft: '0 4px 14px rgba(27, 31, 26, 0.06)',
+        card: '0 8px 24px rgba(27, 31, 26, 0.08)',
+        hero: '0 18px 40px rgba(35, 70, 50, 0.22)',
+        focus: '0 4px 14px rgba(35, 70, 50, 0.16)',
       },
       colors: {
+        // Palette de marque Arbore (alignée sur l'app iOS)
+        arbore: {
+          green: '#234632',
+          'green-dark': '#16291D',
+          'green-mid': '#2F6B46',
+          sage: '#8FAF8A',
+          soft: '#E3EBDF',
+          beige: '#F0EEEA',
+          gold: '#D8A85B',
+          ink: '#1B1F1A',
+          muted: '#6E746B',
+          line: '#DDD8CF',
+          danger: '#D9534F',
+          success: '#4F8F5B',
+        },
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         card: {
@@ -63,20 +104,12 @@ const config: Config = {
       },
       keyframes: {
         'accordion-down': {
-          from: {
-            height: '0',
-          },
-          to: {
-            height: 'var(--radix-accordion-content-height)',
-          },
+          from: { height: '0' },
+          to: { height: 'var(--radix-accordion-content-height)' },
         },
         'accordion-up': {
-          from: {
-            height: 'var(--radix-accordion-content-height)',
-          },
-          to: {
-            height: '0',
-          },
+          from: { height: 'var(--radix-accordion-content-height)' },
+          to: { height: '0' },
         },
       },
       animation: {

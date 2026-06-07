@@ -9,7 +9,7 @@ interface SectionTitleProps {
 export function SectionTitle({ children, subtitle, centered = true }: SectionTitleProps) {
   return (
     <div className={centered ? 'text-center' : ''}>
-      <h2 className="text-3xl md:text-4xl font-bold text-[#2D5A27] mb-4">
+      <h2 className="text-3xl md:text-4xl font-bold text-[#234632] mb-4">
         {children}
       </h2>
       {subtitle && (

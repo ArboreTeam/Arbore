@@ -72,13 +72,13 @@ export default function GeneratePage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-gray-50 pt-24 pb-16">
+      <main className="min-h-screen bg-arbore-beige pt-24 pb-16">
         <div className="max-w-2xl mx-auto px-4 sm:px-6">
 
           {/* Retour */}
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-[#2D5A27] hover:text-[#1f4620] font-semibold transition-colors mb-8"
+            className="flex items-center gap-2 text-[#234632] hover:text-[#16291D] font-semibold transition-colors mb-8"
           >
             <ArrowLeft className="w-5 h-5" />
             Retour
@@ -184,13 +184,13 @@ export default function GeneratePage() {
                   <div className="flex gap-3">
                     <button
                       onClick={() => router.push(`/garden/plant/${generatedPlant.id}?from=catalogue`)}
-                      className="flex-1 py-3 bg-[#2D5A27] hover:bg-[#1f4620] text-white font-bold rounded-xl transition-all"
+                      className="flex-1 py-3 bg-[#234632] hover:bg-[#16291D] text-white font-bold rounded-xl transition-all"
                     >
                       Voir la fiche complète
                     </button>
                     <button
                       onClick={() => { setPlantName(''); setStatus('idle'); setGeneratedPlant(null); }}
-                      className="flex-1 py-3 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-all"
+                      className="flex-1 py-3 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-arbore-beige transition-all"
                     >
                       Générer une autre
                     </button>

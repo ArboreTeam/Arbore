@@ -3,8 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
-import { Sparkles } from 'lucide-react';
+import { Leaf, Sprout } from 'lucide-react';
 import { QuestionnaireModal } from './QuestionnaireModal';
 
 export function HeroSection() {
@@ -12,41 +11,32 @@ export function HeroSection() {
   const router = useRouter();
 
   return (
-    <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+    <section className="px-4 pb-20 pt-32 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="grid grid-cols-1 items-center gap-12 lg:grid-cols-2">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="inline-flex items-center gap-2 bg-[#84CC16]/10 text-[#2D5A27] px-4 py-2 rounded-full mb-6">
-              <Sparkles className="w-4 h-4" />
-              <span className="text-sm font-medium">Grow with harmony</span>
+            <div className="arbore-chip mb-6">
+              <Leaf className="h-4 w-4" />
+              <span>Cultivez en harmonie</span>
             </div>
-            <h1 className="text-5xl md:text-6xl lg:text-7xl font-bold text-[#2D5A27] mb-6 leading-tight">
-              Créez le jardin de vos rêves
+            <h1 className="mb-6 font-display text-5xl font-extrabold leading-[1.05] text-arbore-green md:text-6xl lg:text-7xl">
+              Composez le jardin de vos rêves
             </h1>
-            <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-              Transformez votre espace extérieur avec l&apos;intelligence artificielle.
-              Arbore vous guide pas à pas pour créer un jardin harmonieux et adapté à votre environnement.
+            <p className="mb-8 max-w-xl text-lg leading-relaxed text-arbore-muted">
+              Concevez votre espace en réalité augmentée, recevez des suggestions de plantes
+              adaptées à votre lumière, et gardez chaque plante en pleine forme — sans avoir la main verte.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button
-                size="lg"
-                onClick={() => setIsQuestionnaireOpen(true)}
-                className="bg-[#2D5A27] hover:bg-[#234520] text-white rounded-full text-lg px-8 py-6"
-              >
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button onClick={() => setIsQuestionnaireOpen(true)} className="btn-arbore px-8 py-4 text-base">
                 Commencer gratuitement
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => router.push('/login')}
-                className="border-[#2D5A27] text-[#2D5A27] hover:bg-[#2D5A27] hover:text-white rounded-full text-lg px-8 py-6"
-              >
+              </button>
+              <button onClick={() => router.push('/login')} className="btn-arbore-ghost px-8 py-4 text-base">
                 Se connecter
-              </Button>
+              </button>
             </div>
           </motion.div>
 
@@ -56,19 +46,21 @@ export function HeroSection() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="relative"
           >
-            <div className="aspect-square rounded-3xl bg-gradient-to-br from-[#2D5A27] to-[#84CC16] p-8 shadow-2xl">
-              <div className="w-full h-full rounded-2xl bg-white/10 backdrop-blur-sm flex items-center justify-center">
-                <div className="text-center text-white">
-                  <div className="w-32 h-32 mx-auto mb-4 bg-white/20 rounded-full flex items-center justify-center">
-                    <Sparkles className="w-16 h-16" />
-                  </div>
-                  <p className="text-2xl font-semibold">Votre jardin parfait</p>
-                  <p className="text-lg opacity-90">vous attend</p>
+            {/* Halo organique */}
+            <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-arbore-sage opacity-25 blur-3xl" />
+            <div className="absolute -bottom-10 -left-10 h-48 w-48 rounded-full bg-primary opacity-15 blur-3xl" />
+
+            <div className="arbore-hero relative aspect-square overflow-hidden p-8">
+              {/* lueur radiale */}
+              <div className="pointer-events-none absolute -top-1/3 left-1/2 h-2/3 w-[120%] -translate-x-1/2 rounded-full bg-white/10 blur-3xl" />
+              <div className="flex h-full w-full flex-col items-center justify-center text-center">
+                <div className="mb-6 flex h-28 w-28 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm">
+                  <Sprout className="h-14 w-14 text-primary-foreground" />
                 </div>
+                <p className="font-display text-3xl font-bold text-primary-foreground">Votre jardin parfait</p>
+                <p className="mt-1 text-lg text-primary-foreground/80">prend racine ici</p>
               </div>
             </div>
-            <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-[#84CC16] rounded-full opacity-20 blur-3xl"></div>
-            <div className="absolute -top-6 -left-6 w-32 h-32 bg-[#2D5A27] rounded-full opacity-20 blur-3xl"></div>
           </motion.div>
         </div>
       </div>

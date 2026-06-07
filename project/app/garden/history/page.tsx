@@ -78,12 +78,12 @@ export default function HistoryPage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-gray-50 pt-24 pb-16">
+      <main className="min-h-screen bg-arbore-beige pt-24 pb-16">
         <div className="max-w-2xl mx-auto px-4 sm:px-6">
 
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-[#2D5A27] hover:text-[#1f4620] font-semibold transition-colors mb-6"
+            className="flex items-center gap-2 text-[#234632] hover:text-[#16291D] font-semibold transition-colors mb-6"
           >
             <ArrowLeft className="w-5 h-5" />
             Retour
@@ -91,7 +91,7 @@ export default function HistoryPage() {
 
           <div className="flex items-center justify-between mb-8">
             <div>
-              <h1 className="text-4xl font-bold text-[#2D5A27] mb-1">Historique 📋</h1>
+              <h1 className="text-4xl font-bold text-[#234632] mb-1">Historique 📋</h1>
               <p className="text-gray-500">Vos arrosages enregistrés</p>
             </div>
             {history.length > 0 && (
@@ -112,7 +112,7 @@ export default function HistoryPage() {
               <p className="text-gray-400 text-sm mt-2">Cochez vos arrosages dans le calendrier pour les voir ici</p>
               <button
                 onClick={() => router.push('/garden/calendar')}
-                className="mt-6 bg-[#2D5A27] hover:bg-[#1f4620] text-white font-bold py-3 px-8 rounded-full"
+                className="mt-6 bg-[#234632] hover:bg-[#16291D] text-white font-bold py-3 px-8 rounded-full"
               >
                 Aller au calendrier
               </button>

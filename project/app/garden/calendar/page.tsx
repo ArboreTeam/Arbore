@@ -201,7 +201,7 @@ export default function CalendarPage() {
       <>
         <Navbar />
         <div className="min-h-screen flex items-center justify-center pt-24">
-          <Loader2 className="w-12 h-12 animate-spin text-[#2D5A27]" />
+          <Loader2 className="w-12 h-12 animate-spin text-[#234632]" />
         </div>
         <Footer />
       </>
@@ -211,20 +211,20 @@ export default function CalendarPage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-gray-50 pt-24 pb-12">
+      <main className="min-h-screen bg-arbore-beige pt-24 pb-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
             <div className="flex items-center gap-4 mb-4">
               <button
                 onClick={() => router.back()}
-                className="flex items-center gap-2 text-gray-600 hover:text-[#2D5A27] transition-colors"
+                className="flex items-center gap-2 text-gray-600 hover:text-[#234632] transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
                 Retour
               </button>
             </div>
-            <h1 className="text-5xl font-bold text-[#2D5A27] mb-2">Calendrier d'Arrosage 📅</h1>
+            <h1 className="text-5xl font-bold text-[#234632] mb-2">Calendrier d'Arrosage 📅</h1>
             <p className="text-lg text-gray-600">Planifiez et suivez l'arrosage de vos plantes</p>
           </motion.div>
 
@@ -235,7 +235,7 @@ export default function CalendarPage() {
               <p className="text-gray-400 mb-6">Ajoutez des plantes depuis le catalogue pour voir votre calendrier</p>
               <button
                 onClick={() => router.push('/garden/catalogue')}
-                className="bg-[#2D5A27] hover:bg-[#1f4620] text-white font-bold py-3 px-8 rounded-full"
+                className="bg-[#234632] hover:bg-[#16291D] text-white font-bold py-3 px-8 rounded-full"
               >
                 Parcourir le catalogue
               </button>
@@ -279,9 +279,9 @@ export default function CalendarPage() {
                             whileTap={{ scale: day ? 0.95 : 1 }}
                             className={`aspect-square p-2 rounded-xl border-2 transition-all flex flex-col items-center justify-center ${
                               !day
-                                ? 'bg-gray-50 border-transparent cursor-default'
+                                ? 'bg-arbore-beige border-transparent cursor-default'
                                 : isSelected
-                                ? 'bg-[#2D5A27] border-[#2D5A27] text-white shadow-lg'
+                                ? 'bg-[#234632] border-[#234632] text-white shadow-lg'
                                 : isToday
                                 ? 'bg-blue-50 border-blue-400 shadow-md'
                                 : plantsToWater.length > 0
@@ -313,7 +313,7 @@ export default function CalendarPage() {
                 <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
                   <div className="bg-white rounded-2xl shadow-lg p-8 sticky top-28">
                     <div className="flex items-center gap-2 mb-6">
-                      <CalendarIcon className="w-6 h-6 text-[#2D5A27]" />
+                      <CalendarIcon className="w-6 h-6 text-[#234632]" />
                       <h3 className="text-xl font-bold text-gray-800">
                         {selectedDate ? 'À arroser ce jour' : 'Sélectionnez une date'}
                       </h3>
@@ -386,7 +386,7 @@ export default function CalendarPage() {
                         <span className="text-gray-600">À arroser</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded bg-[#2D5A27]" />
+                        <div className="w-5 h-5 rounded bg-[#234632]" />
                         <span className="text-gray-600">Sélectionné</span>
                       </div>
                     </div>
@@ -403,7 +403,7 @@ export default function CalendarPage() {
               >
                 <div className="bg-white rounded-2xl border border-gray-200 p-5 flex items-center gap-4 shadow-sm">
                   <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
-                    <Leaf className="w-6 h-6 text-[#2D5A27]" />
+                    <Leaf className="w-6 h-6 text-[#234632]" />
                   </div>
                   <div>
                     <p className="text-3xl font-bold text-gray-900">{plants.length}</p>

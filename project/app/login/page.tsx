@@ -1,13 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Sparkles, AlertCircle } from 'lucide-react';
+import { Sprout, AlertCircle, Mail, Lock, Loader2 } from 'lucide-react';
 import { login } from '@/lib/authService';
+import { AppleIcon, GoogleIcon } from '@/components/shared/SocialIcons';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -15,141 +14,124 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get('redirect') || '/welcome';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-
     try {
-      // Connexion avec Firebase
       const user = await login(email, password);
-      
-      // Récupérer le nom d'utilisateur (displayName ou email)
-      const userName = user.displayName || email.split('@')[0];
-      localStorage.setItem('userName', userName);
+      localStorage.setItem('userName', user.displayName || email.split('@')[0]);
       localStorage.setItem('userUID', user.uid);
-
-      // Rediriger vers la page de bienvenue
-      router.push('/welcome');
+      router.push(redirect);
     } catch (err: any) {
       setError(err.message || 'Erreur lors de la connexion');
       setLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#2D5A27] to-[#1a3419] flex items-center justify-center px-4 pt-20">
-      <div className="w-full max-w-md">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="bg-white rounded-2xl shadow-2xl p-8"
-        >
-          {/* Header */}
-          <div className="text-center mb-8">
-            <Link href="/" className="flex items-center justify-center gap-2 mb-6">
-              <div className="w-10 h-10 bg-[#2D5A27] rounded-full flex items-center justify-center">
-                <span className="text-white font-bold text-xl">A</span>
-              </div>
-              <span className="text-2xl font-bold text-[#2D5A27]">Arbore</span>
-            </Link>
-            <h1 className="text-3xl font-bold text-[#2D5A27] mb-2">Bienvenue</h1>
-            <p className="text-gray-600">Connectez-vous à votre compte</p>
-          </div>
+  // Câblage SIWA + Google : phase suivante.
+  const handleSocial = () => setError('La connexion Apple / Google arrive très bientôt.');
 
-          {/* Error Alert */}
+  return (
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12">
+      {/* halo organique */}
+      <div className="pointer-events-none absolute -top-24 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-arbore-sage opacity-25 blur-3xl" />
+
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="relative w-full max-w-md space-y-5"
+      >
+        {/* Carte héro */}
+        <div className="arbore-hero px-8 py-9 text-center">
+          <Link href="/" className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm">
+            <Sprout className="h-8 w-8 text-primary-foreground" />
+          </Link>
+          <h1 className="font-display text-3xl font-extrabold text-primary-foreground">Bienvenue sur Arbore</h1>
+          <p className="mt-1 text-primary-foreground/80">Connectez-vous pour retrouver vos jardins</p>
+        </div>
+
+        {/* Carte formulaire */}
+        <div className="arbore-card p-7">
           {error && (
             <motion.div
-              initial={{ opacity: 0, y: -10 }}
+              initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3"
+              className="mb-5 flex items-start gap-3 rounded-[14px] border border-arbore-danger/30 bg-arbore-danger/10 p-3.5"
             >
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-red-800 text-sm">{error}</p>
+              <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-arbore-danger" />
+              <p className="text-sm text-arbore-danger">{error}</p>
             </motion.div>
           )}
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Adresse email
-              </label>
-              <Input
-                type="email"
-                placeholder="vous@exemple.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2D5A27] focus:border-transparent"
-              />
+              <label className="mb-1.5 block text-sm font-semibold text-arbore-green">Adresse email</label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
+                <input
+                  type="email"
+                  placeholder="vous@exemple.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="arbore-input pl-10"
+                />
+              </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Mot de passe
-              </label>
-              <Input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#2D5A27] focus:border-transparent"
-              />
+              <div className="mb-1.5 flex items-center justify-between">
+                <label className="text-sm font-semibold text-arbore-green">Mot de passe</label>
+                <a href="#" className="text-sm font-semibold text-arbore-green/80 hover:text-arbore-green">Oublié ?</a>
+              </div>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="arbore-input pl-10"
+                />
+              </div>
             </div>
 
-            <div className="flex items-center justify-between text-sm">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" className="w-4 h-4 text-[#2D5A27] rounded" />
-                <span className="text-gray-600">Se souvenir de moi</span>
-              </label>
-              <a href="#" className="text-[#2D5A27] hover:underline">
-                Mot de passe oublié ?
-              </a>
-            </div>
-
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-[#2D5A27] hover:bg-[#234520] text-white rounded-lg py-2 font-medium transition-colors"
-            >
-              {loading ? 'Connexion en cours...' : 'Se connecter'}
-            </Button>
+            <button type="submit" disabled={loading} className="btn-arbore w-full">
+              {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Se connecter'}
+            </button>
           </form>
 
-          {/* Divider */}
-          <div className="my-6 flex items-center gap-4">
-            <div className="flex-1 h-px bg-gray-300"></div>
-            <span className="text-sm text-gray-500">ou</span>
-            <div className="flex-1 h-px bg-gray-300"></div>
+          {/* Séparateur */}
+          <div className="my-5 flex items-center gap-4">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-sm text-arbore-muted">ou</span>
+            <div className="h-px flex-1 bg-border" />
           </div>
 
-          {/* Social Login */}
+          {/* Social */}
           <div className="space-y-3">
-            <Button
-              variant="outline"
-              className="w-full border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg py-2"
-            >
+            <button onClick={handleSocial} className="flex w-full items-center justify-center gap-2.5 rounded-pill bg-arbore-ink py-3 font-semibold text-white transition active:scale-[0.98]">
+              <AppleIcon className="h-5 w-5" />
+              Continuer avec Apple
+            </button>
+            <button onClick={handleSocial} className="flex w-full items-center justify-center gap-2.5 rounded-pill border border-border bg-card py-3 font-semibold text-arbore-ink transition hover:bg-secondary active:scale-[0.98]">
+              <GoogleIcon className="h-5 w-5" />
               Continuer avec Google
-            </Button>
+            </button>
           </div>
 
-          {/* Signup Link */}
-          <p className="text-center text-gray-600 text-sm mt-6">
-            Vous n&apos;avez pas de compte ?{' '}
-            <a href="#" className="text-[#2D5A27] font-semibold hover:underline">
-              S&apos;inscrire
-            </a>
+          <p className="mt-6 text-center text-sm text-arbore-muted">
+            Pas encore de compte ?{' '}
+            <Link href="/signup" className="font-semibold text-arbore-green hover:underline">S&apos;inscrire</Link>
           </p>
-        </motion.div>
-
-        {/* Decorative Elements */}
-        <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-[#84CC16] rounded-full opacity-10 blur-3xl"></div>
-        <div className="absolute -top-10 -left-10 w-40 h-40 bg-[#2D5A27] rounded-full opacity-10 blur-3xl"></div>
-      </div>
-    </div>
+        </div>
+      </motion.div>
+    </main>
   );
 }

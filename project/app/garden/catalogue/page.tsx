@@ -43,12 +43,12 @@ export default function CataloguePage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-gray-50 pt-24 pb-16">
+      <main className="min-h-screen bg-arbore-beige pt-24 pb-16">
         {/* Header */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-[#2D5A27] hover:text-[#1f4620] font-semibold transition-colors mb-6"
+            className="flex items-center gap-2 text-[#234632] hover:text-[#16291D] font-semibold transition-colors mb-6"
           >
             <ArrowLeft className="w-5 h-5" />
             Retour
@@ -56,7 +56,7 @@ export default function CataloguePage() {
 
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-4xl font-bold text-[#2D5A27] mb-1">Catalogue de plantes 🌿</h1>
+              <h1 className="text-4xl font-bold text-[#234632] mb-1">Catalogue de plantes 🌿</h1>
               <p className="text-gray-500">Cliquez sur une plante pour voir ses détails et l'ajouter à votre jardin</p>
             </div>
             <button
@@ -76,7 +76,7 @@ export default function CataloguePage() {
               placeholder="Rechercher une plante..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2D5A27]"
+              className="w-full pl-12 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#234632]"
             />
           </div>
         </section>
@@ -85,7 +85,7 @@ export default function CataloguePage() {
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {loading ? (
             <div className="flex justify-center py-20">
-              <Loader2 className="w-10 h-10 animate-spin text-[#2D5A27]" />
+              <Loader2 className="w-10 h-10 animate-spin text-[#234632]" />
             </div>
           ) : filtered.length === 0 ? (
             <div className="text-center py-20">

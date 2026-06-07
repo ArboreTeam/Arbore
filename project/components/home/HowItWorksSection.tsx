@@ -57,10 +57,10 @@ export function HowItWorksSection() {
             >
               <div className={`flex-1 ${index % 2 === 0 ? 'md:order-1' : 'md:order-2'}`}>
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 bg-[#2D5A27] text-white rounded-full flex items-center justify-center text-xl font-bold">
+                  <div className="w-12 h-12 bg-[#234632] text-white rounded-full flex items-center justify-center text-xl font-bold">
                     {step.number}
                   </div>
-                  <h3 className="text-2xl font-bold text-[#2D5A27]">
+                  <h3 className="text-2xl font-bold text-[#234632]">
                     {step.title}
                   </h3>
                 </div>
@@ -70,8 +70,8 @@ export function HowItWorksSection() {
               </div>
 
               <div className={`flex-1 ${index % 2 === 0 ? 'md:order-2' : 'md:order-1'}`}>
-                <div className="aspect-video rounded-2xl bg-gradient-to-br from-[#2D5A27]/10 to-[#84CC16]/10 flex items-center justify-center border-2 border-[#2D5A27]/20">
-                  <step.icon className="w-24 h-24 text-[#2D5A27]" />
+                <div className="aspect-video rounded-2xl bg-gradient-to-br from-[#234632]/10 to-[#8FAF8A]/10 flex items-center justify-center border-2 border-[#234632]/20">
+                  <step.icon className="w-24 h-24 text-[#234632]" />
                 </div>
               </div>
             </motion.div>

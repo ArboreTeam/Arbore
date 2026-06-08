@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Sprout, AlertCircle, Mail, Lock, Loader2 } from 'lucide-react';
-import { login } from '@/lib/authService';
+import { login, signInWithGoogle, signInWithApple } from '@/lib/authService';
 import { AppleIcon, GoogleIcon } from '@/components/shared/SocialIcons';
 
 export default function LoginPage() {
@@ -32,8 +32,18 @@ export default function LoginPage() {
     }
   };
 
-  // Câblage SIWA + Google : phase suivante.
-  const handleSocial = () => setError('La connexion Apple / Google arrive très bientôt.');
+  const handleProvider = async (fn: () => Promise<any>) => {
+    setError('');
+    try {
+      const user = await fn();
+      localStorage.setItem('userName', user.displayName || user.email?.split('@')[0] || '');
+      localStorage.setItem('userUID', user.uid);
+      router.push(redirect);
+    } catch (err: any) {
+      if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') return;
+      setError(err?.message || 'Connexion impossible');
+    }
+  };
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12">
@@ -116,11 +126,11 @@ export default function LoginPage() {
 
           {/* Social */}
           <div className="space-y-3">
-            <button onClick={handleSocial} className="flex w-full items-center justify-center gap-2.5 rounded-pill bg-arbore-ink py-3 font-semibold text-white transition active:scale-[0.98]">
+            <button onClick={() => handleProvider(signInWithApple)} className="flex w-full items-center justify-center gap-2.5 rounded-pill bg-arbore-ink py-3 font-semibold text-white transition active:scale-[0.98]">
               <AppleIcon className="h-5 w-5" />
               Continuer avec Apple
             </button>
-            <button onClick={handleSocial} className="flex w-full items-center justify-center gap-2.5 rounded-pill border border-border bg-card py-3 font-semibold text-arbore-ink transition hover:bg-secondary active:scale-[0.98]">
+            <button onClick={() => handleProvider(signInWithGoogle)} className="flex w-full items-center justify-center gap-2.5 rounded-pill border border-border bg-card py-3 font-semibold text-arbore-ink transition hover:bg-secondary active:scale-[0.98]">
               <GoogleIcon className="h-5 w-5" />
               Continuer avec Google
             </button>

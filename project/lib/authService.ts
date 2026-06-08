@@ -7,6 +7,9 @@ import {
   updateProfile,
   onAuthStateChanged,
   onIdTokenChanged,
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithPopup,
 } from 'firebase/auth';
 import { auth } from './firebase';
 
@@ -66,6 +69,50 @@ export const signUp = async (email: string, password: string, displayName: strin
   } catch (error: any) {
     throw new Error(error.message);
   }
+};
+
+// Crée (ou ignore si déjà présent) l'enregistrement utilisateur côté backend.
+// Appelé après une connexion OAuth (Apple/Google) où le compte peut être nouveau.
+// Passe par le proxy /api/backend (clé API injectée côté serveur) + token Firebase.
+const ensureBackendUser = async (user: User) => {
+  try {
+    const token = await user.getIdToken();
+    await fetch(`${BACKEND_URL}/users`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        uid: user.uid,
+        email: user.email,
+        name: user.displayName || user.email?.split('@')[0] || 'Utilisateur',
+        createdAt: new Date().toISOString(),
+      }),
+    });
+  } catch (e) {
+    // Non bloquant : Firebase est créé, on ne casse pas le login si le backend échoue.
+    console.error('Synchronisation backend échouée:', e);
+  }
+};
+
+// Connexion avec Google (popup)
+export const signInWithGoogle = async () => {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  const { user } = await signInWithPopup(auth, provider);
+  await ensureBackendUser(user);
+  return user;
+};
+
+// Connexion « Se connecter avec Apple » (popup)
+export const signInWithApple = async () => {
+  const provider = new OAuthProvider('apple.com');
+  provider.addScope('email');
+  provider.addScope('name');
+  const { user } = await signInWithPopup(auth, provider);
+  await ensureBackendUser(user);
+  return user;
 };
 
 // Login avec Firebase

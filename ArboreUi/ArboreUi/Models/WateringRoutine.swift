@@ -219,6 +219,11 @@ enum GardenCareKind: String, Codable, CaseIterable {
     }
 
     var defaultIntervalDays: Int {
+        // Surcharge distante (config /config, issue #236) si disponible,
+        // sinon valeur de repli codée en dur.
+        if let remote = RemoteConfigService.shared.careIntervalDays(forKind: rawValue) {
+            return remote
+        }
         switch self {
         case .pruneLeaves: return 30
         case .cleanLeaves: return 14
@@ -534,6 +539,11 @@ enum WateringFrequency: String, Codable, CaseIterable {
     }
     
     var days: Int {
+        // Surcharge distante (config /config, issue #236) si disponible,
+        // sinon valeur de repli codée en dur.
+        if let remote = RemoteConfigService.shared.wateringDays(forFrequency: rawValue) {
+            return remote
+        }
         switch self {
         case .daily: return 1
         case .twiceWeekly: return 3

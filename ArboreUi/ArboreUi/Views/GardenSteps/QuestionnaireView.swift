@@ -27,9 +27,22 @@ enum GardenStyle: String, CaseIterable, Identifiable {
     case zen = "Zen & japonais"
     case mediterranean = "Méditerranéen"
     case noPreference = "Sans préférence"
-    
+
     var id: String { rawValue }
-    
+
+    /// Clé stable (nom de cas) utilisée pour mapper l'option sur la config
+    /// distante (tier free/premium, issue #236). Indépendante du libellé affiché.
+    var key: String {
+        switch self {
+        case .modern: return "modern"
+        case .floral: return "floral"
+        case .wild: return "wild"
+        case .zen: return "zen"
+        case .mediterranean: return "mediterranean"
+        case .noPreference: return "noPreference"
+        }
+    }
+
     var iconName: String {
         switch self {
         case .modern: return "square.grid.2x2"

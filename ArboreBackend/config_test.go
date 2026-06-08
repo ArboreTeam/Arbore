@@ -40,7 +40,7 @@ func TestGetConfig(t *testing.T) {
 	assert.True(t, ok, "wizard doit être un objet")
 	styles, ok := wizard["gardenStyles"].([]interface{})
 	assert.True(t, ok, "gardenStyles doit être une liste")
-	assert.Len(t, styles, 8)
+	assert.Len(t, styles, 6)
 	for _, s := range styles {
 		opt := s.(map[string]interface{})
 		assert.NotEmpty(t, opt["value"])

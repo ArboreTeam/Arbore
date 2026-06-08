@@ -21,7 +21,11 @@ import (
 
 // configVersion est incrémenté à chaque modification du contenu servi.
 // Les clients peuvent comparer cette valeur pour invalider leur cache local.
-const configVersion = 1
+//
+// v2 : alignement des options du wizard sur les enums réellement consommés par
+// l'iOS (QuestionnaireView.swift) — les `value` correspondent aux noms de cas
+// Swift, les `label` aux rawValue affichés.
+const configVersion = 2
 
 // wizardOption représente une option proposée dans le questionnaire de jardin.
 type wizardOption struct {
@@ -59,92 +63,55 @@ func getConfig(c *gin.Context) {
 		},
 
 		// Options du questionnaire de création de jardin.
+		// `value` = nom du cas Swift (clé stable), `label` = rawValue affiché,
+		// `icon` = iconName (SF Symbol). Aligné sur QuestionnaireView.swift.
 		"wizard": gin.H{
 			// Styles de jardin — premiers candidats au gating premium (#4).
 			"gardenStyles": []wizardOption{
-				free("modern", "Moderne", "square.grid.2x2"),
-				free("traditional", "Traditionnel", "house"),
-				free("japanese", "Japonais", "leaf"),
+				free("modern", "Moderne & minimaliste", "square.grid.2x2"),
+				free("floral", "Fleuri & coloré", "camera.macro"),
+				free("wild", "Champêtre & sauvage", "leaf"),
+				free("zen", "Zen & japonais", "wind"),
 				free("mediterranean", "Méditerranéen", "sun.max"),
-				free("cottage", "Cottage", "house.lodge"),
-				free("tropical", "Tropical", "tree"),
-				free("minimalist", "Minimaliste", "minus.square"),
-				free("wild", "Sauvage/Naturel", "mountain.2"),
+				free("noPreference", "Sans préférence", "sparkles"),
 			},
 
 			// Type d'espace à aménager.
 			"spaceTypes": []wizardOption{
-				free("room", "Pièce", "door.left.hand.closed"),
-				free("outdoor", "Extérieur", "tree"),
-				free("both", "Intérieur/Extérieur", "house.and.flag"),
+				free("garden", "Jardin extérieur", "house.and.flag"),
+				free("balcony", "Terrasse / balcon", "sun.max"),
+				free("interior", "Intérieur d'appartement", "house"),
 			},
 
 			// Exposition au soleil.
 			"sunExposures": []wizardOption{
-				free("fullSun", "Plein soleil (6h+)", "sun.max.fill"),
-				free("partialSun", "Mi-ombre (3-6h)", "cloud.sun.fill"),
-				free("shade", "Ombre (moins de 3h)", "cloud.fill"),
-				free("mixed", "Mixte", "sun.haze.fill"),
+				free("fullSun", "Soleil direct (6h+)", "sun.max"),
+				free("partialShade", "Mi-ombre", "cloud.sun"),
+				free("shade", "Ombragé", "cloud"),
+				free("unknown", "Je ne sais pas", "questionmark.circle"),
 			},
 
-			// Type de sol.
+			// Type de sol (étape affichée seulement pour un jardin extérieur).
 			"soilTypes": []wizardOption{
-				free("clay", "Argileux", "square.stack.3d.up"),
-				free("sandy", "Sableux", "circle.grid.3x3"),
-				free("loamy", "Limoneux", "leaf.circle"),
-				free("chalky", "Calcaire", "mountain.2"),
-				free("peaty", "Tourbeux", "drop.fill"),
+				free("rich", "Riche", "leaf"),
+				free("dry", "Sec", "sun.max"),
+				free("rocky", "Rocailleux", "mountain.2"),
+				free("waterRetentive", "Retient l'eau", "drop"),
 				free("unknown", "Je ne sais pas", "questionmark.circle"),
 			},
 
 			// Niveau d'entretien souhaité.
 			"maintenanceLevels": []wizardOption{
-				free("veryLow", "Très facile (arrosage rare)", "tortoise"),
-				free("low", "Facile (1x/semaine)", "leaf"),
-				free("moderate", "Modéré (2-3x/semaine)", "drop"),
-				free("high", "Intensif (quotidien)", "hare"),
+				free("veryEasy", "Très facile", "hand.thumbsup"),
+				free("easy", "Facile", "leaf"),
+				free("demanding", "Exigeant", "wrench.and.screwdriver"),
 			},
 
-			// Contraintes de sécurité (animaux / enfants).
+			// Contraintes de sécurité (animaux / enfants, multi-sélection).
 			"safetyOptions": []wizardOption{
 				free("pets", "Éviter les plantes toxiques pour les animaux", "pawprint"),
 				free("children", "Éviter les plantes dangereuses pour les enfants", "person.2"),
 				free("none", "Aucune contrainte", "checkmark.shield"),
-			},
-
-			// Densité de plantation.
-			"densityLevels": []wizardOption{
-				free("sparse", "Épuré (peu de plantes)", "circle"),
-				free("moderate", "Modéré", "circle.grid.2x2"),
-				free("dense", "Dense (beaucoup de plantes)", "circle.grid.3x3.fill"),
-			},
-
-			// Niveau d'expérience / complexité des plantes.
-			"complexityLevels": []wizardOption{
-				free("beginner", "Débutant (plantes résistantes)", "1.circle"),
-				free("intermediate", "Intermédiaire", "2.circle"),
-				free("advanced", "Expert (plantes exigeantes)", "3.circle"),
-				free("mixed", "Mixte", "shuffle"),
-			},
-
-			// Budget indicatif.
-			"budgetRanges": []wizardOption{
-				free("low", "Petit budget (< 100€)", "eurosign.circle"),
-				free("medium", "Moyen (100-500€)", "eurosign.circle.fill"),
-				free("high", "Élevé (500-1000€)", "creditcard"),
-				free("unlimited", "Illimité", "infinity"),
-			},
-
-			// Types de plantes recherchés.
-			"plantTypes": []wizardOption{
-				free("flowers", "Fleurs", "camera.macro"),
-				free("shrubs", "Arbustes", "leaf"),
-				free("trees", "Arbres", "tree"),
-				free("vegetables", "Légumes", "carrot"),
-				free("herbs", "Herbes aromatiques", "leaf.circle"),
-				free("succulents", "Succulentes", "drop.triangle"),
-				free("grasses", "Graminées", "scribble.variable"),
-				free("climbers", "Plantes grimpantes", "arrow.up.right"),
 			},
 		},
 

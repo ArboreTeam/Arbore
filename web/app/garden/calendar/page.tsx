@@ -224,7 +224,7 @@ export default function CalendarPage() {
                 Retour
               </button>
             </div>
-            <h1 className="text-5xl font-bold text-[#234632] mb-2">Calendrier d'Arrosage 📅</h1>
+            <h1 className="text-4xl md:text-5xl font-bold text-[#234632] mb-2">Calendrier d'Arrosage 📅</h1>
             <p className="text-lg text-arbore-muted">Planifiez et suivez l'arrosage de vos plantes</p>
           </motion.div>
 
@@ -333,7 +333,7 @@ export default function CalendarPage() {
                             >
                               <div className="flex items-center gap-3">
                                 {plant.imageURL ? (
-                                  <img src={plant.imageURL} alt={plant.name} className={`w-10 h-10 rounded-lg object-cover ${done ? 'opacity-50' : ''}`} />
+                                  <img loading="lazy" decoding="async" src={plant.imageURL} alt={plant.name} className={`w-10 h-10 rounded-lg object-cover ${done ? 'opacity-50' : ''}`} />
                                 ) : (
                                   <div className="w-10 h-10 rounded-lg bg-secondary flex items-center justify-center">
                                     <Leaf className="w-5 h-5 text-green-600" />

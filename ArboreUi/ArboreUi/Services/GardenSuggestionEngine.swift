@@ -46,13 +46,28 @@ final class GardenSuggestionEngine {
     /// Target number of plants to suggest (adjusted by composition rules)
     private let targetPlantCount: Int
 
-    /// Weight for each scoring axis (must sum to ~1.0)
+    /// Weight for each scoring axis (must sum to ~1.0).
+    /// Valeurs de repli codées en dur ; surchargées par la config distante
+    /// (`suggestionEngine.weights`, issue #236) quand elle est disponible.
     private struct Weights {
-        static let style: Double       = 0.30
-        static let exposure: Double    = 0.25
-        static let soil: Double        = 0.20
-        static let maintenance: Double = 0.15
-        static let safety: Double      = 0.10
+        let style: Double
+        let exposure: Double
+        let soil: Double
+        let maintenance: Double
+        let safety: Double
+
+        static let fallback = Weights(
+            style: 0.30, exposure: 0.25, soil: 0.20, maintenance: 0.15, safety: 0.10
+        )
+
+        /// Poids effectifs : config distante si présente, sinon repli.
+        static var resolved: Weights {
+            guard let w = RemoteConfigService.shared.suggestionWeights else { return fallback }
+            return Weights(
+                style: w.style, exposure: w.exposure, soil: w.soil,
+                maintenance: w.maintenance, safety: w.safety
+            )
+        }
     }
 
     init(targetPlantCount: Int = 7) {
@@ -149,12 +164,13 @@ final class GardenSuggestionEngine {
             reasons.append("⚠️ Plante potentiellement toxique")
         }
 
-        // Weighted average
-        let total = styleScore * Weights.style
-            + exposureScore * Weights.exposure
-            + soilScore * Weights.soil
-            + maintenanceScore * Weights.maintenance
-            + safetyScore * Weights.safety
+        // Weighted average (poids distants si disponibles, sinon repli)
+        let weights = Weights.resolved
+        let total = styleScore * weights.style
+            + exposureScore * weights.exposure
+            + soilScore * weights.soil
+            + maintenanceScore * weights.maintenance
+            + safetyScore * weights.safety
 
         if reasons.isEmpty {
             reasons.append("Compatible avec vos critères")

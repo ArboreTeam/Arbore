@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+.gitignore
+npm-debug.log*
+Dockerfile
+.dockerignore
+README.md
+# .env est volontairement INCLUS : config publique NEXT_PUBLIC_* inlinée au build.
+.env*.local

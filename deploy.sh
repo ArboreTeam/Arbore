@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 #
-# deploy.sh — Déploiement automatisé du backend Arbore sur le VPS.
+# deploy.sh — Déploiement automatisé d'Arbore (backend + ai-generator + web) sur le VPS.
 #
 # Enchaîne :
 #   1. git pull --ff-only
 #   2. mongodump pre-deploy → backups/daily/arbore-predeploy-<ISO>.tar.gz
 #   3. rotation des snapshots > 14 jours
-#   4. docker compose build  (backend + ai-generator)
-#   5. docker compose up -d  (backend + ai-generator)
-#   6. health check sur http://localhost:8080/health
+#   4. docker compose build  (backend + ai-generator + web)
+#   5. docker compose up -d  (backend + ai-generator + web)
+#   6. health check backend (localhost:8080/health) + web (localhost:3000/)
 #
 # Codes de sortie :
 #   0   succès
@@ -44,7 +44,7 @@ warn() { printf '%b⚠️  %s%b\n' "$YELLOW" "$1" "$NC"; }
 
 banner() {
     printf '%b========================================%b\n' "$BLUE" "$NC"
-    printf '%b  Arbore Backend — Déploiement Auto    %b\n' "$BLUE" "$NC"
+    printf '%b  Arbore — Déploiement Auto             %b\n' "$BLUE" "$NC"
     printf '%b========================================%b\n' "$BLUE" "$NC"
     echo
 }
@@ -139,7 +139,7 @@ do_docker_build() {
     local git_sha
     git_sha="$(git rev-parse HEAD)"
     step 3 "Docker compose build (commit ${git_sha:0:7})..."
-    if ! "${DOCKER_COMPOSE[@]}" build backend ai-generator; then
+    if ! "${DOCKER_COMPOSE[@]}" build backend ai-generator web; then
         fail "docker compose build a échoué"
         exit 1
     fi
@@ -150,7 +150,7 @@ do_docker_build() {
 # ───── [4/6] Docker compose up ────────────────────────────────────
 do_docker_up() {
     step 4 "Redémarrage des containers..."
-    if ! "${DOCKER_COMPOSE[@]}" up -d backend ai-generator; then
+    if ! "${DOCKER_COMPOSE[@]}" up -d backend ai-generator web; then
         fail "docker compose up a échoué"
         exit 1
     fi
@@ -172,6 +172,18 @@ do_show_logs() {
 # (cf. issue #121 pour la migration HTTPS). Le check est bloquant :
 # un health != 200 fait sortir en erreur pour signaler clairement
 # qu'il faut intervenir.
+# Check web non bloquant : le conteneur Next écoute sur :3000. Un échec n'arrête
+# pas le déploiement (le routage reverse-proxy / Cloudflare peut être posé après).
+check_web() {
+    local code
+    code="$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:3000/ || echo "000")"
+    if [ "$code" = "200" ]; then
+        ok "Web health 200 OK"
+    else
+        warn "Web: HTTP $code sur :3000 (non bloquant — voir 'sudo docker logs --tail 50 arbore-web')"
+    fi
+}
+
 do_health_check() {
     step 6 "Health check..."
     local attempts=0
@@ -181,7 +193,8 @@ do_health_check() {
     while [ "$attempts" -lt "$max_attempts" ]; do
         http_code="$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:8080/health || echo "000")"
         if [ "$http_code" = "200" ]; then
-            ok "Health 200 OK"
+            ok "Backend health 200 OK"
+            check_web
             echo
             return 0
         fi

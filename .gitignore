@@ -121,12 +121,16 @@ yarn-error.log*
 .env
 .env.local
 .env.*.local
+# Exception : config web PUBLIQUE committée (DSN Sentry, etc. — aucun secret).
+!web/.env
 *.key
 *.pem
 secrets/
 
 # Docker
 .dockerignore
+# Exception : le .dockerignore du web est suivi (build Docker léger sur le VPS).
+!web/.dockerignore
 
 # Logs
 logs/

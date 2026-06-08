@@ -111,7 +111,7 @@ export default function ProfilePage() {
             <div className="relative">
               {user.photoURL ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <img loading="lazy" decoding="async"
                   src={user.photoURL}
                   alt=""
                   className="h-24 w-24 rounded-full object-cover ring-4 ring-white shadow-hero"

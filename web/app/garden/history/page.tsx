@@ -134,7 +134,7 @@ export default function HistoryPage() {
                           className="bg-white rounded-card border border-border p-4 flex items-center gap-4 shadow-soft"
                         >
                           {entry.imageURL ? (
-                            <img src={entry.imageURL} alt={entry.plantName} className="w-12 h-12 rounded-card object-cover shrink-0" />
+                            <img loading="lazy" decoding="async" src={entry.imageURL} alt={entry.plantName} className="w-12 h-12 rounded-card object-cover shrink-0" />
                           ) : (
                             <div className="w-12 h-12 rounded-card bg-secondary flex items-center justify-center shrink-0">
                               <Leaf className="w-6 h-6 text-green-600" />

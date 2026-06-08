@@ -311,7 +311,7 @@ export default function SeasonsPage() {
                 <span>Retour au jardin</span>
               </button>
             </div>
-            <h1 className="text-5xl font-bold text-[#234632] mb-2">Guide des Saisons</h1>
+            <h1 className="text-4xl md:text-5xl font-bold text-[#234632] mb-2">Guide des Saisons</h1>
             <p className="text-lg text-arbore-muted">Découvrez les tâches et conseils pour chaque saison</p>
           </motion.div>
 
@@ -490,7 +490,7 @@ export default function SeasonsPage() {
                                   <div className="h-24 overflow-hidden bg-arbore-soft">
                                     {p.imageURLs?.[0] ? (
                                       // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={p.imageURLs[0]} alt={p.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                                      <img loading="lazy" decoding="async" src={p.imageURLs[0]} alt={p.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
                                     ) : (
                                       <div className="flex h-full items-center justify-center"><Leaf className="h-8 w-8 text-arbore-sage" /></div>
                                     )}

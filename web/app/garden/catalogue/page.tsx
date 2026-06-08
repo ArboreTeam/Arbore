@@ -98,7 +98,7 @@ export default function CataloguePage() {
                   {/* Image + overlay + nom (façon PlantCard iOS) */}
                   <div className="relative h-52 overflow-hidden bg-arbore-soft">
                     {plant.imageURLs?.[0] ? (
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={plant.imageURLs[0]}
                         alt={plant.name}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"

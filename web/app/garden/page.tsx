@@ -151,7 +151,7 @@ function GardenContent() {
               >
                 <div className="bg-gradient-to-br from-green-400 to-green-600 h-44 relative overflow-hidden">
                   {plant.imageURLs?.[0] ? (
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={plant.imageURLs[0]}
                       alt={plant.name}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform"

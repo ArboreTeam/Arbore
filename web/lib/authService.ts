@@ -24,10 +24,12 @@ const BACKEND_URL = '/api/backend';
 // et au rafraîchissement horaire du token, gardant le cookie à jour.
 const SESSION_COOKIE = 'arbore_auth';
 if (typeof document !== 'undefined') {
+  // Secure uniquement en HTTPS (sinon le cookie ne serait pas posé en dev localhost).
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
   onIdTokenChanged(auth, (user) => {
     document.cookie = user
-      ? `${SESSION_COOKIE}=1; path=/; max-age=3600; SameSite=Lax`
-      : `${SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+      ? `${SESSION_COOKIE}=1; path=/; max-age=3600; SameSite=Lax${secure}`
+      : `${SESSION_COOKIE}=; path=/; max-age=0; SameSite=Lax${secure}`;
   });
 }
 

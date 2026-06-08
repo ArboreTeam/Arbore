@@ -19,9 +19,22 @@ export const runtime = 'nodejs';
 const BACKEND_URL = (process.env.BACKEND_API_URL || 'http://localhost:8080').replace(/\/+$/, '');
 const API_KEY = process.env.ARBORE_API_KEY || '';
 
+// Allowlist des préfixes backend exposés via le proxy (défense en profondeur :
+// empêche d'utiliser le proxy comme relais générique vers tout endpoint interne).
+const ALLOWED_PREFIXES = new Set(['users', 'plants', 'gardens', 'consents', 'models']);
+
 async function proxy(req: Request, path: string[]) {
+  // Anti-traversal + allowlist.
+  if (
+    path.length === 0 ||
+    !ALLOWED_PREFIXES.has(path[0]) ||
+    path.some((seg) => seg === '..' || seg === '' || seg.includes('\\'))
+  ) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const { search } = new URL(req.url);
-  const target = `${BACKEND_URL}/${path.join('/')}${search}`;
+  const target = `${BACKEND_URL}/${path.map(encodeURIComponent).join('/')}${search}`;
 
   const headers = new Headers();
   headers.set('X-API-Key', API_KEY);

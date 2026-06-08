@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { Nunito } from 'next/font/google';
+import { OfflineBanner } from '@/components/shared/OfflineBanner';
 
 // Police d'affichage arrondie et chaleureuse (proche de SF Rounded utilisé par l'app iOS).
 // Le corps de texte utilise la pile système (-apple-system…) = SF sur les appareils Apple.
@@ -24,7 +25,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr" className={display.variable}>
-      <body>{children}</body>
+      <body>
+        <OfflineBanner />
+        {children}
+      </body>
     </html>
   );
 }

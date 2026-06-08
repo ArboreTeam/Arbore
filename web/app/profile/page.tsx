@@ -186,7 +186,9 @@ export default function ProfilePage() {
             </div>
           </section>
 
-          <p className="pt-2 text-center text-xs text-arbore-muted">Arbore — bêta publique</p>
+          <p className="pt-2 text-center text-xs text-arbore-muted">
+            Arbore Web · v{process.env.NEXT_PUBLIC_APP_VERSION} · bêta publique
+          </p>
         </div>
       </main>
       <Footer />

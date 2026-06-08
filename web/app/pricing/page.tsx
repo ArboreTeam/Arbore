@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Check } from 'lucide-react';
 
 const plans = [
@@ -25,7 +24,7 @@ const plans = [
   },
   {
     name: 'Premium',
-    price: '3,99€',
+    price: '4,99€',
     period: 'par mois',
     description: 'Pour les jardiniers passionnés',
     features: [
@@ -60,8 +59,11 @@ export default function PricingPage() {
               Tarifs simples et transparents
             </h1>
             <p className="text-xl text-arbore-muted">
-              Choisissez le plan qui correspond à vos besoins
+              Les tarifs qui s&apos;appliqueront après la bêta
             </p>
+            <div className="mt-6 inline-flex items-center gap-2 rounded-pill bg-secondary px-5 py-2.5 text-sm font-semibold text-arbore-green">
+              🌱 Pendant la bêta publique, Arbore est entièrement gratuit — aucun abonnement requis.
+            </div>
           </motion.div>
         </div>
       </section>
@@ -103,15 +105,7 @@ export default function PricingPage() {
                     <span className="text-arbore-muted ml-2">{plan.period}</span>
                   </div>
 
-                  <Button
-                    className={`w-full py-6 text-lg rounded-full mb-8 ${
-                      plan.popular
-                        ? 'bg-[#234632] hover:bg-[#16291D] text-white'
-                        : 'bg-white border-2 border-[#234632] text-[#234632] hover:bg-[#234632] hover:text-white'
-                    }`}
-                  >
-                    {plan.cta}
-                  </Button>
+                  <div className="mb-8 h-px w-full bg-border" />
 
                   <ul className="space-y-4">
                     {plan.features.map((feature, featureIndex) => (
@@ -154,10 +148,11 @@ export default function PricingPage() {
               </div>
               <div>
                 <h3 className="text-xl font-semibold text-arbore-ink mb-2">
-                  Y a-t-il une période d&apos;essai ?
+                  Combien coûte Arbore pendant la bêta ?
                 </h3>
                 <p className="text-arbore-muted">
-                  Oui, vous bénéficiez de 7 jours d&apos;essai gratuit sur le plan Premium pour tester toutes les fonctionnalités.
+                  Rien : pendant la bêta publique, toutes les fonctionnalités sont gratuites.
+                  Les abonnements ci-dessus ne s&apos;activeront qu&apos;après la bêta.
                 </p>
               </div>
               <div>

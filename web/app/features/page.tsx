@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
@@ -114,11 +115,11 @@ export default function FeaturesPage() {
               Prêt à créer votre jardin ?
             </h2>
             <p className="text-xl text-green-100 mb-8">
-              Commencez gratuitement dès aujourd&apos;hui
+              Rejoignez la bêta publique dès aujourd&apos;hui
             </p>
-            <button className="bg-white text-[#234632] hover:bg-gray-100 px-8 py-4 rounded-full font-semibold text-lg transition-colors">
-              Commencer maintenant
-            </button>
+            <Link href="/signup" className="inline-block bg-white text-[#234632] hover:bg-gray-100 px-8 py-4 rounded-full font-semibold text-lg transition-colors">
+              Rejoindre la bêta
+            </Link>
           </motion.div>
         </div>
       </section>

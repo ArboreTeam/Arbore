@@ -32,7 +32,7 @@ export function HeroSection() {
             </p>
             <div className="flex flex-col gap-3 sm:flex-row">
               <button onClick={() => setIsQuestionnaireOpen(true)} className="btn-arbore px-8 py-4 text-base">
-                Commencer gratuitement
+                Découvrir Arbore
               </button>
               <button onClick={() => router.push('/login')} className="btn-arbore-ghost px-8 py-4 text-base">
                 Se connecter

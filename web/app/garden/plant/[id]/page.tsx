@@ -181,7 +181,7 @@ export default function PlantDetailPage() {
             <button
               onClick={removeFromGarden}
               disabled={removingFromGarden}
-              className="flex items-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white font-bold py-2 px-5 rounded-full shadow-md hover:shadow-card transition-all"
+              className="flex items-center gap-2 bg-red-500 hover:bg-red-600 disabled:opacity-60 text-white font-bold py-2 px-5 rounded-full shadow-soft hover:shadow-card transition-all"
             >
               {removingFromGarden ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
               Supprimer du jardin
@@ -189,7 +189,7 @@ export default function PlantDetailPage() {
           ) : (
             <button
               onClick={openGardenModal}
-              className="flex items-center gap-2 bg-[#234632] hover:bg-[#16291D] text-white font-bold py-2 px-5 rounded-full shadow-md hover:shadow-card transition-all"
+              className="flex items-center gap-2 bg-[#234632] hover:bg-[#16291D] text-white font-bold py-2 px-5 rounded-full shadow-soft hover:shadow-card transition-all"
             >
               <Plus className="w-4 h-4" />
               Ajouter à mon jardin
@@ -203,7 +203,7 @@ export default function PlantDetailPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-3xl overflow-hidden shadow-lg relative h-80 bg-gradient-to-br from-green-400 to-green-700"
+            className="rounded-3xl overflow-hidden shadow-card relative h-80 bg-gradient-to-br from-arbore-sage to-arbore-green"
           >
             {image && (
               <img src={image} alt={plant.name} className="w-full h-full object-cover absolute inset-0" />
@@ -218,7 +218,7 @@ export default function PlantDetailPage() {
           {/* Description */}
           {fr?.description && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-              className="bg-white rounded-card shadow-md p-8">
+              className="bg-white rounded-card shadow-soft p-8">
               <h2 className="text-2xl font-bold text-[#234632] mb-3 flex items-center gap-2">
                 <Leaf className="w-6 h-6" /> Description
               </h2>
@@ -229,7 +229,7 @@ export default function PlantDetailPage() {
           {/* Lumière */}
           {fr?.sun && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-              className="bg-white rounded-card shadow-md p-8">
+              className="bg-white rounded-card shadow-soft p-8">
               <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <Sun className="w-6 h-6 text-orange-500" /> Lumière
               </h2>
@@ -256,7 +256,7 @@ export default function PlantDetailPage() {
           {/* Arrosage */}
           {fr?.water && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-              className="bg-white rounded-card shadow-md p-8">
+              className="bg-white rounded-card shadow-soft p-8">
               <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <Droplet className="w-6 h-6 text-blue-500" /> Arrosage
               </h2>
@@ -285,7 +285,7 @@ export default function PlantDetailPage() {
           {/* Santé */}
           {fr?.health && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-              className="bg-white rounded-card shadow-md p-8">
+              className="bg-white rounded-card shadow-soft p-8">
               <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <ShieldCheck className="w-6 h-6 text-green-500" /> Santé & Maladies
               </h2>
@@ -299,7 +299,7 @@ export default function PlantDetailPage() {
           {/* Cycle de vie */}
           {fr?.lifeCycle && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-              className="bg-white rounded-card shadow-md p-8">
+              className="bg-white rounded-card shadow-soft p-8">
               <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <Sprout className="w-6 h-6 text-emerald-500" /> Cycle de vie
               </h2>
@@ -316,7 +316,7 @@ export default function PlantDetailPage() {
           {/* Entretien */}
           {fr?.care && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-              className="bg-white rounded-card shadow-md p-8">
+              className="bg-white rounded-card shadow-soft p-8">
               <h2 className="text-2xl font-bold text-[#234632] mb-4 flex items-center gap-2">
                 <Heart className="w-6 h-6 text-pink-500" /> Entretien
               </h2>

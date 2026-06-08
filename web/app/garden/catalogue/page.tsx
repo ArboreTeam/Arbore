@@ -43,7 +43,7 @@ export default function CataloguePage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-background pt-24 pb-16">
+      <main id="main-content" className="min-h-screen bg-background pt-24 pb-16">
         {/* Header */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
           <button
@@ -64,6 +64,7 @@ export default function CataloguePage() {
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-arbore-muted" />
             <input
               type="text"
+              aria-label="Rechercher une plante"
               placeholder="Rechercher une plante…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

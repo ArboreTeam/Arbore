@@ -99,7 +99,7 @@ export default function ProfilePage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-background pt-24 pb-16">
+      <main id="main-content" className="min-h-screen bg-background pt-24 pb-16">
         <div className="mx-auto max-w-2xl space-y-7 px-4 sm:px-6">
           {/* En-tête profil */}
           <motion.div

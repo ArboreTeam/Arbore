@@ -62,7 +62,7 @@ export default function SignupPage() {
   };
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12">
+    <main id="main-content" className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12">
       {social && <AuthLoadingOverlay provider={social} />}
       <div className="pointer-events-none absolute -top-24 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-arbore-sage opacity-25 blur-3xl" />
 
@@ -83,42 +83,43 @@ export default function SignupPage() {
         <div className="arbore-card p-7">
           {error && (
             <motion.div
+              role="alert"
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               className="mb-5 flex items-start gap-3 rounded-[14px] border border-arbore-danger/30 bg-arbore-danger/10 p-3.5"
             >
-              <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-arbore-danger" />
+              <AlertCircle aria-hidden className="mt-0.5 h-5 w-5 flex-shrink-0 text-arbore-danger" />
               <p className="text-sm text-arbore-danger">{error}</p>
             </motion.div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-sm font-semibold text-arbore-green">Nom complet</label>
+              <label htmlFor="signup-name" className="mb-1.5 block text-sm font-semibold text-arbore-green">Nom complet</label>
               <div className="relative">
-                <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
-                <input type="text" placeholder="Votre nom" value={name} onChange={(e) => setName(e.target.value)} required className="arbore-input pl-10" />
+                <User aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
+                <input id="signup-name" autoComplete="name" type="text" placeholder="Votre nom" value={name} onChange={(e) => setName(e.target.value)} required className="arbore-input pl-10" />
               </div>
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-semibold text-arbore-green">Adresse email</label>
+              <label htmlFor="signup-email" className="mb-1.5 block text-sm font-semibold text-arbore-green">Adresse email</label>
               <div className="relative">
-                <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
-                <input type="email" placeholder="vous@exemple.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="arbore-input pl-10" />
+                <Mail aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
+                <input id="signup-email" autoComplete="email" type="email" placeholder="vous@exemple.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="arbore-input pl-10" />
               </div>
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-semibold text-arbore-green">Mot de passe</label>
+              <label htmlFor="signup-password" className="mb-1.5 block text-sm font-semibold text-arbore-green">Mot de passe</label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
-                <input type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="arbore-input pl-10" />
+                <Lock aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
+                <input id="signup-password" autoComplete="new-password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required className="arbore-input pl-10" />
               </div>
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-semibold text-arbore-green">Confirmer le mot de passe</label>
+              <label htmlFor="signup-confirm" className="mb-1.5 block text-sm font-semibold text-arbore-green">Confirmer le mot de passe</label>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
-                <input type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="arbore-input pl-10" />
+                <Lock aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
+                <input id="signup-confirm" autoComplete="new-password" type="password" placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required className="arbore-input pl-10" />
               </div>
             </div>
 

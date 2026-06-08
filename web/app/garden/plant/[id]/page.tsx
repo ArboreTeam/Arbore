@@ -165,7 +165,7 @@ export default function PlantDetailPage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-arbore-beige pt-24 pb-16">
+      <main id="main-content" className="min-h-screen bg-arbore-beige pt-24 pb-16">
 
         {/* Barre retour + bouton ajouter */}
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6 flex items-center justify-between">

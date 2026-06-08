@@ -3,37 +3,28 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/authService';
+import { API_URL, fetchWithAuth } from '@/lib/api';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
-import { 
-  User, 
-  CreditCard, 
-  Truck, 
-  Settings, 
-  Star, 
-  HelpCircle,
-  LogOut,
-  ChevronRight,
-  Bell,
-  Shield,
-  Download
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { SettingsRow, SectionHeader } from '@/components/shared/SettingsRow';
+import { LogOut, Download, ShieldCheck, FileText, Info, Trash2, Loader2, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  photoURL?: string | null;
 }
 
 export default function ProfilePage() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    // Récupérer l'utilisateur actuellement connecté
     const currentUser = getCurrentUser();
     if (!currentUser) {
       router.push('/login');
@@ -42,6 +33,7 @@ export default function ProfilePage() {
         uid: currentUser.uid,
         email: currentUser.email ?? '',
         displayName: currentUser.displayName ?? '',
+        photoURL: currentUser.photoURL,
       });
       setLoading(false);
     }
@@ -51,8 +43,41 @@ export default function ProfilePage() {
     try {
       await logout();
       router.push('/');
-    } catch (error) {
-      console.error('Erreur lors de la déconnexion:', error);
+    } catch (e) {
+      console.error('Erreur lors de la déconnexion:', e);
+    }
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/users/export`);
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'arbore-mes-donnees.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Le téléchargement de vos données a échoué.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Supprimer définitivement votre compte et toutes vos données ? Cette action est irréversible.')) return;
+    setDeleting(true);
+    try {
+      const res = await fetchWithAuth(`${API_URL}/users`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      await logout();
+      router.push('/');
+    } catch {
+      alert('La suppression du compte a échoué.');
+      setDeleting(false);
     }
   };
 
@@ -60,185 +85,109 @@ export default function ProfilePage() {
     return (
       <>
         <Navbar />
-        <div className="min-h-screen flex items-center justify-center pt-24">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#234632]"></div>
-            <p className="mt-4 text-arbore-muted">Chargement...</p>
-          </div>
+        <div className="flex min-h-screen items-center justify-center pt-24">
+          <Loader2 className="h-10 w-10 animate-spin text-arbore-green" />
         </div>
         <Footer />
       </>
     );
   }
+  if (!user) return null;
 
-  if (!user) {
-    return null;
-  }
-
-  const stats = [
-    { number: '12', label: 'PLANTES', color: 'from-green-400 to-green-600' },
-    { number: '8', label: 'SCANS', color: 'from-blue-400 to-blue-600' },
-    { number: '3', label: 'RAPPELS', color: 'from-orange-400 to-orange-600' },
-  ];
-
-  const menuItems = [
-    {
-      icon: User,
-      title: 'Informations Personnelles',
-      description: 'Gérez vos données personnelles',
-      color: 'blue',
-    },
-    {
-      icon: Shield,
-      title: 'Sécurité',
-      description: 'Gérez votre mot de passe et la sécurité',
-      color: 'red',
-    },
-    {
-      icon: Settings,
-      title: 'Préférences',
-      description: 'Personnalisez votre expérience',
-      color: 'purple',
-    },
-    {
-      icon: Star,
-      title: 'Abonnement',
-      description: 'Gérez votre abonnement',
-      color: 'yellow',
-    },
-    {
-      icon: HelpCircle,
-      title: 'Aide & Support',
-      description: 'Besoin d\'aide ? Contactez-nous',
-      color: 'green',
-    },
-  ];
-
-  const colorMap = {
-    blue: 'from-blue-500 to-blue-600',
-    orange: 'from-orange-500 to-orange-600',
-    red: 'from-red-500 to-red-600',
-    purple: 'from-purple-500 to-purple-600',
-    yellow: 'from-yellow-500 to-yellow-600',
-    indigo: 'from-indigo-500 to-indigo-600',
-    green: 'from-green-500 to-green-600',
-  };
+  const initial = (user.displayName || user.email || '?').charAt(0).toUpperCase();
 
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-arbore-beige pt-24">
-        {/* Profile Header Card */}
-        <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
+      <main className="min-h-screen bg-background pt-24 pb-16">
+        <div className="mx-auto max-w-2xl space-y-7 px-4 sm:px-6">
+          {/* En-tête profil */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="bg-gradient-to-r from-[#234632] via-green-600 to-[#2F6B46] rounded-3xl shadow-xl p-8 md:p-12 text-white"
+            transition={{ duration: 0.5 }}
+            className="arbore-card flex flex-col items-center p-8 text-center"
           >
-            <div className="flex flex-col md:flex-row items-center gap-8">
-              {/* Avatar */}
-              <div className="flex-shrink-0">
-                <div className="w-32 h-32 bg-white bg-opacity-20 rounded-full flex items-center justify-center border-4 border-white shadow-lg backdrop-blur-sm">
-                  <div className="text-6xl">
-                    {user.displayName.charAt(0).toUpperCase()}
-                  </div>
+            <div className="relative">
+              {user.photoURL ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={user.photoURL}
+                  alt=""
+                  className="h-24 w-24 rounded-full object-cover ring-4 ring-white shadow-hero"
+                />
+              ) : (
+                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-arbore-sage to-arbore-green text-4xl font-bold text-white ring-4 ring-white shadow-hero">
+                  {initial}
                 </div>
-              </div>
-
-              {/* User Info */}
-              <div className="flex-1 text-center md:text-left">
-                <h1 className="text-4xl md:text-5xl font-bold mb-2">
-                  {user.displayName || 'Utilisateur'}
-                </h1>
-                <p className="text-green-100 text-lg mb-4">{user.email}</p>
-                <p className="text-green-50 text-sm">
-                  ID: <span className="font-mono text-xs">{user.uid}</span>
-                </p>
-              </div>
+              )}
             </div>
+            <h1 className="mt-4 font-display text-2xl font-extrabold text-arbore-ink">
+              {user.displayName || 'Utilisateur'}
+            </h1>
+            <p className="mt-1 text-arbore-muted">{user.email}</p>
           </motion.div>
-        </section>
 
-        {/* Stats Cards */}
-        <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="grid grid-cols-1 md:grid-cols-3 gap-6"
-          >
-            {stats.map((stat, index) => (
-              <div
-                key={index}
-                className={`bg-gradient-to-br ${stat.color} rounded-card shadow-lg p-8 text-white hover:shadow-card transition-all transform hover:scale-105`}
+          {/* Plan (bêta gratuite) */}
+          <div className="arbore-hero flex items-center gap-4 p-5">
+            <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-white/15">
+              <Sparkles className="h-5 w-5 text-primary-foreground" />
+            </div>
+            <div className="flex-1">
+              <p className="font-display font-bold text-primary-foreground">Bêta gratuite</p>
+              <p className="text-sm text-primary-foreground/80">Toutes les fonctionnalités débloquées pendant la bêta.</p>
+            </div>
+          </div>
+
+          {/* Compte */}
+          <section>
+            <SectionHeader>Compte</SectionHeader>
+            <div className="space-y-3">
+              <SettingsRow
+                icon={Download}
+                tone="success"
+                title="Télécharger mes données"
+                subtitle="Exportez l'ensemble de vos données (RGPD)"
+                onClick={handleExport}
+                trailing={exporting ? <Loader2 className="h-4 w-4 animate-spin text-arbore-muted" /> : undefined}
+              />
+              <SettingsRow icon={Info} tone="muted" title="À propos d'Arbore" href="/about" />
+            </div>
+          </section>
+
+          {/* Légal */}
+          <section>
+            <SectionHeader>Confidentialité &amp; mentions légales</SectionHeader>
+            <div className="space-y-3">
+              <SettingsRow icon={ShieldCheck} tone="sage" title="Politique de confidentialité" href="https://arbore.app/privacy" />
+              <SettingsRow icon={FileText} tone="green" title="Conditions d'utilisation" href="https://arbore.app/terms" />
+            </div>
+          </section>
+
+          {/* Zone danger */}
+          <section>
+            <SectionHeader>Compte</SectionHeader>
+            <div className="space-y-3">
+              <SettingsRow
+                icon={Trash2}
+                danger
+                title="Supprimer mon compte"
+                subtitle="Efface définitivement votre compte et vos jardins"
+                onClick={handleDelete}
+                trailing={deleting ? <Loader2 className="h-4 w-4 animate-spin text-arbore-danger" /> : undefined}
+              />
+              <button
+                onClick={handleLogout}
+                className="flex w-full items-center justify-center gap-2 rounded-pill bg-arbore-danger py-3.5 font-semibold text-white shadow-soft transition hover:brightness-95 active:scale-[0.98]"
               >
-                <p className="text-5xl font-bold mb-3">{stat.number}</p>
-                <p className="text-sm font-semibold opacity-90 tracking-wider">
-                  {stat.label}
-                </p>
-              </div>
-            ))}
-          </motion.div>
-        </section>
-
-        {/* Menu Items */}
-        <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-          >
-            <h2 className="text-3xl font-bold text-[#234632] mb-6">Paramètres du compte</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {menuItems.map((item, index) => {
-                const IconComponent = item.icon;
-                const gradientColor = colorMap[item.color as keyof typeof colorMap];
-                return (
-                  <motion.button
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.3 + index * 0.05 }}
-                    className="bg-white rounded-card shadow-md p-6 hover:shadow-card transition-all hover:scale-105 text-left group"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className={`w-14 h-14 bg-gradient-to-br ${gradientColor} rounded-card flex items-center justify-center flex-shrink-0 shadow-md group-hover:shadow-card transition-all`}>
-                        <IconComponent className="w-7 h-7 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-arbore-ink text-lg mb-1 group-hover:text-[#234632] transition-colors">
-                          {item.title}
-                        </h3>
-                        <p className="text-arbore-muted text-sm">
-                          {item.description}
-                        </p>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-arbore-muted flex-shrink-0 group-hover:text-[#234632] transition-colors mt-1" />
-                    </div>
-                  </motion.button>
-                );
-              })}
+                <LogOut className="h-5 w-5" />
+                Se déconnecter
+              </button>
             </div>
-          </motion.div>
-        </section>
+          </section>
 
-        {/* Logout Button */}
-        <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-          >
-            <button
-              onClick={handleLogout}
-              className="w-full bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-bold py-4 px-6 rounded-card transition-all shadow-lg hover:shadow-card hover:scale-105 flex items-center justify-center gap-3 text-lg"
-            >
-              <LogOut className="w-6 h-6" />
-              Déconnexion
-            </button>
-          </motion.div>
-        </section>
+          <p className="pt-2 text-center text-xs text-arbore-muted">Arbore — bêta publique</p>
+        </div>
       </main>
       <Footer />
     </>

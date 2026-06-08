@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { Sprout, AlertCircle, User, Mail, Lock, Loader2 } from 'lucide-react';
 import { signUp, signInWithGoogle, signInWithApple } from '@/lib/authService';
 import { AppleIcon, GoogleIcon } from '@/components/shared/SocialIcons';
+import { AuthLoadingOverlay } from '@/components/shared/AuthLoadingOverlay';
 
 export default function SignupPage() {
   const [name, setName] = useState('');
@@ -14,6 +15,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [social, setSocial] = useState<'apple' | 'google' | null>(null);
   const [error, setError] = useState('');
   const router = useRouter();
 
@@ -44,14 +46,16 @@ export default function SignupPage() {
     }
   };
 
-  const handleProvider = async (fn: () => Promise<any>) => {
+  const handleProvider = async (provider: 'apple' | 'google', fn: () => Promise<any>) => {
     setError('');
+    setSocial(provider);
     try {
       const user = await fn();
       localStorage.setItem('userName', user.displayName || user.email?.split('@')[0] || '');
       localStorage.setItem('userUID', user.uid);
       router.push('/welcome');
     } catch (err: any) {
+      setSocial(null);
       if (err?.code === 'auth/popup-closed-by-user' || err?.code === 'auth/cancelled-popup-request') return;
       setError(err?.message || 'Connexion impossible');
     }
@@ -59,6 +63,7 @@ export default function SignupPage() {
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12">
+      {social && <AuthLoadingOverlay provider={social} />}
       <div className="pointer-events-none absolute -top-24 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-arbore-sage opacity-25 blur-3xl" />
 
       <motion.div
@@ -129,11 +134,11 @@ export default function SignupPage() {
           </div>
 
           <div className="space-y-3">
-            <button onClick={() => handleProvider(signInWithApple)} className="flex w-full items-center justify-center gap-2.5 rounded-pill bg-arbore-ink py-3 font-semibold text-white transition active:scale-[0.98]">
-              <AppleIcon className="h-5 w-5" />
+            <button onClick={() => handleProvider('apple', signInWithApple)} className="flex w-full items-center justify-center gap-2.5 rounded-pill bg-arbore-ink py-3 font-semibold text-white transition active:scale-[0.98]">
+              <AppleIcon className="h-[18px] w-[18px]" />
               Continuer avec Apple
             </button>
-            <button onClick={() => handleProvider(signInWithGoogle)} className="flex w-full items-center justify-center gap-2.5 rounded-pill border border-border bg-card py-3 font-semibold text-arbore-ink transition hover:bg-secondary active:scale-[0.98]">
+            <button onClick={() => handleProvider('google', signInWithGoogle)} className="flex w-full items-center justify-center gap-2.5 rounded-pill border border-border bg-card py-3 font-semibold text-arbore-ink transition hover:bg-secondary active:scale-[0.98]">
               <GoogleIcon className="h-5 w-5" />
               Continuer avec Google
             </button>

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Sprout, Plus, Calendar, History, Cloud, Leaf, Zap, Lightbulb, MapPin, Sparkles, Trash2 } from 'lucide-react';
+import { Sprout, Plus, Calendar, History, Cloud, Leaf, Zap, Lightbulb, MapPin, Trash2 } from 'lucide-react';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
 import { onAuthStateChange } from '@/lib/authService';
@@ -65,7 +65,6 @@ export default function WelcomePage() {
     { icon: Calendar, label: 'Calendrier', description: "Planifier l'entretien", href: '/garden/calendar' },
     { icon: History, label: 'Historique', description: 'Voir mes actions', href: '/garden/history' },
     { icon: Cloud, label: 'Infos Saison', description: 'Conseils saisonniers', href: '/garden/seasons' },
-    { icon: Sparkles, label: 'Générer avec l\'IA', description: 'Ajouter une plante via IA', href: '/garden/generate', highlight: true },
   ];
 
   const deleteGarden = async (gardenId: string) => {
@@ -219,14 +218,10 @@ export default function WelcomePage() {
                     <motion.div
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      className={`rounded-card p-6 shadow-soft hover:shadow-card transition-shadow border cursor-pointer h-full flex flex-col items-center text-center ${
-                        action.highlight
-                          ? 'bg-gradient-to-br from-arbore-gold/10 to-arbore-gold/10 border-arbore-gold/30'
-                          : 'bg-white border-border'
-                      }`}
+                      className="rounded-card p-6 shadow-soft hover:shadow-card transition-shadow border border-border bg-white cursor-pointer h-full flex flex-col items-center text-center"
                     >
-                      <IconComponent className={`w-12 h-12 mb-4 ${action.highlight ? 'text-arbore-gold/100' : 'text-[#234632]'}`} />
-                      <h3 className={`font-semibold mb-1 ${action.highlight ? 'text-arbore-ink' : 'text-arbore-ink'}`}>{action.label}</h3>
+                      <IconComponent className="w-12 h-12 mb-4 text-[#234632]" />
+                      <h3 className="font-semibold mb-1 text-arbore-ink">{action.label}</h3>
                       <p className="text-sm text-arbore-muted">{action.description}</p>
                     </motion.div>
                   </Link>

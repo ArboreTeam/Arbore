@@ -6,7 +6,7 @@ import { onAuthStateChange } from '@/lib/authService';
 import { API_URL, fetchWithAuth } from '@/lib/api';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
-import { ArrowLeft, Leaf, Search, Droplet, Sun, Loader2, Sparkles } from 'lucide-react';
+import { ArrowLeft, Leaf, Search, Droplet, Sun, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 export default function CataloguePage() {
@@ -54,18 +54,9 @@ export default function CataloguePage() {
             Retour
           </button>
 
-          <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-center">
-            <div>
-              <h1 className="mb-1 font-display text-4xl font-extrabold text-arbore-green">Catalogue</h1>
-              <p className="text-arbore-muted">Choisissez une plante pour voir ses détails et l&apos;ajouter à votre jardin</p>
-            </div>
-            <button
-              onClick={() => router.push('/garden/generate')}
-              className="inline-flex items-center justify-center gap-2 rounded-pill bg-arbore-gold px-6 py-3 font-semibold text-arbore-ink shadow-soft transition hover:brightness-95 active:scale-[0.98]"
-            >
-              <Sparkles className="h-5 w-5" />
-              Générer avec l&apos;IA
-            </button>
+          <div className="mb-6">
+            <h1 className="mb-1 font-display text-4xl font-extrabold text-arbore-green">Catalogue</h1>
+            <p className="text-arbore-muted">Choisissez une plante pour voir ses détails et l&apos;ajouter à votre jardin</p>
           </div>
 
           {/* Recherche */}

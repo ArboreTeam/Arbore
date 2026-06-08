@@ -2,6 +2,8 @@ const { withSentryConfig } = require('@sentry/nextjs');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Sortie autonome (server.js + node_modules minimal) → image Docker légère.
+  output: 'standalone',
   eslint: {
     // Le lint s'exécute au build (les erreurs bloquent). Seuls des warnings
     // subsistent (img/next-image, exhaustive-deps) — non bloquants.

@@ -122,7 +122,7 @@ yarn-error.log*
 .env.local
 .env.*.local
 # Exception : config web PUBLIQUE committée (DSN Sentry, etc. — aucun secret).
-!project/.env
+!web/.env
 *.key
 *.pem
 secrets/

@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Button } from '@/components/ui/button';
-import { Sprout, Plus, Calendar, History, Cloud, Leaf, Zap, Lightbulb, MapPin, Trash2 } from 'lucide-react';
+import { Sprout, Smartphone, Calendar, History, Cloud, Leaf, Zap, Lightbulb, MapPin, Trash2 } from 'lucide-react';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
 import { onAuthStateChange } from '@/lib/authService';
@@ -15,8 +14,6 @@ export default function WelcomePage() {
   const router = useRouter();
   const [userName, setUserName] = useState('');
   const [gardens, setGardens] = useState<any[]>([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [deletingGardenId, setDeletingGardenId] = useState<string | null>(null);
 
@@ -24,7 +21,6 @@ export default function WelcomePage() {
     // Vérifier l'authentification Firebase
     const unsubscribe = onAuthStateChange((user) => {
       if (user) {
-        setCurrentUser(user);
         setUserName(user.displayName || user.email?.split('@')[0] || 'Utilisateur');
         setLoading(false);
         // Récupérer les jardins une fois l'utilisateur chargé
@@ -118,15 +114,8 @@ export default function WelcomePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            <div className="flex justify-between items-center mb-6">
+            <div className="mb-6">
               <h2 className="text-2xl font-bold text-[#234632]">Mes Jardins</h2>
-              <Button
-                onClick={() => setShowCreateModal(true)}
-                className="bg-[#234632] hover:bg-[#16291D] text-white rounded-lg px-6 flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Créer un jardin
-              </Button>
             </div>
 
             {/* Grid des jardins */}
@@ -178,26 +167,20 @@ export default function WelcomePage() {
                 );
               })}
 
-              {/* Carte pour créer un nouveau jardin */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.1 * gardens.length }}
-                whileHover={{ scale: 1.03, y: -5 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setShowCreateModal(true)}
-                className="bg-gradient-to-br from-green-50 to-green-100 rounded-card p-6 shadow-soft hover:shadow-card transition-all border-2 border-dashed border-[#234632] cursor-pointer h-full flex flex-col items-center justify-center text-center min-h-[200px]"
-              >
-                <div className="bg-white p-4 rounded-full mb-4">
-                  <Plus className="w-10 h-10 text-[#234632]" />
+              {/* La création de jardin se fait sur iOS (placement en réalité augmentée).
+                  Le web sert à consulter / gérer ses jardins. */}
+              <div className="rounded-card border-2 border-dashed border-border bg-secondary/40 p-6 flex flex-col items-center justify-center text-center min-h-[200px]">
+                <div className="bg-white p-4 rounded-full mb-4 shadow-soft">
+                  <Smartphone className="w-9 h-9 text-[#234632]" />
                 </div>
-                <h3 className="text-xl font-bold text-[#234632] mb-2">
-                  Créer un nouveau jardin
+                <h3 className="text-lg font-bold text-arbore-ink mb-1">
+                  Créez vos jardins sur iPhone
                 </h3>
                 <p className="text-sm text-arbore-muted">
-                  Ajoutez un espace pour vos plantes
+                  La conception se fait en réalité augmentée dans l&apos;app Arbore.
+                  Retrouvez-les ici pour les consulter.
                 </p>
-              </motion.div>
+              </div>
             </div>
           </motion.div>
         </section>
@@ -262,155 +245,9 @@ export default function WelcomePage() {
           </motion.div>
         </section>
 
-        {/* Modal de création de jardin */}
-        {showCreateModal && currentUser && (
-          <CreateGardenModal
-            onClose={() => setShowCreateModal(false)}
-            onSuccess={() => {
-              setShowCreateModal(false);
-              fetchGardens(currentUser.uid);
-            }}
-            uid={currentUser.uid}
-          />
-        )}
       </main>
       <Footer />
     </>
   );
 }
 
-// Composant Modal pour créer un jardin
-function CreateGardenModal({ onClose, onSuccess, uid }: { onClose: () => void; onSuccess: () => void; uid: string }) {
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    location: 'Intérieur/Extérieur',
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      if (!uid) {
-        alert('Erreur: Utilisateur non connecté');
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Préparer les données pour l'API
-      const gardenData = {
-        uid: uid,
-        name: formData.name,
-        wizard: {
-          description: formData.description,
-          location: formData.location,
-        },
-        plants: [],
-      };
-
-      // Appeler l'API backend
-      const response = await fetchWithAuth(`${API_URL}/gardens`, {
-        method: 'POST',
-        body: JSON.stringify(gardenData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erreur API: ${response.status}`);
-      }
-
-      const result = await response.json();
-      console.log('Jardin créé:', result);
-      
-      // Succès - fermer la modale et recharger les jardins
-      onSuccess();
-    } catch (error) {
-      console.error('Erreur lors de la création du jardin:', error);
-      alert('Erreur lors de la création du jardin.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-card max-w-md w-full p-8 shadow-2xl"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-[#234632]">Créer un jardin</h2>
-          <button
-            onClick={onClose}
-            className="text-arbore-muted hover:text-arbore-muted text-2xl"
-          >
-            ×
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-semibold text-arbore-ink mb-2">
-              Nom du jardin *
-            </label>
-            <input
-              type="text"
-              required
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
-              placeholder="Mon jardin principal"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-arbore-ink mb-2">
-              Description
-            </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
-              placeholder="Décrivez votre jardin..."
-              rows={3}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-arbore-ink mb-2">
-              Localisation
-            </label>
-            <select
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              className="w-full px-4 py-3 border border-border rounded-lg focus:ring-2 focus:ring-[#234632] focus:border-transparent"
-            >
-              <option value="Intérieur">Intérieur</option>
-              <option value="Extérieur">Extérieur</option>
-              <option value="Intérieur/Extérieur">Intérieur/Extérieur</option>
-            </select>
-          </div>
-
-          <div className="flex gap-4">
-            <Button
-              type="button"
-              onClick={onClose}
-              className="flex-1 bg-gray-200 hover:bg-gray-300 text-arbore-ink rounded-lg"
-            >
-              Annuler
-            </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="flex-1 bg-[#234632] hover:bg-[#16291D] text-white rounded-lg"
-            >
-              {isSubmitting ? 'Création...' : 'Créer'}
-            </Button>
-          </div>
-        </form>
-      </motion.div>
-    </div>
-  );
-}

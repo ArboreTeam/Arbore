@@ -33,6 +33,13 @@ async function proxy(req: Request, path: string[]) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
+  // La génération de plantes par IA est debug-only (absente de l'iOS / de la prod) :
+  // on la bloque côté proxy pour qu'elle ne soit pas appelable depuis le web.
+  const joined = path.join('/');
+  if (joined === 'plants/generate' || joined === 'plants/generate-multiple') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  }
+
   const { search } = new URL(req.url);
   const target = `${BACKEND_URL}/${path.map(encodeURIComponent).join('/')}${search}`;
 

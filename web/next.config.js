@@ -1,7 +1,12 @@
 const { withSentryConfig } = require('@sentry/nextjs');
+const pkg = require('./package.json');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Version de l'app exposée au bundle (affichée dans les paramètres). #23
+  env: {
+    NEXT_PUBLIC_APP_VERSION: pkg.version,
+  },
   // Sortie autonome (server.js + node_modules minimal) → image Docker légère.
   output: 'standalone',
   eslint: {

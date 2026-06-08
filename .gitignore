@@ -129,6 +129,8 @@ secrets/
 
 # Docker
 .dockerignore
+# Exception : le .dockerignore du web est suivi (build Docker léger sur le VPS).
+!web/.dockerignore
 
 # Logs
 logs/

@@ -294,7 +294,7 @@ export default function SeasonsPage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-arbore-beige pt-24 pb-12">
+      <main id="main-content" className="min-h-screen bg-arbore-beige pt-24 pb-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <motion.div

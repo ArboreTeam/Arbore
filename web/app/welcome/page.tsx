@@ -92,7 +92,7 @@ export default function WelcomePage() {
   return (
     <>
       <Navbar />
-      <main className="min-h-screen bg-arbore-beige pt-24">
+      <main id="main-content" className="min-h-screen bg-arbore-beige pt-24">
         {/* Welcome Section */}
         <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
           <motion.div
@@ -159,9 +159,10 @@ export default function WelcomePage() {
                     <button
                       onClick={(e) => { e.preventDefault(); deleteGarden(gardenId); }}
                       className="absolute top-3 right-3 p-2 bg-white rounded-lg shadow opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 text-arbore-muted hover:text-red-500"
+                      aria-label="Supprimer le jardin"
                       title="Supprimer le jardin"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 aria-hidden className="w-4 h-4" />
                     </button>
                   </div>
                 );

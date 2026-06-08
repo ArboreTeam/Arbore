@@ -93,6 +93,8 @@ export function Navbar() {
             <div className="relative flex items-center gap-4">
               <button
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
+                aria-label="Menu du profil"
+                aria-expanded={isProfileOpen}
                 className="flex items-center gap-2 rounded-pill px-2 py-1.5 transition-colors hover:bg-secondary"
               >
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary">

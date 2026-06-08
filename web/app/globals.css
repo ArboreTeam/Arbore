@@ -47,6 +47,12 @@
     font-family: var(--font-display), system-ui, sans-serif;
     letter-spacing: -0.02em;
   }
+  /* Accessibilité (#7) : focus clavier visible sur tous les éléments interactifs. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
 }
 
 @layer components {

@@ -73,7 +73,7 @@ function GardenContent() {
   }
 
   return (
-    <main className="min-h-screen bg-arbore-beige pt-24 pb-16">
+    <main id="main-content" className="min-h-screen bg-arbore-beige pt-24 pb-16">
       {/* Header */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-10">
         <div className="flex items-center gap-4 mb-6">

@@ -50,7 +50,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12">
+    <main id="main-content" className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-12">
       {social && <AuthLoadingOverlay provider={social} />}
       {/* halo organique */}
       <div className="pointer-events-none absolute -top-24 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-arbore-sage opacity-25 blur-3xl" />
@@ -74,22 +74,25 @@ export default function LoginPage() {
         <div className="arbore-card p-7">
           {error && (
             <motion.div
+              role="alert"
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
               className="mb-5 flex items-start gap-3 rounded-[14px] border border-arbore-danger/30 bg-arbore-danger/10 p-3.5"
             >
-              <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-arbore-danger" />
+              <AlertCircle aria-hidden className="mt-0.5 h-5 w-5 flex-shrink-0 text-arbore-danger" />
               <p className="text-sm text-arbore-danger">{error}</p>
             </motion.div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-sm font-semibold text-arbore-green">Adresse email</label>
+              <label htmlFor="login-email" className="mb-1.5 block text-sm font-semibold text-arbore-green">Adresse email</label>
               <div className="relative">
-                <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
+                <Mail aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
                 <input
+                  id="login-email"
                   type="email"
+                  autoComplete="email"
                   placeholder="vous@exemple.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -101,13 +104,15 @@ export default function LoginPage() {
 
             <div>
               <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-sm font-semibold text-arbore-green">Mot de passe</label>
+                <label htmlFor="login-password" className="text-sm font-semibold text-arbore-green">Mot de passe</label>
                 <a href="#" className="text-sm font-semibold text-arbore-green/80 hover:text-arbore-green">Oublié ?</a>
               </div>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
+                <Lock aria-hidden className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-arbore-muted" />
                 <input
+                  id="login-password"
                   type="password"
+                  autoComplete="current-password"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

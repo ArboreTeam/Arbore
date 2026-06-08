@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { getCurrentUser } from '@/lib/authService';
+import { API_URL, fetchWithAuth } from '@/lib/api';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
 import {
@@ -207,6 +209,7 @@ const seasons: SeasonInfo[] = [
 
 export default function SeasonsPage() {
   const [user, setUser] = useState<any>(null);
+  const [allPlants, setAllPlants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedSeason, setSelectedSeason] = useState<SeasonInfo | null>(null);
   const router = useRouter();
@@ -218,6 +221,15 @@ export default function SeasonsPage() {
     } else {
       setUser(currentUser);
       setLoading(false);
+      // Charger les vraies plantes du catalogue (pour la section "Plantes de saison").
+      (async () => {
+        try {
+          const res = await fetchWithAuth(`${API_URL}/plants`);
+          if (res.ok) setAllPlants((await res.json()) || []);
+        } catch {
+          /* catalogue indisponible -> fallback sur les suggestions */
+        }
+      })();
     }
   }, [router]);
 
@@ -264,6 +276,19 @@ export default function SeasonsPage() {
       case 'basse': return 'Priorité basse';
       default: return priority;
     }
+  };
+
+  // Vraies plantes du catalogue correspondant à la saison (matching par nom, accents/pluriel tolérés).
+  const seasonRealPlants = (season: SeasonInfo) => {
+    const norm = (s: string) =>
+      s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/s$/, '');
+    const roots = season.plants.map(norm);
+    return allPlants
+      .filter((p: any) => {
+        const n = norm(p.name || '');
+        return n.length > 1 && roots.some((r) => r.length > 1 && (n.includes(r) || r.includes(n)));
+      })
+      .slice(0, 8);
   };
 
   return (
@@ -450,19 +475,52 @@ export default function SeasonsPage() {
                       </div>
                       <h3 className="text-2xl font-bold text-arbore-ink">Plantes de saison</h3>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedSeason.plants.map((plant, index) => (
-                        <motion.span
-                          key={index}
-                          initial={{ opacity: 0, scale: 0.8 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          transition={{ delay: index * 0.05 }}
-                          className="bg-gradient-to-r from-green-50 to-green-100 text-green-700 px-4 py-2 rounded-full text-sm font-semibold border-2 border-green-200"
-                        >
-                          {plant}
-                        </motion.span>
-                      ))}
-                    </div>
+                    {(() => {
+                      const real = seasonRealPlants(selectedSeason);
+                      if (real.length > 0) {
+                        return (
+                          <>
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                              {real.map((p: any) => (
+                                <button
+                                  key={p.id}
+                                  onClick={() => router.push(`/garden/plant/${p.id}?from=seasons`)}
+                                  className="group overflow-hidden rounded-card border border-border bg-card text-left shadow-soft transition hover:shadow-card"
+                                >
+                                  <div className="h-24 overflow-hidden bg-arbore-soft">
+                                    {p.imageURLs?.[0] ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={p.imageURLs[0]} alt={p.name} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                                    ) : (
+                                      <div className="flex h-full items-center justify-center"><Leaf className="h-8 w-8 text-arbore-sage" /></div>
+                                    )}
+                                  </div>
+                                  <p className="truncate px-2.5 py-2 text-sm font-semibold text-arbore-ink">{p.name}</p>
+                                </button>
+                              ))}
+                            </div>
+                            <Link href="/garden/catalogue" className="mt-4 inline-block text-sm font-semibold text-arbore-green hover:underline">
+                              Voir tout le catalogue →
+                            </Link>
+                          </>
+                        );
+                      }
+                      return (
+                        <>
+                          <p className="mb-3 text-sm text-arbore-muted">Suggestions pour cette saison :</p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedSeason.plants.map((plant, index) => (
+                              <span key={index} className="rounded-pill bg-secondary px-4 py-2 text-sm font-semibold text-arbore-green">
+                                {plant}
+                              </span>
+                            ))}
+                          </div>
+                          <Link href="/garden/catalogue" className="mt-4 inline-block text-sm font-semibold text-arbore-green hover:underline">
+                            Explorer le catalogue →
+                          </Link>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

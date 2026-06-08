@@ -1534,6 +1534,15 @@ func main() {
 		c.File(filePath)
 	})
 
+	// === ROUTES API KEY UNIQUEMENT (sans session Firebase) ===
+	// Config de référence (wizard + règles de soin, cf. #236) : non sensible,
+	// nécessaire dès le lancement de l'app avant authentification utilisateur.
+	apiKeyOnly := router.Group("/")
+	apiKeyOnly.Use(middleware.APIKeyMiddleware())
+	{
+		apiKeyOnly.GET("/config", getConfig)
+	}
+
 	// === ROUTES PROTÉGÉES (API Key + Firebase Auth) ===
 	// Ordre important: API Key PUIS Firebase Auth
 	protected := router.Group("/")

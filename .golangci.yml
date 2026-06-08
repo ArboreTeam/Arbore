@@ -42,6 +42,9 @@ linters:
         - trafic
         - exemple
         - marrage
+        - candidats
+        - intervalles
+        - interm
 
     revive:
       confidence: 0.8

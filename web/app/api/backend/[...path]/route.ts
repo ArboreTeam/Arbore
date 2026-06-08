@@ -21,7 +21,7 @@ const API_KEY = process.env.ARBORE_API_KEY || '';
 
 // Allowlist des préfixes backend exposés via le proxy (défense en profondeur :
 // empêche d'utiliser le proxy comme relais générique vers tout endpoint interne).
-const ALLOWED_PREFIXES = new Set(['users', 'plants', 'gardens', 'consents', 'models']);
+const ALLOWED_PREFIXES = new Set(['users', 'plants', 'gardens', 'consents', 'models', 'config']);
 
 async function proxy(req: Request, path: string[]) {
   // Anti-traversal + allowlist.

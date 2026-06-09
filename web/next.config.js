@@ -32,6 +32,11 @@ const nextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
+          // OAuth via signInWithPopup (Google/Apple) : la valeur par défaut du
+          // navigateur isole la popup et fait échouer window.close/closed
+          // (warnings COOP en console). `same-origin-allow-popups` garde
+          // l'isolation cross-origin tout en autorisant le dialogue avec la popup.
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()',

@@ -157,10 +157,12 @@ export default function PricingPage() {
               </div>
               <div>
                 <h3 className="text-xl font-semibold text-arbore-ink mb-2">
-                  Quels moyens de paiement acceptez-vous ?
+                  Y a-t-il un paiement à prévoir ?
                 </h3>
                 <p className="text-arbore-muted">
-                  Nous acceptons toutes les cartes bancaires (Visa, Mastercard, American Express) ainsi que PayPal.
+                  Non. Arbore est une bêta étudiante gratuite et non commerciale : aucun
+                  paiement, aucun abonnement, aucun moyen de paiement n&apos;est demandé. Les
+                  tarifs ci-dessus sont indicatifs pour l&apos;après-bêta.
                 </p>
               </div>
             </div>

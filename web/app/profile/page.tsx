@@ -166,7 +166,7 @@ export default function ProfilePage() {
 
           {/* Zone danger */}
           <section>
-            <SectionHeader>Compte</SectionHeader>
+            <SectionHeader>Zone de danger</SectionHeader>
             <div className="space-y-3">
               <SettingsRow
                 icon={Trash2}

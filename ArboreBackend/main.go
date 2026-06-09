@@ -344,6 +344,10 @@ func exportUserData(c *gin.Context) {
 			"name":      user.Name,
 			"createdAt": user.CreatedAt,
 			"banned":    user.Banned,
+			// Photo de profil incluse pour la portabilité RGPD (Art. 20, #268).
+			// AppleRefreshTokenEncrypted reste volontairement exclu (secret d'auth).
+			"photoData":        user.PhotoData,
+			"photoContentType": user.PhotoContentType,
 		},
 		"gardens":  gardens,
 		"consents": consents,

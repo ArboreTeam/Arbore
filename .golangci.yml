@@ -45,6 +45,7 @@ linters:
         - candidats
         - intervalles
         - interm
+        - incluse
 
     revive:
       confidence: 0.8

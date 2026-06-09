@@ -98,6 +98,39 @@ Ouvrir `ArboreUi.xcworkspace` dans Xcode :
 
 Si « Automatically manage signing » est désactivé, fastlane échouera sur l'étape `build_app` faute de provisioning profile à jour.
 
+### 6. Renseigner les infos App Review (pour `upload_metadata` / `sync_beta_info`)
+
+Le dossier **`fastlane/metadata/review_information/` est entièrement gitignoré** (même raison que `fastlane/AuthKey.json` : creds hors du repo). Chaque machine qui pousse les métadonnées doit donc **recréer ces fichiers en local**, sinon `upload_metadata` échoue à l'étape « Uploading app review information » avec :
+
+```
+You must provide a value for the attribute 'contactFirstName'/'contactLastName'/'contactEmail'/'contactPhone'
+The phone number must be in a valid format. Preface with '+' followed by the country code
+```
+
+Fichiers attendus (un par ligne, sans guillemets) :
+
+```bash
+cd fastlane/metadata/review_information
+printf 'Arbore\n'                 > first_name.txt
+printf 'Team\n'                   > last_name.txt
+printf 'contact@arbore.app\n'     > email_address.txt
+printf '+33XXXXXXXXX\n'           > phone_number.txt   # format international obligatoire (+indicatif)
+printf '<email du compte démo>\n' > demo_user.txt
+printf '<mot de passe démo>\n'    > demo_password.txt
+printf 'Steps pour le reviewer…\n'> notes.txt
+```
+
+> Le téléphone (`phone_number.txt`) est aussi explicitement gitignoré (`.gitignore`) — ne jamais le committer.
+
+**Lane `sync_beta_info` (Beta App Review TestFlight)** : elle, ne lit **pas** ces fichiers mais des **variables d'environnement** (jamais en git). Pour pousser le compte démo + contact côté TestFlight :
+
+```bash
+ARBORE_DEMO_USER='…' ARBORE_DEMO_PASSWORD='…' ARBORE_REVIEW_PHONE='+33XXXXXXXXX' \
+  bundle exec fastlane sync_beta_info
+```
+
+(optionnel : `ARBORE_REVIEW_FIRST_NAME` / `ARBORE_REVIEW_LAST_NAME`, défaut « Arbore » / « Team »). Sans ces variables, la lane saute proprement la partie compte démo.
+
 ---
 
 ## Usage courant

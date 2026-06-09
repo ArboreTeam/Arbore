@@ -223,9 +223,8 @@ export default function WelcomePage() {
             transition={{ duration: 0.6, delay: 0.5 }}
           >
             <h2 className="text-2xl font-bold text-[#234632] mb-6">À découvrir</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {[
-                { icon: Leaf, title: 'Diagnostic IA', description: 'Analysez la santé de vos plantes avec notre IA' },
                 { icon: Zap, title: 'Rappels intelligents', description: 'Recevez des notifications personnalisées' },
                 { icon: Lightbulb, title: 'Conseils experts', description: 'Obtenez des recommandations adaptées' },
               ].map((feature, index) => {

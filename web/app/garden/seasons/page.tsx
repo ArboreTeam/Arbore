@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getCurrentUser } from '@/lib/authService';
+import { onAuthStateChange } from '@/lib/authService';
 import { API_URL, fetchWithAuth } from '@/lib/api';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
@@ -215,22 +215,26 @@ export default function SeasonsPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const currentUser = getCurrentUser();
-    if (!currentUser) {
-      router.push('/login');
-    } else {
+    // Écoute asynchrone de l'état Firebase : sur un chargement à froid (deep-link,
+    // refresh F5), auth.currentUser est encore null le temps que Firebase restaure
+    // la session. getCurrentUser() en synchrone renvoyait null -> redirection à tort
+    // vers /login (puis /welcome). On attend donc le listener comme les autres pages.
+    const unsubscribe = onAuthStateChange(async (currentUser) => {
+      if (!currentUser) {
+        router.push('/login');
+        return;
+      }
       setUser(currentUser);
       setLoading(false);
       // Charger les vraies plantes du catalogue (pour la section "Plantes de saison").
-      (async () => {
-        try {
-          const res = await fetchWithAuth(`${API_URL}/plants`);
-          if (res.ok) setAllPlants((await res.json()) || []);
-        } catch {
-          /* catalogue indisponible -> fallback sur les suggestions */
-        }
-      })();
-    }
+      try {
+        const res = await fetchWithAuth(`${API_URL}/plants`);
+        if (res.ok) setAllPlants((await res.json()) || []);
+      } catch {
+        /* catalogue indisponible -> fallback sur les suggestions */
+      }
+    });
+    return () => unsubscribe();
   }, [router]);
 
   // Déterminer la saison actuelle

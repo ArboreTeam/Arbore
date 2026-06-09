@@ -139,7 +139,7 @@ export default function WelcomePage() {
                           </div>
                           <div className="flex items-center gap-1 text-sm text-arbore-muted">
                             <MapPin className="w-4 h-4" />
-                            {garden.wizard?.location || garden.location || 'Non défini'}
+                            {garden.wizard?.spaceType || 'Jardin'}
                           </div>
                         </div>
 
@@ -147,7 +147,7 @@ export default function WelcomePage() {
                           {garden.name}
                         </h3>
                         <p className="text-sm text-arbore-muted mb-4">
-                          {garden.wizard?.description || garden.description || 'Aucune description'}
+                          {garden.wizard?.style || 'Style libre'}
                         </p>
 
                         <div className="flex items-center gap-2 text-[#234632] font-semibold">

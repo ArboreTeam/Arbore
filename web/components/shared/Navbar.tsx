@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { Menu, X, LogOut, User, Settings, Leaf } from 'lucide-react';
+import { Menu, X, LogOut, User, Leaf } from 'lucide-react';
 import { onAuthStateChange, logout } from '@/lib/authService';
 
 function Logo() {
@@ -110,10 +110,6 @@ export function Navbar() {
                   <Link href="/profile" className="flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-sm font-medium text-arbore-green transition-colors hover:bg-secondary">
                     <User className="h-4 w-4" />
                     <span>Mon profil</span>
-                  </Link>
-                  <Link href="/settings" className="flex items-center gap-3 rounded-[12px] px-3 py-2.5 text-sm font-medium text-arbore-green transition-colors hover:bg-secondary">
-                    <Settings className="h-4 w-4" />
-                    <span>Paramètres</span>
                   </Link>
                   <button
                     onClick={handleLogout}

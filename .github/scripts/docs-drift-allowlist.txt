@@ -1,0 +1,18 @@
+# docs-drift — allowlist
+#
+# Liste de fichiers cités dans docs/ qui sont LÉGITIMEMENT absents du dépôt et
+# ne doivent donc PAS faire échouer le drift check, alors qu'ils ne sont pas
+# (ou pas au chemin exact) couverts par .gitignore :
+#   - secrets / clés référencés par leur nom nu (ex. AuthKey.json sans préfixe)
+#   - fichiers générés au build / à l'exécution
+#   - ressources d'un autre dépôt citées par leur nom
+#
+# Règle de matching : une référence est ignorée si elle est EXACTEMENT une de
+# ces entrées, ou si elle se termine par "/<entrée>" (suffixe de chemin).
+# Une entrée par ligne. '#' = commentaire, lignes vides ignorées.
+#
+# ⚠️ N'ajoute ici que des fichiers VRAIMENT censés être absents. Pour un vrai
+# fichier du dépôt, cite plutôt son chemin qualifié dans la doc.
+
+# Clé API App Store Connect (fastlane) — gitignorée, citée parfois sans préfixe.
+AuthKey.json

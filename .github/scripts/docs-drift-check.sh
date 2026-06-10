@@ -64,6 +64,21 @@ done < <(
 echo "Indexed ${#repo_files[@]} source file(s) in the repository."
 echo ""
 
+# Allowlist explicite : fichiers cités dans docs/ légitimement absents du dépôt
+# (secrets cités par nom nu, fichiers générés, ressources externes). Une
+# référence qui matche une entrée n'est pas comptée comme drift.
+ALLOWLIST_FILE="$(dirname "$0")/docs-drift-allowlist.txt"
+allowlist=()
+if [ -f "$ALLOWLIST_FILE" ]; then
+  while IFS= read -r line; do
+    line="${line%%#*}"                                            # retire commentaires
+    line="$(echo "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+    [ -n "$line" ] && allowlist+=("$line")
+  done < "$ALLOWLIST_FILE"
+  echo "Loaded ${#allowlist[@]} allowlist entr(ies) from $ALLOWLIST_FILE."
+  echo ""
+fi
+
 for md in "${md_files[@]}"; do
   # Extrait tous les contenus entre backticks (single or double) du fichier.
   # On utilise grep -oP avec une regex Perl-compatible pour matcher uniquement
@@ -149,6 +164,19 @@ for md in "${md_files[@]}"; do
       if git check-ignore --quiet "$candidate" 2>/dev/null; then
         found=1
       fi
+    fi
+
+    # Skip si présent dans l'allowlist explicite : match exact ou suffixe de
+    # chemin ("/<entrée>"), pour couvrir aussi bien "AuthKey.json" que
+    # "fastlane/AuthKey.json".
+    if [ "$found" -eq 0 ] && [ ${#allowlist[@]} -gt 0 ]; then
+      for entry in "${allowlist[@]}"; do
+        if [[ "$candidate" == "$entry" ]] || [[ "$candidate" == *"/$entry" ]]; then
+          found=1
+          echo "  ℹ️  allowlisted: $candidate (entrée « $entry »)"
+          break
+        fi
+      done
     fi
 
     if [ "$found" -eq 0 ]; then

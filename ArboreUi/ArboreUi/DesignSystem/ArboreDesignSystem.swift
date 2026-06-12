@@ -84,6 +84,7 @@ enum ArboreDesign {
         static let search = "magnifyingglass"
         static let filter = "slider.horizontal.3"
         static let chevron = "chevron.right"
+        static let chatbot = "bubble.left.and.text.bubble.right"
         static let empty = "leaf"
         static let loading = "leaf.circle"
     }

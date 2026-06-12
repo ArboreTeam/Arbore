@@ -1,5 +1,12 @@
 import SwiftUI
 
+struct ScrollOffsetKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 struct PlantDetailView: View {
     let plantID: String
     let previewPlant: Plant?
@@ -10,6 +17,7 @@ struct PlantDetailView: View {
     @State private var showFullDescription = false
     @State private var showGallery = false
     @State private var galleryStartIndex = 0
+    @State private var scrollOffset: CGFloat = 0
     @AppStorage("selectedLanguage") private var selectedLanguage = "system"
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -81,8 +89,8 @@ struct PlantDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            topBar
+        ZStack(alignment: .top) {
+            ArboreDesign.Colors.background.ignoresSafeArea()
 
             if let errorMessage = errorMessage, displayPlant == nil {
                 Text(errorMessage)
@@ -93,8 +101,9 @@ struct PlantDetailView: View {
             } else {
                 plantContent(displayPlant, isShowingSkeleton: plant == nil)
             }
+
+            topBar
         }
-        .background(ArboreDesign.Colors.background.ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .onAppear(perform: fetchPlantDetails)
         .fullScreenCover(isPresented: $showGallery) {
@@ -107,14 +116,22 @@ struct PlantDetailView: View {
 
     private var topBar: some View {
         ZStack(alignment: .bottom) {
-            ArboreDesign.Colors.primaryGreen
-                .ignoresSafeArea(edges: .top)
-                .frame(height: 64)
+            Group {
+                if scrollOffset < -5 {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                } else {
+                    ArboreDesign.Colors.background
+                }
+            }
+            .ignoresSafeArea(edges: .top)
+            .frame(height: 64)
+            .animation(.easeInOut(duration: 0.2), value: scrollOffset)
 
             HStack {
                 Button(action: { dismiss() }) {
                     Image(systemName: "chevron.left")
-                        .foregroundColor(.white)
+                        .foregroundColor(ArboreDesign.Colors.primaryGreen)
                         .font(.headline)
                         .frame(width: 28, height: 28)
                 }
@@ -126,22 +143,22 @@ struct PlantDetailView: View {
                     if let name = displayPlant?.name, !name.isEmpty {
                         Text(name)
                             .font(.system(size: 19, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
                             .lineLimit(1)
                     } else {
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color.white.opacity(0.28))
+                            .fill(ArboreDesign.Colors.textMuted.opacity(0.28))
                             .frame(width: 118, height: 17)
                     }
 
                     if let displayedPlantType {
                         Text(displayedPlantType)
                             .font(ArboreDesign.Typography.caption)
-                            .foregroundColor(.white.opacity(0.76))
+                            .foregroundColor(ArboreDesign.Colors.textSecondary)
                             .lineLimit(1)
                     } else {
                         RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .fill(Color.white.opacity(0.18))
+                            .fill(ArboreDesign.Colors.textMuted.opacity(0.18))
                             .frame(width: 82, height: 10)
                     }
                 }
@@ -163,6 +180,13 @@ struct PlantDetailView: View {
 
         return ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
+                GeometryReader { geo in
+                    Color.clear
+                        .preference(key: ScrollOffsetKey.self,
+                                    value: geo.frame(in: .named("scroll")).minY)
+                }
+                .frame(height: 64)
+
                 plantHeaderImage(for: displayPlant)
 
                 ZStack(alignment: .top) {
@@ -192,6 +216,9 @@ struct PlantDetailView: View {
             }
         }
         .coordinateSpace(name: "scroll")
+        .onPreferenceChange(ScrollOffsetKey.self) { value in
+            scrollOffset = value
+        }
     }
 
     // MARK: - HEADER IMAGE

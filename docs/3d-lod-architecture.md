@@ -123,3 +123,28 @@ botanic = **124 plantes** en prod.
   juste après le swap.
 - **Legacy heavy** : pour les 26 legacy, “heavy” = textures 4K (même mesh lowpoly)
   → le swap améliore surtout la résolution de texture, pas la géométrie. OK.
+
+## LOD adaptatif (thermique + budget + distance)
+
+`PlantLODPolicy.swift` + l'évaluateur dans `GardenARPlacementView` (`evaluateLOD`,
+throttlé ~4 Hz depuis `renderer(_:updateAtTime:)`) décident light/heavy par une
+**chaîne de précédence** (les gates globaux ne peuvent que *réduire* le détail) :
+
+1. **Thermique (global)** — `ProcessInfo.thermalState` + Low Power Mode :
+   `.nominal`/`.fair` → budget plein ; `.serious`/LowPower → tout light sauf la
+   plante sélectionnée + annule les downloads heavy ; `.critical` → tout light.
+   Downgrade immédiat à chaud ; re-upgrade seulement après ≥ 8 s au frais
+   (`coolStableBeforeUpgrade`, cooldown — pas d'hystérésis native côté API).
+2. **Budget K (global)** — `DeviceCapabilities.tier` : K=1 (legacy) / 2 (modern).
+   Seules les K plus proches + la sélectionnée passent heavy ; le surplus est
+   downgradé. Stickiness 10% pour éviter le ping-pong entre plantes équidistantes.
+3. **Distance (par plante)** — en **taille à l'écran** : heavy tant que
+   `distance < 2,9 × hauteur` (≈ >30% de l'écran), hystérésis 20%, clamp [0,6 ; 4,5] m.
+
+Le swap est **réversible** (`swapModel(to:)` light↔heavy) ; un download heavy en
+cours est traité comme heavy (bande large) pour ne pas être annulé au moindre
+jitter, et son LOD cible est tracké pour ne jamais annuler/redémarrer à tort.
+Tout est **fail-safe** (toute erreur laisse le modèle courant). Valeurs par défaut
+issues de recherche (Apple thermal guidance + LOD mobile AR). ⚠️ Comportement AR
+à valider on-device. Complète le système `ARGarden/Quality/` existant (qui gère
+`environmentTexturing` + bannière) sans le dupliquer.

@@ -139,7 +139,7 @@ final class GardenSuggestionEngine {
         }
 
         // --- Exposure axis ---
-        let exposureScore = scoreExposure(translation: translation, exposure: wizard.exposure)
+        let exposureScore = scoreExposure(plant: plant, translation: translation, exposure: wizard.exposure)
         if exposureScore > 0.7 {
             reasons.append("Luminosité adaptée")
         } else if exposureScore < 0.3 {
@@ -147,19 +147,19 @@ final class GardenSuggestionEngine {
         }
 
         // --- Soil axis ---
-        let soilScore = scoreSoil(translation: translation, soil: wizard.soil)
+        let soilScore = scoreSoil(plant: plant, translation: translation, soil: wizard.soil)
         if soilScore > 0.7 {
             reasons.append("Sol compatible")
         }
 
         // --- Maintenance axis ---
-        let maintenanceScore = scoreMaintenance(translation: translation, maintenance: wizard.maintenance)
+        let maintenanceScore = scoreMaintenance(plant: plant, translation: translation, maintenance: wizard.maintenance)
         if maintenanceScore > 0.7 {
             reasons.append("Entretien adapté")
         }
 
         // --- Safety axis ---
-        let safetyScore = scoreSafety(translation: translation, safety: wizard.safety)
+        let safetyScore = scoreSafety(plant: plant, translation: translation, safety: wizard.safety)
         if safetyScore < 0.5 {
             reasons.append("⚠️ Plante potentiellement toxique")
         }
@@ -239,8 +239,23 @@ final class GardenSuggestionEngine {
 
     // MARK: - Exposure Scoring
 
-    private func scoreExposure(translation: PlantTranslation, exposure: String?) -> Double {
+    private func scoreExposure(plant: Plant, translation: PlantTranslation, exposure: String?) -> Double {
         guard let exposure = exposure, !exposure.isEmpty else { return 0.8 }
+
+        if let flags = plant.flags {
+            let exp = exposure.lowercased()
+            if exp.contains("soleil direct") || exp.contains("6h") || exp == "fullsun" {
+                return flags.fullSunTolerant ? 1.0 : (flags.shadeTolerant ? 0.2 : 0.6)
+            }
+            if exp.contains("mi-ombre") || exp == "partialshade" {
+                if flags.shadeTolerant && !flags.fullSunTolerant { return 1.0 }
+                return (flags.fullSunTolerant && !flags.shadeTolerant) ? 0.5 : 0.9
+            }
+            if exp.contains("ombrag") || exp == "shade" {
+                return flags.shadeTolerant ? 1.0 : 0.1
+            }
+            return 0.7
+        }
 
         let plantLight = (translation.sun?.lightType ?? "").lowercased()
         let plantDuration = (translation.sun?.durationPerDay ?? "").lowercased()
@@ -290,8 +305,20 @@ final class GardenSuggestionEngine {
 
     // MARK: - Soil Scoring
 
-    private func scoreSoil(translation: PlantTranslation, soil: String?) -> Double {
+    private func scoreSoil(plant: Plant, translation: PlantTranslation, soil: String?) -> Double {
         guard let soil = soil, !soil.isEmpty else { return 0.8 }
+
+        if let flags = plant.flags {
+            let s = soil.lowercased()
+            if s.contains("je ne sais pas") || s.contains("unknown") { return 0.7 }
+            if s.contains("sec") || s == "dry" { return flags.droughtTolerant ? 1.0 : 0.2 }
+            if s.contains("rocailleux") || s == "rocky" { return flags.droughtTolerant ? 1.0 : 0.4 }
+            if s.contains("retient") || s == "waterretentive" {
+                return flags.humidityLoving ? 1.0 : (flags.droughtTolerant ? 0.2 : 0.6)
+            }
+            if s.contains("riche") || s == "rich" { return flags.droughtTolerant ? 0.3 : 1.0 }
+            return 0.6
+        }
 
         let plantSoil = (translation.soilAndPot?.substrate ?? "").lowercased()
         let plantDrainage = (translation.soilAndPot?.drainage ?? "").lowercased()
@@ -341,8 +368,16 @@ final class GardenSuggestionEngine {
 
     // MARK: - Maintenance Scoring
 
-    private func scoreMaintenance(translation: PlantTranslation, maintenance: String?) -> Double {
+    private func scoreMaintenance(plant: Plant, translation: PlantTranslation, maintenance: String?) -> Double {
         guard let maintenance = maintenance, !maintenance.isEmpty else { return 0.8 }
+
+        if let flags = plant.flags {
+            let maint = maintenance.lowercased()
+            if maint.contains("très facile") || maint == "veryeasy" { return flags.easyCare ? 1.0 : 0.3 }
+            if maint.contains("facile") || maint == "easy" { return flags.easyCare ? 1.0 : 0.5 }
+            if maint.contains("exigeant") || maint == "demanding" { return flags.easyCare ? 0.6 : 1.0 }
+            return 0.7
+        }
 
         let plantDifficulty = (translation.care?.difficulty ?? "").lowercased()
         let plantWater = (translation.water?.frequency ?? "").lowercased()
@@ -380,11 +415,22 @@ final class GardenSuggestionEngine {
 
     // MARK: - Safety Scoring
 
-    private func scoreSafety(translation: PlantTranslation, safety: [String]?) -> Double {
+    private func scoreSafety(plant: Plant, translation: PlantTranslation, safety: [String]?) -> Double {
         guard let safety = safety, !safety.isEmpty else { return 1.0 }
 
         // "Aucune contrainte" → no filtering
         if safety.contains("Aucune contrainte") || safety.contains("none") {
+            return 1.0
+        }
+
+        let hasPetFilter = safety.contains(where: { $0.contains("animaux") || $0.contains("pets") })
+        let hasChildFilter = safety.contains(where: { $0.contains("enfants") || $0.contains("children") })
+
+        // Prefer structured flags — robust (keyword fallback below false-positives
+        // on "non toxique" / "non-toxic" descriptions).
+        if let flags = plant.flags {
+            if hasPetFilter && flags.toxicToPets { return 0.0 }
+            if hasChildFilter && flags.toxicToChildren { return 0.0 }
             return 1.0
         }
 
@@ -398,10 +444,7 @@ final class GardenSuggestionEngine {
         let isToxic = toxicKeywords.contains { combined.contains($0) }
 
         if isToxic {
-            // Heavy penalty for toxic plants when safety is required
-            let hasPetFilter = safety.contains(where: { $0.contains("animaux") || $0.contains("pets") })
-            let hasChildFilter = safety.contains(where: { $0.contains("enfants") || $0.contains("children") })
-
+            // Heavy penalty for toxic plants when safety is required (legacy fallback)
             if hasPetFilter || hasChildFilter {
                 return 0.0 // Hard exclude
             }

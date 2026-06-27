@@ -192,6 +192,25 @@ type Plant struct {
 	UpAxis       *string                 `json:"upAxis,omitempty" bson:"upAxis,omitempty"`
 	Source       *string                 `json:"source,omitempty" bson:"source,omitempty"`       // "botanic" = scrapé depuis botanic.com ; nil/"" = legacy/beta
 	SourceURL    *string                 `json:"sourceUrl,omitempty" bson:"sourceUrl,omitempty"` // URL botanic.com d'origine (conservée pour ré-scrape/màj ultérieure)
+	Flags        *PlantFlags             `json:"flags,omitempty" bson:"flags,omitempty"`         // drapeaux structurés pour la reco wizard (fiables, vs matching mots-clés)
+}
+
+// PlantFlags : drapeaux booléens structurés alimentant la recommandation du
+// wizard (filtre + scoring). Renseignés par recherche ; nil sur les plantes
+// legacy (le wizard retombe alors sur le matching mots-clés du texte).
+type PlantFlags struct {
+	ToxicToPets     bool `json:"toxicToPets" bson:"toxicToPets"`         // toxique chats/chiens (ASPCA)
+	ToxicToChildren bool `json:"toxicToChildren" bson:"toxicToChildren"` // dangereuse/irritante si ingérée par un enfant
+	EasyCare        bool `json:"easyCare" bson:"easyCare"`               // facile / débutant
+	ShadeTolerant   bool `json:"shadeTolerant" bson:"shadeTolerant"`     // supporte ombre / faible lumière
+	FullSunTolerant bool `json:"fullSunTolerant" bson:"fullSunTolerant"` // supporte plein soleil 6h+
+	DroughtTolerant bool `json:"droughtTolerant" bson:"droughtTolerant"` // sol sec / arrosage espacé
+	HumidityLoving  bool `json:"humidityLoving" bson:"humidityLoving"`   // aime l'humidité (salle de bain)
+	Flowering       bool `json:"flowering" bson:"flowering"`             // cultivée pour ses fleurs
+	Climbing        bool `json:"climbing" bson:"climbing"`               // grimpante (tuteur)
+	Trailing        bool `json:"trailing" bson:"trailing"`               // retombante (suspension)
+	Compact         bool `json:"compact" bson:"compact"`                 // compacte / petits espaces
+	AirPurifying    bool `json:"airPurifying" bson:"airPurifying"`       // dépolluante (liste NASA)
 }
 
 type AIRequest struct {

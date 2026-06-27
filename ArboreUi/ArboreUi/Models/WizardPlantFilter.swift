@@ -18,17 +18,17 @@ struct WizardPlantFilter {
         // 1. Style → keywords in name, type, description
         if !matchesStyle(plant: plant, translation: translation) { return false }
 
-        // 2. Exposure → sun.lightType
-        if !matchesExposure(translation: translation) { return false }
+        // 2. Exposure → flags.shade/fullSun (fallback: sun.lightType)
+        if !matchesExposure(plant: plant, translation: translation) { return false }
 
-        // 3. Maintenance → care.difficulty + water.frequency
-        if !matchesMaintenance(translation: translation) { return false }
+        // 3. Maintenance → flags.easyCare (fallback: care.difficulty + water.frequency)
+        if !matchesMaintenance(plant: plant, translation: translation) { return false }
 
-        // 4. Safety → exclude toxic plants
-        if !matchesSafety(translation: translation) { return false }
+        // 4. Safety → flags.toxicToPets/Children (fallback: toxic keywords)
+        if !matchesSafety(plant: plant, translation: translation) { return false }
 
-        // 5. Soil → soilAndPot.substrate
-        if !matchesSoil(translation: translation) { return false }
+        // 5. Soil → flags.drought/humidity (fallback: soilAndPot.substrate)
+        if !matchesSoil(plant: plant, translation: translation) { return false }
 
         return true
     }
@@ -118,8 +118,23 @@ struct WizardPlantFilter {
 
     // MARK: - Exposure Matching
 
-    private func matchesExposure(translation: PlantTranslation) -> Bool {
+    private func matchesExposure(plant: Plant, translation: PlantTranslation) -> Bool {
         guard let exposure = wizard.exposure, !exposure.isEmpty else { return true }
+        let expL = exposure.lowercased()
+
+        // Prefer structured flags when available.
+        if let flags = plant.flags {
+            if expL.contains("soleil direct") || expL.contains("6h") || expL == "fullsun" {
+                return flags.fullSunTolerant || !(flags.shadeTolerant && !flags.fullSunTolerant)
+            }
+            if expL.contains("mi-ombre") || expL == "partialshade" {
+                return !(flags.fullSunTolerant && !flags.shadeTolerant)
+            }
+            if expL.contains("ombrag") || expL == "shade" {
+                return flags.shadeTolerant
+            }
+            return true
+        }
 
         let plantLight = (translation.sun?.lightType ?? "").lowercased()
         let plantDuration = (translation.sun?.durationPerDay ?? "").lowercased()
@@ -160,8 +175,18 @@ struct WizardPlantFilter {
 
     // MARK: - Maintenance Matching
 
-    private func matchesMaintenance(translation: PlantTranslation) -> Bool {
+    private func matchesMaintenance(plant: Plant, translation: PlantTranslation) -> Bool {
         guard let maintenance = wizard.maintenance, !maintenance.isEmpty else { return true }
+        let maintL = maintenance.lowercased()
+
+        // Prefer structured flags when available.
+        if let flags = plant.flags {
+            if maintL.contains("facile") || maintL == "veryeasy" || maintL == "easy" {
+                return flags.easyCare
+            }
+            // "Exigeant" / unknown → accept all.
+            return true
+        }
 
         let plantDifficulty = (translation.care?.difficulty ?? "").lowercased()
         let plantWater = (translation.water?.frequency ?? "").lowercased()
@@ -199,11 +224,22 @@ struct WizardPlantFilter {
 
     // MARK: - Safety Matching
 
-    private func matchesSafety(translation: PlantTranslation) -> Bool {
+    private func matchesSafety(plant: Plant, translation: PlantTranslation) -> Bool {
         guard let safety = wizard.safety, !safety.isEmpty else { return true }
 
         // If "Aucune contrainte" is selected, no filtering needed
         if safety.contains("Aucune contrainte") || safety.contains("none") {
+            return true
+        }
+
+        let wantsPetSafe = safety.contains("Éviter les plantes toxiques pour les animaux") || safety.contains("pets")
+        let wantsChildSafe = safety.contains("Éviter les plantes dangereuses pour les enfants") || safety.contains("children")
+
+        // Prefer structured flags when available — robust (the keyword fallback
+        // below false-positives on "non toxique" / "non-toxic" descriptions).
+        if let flags = plant.flags {
+            if wantsPetSafe && flags.toxicToPets { return false }
+            if wantsChildSafe && flags.toxicToChildren { return false }
             return true
         }
 
@@ -243,8 +279,19 @@ struct WizardPlantFilter {
 
     // MARK: - Soil Matching
 
-    private func matchesSoil(translation: PlantTranslation) -> Bool {
+    private func matchesSoil(plant: Plant, translation: PlantTranslation) -> Bool {
         guard let soil = wizard.soil, !soil.isEmpty else { return true }
+        let soilL = soil.lowercased()
+
+        // Prefer structured flags when available (dry vs water-retentive axis).
+        if let flags = plant.flags {
+            if soilL.contains("je ne sais pas") || soilL.contains("unknown") { return true }
+            if soilL.contains("sec") || soilL == "dry" { return flags.droughtTolerant }
+            if soilL.contains("rocailleux") || soilL == "rocky" { return flags.droughtTolerant }
+            if soilL.contains("retient") || soilL == "waterretentive" { return flags.humidityLoving || !flags.droughtTolerant }
+            if soilL.contains("riche") || soilL == "rich" { return !flags.droughtTolerant }
+            return true
+        }
 
         let plantSoil = (translation.soilAndPot?.substrate ?? "").lowercased()
         let plantDrainage = (translation.soilAndPot?.drainage ?? "").lowercased()

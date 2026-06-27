@@ -1236,6 +1236,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
         uiView.session.delegate = nil
         uiView.delegate = nil
         coordinator.cancelPendingRestore()
+        coordinator.cancelAllHeavyUpgrades()
         NotificationCenter.default.removeObserver(coordinator)
         coordinator.arView = nil
     }
@@ -1258,6 +1259,9 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             // Rate-limit "no surface" warnings during boundary tracing.
             private var lastNoSurfaceWarnAt: TimeInterval = 0
             private var selectedNode: SCNNode?
+            /// LOD : upgrades heavy en cours, indexés par instanceId du placement,
+            /// pour pouvoir les annuler (suppression de la plante / teardown de la vue).
+            private var heavyUpgradeTasks: [UUID: Task<Void, Never>] = [:]
             private var isRestoring = false
             var isWaitingForWorldMapLoad = false
             var worldMapLoadedAt: TimeInterval = 0
@@ -1358,6 +1362,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 let surfaceHeight: Float?
                 let instanceId: UUID  // anchor.identifier — used so the loaded node can find its anchor
                 let autoSelect: Bool  // false for batch placements (AI auto-place) to avoid orange-halo flicker
+                var hasHeavy: Bool = false  // LOD: si true, on charge la version lourde en fond puis on swap
             }
 
             // 🤖 AI Auto-placement
@@ -3297,6 +3302,15 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 // Lookup is by per-instance UUID (not catalog plantId) so deleting
                 // one of two same-species plants targets the correct one.
                 let pid = plantId(of: node)
+                // LOD : couper un upgrade heavy éventuellement en cours pour ce placement
+                // (sinon le download + parse continuent inutilement après suppression).
+                if let uuid = instanceId(of: node) {
+                    heavyUpgradeTasks[uuid]?.cancel()
+                    heavyUpgradeTasks[uuid] = nil
+                    if let f = node.arboreModelURLString {
+                        Task { await ModelCacheManager.shared.cancelDownload(for: f) }
+                    }
+                }
                 if let uuid = instanceId(of: node),
                    let anchor = plantAnchorMap[uuid] {
                     arView.session.remove(anchor: anchor)
@@ -3409,7 +3423,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
 
                 saveStateForUndo()
                 if let axis = plant.upAxis { plantUpAxisMap[plant.id] = axis }
-                placeObject(at: transform, modelURL: url, id: plant.id, name: plant.name, modelURLString: plant.modelURL, upAxis: plant.upAxis)
+                placeObject(at: transform, modelURL: url, id: plant.id, name: plant.name, modelURLString: plant.modelURL, upAxis: plant.upAxis, hasHeavy: plant.hasHeavy == true)
             }
 
             @objc func handleLongPressToSelect(_ gesture: UILongPressGestureRecognizer) {
@@ -3499,7 +3513,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 upAxis: String? = nil,
                 surfaceType: String? = nil,
                 surfaceHeight: Float? = nil,
-                autoSelect: Bool = true
+                autoSelect: Bool = true,
+                hasHeavy: Bool = false
             ) {
                 guard let arView = arView else { return }
 
@@ -3524,7 +3539,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     surfaceType: surfaceType,
                     surfaceHeight: surfaceHeight,
                     instanceId: anchor.identifier,
-                    autoSelect: autoSelect
+                    autoSelect: autoSelect,
+                    hasHeavy: hasHeavy
                 )
                 plantAnchorMap[anchor.identifier] = anchor
                 arView.session.add(anchor: anchor)
@@ -3665,12 +3681,120 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         selectNode(container)
                     }
 
+                    // LOD : si une version haute définition existe, on la charge en
+                    // tâche de fond et on swap le node léger une fois prête. Fail-safe :
+                    // toute erreur laisse le modèle léger en place.
+                    if pending.hasHeavy {
+                        scheduleHeavyUpgrade(pending: pending, parentNode: parentNode)
+                    }
+
                     AppLog.arAnchor.notice("""
                         instantiated plant=\(pending.plantName, privacy: .public) \
                         anchor=\(pending.instanceId.uuidString.prefix(8), privacy: .public) \
                         world=\(container.simdWorldTransform.logDescription, privacy: .public) \
                         local=\(container.simdTransform.logDescription, privacy: .public)
                         """)
+            }
+
+            // MARK: - LOD heavy upgrade
+
+            /// Après le placement d'un modèle LÉGER, télécharge sa variante LOURDE
+            /// (haute définition) en fond et la swappe une fois prête. Fail-safe :
+            /// toute erreur (réseau, parse) laisse le modèle léger en place.
+            /// ⚠️ À valider sur device (non testable en CI).
+            private func scheduleHeavyUpgrade(pending: PendingPlantPlacement, parentNode: SCNNode) {
+                guard let filename = pending.modelURLString, !filename.isEmpty else { return }
+                let instanceId = pending.instanceId
+                let upAxis = pending.upAxis
+                heavyUpgradeTasks[instanceId]?.cancel()
+                heavyUpgradeTasks[instanceId] = Task { [weak self, weak parentNode] in
+                    do {
+                        let heavyURL = try await ModelCacheManager.shared.getModelURL(for: filename, lod: .heavy)
+                        if Task.isCancelled { return }
+                        let scene = try SCNScene(url: heavyURL, options: nil)
+                        if Task.isCancelled { return }
+                        await MainActor.run {
+                            guard let self else { return }
+                            self.heavyUpgradeTasks[instanceId] = nil
+                            guard let parentNode else { return }
+                            self.swapToHeavy(scene: scene, instanceId: instanceId, upAxis: upAxis, parentNode: parentNode)
+                        }
+                    } catch {
+                        await MainActor.run { self?.heavyUpgradeTasks[instanceId] = nil }
+                    }
+                }
+            }
+
+            /// Remplace le node LÉGER déjà placé par sa variante LOURDE, avec un court
+            /// fondu croisé, puis libère le léger. Position/rotation/échelle sont reprises
+            /// du léger (préserve le placement + pinch-zoom) ; le pivot est re-dérivé depuis
+            /// la bbox du heavy (robuste si light/heavy ont des bbox légèrement différentes).
+            /// Hypothèse restante à valider on-device : même origine/échelle model-space
+            /// et même up-axis entre les deux LOD (garanti par le même source Meshy).
+            private func swapToHeavy(scene: SCNScene, instanceId: UUID, upAxis: String?, parentNode: SCNNode) {
+                // Le node léger a pu être supprimé (l'utilisateur a retiré la plante) → on abandonne.
+                guard let light = parentNode.childNodes.first(where: { $0.arboreInstanceId == instanceId }) else { return }
+
+                let heavy = SCNNode()
+                heavy.name = light.name
+                heavy.arborePlantId = light.arborePlantId
+                heavy.arborePlantName = light.arborePlantName
+                heavy.arboreInstanceId = light.arboreInstanceId
+                heavy.arboreModelURLString = light.arboreModelURLString
+
+                let wrapper = SCNNode()
+                for child in scene.rootNode.childNodes { wrapper.addChildNode(child) }
+                // Même correction d'axe que le wrapper léger (même plante).
+                let effectiveAxis = upAxis ?? plantUpAxisMap[light.arborePlantId ?? ""]
+                if effectiveAxis?.uppercased() == "Z" { wrapper.eulerAngles.x = -.pi / 2 }
+                heavy.addChildNode(wrapper)
+                stripPotIfNeeded(from: heavy)
+
+                // Position / rotation / échelle reprises du léger (même placement +
+                // pinch-zoom). simdTransform encode déjà T·R·S → pas de copie de .scale.
+                heavy.simdTransform = light.simdTransform
+                // Pivot RE-DÉRIVÉ depuis la bbox du HEAVY (et non copié du léger) : après
+                // décimation, light/heavy peuvent avoir des bbox légèrement différentes ;
+                // copier le pivot du léger ferait flotter/enfoncer la base du heavy.
+                let (heavyMin, heavyMax) = heavy.boundingBox
+                if heavyMax.y - heavyMin.y > 0 {
+                    heavy.pivot = SCNMatrix4MakeTranslation(0, heavy.scale.y * heavyMin.y, 0)
+                    heavy.setValue(NSNumber(value: heavyMin.y), forKey: "arboreOriginalMinY")
+                } else {
+                    heavy.pivot = light.pivot
+                }
+
+                buildHaloCache(for: heavy, source: wrapper)
+                if parentProps?.relocationPhase == .adjusting {
+                    applyOutline(to: heavy, color: Self.outlineDefaultColor)
+                }
+
+                // Fondu croisé : on révèle le heavy, on masque le léger, puis on le retire.
+                let wasSelected = (selectedNode === light)
+                heavy.opacity = 0
+                parentNode.addChildNode(heavy)
+                // Pendant le fondu, light + heavy coexistent au même endroit. On retire
+                // le léger du hit-test (isPlantNode filtre sur le préfixe "plant_") pour
+                // qu'un tap ne sélectionne pas le node en cours de suppression. L'identité
+                // de swap/suppression passe par arboreInstanceId (KVC), pas par le name.
+                light.name = nil
+
+                SCNTransaction.begin()
+                SCNTransaction.animationDuration = 0.25
+                heavy.opacity = 1
+                light.opacity = 0
+                SCNTransaction.completionBlock = { [weak light] in light?.removeFromParentNode() }
+                SCNTransaction.commit()
+
+                if wasSelected { selectNode(heavy) }
+
+                AppLog.arAnchor.notice("LOD swap → heavy anchor=\(instanceId.uuidString.prefix(8), privacy: .public)")
+            }
+
+            /// Annule tous les upgrades heavy en cours (teardown / reset de scène).
+            func cancelAllHeavyUpgrades() {
+                for (_, task) in heavyUpgradeTasks { task.cancel() }
+                heavyUpgradeTasks.removeAll()
             }
 
             /// Called on the main thread when SCNScene loading fails. Attempts a

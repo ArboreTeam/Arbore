@@ -16,10 +16,11 @@ struct Plant: Identifiable, Codable {
     let source: String?    // "botanic" = plante scrapée depuis botanic.com ; nil = legacy/beta
     let sourceUrl: String? // URL botanic.com d'origine (conservée pour ré-scrape/màj)
     let flags: PlantFlags? // drapeaux structurés pour la reco wizard ; nil = legacy (fallback mots-clés)
+    let hasHeavy: Bool?    // true = une version 3D haute définition existe (LOD : swap depuis le léger en AR)
 
     enum CodingKeys: String, CodingKey {
         case id
-        case name, type, imageURLs, description, modelURL, translations, generated, upAxis, source, sourceUrl, flags
+        case name, type, imageURLs, description, modelURL, translations, generated, upAxis, source, sourceUrl, flags, hasHeavy
     }
 
     // Décode avec fallback safe
@@ -48,6 +49,7 @@ struct Plant: Identifiable, Codable {
         self.source = try container.decodeIfPresent(String.self, forKey: .source)
         self.sourceUrl = try container.decodeIfPresent(String.self, forKey: .sourceUrl)
         self.flags = try container.decodeIfPresent(PlantFlags.self, forKey: .flags)
+        self.hasHeavy = try container.decodeIfPresent(Bool.self, forKey: .hasHeavy)
     }
 
     // ✅ Helper pour reconstruire une plante minimale au moment du restore

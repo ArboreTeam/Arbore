@@ -193,6 +193,7 @@ type Plant struct {
 	Source       *string                 `json:"source,omitempty" bson:"source,omitempty"`       // "botanic" = scrapé depuis botanic.com ; nil/"" = legacy/beta
 	SourceURL    *string                 `json:"sourceUrl,omitempty" bson:"sourceUrl,omitempty"` // URL botanic.com d'origine (conservée pour ré-scrape/màj ultérieure)
 	Flags        *PlantFlags             `json:"flags,omitempty" bson:"flags,omitempty"`         // drapeaux structurés pour la reco wizard (fiables, vs matching mots-clés)
+	HasHeavy     *bool                   `json:"hasHeavy,omitempty" bson:"hasHeavy,omitempty"`   // true = une version haute définition existe (servie via /models/<file>?lod=heavy)
 }
 
 // PlantFlags : drapeaux booléens structurés alimentant la recommandation du
@@ -1629,8 +1630,8 @@ func main() {
 		protected.GET("/models/:filename", func(c *gin.Context) {
 			filename := c.Param("filename")
 
-			// Sécurité: empêcher les path traversal attacks
-			if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
+			// Sécurité: empêcher les path traversal attacks (parité avec le handler thumbnails)
+			if strings.Contains(filename, "..") || strings.ContainsAny(filename, "/\\") {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid filename"})
 				return
 			}
@@ -1641,7 +1642,14 @@ func main() {
 				return
 			}
 
-			filePath := fmt.Sprintf("./models/%s", filename)
+			// LOD: ?lod=heavy sert le modèle haute définition depuis ./models/heavy/.
+			// (Une seule route : un sous-chemin /models/heavy/:filename ferait paniquer
+			// httprouter — conflit wildcard ':filename' vs segment statique 'heavy'.)
+			baseDir := "./models"
+			if c.Query("lod") == "heavy" {
+				baseDir = "./models/heavy"
+			}
+			filePath := fmt.Sprintf("%s/%s", baseDir, filename)
 
 			// Vérifier si le fichier existe
 			if _, err := os.Stat(filePath); os.IsNotExist(err) {

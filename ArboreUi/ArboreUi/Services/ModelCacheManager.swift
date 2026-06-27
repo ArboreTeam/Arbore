@@ -1,5 +1,26 @@
 import Foundation
 
+/// Niveau de détail d'un modèle 3D (LOD).
+/// - light : modèle optimisé, servi par défaut (catalogue + placement AR rapide)
+/// - heavy : specimen haute définition, chargé en fond puis swappé en AR
+enum ModelLOD: String {
+    case light
+    case heavy
+
+    /// URL distante. Le heavy passe par `?lod=heavy` sur la même route `/models/<file>`
+    /// (un sous-chemin /models/heavy ferait paniquer httprouter côté backend).
+    func remoteURLString(base: String, filename: String) -> String {
+        let url = "\(base)/models/\(filename)"
+        return self == .heavy ? "\(url)?lod=heavy" : url
+    }
+
+    /// Sous-dossier de cache. Le heavy est isolé dans Documents/Models/heavy/ pour
+    /// qu'il puisse garder le même nom de fichier que le light sans aucune collision.
+    var cacheSubdirectory: String? {
+        self == .heavy ? "heavy" : nil
+    }
+}
+
 /// Gère le téléchargement et le cache des modèles 3D USDZ depuis le backend
 actor ModelCacheManager {
     static let shared = ModelCacheManager()
@@ -21,14 +42,21 @@ actor ModelCacheManager {
     ///   - modelURL: Le nom du fichier du modèle (ex: "Monstera_Deliciosa.usdz")
     ///   - forceDownload: Si true, forcer un nouveau téléchargement même si un cache existe
     /// - Returns: L'URL locale du fichier téléchargé
-    func getModelURL(for modelURL: String, forceDownload: Bool = false) async throws -> URL {
+    func getModelURL(for modelURL: String, lod: ModelLOD = .light, forceDownload: Bool = false) async throws -> URL {
         guard !modelURL.isEmpty else {
             throw ModelCacheError.invalidModelURL
         }
 
-        // Extraire le nom du fichier
+        // Nom de fichier d'origine pour la requête distante ; le heavy est rangé dans
+        // un sous-dossier dédié sur disque (même nom, zéro collision avec le light).
         let filename = (modelURL as NSString).lastPathComponent
-        let localURL = cacheDirectory.appendingPathComponent(filename)
+        let lodDir: URL = {
+            guard let sub = lod.cacheSubdirectory else { return cacheDirectory }
+            let dir = cacheDirectory.appendingPathComponent(sub, isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            return dir
+        }()
+        let localURL = lodDir.appendingPathComponent(filename)
 
         let fileExists = FileManager.default.fileExists(atPath: localURL.path)
 
@@ -44,7 +72,9 @@ actor ModelCacheManager {
             return localURL
         }
 
-        let taskKey = forceDownload ? "force:\(filename)" : filename
+        // La clé inclut le LOD pour que light/heavy d'un même fichier ne partagent
+        // pas la même tâche en cours.
+        let taskKey = "\(lod.rawValue):\(forceDownload ? "force:" : "")\(filename)"
         if forceDownload {
             print("⬇️ Forcing download for: \(filename)")
         }
@@ -57,7 +87,7 @@ actor ModelCacheManager {
 
         // Créer une nouvelle tâche de téléchargement
         let task = Task<URL, Error> {
-            try await downloadModel(filename: filename, to: localURL)
+            try await downloadModel(filename: filename, lod: lod, to: localURL)
         }
 
         downloadTasks[taskKey] = task
@@ -72,12 +102,25 @@ actor ModelCacheManager {
         }
     }
 
-    /// Télécharge un modèle depuis le backend
-    private func downloadModel(filename: String, to localURL: URL) async throws -> URL {
-        print("⬇️ Downloading model: \(filename)")
+    /// Annule un téléchargement en cours (heavy par défaut). No-op si aucun n'est actif.
+    /// `URLSession.download` honore l'annulation coopérative → le transfert s'interrompt
+    /// et `task.value` lève `CancellationError`, capturée par le `catch` de getModelURL.
+    func cancelDownload(for modelURL: String, lod: ModelLOD = .heavy, forceDownload: Bool = false) {
+        let filename = (modelURL as NSString).lastPathComponent
+        let taskKey = "\(lod.rawValue):\(forceDownload ? "force:" : "")\(filename)"
+        if let task = downloadTasks[taskKey] {
+            task.cancel()
+            downloadTasks[taskKey] = nil
+            print("🛑 Cancelled \(lod.rawValue) download for: \(filename)")
+        }
+    }
 
-        // Construire l'URL du backend
-        guard let backendURL = URL(string: "\(NetworkManager.shared.baseURL)/models/\(filename)") else {
+    /// Télécharge un modèle depuis le backend
+    private func downloadModel(filename: String, lod: ModelLOD = .light, to localURL: URL) async throws -> URL {
+        print("⬇️ Downloading model: \(filename) [\(lod.rawValue)]")
+
+        // Construire l'URL du backend (heavy → ?lod=heavy)
+        guard let backendURL = URL(string: lod.remoteURLString(base: NetworkManager.shared.baseURL, filename: filename)) else {
             throw ModelCacheError.invalidBackendURL
         }
 

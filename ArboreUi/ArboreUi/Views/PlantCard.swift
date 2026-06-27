@@ -68,7 +68,12 @@ struct PlantCard: View {
         )
         .shadow(color: ArboreDesign.Colors.shadow, radius: 8, x: 0, y: 4)
         .overlay(alignment: .topTrailing) {
-            if plant.generated == true {
+            // Les plantes botanic affichent leur propre badge ; sinon badge BETA
+            // pour les modèles 3D générés par IA.
+            if plant.source == "botanic" {
+                botanicBadge
+                    .padding(10)
+            } else if plant.generated == true {
                 betaBadge
                     .padding(10)
             }
@@ -80,6 +85,24 @@ struct PlantCard: View {
 
     private var betaBadge: some View {
         Text("BETA")
+            .font(.system(size: 10, weight: .semibold))
+            .tracking(0.8)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(ArboreDesign.Colors.primaryGreen)
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.white.opacity(0.45), lineWidth: 0.5)
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.22), radius: 2, x: 0, y: 1)
+    }
+
+    private var botanicBadge: some View {
+        Text("BOTANIC")
             .font(.system(size: 10, weight: .semibold))
             .tracking(0.8)
             .foregroundStyle(.white)

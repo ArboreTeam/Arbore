@@ -70,6 +70,8 @@ export interface Plant {
   id?: string;
   _id?: string;
   name?: string;
+  generated?: boolean;
+  source?: string; // "botanic" = scrapé depuis botanic.com ; sinon legacy/beta
   [key: string]: unknown;
 }
 

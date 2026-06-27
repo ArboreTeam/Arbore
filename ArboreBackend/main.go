@@ -190,7 +190,8 @@ type Plant struct {
 	Translations map[string]LanguageData `json:"translations" bson:"translations"`
 	Generated    *bool                   `json:"generated,omitempty" bson:"generated,omitempty"`
 	UpAxis       *string                 `json:"upAxis,omitempty" bson:"upAxis,omitempty"`
-	Source       *string                 `json:"source,omitempty" bson:"source,omitempty"` // "botanic" = scrapé depuis botanic.com ; nil/"" = legacy/beta
+	Source       *string                 `json:"source,omitempty" bson:"source,omitempty"`       // "botanic" = scrapé depuis botanic.com ; nil/"" = legacy/beta
+	SourceURL    *string                 `json:"sourceUrl,omitempty" bson:"sourceUrl,omitempty"` // URL botanic.com d'origine (conservée pour ré-scrape/màj ultérieure)
 }
 
 type AIRequest struct {

@@ -2074,7 +2074,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                     name: item.plant.name,
                                     modelURLString: item.plant.modelURL,
                                     upAxis: item.plant.upAxis,
-                                    autoSelect: false   // batch — no halo flicker
+                                    autoSelect: false,   // batch — no halo flicker
+                                    hasHeavy: item.plant.hasHeavy == true
                                 )
 
                                 // Light haptic per plant
@@ -2630,7 +2631,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         transform: matrixToFloatArray(anchorTransform),
                         upAxis: plantUpAxisMap[plantId],
                         surfaceType: surfaceType,
-                        surfaceHeight: surfaceHeight
+                        surfaceHeight: surfaceHeight,
+                        hasHeavy: node.arboreHasHeavy
                     )
                 }
             }
@@ -3024,7 +3026,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                             surfaceType: p.surfaceType,
                             surfaceHeight: p.surfaceHeight,
                             instanceId: anchor.identifier,
-                            autoSelect: false
+                            autoSelect: false,
+                            hasHeavy: p.hasHeavy == true
                         )
                         self.instantiatePlantNode(into: node, pending: pending, anchorTransform: anchorTransform)
                     }
@@ -3130,7 +3133,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                             modelURLString: p.modelURLString,
                                             upAxis: p.upAxis,
                                             surfaceType: p.surfaceType,
-                                            surfaceHeight: p.surfaceHeight
+                                            surfaceHeight: p.surfaceHeight,
+                                            hasHeavy: p.hasHeavy == true
                                         )
                                     }
                                 } catch {
@@ -3146,7 +3150,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                                 modelURLString: p.modelURLString,
                                                 upAxis: p.upAxis,
                                                 surfaceType: p.surfaceType,
-                                                surfaceHeight: p.surfaceHeight
+                                                surfaceHeight: p.surfaceHeight,
+                                                hasHeavy: p.hasHeavy == true
                                             )
                                         }
                                     } else {
@@ -3591,6 +3596,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     container.arboreInstanceId = pending.instanceId
                     container.arboreModelURLString = pending.modelURLString
                         ?? pending.modelURL.lastPathComponent
+                    container.arboreHasHeavy = pending.hasHeavy
 
                     let wrapper = SCNNode()
                     for child in scene.rootNode.childNodes { wrapper.addChildNode(child) }
@@ -3823,7 +3829,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                 allowRetry: false,
                                 upAxis: pending.upAxis,
                                 surfaceType: pending.surfaceType,
-                                surfaceHeight: pending.surfaceHeight
+                                surfaceHeight: pending.surfaceHeight,
+                                hasHeavy: pending.hasHeavy
                             )
                         }
                     } catch {
@@ -4528,5 +4535,11 @@ extension SCNNode {
     var arboreModelURLString: String? {
         get { value(forKey: "arboreModelURLString") as? String }
         set { setValue(newValue, forKey: "arboreModelURLString") }
+    }
+    /// LOD : une version heavy existe pour cette plante (propagé à la sauvegarde
+    /// pour que la ré-ouverture du jardin re-déclenche l'upgrade).
+    var arboreHasHeavy: Bool {
+        get { (value(forKey: "arboreHasHeavy") as? Bool) ?? false }
+        set { setValue(newValue, forKey: "arboreHasHeavy") }
     }
 }

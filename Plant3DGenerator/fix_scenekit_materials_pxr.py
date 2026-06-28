@@ -90,14 +90,10 @@ def fix_usdz(src: Path, dst: Path) -> tuple[bool, str]:
             if n == 0:
                 return False, "nothing to fix (already direct?)"
             out_tmp = w / "_out.usdz"
-            # CreateNewARKitUsdzPackage resolves relative deps against CWD; run from w.
-            import os
-            cwd = os.getcwd()
-            try:
-                os.chdir(w)
-                ok = UsdUtils.CreateNewARKitUsdzPackage(roots[0].name, "_out.usdz")
-            finally:
-                os.chdir(cwd)
+            # Absolute paths, NO os.chdir: chdir is process-wide and races under
+            # ThreadPoolExecutor. CreateNewARKitUsdzPackage resolves the layer's
+            # relative texture deps against the layer's own directory.
+            ok = UsdUtils.CreateNewARKitUsdzPackage(str(roots[0]), str(out_tmp))
             if not ok or not out_tmp.exists():
                 return False, "usdz repackage failed"
             dst.parent.mkdir(parents=True, exist_ok=True)

@@ -8,7 +8,8 @@ files to opti_output/ WITHOUT touching the originals in output/.
 
 Pipeline per model (from the source GLB):
   gltf-transform weld → simplify → resize (unpacked .gltf, textures as files)
-  → usdcat .gltf → .usda → inject subdivisionScheme="none" (iOS ARView)
+  → usdcat .gltf → .usda → rebind textures to direct asset paths for SceneKit
+    (#292) → inject subdivisionScheme="none" (iOS ARView)
   → usdzip --arkitAsset → opti_output/<name>.usdz
 
 Validated: Monstera 29 MB → 3 MB (~9x), visually near-identical.
@@ -33,6 +34,49 @@ OUT_DIR = SCRIPT_DIR / "opti_output"
 GLTF = SCRIPT_DIR / "node_modules" / ".bin" / "gltf-transform"
 
 _MESH_RE = re.compile(r'(def Mesh "[^"]+"\s*\n\s*\{\s*\n)')
+
+# SceneKit (SCNScene(url:) in the iOS AR view) does NOT follow
+# `asset inputs:file.connect = <Material.inputs:XxxTexture>`, so the glTF->USD
+# output below renders grey in AR. Rewrite each connected texture file input to
+# a direct `asset inputs:file = @path@`. See issue #292 and
+# fix_scenekit_materials.py (standalone tool for already-built models).
+_TEX_CONNECT_RE = re.compile(
+    r'^(?P<indent>\s*)asset inputs:file\.connect\s*=\s*<(?P<path>[^>]+)\.inputs:(?P<key>\w+)>\s*$'
+)
+_TEX_IFACE_RE = re.compile(r'^\s*asset inputs:(?P<key>\w+)\s*=\s*(?P<val>@[^@]+@)\s*$')
+_MAT_DEF_RE = re.compile(r'def Material "(?P<name>[^"]+)"')
+
+
+def _rebind_scenekit_textures(usda_path: Path) -> int:
+    """Rewrite connected UsdUVTexture file inputs to direct asset paths (#292)."""
+    text = usda_path.read_text()
+    iface: dict[tuple[str, str], str] = {}
+    cur = None
+    for line in text.splitlines():
+        m = _MAT_DEF_RE.search(line)
+        if m:
+            cur = m.group("name")
+            continue
+        im = _TEX_IFACE_RE.match(line)
+        if im and cur and im.group("key").endswith("Texture"):
+            iface[(cur, im.group("key"))] = im.group("val")
+    out, n = [], 0
+    for line in text.splitlines():
+        cm = _TEX_CONNECT_RE.match(line)
+        if cm:
+            mat = cm.group("path").rstrip("/").split("/")[-1]
+            val = iface.get((mat, cm.group("key")))
+            if val is None:
+                cands = {v for (mm, k), v in iface.items() if k == cm.group("key")}
+                val = next(iter(cands)) if len(cands) == 1 else None
+            if val is not None:
+                out.append(f'{cm.group("indent")}asset inputs:file = {val}')
+                n += 1
+                continue
+        out.append(line)
+    if n:
+        usda_path.write_text("\n".join(out) + ("\n" if text.endswith("\n") else ""))
+    return n
 
 
 def _run(cmd: list[str], cwd: Path | None = None) -> None:
@@ -67,6 +111,7 @@ def optimize_one(glb: Path, args) -> tuple[str, float, float, str]:
             _run([str(GLTF), "resize", str(w / "2.glb"), str(w / "m.gltf"),
                   "--width", str(args.texture_size), "--height", str(args.texture_size)])
             _run(["usdcat", "m.gltf", "-o", "m.usda"], cwd=w)
+            _rebind_scenekit_textures(w / "m.usda")  # direct texture binding for SceneKit (#292)
             _inject_subdivision(w / "m.usda")
             _run(["usdzip", "--arkitAsset", "m.usda", "out.usdz"], cwd=w)
             OUT_DIR.mkdir(exist_ok=True)

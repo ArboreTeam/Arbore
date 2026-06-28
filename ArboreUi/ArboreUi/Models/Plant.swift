@@ -13,10 +13,14 @@ struct Plant: Identifiable, Codable {
     let translations: [String: PlantTranslation]   // fr / en / es / de
     let generated: Bool?   // true = modèle 3D généré par IA (Meshy), nil/false = legacy
     let upAxis: String?    // "Y" (default, nil) ou "Z" (Blender exports qui doivent être redressés)
+    let source: String?    // "botanic" = plante scrapée depuis botanic.com ; nil = legacy/beta
+    let sourceUrl: String? // URL botanic.com d'origine (conservée pour ré-scrape/màj)
+    let flags: PlantFlags? // drapeaux structurés pour la reco wizard ; nil = legacy (fallback mots-clés)
+    let hasHeavy: Bool?    // true = une version 3D haute définition existe (LOD : swap depuis le léger en AR)
 
     enum CodingKeys: String, CodingKey {
         case id
-        case name, type, imageURLs, description, modelURL, translations, generated, upAxis
+        case name, type, imageURLs, description, modelURL, translations, generated, upAxis, source, sourceUrl, flags, hasHeavy
     }
 
     // Décode avec fallback safe
@@ -42,6 +46,10 @@ struct Plant: Identifiable, Codable {
 
         self.generated = try container.decodeIfPresent(Bool.self, forKey: .generated)
         self.upAxis = try container.decodeIfPresent(String.self, forKey: .upAxis)
+        self.source = try container.decodeIfPresent(String.self, forKey: .source)
+        self.sourceUrl = try container.decodeIfPresent(String.self, forKey: .sourceUrl)
+        self.flags = try container.decodeIfPresent(PlantFlags.self, forKey: .flags)
+        self.hasHeavy = try container.decodeIfPresent(Bool.self, forKey: .hasHeavy)
     }
 
     // ✅ Helper pour reconstruire une plante minimale au moment du restore
@@ -60,6 +68,42 @@ struct Plant: Identifiable, Codable {
         let data = try? JSONSerialization.data(withJSONObject: json, options: [])
         let decoded = (data.flatMap { try? JSONDecoder().decode(Plant.self, from: $0) })
         return decoded ?? PlantFallback(id: id, name: name, type: type, modelURL: modelURL).asPlant()
+    }
+}
+
+// MARK: - Recommendation flags
+
+/// Structured booleans driving the wizard recommendation (filter + scoring).
+/// Tolerant decode: any missing key defaults to false.
+struct PlantFlags: Codable {
+    let toxicToPets: Bool
+    let toxicToChildren: Bool
+    let easyCare: Bool
+    let shadeTolerant: Bool
+    let fullSunTolerant: Bool
+    let droughtTolerant: Bool
+    let humidityLoving: Bool
+    let flowering: Bool
+    let climbing: Bool
+    let trailing: Bool
+    let compact: Bool
+    let airPurifying: Bool
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func f(_ k: CodingKeys) -> Bool { (try? c.decode(Bool.self, forKey: k)) ?? false }
+        toxicToPets = f(.toxicToPets)
+        toxicToChildren = f(.toxicToChildren)
+        easyCare = f(.easyCare)
+        shadeTolerant = f(.shadeTolerant)
+        fullSunTolerant = f(.fullSunTolerant)
+        droughtTolerant = f(.droughtTolerant)
+        humidityLoving = f(.humidityLoving)
+        flowering = f(.flowering)
+        climbing = f(.climbing)
+        trailing = f(.trailing)
+        compact = f(.compact)
+        airPurifying = f(.airPurifying)
     }
 }
 

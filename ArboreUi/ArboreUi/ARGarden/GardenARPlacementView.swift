@@ -1236,6 +1236,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
         uiView.session.delegate = nil
         uiView.delegate = nil
         coordinator.cancelPendingRestore()
+        coordinator.cancelAllHeavyUpgrades()
         NotificationCenter.default.removeObserver(coordinator)
         coordinator.arView = nil
     }
@@ -1258,6 +1259,16 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             // Rate-limit "no surface" warnings during boundary tracing.
             private var lastNoSurfaceWarnAt: TimeInterval = 0
             private var selectedNode: SCNNode?
+            /// LOD : swaps (heavy↔light) en cours, indexés par instanceId, avec leur LOD
+            /// CIBLE — pour ne pas les annuler/redémarrer à tort, appliquer la bonne
+            /// hystérésis pendant le download, et annuler le download au bon niveau.
+            private struct InFlightLODSwap { let task: Task<Void, Never>; let target: ModelLOD }
+            private var heavyUpgradeTasks: [UUID: InFlightLODSwap] = [:]
+            /// LOD : throttle de l'évaluation per-frame (temps de rendu du dernier passage).
+            private var lastLODEvalAt: TimeInterval = 0
+            /// LOD : dernier instant de chauffe (thermal ≥ .serious / Low Power). -1 = jamais.
+            /// Sert au cooldown : on ne ré-autorise les upgrades qu'après un retour au frais soutenu.
+            private var lodLastHotAt: TimeInterval = -1
             private var isRestoring = false
             var isWaitingForWorldMapLoad = false
             var worldMapLoadedAt: TimeInterval = 0
@@ -1358,6 +1369,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 let surfaceHeight: Float?
                 let instanceId: UUID  // anchor.identifier — used so the loaded node can find its anchor
                 let autoSelect: Bool  // false for batch placements (AI auto-place) to avoid orange-halo flicker
+                var hasHeavy: Bool = false  // LOD: si true, on charge la version lourde en fond puis on swap
             }
 
             // 🤖 AI Auto-placement
@@ -1687,11 +1699,19 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 // "delegate is retaining N ARFrames" warnings).
                 if let frame = arView.session.currentFrame {
                     let lux = Int(frame.lightEstimate?.ambientIntensity ?? 0)
-                    lastCameraY = frame.camera.transform.columns.3.y
+                    let camCol = frame.camera.transform.columns.3
+                    lastCameraY = camCol.y
                     DispatchQueue.main.async { [weak self] in
                         withAnimation(.linear(duration: 0.2)) {
                             self?.parentProps?.currentLux = lux
                         }
+                    }
+                    // LOD adaptatif : ré-évalue le light/heavy de chaque plante ~4 Hz
+                    // (thermique + budget + distance). Calcul + swaps sur le main thread.
+                    if time - lastLODEvalAt >= PlantLODPolicy.evalInterval {
+                        lastLODEvalAt = time
+                        let camPos = SIMD3<Float>(camCol.x, camCol.y, camCol.z)
+                        DispatchQueue.main.async { [weak self] in self?.evaluateLOD(cameraPosition: camPos) }
                     }
                 }
 
@@ -2069,7 +2089,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                     name: item.plant.name,
                                     modelURLString: item.plant.modelURL,
                                     upAxis: item.plant.upAxis,
-                                    autoSelect: false   // batch — no halo flicker
+                                    autoSelect: false,   // batch — no halo flicker
+                                    hasHeavy: item.plant.hasHeavy == true
                                 )
 
                                 // Light haptic per plant
@@ -2625,7 +2646,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         transform: matrixToFloatArray(anchorTransform),
                         upAxis: plantUpAxisMap[plantId],
                         surfaceType: surfaceType,
-                        surfaceHeight: surfaceHeight
+                        surfaceHeight: surfaceHeight,
+                        hasHeavy: node.arboreHasHeavy
                     )
                 }
             }
@@ -3019,7 +3041,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                             surfaceType: p.surfaceType,
                             surfaceHeight: p.surfaceHeight,
                             instanceId: anchor.identifier,
-                            autoSelect: false
+                            autoSelect: false,
+                            hasHeavy: p.hasHeavy == true
                         )
                         self.instantiatePlantNode(into: node, pending: pending, anchorTransform: anchorTransform)
                     }
@@ -3125,7 +3148,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                             modelURLString: p.modelURLString,
                                             upAxis: p.upAxis,
                                             surfaceType: p.surfaceType,
-                                            surfaceHeight: p.surfaceHeight
+                                            surfaceHeight: p.surfaceHeight,
+                                            hasHeavy: p.hasHeavy == true
                                         )
                                     }
                                 } catch {
@@ -3141,7 +3165,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                                 modelURLString: p.modelURLString,
                                                 upAxis: p.upAxis,
                                                 surfaceType: p.surfaceType,
-                                                surfaceHeight: p.surfaceHeight
+                                                surfaceHeight: p.surfaceHeight,
+                                                hasHeavy: p.hasHeavy == true
                                             )
                                         }
                                     } else {
@@ -3297,6 +3322,16 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 // Lookup is by per-instance UUID (not catalog plantId) so deleting
                 // one of two same-species plants targets the correct one.
                 let pid = plantId(of: node)
+                // LOD : couper un upgrade heavy éventuellement en cours pour ce placement
+                // (sinon le download + parse continuent inutilement après suppression).
+                if let uuid = instanceId(of: node), let inflight = heavyUpgradeTasks[uuid] {
+                    inflight.task.cancel()
+                    heavyUpgradeTasks[uuid] = nil
+                    if let f = node.arboreModelURLString {
+                        let lod = inflight.target
+                        Task { await ModelCacheManager.shared.cancelDownload(for: f, lod: lod) }
+                    }
+                }
                 if let uuid = instanceId(of: node),
                    let anchor = plantAnchorMap[uuid] {
                     arView.session.remove(anchor: anchor)
@@ -3409,7 +3444,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
 
                 saveStateForUndo()
                 if let axis = plant.upAxis { plantUpAxisMap[plant.id] = axis }
-                placeObject(at: transform, modelURL: url, id: plant.id, name: plant.name, modelURLString: plant.modelURL, upAxis: plant.upAxis)
+                placeObject(at: transform, modelURL: url, id: plant.id, name: plant.name, modelURLString: plant.modelURL, upAxis: plant.upAxis, hasHeavy: plant.hasHeavy == true)
             }
 
             @objc func handleLongPressToSelect(_ gesture: UILongPressGestureRecognizer) {
@@ -3499,7 +3534,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 upAxis: String? = nil,
                 surfaceType: String? = nil,
                 surfaceHeight: Float? = nil,
-                autoSelect: Bool = true
+                autoSelect: Bool = true,
+                hasHeavy: Bool = false
             ) {
                 guard let arView = arView else { return }
 
@@ -3524,7 +3560,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     surfaceType: surfaceType,
                     surfaceHeight: surfaceHeight,
                     instanceId: anchor.identifier,
-                    autoSelect: autoSelect
+                    autoSelect: autoSelect,
+                    hasHeavy: hasHeavy
                 )
                 plantAnchorMap[anchor.identifier] = anchor
                 arView.session.add(anchor: anchor)
@@ -3575,6 +3612,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     container.arboreInstanceId = pending.instanceId
                     container.arboreModelURLString = pending.modelURLString
                         ?? pending.modelURL.lastPathComponent
+                    container.arboreHasHeavy = pending.hasHeavy
 
                     let wrapper = SCNNode()
                     for child in scene.rootNode.childNodes { wrapper.addChildNode(child) }
@@ -3587,6 +3625,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
 
                     let (minVec, maxVec) = container.boundingBox
                     let rawHeight = maxVec.y - minVec.y
+                    // Hauteur intrinsèque (avant le halo) pour le LOD distance.
+                    container.arboreModelRawHeight = Double(max(0, rawHeight))
 
                     AppLog.plants.debug("""
                         bbox plant=\(pending.plantName, privacy: .public) \
@@ -3665,12 +3705,238 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         selectNode(container)
                     }
 
+                    // LOD adaptatif : le modèle LÉGER est posé immédiatement. L'upgrade
+                    // vers le heavy (et les downgrades) est piloté par evaluateLOD() depuis
+                    // renderer(_:updateAtTime:), selon thermique + budget K + distance.
+                    container.arboreCurrentLOD = PlantLODPolicy.LOD.light.rawValue
+
                     AppLog.arAnchor.notice("""
                         instantiated plant=\(pending.plantName, privacy: .public) \
                         anchor=\(pending.instanceId.uuidString.prefix(8), privacy: .public) \
                         world=\(container.simdWorldTransform.logDescription, privacy: .public) \
                         local=\(container.simdTransform.logDescription, privacy: .public)
                         """)
+            }
+
+            // MARK: - LOD adaptatif (light ↔ heavy)
+
+            /// Programme un swap vers le LOD cible : télécharge le modèle (cache) en fond
+            /// et l'échange une fois prêt. Fail-safe : toute erreur laisse le modèle
+            /// courant en place. ⚠️ Comportement AR à valider on-device (non testable CI).
+            private func scheduleLODSwap(filename: String, upAxis: String?, instanceId: UUID,
+                                         parentNode: SCNNode, to lod: PlantLODPolicy.LOD) {
+                guard !filename.isEmpty else { return }
+                heavyUpgradeTasks[instanceId]?.task.cancel()
+                let modelLOD: ModelLOD = (lod == .heavy) ? .heavy : .light
+                let task = Task { [weak self, weak parentNode] in
+                    do {
+                        let url = try await ModelCacheManager.shared.getModelURL(for: filename, lod: modelLOD)
+                        if Task.isCancelled { return }
+                        let scene = try SCNScene(url: url, options: nil)
+                        if Task.isCancelled { return }
+                        await MainActor.run {
+                            guard let self else { return }
+                            self.heavyUpgradeTasks[instanceId] = nil
+                            guard let parentNode else { return }
+                            self.swapModel(scene: scene, instanceId: instanceId, upAxis: upAxis, parentNode: parentNode, to: lod)
+                        }
+                    } catch {
+                        await MainActor.run { self?.heavyUpgradeTasks[instanceId] = nil }
+                    }
+                }
+                heavyUpgradeTasks[instanceId] = InFlightLODSwap(task: task, target: modelLOD)
+            }
+
+            /// Remplace le node courant d'une plante par sa variante au LOD cible, avec un
+            /// court fondu croisé, puis libère l'ancien. Position/rotation/échelle reprises
+            /// de l'ancien (placement + pinch-zoom) ; pivot RE-DÉRIVÉ de la bbox du nouveau
+            /// modèle (robuste si les bbox light/heavy diffèrent légèrement).
+            /// Hypothèse à valider on-device : même origine/échelle model-space et même
+            /// up-axis entre les LOD (garanti par le même source Meshy).
+            private func swapModel(scene: SCNScene, instanceId: UUID, upAxis: String?,
+                                   parentNode: SCNNode, to lod: PlantLODPolicy.LOD) {
+                // Le node a pu être supprimé entre-temps → on abandonne.
+                guard let current = parentNode.childNodes.first(where: { $0.arboreInstanceId == instanceId }) else { return }
+                if current.arboreCurrentLOD == lod.rawValue { return } // déjà au bon LOD
+
+                let next = SCNNode()
+                next.name = current.name
+                next.arborePlantId = current.arborePlantId
+                next.arborePlantName = current.arborePlantName
+                next.arboreInstanceId = current.arboreInstanceId
+                next.arboreModelURLString = current.arboreModelURLString
+                next.arboreHasHeavy = current.arboreHasHeavy
+                next.arboreCurrentLOD = lod.rawValue
+                next.arboreLODLockedUntil = CACurrentMediaTime() + PlantLODPolicy.swapDebounce
+
+                let wrapper = SCNNode()
+                for child in scene.rootNode.childNodes { wrapper.addChildNode(child) }
+                let effectiveAxis = upAxis ?? plantUpAxisMap[current.arborePlantId ?? ""]
+                if effectiveAxis?.uppercased() == "Z" { wrapper.eulerAngles.x = -.pi / 2 }
+                next.addChildNode(wrapper)
+                stripPotIfNeeded(from: next)
+
+                next.simdTransform = current.simdTransform  // encode déjà T·R·S
+                let (minV, maxV) = next.boundingBox
+                if maxV.y - minV.y > 0 {
+                    next.pivot = SCNMatrix4MakeTranslation(0, next.scale.y * minV.y, 0)
+                    next.setValue(NSNumber(value: minV.y), forKey: "arboreOriginalMinY")
+                } else {
+                    next.pivot = current.pivot
+                }
+                // Hauteur intrinsèque mesurée AVANT le halo (pour le LOD distance).
+                next.arboreModelRawHeight = Double(max(0, maxV.y - minV.y))
+
+                buildHaloCache(for: next, source: wrapper)
+                if parentProps?.relocationPhase == .adjusting {
+                    applyOutline(to: next, color: Self.outlineDefaultColor)
+                }
+
+                // Fondu croisé : révèle le nouveau, masque l'ancien, puis le retire. On
+                // sort l'ancien du hit-test (name → nil) pour qu'un tap ne le sélectionne
+                // pas pendant le fondu (l'identité passe par arboreInstanceId, pas le name).
+                let wasSelected = (selectedNode === current)
+                next.opacity = 0
+                parentNode.addChildNode(next)
+                current.name = nil
+
+                SCNTransaction.begin()
+                SCNTransaction.animationDuration = 0.25
+                next.opacity = 1
+                current.opacity = 0
+                SCNTransaction.completionBlock = { [weak current] in current?.removeFromParentNode() }
+                SCNTransaction.commit()
+
+                if wasSelected { selectNode(next) }
+                AppLog.arAnchor.notice("LOD swap → \(lod.rawValue, privacy: .public) anchor=\(instanceId.uuidString.prefix(8), privacy: .public)")
+            }
+
+            /// Annule tous les swaps LOD en cours (teardown / reset de scène).
+            func cancelAllHeavyUpgrades() {
+                for (_, s) in heavyUpgradeTasks { s.task.cancel() }
+                heavyUpgradeTasks.removeAll()
+            }
+
+            // MARK: LOD evaluation (per-frame, throttlée ~4 Hz)
+
+            private struct LODCandidate {
+                let node: SCNNode
+                let parent: SCNNode
+                let instanceId: UUID
+                let filename: String
+                let upAxis: String?
+                let distance: Float
+                let height: Float
+                let currentlyHeavy: Bool
+                let isSelected: Bool
+                let lockedUntil: Double
+            }
+
+            /// Énumère les plantes à variante heavy avec distance/hauteur/LOD courant.
+            private func collectLODCandidates(cameraPosition: SIMD3<Float>) -> [LODCandidate] {
+                guard let arView else { return [] }
+                var out: [LODCandidate] = []
+                func consider(_ node: SCNNode, parent: SCNNode) {
+                    guard node.name?.hasPrefix("plant_") == true,
+                          node.arboreHasHeavy,
+                          let id = node.arboreInstanceId,
+                          let filename = node.arboreModelURLString, !filename.isEmpty else { return }
+                    let pos = node.simdWorldPosition
+                    let distance = simd_length(pos - cameraPosition)
+                    // Hauteur pré-halo × scale courant (zoom-aware) ; évite le +4% du halo.
+                    let height = Float(node.arboreModelRawHeight) * node.scale.y
+                    out.append(LODCandidate(
+                        node: node, parent: parent, instanceId: id, filename: filename,
+                        upAxis: plantUpAxisMap[node.arborePlantId ?? ""],
+                        distance: distance, height: height,
+                        currentlyHeavy: node.arboreCurrentLOD == PlantLODPolicy.LOD.heavy.rawValue,
+                        isSelected: node === selectedNode,
+                        lockedUntil: node.arboreLODLockedUntil))
+                }
+                for rootChild in arView.scene.rootNode.childNodes {
+                    consider(rootChild, parent: arView.scene.rootNode)
+                    for c in rootChild.childNodes { consider(c, parent: rootChild) }
+                }
+                return out
+            }
+
+            /// Évalue et applique le LOD de chaque plante (thermique → budget K → distance).
+            /// Sur le main thread, throttlée depuis renderer(_:updateAtTime:).
+            private func evaluateLOD(cameraPosition: SIMD3<Float>) {
+                let candidates = collectLODCandidates(cameraPosition: cameraPosition)
+                guard !candidates.isEmpty else { return }
+
+                let now = CACurrentMediaTime()
+                let thermal = ProcessInfo.processInfo.thermalState
+                let lowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+                let critical = (thermal == .critical)
+                let hot = critical || thermal == .serious || lowPower
+
+                // Cooldown : downgrade immédiat à chaud ; upgrades ré-autorisés seulement
+                // après un retour au frais soutenu (reco Apple — pas d'hystérésis native).
+                if hot { lodLastHotAt = now }
+                let upgradesAllowed = !hot && (lodLastHotAt < 0 || now - lodLastHotAt >= PlantLODPolicy.coolStableBeforeUpgrade)
+
+                // « Effectivement heavy » = déjà heavy OU heavy en cours de download. On lui
+                // applique la bande large d'hystérésis (pas d'annulation du download au moindre
+                // jitter) et la stickiness de budget.
+                func effectivelyHeavy(_ c: LODCandidate) -> Bool {
+                    c.currentlyHeavy || heavyUpgradeTasks[c.instanceId]?.target == .heavy
+                }
+
+                // Ensemble désiré-heavy (chaîne de précédence).
+                var desiredHeavy = Set<UUID>()
+                if !critical {
+                    let eligible = candidates.filter { c in
+                        c.isSelected || PlantLODPolicy.isWithinHeavy(distance: c.distance, height: c.height, currentlyHeavy: effectivelyHeavy(c))
+                    }.sorted { a, b in
+                        if a.isSelected != b.isSelected { return a.isSelected } // sélection prioritaire
+                        // Stickiness : un heavy en place garde un bonus de distance pour ne pas
+                        // se faire déloger du budget par une candidate à peine plus proche.
+                        let da = effectivelyHeavy(a) ? a.distance * (1 - PlantLODPolicy.budgetStickiness) : a.distance
+                        let db = effectivelyHeavy(b) ? b.distance * (1 - PlantLODPolicy.budgetStickiness) : b.distance
+                        return da < db
+                    }
+                    if hot {
+                        // .serious / Low Power : seule la plante sélectionnée peut être heavy.
+                        if let sel = eligible.first(where: { $0.isSelected }), effectivelyHeavy(sel) || upgradesAllowed {
+                            desiredHeavy.insert(sel.instanceId)
+                        }
+                    } else {
+                        let budget = PlantLODPolicy.heavyBudget(tier: DeviceCapabilities.tier)
+                        var granted = 0
+                        for c in eligible where granted < budget {
+                            // Garde un heavy existant ; n'AJOUTE un nouveau que si autorisé.
+                            if effectivelyHeavy(c) || upgradesAllowed {
+                                desiredHeavy.insert(c.instanceId)
+                                granted += 1
+                            }
+                        }
+                    }
+                }
+
+                // Application : upgrade / downgrade / annulation, avec debounce et garde
+                // sur le LOD cible déjà en vol (pour ne pas annuler/redémarrer à tort).
+                for c in candidates {
+                    let wantHeavy = desiredHeavy.contains(c.instanceId)
+                    let inFlightTarget = heavyUpgradeTasks[c.instanceId]?.target
+                    if wantHeavy {
+                        if !c.currentlyHeavy && inFlightTarget != .heavy && now >= c.lockedUntil {
+                            scheduleLODSwap(filename: c.filename, upAxis: c.upAxis, instanceId: c.instanceId, parentNode: c.parent, to: .heavy)
+                        }
+                    } else {
+                        // Annule un download HEAVY dont on ne veut plus (jamais un downgrade en cours).
+                        if inFlightTarget == .heavy {
+                            heavyUpgradeTasks[c.instanceId]?.task.cancel()
+                            heavyUpgradeTasks[c.instanceId] = nil
+                            let f = c.filename
+                            Task { await ModelCacheManager.shared.cancelDownload(for: f, lod: .heavy) }
+                        }
+                        if c.currentlyHeavy && heavyUpgradeTasks[c.instanceId]?.target != .light && now >= c.lockedUntil {
+                            scheduleLODSwap(filename: c.filename, upAxis: c.upAxis, instanceId: c.instanceId, parentNode: c.parent, to: .light)
+                        }
+                    }
+                }
             }
 
             /// Called on the main thread when SCNScene loading fails. Attempts a
@@ -3699,7 +3965,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                 allowRetry: false,
                                 upAxis: pending.upAxis,
                                 surfaceType: pending.surfaceType,
-                                surfaceHeight: pending.surfaceHeight
+                                surfaceHeight: pending.surfaceHeight,
+                                hasHeavy: pending.hasHeavy
                             )
                         }
                     } catch {
@@ -4404,5 +4671,27 @@ extension SCNNode {
     var arboreModelURLString: String? {
         get { value(forKey: "arboreModelURLString") as? String }
         set { setValue(newValue, forKey: "arboreModelURLString") }
+    }
+    /// LOD : une version heavy existe pour cette plante (propagé à la sauvegarde
+    /// pour que la ré-ouverture du jardin re-déclenche l'upgrade).
+    var arboreHasHeavy: Bool {
+        get { (value(forKey: "arboreHasHeavy") as? Bool) ?? false }
+        set { setValue(newValue, forKey: "arboreHasHeavy") }
+    }
+    /// LOD courant effectivement affiché ("light" / "heavy"). Défaut "light".
+    var arboreCurrentLOD: String {
+        get { (value(forKey: "arboreCurrentLOD") as? String) ?? PlantLODPolicy.LOD.light.rawValue }
+        set { setValue(newValue, forKey: "arboreCurrentLOD") }
+    }
+    /// Debounce anti-yoyo : pas de nouveau swap LOD avant ce timestamp (CACurrentMediaTime).
+    var arboreLODLockedUntil: Double {
+        get { (value(forKey: "arboreLODLockedUntil") as? Double) ?? 0 }
+        set { setValue(newValue, forKey: "arboreLODLockedUntil") }
+    }
+    /// Hauteur intrinsèque (bbox non scalée, mesurée AVANT le halo) du modèle, pour
+    /// le calcul de distance LOD : hauteur_monde = arboreModelRawHeight × scale.y.
+    var arboreModelRawHeight: Double {
+        get { (value(forKey: "arboreModelRawHeight") as? Double) ?? 0 }
+        set { setValue(newValue, forKey: "arboreModelRawHeight") }
     }
 }

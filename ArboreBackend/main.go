@@ -190,6 +190,28 @@ type Plant struct {
 	Translations map[string]LanguageData `json:"translations" bson:"translations"`
 	Generated    *bool                   `json:"generated,omitempty" bson:"generated,omitempty"`
 	UpAxis       *string                 `json:"upAxis,omitempty" bson:"upAxis,omitempty"`
+	Source       *string                 `json:"source,omitempty" bson:"source,omitempty"`       // "botanic" = scrapé depuis botanic.com ; nil/"" = legacy/beta
+	SourceURL    *string                 `json:"sourceUrl,omitempty" bson:"sourceUrl,omitempty"` // URL botanic.com d'origine (conservée pour ré-scrape/màj ultérieure)
+	Flags        *PlantFlags             `json:"flags,omitempty" bson:"flags,omitempty"`         // drapeaux structurés pour la reco wizard (fiables, vs matching mots-clés)
+	HasHeavy     *bool                   `json:"hasHeavy,omitempty" bson:"hasHeavy,omitempty"`   // true = une version haute définition existe (servie via /models/<file>?lod=heavy)
+}
+
+// PlantFlags : drapeaux booléens structurés alimentant la reco du
+// wizard (filtre + scoring). Renseignés par recherche ; nil sur les plantes
+// legacy (le wizard retombe alors sur le matching mots-clés du texte).
+type PlantFlags struct {
+	ToxicToPets     bool `json:"toxicToPets" bson:"toxicToPets"`         // toxique chats/chiens (ASPCA)
+	ToxicToChildren bool `json:"toxicToChildren" bson:"toxicToChildren"` // dangereuse/irritante si ingérée par un enfant
+	EasyCare        bool `json:"easyCare" bson:"easyCare"`               // facile / débutant
+	ShadeTolerant   bool `json:"shadeTolerant" bson:"shadeTolerant"`     // supporte ombre / faible lumière
+	FullSunTolerant bool `json:"fullSunTolerant" bson:"fullSunTolerant"` // supporte plein soleil 6h+
+	DroughtTolerant bool `json:"droughtTolerant" bson:"droughtTolerant"` // sol sec / arrosage espacé
+	HumidityLoving  bool `json:"humidityLoving" bson:"humidityLoving"`   // aime l'humidité (salle de bain)
+	Flowering       bool `json:"flowering" bson:"flowering"`             // cultivée pour ses fleurs
+	Climbing        bool `json:"climbing" bson:"climbing"`               // grimpante (tuteur)
+	Trailing        bool `json:"trailing" bson:"trailing"`               // retombante (suspension)
+	Compact         bool `json:"compact" bson:"compact"`                 // compacte / petits espaces
+	AirPurifying    bool `json:"airPurifying" bson:"airPurifying"`       // dépolluante (liste NASA)
 }
 
 type AIRequest struct {
@@ -1608,8 +1630,8 @@ func main() {
 		protected.GET("/models/:filename", func(c *gin.Context) {
 			filename := c.Param("filename")
 
-			// Sécurité: empêcher les path traversal attacks
-			if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
+			// Sécurité: empêcher les path traversal attacks (parité avec le handler thumbnails)
+			if strings.Contains(filename, "..") || strings.ContainsAny(filename, "/\\") {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid filename"})
 				return
 			}
@@ -1620,7 +1642,14 @@ func main() {
 				return
 			}
 
-			filePath := fmt.Sprintf("./models/%s", filename)
+			// LOD: ?lod=heavy sert le modèle haute définition depuis ./models/heavy/.
+			// (Une seule route : un sous-chemin /models/heavy/:filename ferait paniquer
+			// httprouter — collision wildcard ':filename' vs segment statique 'heavy'.)
+			baseDir := "./models"
+			if c.Query("lod") == "heavy" {
+				baseDir = "./models/heavy"
+			}
+			filePath := fmt.Sprintf("%s/%s", baseDir, filename)
 
 			// Vérifier si le fichier existe
 			if _, err := os.Stat(filePath); os.IsNotExist(err) {

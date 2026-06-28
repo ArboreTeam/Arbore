@@ -70,7 +70,27 @@ export interface Plant {
   id?: string;
   _id?: string;
   name?: string;
+  generated?: boolean;
+  source?: string; // "botanic" = scrapé depuis botanic.com ; sinon legacy/beta
+  sourceUrl?: string; // URL botanic.com d'origine (conservée pour ré-scrape/màj)
+  flags?: PlantFlags; // drapeaux structurés pour la reco wizard
+  hasHeavy?: boolean; // true = version 3D haute définition disponible (LOD)
   [key: string]: unknown;
+}
+
+export interface PlantFlags {
+  toxicToPets?: boolean;
+  toxicToChildren?: boolean;
+  easyCare?: boolean;
+  shadeTolerant?: boolean;
+  fullSunTolerant?: boolean;
+  droughtTolerant?: boolean;
+  humidityLoving?: boolean;
+  flowering?: boolean;
+  climbing?: boolean;
+  trailing?: boolean;
+  compact?: boolean;
+  airPurifying?: boolean;
 }
 
 export interface Garden {

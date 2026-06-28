@@ -252,7 +252,8 @@ extension GardenARPlacementContainerView.Coordinator {
                                     upAxis: persisted.upAxis,
                                     surfaceType: persisted.surfaceType,
                                     surfaceHeight: persisted.surfaceHeight,
-                                    autoSelect: false  // batch — entering .adjusting
+                                    autoSelect: false,  // batch — entering .adjusting
+                                    hasHeavy: persisted.hasHeavy == true
                                 )
                             }
                         } catch {
@@ -268,7 +269,8 @@ extension GardenARPlacementContainerView.Coordinator {
                                         upAxis: persisted.upAxis,
                                         surfaceType: persisted.surfaceType,
                                         surfaceHeight: persisted.surfaceHeight,
-                                        autoSelect: false
+                                        autoSelect: false,
+                                        hasHeavy: persisted.hasHeavy == true
                                     )
                                 }
                             }

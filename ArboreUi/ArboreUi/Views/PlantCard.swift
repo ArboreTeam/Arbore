@@ -68,10 +68,13 @@ struct PlantCard: View {
         )
         .shadow(color: ArboreDesign.Colors.shadow, radius: 8, x: 0, y: 4)
         .overlay(alignment: .topTrailing) {
-            if plant.generated == true {
-                betaBadge
-                    .padding(10)
+            // Plantes botanic : badge BOTANIC + BETA (modèle 3D image-to-3D, qualité
+            // variable assumée). Plantes legacy générées par IA : BETA seul.
+            HStack(spacing: 6) {
+                if plant.source == "botanic" { botanicBadge }
+                if plant.generated == true { betaBadge }
             }
+            .padding(10)
         }
         .task(id: plant.id) {
             await loadRemoteThumbnailIfNeeded()
@@ -80,6 +83,24 @@ struct PlantCard: View {
 
     private var betaBadge: some View {
         Text("BETA")
+            .font(.system(size: 10, weight: .semibold))
+            .tracking(0.8)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(
+                Capsule()
+                    .fill(ArboreDesign.Colors.primaryGreen)
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.white.opacity(0.45), lineWidth: 0.5)
+                    )
+            )
+            .shadow(color: Color.black.opacity(0.22), radius: 2, x: 0, y: 1)
+    }
+
+    private var botanicBadge: some View {
+        Text("BOTANIC")
             .font(.system(size: 10, weight: .semibold))
             .tracking(0.8)
             .foregroundStyle(.white)

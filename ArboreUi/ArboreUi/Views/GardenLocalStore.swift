@@ -81,6 +81,10 @@ struct PersistedPlant: Codable {
     // Optional for backward compatibility with old saved JSONs.
     let surfaceType: String?     // "floor" | "elevated" | nil
     let surfaceHeight: Float?    // Y of the surface at save-time, in world coords
+    // LOD : indique si une version 3D haute définition existe pour cette plante,
+    // pour ré-déclencher le swap heavy à la ré-ouverture du jardin. Optionnel →
+    // les anciennes sauvegardes (sans la clé) décodent à nil (= pas d'upgrade).
+    let hasHeavy: Bool?
 
     init(
         plantID: String,
@@ -92,7 +96,8 @@ struct PersistedPlant: Codable {
         transform: [Float],
         upAxis: String? = nil,
         surfaceType: String? = nil,
-        surfaceHeight: Float? = nil
+        surfaceHeight: Float? = nil,
+        hasHeavy: Bool? = nil
     ) {
         self.plantID = plantID
         self.plantName = plantName
@@ -104,6 +109,7 @@ struct PersistedPlant: Codable {
         self.upAxis = upAxis
         self.surfaceType = surfaceType
         self.surfaceHeight = surfaceHeight
+        self.hasHeavy = hasHeavy
     }
 }
 
@@ -170,7 +176,8 @@ extension PersistedARScene {
                 transform: plant.transform,
                 upAxis: plant.upAxis,
                 surfaceType: plant.surfaceType,
-                surfaceHeight: plant.surfaceHeight
+                surfaceHeight: plant.surfaceHeight,
+                hasHeavy: plant.hasHeavy
             )
         }
 

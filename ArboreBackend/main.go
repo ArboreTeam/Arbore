@@ -196,7 +196,7 @@ type Plant struct {
 	HasHeavy     *bool                   `json:"hasHeavy,omitempty" bson:"hasHeavy,omitempty"`   // true = une version haute définition existe (servie via /models/<file>?lod=heavy)
 }
 
-// PlantFlags : drapeaux booléens structurés alimentant la recommandation du
+// PlantFlags : drapeaux booléens structurés alimentant la reco du
 // wizard (filtre + scoring). Renseignés par recherche ; nil sur les plantes
 // legacy (le wizard retombe alors sur le matching mots-clés du texte).
 type PlantFlags struct {
@@ -1644,7 +1644,7 @@ func main() {
 
 			// LOD: ?lod=heavy sert le modèle haute définition depuis ./models/heavy/.
 			// (Une seule route : un sous-chemin /models/heavy/:filename ferait paniquer
-			// httprouter — conflit wildcard ':filename' vs segment statique 'heavy'.)
+			// httprouter — collision wildcard ':filename' vs segment statique 'heavy'.)
 			baseDir := "./models"
 			if c.Query("lod") == "heavy" {
 				baseDir = "./models/heavy"

@@ -11,10 +11,10 @@ struct Plant: Identifiable, Codable {
     let description: String
     let modelURL: String?
     let translations: [String: PlantTranslation]   // fr / en / es / de
-    let generated: Bool?   // true = modèle 3D généré par IA (Meshy), nil/false = legacy
+    let generated: Bool?   // true = modèle 3D généré par IA, nil/false = legacy
     let upAxis: String?    // "Y" (default, nil) ou "Z" (Blender exports qui doivent être redressés)
-    let source: String?    // "botanic" = plante scrapée depuis botanic.com ; nil = legacy/beta
-    let sourceUrl: String? // URL botanic.com d'origine (conservée pour ré-scrape/màj)
+    let source: String?    // libellé de provenance optionnel (catalogue curé) ; nil = legacy/beta
+    let sourceUrl: String? // URL d'origine optionnelle (conservée pour mise à jour)
     let flags: PlantFlags? // drapeaux structurés pour la reco wizard ; nil = legacy (fallback mots-clés)
     let hasHeavy: Bool?    // true = une version 3D haute définition existe (LOD : swap depuis le léger en AR)
 

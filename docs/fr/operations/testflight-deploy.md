@@ -192,7 +192,7 @@ Les rapports Junit sont écrits dans `fastlane/report.xml` (gitignored).
 
 - **CI macOS GitHub Actions** qui lance `fastlane beta` sur push de tag : faisable mais demande des minutes Actions macOS (10× plus chères qu'Ubuntu) + un secret pour l'API key. Pas urgent tant que le deploy interne reste manuel.
 - **match (fastlane)** pour le code signing multi-machines : nécessite un repo privé séparé pour les certificats chiffrés. À considérer si plusieurs personnes uploadent.
-- **Lane `release`** vers les testeurs externes : demande Beta App Review Apple à chaque submission. Sprint 4.
+- **Automatisation d'une lane vers les testeurs externes** : la diffusion **externe** (lien public TestFlight) est en place et **approuvée par Apple** (Beta App Review passée). La lane `beta` reste volontairement **interne uniquement** (`distribute_external: false`, `skip_submission: true`) ; l'ajout du build au groupe externe et toute nouvelle soumission Beta App Review se font côté App Store Connect. Une lane dédiée pourrait l'automatiser ultérieurement.
 
 ---
 

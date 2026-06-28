@@ -5,173 +5,111 @@
 [![Docker](https://github.com/ArboreTeam/Arbore/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/ArboreTeam/Arbore/actions/workflows/docker-publish.yml)
 [![Docs](https://github.com/ArboreTeam/Arbore/actions/workflows/docs.yml/badge.svg)](https://github.com/ArboreTeam/Arbore/actions/workflows/docs.yml)
 
-Arbore est un projet de 4ème et 5ème année - une application complète de jardinage qui vous aide à organiser et entretenir vos jardins avec la puissance de la réalité augmentée et de l'intelligence artificielle.
+Arbore est un projet de 4ᵉ et 5ᵉ année : une application de jardinage qui aide à concevoir et entretenir ses jardins, avec la puissance de la réalité augmentée et de l'intelligence artificielle.
 
-> 📚 **[Documentation CI/CD complète](docs/legacy/CI-CD.md)**
+> 📚 **Documentation technique (bilingue FR/EN)** : **[`docs/`](docs/README.md)** — architecture C4, flows, tests, opérations, ADR.
+> 🇬🇧 Technical docs are bilingual — see the [English entry point](docs/en/README.md).
 
 ## 📱 Fonctionnalités
 
-- **🔍 Identification de plantes avec AR** : Scannez et identifiez les plantes en temps réel grâce à la réalité augmentée
-- **🤖 Génération d'informations par IA** : Obtenez des conseils personnalisés sur l'entretien des plantes grâce à l'IA
-- **🌍 Support multilingue** : Interface disponible en français, anglais, espagnol et allemand
-- **📱 Application mobile native** : Interface utilisateur moderne et intuitive sur iOS
-- **🔐 Authentification sécurisée** : Connexion via Google Sign-In et Firebase Auth
-- **📊 Base de données cloud** : Stockage sécurisé avec MongoDB et Firebase Firestore
+- **🪴 Placement de plantes en AR** : concevez votre jardin en plaçant des plantes 3D en réalité augmentée (ARKit / RoomPlan).
+- **🤖 Fiches plantes générées par IA** : conseils d'entretien multilingues générés via un service IA dédié.
+- **🌍 Multilingue** : interface iOS en français, anglais, espagnol et allemand.
+- **🌐 Compagnon web** : consultation du catalogue, des jardins, calendrier d'arrosage et gestion du compte sur [web.arbore.app](https://web.arbore.app).
+- **🔐 Authentification sécurisée** : Firebase Auth (email/password, Google, Sign in with Apple).
+- **📊 Données cloud** : stockage via le backend Go + MongoDB Atlas.
 
 ## 🏗️ Architecture
 
-Le projet Arbore est composé de plusieurs modules interconnectés :
+Arbore est composé de quatre modules déployés :
 
 ```
 Arbore/
-├── 📱 ArboreUi/          # Application iOS principale (SwiftUI)
-├── 🥽 ArboreARkit/       # Module de réalité augmentée (ARKit)
-├── 🔧 ArboreBackend/     # API Backend (Go + Gin + MongoDB)
-└── 🤖 AiGenerator/       # Service IA de génération d'informations (Python + FastAPI)
+├── 📱 ArboreUi/          # Application iOS (SwiftUI · ARKit · RoomPlan)
+├── 🌐 web/               # Front web compagnon (Next.js · TypeScript)
+├── 🔧 ArboreBackend/     # API backend (Go 1.24 · Gin · MongoDB)
+└── 🤖 AiGenerator/       # Service IA de génération de fiches (Python · FastAPI)
 ```
 
-### 📱 ArboreUi
-- **Technologies** : SwiftUI, Firebase, Google Sign-In
-- **Fonctionnalités** : Interface utilisateur principale, authentification, gestion des profils utilisateur
-- **Localisation** : Support de 4 langues (fr, en, es, de)
+Le backend, l'AI Generator et le web tournent en containers Docker sur un VPS unique (Docker Compose) ; l'app iOS et le web parlent au backend via une API REST sécurisée (clé API + token Firebase). Détails complets : [`docs/`](docs/README.md) ([C4 Containers](docs/fr/architecture/02-containers.md)).
 
-### 🥽 ArboreARkit
-- **Technologies** : ARKit, SwiftUI, RoomPlan
-- **Fonctionnalités** : Scan 3D d'objets, visualisation AR, capture de modèles USDZ
+## 🚀 Démarrage rapide
 
-### 🔧 ArboreBackend
-- **Technologies** : Go, Gin Framework, MongoDB
-- **Fonctionnalités** : API RESTful, gestion des données utilisateurs et plantes, intégration Unsplash
-
-### 🤖 AiGenerator
-- **Technologies** : Python, FastAPI, OpenAI GPT
-- **Fonctionnalités** : Génération automatique d'informations sur les plantes multilingues
-
-## 🚀 Installation et Lancement
-
-### Prérequis
-- **iOS** : Xcode 15+, iOS 17+
-- **Backend** : Go 1.24+, MongoDB
-- **IA** : Python 3.8+, clé API OpenAI
-- **Services** : Compte Firebase, Google Cloud
-
-### 🔧 Configuration du Backend
+### Backend (Go)
 
 ```bash
 cd ArboreBackend
-
-# Installation des dépendances
-go mod tidy
-
-# Configuration des variables d'environnement
-cp .env.example .env
-# Éditer .env et remplir les valeurs:
-# - ARBORE_API_KEY (clé pour sécuriser l'API)
-# - MONGODB_URI (connexion MongoDB)
-# - OPENAI_API_KEY (pour génération IA)
-# - UNSPLASH_ACCESS_KEY (pour images de plantes)
-
-# Lancement du serveur
-go run .
+go mod download
+cp .env.example .env        # renseigner MONGODB_URI, ARBORE_API_KEY, etc.
+go run .                    # écoute sur :8080
 ```
 
-### 🤖 Configuration du générateur IA
+### Web (Next.js)
 
 ```bash
-cd AiGenerator
-
-# Installation des dépendances
-pip install -r requirements.txt
-
-# Configuration de la clé OpenAI
-export OPENAI_API_KEY="your_openai_api_key"
-
-# Lancement du service
-python main.py
+cd web
+npm install
+cp .env.example .env.local  # BACKEND_API_URL + ARBORE_API_KEY (serveur), NEXT_PUBLIC_FIREBASE_*
+npm run dev                 # http://localhost:3000
 ```
 
-### 📱 Configuration de l'application iOS
+### iOS
 
-1. **Configuration des secrets**
-   ```bash
-   cd ArboreUi
+```bash
+cd ArboreUi
+cp Secrets.xcconfig.example Secrets.xcconfig   # ARBORE_API_KEY, ARBORE_BACKEND_PROTOCOL/HOST
+pod install
+open ArboreUi.xcworkspace
+```
 
-   # Copier le template de secrets
-   cp Secrets.xcconfig.example Secrets.xcconfig
+Ajouter ensuite `GoogleService-Info.plist` (Firebase) et compiler sur un appareil iOS physique (requis pour ARKit). Runbooks détaillés (VPS, TestFlight, observabilité) : [`docs/fr/operations/`](docs/fr/operations/).
 
-   # Éditer Secrets.xcconfig et remplir les valeurs
-   # ARBORE_API_KEY = votre_clé_api_backend
-   # ARBORE_BACKEND_PROTOCOL = https
-   # ARBORE_BACKEND_HOST = api.arbore.app
-   ```
+## 🧪 Tests
 
-2. Ouvrez `ArboreUi.xcworkspace` dans Xcode
-3. Configurez votre fichier `GoogleService-Info.plist` Firebase
-4. Assurez-vous que les permissions caméra sont configurées dans `Info.plist`
-5. Compilez et lancez sur un appareil iOS physique (requis pour ARKit)
+| Cible | Commande |
+|---|---|
+| Backend (Go) | `make test-backend` |
+| iOS | `cd ArboreUi && xcodebuild test -workspace ArboreUi.xcworkspace -scheme ArboreUi -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2'` |
+| Web | `cd web && npm test` |
 
-## 🎯 Utilisation
+Stratégie de test complète : [`docs/fr/testing/`](docs/fr/testing/).
 
-1. **Connexion** : Connectez-vous avec votre compte Google
-2. **Scan AR** : Utilisez la caméra pour scanner une plante
-3. **Identification** : L'IA identifie automatiquement la plante
-4. **Informations** : Consultez les conseils d'entretien personnalisés
-5. **Suivi** : Organisez votre jardin et suivez vos plantes
-
-## 📡 API Endpoints
-
-### Backend (Port 8080)
-- `POST /api/plants` - Créer une nouvelle plante
-- `GET /api/plants` - Récupérer toutes les plantes
-- `GET /api/plants/:id` - Récupérer une plante spécifique
-- `POST /api/users` - Créer un utilisateur
-- `GET /api/users/:uid` - Récupérer un utilisateur
-
-### Générateur IA (Port 8000)
-- `POST /generate` - Générer des informations sur une plante
-
-## 🛠️ Technologies Utilisées
+## 🛠️ Technologies
 
 | Composant | Technologies |
-|-----------|-------------|
-| **Mobile** | SwiftUI, ARKit, Firebase, GoogleSignIn |
-| **Backend** | Go, Gin, MongoDB, Unsplash API |
-| **IA** | Python, FastAPI, OpenAI GPT-3.5/4 |
-| **Auth** | Firebase Auth, Google OAuth |
-| **Base de données** | MongoDB, Firebase Firestore |
-| **3D/AR** | ARKit, RoomPlan, USDZ |
-
-## 🌍 Internationalisation
-
-L'application supporte 4 langues :
-- 🇫🇷 Français (fr)
-- 🇬🇧 Anglais (en)
-- 🇪🇸 Espagnol (es)
-- 🇩🇪 Allemand (de)
+|---|---|
+| **Mobile** | SwiftUI, ARKit, RoomPlan, RealityKit, Firebase, GoogleSignIn |
+| **Web** | Next.js, React, TypeScript, Tailwind, shadcn/ui |
+| **Backend** | Go, Gin, MongoDB driver, Unsplash API |
+| **IA** | Python, FastAPI, OpenAI / Mistral |
+| **Auth** | Firebase Auth, Google OAuth, Sign in with Apple |
+| **Données** | MongoDB Atlas |
+| **Observabilité** | Sentry (iOS + web) |
+| **CI/CD** | GitHub Actions, Docker, fastlane (TestFlight) |
 
 ## 🤝 Contribution
 
-Ce projet est développé dans le cadre d'un cursus académique. Les contributions sont les bienvenues via :
+Projet développé dans un cadre académique.
 
 1. Fork du projet
-2. Création d'une branche feature (`git checkout -b feature/nouvelle-fonctionnalite`)
-3. Commit des changements (`git commit -m 'Ajout nouvelle fonctionnalité'`)
-4. Push vers la branche (`git push origin feature/nouvelle-fonctionnalite`)
+2. Branche feature (`git checkout -b feature/ma-fonctionnalite`)
+3. Commit des changements
+4. Push vers la branche
 5. Ouverture d'une Pull Request
+
+> Toute PR touchant un domaine documenté doit mettre à jour la documentation correspondante (FR **et** EN) — cf. [`docs/`](docs/README.md).
 
 ## 📄 Licence
 
-Ce projet est développé dans un cadre éducatif.
+Projet développé dans un cadre éducatif (beta étudiante gratuite, non commerciale).
 
 ## 👥 Équipe
 
 Développé par l'équipe ArboreTeam dans le cadre d'un projet de fin d'études.
-
-### Developers
 
 | [<img src="https://github.com/Matribuk.png?size=85" width=85><br><sub>Antonin Leprest</sub>](https://github.com/Matribuk) | [<img src="https://github.com/hugorth.png?size=85" width=85><br><sub>Hugo Rath</sub>](https://github.com/hugorth) | [<img src="https://github.com/Jus2Orange.png?size=85" width=85><br><sub>Hugo Michel</sub>](https://github.com/Jus2Orange) | [<img src="https://github.com/tanssime.png?size=85" width=85><br><sub>Tanssime Mansour</sub>](https://github.com/tanssime) |
 |:---:|:---:|:---:|:---:|
 
 ---
 
-*Arbore - Cultivez votre passion du jardinage avec l'IA et la réalité augmentée* 🌱✨
+*Arbore — Cultivez votre passion du jardinage avec l'IA et la réalité augmentée* 🌱✨

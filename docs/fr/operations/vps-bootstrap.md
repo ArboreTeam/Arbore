@@ -20,14 +20,15 @@ Composants installés à la fin de la procédure :
 
 | Composant | Rôle |
 |---|---|
-| Docker + Compose | Exécute `arbore-backend` (Go/Gin) et `arbore-ai-generator` (Python/FastAPI) |
-| Nginx | Reverse proxy `:80` + `:443` (TLS, Cloudflare Origin cert) → `127.0.0.1:8080` (backend) |
+| Docker + Compose | Exécute `arbore-backend` (Go/Gin, `:8080`), `arbore-ai-generator` (Python/FastAPI, `:8000`) et `arbore-web` (Next.js standalone, `:3000`) |
+| Nginx | Reverse proxy `:80` + `:443` (TLS, Cloudflare Origin cert) : `api.arbore.app` → `127.0.0.1:8080` (backend) et `web.arbore.app` → `127.0.0.1:3000` (web) |
 | MongoDB Atlas | DB hébergée (pas de Mongo local) ; `mongosh` et `mongodump` côté VPS pour cleanup et backups |
 | cronie | Lance `cleanup-test-db.sh` chaque nuit à 04:00 UTC |
 | gh CLI | Utilisé par `cleanup-test-db.sh` (optionnel, fallback curl) |
 
 L'AI Generator écoute en interne sur `:8000`, le backend l'appelle via le
-réseau Docker `arbore-net`. Ces ports sont exposés sur l'hôte mais leur accès
+réseau Docker `arbore-net` ; le web appelle le backend sur `http://backend:8080`
+(via son proxy serveur). Ces ports sont exposés sur l'hôte mais leur accès
 externe direct est bloqué par le firewall (cf. annexe pare-feu) ; le trafic
 public passe par Nginx sur `:80`/`:443`, eux-mêmes restreints aux IP Cloudflare.
 
@@ -127,6 +128,12 @@ EOF
 sudo nginx -t                # syntaxe OK ?
 sudo systemctl enable --now nginx
 ```
+
+> En production, deux vhosts distincts sont servis derrière Cloudflare :
+> `api.arbore.app` → `127.0.0.1:8080` (backend) et `web.arbore.app` →
+> `127.0.0.1:3000` (container `arbore-web`). Le bloc ci-dessus est le squelette
+> backend (`:80`) ; ajouter un `server { ... server_name web.arbore.app; location / { proxy_pass http://127.0.0.1:3000; ... } }`
+> équivalent pour le web, et les directives `:443 ssl` correspondantes.
 
 > HTTPS (issue #121) : **fait**. Le trafic public passe par Cloudflare en
 > mode `Full (strict)`. L'origine sert un vhost `:443 ssl http2` avec un
@@ -235,7 +242,7 @@ relatif à `WORKDIR` du Dockerfile).
 cd /home/fedora/Arbore
 sudo docker compose build
 sudo docker compose up -d
-sudo docker compose ps        # backend + ai-generator → Up (healthy)
+sudo docker compose ps        # backend + ai-generator + web → Up (healthy)
 ```
 
 Health check end-to-end :
@@ -243,6 +250,7 @@ Health check end-to-end :
 ```bash
 curl -fsS http://localhost:8080/health
 # → {"status":"ok","service":"arbore-backend","version":"..."}
+curl -fsS http://localhost:3000/   # web (Next.js)
 curl -fsS http://<VPS_IP>/health   # via nginx
 ```
 
@@ -300,8 +308,9 @@ mongorestore --uri="$MONGODB_URI" --drop --nsInclude="arbore.*" "$SNAPSHOT/arbor
 Cocher ces points avant de considérer le VPS opérationnel :
 
 - [ ] `systemctl is-active docker crond nginx` → tous `active`
-- [ ] `sudo docker compose ps` → `arbore-backend` + `arbore-ai-generator` healthy
+- [ ] `sudo docker compose ps` → `arbore-backend` + `arbore-ai-generator` + `arbore-web` healthy
 - [ ] `curl -fsS http://localhost:8080/health` → 200 OK
+- [ ] `curl -fsS http://localhost:3000/` → 200 OK (web)
 - [ ] `curl -fsS http://<VPS_IP>/health` → 200 OK (via nginx)
 - [ ] `mongosh "$MONGODB_URI" --quiet --eval 'db.users.countDocuments()'` → entier > 0
 - [ ] `crontab -l` contient l'entrée `cleanup-test-db.sh`
@@ -325,9 +334,9 @@ Selon le provider, le pare-feu au niveau de la VM peut être géré par :
 - Les règles "Network" du dashboard cloud (Oracle Cloud, OVH, etc.), le cas échéant.
 
 Ports publics : **22** (SSH), **80** et **443** (via nginx, **Cloudflare-only**).
-**Ne PAS exposer** `:8080` ni `:8000` : joignables uniquement en localhost
-(via nginx pour `:8080`) et en inter-conteneurs — l'accès externe direct est
-bloqué par le firewall ci-dessus.
+**Ne PAS exposer** `:8080`, `:8000` ni `:3000` : joignables uniquement en
+localhost (via nginx pour `:8080` et `:3000`) et en inter-conteneurs — l'accès
+externe direct est bloqué par le firewall ci-dessus.
 
 ---
 

@@ -71,8 +71,8 @@ export interface Plant {
   _id?: string;
   name?: string;
   generated?: boolean;
-  source?: string; // "botanic" = scrapé depuis botanic.com ; sinon legacy/beta
-  sourceUrl?: string; // URL botanic.com d'origine (conservée pour ré-scrape/màj)
+  source?: string; // libellé de provenance optionnel (catalogue curé) ; sinon legacy/beta
+  sourceUrl?: string; // URL d'origine optionnelle (conservée pour mise à jour)
   flags?: PlantFlags; // drapeaux structurés pour la reco wizard
   hasHeavy?: boolean; // true = version 3D haute définition disponible (LOD)
   [key: string]: unknown;

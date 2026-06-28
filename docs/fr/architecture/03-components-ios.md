@@ -23,7 +23,7 @@ flowchart TB
     user["👤 Utilisateur"]
 
     login["📱 LoginAuth/<br/>SignUpView · LoginView · VerifyEmailView · ReAuthView"]
-    wizard["📱 Views/GardenSteps/<br/>QuestionnaireView · ScanMethodSelectionView · WizardSummaryStepView · LiDARScanWizardView"]
+    wizard["📱 Views/GardenSteps/<br/>QuestionnaireView · ScanMethodSelectionView · AISuggestionStepView · LiDARScanWizardView"]
     ar_view["📱 ARGarden/<br/>GardenARPlacementView · PlantCatalogView"]
     manual_rep["📱 ARGarden/ManualReplacement/<br/>RelocationPhase · GardenMorpher · MVC · DistortionAnalyzer · Overlays"]
     profile["📱 Views/Profile/<br/>PersonalDetailsView · DataExportView · PrivacySettingsView · CloseAccountView"]
@@ -100,8 +100,9 @@ flowchart TB
 | Dossier / fichier | Rôle |
 |---|---|
 | `LoginAuth/` | Signup, login, vérification email, reset mot de passe (`SignUpView`, `LoginView`, `VerifyEmailView`, `ReAuthView`). |
-| `Views/GardenSteps/` | Wizard de création de jardin en 10 étapes (`QuestionnaireView`, `ScanMethodSelectionView`, `WizardSummaryStepView`, `LiDARScanWizardView`). |
-| `ARGarden/` | Placement et visualisation des plantes en AR (`GardenARPlacementView` ~3 300 LOC, `PlantCatalogView`). |
+| `Views/GardenSteps/` | Wizard de création de jardin en 8 à 9 étapes (`QuestionnaireView`, `ScanMethodSelectionView`, `AISuggestionStepView`, `LiDARScanWizardView`). `scanMethod` précède `aiSuggestion` (étape finale) ; pas d'étape « summary ». |
+| `ARGarden/` | Placement et visualisation des plantes en AR (`GardenARPlacementView`, god object ~4 700 LOC, `PlantCatalogView`). |
+| `ARGarden/SceneUnderstanding/` | Compréhension de scène (profondeur, segmentation sémantique, fusion) : `SceneUnderstandingController`, grilles `VoxelGrid`/`TSDFGrid`, `MarchingCubes`, classifieur `SurfaceClassifier`. |
 | `ARGarden/ManualReplacement/` | Sous-module dédié au flow de re-placement manuel (#111). Composants : `RelocationPhase`, `MeanValueCoordinates`, `GardenMorpher`, `DistortionAnalyzer`, `DistortionWarning`, `GhostRenderer`, plus quatre overlays SwiftUI (`Scanning`, `BoundaryTracing`, `MorphingPreview`, `Adjusting`). La machine d'états sera diagrammée dans `state-machines/relocation-phase.md` (Phase 3). |
 | `Views/Profile/` | Gestion du compte (`PersonalDetailsView`, `DataExportView`, `PrivacySettingsView`, `CloseAccountView`). |
 | `measure app/` | Tracé du périmètre du jardin au sol via raycasts ARKit (`ARViewContainerMeasure`), utilisé en non-LiDAR. |
@@ -132,12 +133,13 @@ flowchart TB
 | `DatabaseFireBaseStore/` | Wrappers historiques autour de Firestore. **En cours de dépréciation** : les nouveaux écrans passent par le backend Go via `NetworkManager`. |
 | `Config/AppConfig.swift` | Lit `baseURL` et `apiKey` depuis `Secrets.xcconfig` non versionné (cf. issue #117 résolue : rotation + purge historique). |
 | `ARGarden/ArboreLog.swift` | Wrapper `os_log` catégorisé (`plants`, `network`, `AR`). Utilisé par tous les modules. |
-| `ARGarden/Quality/` | Module adaptatif AR. `ARQuality` décide `environmentTexturing` au démarrage selon `DeviceCapabilities` (RAM physique) + `ProcessInfo.thermalState`. `ARQualityObserver` (singleton) écoute le thermal state au long de la vie de l'app et republie `.arboreThermalCritical`/`.arboreThermalRecovered`. `ThermalStateBanner` (SwiftUI) s'attache en overlay des vues AR. Issue #80 + #82 closes. |
+| `ARGarden/Quality/` | Module adaptatif AR. `ARQuality` décide `environmentTexturing` au démarrage selon `DeviceCapabilities` (RAM physique) + `ProcessInfo.thermalState`. `ARQualityObserver` (singleton) écoute le thermal state au long de la vie de l'app et republie `.arboreThermalCritical`/`.arboreThermalRecovered`. `ThermalStateBanner` (SwiftUI) s'attache en overlay des vues AR. `PlantLODPolicy` pilote le LOD 3D adaptatif (thermique/budget/distance) — cf. [`../3d-lod-architecture.md`](../3d-lod-architecture.md). Issue #80 + #82 closes. |
+| `Observability/` | `SentryManager` — reporting crash/erreurs **opt-in RGPD** (off par défaut). Détails dans [`../operations/observability.md`](../operations/observability.md). |
 
 ## Points clés
 
 - **Trois couches sont clairement séparées** par convention de dossiers : présentation, domaine, infrastructure. Aucun framework MVVM n'est imposé ; la discipline tient à la review des PRs.
-- **`GardenARPlacementView` est le seul god object** du codebase (≈ 3 300 lignes). Sa refactorisation est suivie par l'issue #124.
+- **`GardenARPlacementView` est le seul god object** du codebase (≈ 4 700 lignes, extensions comprises). Sa refactorisation est suivie par l'issue #124.
 - **`NetworkManager` est le point d'entrée unique** des appels HTTP. Toute requête sortante passe par ce singleton afin de garantir l'injection des credentials et le retry réseau.
 - **`saveAuthDB.swift` est le seul appelant** à implémenter un retry métier avec backoff exponentiel et un rollback Firebase Auth. Cette logique est dédiée à la signup (issue #137).
 - **`DatabaseFireBaseStore/` est en cours de dépréciation** au profit du backend Go pour toutes les opérations métier hors authentification.
@@ -150,7 +152,7 @@ flowchart TB
 - **SceneKit** pour le rendu 3D des plantes — migration vers RealityKit suivie par l'issue #83.
 - **RealityKit** pour les previews de thumbnails et la mesure de pots.
 - **RoomPlan** (LiDAR uniquement) pour le scan structuré de pièces.
-- **FirebaseAuth** pour l'auth utilisateur ; **GoogleSignIn** pour Google.
+- **FirebaseAuth** pour l'auth utilisateur ; **GoogleSignIn** pour Google ; **AuthenticationServices** pour Sign in with Apple.
 
 ## Hors-scope de cette vue
 

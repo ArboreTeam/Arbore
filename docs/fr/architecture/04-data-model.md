@@ -1,0 +1,240 @@
+# Modèle de données — MongoDB
+
+Cette vue décrit le schéma des collections MongoDB utilisées par Arbore. Le backend Go est le **seul** consommateur direct de cette base ; l'application iOS et le front web passent obligatoirement par l'API REST.
+
+Le schéma est volontairement **dénormalisé** sur certains aspects (traductions de plantes embarquées, plantes placées embarquées dans le jardin) afin de réduire le nombre d'aller-retours Mongo lors des appels API. Aucune contrainte d'intégrité référentielle n'est appliquée par Mongo : la cohérence est assurée applicativement par le backend.
+
+Il existe **quatre collections** : `users`, `plants`, `gardens`, `consents`. Deux bases physiques sont sélectionnées par requête (`arbore` en prod, `arbore_test` en test) selon le sélecteur posé par la clé API.
+
+## Diagramme ER
+
+```mermaid
+erDiagram
+    USERS ||--o{ GARDENS  : "possède"
+    USERS ||--o{ CONSENTS : "fournit"
+    PLANTS ||--o{ PLACED_PLANTS : "instancié dans"
+    GARDENS ||--|{ PLACED_PLANTS : "contient (embedded)"
+    PLANTS ||--o| PLANT_FLAGS : "qualifié par (embedded)"
+    GARDENS ||--o| MEASUREMENTS : "mesuré par (embedded)"
+
+    USERS {
+        string uid PK "Firebase UID"
+        string email
+        string name
+        string createdAt "ISO 8601"
+        string photoData "base64 optionnel"
+        string photoContentType
+        bool   banned
+        bytes  appleRefreshTokenEncrypted "AES-GCM, jamais sérialisé"
+    }
+
+    PLANTS {
+        ObjectID _id PK
+        string name
+        string type
+        array  imageURLs
+        string description
+        string modelURL "fichier USDZ"
+        map    translations "fr/en/es/de"
+        bool   generated "modèle 3D généré (IA)"
+        string upAxis "Y ou Z"
+        bool   hasHeavy "variante USDZ haute définition"
+        object flags "PlantFlags embedded"
+        string source "libellé de provenance optionnel"
+        string sourceUrl "URL d'origine optionnelle"
+    }
+
+    PLANT_FLAGS {
+        bool toxicToPets
+        bool toxicToChildren
+        bool easyCare
+        bool shadeTolerant
+        bool fullSunTolerant
+        bool droughtTolerant
+        bool humidityLoving
+        bool flowering
+        bool climbing
+        bool trailing
+        bool compact
+        bool airPurifying
+    }
+
+    GARDENS {
+        ObjectID _id PK
+        string uid FK "uid de USERS"
+        string name
+        object wizard "GardenWizardData embedded"
+        array  plants "PLACED_PLANTS embedded"
+        object measurements "GardenMeasurements embedded"
+        string thumbnailKey
+        date   createdAt
+        date   updatedAt
+    }
+
+    PLACED_PLANTS {
+        ObjectID plantId FK "vers PLANTS"
+        float x
+        float y
+        float z
+        string note
+    }
+
+    MEASUREMENTS {
+        array boundaryPoints "polygone [[x,z], ...]"
+        float area
+        float perimeter
+    }
+
+    CONSENTS {
+        ObjectID _id PK
+        string uid FK "uid de USERS"
+        string consentType "terms · privacy · marketing · etc"
+        string version
+        bool   granted
+        date   timestamp
+        string ipAddress
+        string userAgent
+    }
+```
+
+## Collections
+
+### `users`
+
+Document représentant un utilisateur authentifié. La clé fonctionnelle est `uid` (UID Firebase), pas l'`_id` Mongo.
+
+| Champ | Type | Notes |
+|---|---|---|
+| `uid` | string | UID Firebase. Clé fonctionnelle de tous les filtres `bson.M{"uid": ...}`. |
+| `email` | string | Email fourni par Firebase Auth. |
+| `name` | string | Nom affiché. Éditable via `PATCH /users/me` (#138). |
+| `createdAt` | string | Date d'inscription au format ISO 8601 (stockée en **string**, pas en date BSON). |
+| `photoData` | string (optionnel) | Photo de profil en base64. Source de vérité. |
+| `photoContentType` | string (optionnel) | MIME type associé. |
+| `banned` | bool | Flag de modération vérifié par le middleware Firebase à chaque requête. |
+| `appleRefreshTokenEncrypted` | bytes (optionnel) | Refresh token Apple chiffré **AES-256-GCM**. `json:"-"` — **jamais** sérialisé vers les clients ; `nil` si l'utilisateur n'a jamais utilisé Sign in with Apple. Écrit par `linkAppleAccount`, lu par `deleteUser` pour la révocation (#210). |
+
+### `plants`
+
+Document du catalogue de plantes. Chaque plante embarque ses traductions multilingues afin qu'un seul `findOne` rapatrie toutes les informations.
+
+| Champ | Type | Notes |
+|---|---|---|
+| `_id` | ObjectID | Clé primaire. Référencée par `PlacedPlant.plantId`. |
+| `name` | string | Nom canonique. |
+| `type` | string | Famille / type botanique. |
+| `imageURLs` | array<string> | Photos (Unsplash) via `fetchUnsplashImageURLs`. |
+| `description` | string | Description en français (servie par défaut). |
+| `modelURL` | string | Nom de fichier USDZ servi par `GET /models/:filename`. |
+| `translations` | map<lang, LanguageData> | Sous-document par langue (`fr`, `en`, `es`, `de`). |
+| `generated` | bool (optionnel) | `true` si le modèle 3D est généré par IA (badge BETA, #84). |
+| `upAxis` | string (optionnel) | `"Y"` ou `"Z"` — rotation appliquée au chargement (#89). |
+| `hasHeavy` | bool (optionnel) | `true` si une variante USDZ **haute définition** existe (servie via `?lod=heavy`). Pilote le swap LOD en AR — cf. [`../3d-lod-architecture.md`](../3d-lod-architecture.md). |
+| `flags` | `PlantFlags` (optionnel) | Drapeaux structurés de recommandation (voir ci-dessous). `nil` sur les plantes legacy. |
+| `source` | string (optionnel) | Libellé de provenance optionnel (catalogue curé vs entrées legacy/beta). |
+| `sourceUrl` | string (optionnel) | URL d'origine optionnelle, conservée pour mise à jour ultérieure. |
+
+Le sous-document `translations[lang]` (type `LanguageData`) regroupe :
+
+```
+LanguageData {
+  description, plantType,
+  sun: {lightType, durationPerDay, orientation, windowDistance, recommendedRooms, tips},
+  water: {frequency, amount, method, humidity, signsLack, signsExcess, recommendedWater},
+  soilAndPot: {substrate, drainage, potSize, repotFrequency, repotSigns},
+  health: {commonProblems, symptomsAndCauses, pests, treatments, prevention},
+  lifeCycle: {growth, flowering, dormancy, fertilizer, pruning},
+  care: {weekly, monthly, yearly, extraTips}
+}
+```
+
+#### Sous-document `PlantFlags`
+
+Douze booléens qui pilotent la **recommandation du wizard** (filtrage + scoring). C'est ici que vit la donnée de **toxicité** : il n'existe pas de champ « toxicité » séparé, elle est représentée par `toxicToPets` et `toxicToChildren`. L'objet `flags` est optionnel (`nil` sur les plantes legacy ; le client retombe alors sur des heuristiques par mots-clés).
+
+| Drapeau | Signification |
+|---|---|
+| `toxicToPets` | Toxique pour les animaux. |
+| `toxicToChildren` | Toxique pour les enfants. |
+| `easyCare` | Entretien facile. |
+| `shadeTolerant` | Tolère l'ombre. |
+| `fullSunTolerant` | Tolère le plein soleil. |
+| `droughtTolerant` | Tolère la sécheresse. |
+| `humidityLoving` | Aime l'humidité. |
+| `flowering` | Plante à fleurs. |
+| `climbing` | Grimpante. |
+| `trailing` | Retombante. |
+| `compact` | Format compact. |
+| `airPurifying` | Dépolluante. |
+
+### `gardens`
+
+Document représentant un jardin créé par un utilisateur. Les plantes placées sont **embedded** — la lecture d'un jardin entier ne coûte qu'un `findOne`.
+
+| Champ | Type | Notes |
+|---|---|---|
+| `_id` | ObjectID | Clé primaire. |
+| `uid` | string | UID propriétaire (FK logique vers `users.uid`). Posé côté serveur depuis le token, filtré dans tous les CRUD. |
+| `name` | string | Nom affiché. |
+| `wizard` | `GardenWizardData` | Choix du wizard (style, spaceType, exposure, maintenance, safety, soil, scanMethod). |
+| `plants` | array<`PlacedPlant`> | Plantes placées (voir ci-dessous). |
+| `measurements` | `GardenMeasurements` (optionnel) | Géométrie de la pièce/jardin tracée en AR : `boundaryPoints` (polygone), `area`, `perimeter`. Acceptée en création et en mise à jour. |
+| `thumbnailKey` | string (optionnel) | Clé d'image pour la vignette du jardin sur la home. |
+| `createdAt`, `updatedAt` | date | Timestamps gérés par le backend (`updateGarden` met à jour `updatedAt`). |
+
+Sous-document `PlacedPlant` :
+
+| Champ | Type | Notes |
+|---|---|---|
+| `plantId` | ObjectID | FK vers `plants._id`. |
+| `x`, `y`, `z` | float | Position 3D **dans le repère du jardin** (pas le repère monde ARKit, local-only iOS). |
+| `note` | string (optionnel) | Note libre. |
+
+⚠️ **Limite actuelle** : la position 3D persistée côté serveur n'inclut ni rotation ni échelle. Les transformations 4×4 réelles vivent uniquement dans le `scene_{id}.json` local côté iOS (#114).
+
+### `consents` — RGPD
+
+Trace d'audit append-only. Une entrée est créée à chaque action (accept/decline), jamais modifiée.
+
+| Champ | Type | Notes |
+|---|---|---|
+| `_id` | ObjectID | Clé primaire. |
+| `uid` | string | UID utilisateur (FK logique vers `users.uid`). |
+| `consentType` | string | `"terms"`, `"privacy"`, `"marketing"`, etc. (#67). |
+| `version` | string | Version du document de consentement présenté. |
+| `granted` | bool | `true` si accepté, `false` si refusé/retiré. |
+| `timestamp` | date | Auto-set à `time.Now()` si absent. |
+| `ipAddress` | string | Auto-set à `c.ClientIP()` si absent. |
+| `userAgent` | string | Auto-set au User-Agent si absent. |
+
+## Index recommandés
+
+Aucun index custom n'est défini à ce jour ; Mongo crée automatiquement l'index sur `_id`. Les filtres les plus fréquents :
+
+| Collection | Filtre fréquent | Index suggéré |
+|---|---|---|
+| `users` | `bson.M{"uid": uid}` | `{uid: 1}` unique |
+| `gardens` | `bson.M{"uid": uid}` (tri `updatedAt`) | `{uid: 1, updatedAt: -1}` |
+| `gardens` | `bson.M{"_id": id, "uid": uid}` | `{uid: 1, _id: 1}` |
+| `consents` | `bson.M{"uid": uid}` (tri `timestamp`) | `{uid: 1, timestamp: -1}` |
+
+À évaluer une fois le volume réel connu en production.
+
+## Relations entre collections
+
+Toutes les relations sont **logiques** (par `uid` ou `ObjectID`), aucune n'est imposée par Mongo. La cohérence repose sur :
+
+- `deleteUser` qui supprime **en cascade** : gardens → consents → (révocation Apple best-effort si `appleRefreshTokenEncrypted` présent) → user.
+- Les filtres `bson.M{"_id": id, "uid": uid}` qui garantissent l'ownership sur update/delete des jardins.
+- L'`uid` toujours injecté depuis le token, jamais accepté du body.
+- `exportUserData` (RGPD art. 20) qui agrège user + gardens + consents, mais **exclut** `appleRefreshTokenEncrypted`.
+
+## Note — documents en mode test
+
+Les insertions via le sélecteur de base **test** sont étiquetées par `maybeLabelTestDoc` avec deux champs hors-schéma : `_test: true` et `_createdAtUTC`. Ces champs n'apparaissent **jamais** dans les documents de production et ne figurent dans aucune structure Go ; ils permettent un nettoyage sûr de la base de test.
+
+## Hors-scope de cette vue
+
+- Le pipeline de génération de plantes (`generateAndInsertPlant`) relève de [`03-components-backend.md`](03-components-backend.md).
+- Les fichiers locaux iOS (`scene_{id}.json`, `worldmap_{id}.arworldmap`) sont propres au client et n'apparaissent pas dans Mongo — voir [`03-components-ios.md`](03-components-ios.md).
+- Les séquences signup et sauvegarde de jardin sont documentées dans [`../flows/`](../flows/).

@@ -1,5 +1,10 @@
-Arbore — Proprietary License
-Copyright (c) 2025-2026 Arbore Team. All rights reserved.
+SPDX-License-Identifier: LicenseRef-Arbore-Proprietary
+
+Arbore — Proprietary License — All Rights Reserved / Tous droits réservés
+Version 1.1 — 2026-06-28
+
+Copyright (c) 2025-2026 Antonin Leprest, Hugo Rath, Hugo Michel, Tanssime Mansour,
+collectively the "Arbore Team". All rights reserved. Tous droits réservés.
 
 ================================================================================
 ENGLISH
@@ -7,7 +12,10 @@ ENGLISH
 
 This software, its source code, assets, models, documentation, and all related
 materials (collectively, the "Software") are the exclusive property of the
-Arbore Team and its contributors.
+members of the Arbore Team named above. The Software is a work of joint
+authorship (in the sense of an "œuvre de collaboration" under French law)
+co-owned by those members; any grant of rights in the Software requires the
+agreement of all co-authors.
 
 NO LICENSE IS GRANTED to use, copy, modify, merge, publish, distribute,
 sublicense, run, deploy, or sell any part of the Software, in whole or in part,
@@ -35,14 +43,16 @@ authorization:
      Article 4(3) of Directive (EU) 2019/790 (DSM) to opt out of any text and
      data mining of the Software.
 
-  5. Any use of the Software to create derivative works of any kind.
+  5. Any use of the Software, or any portion thereof, to create derivative
+     works of any kind.
 
 The Software is made publicly visible solely for the purposes of academic
 review (Epitech curriculum), demonstration to recruiters, and inspection by
-prospective partners. Public availability on GitHub.com permits viewing and
-forking through GitHub's interface in accordance with GitHub's Terms of
-Service. No further rights of use, execution, redistribution, or modification
-are granted. Visibility does not imply any grant of rights.
+prospective partners (a "look, but do not reuse" portfolio repository). Public
+availability on GitHub.com permits viewing and forking through GitHub's
+interface in accordance with GitHub's Terms of Service. No further rights of
+use, execution, redistribution, or modification are granted. Visibility does
+not imply any grant of rights.
 
 NO PATENT LICENSE, express or implied, is granted under this License. No
 trademark is claimed at the time of writing; the name "Arbore" and any
@@ -51,6 +61,19 @@ own use within the context of this project. Third parties shall not use the
 "Arbore" name or branding in a manner likely to create confusion with this
 project, in connection with goods or services in the field of gardening,
 plant identification, or augmented-reality plant visualization.
+
+MORAL RIGHTS. The authors retain, in accordance with French law, their moral
+rights ("droit moral") in the Software, which are perpetual, inalienable, and
+imprescriptible, including the right of attribution (paternity) and the right to
+the integrity of the work.
+
+THIRD-PARTY COMPONENTS. The Software may include or depend upon third-party
+software, libraries, frameworks, fonts, 3D assets, or photographs owned by their
+respective right holders and made available under their own license terms (for
+example, open-source dependencies and stock photography). This License governs
+only the original work of the Arbore Team; it neither grants any right in, nor
+alters the terms applicable to, such third-party components, which remain
+subject to their respective licenses.
 
 Any unauthorized use immediately terminates any limited rights granted herein
 and constitutes copyright infringement under applicable law. No failure or
@@ -78,7 +101,10 @@ FRANÇAIS
 
 Ce logiciel, son code source, ses ressources, ses modèles, sa documentation et
 tous les éléments associés (collectivement, le « Logiciel ») sont la propriété
-exclusive de l'équipe Arbore et de ses contributeurs.
+exclusive des membres de l'équipe Arbore nommés ci-dessus. Le Logiciel est une
+œuvre de collaboration dont ces membres sont co-auteurs et copropriétaires ;
+toute concession de droits sur le Logiciel requiert l'accord de l'ensemble des
+co-auteurs.
 
 AUCUNE LICENCE N'EST ACCORDÉE pour utiliser, copier, modifier, fusionner,
 publier, distribuer, sous-licencier, exécuter, déployer ou vendre tout ou
@@ -106,16 +132,17 @@ En particulier, sont STRICTEMENT INTERDITS sans autorisation écrite préalable 
      au titre de l'article 4(3) de la directive (UE) 2019/790 (DSM) afin de
      s'opposer à toute fouille de textes et de données du Logiciel.
 
-  5. Toute utilisation du Logiciel pour créer une œuvre dérivée, de quelque
-     nature que ce soit.
+  5. Toute utilisation du Logiciel, ou de toute partie de celui-ci, pour créer
+     une œuvre dérivée, de quelque nature que ce soit.
 
 Le Logiciel est rendu publiquement visible uniquement à des fins de revue
 académique (cursus Epitech), de démonstration auprès de recruteurs et
-d'inspection par d'éventuels partenaires. La disponibilité publique sur
-GitHub.com permet la consultation et le fork via l'interface de GitHub
-conformément aux Conditions d'utilisation de GitHub. Aucun autre droit
-d'utilisation, d'exécution, de redistribution ou de modification n'est accordé.
-La visibilité n'implique aucune concession de droits.
+d'inspection par d'éventuels partenaires (dépôt « portfolio » : consultation
+autorisée, réutilisation interdite). La disponibilité publique sur GitHub.com
+permet la consultation et le fork via l'interface de GitHub conformément aux
+Conditions d'utilisation de GitHub. Aucun autre droit d'utilisation,
+d'exécution, de redistribution ou de modification n'est accordé. La visibilité
+n'implique aucune concession de droits.
 
 AUCUNE LICENCE DE BREVET, expresse ou implicite, n'est accordée par la
 présente Licence. Aucune marque n'est revendiquée à la date de rédaction de
@@ -126,6 +153,20 @@ identité visuelle d'une manière susceptible de créer une confusion avec ce
 projet, en lien avec des produits ou services dans les domaines du
 jardinage, de l'identification des plantes ou de la visualisation en
 réalité augmentée de plantes.
+
+DROIT MORAL. Les auteurs conservent, conformément au droit français, leurs
+droits moraux sur le Logiciel, lesquels sont perpétuels, inaliénables et
+imprescriptibles, y compris le droit à la paternité et le droit au respect de
+l'intégrité de l'œuvre.
+
+COMPOSANTS TIERS. Le Logiciel peut inclure ou dépendre de logiciels,
+bibliothèques, frameworks, polices, ressources 3D ou photographies appartenant
+à leurs titulaires respectifs et mis à disposition selon leurs propres
+conditions de licence (par exemple, dépendances open source et photographies de
+banques d'images). La présente Licence ne régit que l'œuvre originale de
+l'équipe Arbore ; elle n'accorde aucun droit sur ces composants tiers et n'en
+modifie pas les conditions, lesquels demeurent soumis à leurs licences
+respectives.
 
 Toute utilisation non autorisée met immédiatement fin aux droits limités
 éventuellement accordés et constitue une contrefaçon au titre du droit

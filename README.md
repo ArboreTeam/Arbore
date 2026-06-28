@@ -101,7 +101,7 @@ Projet développé dans un cadre académique.
 
 ## 📄 Licence
 
-Projet développé dans un cadre éducatif (beta étudiante gratuite, non commerciale).
+**Propriétaire — tous droits réservés.** Ce dépôt est public **uniquement** à des fins de portfolio et de revue académique (cursus Epitech). Toute réutilisation, copie, modification, exécution, déploiement ou redistribution — commerciale ou non — est **interdite** sans autorisation écrite préalable. Voir [`LICENSE`](LICENSE).
 
 ## 👥 Équipe
 

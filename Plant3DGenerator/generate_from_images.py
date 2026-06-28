@@ -125,6 +125,8 @@ def main() -> None:
                    help="skip texture prompts (saves 10 credits/plant)")
     p.add_argument("--all", action="store_true", help="process every manifest plant (default: first)")
     p.add_argument("--limit", type=int, default=0, help="cap number of plants")
+    p.add_argument("--workers", type=int, default=5,
+                   help="concurrent generations (keep <= your Meshy tier's concurrent-task limit)")
     p.add_argument("--dry-run", action="store_true", help="list jobs + credit estimate, no API calls")
     args = p.parse_args()
 
@@ -133,6 +135,18 @@ def main() -> None:
         sys.exit("❌ MESHY_API_KEY not set (copy .env.example → .env)")
 
     jobs = load_jobs(args)
+    # Dedup by output stem so name-collisions (e.g. two "Areca" SKUs → Areca.usdz)
+    # don't generate the same model twice under concurrency.
+    seen_stems: set[str] = set()
+    deduped = []
+    for j in jobs:
+        if j["stem"] in seen_stems:
+            continue
+        seen_stems.add(j["stem"])
+        deduped.append(j)
+    if len(deduped) != len(jobs):
+        print(f"🔁 deduped {len(jobs) - len(deduped)} duplicate model name(s)")
+    jobs = deduped
     if not jobs:
         sys.exit("❌ no jobs to run")
     if not args.image and not args.all:
@@ -141,8 +155,9 @@ def main() -> None:
     if args.limit:
         jobs = jobs[: args.limit]
 
-    # 30 credits base + 10 if a texture prompt is sent.
-    per = 30 if args.no_texture_prompt else 40
+    # image-to-3D is 30 credits; a texture_prompt is free (only a texture_image_url
+    # guidance would add 10). Confirmed: the test Monstera consumed 30.
+    per = 30
     print(f"📋 {len(jobs)} plant(s):")
     for j in jobs:
         print(f"   • {j['name']} → {j['stem']}.usdz")
@@ -153,10 +168,20 @@ def main() -> None:
         return
 
     client = MeshyImageClient(api_key)
+    workers = max(1, args.workers)
+    print(f"⚙️  generating with {workers} concurrent worker(s)")
     ok = 0
-    for j in jobs:
-        if generate_one(client, j, no_texture_prompt=args.no_texture_prompt):
-            ok += 1
+    if workers == 1:
+        for j in jobs:
+            if generate_one(client, j, no_texture_prompt=args.no_texture_prompt):
+                ok += 1
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futures = [ex.submit(generate_one, client, j, no_texture_prompt=args.no_texture_prompt) for j in jobs]
+            for fut in futures:
+                if fut.result():
+                    ok += 1
     print(f"🏁 done — {ok}/{len(jobs)} succeeded")
     sys.exit(0 if ok == len(jobs) else 1)
 

@@ -1,6 +1,12 @@
 .env
 output/
+opti_output/
+_legacy/
+_thumb_map.json
+_regen_outliers.json
+arbore-3d-models.zip
 __pycache__/
 *.pyc
 .venv/
 venv/
+node_modules/

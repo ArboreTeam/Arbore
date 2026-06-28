@@ -1,0 +1,5 @@
+{
+  "name": "plant3d-optimizer",
+  "private": true,
+  "dependencies": { "@gltf-transform/cli": "^4.4.0" }
+}

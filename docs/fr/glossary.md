@@ -28,7 +28,7 @@ Polygone fermé au sol qui délimite la zone du jardin. Tracé par l'utilisateur
 
 ## C4 Model
 
-Modèle d'architecture en quatre niveaux (**C**ontext, **C**ontainer, **C**omponent, **C**ode) défini par Simon Brown. Appliqué à Arbore dans `docs/architecture/`. Le niveau Code est volontairement omis : le code source en tient lieu.
+Modèle d'architecture en quatre niveaux (**C**ontext, **C**ontainer, **C**omponent, **C**ode) défini par Simon Brown. Appliqué à Arbore dans [`architecture/`](architecture/). Le niveau Code est volontairement omis : le code source en tient lieu.
 
 ## DeviceCapabilities
 
@@ -56,7 +56,7 @@ API Apple (`PhotogrammetrySession`, iOS 17+, Area mode iOS 18+) qui produit un m
 
 ## Per-screen spec
 
-Document Markdown qui décrit en détail un seul écran principal (hero screen) : purpose, entry et exit points, widgets, edge cases et dépendances. La liste complète figure dans `docs/screens/_index.md` (Phase 4).
+Document Markdown qui décrit en détail un seul écran principal (hero screen) : purpose, entry et exit points, widgets, edge cases et dépendances. La liste complète figure dans [`screens/_index.md`](screens/_index.md).
 
 ## PhotogrammetrySession
 
@@ -64,7 +64,7 @@ Voir [**ObjectCapture**](#objectcapture).
 
 ## Plant
 
-Entrée du catalogue MongoDB : nom, type, image URLs, traductions multilingues, URL du modèle USDZ, indicateur `generated` (modèle issu de Meshy ou non) et `upAxis` (Y- ou Z-up). La structure complète est documentée dans `04-data-model.md` (Phase 2).
+Entrée du catalogue MongoDB : nom, type, image URLs, traductions multilingues, URL du modèle USDZ, drapeaux de recommandation (`flags`/`PlantFlags`, dont la toxicité), indicateur `generated` (modèle 3D généré par IA ou non), `hasHeavy` (variante haute définition disponible) et `upAxis` (Y- ou Z-up). La structure complète est documentée dans [`architecture/04-data-model.md`](architecture/04-data-model.md).
 
 ## RelocationPhase
 
@@ -84,7 +84,7 @@ Voir [**Per-screen spec**](#per-screen-spec).
 
 ## Sprint
 
-Période d'environ un mois matérialisée par un GitHub Milestone. Sprint en cours : Sprint 3 (échéance 2026-06-14). Un sprint regroupe les issues à livrer dans la période.
+Période d'environ un mois matérialisée par un GitHub Milestone. Un sprint regroupe les issues à livrer dans la période ; le sprint en cours est suivi via les GitHub Milestones du dépôt.
 
 ## Token (Firebase ID Token)
 
@@ -96,7 +96,7 @@ Information de température système exposée par iOS via `ProcessInfo.processIn
 
 ## TestFlight
 
-Plateforme Apple de distribution beta. Un build interne est déposé pour l'équipe ainsi que pour le reviewer Apple (compte `apple-review@arbore.app`). La diffusion publique TestFlight est suivie dans l'issue #15 (Sprint 4).
+Plateforme Apple de distribution beta. Un build interne est déposé pour l'équipe ainsi que pour le reviewer Apple (compte `appstore.review@arbore.app`). La diffusion **externe** (lien public TestFlight) est en place et approuvée par Apple. Détails dans [`operations/testflight-deploy.md`](operations/testflight-deploy.md).
 
 ## USDZ
 
@@ -104,7 +104,7 @@ Format de modèle 3D Apple (archive ZIP contenant un fichier USD et ses textures
 
 ## VPS (Fedora)
 
-Serveur unique qui héberge le backend Go et l'AI Generator Python via Docker Compose. L'accès SSH s'effectue via la connexion MCP `ssh-arbore-backend`. Détails dans [`02-containers.md`](architecture/02-containers.md).
+Serveur unique qui héberge le backend Go, l'AI Generator Python et le front web Next.js via Docker Compose. Détails dans [`architecture/02-containers.md`](architecture/02-containers.md) et [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md).
 
 ## WorldMap
 
@@ -112,7 +112,7 @@ Voir [**ARWorldMap**](#arworldmap).
 
 ## Wizard
 
-Flux de création de jardin en dix étapes (`GardenWizardStep`) : intro → style → spaceType → exposure → maintenance → safety → soil → aiSuggestion → scanMethod → summary. Implémenté sous forme de `TabView` dans `QuestionnaireView`. Cible d'une per-screen spec en Phase 4.
+Flux de création de jardin (`GardenWizardStep`) en huit à neuf étapes : intro → style → spaceType → exposure → maintenance → safety → (soil, si jardin) → scanMethod → aiSuggestion. **`scanMethod` précède `aiSuggestion`** (étape finale) ; il n'y a **pas** d'étape « summary ». Le `POST /gardens` est déclenché à l'étape de tracé (`scanMethod`), pas à la fin. Implémenté dans `QuestionnaireView`. Documenté dans [`screens/questionnaire-wizard.md`](screens/questionnaire-wizard.md) et [`flows/garden-creation.md`](flows/garden-creation.md).
 
 ---
 

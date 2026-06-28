@@ -190,8 +190,8 @@ type Plant struct {
 	Translations map[string]LanguageData `json:"translations" bson:"translations"`
 	Generated    *bool                   `json:"generated,omitempty" bson:"generated,omitempty"`
 	UpAxis       *string                 `json:"upAxis,omitempty" bson:"upAxis,omitempty"`
-	Source       *string                 `json:"source,omitempty" bson:"source,omitempty"`       // "botanic" = scrapé depuis botanic.com ; nil/"" = legacy/beta
-	SourceURL    *string                 `json:"sourceUrl,omitempty" bson:"sourceUrl,omitempty"` // URL botanic.com d'origine (conservée pour ré-scrape/màj ultérieure)
+	Source       *string                 `json:"source,omitempty" bson:"source,omitempty"`       // libellé de provenance optionnel (catalogue curé) ; nil/"" = legacy/beta
+	SourceURL    *string                 `json:"sourceUrl,omitempty" bson:"sourceUrl,omitempty"` // URL d'origine optionnelle (conservée pour mise à jour ultérieure)
 	Flags        *PlantFlags             `json:"flags,omitempty" bson:"flags,omitempty"`         // drapeaux structurés pour la reco wizard (fiables, vs matching mots-clés)
 	HasHeavy     *bool                   `json:"hasHeavy,omitempty" bson:"hasHeavy,omitempty"`   // true = une version haute définition existe (servie via /models/<file>?lod=heavy)
 }

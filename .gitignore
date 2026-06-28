@@ -216,3 +216,30 @@ backups/
 # Local backups + Claude Code project config — never commit.
 .backups/
 .claude/
+
+# ─── 3D plant assets — large binaries deployed to the VPS out-of-band (rsync) ──
+# The light/heavy USDZ models and the PNG thumbnails are NOT versioned; they are
+# served from the VPS filesystem (see docs/fr/3d-lod-architecture.md). Keep
+# ArboreBackend/models/README.md tracked. NOTE: ~40 .usdz were committed before
+# this rule existed and remain tracked; run `git rm --cached` if you want models/
+# fully out of git history.
+ArboreBackend/models/*.usdz
+ArboreBackend/models/heavy/
+ArboreBackend/models/thumbnails/
+
+# ─── Local-only artifacts (never committed) ───────────────────────────────────
+# Playwright MCP browser-automation captures.
+.playwright-mcp/
+# fastlane auto-generated lane docs (regenerated on every run).
+fastlane/README.md
+# Ad-hoc demo / jury screenshots kept at the repo root.
+/02-welcome.png
+/03-seasons.png
+/03-seasons-ok.png
+/04-catalogue.png
+/05-calendar.png
+/calendar-mobile.png
+/web-login.png
+# Local working notes (not part of the project).
+/state.md
+/jury-greenlight.md

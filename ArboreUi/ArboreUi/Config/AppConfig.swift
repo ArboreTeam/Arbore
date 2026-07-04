@@ -87,6 +87,21 @@ struct AppConfig {
     /// Numéro de build
     static let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
 
+    // MARK: - AI Chatbot
+
+    /// Clé API Google Gemini (gemini-2.0-flash).
+    /// Obtenez une clé gratuite sur https://aistudio.google.com/apikey
+    /// Configurez GEMINI_API_KEY dans Secrets.xcconfig, ou définissez-la
+    /// directement ici en développement.
+    static let geminiAPIKey: String = {
+        guard let key = Bundle.main.object(forInfoDictionaryKey: "GEMINI_API_KEY") as? String,
+              !key.isEmpty,
+              key != "$(GEMINI_API_KEY)" else {
+            return ""
+        }
+        return key
+    }()
+
     // MARK: - Observability (Sentry — issue #205)
 
     /// Environnement reporté à Sentry pour filtrer les events.

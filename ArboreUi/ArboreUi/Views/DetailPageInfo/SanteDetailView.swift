@@ -1,282 +1,530 @@
 import SwiftUI
 import Vision
 import AVFoundation
+import CoreImage
+import CoreImage.CIFilterBuiltins
+import UIKit
 
-// MARK: - PARTIE 1 : MOTEUR D'ANALYSE STABILISÉ
+// MARK: - MOTEUR D'ANALYSE RÉEL
 
 class PlantHealthAnalyzer: NSObject, ObservableObject {
-    // Variables publiées pour l'UI
-    @Published var diagnosedIssue: String = "Calibration en cours..."
-    @Published var confidenceLevel: Double = 0.0 // Valeur lissée pour l'affichage
-    @Published var isHealthy: Bool = true
-    @Published var scientificName: String = "Initialisation..."
-    
-    // Variables internes pour la logique
-    private var targetConfidence: Double = 0.0
-    private var stabilizationTimer: Timer?
-    
-    // MODE DÉMO / TEST
-    // Permet de forcer un état pour tester sans plante réelle
-    enum ForceMode {
-        case auto // Comportement aléatoire simulant l'IA
-        case forceHealthy // Force le résultat sain
-        case forceSick // Force le résultat malade
+
+    // MARK: - États publiés
+    @Published var phase: AnalysisPhase = .waiting
+    @Published var overallHealth: Double = 0.5       // 0…1 lissé
+    @Published var metrics: [HealthMetric] = []
+    @Published var diagnosis: String = ""
+    @Published var advice: String = ""
+    @Published var timeRemaining: Double = 1.0
+
+    enum AnalysisPhase { case waiting, scanning, done }
+
+    struct HealthMetric: Identifiable {
+        let id    = UUID()
+        let icon  : String
+        let label : String
+        let value : Double   // 0…1
+        let color : Color
     }
-    var currentMode: ForceMode = .auto
-    
+
+    // MARK: - Constantes d'analyse
+    private let downsampleSize  = CGSize(width: 160, height: 160)
+    private let frameThrottle   = 8          // analyser 1 image sur 8
+    private let warmupFrames    = 15         // images avant résultat final
+    private let windowSize      = 20         // échantillons pour moyenne glissante
+
+    // Compteurs
+    private var frameCount = 0
+    private var validSamples = 0
+    private var sessionStart = Date()
+
+    // Fenêtre glissante – on stocke les ratios bruts
+    private var greenWindow:  [Double] = []
+    private var yellowWindow: [Double] = []
+    private var brownWindow:  [Double] = []
+    private var varWindow:    [Double] = []
+
+    // Thread safety
+    private let procQueue = DispatchQueue(label: "health.analysis.queue", qos: .userInitiated)
+    private let lock = NSLock()
+    private let ciCtx = CIContext(options: [.priorityRequestLow: true])
+
     override init() {
         super.init()
-        startStabilizationLoop()
+        phase = .waiting
+        diagnosis = "Prêt à analyser"
     }
-    
-    // Cette boucle tourne 60 fois par seconde pour animer la jauge de manière fluide
-    private func startStabilizationLoop() {
-        stabilizationTimer = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            
-            // FORMULE DE LISSAGE (Linear Interpolation)
-            // On déplace la valeur actuelle vers la cible de 5% à chaque frame
-            // Cela empêche la barre de "sauter", elle glisse.
-            let step = 0.05
-            self.confidenceLevel = self.confidenceLevel + (self.targetConfidence - self.confidenceLevel) * step
+
+    // MARK: - Réinitialisation
+    func resetAnalysis() {
+        frameCount = 0
+        validSamples = 0
+        greenWindow.removeAll()
+        yellowWindow.removeAll()
+        brownWindow.removeAll()
+        varWindow.removeAll()
+        DispatchQueue.main.async {
+            self.phase = .waiting
+            self.overallHealth = 0.5
+            self.metrics = []
+            self.diagnosis = ""
+            self.advice = ""
+            self.timeRemaining = 1.0
         }
     }
-    
-    // Appelé à chaque frame de la caméra
+
+    // MARK: - Point d'entrée appelé par la caméra
     func analyzePixelBuffer(buffer: CVPixelBuffer) {
-        // On ne fait le calcul "lourd" (simulation) que de temps en temps pour ne pas surcharger
-        // Ici on simule juste la mise à jour de la cible
-        
-        DispatchQueue.main.async {
-            switch self.currentMode {
-            case .forceHealthy:
-                self.setResult(healthy: true, confidence: 0.95)
-                
-            case .forceSick:
-                self.setResult(healthy: false, confidence: 0.92)
-                
-            case .auto:
-                // Simulation d'une fluctuation naturelle (comme si l'IA cherchait)
-                // Change légèrement la cible aléatoirement
-                let randomFluctuation = Double.random(in: 0.4...0.7) // Valeurs basses par défaut (incertitude)
-                self.targetConfidence = randomFluctuation
-                
-                if self.confidenceLevel < 0.6 {
-                    self.diagnosedIssue = "Analyse de la surface..."
-                    self.scientificName = "Scan en cours"
-                    self.isHealthy = true
-                }
+        frameCount += 1
+        guard frameCount % frameThrottle == 0 else { return }
+
+        if phase == .waiting {
+            DispatchQueue.main.async { [weak self] in self?.phase = .scanning }
+        }
+
+        let ciImage = CIImage(cvPixelBuffer: buffer)
+
+        procQueue.async { [weak self] in
+            self?.processFrame(ciImage)
+        }
+    }
+
+    // MARK: - Traitement d'une frame
+    private func processFrame(_ ciImage: CIImage) {
+        // 1. Réduire la résolution
+        guard let small = downscale(ciImage) else { return }
+        // 2. Lire les pixels RGBA
+        guard let pixels = readRGBA(small) else { return }
+
+        // 3. Classifier chaque pixel dans l'espace HSL
+        var g = 0, y = 0, b = 0, o = 0
+        for i in stride(from: 0, to: pixels.count, by: 4) {
+            let r = Float(pixels[i])   / 255.0
+            let gr = Float(pixels[i+1]) / 255.0
+            let bl = Float(pixels[i+2]) / 255.0
+
+            let (h, s, l) = rgbToHSL(r: r, g: gr, b: bl)
+
+            if l < 0.12 { o += 1; continue }         // ombre / fond
+            if s < 0.08 { o += 1; continue }          // quasi-gris
+
+            if (h >= 80 && h <= 160) && s > 0.15 && l > 0.15 {
+                g += 1
+            } else if (h >= 45 && h < 80) && s > 0.20 && l > 0.25 {
+                y += 1
+            } else if (h >= 10 && h < 45) && s > 0.15 && l < 0.50 {
+                b += 1
+            } else {
+                o += 1
             }
         }
-    }
-    
-    // Helper pour définir les résultats proprement
-    private func setResult(healthy: Bool, confidence: Double) {
-        self.targetConfidence = confidence
-        self.isHealthy = healthy
-        
-        if healthy {
-            self.diagnosedIssue = "Plante saine détectée"
-            self.scientificName = "Plantae Sanus"
-        } else {
-            self.diagnosedIssue = "Attention: Mildiou détecté"
-            self.scientificName = "Plasmopara viticola"
+
+        let total = Float(g + y + b + o)
+        guard total > 0 else { return }
+
+        let greenRatio  = Double(g) / Double(total)
+        let yellowRatio = Double(y) / Double(total)
+        let brownRatio  = Double(b) / Double(total)
+
+        // Variance locale approximative (indicateur de taches)
+        let variance = computeLocalVariance(pixels, stride: 8)
+
+        // 4. Mettre à jour la fenêtre glissante
+        lock.lock()
+        greenWindow.append(greenRatio);  if greenWindow.count  > windowSize { greenWindow.removeFirst()  }
+        yellowWindow.append(yellowRatio); if yellowWindow.count > windowSize { yellowWindow.removeFirst() }
+        brownWindow.append(brownRatio);  if brownWindow.count  > windowSize { brownWindow.removeFirst()  }
+        varWindow.append(variance);      if varWindow.count    > windowSize { varWindow.removeFirst()    }
+
+        let avgG  = greenWindow.reduce(0,+)  / Double(greenWindow.count)
+        let avgY  = yellowWindow.reduce(0,+) / Double(yellowWindow.count)
+        let avgB  = brownWindow.reduce(0,+)  / Double(brownWindow.count)
+        let avgV  = varWindow.reduce(0,+)    / Double(varWindow.count)
+        lock.unlock()
+
+        validSamples += 1
+
+        // 5. Calculer le score de santé
+        //    Idéal : beaucoup de vert, peu de jaune/brun, variance modérée
+        let greenScore  = min(avgG / 0.45, 1.0)      // 45% de vert = max
+        let yellowPen   = min(avgY * 3.0, 1.0)       // pénalité jaune
+        let brownPen    = min(avgB * 4.0, 1.0)        // pénalité brune
+        let varScore    = 1.0 - min(avgV * 3.0, 1.0) // variance trop forte → pénalité
+
+        let rawScore = greenScore * 0.50
+                     + varScore * 0.15
+                     + (1.0 - yellowPen) * 0.20
+                     + (1.0 - brownPen)  * 0.15
+
+        let health = min(max(rawScore, 0.0), 1.0)
+
+        // 6. Publier les résultats
+        let progress = min(Double(validSamples) / Double(warmupFrames), 1.0)
+        let willBeDone = validSamples >= warmupFrames
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.overallHealth = health
+            self.timeRemaining = 1.0 - progress
+
+            if willBeDone && self.phase != .done {
+                self.phase = .done
+            }
+
+            self.metrics = [
+                HealthMetric(icon: "leaf.fill",       label: "Feuillage",   value: min(avgG / 0.5, 1.0), color: .green),
+                HealthMetric(icon: "exclamationmark.triangle.fill", label: "Jaunissement", value: min(avgY * 3, 1.0), color: .yellow),
+                HealthMetric(icon: "drop.fill",        label: "Taches",     value: min(avgB * 3, 1.0),   color: .orange),
+                HealthMetric(icon: "sparkle.magnifyingglass", label: "Uniformité", value: varScore,        color: .blue),
+            ]
+
+            self.diagnosis = self.makeDiagnosis(health: health, green: avgG, yellow: avgY, brown: avgB, variance: avgV)
+            self.advice    = self.makeAdvice(health: health, yellow: avgY, brown: avgB)
         }
     }
-    
-    // Fonctions pour les boutons de test
-    func forceHealthyState() {
-        currentMode = .forceHealthy
+
+    // MARK: - Diagnostic textuel
+    private func makeDiagnosis(health: Double, green: Double, yellow: Double, brown: Double, variance: Double) -> String {
+        switch health {
+        case 0.80...1.0:  return "Plante en excellente santé"
+        case 0.65..<0.80: return "Plante en bonne santé"
+        case 0.50..<0.65: return "Signes de faiblesse légers"
+        case 0.30..<0.50: return "Plante stressée — intervention conseillée"
+        default:          return "Plante en mauvais état — agir rapidement"
+        }
     }
-    
-    func forceSickState() {
-        currentMode = .forceSick
+
+    private func makeAdvice(health: Double, yellow: Double, brown: Double) -> String {
+        var tips: [String] = []
+        if yellow > 0.08 { tips.append("Jaunissement détecté → vérifier l'arrosage et les nutriments (azote).") }
+        if brown > 0.05  { tips.append("Taches brunes → surveiller les maladies cryptogamiques ou les brûlures.") }
+        if tips.isEmpty {
+            switch health {
+            case 0.80...: tips.append("Continuez vos soins, la plante est épanouie.")
+            case 0.50..<0.80: tips.append("Ajustez les soins : lumière, eau, engrais.")
+            default: tips.append("Taillez les parties abîmées et traitez avec un produit adapté.")
+            }
+        }
+        return tips.joined(separator: "\n")
     }
-    
-    func resetAuto() {
-        currentMode = .auto
-        targetConfidence = 0.0
+
+    // MARK: - Outils image
+    private func downscale(_ image: CIImage) -> CIImage? {
+        let scaleX = downsampleSize.width  / image.extent.width
+        let scaleY = downsampleSize.height / image.extent.height
+        let scale = min(scaleX, scaleY)
+        guard scale < 1.0 else { return image }
+        let filter = CIFilter.lanczosScaleTransform()
+        filter.inputImage = image
+        filter.scale = Float(scale)
+        filter.aspectRatio = 1.0
+        return filter.outputImage
+    }
+
+    private func readRGBA(_ image: CIImage) -> [UInt8]? {
+        let extent = image.extent
+        let w = Int(extent.width), h = Int(extent.height)
+        guard w > 0, h > 0 else { return nil }
+        let bufSize = w * h * 4
+        var data = [UInt8](repeating: 0, count: bufSize)
+        let colorSpace = image.colorSpace ?? CGColorSpace(name: CGColorSpace.sRGB)!
+        ciCtx.render(image,
+                     toBitmap: &data,
+                     rowBytes: w * 4,
+                     bounds: extent,
+                     format: .RGBA8,
+                     colorSpace: colorSpace)
+        return data
+    }
+
+    /// Variance locale approx : écart-type des luminosités sur un échantillon
+    private func computeLocalVariance(_ pixels: [UInt8], stride s: Int) -> Double {
+        var vals: [Double] = []
+        var i = 0
+        while i < pixels.count {
+            // Luminance pondérée 0.299R + 0.587G + 0.114B
+            let r = Double(pixels[i])   / 255.0
+            let g = Double(pixels[i+1]) / 255.0
+            let b = Double(pixels[i+2]) / 255.0
+            vals.append(0.299*r + 0.587*g + 0.114*b)
+            i += s * 4
+        }
+        guard !vals.isEmpty else { return 0 }
+        let mean = vals.reduce(0,+) / Double(vals.count)
+        let variance = vals.map { ($0 - mean) * ($0 - mean) }.reduce(0,+) / Double(vals.count)
+        return sqrt(variance) // écart-type
+    }
+
+    // MARK: - Color space util
+    private func rgbToHSL(r: Float, g: Float, b: Float) -> (h: Float, s: Float, l: Float) {
+        let mx = max(r, g, b), mn = min(r, g, b)
+        let l = (mx + mn) / 2.0
+        guard mx != mn else { return (0, 0, l) }
+        let d = mx - mn
+        let s = l > 0.5 ? d / (2.0 - mx - mn) : d / (mx + mn)
+        var h: Float = 0
+        if mx == r { h = (g - b) / d + (g < b ? 6 : 0) }
+        else if mx == g { h = (b - r) / d + 2 }
+        else { h = (r - g) / d + 4 }
+        h /= 6.0
+        return (h * 360, s, l)
     }
 }
 
-// MARK: - PARTIE 2 : VUE CAMÉRA (Technique)
+// MARK: - VUE CAMÉRA AVFoundation
 
 struct PlantARCameraPreview: UIViewRepresentable {
     @ObservedObject var analyzer: PlantHealthAnalyzer
-    
+
     func makeUIView(context: Context) -> UIView {
         let view = UIView(frame: UIScreen.main.bounds)
         view.backgroundColor = .black
-        
-        let captureSession = AVCaptureSession()
-        captureSession.sessionPreset = .hd1920x1080
-        
-        guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else { return view }
-        let videoInput: AVCaptureDeviceInput
-        
-        do {
-            videoInput = try AVCaptureDeviceInput(device: videoCaptureDevice)
-        } catch { return view }
-        
-        if (captureSession.canAddInput(videoInput)) { captureSession.addInput(videoInput) }
-        
-        let videoOutput = AVCaptureVideoDataOutput()
-        videoOutput.setSampleBufferDelegate(context.coordinator, queue: DispatchQueue(label: "videoQueue"))
-        if (captureSession.canAddOutput(videoOutput)) { captureSession.addOutput(videoOutput) }
-        
-        let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
-        previewLayer.frame = view.bounds
-        previewLayer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(previewLayer)
-        
-        DispatchQueue.global(qos: .userInitiated).async { captureSession.startRunning() }
+
+        let session = AVCaptureSession()
+        session.sessionPreset = .hd1920x1080
+
+        guard let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+              let input = try? AVCaptureDeviceInput(device: device) else { return view }
+        if session.canAddInput(input) { session.addInput(input) }
+
+        let output = AVCaptureVideoDataOutput()
+        output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
+        output.setSampleBufferDelegate(context.coordinator, queue: DispatchQueue(label: "camera.health.queue", qos: .userInitiated))
+        output.alwaysDiscardsLateVideoFrames = true
+        if session.canAddOutput(output) { session.addOutput(output) }
+
+        if let conn = output.connection(with: .video), conn.isVideoOrientationSupported {
+            conn.videoOrientation = .portrait
+        }
+
+        let preview = AVCaptureVideoPreviewLayer(session: session)
+        preview.frame = view.bounds
+        preview.videoGravity = .resizeAspectFill
+        view.layer.addSublayer(preview)
+
+        DispatchQueue.global(qos: .userInitiated).async { session.startRunning() }
         return view
     }
-    
-    func updateUIView(_ uiView: UIView, context: Context) {}
+
+    func updateUIView(_: UIView, context: Context) {}
     func makeCoordinator() -> Coordinator { Coordinator(analyzer: analyzer) }
-    
+
     class Coordinator: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
-        var analyzer: PlantHealthAnalyzer
+        let analyzer: PlantHealthAnalyzer
         init(analyzer: PlantHealthAnalyzer) { self.analyzer = analyzer }
-        
-        func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-            guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-            analyzer.analyzePixelBuffer(buffer: pixelBuffer)
+
+        func captureOutput(_ output: AVCaptureOutput,
+                           didOutput sampleBuffer: CMSampleBuffer,
+                           from connection: AVCaptureConnection) {
+            guard let buf = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+            analyzer.analyzePixelBuffer(buffer: buf)
         }
     }
 }
 
-// MARK: - PARTIE 3 : INTERFACE AR AVEC MODE TEST
+// MARK: - SCANNER AVEC ANALYSE RÉELLE
 
 struct HealthARScannerView: View {
     @StateObject private var analyzer = PlantHealthAnalyzer()
     @Environment(\.presentationMode) var presentationMode
-    
+    @State private var countdown: Double = 1.0
+
     var body: some View {
         ZStack {
-            // 1. Caméra
+            // Caméra pleine surface
             PlantARCameraPreview(analyzer: analyzer)
                 .edgesIgnoringSafeArea(.all)
-            
-            // 2. Grille HUD (Visée)
+
+            // Viseur
+            viewfinderOverlay
+
+            // UI superposée
+            VStack(spacing: 0) {
+                headerBar
+                Spacer()
+                resultPanel
+                    .padding(.bottom, 40)
+            }
+        }
+        .onReceive(analyzer.$timeRemaining) { self.countdown = $0 }
+    }
+
+    // MARK: - Header
+    private var headerBar: some View {
+        HStack {
+            Button(action: { presentationMode.wrappedValue.dismiss() }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
+                    .padding(12)
+                    .background(Circle().fill(.ultraThinMaterial))
+            }
+            Spacer()
+            statusBadge
+        }
+        .padding(.top, 54)
+        .padding(.horizontal, 20)
+    }
+
+    private var statusBadge: some View {
+        HStack(spacing: 6) {
+            Circle().fill(statusColor).frame(width: 8, height: 8)
+            Text(analyzer.phase == .done
+                 ? "Analyse terminée"
+                 : "Analyse... \(Int((1.0 - countdown) * 100))%")
+                .font(.caption).fontWeight(.semibold).foregroundColor(.white)
+        }
+        .padding(.vertical, 6).padding(.horizontal, 12)
+        .background(.ultraThinMaterial)
+        .clipShape(Capsule())
+    }
+
+    private var statusColor: Color {
+        switch analyzer.phase {
+        case .waiting:  return .gray
+        case .scanning: return .yellow
+        case .done:     return .green
+        }
+    }
+
+    // MARK: - Viseur
+    private var viewfinderOverlay: some View {
+        ZStack {
+            // coins
             VStack {
                 HStack {
-                    PlantScannerCorner(rotation: 0); Spacer(); PlantScannerCorner(rotation: 90)
+                    cornerPiece(rotation: 0); Spacer(); cornerPiece(rotation: 90)
                 }
                 Spacer()
-                Image(systemName: "plus").font(.system(size: 24, weight: .thin)).foregroundColor(.white.opacity(0.5))
-                Spacer()
                 HStack {
-                    PlantScannerCorner(rotation: -90); Spacer(); PlantScannerCorner(rotation: 180)
+                    cornerPiece(rotation: -90); Spacer(); cornerPiece(rotation: 180)
                 }
             }
-            .padding(50)
-            .opacity(0.6)
-            
-            // 3. UI Principale
-            VStack {
-                // Header
-                HStack {
-                    Button(action: { presentationMode.wrappedValue.dismiss() }) {
-                        Circle().fill(.ultraThinMaterial).frame(width: 44, height: 44)
-                            .overlay(Image(systemName: "xmark").foregroundColor(.white))
+            .padding(40)
+
+            if analyzer.phase == .scanning {
+                // Anneau de progression
+                Circle()
+                    .trim(from: 0, to: CGFloat(1.0 - analyzer.timeRemaining))
+                    .stroke(Color.green, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 60, height: 60)
+                    .animation(.easeInOut(duration: 0.3), value: analyzer.timeRemaining)
+            }
+
+            Image(systemName: analyzer.phase == .done ? "checkmark" : "plus")
+                .font(.system(size: 22, weight: .thin))
+                .foregroundColor(.white.opacity(0.6))
+        }
+    }
+
+    private func cornerPiece(rotation: Double) -> some View {
+        Image(systemName: "viewfinder")
+            .font(.system(size: 32, weight: .ultraLight))
+            .foregroundColor(.white)
+            .rotationEffect(.degrees(rotation))
+    }
+
+    // MARK: - Panneau de résultat
+    private var resultPanel: some View {
+        VStack(spacing: 16) {
+            // Mini graphique de santé
+            healthGauge
+
+            if analyzer.phase == .done {
+                // Détails
+                metricsGrid
+
+                // Diagnostic + conseil
+                VStack(spacing: 8) {
+                    Label(analyzer.diagnosis, systemImage: analyzer.overallHealth > 0.65
+                          ? "leaf.fill" : "exclamationmark.triangle.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(analyzer.overallHealth > 0.65 ? .green : .orange)
+
+                    if !analyzer.advice.isEmpty {
+                        Text(analyzer.advice)
+                            .font(.system(size: 13))
+                            .foregroundColor(.white.opacity(0.75))
+                            .multilineTextAlignment(.center)
+                            .lineLimit(3)
                     }
-                    Spacer()
-                    Text("SCANNER IA v1.2")
-                        .font(.caption2).fontWeight(.heavy)
-                        .padding(8).background(.ultraThinMaterial).cornerRadius(8).foregroundColor(.white)
                 }
-                .padding(.top, 50).padding(.horizontal)
-                
-                Spacer()
-                
-                // PANEL DE RÉSULTAT
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top) {
-                        Image(systemName: analyzer.isHealthy ? "leaf.fill" : "exclamationmark.triangle.fill")
-                            .font(.title2)
-                            .foregroundColor(analyzer.isHealthy ? .green : .orange)
-                            .padding(10)
-                            .background(Circle().fill(Color.white.opacity(0.2)))
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(analyzer.diagnosedIssue)
-                                .font(.headline).foregroundColor(.white).lineLimit(2)
-                            Text(analyzer.scientificName)
-                                .font(.caption).italic().foregroundColor(.white.opacity(0.7))
-                        }
-                    }
-                    
-                    Divider().background(Color.white.opacity(0.3))
-                    
-                    HStack {
-                        Text("Confiance").font(.caption).foregroundColor(.white.opacity(0.7))
-                        Spacer()
-                        Text("\(Int(analyzer.confidenceLevel * 100))%")
-                            .font(.caption).bold().foregroundColor(colorForConfidence(analyzer.confidenceLevel))
-                    }
-                    
-                    // Jauge personnalisée fluide
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.black.opacity(0.3)).frame(height: 6)
-                            Capsule().fill(
-                                LinearGradient(colors: [.orange, .green], startPoint: .leading, endPoint: .trailing)
-                            )
-                            .frame(width: geo.size.width * analyzer.confidenceLevel, height: 6)
-                            // L'animation est gérée par le Timer dans l'analyzer pour la fluidité
-                        }
-                    }
-                    .frame(height: 6)
+                .padding(.horizontal, 8)
+
+                // Bouton refaire
+                Button(action: analyzer.resetAnalysis) {
+                    Text("Refaire l'analyse")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.vertical, 10).padding(.horizontal, 24)
+                        .background(Color.white.opacity(0.15))
+                        .clipShape(Capsule())
                 }
-                .padding(20)
-                .background(.ultraThinMaterial)
-                .cornerRadius(24)
-                .padding(.horizontal)
-                
-                // 4. BOUTONS DE TEST (DEBUG MODE)
-                // C'est ici que tu peux forcer le résultat
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        Text("MODE TEST :")
-                            .font(.caption).fontWeight(.bold).foregroundColor(.white)
-                            .padding(.leading)
-                        
-                        Button(action: { analyzer.forceHealthyState() }) {
-                            Text("Forcer Sain")
-                                .font(.caption).bold()
-                                .padding(.vertical, 8).padding(.horizontal, 12)
-                                .background(Color.green.opacity(0.8)).cornerRadius(20).foregroundColor(.white)
-                        }
-                        
-                        Button(action: { analyzer.forceSickState() }) {
-                            Text("Forcer Malade")
-                                .font(.caption).bold()
-                                .padding(.vertical, 8).padding(.horizontal, 12)
-                                .background(Color.orange.opacity(0.8)).cornerRadius(20).foregroundColor(.white)
-                        }
-                        
-                        Button(action: { analyzer.resetAuto() }) {
-                            Text("Reset Auto")
-                                .font(.caption).bold()
-                                .padding(.vertical, 8).padding(.horizontal, 12)
-                                .background(Color.gray.opacity(0.8)).cornerRadius(20).foregroundColor(.white)
-                        }
-                    }
-                    .padding(.vertical, 20)
-                }
-                .background(Color.black.opacity(0.5))
+            }
+        }
+        .padding(20)
+        .background(.ultraThinMaterial)
+        .cornerRadius(28)
+        .padding(.horizontal, 20)
+    }
+
+    // MARK: - Jauge de santé
+    private var healthGauge: some View {
+        VStack(spacing: 6) {
+            Text("\(Int(analyzer.overallHealth * 100))%")
+                .font(.system(size: 36, weight: .bold, design: .rounded))
+                .foregroundColor(healthColor)
+
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.2)).frame(height: 8)
+                Capsule()
+                    .fill(LinearGradient(colors: [.red, .orange, .yellow, .green],
+                                         startPoint: .leading, endPoint: .trailing))
+                    .frame(width: max(8, 280 * analyzer.overallHealth), height: 8)
+                    .animation(.easeOut(duration: 0.5), value: analyzer.overallHealth)
+            }
+            .frame(width: 280)
+        }
+    }
+
+    private var healthColor: Color {
+        if analyzer.overallHealth > 0.80 { return .green }
+        if analyzer.overallHealth > 0.60 { return Color(hex: "#84CC16") }
+        if analyzer.overallHealth > 0.40 { return .orange }
+        return .red
+    }
+
+    // MARK: - Grille de métriques
+    private var metricsGrid: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+            ForEach(analyzer.metrics) { metric in
+                metricCell(metric)
             }
         }
     }
-    
-    func colorForConfidence(_ level: Double) -> Color {
-        if level > 0.8 { return .green }
-        if level > 0.5 { return .yellow }
-        return .red
+
+    private func metricCell(_ m: PlantHealthAnalyzer.HealthMetric) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: m.icon)
+                .font(.system(size: 14))
+                .foregroundColor(m.color)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(m.label).font(.system(size: 11, weight: .medium)).foregroundColor(.white.opacity(0.7))
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.white.opacity(0.15)).frame(height: 4)
+                        Capsule().fill(m.color).frame(width: geo.size.width * m.value, height: 4)
+                    }
+                }.frame(height: 4)
+            }
+        }
+        .padding(.horizontal, 10).padding(.vertical, 8)
+        .background(Color.white.opacity(0.08))
+        .cornerRadius(10)
     }
 }
+
+// MARK: - Pièces détachées
 
 struct PlantScannerCorner: View {
     let rotation: Double
@@ -288,7 +536,7 @@ struct PlantScannerCorner: View {
     }
 }
 
-// MARK: - PARTIE 4 : VUE PRINCIPALE INTÉGRÉE (Inchangée mais nécessaire)
+// MARK: - VUE SANTÉ PRINCIPALE (inchangée)
 
 struct SanteDetailView: View {
     @EnvironmentObject var themeManager: ThemeManager
@@ -303,7 +551,7 @@ struct SanteDetailView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
                     headerHero
-                    
+
                     if let health = health {
                         if hasProblemInfo(health: health) { problemsSection(health: health) }
                         if hasPestInfo(health: health) { pestsSection(health: health) }
@@ -327,13 +575,13 @@ struct SanteDetailView: View {
             }
         }
         .fullScreenCover(isPresented: $showARScanner) {
-            HealthARScannerView() // Ouvre la nouvelle vue avec Debug Buttons
+            HealthARScannerView()
         }
         .navigationBarTitleDisplayMode(.inline)
         .navigationTitle(NSLocalizedString("HEALTHDETAIL_NAV_TITLE", comment: ""))
     }
 
-    // --- Helpers de la vue principale ---
+    // --- Helpers ---
     private var primaryTextColor: Color { colorScheme == .dark ? .white : .black }
     private var secondaryTextColor: Color { colorScheme == .dark ? .white.opacity(0.7) : .black.opacity(0.7) }
     private var headerSubtitle: String {
@@ -451,7 +699,7 @@ struct SanteDetailView: View {
     }
 }
 
-// Subviews minimales
+// MARK: - Subviews
 private struct HealthSectionCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     let icon: String; let iconColor: Color; let title: String; let content: Content

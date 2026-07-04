@@ -27,6 +27,13 @@ struct MainView: View {
                 }
                 .tag(TabSelection.garden)
 
+            ChatBotView()
+                .tabItem {
+                    Image(systemName: tabRouter.selectedTab == .chatbot ? "bubble.left.and.text.bubble.right.fill" : "bubble.left.and.text.bubble.right")
+                    Text("Chat")
+                }
+                .tag(TabSelection.chatbot)
+
             ProfileView()
                 .environmentObject(themeManager)
                 .tabItem {

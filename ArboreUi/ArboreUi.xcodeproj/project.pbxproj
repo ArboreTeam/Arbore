@@ -55,6 +55,7 @@
 		7705C1382F38EAFE00C457F4 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		7705C13A2F38EB0700C457F4 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		7705C6522F38ECDE00C457F4 /* Untitled.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Untitled.swift; sourceTree = "<group>"; };
+		779419392FDB589600FC4D93 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		77DD7ADD2D84270700A6F6F1 /* ArboreUi.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ArboreUi.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		77DD7AED2D84270800A6F6F1 /* ArboreUiTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ArboreUiTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		77DD7AF72D84270800A6F6F1 /* ArboreUiUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ArboreUiUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -157,6 +158,7 @@
 				7705C1382F38EAFE00C457F4 /* Release.xcconfig */,
 				7705C13A2F38EB0700C457F4 /* Debug.xcconfig */,
 				77017A0C2FA0DF7E0092B63A /* Secrets.xcconfig */,
+				779419392FDB589600FC4D93 /* Secrets.xcconfig */,
 				77017A0D2FA0DF9C0092B63A /* Secrets.xcconfig */,
 				7705C6522F38ECDE00C457F4 /* Untitled.swift */,
 			);

@@ -1686,7 +1686,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 // hot path (which would retain extra ARFrames, cf
                 // "delegate is retaining N ARFrames" warnings).
                 if let frame = arView.session.currentFrame {
-                    let lux = Int(frame.lightEstimate?.ambientIntensity ?? 0)
+                    let rawLux = frame.lightEstimate?.ambientIntensity ?? 0
+                    let lux = rawLux.isFinite ? Int(rawLux) : 0
                     lastCameraY = frame.camera.transform.columns.3.y
                     DispatchQueue.main.async { [weak self] in
                         withAnimation(.linear(duration: 0.2)) {

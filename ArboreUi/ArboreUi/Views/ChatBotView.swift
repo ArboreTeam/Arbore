@@ -18,11 +18,16 @@ struct ChatBotView: View {
 
     var body: some View {
         NavigationStack {
-            if let activeConversationId, let conv = conversations.first(where: { $0.id == activeConversationId }) {
-                chatView(conversation: conv)
-            } else {
-                historyView
+            ZStack {
+                if let activeConversationId, let conv = conversations.first(where: { $0.id == activeConversationId }) {
+                    chatView(conversation: conv)
+                        .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .trailing).combined(with: .opacity)))
+                } else {
+                    historyView
+                        .transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+                }
             }
+            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: activeConversationId)
         }
     }
 
@@ -364,6 +369,10 @@ struct ChatBotView: View {
                 LazyVStack(spacing: ArboreDesign.Spacing.sm) {
                     ForEach(messages) { msg in
                         ChatBubble(message: msg)
+                            .transition(.asymmetric(
+                                insertion: .scale(scale: 0.9, anchor: .bottom).combined(with: .opacity).combined(with: .offset(y: 10)),
+                                removal: .opacity
+                            ))
                     }
 
                     if isTyping {
@@ -380,6 +389,7 @@ struct ChatBotView: View {
                         }
                         .padding(.horizontal, ArboreDesign.Spacing.md)
                         .id("typing")
+                        .transition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
                     }
                 }
                 .padding(.vertical, ArboreDesign.Spacing.md)
@@ -536,21 +546,23 @@ struct ChatBotView: View {
     private func sendMessage(_ text: String, imageData: Data? = nil) {
         guard let conv = conversations.first(where: { $0.id == activeConversationId }) else { return }
 
-        let userMsg = ChatMessage(content: text, isUser: true, imageData: imageData)
-        userMsg.conversation = conv
-        modelContext.insert(userMsg)
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            let userMsg = ChatMessage(content: text, isUser: true, imageData: imageData)
+            userMsg.conversation = conv
+            modelContext.insert(userMsg)
 
-        if conv.messages.count <= 1 {
-            let prefix = String(text.prefix(40))
-            conv.title = prefix + (text.count > 40 ? "..." : "")
+            if conv.messages.count <= 1 {
+                let prefix = String(text.prefix(40))
+                conv.title = prefix + (text.count > 40 ? "..." : "")
+            }
+            conv.updatedAt = Date()
+
+            inputText = ""
+            isFocused = false
+            apiErrorMessage = nil
+
+            isTyping = true
         }
-        conv.updatedAt = Date()
-
-        inputText = ""
-        isFocused = false
-        apiErrorMessage = nil
-
-        isTyping = true
         let historyMessages = conv.messages
             .sorted(by: { $0.timestamp < $1.timestamp })
             .dropLast()
@@ -564,11 +576,13 @@ struct ChatBotView: View {
                     imageData: imageData
                 )
                 await MainActor.run {
-                    let botMsg = ChatMessage(content: reply, isUser: false)
-                    botMsg.conversation = conv
-                    modelContext.insert(botMsg)
-                    conv.updatedAt = Date()
-                    isTyping = false
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        let botMsg = ChatMessage(content: reply, isUser: false)
+                        botMsg.conversation = conv
+                        modelContext.insert(botMsg)
+                        conv.updatedAt = Date()
+                        isTyping = false
+                    }
                 }
             } catch GeminiError.noAPIKey {
                 await MainActor.run {

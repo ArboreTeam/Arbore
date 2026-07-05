@@ -306,7 +306,7 @@ class LightAnalysisViewModel: ObservableObject {
         // Camera Lux
         cameraManager.$currentLux
             .sink { [weak self] rawLux in
-                self?.luxValue = Int(rawLux)
+                self?.luxValue = rawLux.isFinite ? Int(rawLux) : 0
                 // Score "Live" simplifié pour l'UI temps réel
                 self?.lightScore = min(100, log10(rawLux + 1) * 22)
             }
@@ -384,7 +384,13 @@ class LightAnalysisViewModel: ObservableObject {
             analysisTimer?.invalidate()
             
             // 1. Calcul de la moyenne des Lux capturés
-            let avgLux = samples.isEmpty ? 0 : Int(samples.reduce(0, +) / Double(samples.count))
+            let avgLux: Int
+            if samples.isEmpty {
+                avgLux = 0
+            } else {
+                let val = samples.reduce(0, +) / Double(samples.count)
+                avgLux = val.isFinite ? Int(val) : 0
+            }
             
             // 2. Récupération des données géographiques & solaires
             let headingVal = locationService.heading?.magneticHeading

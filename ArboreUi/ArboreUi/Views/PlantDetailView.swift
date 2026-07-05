@@ -690,7 +690,7 @@ struct GeneralInfoGridView: View {
                     title: NSLocalizedString("PLANTDETAIL_HEALTH_TITLE", comment: ""),
                     description: NSLocalizedString("PLANTDETAIL_HEALTH_SUBTITLE", comment: ""),
                     color: ArboreDesign.Colors.danger,
-                    destination: SanteDetailView(health: translation?.health)
+                    destination: SanteDetailView(health: translation?.health, plantName: plantName)
                 )
                 GeneralInfoCard(
                     icon: "calendar",

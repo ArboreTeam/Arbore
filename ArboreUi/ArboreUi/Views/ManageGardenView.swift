@@ -154,6 +154,7 @@ class GardenLocalStorageService: ObservableObject {
 // MARK: - 3. VUE PRINCIPALE (Liste des Jardins)
 struct ManageGardenView: View {
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject private var notificationRouter: NotificationRouter
     @StateObject private var projectService = GardenLocalStorageService()
     @State private var showingNewProjectSheet = false
     @State private var showingGardenList = false
@@ -191,12 +192,17 @@ struct ManageGardenView: View {
             .onAppear {
                 isResolvingInitialGarden = selectedProject == nil
                 projectService.refreshProjects()
+                applyNotificationRoute(notificationRouter.pendingRoute)
                 Task {
                     await resolveInitialGarden()
                 }
             }
             .onChange(of: projectService.projects.map(\.id)) { _, _ in
                 syncSelectedProject()
+                applyNotificationRoute(notificationRouter.pendingRoute)
+            }
+            .onChange(of: notificationRouter.pendingRoute) { _, route in
+                applyNotificationRoute(route)
             }
         }
         .preferredColorScheme(themeManager.colorScheme)
@@ -317,6 +323,33 @@ struct ManageGardenView: View {
         selectedProject = projectService.projects.first
         showingGardenList = false
     }
+
+    private func applyNotificationRoute(_ route: NotificationRoute?) {
+        guard let route else { return }
+
+        let targetGardenId: String?
+        switch route {
+        case .garden(let gardenId, _, _, _):
+            targetGardenId = gardenId
+        case .watering(let gardenId, _, _):
+            targetGardenId = gardenId
+        default:
+            targetGardenId = nil
+        }
+
+        guard let gardenId = targetGardenId, !gardenId.isEmpty else { return }
+
+        let project = projectService.projects.first(where: { $0.id == gardenId }) ?? GardenModel(
+            id: gardenId,
+            name: selectedProject?.id == gardenId ? selectedProject?.name ?? "Jardin" : "Jardin",
+            lastModified: Date(),
+            thumbnail: "leaf.fill"
+        )
+
+        selectedProject = project
+        showingGardenList = false
+        isResolvingInitialGarden = false
+    }
 }
 
 // MARK: - 5. VUE DÉTAIL FUSIONNÉE (Tabs + Map + Purchase)
@@ -328,6 +361,7 @@ struct GardenDetailsPage: View {
     let onGardenRenamed: ((String) -> Void)?
     
     @EnvironmentObject var themeManager: ThemeManager
+    @EnvironmentObject private var notificationRouter: NotificationRouter
     @Environment(\.dismiss) var dismiss
     
     // ViewModel pour la Map
@@ -506,7 +540,11 @@ struct GardenDetailsPage: View {
             loadPurchaseCart()
             loadPurchaseCatalogIfNeeded()
             currentGardenName = gardenDetails?.name ?? gardenName
+            applyNotificationRoute(notificationRouter.pendingRoute)
             Task { await loadMapTextureKind() }
+        }
+        .onChange(of: notificationRouter.pendingRoute) { _, route in
+            applyNotificationRoute(route)
         }
         // Recompute ciblé : recherche catalogue et plantes du jardin changent →
         // on régénère les listes d'achat en cache (au lieu d'à chaque render).
@@ -1008,6 +1046,39 @@ struct GardenDetailsPage: View {
     private func handleFloatingAction() {
         if selectedTab == .tasks {
             openRoutineCreation()
+        }
+    }
+
+    private func applyNotificationRoute(_ route: NotificationRoute?) {
+        guard let route else { return }
+
+        switch route {
+        case .garden(let routedGardenId, let tab, _, _):
+            guard routedGardenId == nil || routedGardenId == gardenId else { return }
+            if let tab {
+                selectedTab = detailTab(from: tab)
+            }
+            notificationRouter.consumeRoute()
+        case .watering(let routedGardenId, _, _):
+            guard routedGardenId == nil || routedGardenId == gardenId else { return }
+            selectedTab = .tasks
+            notificationRouter.consumeRoute()
+        case .marketplaceOrder:
+            selectedTab = .purchase
+            notificationRouter.consumeRoute()
+        default:
+            break
+        }
+    }
+
+    private func detailTab(from tab: GardenNotificationTab) -> Tab {
+        switch tab {
+        case .plan:
+            return .plan2D
+        case .tasks:
+            return .tasks
+        case .purchase:
+            return .purchase
         }
     }
 

@@ -356,6 +356,7 @@ final class WateringRoutineStore: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         reload()
+        rescheduleRoutineNotifications()
     }
 
     func reload() {
@@ -381,6 +382,7 @@ final class WateringRoutineStore: ObservableObject {
             )
         }
         persistRoutines()
+        syncWateringNotification(for: routine)
     }
 
     func markWatered(routineId: String, on date: Date = Date()) {
@@ -397,6 +399,7 @@ final class WateringRoutineStore: ObservableObject {
             )
         )
         persistRoutines()
+        syncWateringNotification(for: routines[index])
     }
 
     func saveCareRoutine(_ routine: PlantCareRoutine) {
@@ -417,6 +420,7 @@ final class WateringRoutineStore: ObservableObject {
             )
         }
         persistCareRoutines()
+        syncCareNotification(for: routine)
     }
 
     func completeCareRoutine(routineId: String, on date: Date = Date()) {
@@ -435,6 +439,7 @@ final class WateringRoutineStore: ObservableObject {
             )
         )
         persistCareRoutines()
+        syncCareNotification(for: careRoutines[index])
     }
 
     func deferCareRoutine(routineId: String, on date: Date = Date()) {
@@ -453,6 +458,7 @@ final class WateringRoutineStore: ObservableObject {
             )
         )
         persistCareRoutines()
+        syncCareNotification(for: careRoutines[index])
     }
 
     func deferWatering(routineId: String, on date: Date = Date()) {
@@ -469,6 +475,7 @@ final class WateringRoutineStore: ObservableObject {
             )
         )
         persistRoutines()
+        syncWateringNotification(for: routines[index])
     }
 
     private func appendAction(_ action: GardenCareAction) {
@@ -499,6 +506,26 @@ final class WateringRoutineStore: ObservableObject {
     private func decode<T: Decodable>(_ type: T.Type, forKey key: String) -> T? {
         guard let data = defaults.data(forKey: key) else { return nil }
         return try? JSONDecoder().decode(type, from: data)
+    }
+
+    private func syncWateringNotification(for routine: WateringRoutine) {
+        Task {
+            await NotificationManager.shared.scheduleWateringReminder(for: routine)
+        }
+    }
+
+    private func syncCareNotification(for routine: PlantCareRoutine) {
+        Task {
+            await NotificationManager.shared.scheduleCareReminder(for: routine)
+        }
+    }
+
+    private func rescheduleRoutineNotifications() {
+        let watering = routines
+        let care = careRoutines
+        Task {
+            await NotificationManager.shared.rescheduleAllRoutineNotifications(watering: watering, care: care)
+        }
     }
 }
 

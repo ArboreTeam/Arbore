@@ -1381,6 +1381,344 @@ func seedTestDBPlantsIfEmpty() {
 	fmt.Printf("🌱 Seed test DB : %d plantes copiées depuis prod.\n", len(docs))
 }
 
+// ---------- GEMINI PROXY STRUCTS & HANDLERS ----------
+
+type ChatMessageDTO struct {
+	Content string `json:"content"`
+	IsUser  bool   `json:"isUser"`
+}
+
+type ChatRequest struct {
+	History    []ChatMessageDTO `json:"history"`
+	NewMessage string           `json:"newMessage"`
+	ImageData  string           `json:"imageData,omitempty"`
+}
+
+type ColorimetryDTO struct {
+	GreenRatio     float64 `json:"greenRatio"`
+	YellowRatio    float64 `json:"yellowRatio"`
+	BrownRatio     float64 `json:"brownRatio"`
+	WhiteSpotRatio float64 `json:"whiteSpotRatio"`
+}
+
+type DiagnoseRequest struct {
+	ImageData   string         `json:"imageData"`
+	PlantName   *string        `json:"plantName,omitempty"`
+	Colorimetry ColorimetryDTO `json:"colorimetry"`
+}
+
+func callGeminiAPI(payload map[string]interface{}) ([]byte, error) {
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	if apiKey == "" {
+		return nil, fmt.Errorf("GEMINI_API_KEY non configurée dans l'environnement")
+	}
+
+	model := os.Getenv("GEMINI_MODEL")
+	if model == "" {
+		model = "gemini-2.5-flash"
+	}
+
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", model, apiKey)
+
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("erreur de sérialisation de la requête Gemini: %w", err)
+	}
+
+	var respData []byte
+	var lastErr error
+	attempt := 0
+	maxAttempts := 4
+
+	for attempt < maxAttempts {
+		// nolint:no_ctx_http_request // Simple HTTP call with a timeout is sufficient here
+		req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyBytes))
+		if err != nil {
+			return nil, fmt.Errorf("erreur lors de la création de la requête Gemini: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		client := &http.Client{Timeout: 60 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = err
+			attempt++
+			time.Sleep(time.Duration(attempt*attempt) * time.Second)
+			continue
+		}
+		defer resp.Body.Close()
+
+		respData, err = io.ReadAll(resp.Body)
+		if err != nil {
+			lastErr = err
+			attempt++
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			lastErr = fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respData))
+			if resp.StatusCode == 429 || resp.StatusCode == 503 || resp.StatusCode >= 500 {
+				attempt++
+				time.Sleep(time.Duration(attempt*attempt) * time.Second)
+				continue
+			}
+			return nil, lastErr
+		}
+
+		return respData, nil
+	}
+
+	return nil, fmt.Errorf("échec après %d tentatives de contact de l'API Gemini: %w", maxAttempts, lastErr)
+}
+
+func stripMarkdown(text string) string {
+	result := text
+	// Supprimer le gras **text** -> text
+	reBold := regexp.MustCompile(`\*\*([^\*\n]+?)\*\*`)
+	result = reBold.ReplaceAllString(result, "$1")
+
+	// Supprimer l'italique *text* -> text
+	reItalic := regexp.MustCompile(`\*([^\*\n]+?)\*`)
+	result = reItalic.ReplaceAllString(result, "$1")
+
+	// Supprimer les en-têtes markdown ### -> (vide)
+	reHeaders := regexp.MustCompile(`(?m)^#{1,6}\s+`)
+	result = reHeaders.ReplaceAllString(result, "")
+
+	return result
+}
+
+func handleGeminiChat(c *gin.Context) {
+	var req ChatRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	contents := []map[string]interface{}{}
+	for _, msg := range req.History {
+		role := "model"
+		if msg.IsUser {
+			role = "user"
+		}
+		contents = append(contents, map[string]interface{}{
+			"role": role,
+			"parts": []map[string]interface{}{
+				{"text": msg.Content},
+			},
+		})
+	}
+
+	newParts := []map[string]interface{}{
+		{"text": req.NewMessage},
+	}
+	if req.ImageData != "" {
+		newParts = append(newParts, map[string]interface{}{
+			"inlineData": map[string]interface{}{
+				"mimeType": "image/jpeg",
+				"data":     req.ImageData,
+			},
+		})
+	}
+
+	contents = append(contents, map[string]interface{}{
+		"role":  "user",
+		"parts": newParts,
+	})
+
+	chatPrompt := `Tu es Arbore, l'assistant intelligent de jardinage intégré dans l'application Arbore. Tu es un expert passionné en botanique, horticulture et aménagement de jardins.
+
+🌿 TON RÔLE :
+- Conseiller les utilisateurs sur le jardinage, les plantes, les arbres, les fleurs, les potagers et l'entretien des espaces verts.
+- Aider à identifier des plantes, diagnostiquer des maladies ou parasites, et recommander des traitements naturels.
+- Proposer des suggestions de plantes adaptées au climat, au sol et à l'exposition de l'utilisateur.
+- Guider sur l'arrosage, la taille, la fertilisation, le compostage et les saisons de plantation.
+- Conseiller sur l'aménagement paysager et le design de jardins.
+
+🚫 TES LIMITES STRICTES :
+- Tu ne réponds JAMAIS à des questions hors du domaine du jardinage, de la botanique ou de l'application Arbore.
+- Si on te pose une question hors sujet (politique, maths, code, cuisine, etc.), réponds poliment : "Je suis Arbore, votre assistant jardinage 🌱 Je ne peux vous aider que sur des sujets liés au jardinage, aux plantes et à l'entretien de votre espace vert. Posez-moi une question sur vos plantes !"
+- Tu ne génères jamais de code, de scripts, ni de contenu sans rapport avec le jardinage.
+
+🎨 TON STYLE :
+- Ton ton est chaleureux, bienveillant et encourageant, comme un jardinier passionné qui partage son savoir.
+- Tu utilises des émojis naturels (🌱🌻🌿🌸💧☀️🪴) avec parcimonie pour rendre tes réponses vivantes.
+- Tu tutoies l'utilisateur pour créer un lien de proximité.
+- Tes réponses sont concises et pratiques, avec des conseils actionnables.
+- Quand c'est pertinent, tu structures tes réponses avec des tirets (-) pour plus de clarté.
+
+✏️ FORMAT DE RÉPONSE :
+- Tu réponds en TEXTE BRUT uniquement. Pas de Markdown.
+- N'utilise JAMAIS de syntaxe Markdown : pas de ** (gras), pas de * (italique), pas de # (titres), pas de ` + "`" + ` (blocs de code).
+- Pour mettre en valeur un mot, utilise simplement des majuscules ou des émojis.
+- Pour les listes, utilise des tirets simples (-) ou des émojis comme puces.
+
+📱 CONTEXTE APPLICATION :
+- L'application Arbore permet aux utilisateurs de scanner leur jardin en 3D avec LiDAR, de gérer un catalogue de plantes, et de recevoir des suggestions personnalisées.
+- Si on te demande qui tu es, présente-toi comme "Arbore, l'assistant jardinage de l'application Arbore".`
+
+	payload := map[string]interface{}{
+		"systemInstruction": map[string]interface{}{
+			"parts": []map[string]interface{}{
+				{"text": chatPrompt},
+			},
+		},
+		"contents": contents,
+	}
+
+	respData, err := callGeminiAPI(payload)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var geminiResponse map[string]interface{}
+	if err := json.Unmarshal(respData, &geminiResponse); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Impossible de lire la réponse de Gemini"})
+		return
+	}
+
+	candidates, ok := geminiResponse["candidates"].([]interface{})
+	if !ok || len(candidates) == 0 {
+		c.JSON(http.StatusOK, gin.H{"reply": "Désolé, ma réponse a été bloquée pour des raisons de sécurité ou de politique de contenu."})
+		return
+	}
+
+	firstCandidate, _ := candidates[0].(map[string]interface{})
+	contentVal, _ := firstCandidate["content"].(map[string]interface{})
+	partsVal, _ := contentVal["parts"].([]interface{})
+	if len(partsVal) == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse vide de Gemini"})
+		return
+	}
+
+	firstPart, _ := partsVal[0].(map[string]interface{})
+	text, _ := firstPart["text"].(string)
+
+	cleanedText := stripMarkdown(strings.TrimSpace(text))
+
+	c.JSON(http.StatusOK, gin.H{"reply": cleanedText})
+}
+
+func handleGeminiDiagnose(c *gin.Context) {
+	var req DiagnoseRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var userPrompt = "Analyse cette photo de plante et donne ton diagnostic de santé."
+	if req.PlantName != nil && *req.PlantName != "" {
+		userPrompt += fmt.Sprintf(" Cette plante est un(e) %s.", *req.PlantName)
+	}
+	userPrompt += fmt.Sprintf(
+		" Données colorimétriques mesurées : vert=%.1f%%, jaune=%.1f%%, brun=%.1f%%, taches blanches=%.1f%%.",
+		req.Colorimetry.GreenRatio*100,
+		req.Colorimetry.YellowRatio*100,
+		req.Colorimetry.BrownRatio*100,
+		req.Colorimetry.WhiteSpotRatio*100,
+	)
+
+	systemPrompt := `Tu es un expert en phytopathologie et botanique appliquée. Tu analyses des photos de plantes pour diagnostiquer leur état de santé. Tu dois être EXTRÊMEMENT prudent et ne JAMAIS inventer de diagnostic. Si tu n'es pas sûr, dis-le clairement.
+
+RÈGLES STRICTES :
+- Ne diagnostique JAMAIS une maladie si tu n'es pas confiant à au moins 60%.
+- Si l'image est ambiguë ou si tu ne peux pas identifier l'espèce, indique "unknown".
+- Sois précis sur la sévérité : estime le pourcentage de surface foliaire touchée.
+- Pour chaque maladie, donne un score de confiance honnête.
+- Si la plante semble saine, dis-le.
+
+RÉPONDS UNIQUEMENT avec un objet JSON valide au format suivant (pas de markdown, pas de backticks, juste le JSON brut) :
+{
+  "species": "Nom latin ou commun de l'espèce, ou null si inconnue",
+  "overallHealth": 0.85,
+  "diseases": [
+    {
+      "name": "Nom de la maladie",
+      "severity": 0.3,
+      "confidence": 0.75
+    }
+  ],
+  "recommendations": ["Conseil 1", "Conseil 2"],
+  "isUncertain": false
+}
+
+Les valeurs numériques sont entre 0 et 1.
+"severity" = proportion de surface foliaire affectée.
+"confidence" = ta confiance dans ce diagnostic.
+"overallHealth" = score de santé globale (1 = parfaite santé).`
+
+	payload := map[string]interface{}{
+		"systemInstruction": map[string]interface{}{
+			"parts": []map[string]interface{}{
+				{"text": systemPrompt},
+			},
+		},
+		"contents": []map[string]interface{}{
+			{
+				"role": "user",
+				"parts": []map[string]interface{}{
+					{"text": userPrompt},
+					{
+						"inlineData": map[string]interface{}{
+							"mimeType": "image/jpeg",
+							"data":     req.ImageData,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	respData, err := callGeminiAPI(payload)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var geminiResponse map[string]interface{}
+	if err := json.Unmarshal(respData, &geminiResponse); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Impossible de décoder la réponse de Gemini"})
+		return
+	}
+
+	candidates, ok := geminiResponse["candidates"].([]interface{})
+	if !ok || len(candidates) == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse Gemini vide ou bloquée"})
+		return
+	}
+
+	firstCandidate, _ := candidates[0].(map[string]interface{})
+	contentVal, _ := firstCandidate["content"].(map[string]interface{})
+	partsVal, _ := contentVal["parts"].([]interface{})
+	if len(partsVal) == 0 {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse vide dans parts"})
+		return
+	}
+
+	firstPart, _ := partsVal[0].(map[string]interface{})
+	text, _ := firstPart["text"].(string)
+
+	rawText := strings.TrimSpace(text)
+	firstBrace := strings.Index(rawText, "{")
+	lastBrace := strings.LastIndex(rawText, "}")
+
+	if firstBrace == -1 || lastBrace == -1 || firstBrace >= lastBrace {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Aucun objet JSON trouvé dans la réponse Gemini", "raw": rawText})
+		return
+	}
+
+	jsonString := rawText[firstBrace : lastBrace+1]
+
+	var diagnoseResponse map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonString), &diagnoseResponse); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur de parsing du JSON diagnostic: " + err.Error(), "raw": jsonString})
+		return
+	}
+
+	c.JSON(http.StatusOK, diagnoseResponse)
+}
+
 // ---------- LOAD ENV ----------
 
 func loadDotEnv(path string) {
@@ -1598,6 +1936,10 @@ func main() {
 		protected.GET("/gardens/:id", getGardenByID)
 		protected.PUT("/gardens/:id", updateGarden)
 		protected.DELETE("/gardens/:id", deleteGarden)
+
+		// Gemini Chat & Scanner Proxies
+		protected.POST("/chat", handleGeminiChat)
+		protected.POST("/diagnose", handleGeminiDiagnose)
 
 		// Consents (RGPD)
 		protected.POST("/consents", recordConsent)

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4E1A00012F60000100000001 /* ArboreNotificationServiceExtension.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 4E1A00022F60000100000002 /* ArboreNotificationServiceExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		5E27A0010000000000000003 /* Sentry in Frameworks */ = {isa = PBXBuildFile; productRef = 5E27A0010000000000000002 /* Sentry */; };
 		77F4355D2D86E1AC00E8E78D /* RealityKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 77F4355C2D86E1AC00E8E78D /* RealityKit.framework */; };
 		77F4355F2D86E1B400E8E78D /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 77F4355E2D86E1B400E8E78D /* ARKit.framework */; };
@@ -19,6 +20,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		4E1A00032F60000100000003 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 77DD7AD52D84270700A6F6F1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 4E1A00072F60000100000007;
+			remoteInfo = ArboreNotificationServiceExtension;
+		};
 		77DD7AEE2D84270800A6F6F1 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 77DD7AD52D84270700A6F6F1 /* Project object */;
@@ -36,6 +44,17 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
+		4E1A00042F60000100000004 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4E1A00012F60000100000001 /* ArboreNotificationServiceExtension.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		774B710D2D84BE8E002595B2 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -49,6 +68,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		4E1A00022F60000100000002 /* ArboreNotificationServiceExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ArboreNotificationServiceExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		3F862A6CC5CF6C38133DDCA2 /* Pods-ArboreUi.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUi.debug.xcconfig"; path = "Target Support Files/Pods-ArboreUi/Pods-ArboreUi.debug.xcconfig"; sourceTree = "<group>"; };
 		77017A0C2FA0DF7E0092B63A /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		77017A0D2FA0DF9C0092B63A /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
@@ -66,6 +86,13 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		4E1A000E2F6000010000000E /* Exceptions for "ArboreNotificationServiceExtension" folder in "ArboreNotificationServiceExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 4E1A00072F60000100000007 /* ArboreNotificationServiceExtension */;
+		};
 		9789DBEC2FA2BEAE006AC197 /* Exceptions for "ArboreUi" folder in "ArboreUi" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -76,6 +103,14 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		4E1A00052F60000100000005 /* ArboreNotificationServiceExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				4E1A000E2F6000010000000E /* Exceptions for "ArboreNotificationServiceExtension" folder in "ArboreNotificationServiceExtension" target */,
+			);
+			path = ArboreNotificationServiceExtension;
+			sourceTree = "<group>";
+		};
 		774C3B512ED1FFB100324E07 /* scanRoom */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = scanRoom;
@@ -125,6 +160,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4E1A00062F60000100000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		77DD7AF42D84270800A6F6F1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -148,6 +190,7 @@
 		77DD7AD42D84270700A6F6F1 = {
 			isa = PBXGroup;
 			children = (
+				4E1A00052F60000100000005 /* ArboreNotificationServiceExtension */,
 				774C3B512ED1FFB100324E07 /* scanRoom */,
 				77DD7ADF2D84270700A6F6F1 /* ArboreUi */,
 				77DD7AF02D84270800A6F6F1 /* ArboreUiTests */,
@@ -168,6 +211,7 @@
 			isa = PBXGroup;
 			children = (
 				77DD7ADD2D84270700A6F6F1 /* ArboreUi.app */,
+				4E1A00022F60000100000002 /* ArboreNotificationServiceExtension.appex */,
 				77DD7AED2D84270800A6F6F1 /* ArboreUiTests.xctest */,
 				77DD7AF72D84270800A6F6F1 /* ArboreUiUITests.xctest */,
 			);
@@ -194,11 +238,13 @@
 				77DD7AD92D84270700A6F6F1 /* Sources */,
 				77DD7ADA2D84270700A6F6F1 /* Frameworks */,
 				77DD7ADB2D84270700A6F6F1 /* Resources */,
+				4E1A00042F60000100000004 /* Embed App Extensions */,
 				774B710D2D84BE8E002595B2 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				4E1A000A2F6000010000000A /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				774C3B512ED1FFB100324E07 /* scanRoom */,
@@ -208,6 +254,26 @@
 			productName = ArboreUi;
 			productReference = 77DD7ADD2D84270700A6F6F1 /* ArboreUi.app */;
 			productType = "com.apple.product-type.application";
+		};
+		4E1A00072F60000100000007 /* ArboreNotificationServiceExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4E1A000D2F6000010000000D /* Build configuration list for PBXNativeTarget "ArboreNotificationServiceExtension" */;
+			buildPhases = (
+				4E1A00092F60000100000009 /* Sources */,
+				4E1A00062F60000100000006 /* Frameworks */,
+				4E1A00082F60000100000008 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				4E1A00052F60000100000005 /* ArboreNotificationServiceExtension */,
+			);
+			name = ArboreNotificationServiceExtension;
+			productName = ArboreNotificationServiceExtension;
+			productReference = 4E1A00022F60000100000002 /* ArboreNotificationServiceExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		77DD7AEC2D84270800A6F6F1 /* ArboreUiTests */ = {
 			isa = PBXNativeTarget;
@@ -261,6 +327,9 @@
 				LastSwiftUpdateCheck = 1620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
+					4E1A00072F60000100000007 = {
+						CreatedOnToolsVersion = 16.2;
+					};
 					77DD7ADC2D84270700A6F6F1 = {
 						CreatedOnToolsVersion = 16.2;
 					};
@@ -298,6 +367,7 @@
 			projectRoot = "";
 			targets = (
 				77DD7ADC2D84270700A6F6F1 /* ArboreUi */,
+				4E1A00072F60000100000007 /* ArboreNotificationServiceExtension */,
 				77DD7AEC2D84270800A6F6F1 /* ArboreUiTests */,
 				77DD7AF62D84270800A6F6F1 /* ArboreUiUITests */,
 			);
@@ -313,6 +383,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		77DD7AEB2D84270800A6F6F1 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4E1A00082F60000100000008 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -368,6 +445,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		4E1A00092F60000100000009 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		77DD7AF32D84270800A6F6F1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -378,6 +462,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		4E1A000A2F6000010000000A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 4E1A00072F60000100000007 /* ArboreNotificationServiceExtension */;
+			targetProxy = 4E1A00032F60000100000003 /* PBXContainerItemProxy */;
+		};
 		77DD7AEF2D84270800A6F6F1 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 77DD7ADC2D84270700A6F6F1 /* ArboreUi */;
@@ -610,6 +699,59 @@
 			};
 			name = Release;
 		};
+		4E1A000B2F6000010000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7705C13A2F38EB0700C457F4 /* Debug.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 22;
+				DEVELOPMENT_TEAM = 582QH9652J;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ArboreNotificationServiceExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.12;
+				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore.NotificationServiceExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		4E1A000C2F6000010000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7705C1382F38EAFE00C457F4 /* Release.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 22;
+				DEVELOPMENT_TEAM = 582QH9652J;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ArboreNotificationServiceExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.12;
+				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore.NotificationServiceExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 		77DD7B052D84270800A6F6F1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -695,6 +837,15 @@
 			buildConfigurations = (
 				77DD7B022D84270800A6F6F1 /* Debug */,
 				77DD7B032D84270800A6F6F1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		4E1A000D2F6000010000000D /* Build configuration list for PBXNativeTarget "ArboreNotificationServiceExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4E1A000B2F6000010000000B /* Debug */,
+				4E1A000C2F6000010000000C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

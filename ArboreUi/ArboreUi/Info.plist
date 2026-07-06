@@ -34,6 +34,16 @@
 				<string>com.googleusercontent.apps.66927287937-72cn4i6cjliekvs01mr0i0ac3tdm7fsp</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>com.arboreteam.arbore.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>arbore</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>22</string>
@@ -74,6 +84,10 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>

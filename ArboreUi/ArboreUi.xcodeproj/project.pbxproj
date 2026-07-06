@@ -68,8 +68,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		4E1A00022F60000100000002 /* ArboreNotificationServiceExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ArboreNotificationServiceExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		3F862A6CC5CF6C38133DDCA2 /* Pods-ArboreUi.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUi.debug.xcconfig"; path = "Target Support Files/Pods-ArboreUi/Pods-ArboreUi.debug.xcconfig"; sourceTree = "<group>"; };
+		4E1A00022F60000100000002 /* ArboreNotificationServiceExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ArboreNotificationServiceExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		77017A0C2FA0DF7E0092B63A /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		77017A0D2FA0DF9C0092B63A /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		7705C1382F38EAFE00C457F4 /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
@@ -137,6 +137,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		4E1A00062F60000100000006 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		77DD7ADA2D84270700A6F6F1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -154,13 +161,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		77DD7AEA2D84270800A6F6F1 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		4E1A00062F60000100000006 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -230,6 +230,26 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		4E1A00072F60000100000007 /* ArboreNotificationServiceExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4E1A000D2F6000010000000D /* Build configuration list for PBXNativeTarget "ArboreNotificationServiceExtension" */;
+			buildPhases = (
+				4E1A00092F60000100000009 /* Sources */,
+				4E1A00062F60000100000006 /* Frameworks */,
+				4E1A00082F60000100000008 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				4E1A00052F60000100000005 /* ArboreNotificationServiceExtension */,
+			);
+			name = ArboreNotificationServiceExtension;
+			productName = ArboreNotificationServiceExtension;
+			productReference = 4E1A00022F60000100000002 /* ArboreNotificationServiceExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		77DD7ADC2D84270700A6F6F1 /* ArboreUi */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 77DD7B012D84270800A6F6F1 /* Build configuration list for PBXNativeTarget "ArboreUi" */;
@@ -254,26 +274,6 @@
 			productName = ArboreUi;
 			productReference = 77DD7ADD2D84270700A6F6F1 /* ArboreUi.app */;
 			productType = "com.apple.product-type.application";
-		};
-		4E1A00072F60000100000007 /* ArboreNotificationServiceExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 4E1A000D2F6000010000000D /* Build configuration list for PBXNativeTarget "ArboreNotificationServiceExtension" */;
-			buildPhases = (
-				4E1A00092F60000100000009 /* Sources */,
-				4E1A00062F60000100000006 /* Frameworks */,
-				4E1A00082F60000100000008 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				4E1A00052F60000100000005 /* ArboreNotificationServiceExtension */,
-			);
-			name = ArboreNotificationServiceExtension;
-			productName = ArboreNotificationServiceExtension;
-			productReference = 4E1A00022F60000100000002 /* ArboreNotificationServiceExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
 		};
 		77DD7AEC2D84270800A6F6F1 /* ArboreUiTests */ = {
 			isa = PBXNativeTarget;
@@ -375,6 +375,13 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		4E1A00082F60000100000008 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		77DD7ADB2D84270700A6F6F1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -383,13 +390,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		77DD7AEB2D84270800A6F6F1 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		4E1A00082F60000100000008 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -431,6 +431,13 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		4E1A00092F60000100000009 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		77DD7AD92D84270700A6F6F1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -439,13 +446,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		77DD7AE92D84270800A6F6F1 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		4E1A00092F60000100000009 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -480,6 +480,59 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		4E1A000B2F6000010000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7705C13A2F38EB0700C457F4 /* Debug.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 22;
+				DEVELOPMENT_TEAM = 582QH9652J;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ArboreNotificationServiceExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.12;
+				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore.NotificationServiceExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		4E1A000C2F6000010000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 7705C1382F38EAFE00C457F4 /* Release.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 22;
+				DEVELOPMENT_TEAM = 582QH9652J;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ArboreNotificationServiceExtension/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.12;
+				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore.NotificationServiceExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 		77DD7AFF2D84270800A6F6F1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -699,59 +752,6 @@
 			};
 			name = Release;
 		};
-		4E1A000B2F6000010000000B /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7705C13A2F38EB0700C457F4 /* Debug.xcconfig */;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 22;
-				DEVELOPMENT_TEAM = 582QH9652J;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = ArboreNotificationServiceExtension/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 0.1.12;
-				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore.NotificationServiceExtension;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Debug;
-		};
-		4E1A000C2F6000010000000C /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7705C1382F38EAFE00C457F4 /* Release.xcconfig */;
-			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 22;
-				DEVELOPMENT_TEAM = 582QH9652J;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = ArboreNotificationServiceExtension/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				MARKETING_VERSION = 0.1.12;
-				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore.NotificationServiceExtension;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Release;
-		};
 		77DD7B052D84270800A6F6F1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -823,6 +823,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		4E1A000D2F6000010000000D /* Build configuration list for PBXNativeTarget "ArboreNotificationServiceExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				4E1A000B2F6000010000000B /* Debug */,
+				4E1A000C2F6000010000000C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		77DD7AD82D84270700A6F6F1 /* Build configuration list for PBXProject "ArboreUi" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -837,15 +846,6 @@
 			buildConfigurations = (
 				77DD7B022D84270800A6F6F1 /* Debug */,
 				77DD7B032D84270800A6F6F1 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		4E1A000D2F6000010000000D /* Build configuration list for PBXNativeTarget "ArboreNotificationServiceExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				4E1A000B2F6000010000000B /* Debug */,
-				4E1A000C2F6000010000000C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

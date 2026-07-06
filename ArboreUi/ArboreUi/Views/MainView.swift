@@ -29,6 +29,13 @@ struct MainView: View {
                 }
                 .tag(TabSelection.garden)
 
+            CommunityView()
+                .tabItem {
+                    Image(systemName: tabRouter.selectedTab == .community ? "person.2.fill" : "person.2")
+                    Text("Communauté")
+                }
+                .tag(TabSelection.community)
+
             ChatBotView()
                 .tabItem {
                     Image(systemName: tabRouter.selectedTab == .chatbot ? "bubble.left.and.text.bubble.right.fill" : "bubble.left.and.text.bubble.right")

@@ -780,9 +780,10 @@ func getPlantByID(c *gin.Context) {
 // ---------- AI GENERATION (logique commune) ----------
 
 // Génère une plante avec l'IA + Unsplash + insertion Mongo
-// - name : nom de la plante
-// - dbSelector : sélecteur de DB ("prod" ou "test") — propagé depuis le
-//   gin.Context du handler appelant pour respecter le routing par API key
+//   - name : nom de la plante
+//   - dbSelector : sélecteur de DB ("prod" ou "test") — propagé depuis le
+//     gin.Context du handler appelant pour respecter le routing par API key
+//
 // Retourne: (plant, alreadyExists, error)
 func generateAndInsertPlant(ctx context.Context, name string, dbSelector string) (Plant, bool, error) {
 	collection := getDatabaseByName(dbSelector).Collection("plants")
@@ -1875,6 +1876,7 @@ func main() {
 		c.Header("Content-Type", "image/png")
 		c.File(filePath)
 	})
+	registerCommunityPublicRoutes(router)
 
 	// === ROUTES API KEY UNIQUEMENT (sans session Firebase) ===
 	// Config de référence (wizard + règles de soin, cf. #236) : non sensible,
@@ -1936,6 +1938,9 @@ func main() {
 		protected.GET("/gardens/:id", getGardenByID)
 		protected.PUT("/gardens/:id", updateGarden)
 		protected.DELETE("/gardens/:id", deleteGarden)
+
+		// Community
+		registerCommunityProtectedRoutes(protected)
 
 		// Gemini Chat & Scanner Proxies
 		protected.POST("/chat", handleGeminiChat)

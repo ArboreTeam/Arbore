@@ -1,5 +1,5 @@
 import Foundation
 
 enum TabSelection: Hashable {
-    case home, explore, garden, profile, chatbot
+    case home, explore, garden, community, profile, chatbot
 }

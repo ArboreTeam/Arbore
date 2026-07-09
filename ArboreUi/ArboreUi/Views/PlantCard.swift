@@ -19,14 +19,10 @@ struct PlantCard: View {
 
                 Group {
                     if let img = cachedThumbnail {
-                        Image(uiImage: img)
-                            .resizable()
-                            .scaledToFill()
+                        thumbnailImage(img)
 
                     } else if let fetchedImage {
-                        Image(uiImage: fetchedImage)
-                            .resizable()
-                            .scaledToFill()
+                        thumbnailImage(fetchedImage)
 
                     } else if thumbnailURL != nil, !didFailLoading {
                         loadingView
@@ -130,7 +126,7 @@ struct PlantCard: View {
             return
         }
 
-        // 2. Essaie de télécharger depuis le backend
+        // 2. Essaie le PNG pré-généré côté backend.
         if let url = thumbnailURL {
             do {
                 var request = URLRequest(url: url)
@@ -140,33 +136,38 @@ struct PlantCard: View {
                 if let httpResponse = response as? HTTPURLResponse,
                    (200...299).contains(httpResponse.statusCode),
                    let image = UIImage(data: data) {
-                    await Task.detached(priority: .utility) {
-                        PlantThumbnailCache.save(image, plantID: plant.id)
-                    }.value
-                    await MainActor.run {
-                        cachedThumbnail = image
-                        didFailLoading = false
+                    if PlantThumbnailCache.isLegacyThumbnail(image) {
+                        print("⚠️ Thumbnail distant legacy ignoré:", plant.id)
+                    } else {
+                        let cachedImage = await Task.detached(priority: .utility) {
+                            PlantThumbnailCache.save(image, plantID: plant.id)
+                        }.value
+                        await MainActor.run {
+                            cachedThumbnail = cachedImage
+                            didFailLoading = false
+                        }
+                        return
                     }
-                    return
                 }
-                // 404 ou autre erreur → passe au générateur local
+                // 404 ou autre erreur → génération locale
             } catch {
-                // Réseau indisponible → passe au générateur local
+                // Réseau indisponible → génération locale
             }
         }
 
-        // 3. Génère le thumbnail localement depuis le modèle USDZ
-        await withCheckedContinuation { continuation in
+        // 3. Génère le thumbnail localement depuis le modèle USDZ.
+        let generatedImage: UIImage? = await withCheckedContinuation { continuation in
             PlantThumbnailGenerator.shared.generateIfNeeded(plant: plant) { image in
-                Task { @MainActor in
-                    if let image {
-                        self.cachedThumbnail = image
-                        self.didFailLoading = false
-                    } else {
-                        self.didFailLoading = true
-                    }
-                    continuation.resume()
-                }
+                continuation.resume(returning: image)
+            }
+        }
+
+        await MainActor.run {
+            if let generatedImage {
+                self.cachedThumbnail = generatedImage
+                self.didFailLoading = false
+            } else {
+                self.didFailLoading = true
             }
         }
     }
@@ -194,5 +195,11 @@ struct PlantCard: View {
                     .foregroundColor(ArboreDesign.Colors.textMuted)
             }
         }
+    }
+
+    private func thumbnailImage(_ image: UIImage) -> some View {
+        Image(uiImage: image)
+            .resizable()
+            .scaledToFill()
     }
 }

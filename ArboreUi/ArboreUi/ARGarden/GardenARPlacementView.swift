@@ -50,6 +50,10 @@ struct GardenARPlacementView: View {
     let measurementWorldMapId: String?  // 🆕 ID pour charger la WorldMap de mesure
     
     let onValidated: () -> Void
+
+    // Temporary kill-switch: suggested-garden plants should no longer be
+    // auto-placed when entering AR. Flip back to true to restore the old flow.
+    private let automaticSuggestionPlacementEnabled = false
     
     @Environment(\.dismiss) private var dismiss
     @State private var showPicker = false
@@ -232,7 +236,7 @@ struct GardenARPlacementView: View {
                 voxelScanEnabled: $voxelScanEnabled,
                 scanViewEnabled: $scanViewEnabled,
                 tsdfScanEnabled: $tsdfScanEnabled,
-                plantsToAutoPlace: selectedPlants,
+                plantsToAutoPlace: automaticSuggestionPlacementEnabled ? selectedPlants : [],
                 uid: uid,
                 wizard: wizard,
                 gardenName: gardenName,
@@ -319,7 +323,8 @@ struct GardenARPlacementView: View {
                 // but hasn't yet pointed at the floor long enough to
                 // trigger the batch. Disappears as soon as auto-place
                 // fires (the autoPlacingOverlay + toast take over).
-                if mode == .create,
+                if automaticSuggestionPlacementEnabled,
+                   mode == .create,
                    !selectedPlants.isEmpty,
                    !isAutoPlacing,
                    !hasTriggeredAutoPlace {

@@ -11,7 +11,7 @@ final class ThumbnailRenderHost {
     private init() {
         arView = ARView(frame: CGRect(x: 0, y: 0, width: 1024, height: 1024))
         arView.cameraMode = .nonAR
-        arView.environment.background = .color(.white)
+        arView.environment.background = .color(UIColor(white: 0.78, alpha: 1.0))
 
         // Fenêtre offscreen (mais attachée)
         let win = UIWindow(frame: CGRect(x: -2000, y: -2000, width: 10, height: 10))

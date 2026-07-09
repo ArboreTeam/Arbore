@@ -6,7 +6,8 @@ import simd
 final class PlantThumbnailRenderer {
 
     private let arView: ARView
-
+    private let wallColor = UIColor(white: 0.78, alpha: 1.0)
+    private let floorFallbackColor = UIColor(red: 0.58, green: 0.57, blue: 0.52, alpha: 1.0)
     private var floorTexture: TextureResource?
     private var wallTexture: TextureResource?
 
@@ -24,15 +25,12 @@ final class PlantThumbnailRenderer {
         self.arView = ThumbnailRenderHost.shared.arView
         self.arView.frame = CGRect(x: 0, y: 0, width: 1024, height: 1280)
 
-        self.arView.environment.background = .color(UIColor(white: 0.95, alpha: 1.0))
+        self.arView.environment.background = .color(wallColor)
         self.arView.renderOptions.insert(.disableHDR)
         self.arView.environment.lighting.intensityExponent = 0.85
 
         self.floorTexture = try? TextureResource.load(named: "studio_floor")
         self.wallTexture = try? TextureResource.load(named: "studio_wall")
-
-        print("Thumbnail floorTexture:", floorTexture == nil ? "nil" : "ok")
-        print("Thumbnail wallTexture:", wallTexture == nil ? "nil" : "ok")
     }
 
     func render(usdzURL: URL, upAxis: String?, completion: @escaping (UIImage?) -> Void) {
@@ -94,9 +92,12 @@ final class PlantThumbnailRenderer {
                 let floor = ModelEntity(mesh: floorMesh)
                 var floorMat = PhysicallyBasedMaterial()
                 if let floorTexture {
-                    floorMat.baseColor = .init(tint: .white, texture: .init(floorTexture))
+                    floorMat.baseColor = .init(
+                        tint: UIColor(white: 0.98, alpha: 1.0),
+                        texture: .init(floorTexture)
+                    )
                 } else {
-                    floorMat.baseColor = .init(tint: UIColor(white: 0.78, alpha: 1.0))
+                    floorMat.baseColor = .init(tint: floorFallbackColor)
                 }
                 floorMat.roughness = .init(floatLiteral: 0.95)
                 floorMat.metallic = .init(floatLiteral: 0.0)
@@ -111,14 +112,12 @@ final class PlantThumbnailRenderer {
                     vScale: studioSize * 0.5
                 )
                 let backdrop = ModelEntity(mesh: wallMesh)
-                var wallMat = UnlitMaterial(color: .white)
+                var wallMat = UnlitMaterial(color: wallColor)
                 if let wallTexture {
                     wallMat.color = .init(
-                        tint: UIColor(white: 0.92, alpha: 1.0),
+                        tint: wallColor,
                         texture: .init(wallTexture)
                     )
-                } else {
-                    wallMat.color = .init(tint: UIColor(white: 0.85, alpha: 1.0))
                 }
                 backdrop.model?.materials = [wallMat]
                 backdrop.position = [0, studioSize / 2, wallZ]

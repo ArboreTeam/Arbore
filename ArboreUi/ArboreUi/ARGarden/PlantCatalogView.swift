@@ -550,10 +550,20 @@ fileprivate struct AsyncThumb: View {
                 return
             }
 
-            await MainActor.run {
-                fetchedImage = image
-                didFailLoading = false
+            if PlantThumbnailCache.isLegacyThumbnail(image) {
+                await MainActor.run {
+                    didFailLoading = true
+                }
+                return
+            }
+
+            let cachedImage = await Task.detached(priority: .utility) {
                 PlantThumbnailCache.save(image, plantID: plant.id)
+            }.value
+
+            await MainActor.run {
+                fetchedImage = cachedImage
+                didFailLoading = false
             }
         } catch {
             await MainActor.run {

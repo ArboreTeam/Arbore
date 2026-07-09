@@ -59,13 +59,18 @@ final class PlantThumbnailGenerator: ObservableObject {
             do {
                 let url = try await plant.getModelURL()
                 renderer.render(usdzURL: url, upAxis: plant.upAxis) { image in
-                    if let image {
-                        PlantThumbnailCache.save(image, plantID: plant.id)
-                        self.onThumbnailGenerated?()
+                    Task { @MainActor in
+                        var cachedImage = image
+                        if let image {
+                            cachedImage = await Task.detached(priority: .utility) {
+                                PlantThumbnailCache.save(image, plantID: plant.id)
+                            }.value
+                            self.onThumbnailGenerated?()
+                        }
+                        self.finishPlant(plantID: plant.id, image: cachedImage)
+                        self.isRendering = false
+                        self.processNext()
                     }
-                    self.finishPlant(plantID: plant.id, image: image)
-                    self.isRendering = false
-                    self.processNext()
                 }
             } catch {
                 print("⚠️ Failed to get model URL for thumbnail:", plant.name, error)

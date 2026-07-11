@@ -16,10 +16,10 @@ struct StyleStepView: View {
             VStack(spacing: 0) {
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Quel style vous inspire ?")
+                    Text(L10n.t("WIZARD_STYLE_TITLE"))
                         .font(.system(size: 28, weight: .bold))
                     
-                    Text("Choisissez l'ambiance qui correspond le mieux à votre espace extérieur.")
+                    Text(L10n.t("WIZARD_STYLE_SUBTITLE"))
                         .font(.system(size: 15))
                         .foregroundColor(.secondary)
                 }
@@ -66,14 +66,14 @@ struct StyleStepView: View {
             VStack(spacing: 12) {
                 Button(action: onNext) {
                     HStack {
-                        Text("Continuer")
+                        Text(L10n.t("COMMON_CONTINUE"))
                         Image(systemName: "arrow.right")
                     }
                 }
                 .buttonStyle(PrimaryWizardButtonStyle(isEnabled: state.style != nil))
                 .disabled(state.style == nil)
                 
-                Button("Retour") { onBack() }
+                Button(L10n.t("COMMON_BACK")) { onBack() }
                     .buttonStyle(SecondaryWizardButtonStyle())
             }
             .padding(.horizontal, 24)

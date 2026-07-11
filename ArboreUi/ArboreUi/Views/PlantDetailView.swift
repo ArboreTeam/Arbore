@@ -270,7 +270,7 @@ struct PlantDetailView: View {
                         .foregroundColor(ArboreDesign.Colors.primaryGreen)
                         .frame(width: 25, height: 25)
 
-                    Text(NSLocalizedString("PLANTDETAIL_SECTION_DESCRIPTION", comment: ""))
+                    Text(L10n.t("PLANTDETAIL_SECTION_DESCRIPTION"))
                         .font(ArboreDesign.Typography.sectionTitle)
                         .foregroundColor(ArboreDesign.Colors.textPrimary)
 
@@ -290,8 +290,8 @@ struct PlantDetailView: View {
                     }) {
                         Text(
                             showFullDescription
-                            ? NSLocalizedString("PLANTDETAIL_READ_LESS", comment: "")
-                            : NSLocalizedString("PLANTDETAIL_READ_MORE", comment: "")
+                            ? L10n.t("PLANTDETAIL_READ_LESS")
+                            : L10n.t("PLANTDETAIL_READ_MORE")
                         )
                         .font(ArboreDesign.Typography.bodySmall.weight(.semibold))
                         .foregroundColor(ArboreDesign.Colors.primaryGreen)
@@ -324,7 +324,7 @@ struct PlantDetailView: View {
             HStack(spacing: 8) {
                 Image(systemName: "sparkle.magnifyingglass")
                     .foregroundColor(ArboreDesign.Colors.primaryGreen)
-                Text(NSLocalizedString("PLANTDETAIL_ESSENTIALS_TITLE", value: "Essentiels", comment: ""))
+                Text(L10n.t("PLANTDETAIL_ESSENTIALS_TITLE"))
                     .font(ArboreDesign.Typography.sectionTitle)
                     .foregroundColor(ArboreDesign.Colors.textPrimary)
             }
@@ -339,28 +339,28 @@ struct PlantDetailView: View {
             ) {
                 EssentialPlantInfoCard(
                     icon: "sun.max.fill",
-                    title: NSLocalizedString("PLANTDETAIL_SUN_TITLE", comment: ""),
+                    title: L10n.t("PLANTDETAIL_SUN_TITLE"),
                     value: firstAvailable(t?.sun?.lightType, t?.sun?.durationPerDay),
                     tint: ArboreDesign.Colors.accentGold
                 )
 
                 EssentialPlantInfoCard(
                     icon: "drop.fill",
-                    title: NSLocalizedString("PLANTDETAIL_WATER_TITLE", comment: ""),
+                    title: L10n.t("PLANTDETAIL_WATER_TITLE"),
                     value: firstAvailable(t?.water?.frequency, t?.water?.amount),
                     tint: ArboreDesign.Colors.primaryGreen
                 )
 
                 EssentialPlantInfoCard(
                     icon: "hand.raised.fill",
-                    title: NSLocalizedString("PLANTDETAIL_CARE_TITLE", comment: ""),
+                    title: L10n.t("PLANTDETAIL_CARE_TITLE"),
                     value: firstAvailable(t?.care?.difficulty),
                     tint: ArboreDesign.Colors.primaryGreen
                 )
 
                 EssentialPlantInfoCard(
                     icon: "arrow.up.right",
-                    title: NSLocalizedString("PLANTDETAIL_GROWTH_TITLE", value: "Croissance", comment: ""),
+                    title: L10n.t("PLANTDETAIL_GROWTH_TITLE"),
                     value: firstAvailable(t?.lifeCycle?.growth, t?.soilAndPot?.repotFrequency),
                     tint: ArboreDesign.Colors.accentGold
                 )
@@ -376,7 +376,7 @@ struct PlantDetailView: View {
                 return trimmed
             }
         }
-        return NSLocalizedString("PLANTDETAIL_INFO_UNAVAILABLE", value: "Non renseigné", comment: "")
+        return L10n.t("PLANTDETAIL_INFO_UNAVAILABLE")
     }
 
     // MARK: - SKELETONS
@@ -488,7 +488,7 @@ struct PlantDetailView: View {
             if plant.imageURLs.count > 1 {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 12) {
-                        Text(NSLocalizedString("PLANTDETAIL_GALLERY_TITLE", comment: ""))
+                        Text(L10n.t("PLANTDETAIL_GALLERY_TITLE"))
                             .font(ArboreDesign.Typography.cardTitle)
                             .foregroundColor(ArboreDesign.Colors.textPrimary)
 
@@ -498,7 +498,7 @@ struct PlantDetailView: View {
                             galleryStartIndex = 0
                             showGallery = true
                         }) {
-                            Text(NSLocalizedString("PLANTDETAIL_GALLERY_SEE_ALL", comment: ""))
+                            Text(L10n.t("PLANTDETAIL_GALLERY_SEE_ALL"))
                                 .font(ArboreDesign.Typography.bodySmall.weight(.semibold))
                                 .foregroundColor(ArboreDesign.Colors.primaryGreen)
                         }
@@ -665,7 +665,7 @@ struct GeneralInfoGridView: View {
             HStack(spacing: 8) {
                 Image(systemName: "doc.text.below.ecg.fill")
                     .foregroundColor(ArboreDesign.Colors.primaryGreen)
-                Text(NSLocalizedString("PLANTDETAIL_CARE_GUIDE_TITLE", value: "Guide d’entretien", comment: "Plant care guide title"))
+                    Text(L10n.t("PLANTDETAIL_CARE_GUIDE_TITLE"))
                     .font(ArboreDesign.Typography.sectionTitle)
                     .foregroundColor(ArboreDesign.Colors.textPrimary)
             }
@@ -674,43 +674,43 @@ struct GeneralInfoGridView: View {
             VStack(spacing: 14) {
                 GeneralInfoCard(
                     icon: "sun.max.fill",
-                    title: NSLocalizedString("PLANTDETAIL_SUN_TITLE", comment: ""),
-                    description: NSLocalizedString("PLANTDETAIL_SUN_SUBTITLE", comment: ""),
+                    title: L10n.t("PLANTDETAIL_SUN_TITLE"),
+                    description: L10n.t("PLANTDETAIL_SUN_SUBTITLE"),
                     color: ArboreDesign.Colors.accentGold,
                     destination: SoleilDetailView(sun: translation?.sun)
                 )
                 GeneralInfoCard(
                     icon: "drop.fill",
-                    title: NSLocalizedString("PLANTDETAIL_WATER_TITLE", comment: ""),
-                    description: NSLocalizedString("PLANTDETAIL_WATER_SUBTITLE", comment: ""),
+                    title: L10n.t("PLANTDETAIL_WATER_TITLE"),
+                    description: L10n.t("PLANTDETAIL_WATER_SUBTITLE"),
                     color: ArboreDesign.Colors.primaryGreen,
                     destination: EauDetailView(water: translation?.water, plantName: plantName)
                 )
                 GeneralInfoCard(
                     icon: "leaf.fill",
-                    title: NSLocalizedString("PLANTDETAIL_SOIL_TITLE", comment: ""),
-                    description: NSLocalizedString("PLANTDETAIL_SOIL_SUBTITLE", comment: ""),
+                    title: L10n.t("PLANTDETAIL_SOIL_TITLE"),
+                    description: L10n.t("PLANTDETAIL_SOIL_SUBTITLE"),
                     color: ArboreDesign.Colors.primaryGreen,
                     destination: TerreDetailView(soil: translation?.soilAndPot, plantName: plantName)
                 )
                 GeneralInfoCard(
                     icon: "cross.case.fill",
-                    title: NSLocalizedString("PLANTDETAIL_HEALTH_TITLE", comment: ""),
-                    description: NSLocalizedString("PLANTDETAIL_HEALTH_SUBTITLE", comment: ""),
+                    title: L10n.t("PLANTDETAIL_HEALTH_TITLE"),
+                    description: L10n.t("PLANTDETAIL_HEALTH_SUBTITLE"),
                     color: ArboreDesign.Colors.danger,
                     destination: SanteDetailView(health: translation?.health)
                 )
                 GeneralInfoCard(
                     icon: "calendar",
-                    title: NSLocalizedString("PLANTDETAIL_LIFECYCLE_TITLE", comment: ""),
-                    description: NSLocalizedString("PLANTDETAIL_LIFECYCLE_SUBTITLE", comment: ""),
+                    title: L10n.t("PLANTDETAIL_LIFECYCLE_TITLE"),
+                    description: L10n.t("PLANTDETAIL_LIFECYCLE_SUBTITLE"),
                     color: ArboreDesign.Colors.accentGold,
                     destination: CycleDeVieView(lifecycle: translation?.lifeCycle)
                 )
                 GeneralInfoCard(
                     icon: "brain.head.profile",
-                    title: NSLocalizedString("PLANTDETAIL_CARE_TITLE", comment: ""),
-                    description: NSLocalizedString("PLANTDETAIL_CARE_SUBTITLE", comment: ""),
+                    title: L10n.t("PLANTDETAIL_CARE_TITLE"),
+                    description: L10n.t("PLANTDETAIL_CARE_SUBTITLE"),
                     color: ArboreDesign.Colors.primaryGreen,
                     destination: EntretienView(care: translation?.care)
                 )

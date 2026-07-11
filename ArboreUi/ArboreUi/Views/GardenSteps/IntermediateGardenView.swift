@@ -36,7 +36,7 @@ struct IntermediateGardenView: View {
             soil: nil,
             scanMethod: nil
         ),
-        gardenName: String = "Mon jardin",
+        gardenName: String = L10n.t("MY_GARDEN_TITLE"),
         thumbnailKey: String? = nil,
         boundaryPoints: [SIMD3<Float>] = [],
         area: Float = 0.0,
@@ -58,11 +58,11 @@ struct IntermediateGardenView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Text("Mesures du jardin enregistrées")
+            Text(L10n.t("INTERMEDIATE_GARDEN_SAVED_TITLE"))
                 .font(.title)
                 .fontWeight(.bold)
 
-            Text("Vous pouvez maintenant créer votre futur jardin.")
+            Text(L10n.t("INTERMEDIATE_GARDEN_SAVED_SUBTITLE"))
                 .multilineTextAlignment(.center)
             
             // 🆕 Afficher les mesures
@@ -71,13 +71,13 @@ struct IntermediateGardenView: View {
                     HStack {
                         Image(systemName: "ruler")
                             .foregroundColor(.green)
-                        Text("Surface: \(String(format: "%.2f", area)) m²")
+                        Text(L10n.f("INTERMEDIATE_GARDEN_AREA_FORMAT", Double(area)))
                             .font(.subheadline)
                     }
                     HStack {
                         Image(systemName: "arrow.triangle.turn.up.right.diamond")
                             .foregroundColor(.green)
-                        Text("Périmètre: \(String(format: "%.2f", perimeter)) m")
+                        Text(L10n.f("INTERMEDIATE_GARDEN_PERIMETER_FORMAT", Double(perimeter)))
                             .font(.subheadline)
                     }
                 }
@@ -86,7 +86,7 @@ struct IntermediateGardenView: View {
                 .cornerRadius(8)
             }
 
-            Button("Créer mon jardin") {
+            Button(L10n.t("INTERMEDIATE_GARDEN_CREATE")) {
                 showAR = true
             }
             .font(.headline)

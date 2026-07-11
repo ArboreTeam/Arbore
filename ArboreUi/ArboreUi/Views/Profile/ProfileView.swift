@@ -142,7 +142,7 @@ struct ProfileView: View {
                     }
 
                     if isUploading {
-                        Text("Uploading…")
+                        Text(L10n.t("PROFILE_UPLOADING"))
                             .font(ArboreDesign.Typography.caption)
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
                     } else if let err = uploadError {

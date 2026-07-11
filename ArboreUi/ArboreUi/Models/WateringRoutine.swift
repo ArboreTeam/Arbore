@@ -65,7 +65,7 @@ struct WateringRoutine: Identifiable, Codable {
 
     var frequencySummary: String {
         if frequency == .custom, let customDays {
-            return "Tous les \(customDays) jours"
+            return L10n.f("ROUTINE_FREQUENCY_EVERY_N_DAYS", customDays)
         }
         return frequency.displayName
     }
@@ -168,27 +168,27 @@ enum GardenCareKind: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .pruneLeaves: return "Couper les feuilles"
-        case .cleanLeaves: return "Nettoyer les feuilles"
-        case .fertilize: return "Mettre de l’engrais"
-        case .repot: return "Rempoter"
-        case .pestCheck: return "Vérifier les parasites"
-        case .rotatePot: return "Tourner la plante"
-        case .soilCheck: return "Contrôler le sol"
-        case .custom: return "Action personnalisée"
+        case .pruneLeaves: return L10n.t("CARE_KIND_PRUNE_LEAVES")
+        case .cleanLeaves: return L10n.t("CARE_KIND_CLEAN_LEAVES")
+        case .fertilize: return L10n.t("CARE_KIND_FERTILIZE")
+        case .repot: return L10n.t("CARE_KIND_REPOT")
+        case .pestCheck: return L10n.t("CARE_KIND_PEST_CHECK")
+        case .rotatePot: return L10n.t("CARE_KIND_ROTATE_POT")
+        case .soilCheck: return L10n.t("CARE_KIND_SOIL_CHECK")
+        case .custom: return L10n.t("CARE_KIND_CUSTOM")
         }
     }
 
     var completionLabel: String {
         switch self {
-        case .pruneLeaves: return "Feuilles coupées"
-        case .cleanLeaves: return "Nettoyé"
-        case .fertilize: return "Engrais mis"
-        case .repot: return "Rempoté"
-        case .pestCheck: return "Vérifié"
-        case .rotatePot: return "Tourné"
-        case .soilCheck: return "Contrôlé"
-        case .custom: return "Fait"
+        case .pruneLeaves: return L10n.t("CARE_KIND_PRUNE_LEAVES_DONE")
+        case .cleanLeaves: return L10n.t("CARE_KIND_CLEAN_LEAVES_DONE")
+        case .fertilize: return L10n.t("CARE_KIND_FERTILIZE_DONE")
+        case .repot: return L10n.t("CARE_KIND_REPOT_DONE")
+        case .pestCheck: return L10n.t("CARE_KIND_PEST_CHECK_DONE")
+        case .rotatePot: return L10n.t("CARE_KIND_ROTATE_POT_DONE")
+        case .soilCheck: return L10n.t("CARE_KIND_SOIL_CHECK_DONE")
+        case .custom: return L10n.t("CARE_KIND_CUSTOM_DONE")
         }
     }
 
@@ -304,8 +304,8 @@ struct PlantCareRoutine: Identifiable, Codable {
     }
 
     var frequencySummary: String {
-        if intervalDays == 1 { return "Tous les jours" }
-        return "Tous les \(intervalDays) jours"
+        if intervalDays == 1 { return L10n.t("ROUTINE_FREQUENCY_DAILY") }
+        return L10n.f("ROUTINE_FREQUENCY_EVERY_N_DAYS", intervalDays)
     }
 
     mutating func markCompleted(on date: Date = Date()) {

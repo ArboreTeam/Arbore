@@ -27,11 +27,11 @@ enum GardenShopCategory: String, Codable, CaseIterable {
 
     var title: String {
         switch self {
-        case .plant: return "Plantes"
-        case .soil: return "Terreau"
-        case .watering: return "Arrosage"
-        case .care: return "Entretien"
-        case .accessory: return "Accessoires"
+        case .plant: return L10n.t("SHOP_CATEGORY_PLANTS")
+        case .soil: return L10n.t("SHOP_CATEGORY_SOIL")
+        case .watering: return L10n.t("SHOP_CATEGORY_WATERING")
+        case .care: return L10n.t("SHOP_CATEGORY_CARE")
+        case .accessory: return L10n.t("SHOP_CATEGORY_ACCESSORIES")
         }
     }
 
@@ -186,7 +186,7 @@ struct ManageGardenView: View {
             }
             .navigationBarHidden(true)
             .sheet(isPresented: $showingNewProjectSheet) {
-                Text("Nouveau projet (Wizard)")
+                Text(L10n.t("GARDEN_NEW_PROJECT_WIZARD"))
             }
             .onAppear {
                 isResolvingInitialGarden = selectedProject == nil
@@ -220,16 +220,16 @@ struct ManageGardenView: View {
     }
     
     private var loadingGardenContent: some View {
-        LoadingView(title: "Chargement du jardin...")
+        LoadingView(title: L10n.t("GARDEN_LOADING_PROGRESS"))
     }
 
     private var emptyGardenContent: some View {
         VStack(spacing: ArboreDesign.Spacing.lg) {
             EmptyStateView(
                 systemImage: "leaf",
-                title: "Aucun jardin sélectionné",
-                message: "Vos jardins restent disponibles depuis la liste.",
-                buttonTitle: "Voir vos jardins",
+                title: L10n.t("GARDEN_EMPTY_SELECTION_TITLE"),
+                message: L10n.t("GARDEN_EMPTY_SELECTION_MESSAGE"),
+                buttonTitle: L10n.t("GARDEN_VIEW_MY_GARDENS"),
                 action: { showingGardenList = true }
             )
         }
@@ -369,6 +369,14 @@ struct GardenDetailsPage: View {
         case plan2D = "Plan"
         case tasks = "Soins"
         case purchase = "Achats"
+
+        var title: String {
+            switch self {
+            case .plan2D: return L10n.t("GARDEN_TAB_PLAN")
+            case .tasks: return L10n.t("GARDEN_TAB_CARE")
+            case .purchase: return L10n.t("GARDEN_TAB_SHOP")
+            }
+        }
     }
     
     @State private var selectedTab: Tab = .plan2D
@@ -437,19 +445,19 @@ struct GardenDetailsPage: View {
             .padding(.bottom, ArboreDesign.Spacing.md)
         }
         .navigationBarHidden(true)
-        .alert("Renommer le jardin", isPresented: $showRenameAlert) {
-            TextField("Nom du jardin", text: $renameText)
+        .alert(L10n.t("GARDEN_RENAME_TITLE"), isPresented: $showRenameAlert) {
+            TextField(L10n.t("GARDEN_RENAME_PLACEHOLDER"), text: $renameText)
 
-            Button("Annuler", role: .cancel) {}
-            Button("Enregistrer") {
+            Button(L10n.t("COMMON_CANCEL"), role: .cancel) {}
+            Button(L10n.t("COMMON_SAVE")) {
                 Task { await renameGarden() }
             }
             .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } message: {
-            Text("Choisissez un nom facile à reconnaître.")
+            Text(L10n.t("GARDEN_RENAME_HELP"))
         }
-        .alert("Commande préparée", isPresented: $showCheckoutSummary) {
-            Button("OK", role: .cancel) {}
+        .alert(L10n.t("SHOP_CHECKOUT_READY_TITLE"), isPresented: $showCheckoutSummary) {
+            Button(L10n.t("COMMON_OK"), role: .cancel) {}
         } message: {
             Text(checkoutSummaryText)
         }
@@ -527,19 +535,19 @@ struct GardenDetailsPage: View {
                     headerIcon("arrow.left")
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Retour")
+                .accessibilityLabel(L10n.t("COMMON_BACK"))
             } else if let onOpenGardenList {
                 Button(action: onOpenGardenList) {
                     headerIcon("line.3.horizontal")
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Voir mes jardins")
+                .accessibilityLabel(L10n.t("GARDEN_VIEW_MY_GARDENS"))
             } else {
                 Color.clear
                     .frame(width: 42, height: 42)
             }
 
-            Text(currentGardenName)
+            Text(L10n.displayGardenName(currentGardenName))
                 .font(.system(size: 20, weight: .bold, design: .rounded))
                 .foregroundColor(ArboreDesign.Colors.textPrimary)
                 .lineLimit(1)
@@ -549,11 +557,11 @@ struct GardenDetailsPage: View {
 
             Menu {
                 Button(action: { showARShareCapture = true }) {
-                    Label("Partager en 3D", systemImage: "camera.viewfinder")
+                    Label(L10n.t("GARDEN_SHARE_3D"), systemImage: "camera.viewfinder")
                 }
 
                 Button(action: openRenameAlert) {
-                    Label("Renommer", systemImage: "pencil")
+                    Label(L10n.t("GARDEN_RENAME"), systemImage: "pencil")
                 }
             } label: {
                 if isRenamingGarden {
@@ -568,7 +576,7 @@ struct GardenDetailsPage: View {
             }
             .buttonStyle(.plain)
             .disabled(isRenamingGarden)
-            .accessibilityLabel("Actions du jardin")
+            .accessibilityLabel(L10n.t("GARDEN_ACTIONS_ACCESSIBILITY"))
         }
         .padding(.horizontal, ArboreDesign.Spacing.screenHorizontal)
         .padding(.top, ArboreDesign.Spacing.md)
@@ -579,9 +587,9 @@ struct GardenDetailsPage: View {
     private var planContent: some View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.lg) {
             VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
-                SectionTitle(title: "Vue du jardin")
+                SectionTitle(title: L10n.t("GARDEN_PLAN_SECTION_TITLE"))
 
-                Text("\(currentGardenName) • Visualisez l’emplacement de vos plantes et touchez un marqueur pour afficher ses besoins.")
+                Text(L10n.f("GARDEN_PLAN_DESCRIPTION_FORMAT", L10n.displayGardenName(currentGardenName)))
                     .font(ArboreDesign.Typography.bodySmall)
                     .foregroundColor(ArboreDesign.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -629,17 +637,17 @@ struct GardenDetailsPage: View {
             if !hasMeasuredSpace {
                 GardenInlineMessage(
                     systemImage: "ruler",
-                    text: "Mesurez d’abord les dimensions de votre espace pour afficher le plan 2D."
+                    text: L10n.t("GARDEN_PLAN_MEASURE_FIRST")
                 )
             } else if mapViewModel.displayPlants.isEmpty {
                 GardenInlineMessage(
                     systemImage: "leaf",
-                    text: "Aucune plante placée. Ouvrez le jardin en AR pour en ajouter."
+                    text: L10n.t("GARDEN_PLAN_NO_PLANTS")
                 )
             } else if mapViewModel.selectedPlant == nil {
                 GardenInlineMessage(
                     systemImage: "hand.tap",
-                    text: "\(mapViewModel.displayPlants.count) plante\(mapViewModel.displayPlants.count > 1 ? "s" : "") placée\(mapViewModel.displayPlants.count > 1 ? "s" : "") • Touchez un marqueur pour voir les détails"
+                    text: L10n.f("GARDEN_PLAN_MARKER_HINT_FORMAT", mapViewModel.displayPlants.count)
                 )
             }
         }
@@ -657,7 +665,7 @@ struct GardenDetailsPage: View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xl) {
             VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
                 HStack {
-                    SectionTitle(title: "Aujourd’hui")
+                    SectionTitle(title: L10n.t("CARE_TODAY_SECTION"))
 
                     Spacer()
 
@@ -666,7 +674,7 @@ struct GardenDetailsPage: View {
                             HStack(spacing: 6) {
                                 Image(systemName: "plus")
                                     .font(.system(size: 11, weight: .bold))
-                                Text("Planifier")
+                                Text(L10n.t("CARE_PLAN"))
                                     .font(.system(size: 12, weight: .bold))
                             }
                             .foregroundColor(ArboreDesign.Colors.primaryGreen)
@@ -679,7 +687,7 @@ struct GardenDetailsPage: View {
                     }
                 }
 
-                Text("Les soins viennent des routines créées pour les plantes placées dans ce jardin.")
+                Text(L10n.t("CARE_ROUTINES_DESCRIPTION"))
                     .font(ArboreDesign.Typography.bodySmall)
                     .foregroundColor(ArboreDesign.Colors.textSecondary)
             }
@@ -687,18 +695,18 @@ struct GardenDetailsPage: View {
             if placedPlants.isEmpty {
                 GardenInlineMessage(
                     systemImage: "leaf",
-                    text: "Ajoutez d’abord des plantes au jardin pour suivre leurs soins."
+                    text: L10n.t("CARE_ADD_PLANTS_FIRST")
                 )
             } else {
                 if careItems.isEmpty {
                     CareEmptyRoutineCard(
-                        plantName: placedPlants.first?.plantName ?? "votre première plante",
+                        plantName: placedPlants.first?.plantName ?? L10n.t("CARE_FIRST_PLANT_FALLBACK"),
                         onCreate: { openRoutineCreation() }
                     )
                 } else if dueCareItems.isEmpty {
                     GardenInlineMessage(
                         systemImage: "checkmark.circle",
-                        text: "Aucune action prévue aujourd’hui. Les prochains soins restent visibles dans le calendrier."
+                        text: L10n.t("CARE_NO_ACTION_TODAY")
                     )
                 } else {
                     VStack(spacing: ArboreDesign.Spacing.md) {
@@ -737,7 +745,7 @@ struct GardenDetailsPage: View {
                     AppCard {
                         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
                             if selectedDateCareItems.isEmpty {
-                                CareHistoryRow(text: "Aucune action planifiée ce jour-là.")
+                                CareHistoryRow(text: L10n.t("CARE_NO_ACTION_ON_SELECTED_DAY"))
                             } else {
                                 ForEach(selectedDateCareItems) { item in
                                     CareCalendarAgendaRow(
@@ -762,7 +770,7 @@ struct GardenDetailsPage: View {
 
                 if !upcomingCareItems.isEmpty {
                     VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
-                        SectionTitle(title: "Prochains soins")
+                        SectionTitle(title: L10n.t("CARE_UPCOMING_SECTION"))
 
                         VStack(spacing: ArboreDesign.Spacing.sm) {
                             ForEach(Array(upcomingCareItems.prefix(5))) { item in
@@ -781,7 +789,7 @@ struct GardenDetailsPage: View {
 
                 if !plantsWithoutRoutine.isEmpty {
                     VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
-                        SectionTitle(title: "Routines à créer")
+                        SectionTitle(title: L10n.t("CARE_ROUTINES_TO_CREATE_SECTION"))
 
                         AppCard {
                             VStack(spacing: ArboreDesign.Spacing.sm) {
@@ -797,7 +805,7 @@ struct GardenDetailsPage: View {
                 }
 
                 VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
-                    SectionTitle(title: "État des plantes")
+                    SectionTitle(title: L10n.t("CARE_PLANT_STATUS_SECTION"))
 
                     VStack(spacing: ArboreDesign.Spacing.sm) {
                         ForEach(Array(placedPlants.prefix(6)), id: \.plantID) { plant in
@@ -816,12 +824,12 @@ struct GardenDetailsPage: View {
                 )
 
                 VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
-                    SectionTitle(title: "Dernières actions")
+                    SectionTitle(title: L10n.t("CARE_LAST_ACTIONS_SECTION"))
 
                     AppCard {
                         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
                             if careActions.isEmpty {
-                                CareHistoryRow(text: "Aucune action enregistrée pour ce jardin.")
+                                CareHistoryRow(text: L10n.t("CARE_NO_ACTION_HISTORY"))
                             } else {
                                 ForEach(Array(careActions.prefix(5))) { action in
                                     CareHistoryRow(text: historyText(for: action))
@@ -844,12 +852,12 @@ struct GardenDetailsPage: View {
                 source: .watering(routine.id),
                 plantId: routine.plantId,
                 plantName: routine.plantName,
-                title: "Arroser",
+                title: L10n.t("ROUTINE_ACTION_WATERING"),
                 subtitle: wateringSubtitle(for: routine),
                 date: routine.nextWateringDate,
                 icon: "drop.fill",
                 tint: Color(hex: "#3A93B8"),
-                completionTitle: "Arrosée"
+                completionTitle: L10n.t("CARE_WATERED_DONE")
             )
         }
 
@@ -984,21 +992,21 @@ struct GardenDetailsPage: View {
 
     private var recommendationMessage: String {
         if let item = dueCareItems.first {
-            return "\(item.plantName) a une action en attente : \(item.title.lowercased()). Validez-la après l’avoir faite pour recalculer automatiquement la prochaine date."
+            return L10n.f("CARE_RECOMMENDATION_DUE_FORMAT", item.plantName, item.title)
         }
 
         if let item = upcomingCareItems.first {
-            return "Prochain soin prévu pour \(item.plantName) : \(item.title.lowercased()), \(statusText(for: item.date).text.lowercased())."
+            return L10n.f("CARE_RECOMMENDATION_UPCOMING_FORMAT", item.plantName, item.title, statusText(for: item.date).text.lowercased())
         }
 
-        return "Créez une routine d’arrosage ou d’entretien pour transformer cette page en vrai tableau de bord de jardin."
+        return L10n.t("CARE_RECOMMENDATION_EMPTY")
     }
 
     private var selectedDateSectionTitle: String {
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.dateFormat = "d MMMM"
-        return "Agenda du \(formatter.string(from: selectedCareDate))"
+        return L10n.f("CARE_AGENDA_DATE_FORMAT", formatter.string(from: selectedCareDate))
     }
 
     private var floatingActionIcon: String {
@@ -1028,7 +1036,7 @@ struct GardenDetailsPage: View {
 
     private func plantCareStatus(for plant: PersistedPlant) -> (text: String, color: Color) {
         guard let item = careItem(for: plant) else {
-            return ("À planifier", ArboreDesign.Colors.textSecondary)
+            return (L10n.t("CARE_STATUS_TO_PLAN"), ArboreDesign.Colors.textSecondary)
         }
         return statusText(for: item.date)
     }
@@ -1055,15 +1063,15 @@ struct GardenDetailsPage: View {
         let days = daysUntil(date)
 
         if days < 0 {
-            return ("En retard", ArboreDesign.Colors.danger)
+            return (L10n.t("CARE_STATUS_OVERDUE"), ArboreDesign.Colors.danger)
         }
         if days == 0 {
-            return ("Aujourd’hui", Color(hex: "#3A93B8"))
+            return (L10n.t("CARE_STATUS_TODAY"), Color(hex: "#3A93B8"))
         }
         if days == 1 {
-            return ("Demain", Color(hex: "#3A93B8"))
+            return (L10n.t("CARE_STATUS_TOMORROW"), Color(hex: "#3A93B8"))
         }
-        return ("Dans \(days) j", ArboreDesign.Colors.success)
+        return (L10n.f("CARE_STATUS_IN_DAYS_FORMAT", days), ArboreDesign.Colors.success)
     }
 
     private func wateringSubtitle(for routine: WateringRoutine) -> String {
@@ -1104,30 +1112,43 @@ struct GardenDetailsPage: View {
 
         switch action.type {
         case .watered:
-            return "\(action.plantName) arrosée \(dateText)"
+            return L10n.f("CARE_HISTORY_WATERED_FORMAT", action.plantName, dateText)
         case .skipped:
-            return "\(action.plantName) reportée \(dateText)"
+            return L10n.f("CARE_HISTORY_DEFERRED_FORMAT", action.plantName, dateText)
         case .routineCreated:
-            return "Routine créée pour \(action.plantName) \(dateText)"
+            return L10n.f("CARE_HISTORY_ROUTINE_CREATED_FORMAT", action.plantName, dateText)
         case .careCompleted:
-            return "\(action.title ?? action.careKind?.displayName ?? "Soin") fait pour \(action.plantName) \(dateText)"
+            return L10n.f("CARE_HISTORY_CARE_DONE_FORMAT", careActionTitle(for: action), action.plantName, dateText)
         case .careSkipped:
-            return "\(action.title ?? action.careKind?.displayName ?? "Soin") reporté pour \(action.plantName) \(dateText)"
+            return L10n.f("CARE_HISTORY_CARE_DEFERRED_FORMAT", careActionTitle(for: action), action.plantName, dateText)
         case .careRoutineCreated:
-            return "Routine \(action.title ?? action.careKind?.displayName ?? "soin") créée pour \(action.plantName) \(dateText)"
+            return L10n.f("CARE_HISTORY_CARE_ROUTINE_CREATED_FORMAT", careActionTitle(for: action), action.plantName, dateText)
         }
+    }
+
+    private func careActionTitle(for action: GardenCareAction) -> String {
+        if let kind = action.careKind, kind != .custom {
+            return kind.displayName
+        }
+
+        let customTitle = action.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !customTitle.isEmpty {
+            return customTitle
+        }
+
+        return action.careKind?.displayName ?? L10n.t("CARE_KIND_GENERIC")
     }
 
     private func relativeDateText(_ date: Date) -> String {
         let calendar = Calendar.current
-        if calendar.isDateInToday(date) { return "aujourd’hui" }
-        if calendar.isDateInYesterday(date) { return "hier" }
+        if calendar.isDateInToday(date) { return L10n.t("CARE_RELATIVE_TODAY") }
+        if calendar.isDateInYesterday(date) { return L10n.t("CARE_RELATIVE_YESTERDAY") }
 
         let formatter = DateFormatter()
         formatter.locale = Locale.current
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
-        return "le \(formatter.string(from: date))"
+        return L10n.f("CARE_RELATIVE_DATE_FORMAT", formatter.string(from: date))
     }
 
     private func normalizedPlantName(_ name: String) -> String {
@@ -1140,7 +1161,7 @@ struct GardenDetailsPage: View {
     private var purchaseContent: some View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xl) {
             GardenShopHeroCard(
-                gardenName: currentGardenName,
+                gardenName: L10n.displayGardenName(currentGardenName),
                 plantCount: placedPlants.count,
                 cartCount: cartItemCount,
                 total: formattedPrice(cartTotal)
@@ -1160,7 +1181,7 @@ struct GardenDetailsPage: View {
 
             VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
                 HStack(alignment: .center) {
-                    SectionTitle(title: "Plantes du jardin")
+                    SectionTitle(title: L10n.t("SHOP_GARDEN_PLANTS_SECTION"))
 
                     Spacer()
 
@@ -1169,7 +1190,7 @@ struct GardenDetailsPage: View {
                             HStack(spacing: 5) {
                                 Image(systemName: "cart.badge.plus")
                                     .font(.system(size: 11, weight: .bold))
-                                Text("Tout ajouter")
+                                Text(L10n.t("SHOP_ADD_ALL"))
                                     .font(.system(size: 12, weight: .bold))
                             }
                             .foregroundColor(ArboreDesign.Colors.primaryGreen)
@@ -1185,7 +1206,7 @@ struct GardenDetailsPage: View {
                 if cachedPurchaseGroups.isEmpty {
                     GardenInlineMessage(
                         systemImage: "leaf",
-                        text: "Aucune plante placée dans ce jardin pour le moment."
+                        text: L10n.t("SHOP_NO_GARDEN_PLANTS")
                     )
                 } else {
                     VStack(spacing: ArboreDesign.Spacing.sm) {
@@ -1193,9 +1214,9 @@ struct GardenDetailsPage: View {
                             let item = gardenPlantShopItem(for: group)
                             GardenShopItemRow(
                                 item: item,
-                                quantityText: group.count > 1 ? "\(group.count) dans le jardin" : "Dans ce jardin",
+                                quantityText: group.count > 1 ? L10n.f("SHOP_QUANTITY_IN_GARDEN_FORMAT", group.count) : L10n.t("SHOP_IN_THIS_GARDEN"),
                                 cartQuantity: cartQuantity(for: item),
-                                actionTitle: "Ajouter",
+                                actionTitle: L10n.t("COMMON_ADD"),
                                 onAdd: { addItemToCart(item) }
                             )
                         }
@@ -1205,7 +1226,7 @@ struct GardenDetailsPage: View {
 
             if !cachedRecommendations.isEmpty {
                 VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
-                    SectionTitle(title: "Recommandations d’achat")
+                    SectionTitle(title: L10n.t("SHOP_RECOMMENDATIONS_SECTION"))
 
                     VStack(spacing: ArboreDesign.Spacing.sm) {
                         ForEach(cachedRecommendations) { item in
@@ -1220,26 +1241,26 @@ struct GardenDetailsPage: View {
             }
 
             VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
-                SectionTitle(title: "Ajouter depuis le catalogue")
+                SectionTitle(title: L10n.t("SHOP_ADD_FROM_CATALOG_SECTION"))
 
                 PurchaseSearchBar(text: $purchaseSearchText)
 
                 if isLoadingPurchaseCatalog {
-                    GardenInlineMessage(systemImage: "hourglass", text: "Chargement du catalogue de plantes...")
+                    GardenInlineMessage(systemImage: "hourglass", text: L10n.t("SHOP_LOADING_CATALOG"))
                 } else if let purchaseCatalogError {
                     PurchaseCatalogErrorCard(message: purchaseCatalogError) {
                         loadPurchaseCatalogIfNeeded(force: true)
                     }
                 } else if cachedCatalogueItems.isEmpty {
-                    GardenInlineMessage(systemImage: "magnifyingglass", text: "Aucune plante trouvée dans le catalogue.")
+                    GardenInlineMessage(systemImage: "magnifyingglass", text: L10n.t("SHOP_NO_CATALOG_PLANTS"))
                 } else {
                     VStack(spacing: ArboreDesign.Spacing.sm) {
                         ForEach(cachedCatalogueItems) { item in
                             GardenShopItemRow(
                                 item: item,
-                                quantityText: item.recommendation ?? "Catalogue Arbore",
+                                quantityText: item.recommendation ?? L10n.t("SHOP_ARBORE_CATALOG"),
                                 cartQuantity: cartQuantity(for: item),
-                                actionTitle: "Ajouter",
+                                actionTitle: L10n.t("COMMON_ADD"),
                                 onAdd: { addItemToCart(item) }
                             )
                         }
@@ -1280,7 +1301,7 @@ struct GardenDetailsPage: View {
     }
 
     private var checkoutSummaryText: String {
-        "Votre liste contient \(cartItemCount) article\(cartItemCount > 1 ? "s" : "") pour un total estimé de \(formattedPrice(cartTotal)). Elle reste enregistrée dans ce jardin."
+        L10n.f("SHOP_CHECKOUT_SUMMARY_FORMAT", cartItemCount, formattedPrice(cartTotal))
     }
 
     private func computeCatalogueItems() -> [GardenShopItem] {
@@ -1338,12 +1359,12 @@ struct GardenDetailsPage: View {
             items.append(
                 GardenShopItem(
                     id: "soil-universal-\(gardenId)",
-                    name: "Terreau drainant universel",
-                    subtitle: "Base légère adaptée à la majorité des plantes du jardin.",
+                    name: L10n.t("SHOP_ITEM_UNIVERSAL_SOIL_NAME"),
+                    subtitle: L10n.t("SHOP_ITEM_UNIVERSAL_SOIL_SUBTITLE"),
                     priceRange: "8,90 € - 14,90 €",
                     estimatedPrice: 11.90,
                     category: .soil,
-                    recommendation: "Fallback utile si les fiches plantes ne précisent pas encore le substrat.",
+                    recommendation: L10n.t("SHOP_REC_FALLBACK_SOIL"),
                     priority: 2
                 )
             )
@@ -1353,13 +1374,13 @@ struct GardenDetailsPage: View {
             items.append(
                 GardenShopItem(
                     id: "tool-watering-can-\(gardenId)",
-                    name: "Arrosoir à bec fin",
-                    subtitle: "Pour arroser au pied sans détremper les feuilles.",
+                    name: L10n.t("SHOP_ITEM_WATERING_CAN_NAME"),
+                    subtitle: L10n.t("SHOP_ITEM_WATERING_CAN_SUBTITLE"),
                     priceRange: "12,90 € - 19,90 €",
                     estimatedPrice: 16.90,
                     category: .watering,
                     systemIcon: "drop.fill",
-                    recommendation: "Utile pour \(placedPlants.count) plante\(placedPlants.count > 1 ? "s" : "") placée\(placedPlants.count > 1 ? "s" : "").",
+                    recommendation: L10n.f("SHOP_REC_USEFUL_FOR_PLANTS_FORMAT", placedPlants.count),
                     priority: 3
                 )
             )
@@ -1367,13 +1388,13 @@ struct GardenDetailsPage: View {
             items.append(
                 GardenShopItem(
                     id: "tool-moisture-meter-\(gardenId)",
-                    name: "Hygromètre de sol",
-                    subtitle: "Aide à éviter les excès d’eau entre deux routines.",
+                    name: L10n.t("SHOP_ITEM_MOISTURE_METER_NAME"),
+                    subtitle: L10n.t("SHOP_ITEM_MOISTURE_METER_SUBTITLE"),
                     priceRange: "9,90 € - 16,90 €",
                     estimatedPrice: 12.90,
                     category: .watering,
                     systemIcon: "gauge.with.dots.needle.67percent",
-                    recommendation: "Recommandé quand plusieurs plantes ont des besoins différents.",
+                    recommendation: L10n.t("SHOP_REC_MULTIPLE_NEEDS"),
                     priority: 3
                 )
             )
@@ -1381,13 +1402,13 @@ struct GardenDetailsPage: View {
             items.append(
                 GardenShopItem(
                     id: "tool-pruner-\(gardenId)",
-                    name: "Sécateur compact",
-                    subtitle: "Pour couper les feuilles abîmées proprement.",
+                    name: L10n.t("SHOP_ITEM_PRUNER_NAME"),
+                    subtitle: L10n.t("SHOP_ITEM_PRUNER_SUBTITLE"),
                     priceRange: "10,90 € - 24,90 €",
                     estimatedPrice: 17.90,
                     category: .care,
                     systemIcon: "scissors",
-                    recommendation: "Cohérent avec les routines de taille et d’entretien.",
+                    recommendation: L10n.t("SHOP_REC_CARE_ROUTINES"),
                     priority: 4
                 )
             )
@@ -1397,13 +1418,13 @@ struct GardenDetailsPage: View {
             items.append(
                 GardenShopItem(
                     id: "care-fertilizer-\(gardenId)",
-                    name: "Engrais plantes vertes",
-                    subtitle: "Nutrition douce pour soutenir la croissance.",
+                    name: L10n.t("SHOP_ITEM_FERTILIZER_NAME"),
+                    subtitle: L10n.t("SHOP_ITEM_FERTILIZER_SUBTITLE"),
                     priceRange: "7,90 € - 13,90 €",
                     estimatedPrice: 9.90,
                     category: .care,
                     systemIcon: "leaf.arrow.circlepath",
-                    recommendation: "À garder sous la main pour les routines d’engrais.",
+                    recommendation: L10n.t("SHOP_REC_FERTILIZER_ROUTINES"),
                     priority: 4
                 )
             )
@@ -1413,13 +1434,13 @@ struct GardenDetailsPage: View {
             items.append(
                 GardenShopItem(
                     id: "accessory-pot-\(gardenId)",
-                    name: "Pot avec drainage",
-                    subtitle: "Prévoir un pot légèrement plus grand et une soucoupe.",
+                    name: L10n.t("SHOP_ITEM_DRAINAGE_POT_NAME"),
+                    subtitle: L10n.t("SHOP_ITEM_DRAINAGE_POT_SUBTITLE"),
                     priceRange: "8,90 € - 29,90 €",
                     estimatedPrice: 18.90,
                     category: .accessory,
                     systemIcon: "circle.hexagongrid.fill",
-                    recommendation: "Suggéré par les infos de rempotage ou les routines du jardin.",
+                    recommendation: L10n.t("SHOP_REC_REPOT_SUPPORT"),
                     priority: 5
                 )
             )
@@ -1441,7 +1462,7 @@ struct GardenDetailsPage: View {
 
     private func gardenPlantShopItem(for group: GardenPlantPurchaseGroup) -> GardenShopItem {
         let plantDetail = cataloguePlant(for: group.plant)
-        let type = preferredTranslation(for: plantDetail)?.plantType ?? plantDetail?.type ?? "Plante du jardin"
+        let type = preferredTranslation(for: plantDetail)?.plantType ?? plantDetail?.type ?? L10n.t("SHOP_GARDEN_PLANT_FALLBACK")
         let price = estimatedPlantPrice(for: plantDetail, fallbackName: group.plant.plantName)
 
         return GardenShopItem(
@@ -1454,7 +1475,7 @@ struct GardenDetailsPage: View {
             systemIcon: "leaf.fill",
             sourcePlantId: group.plant.plantID,
             sourcePlantName: group.plant.plantName,
-            recommendation: group.count > 1 ? "\(group.count) exemplaires dans le plan" : "Déjà présent dans le jardin",
+            recommendation: group.count > 1 ? L10n.f("SHOP_REC_COPIES_IN_PLAN_FORMAT", group.count) : L10n.t("SHOP_REC_ALREADY_IN_GARDEN"),
             priority: 1
         )
     }
@@ -1462,7 +1483,7 @@ struct GardenDetailsPage: View {
     private func catalogShopItem(for plant: Plant, isRecommended: Bool) -> GardenShopItem {
         let translation = preferredTranslation(for: plant)
         let price = estimatedPlantPrice(for: plant, fallbackName: plant.name)
-        let subtitle = firstNonEmpty(translation?.plantType, plant.type) ?? "Plante du catalogue"
+        let subtitle = firstNonEmpty(translation?.plantType, plant.type) ?? L10n.t("SHOP_CATALOG_PLANT_FALLBACK")
 
         return GardenShopItem(
             id: "catalog-plant-\(plant.id)",
@@ -1474,7 +1495,7 @@ struct GardenDetailsPage: View {
             systemIcon: "leaf.fill",
             sourcePlantId: plant.id,
             sourcePlantName: plant.name,
-            recommendation: isRecommended ? "Compatible avec les critères du jardin" : "Disponible dans le catalogue",
+            recommendation: isRecommended ? L10n.t("SHOP_REC_COMPATIBLE_WITH_GARDEN") : L10n.t("SHOP_REC_AVAILABLE_IN_CATALOG"),
             priority: isRecommended ? 1 : 2
         )
     }
@@ -1499,7 +1520,7 @@ struct GardenDetailsPage: View {
 
         return GardenShopItem(
             id: "soil-\(plant.plantID)-\(normalizedForIdentifier(substrate))",
-            name: "Substrat pour \(plant.plantName)",
+            name: L10n.f("SHOP_ITEM_SUBSTRATE_FOR_FORMAT", plant.plantName),
             subtitle: subtitle,
             priceRange: "8,90 € - 18,90 €",
             estimatedPrice: 12.90,
@@ -1507,7 +1528,7 @@ struct GardenDetailsPage: View {
             systemIcon: "shippingbox.fill",
             sourcePlantId: plant.plantID,
             sourcePlantName: plant.plantName,
-            recommendation: "Basé sur la fiche sol de la plante.",
+            recommendation: L10n.t("SHOP_REC_BASED_ON_SOIL_INFO"),
             priority: 2
         )
     }
@@ -1602,7 +1623,7 @@ struct GardenDetailsPage: View {
             } catch {
                 await MainActor.run {
                     isLoadingPurchaseCatalog = false
-                    purchaseCatalogError = "Impossible de charger le catalogue pour l’instant."
+                    purchaseCatalogError = L10n.t("SHOP_CATALOG_LOAD_ERROR")
                 }
             }
         }
@@ -1722,7 +1743,7 @@ struct GardenDetailsPage: View {
             }
             onGardenRenamed?(newName)
         } catch {
-            renameError = "Impossible de renommer ce jardin."
+            renameError = L10n.t("GARDEN_RENAME_ERROR")
             print("❌ renameGarden failed:", error)
         }
 
@@ -1776,7 +1797,7 @@ struct GardenDetailsPage: View {
                 selectedTab = tab
             }
         } label: {
-            Text(tab.rawValue)
+            Text(tab.title)
                 .font(.system(size: 13, weight: tab == selectedTab ? .bold : .semibold))
                 .foregroundStyle(tab == selectedTab ? Color.white : ArboreDesign.Colors.textSecondary)
                 .lineLimit(1)
@@ -1812,13 +1833,13 @@ private struct PartnerHeroCard: View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.lg) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
-                    Text("Marketplace partenaire")
+                    Text(L10n.t("SHOP_PARTNER_MARKETPLACE"))
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(ArboreDesign.Colors.accentGold)
                         .textCase(.uppercase)
                         .tracking(0.8)
 
-                    Text("Trouvez les plantes et accessoires adaptés à votre jardin")
+                    Text(L10n.t("SHOP_PARTNER_TITLE"))
                         .font(.system(size: 23, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1834,7 +1855,7 @@ private struct PartnerHeroCard: View {
                     .clipShape(Circle())
             }
 
-            Text("Bientôt, les recommandations ouvriront directement le site de notre partenaire avec une sélection prête à acheter.")
+            Text(L10n.t("SHOP_PARTNER_SUBTITLE"))
                 .font(ArboreDesign.Typography.bodySmall)
                 .foregroundColor(.white.opacity(0.74))
                 .fixedSize(horizontal: false, vertical: true)
@@ -1842,7 +1863,7 @@ private struct PartnerHeroCard: View {
             Button {
             } label: {
                 HStack(spacing: ArboreDesign.Spacing.xs) {
-                    Text("Voir la sélection partenaire")
+                    Text(L10n.t("SHOP_PARTNER_CTA"))
                     Image(systemName: "arrow.up.right")
                         .font(.system(size: 13, weight: .bold))
                 }
@@ -1885,18 +1906,18 @@ private struct GardenShopHeroCard: View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.lg) {
             HStack(alignment: .top, spacing: ArboreDesign.Spacing.md) {
                 VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
-                    Text("Boutique du jardin")
+                    Text(L10n.t("SHOP_GARDEN_SHOP_TITLE"))
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(ArboreDesign.Colors.accentGold)
                         .textCase(.uppercase)
                         .tracking(0.8)
 
-                    Text(gardenName)
+                    Text(L10n.displayGardenName(gardenName))
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("Plantes, terreaux et outils recommandés à partir de ce qui est réellement placé dans votre jardin.")
+                    Text(L10n.t("SHOP_GARDEN_SHOP_SUBTITLE"))
                         .font(ArboreDesign.Typography.bodySmall)
                         .foregroundColor(.white.opacity(0.74))
                         .fixedSize(horizontal: false, vertical: true)
@@ -1913,9 +1934,9 @@ private struct GardenShopHeroCard: View {
             }
 
             HStack(spacing: ArboreDesign.Spacing.sm) {
-                GardenShopMetricPill(systemImage: "leaf.fill", title: "Plantes", value: "\(plantCount)")
-                GardenShopMetricPill(systemImage: "cart.fill", title: "Panier", value: "\(cartCount)")
-                GardenShopMetricPill(systemImage: "creditcard.fill", title: "Total", value: total)
+                GardenShopMetricPill(systemImage: "leaf.fill", title: L10n.t("SHOP_CATEGORY_PLANTS"), value: "\(plantCount)")
+                GardenShopMetricPill(systemImage: "cart.fill", title: L10n.t("SHOP_CART"), value: "\(cartCount)")
+                GardenShopMetricPill(systemImage: "creditcard.fill", title: L10n.t("SHOP_TOTAL"), value: total)
             }
         }
         .padding(ArboreDesign.Spacing.lg)
@@ -1990,12 +2011,12 @@ private struct GardenMeasurementPromptCard: View {
                 SettingsIconBadge(systemImage: "ruler.fill", tint: ArboreDesign.Colors.primaryGreen, size: 56)
 
                 VStack(spacing: ArboreDesign.Spacing.xs) {
-                    Text("Mesurer votre espace")
+                    Text(L10n.t("GARDEN_MEASURE_SPACE_TITLE"))
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
 
-                    Text("Délimitez les contours de votre jardin pour générer le plan 2D et afficher les bonnes dimensions.")
+                    Text(L10n.t("GARDEN_MEASURE_SPACE_SUBTITLE"))
                         .font(ArboreDesign.Typography.bodySmall)
                         .foregroundColor(Color.white.opacity(0.72))
                         .multilineTextAlignment(.center)
@@ -2006,7 +2027,7 @@ private struct GardenMeasurementPromptCard: View {
                 Button(action: onMeasure) {
                     HStack(spacing: ArboreDesign.Spacing.xs) {
                         Image(systemName: "camera.viewfinder")
-                        Text("Mesurer l’espace")
+                        Text(L10n.t("GARDEN_MEASURE_SPACE_CTA"))
                     }
                     .font(ArboreDesign.Typography.button)
                     .foregroundStyle(Color.white)
@@ -2035,12 +2056,12 @@ private struct GardenCartSummaryCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
             HStack(alignment: .center) {
-                SectionTitle(title: "Panier")
+                SectionTitle(title: L10n.t("SHOP_CART"))
 
                 Spacer()
 
                 Button(action: onClear) {
-                    Text("Vider")
+                    Text(L10n.t("COMMON_CLEAR"))
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(ArboreDesign.Colors.textSecondary)
                         .padding(.horizontal, ArboreDesign.Spacing.sm)
@@ -2066,7 +2087,7 @@ private struct GardenCartSummaryCard: View {
                         .background(ArboreDesign.Colors.border)
 
                     HStack {
-                        Text("Total estimé")
+                        Text(L10n.t("SHOP_ESTIMATED_TOTAL"))
                             .font(ArboreDesign.Typography.body)
                             .foregroundColor(ArboreDesign.Colors.textPrimary)
 
@@ -2080,7 +2101,7 @@ private struct GardenCartSummaryCard: View {
                     Button(action: onCheckout) {
                         HStack(spacing: ArboreDesign.Spacing.xs) {
                             Image(systemName: "bag.fill")
-                            Text("Préparer la commande")
+                            Text(L10n.t("SHOP_PREPARE_ORDER"))
                         }
                         .font(ArboreDesign.Typography.button)
                         .foregroundColor(Color.white)
@@ -2238,7 +2259,7 @@ private struct GardenShopRecommendationRow: View {
             item: item,
             quantityText: item.recommendation ?? item.category.title,
             cartQuantity: cartQuantity,
-            actionTitle: "Ajouter",
+            actionTitle: L10n.t("COMMON_ADD"),
             onAdd: onAdd
         )
     }
@@ -2253,7 +2274,7 @@ private struct PurchaseSearchBar: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(ArboreDesign.Colors.textSecondary)
 
-            TextField("Rechercher une plante du catalogue", text: $text)
+            TextField(L10n.t("SHOP_SEARCH_PLACEHOLDER"), text: $text)
                 .font(ArboreDesign.Typography.body)
                 .foregroundColor(ArboreDesign.Colors.textPrimary)
                 .textInputAutocapitalization(.never)
@@ -2293,7 +2314,7 @@ private struct PurchaseCatalogErrorCard: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 Button(action: onRetry) {
-                    Text("Réessayer")
+                    Text(L10n.t("COMMON_RETRY"))
                         .font(.system(size: 12, weight: .bold))
                         .foregroundColor(ArboreDesign.Colors.primaryGreen)
                 }
@@ -2320,11 +2341,11 @@ private struct GardenShopTrustCard: View {
                     SettingsIconBadge(systemImage: "checkmark.seal.fill", tint: ArboreDesign.Colors.success, size: 40)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Liste liée au jardin")
+                        Text(L10n.t("SHOP_LINKED_LIST_TITLE"))
                             .font(ArboreDesign.Typography.cardTitle)
                             .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                        Text("Le panier reste sauvegardé pour ce jardin. Les prix affichés sont des estimations pour préparer une vraie liste d’achat avant redirection partenaire.")
+                        Text(L10n.t("SHOP_LINKED_LIST_SUBTITLE"))
                             .font(ArboreDesign.Typography.bodySmall)
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -2335,8 +2356,8 @@ private struct GardenShopTrustCard: View {
                     .background(ArboreDesign.Colors.border)
 
                 HStack(spacing: ArboreDesign.Spacing.sm) {
-                    PartnerTrustPill(systemImage: "leaf.fill", text: "Plantes du plan")
-                    PartnerTrustPill(systemImage: "sparkles", text: "Recommandations Arbore")
+                    PartnerTrustPill(systemImage: "leaf.fill", text: L10n.t("SHOP_PLAN_PLANTS"))
+                    PartnerTrustPill(systemImage: "sparkles", text: L10n.t("SHOP_ARBORE_RECOMMENDATIONS"))
                 }
             }
         }
@@ -2389,11 +2410,11 @@ private struct PartnerTrustCard: View {
                     SettingsIconBadge(systemImage: "checkmark.seal.fill", tint: ArboreDesign.Colors.success, size: 40)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Sélection pensée pour votre jardin")
+                        Text(L10n.t("SHOP_CURATED_SELECTION_TITLE"))
                             .font(ArboreDesign.Typography.cardTitle)
                             .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                        Text("Les produits affichés ici seront reliés à votre plan, vos plantes et vos besoins d’entretien.")
+                        Text(L10n.t("SHOP_CURATED_SELECTION_SUBTITLE"))
                             .font(ArboreDesign.Typography.bodySmall)
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -2404,8 +2425,8 @@ private struct PartnerTrustCard: View {
                     .background(ArboreDesign.Colors.border)
 
                 HStack(spacing: ArboreDesign.Spacing.sm) {
-                    PartnerTrustPill(systemImage: "lock.fill", text: "Redirection sécurisée")
-                    PartnerTrustPill(systemImage: "sparkles", text: "Recommandations Arbore")
+                    PartnerTrustPill(systemImage: "lock.fill", text: L10n.t("SHOP_SECURE_REDIRECT"))
+                    PartnerTrustPill(systemImage: "sparkles", text: L10n.t("SHOP_ARBORE_RECOMMENDATIONS"))
                 }
             }
         }
@@ -2479,25 +2500,25 @@ private struct GardenStatsGrid: View {
         LazyVGrid(columns: columns, spacing: ArboreDesign.Spacing.sm) {
             GardenDarkStatCard(
                 systemImage: "square.dashed",
-                title: "Surface",
+                title: L10n.t("GARDEN_STAT_SURFACE"),
                 value: area > 0 ? "\(String(format: "%.2f", area)) m²" : "—"
             )
 
             GardenDarkStatCard(
                 systemImage: "arrow.triangle.turn.up.right.diamond",
-                title: "Périmètre",
+                title: L10n.t("GARDEN_STAT_PERIMETER"),
                 value: perimeter > 0 ? "\(String(format: "%.2f", perimeter)) m" : "—"
             )
 
             GardenDarkStatCard(
                 systemImage: "leaf.fill",
-                title: "Plantes",
+                title: L10n.t("SHOP_CATEGORY_PLANTS"),
                 value: "\(plantCount)"
             )
 
             GardenDarkStatCard(
                 systemImage: "checklist",
-                title: "À faire",
+                title: L10n.t("GARDEN_STAT_TODO"),
                 value: "\(taskCount)"
             )
         }
@@ -2620,7 +2641,7 @@ private struct CareMonthCalendar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
-            SectionTitle(title: "Calendrier d’entretien")
+            SectionTitle(title: L10n.t("CARE_CALENDAR_SECTION"))
 
             AppCard {
                 VStack(spacing: ArboreDesign.Spacing.md) {
@@ -2634,7 +2655,7 @@ private struct CareMonthCalendar: View {
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Mois précédent")
+                        .accessibilityLabel(L10n.t("CARE_PREVIOUS_MONTH"))
 
                         Text(monthTitle)
                             .font(.system(size: 17, weight: .bold, design: .rounded))
@@ -2650,14 +2671,14 @@ private struct CareMonthCalendar: View {
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Mois suivant")
+                        .accessibilityLabel(L10n.t("CARE_NEXT_MONTH"))
                     }
 
                     Button(action: jumpToToday) {
                         HStack(spacing: 6) {
                             Image(systemName: "calendar")
                                 .font(.system(size: 11, weight: .bold))
-                            Text("Aujourd’hui")
+                            Text(L10n.t("CARE_STATUS_TODAY"))
                                 .font(.system(size: 12, weight: .bold))
                         }
                         .foregroundColor(ArboreDesign.Colors.primaryGreen)
@@ -2718,7 +2739,7 @@ private struct CareMonthCalendar: View {
             .opacity(isCurrentMonth ? 1 : 0.55)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(calendar.component(.day, from: date)) \(dayItems.count) action\(dayItems.count > 1 ? "s" : "")")
+        .accessibilityLabel(L10n.f("CARE_DAY_ACTIONS_ACCESSIBILITY_FORMAT", calendar.component(.day, from: date), dayItems.count))
     }
 
     private var monthTitle: String {
@@ -2826,7 +2847,7 @@ private struct CareCalendarAgendaRow: View {
                     .buttonStyle(.plain)
 
                     Button(action: onSkip) {
-                        Text("Reporter")
+                        Text(L10n.t("CARE_DEFER"))
                             .font(.system(size: 12, weight: .bold))
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
                             .padding(.horizontal, ArboreDesign.Spacing.sm)
@@ -2898,7 +2919,7 @@ private struct CareTaskCard: View {
                         .buttonStyle(.plain)
 
                         Button(action: onSkip) {
-                            Text("Reporter")
+                            Text(L10n.t("CARE_DEFER"))
                                 .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(ArboreDesign.Colors.textSecondary)
                                 .padding(.horizontal, ArboreDesign.Spacing.md)
@@ -2927,11 +2948,11 @@ private struct CareEmptyRoutineCard: View {
                     SettingsIconBadge(systemImage: "calendar.badge.plus", tint: ArboreDesign.Colors.primaryGreen, size: 44)
 
                     VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
-                        Text("Aucune routine active")
+                        Text(L10n.t("CARE_NO_ACTIVE_ROUTINE"))
                             .font(ArboreDesign.Typography.cardTitle)
                             .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                        Text("Commencez par \(plantName). Vous pouvez planifier l’arrosage, la taille, le nettoyage, l’engrais ou une action personnalisée.")
+                        Text(L10n.f("CARE_EMPTY_ROUTINE_FORMAT", plantName))
                             .font(ArboreDesign.Typography.bodySmall)
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -2941,7 +2962,7 @@ private struct CareEmptyRoutineCard: View {
                 Button(action: onCreate) {
                     HStack(spacing: ArboreDesign.Spacing.xs) {
                         Image(systemName: "calendar.badge.plus")
-                        Text("Planifier une action")
+                        Text(L10n.t("CARE_PLAN_ACTION"))
                     }
                     .font(ArboreDesign.Typography.button)
                     .foregroundColor(Color.white)
@@ -2967,7 +2988,7 @@ private struct CareWeekTimeline: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
-            SectionTitle(title: "Calendrier d’entretien")
+            SectionTitle(title: L10n.t("CARE_CALENDAR_SECTION"))
 
             AppCard {
                 HStack(spacing: ArboreDesign.Spacing.xs) {
@@ -3101,7 +3122,7 @@ private struct CareRoutineSetupRow: View {
                 HStack(spacing: 5) {
                     Image(systemName: "plus")
                         .font(.system(size: 10, weight: .bold))
-                    Text("Planifier")
+                    Text(L10n.t("CARE_PLAN"))
                         .font(.system(size: 12, weight: .bold))
                 }
                 .foregroundColor(ArboreDesign.Colors.primaryGreen)
@@ -3161,7 +3182,7 @@ private struct CareRecommendationCard: View {
                 SettingsIconBadge(systemImage: "sparkles", tint: ArboreDesign.Colors.accentGold, size: 44)
 
                 VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
-                    Text("Conseil du jour")
+                    Text(L10n.t("CARE_TIP_OF_DAY"))
                         .font(ArboreDesign.Typography.cardTitle)
                         .foregroundColor(ArboreDesign.Colors.textPrimary)
 
@@ -4173,13 +4194,13 @@ struct PlantMinimapDetailPanel: View {
                             if let water = translation?.water?.frequency {
                                 MiniPill(icon: "drop.fill", text: water, color: Color(hex: "#8FB7C9"))
                             }
-                            MiniPill(icon: "checkmark.seal.fill", text: "En bonne santé", color: accent)
+                            MiniPill(icon: "checkmark.seal.fill", text: L10n.t("CARE_HEALTHY_STATUS"), color: accent)
                         }
 
                         Button {
                         } label: {
                             HStack(spacing: 6) {
-                                Text("Voir détails")
+                                Text(L10n.t("COMMON_SEE_DETAILS"))
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 9, weight: .bold))
                             }

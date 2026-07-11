@@ -21,17 +21,17 @@ struct DataExportView: View {
             )
 
             SettingsSectionCard(
-                title: "Your export will include:",
+                title: L10n.t("DATA_EXPORT_INCLUDE_TITLE"),
                 systemImage: "doc.zipper"
             ) {
                 VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
-                    ExportInfoRow(icon: "person", text: "Account information (name, email)")
+                    ExportInfoRow(icon: "person", text: L10n.t("DATA_EXPORT_INCLUDE_ACCOUNT"))
                     SettingsDivider()
-                    ExportInfoRow(icon: "leaf", text: "All your gardens and plants")
+                    ExportInfoRow(icon: "leaf", text: L10n.t("DATA_EXPORT_INCLUDE_GARDENS"))
                     SettingsDivider()
-                    ExportInfoRow(icon: "checkmark.shield", text: "Privacy consent history")
+                    ExportInfoRow(icon: "checkmark.shield", text: L10n.t("DATA_EXPORT_INCLUDE_PRIVACY"))
                     SettingsDivider()
-                    ExportInfoRow(icon: "calendar.badge.clock", text: "Timestamps and metadata")
+                    ExportInfoRow(icon: "calendar.badge.clock", text: L10n.t("DATA_EXPORT_INCLUDE_METADATA"))
                 }
             }
 
@@ -44,12 +44,12 @@ struct DataExportView: View {
                             size: 56
                         )
 
-                        Text("Export successful!")
+                        Text(L10n.t("DATA_EXPORT_SUCCESS"))
                             .font(ArboreDesign.Typography.cardTitle)
                             .foregroundColor(ArboreDesign.Colors.textPrimary)
 
                         ShareLink(item: fileURL) {
-                            Label("Share / Save file", systemImage: "square.and.arrow.up")
+                            Label(L10n.t("DATA_EXPORT_SHARE_FILE"), systemImage: "square.and.arrow.up")
                         }
                         .buttonStyle(.arboreSecondary)
                     }
@@ -74,14 +74,14 @@ struct DataExportView: View {
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     } else {
                         Image(systemName: "square.and.arrow.down")
-                        Text(exportSuccess ? "Export Again" : "Download My Data")
+                        Text(exportSuccess ? L10n.t("DATA_EXPORT_AGAIN") : L10n.t("DATA_EXPORT_DOWNLOAD"))
                     }
                 }
             }
             .disabled(isExporting)
             .buttonStyle(AppButtonStyle(variant: .primary, isEnabled: !isExporting))
 
-            Text("This feature is part of your GDPR rights (Article 20 - Data Portability)")
+            Text(L10n.t("DATA_EXPORT_GDPR_NOTE"))
                 .font(ArboreDesign.Typography.caption)
                 .foregroundColor(ArboreDesign.Colors.textMuted)
                 .multilineTextAlignment(.center)
@@ -95,7 +95,7 @@ struct DataExportView: View {
         exportSuccess = false
 
         guard let token = await getFirebaseToken() else {
-            exportError = "Failed to get authentication token"
+            exportError = L10n.t("DATA_EXPORT_TOKEN_ERROR")
             isExporting = false
             return
         }
@@ -103,7 +103,7 @@ struct DataExportView: View {
         let endpoint = "\(AppConfig.baseURL)/users/export"
 
         guard let url = URL(string: endpoint) else {
-            exportError = "Invalid URL"
+            exportError = L10n.t("DATA_EXPORT_INVALID_URL")
             isExporting = false
             return
         }

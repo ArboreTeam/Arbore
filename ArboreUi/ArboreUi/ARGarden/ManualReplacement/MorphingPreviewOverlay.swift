@@ -87,7 +87,7 @@ struct MorphingPreviewHintBanner: View {
                 }
             }
             if extra > 0 {
-                Text("+ \(extra) autre\(extra > 1 ? "s" : "")")
+                Text(L10n.f("AR_MORPHING_EXTRA_COUNT_FORMAT", extra))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.white.opacity(0.6))
             }

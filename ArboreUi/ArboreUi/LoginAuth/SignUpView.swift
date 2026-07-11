@@ -50,7 +50,7 @@ struct SignUpView: View {
                             .font(.system(size: 42, weight: .bold, design: .rounded))
                             .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                        Text("Grow with harmony")
+                        Text(L10n.t("AUTH_TAGLINE"))
                             .font(.system(size: 18, weight: .medium, design: .rounded))
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
                     }
@@ -59,7 +59,7 @@ struct SignUpView: View {
                         TextField("", text: $firstName)
                             .focused($focusedField, equals: .name)
                             .placeholder(when: firstName.isEmpty) {
-                                Text("First Name").foregroundColor(ArboreDesign.Colors.placeholder)
+                                Text(L10n.t("AUTH_FIRST_NAME")).foregroundColor(ArboreDesign.Colors.placeholder)
                             }
                             .foregroundColor(ArboreDesign.Colors.textPrimary)
                             .padding()
@@ -76,7 +76,7 @@ struct SignUpView: View {
                         TextField("", text: $lastName)
                             .focused($focusedField, equals: .name)
                             .placeholder(when: lastName.isEmpty) {
-                                Text("Last Name").foregroundColor(ArboreDesign.Colors.placeholder)
+                                Text(L10n.t("AUTH_LAST_NAME")).foregroundColor(ArboreDesign.Colors.placeholder)
                             }
                             .foregroundColor(ArboreDesign.Colors.textPrimary)
                             .padding()
@@ -93,7 +93,7 @@ struct SignUpView: View {
                         TextField("", text: $email)
                             .focused($focusedField, equals: .email)
                             .placeholder(when: email.isEmpty) {
-                                Text("Email").foregroundColor(ArboreDesign.Colors.placeholder)
+                                Text(L10n.t("AUTH_EMAIL")).foregroundColor(ArboreDesign.Colors.placeholder)
                             }
                             .foregroundColor(ArboreDesign.Colors.textPrimary)
                             .padding()
@@ -113,14 +113,14 @@ struct SignUpView: View {
                                     TextField("", text: $password)
                                         .focused($focusedField, equals: .password)
                                         .placeholder(when: password.isEmpty) {
-                                            Text("Password").foregroundColor(ArboreDesign.Colors.placeholder)
+                                            Text(L10n.t("AUTH_PASSWORD")).foregroundColor(ArboreDesign.Colors.placeholder)
                                         }
                                         .submitLabel(.go)
                                 } else {
                                     SecureField("", text: $password)
                                         .focused($focusedField, equals: .password)
                                         .placeholder(when: password.isEmpty) {
-                                            Text("Password").foregroundColor(ArboreDesign.Colors.placeholder)
+                                            Text(L10n.t("AUTH_PASSWORD")).foregroundColor(ArboreDesign.Colors.placeholder)
                                         }
                                         .submitLabel(.go)
                                 }
@@ -149,7 +149,7 @@ struct SignUpView: View {
                     .padding(.horizontal, 30)
 
                     Button(action: registerUser) {
-                        Text("Sign Up")
+                        Text(L10n.t("AUTH_SIGN_UP"))
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)
@@ -207,7 +207,7 @@ struct SignUpView: View {
 
                     HStack {
                         Rectangle().fill(ArboreDesign.Colors.border).frame(height: 1)
-                        Text("or")
+                        Text(L10n.t("AUTH_OR"))
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
                             .padding(.horizontal)
                         Rectangle().fill(ArboreDesign.Colors.border).frame(height: 1)
@@ -226,7 +226,7 @@ struct SignUpView: View {
                                 Image("google")
                                     .resizable()
                                     .frame(width: 18, height: 18)
-                                Text("Continue with Google")
+                                Text(L10n.t("AUTH_CONTINUE_GOOGLE"))
                                     .fontWeight(.medium)
                             }
                             .padding()
@@ -240,13 +240,13 @@ struct SignUpView: View {
                     }
 
                     HStack {
-                        Text("Already have an account?")
+                        Text(L10n.t("AUTH_HAVE_ACCOUNT"))
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
 
                         Button(action: {
                             dismiss()
                         }) {
-                            Text("Log in")
+                            Text(L10n.t("AUTH_LOGIN"))
                                 .fontWeight(.semibold)
                                 .foregroundColor(ArboreDesign.Colors.primaryGreen)
                         }
@@ -303,7 +303,7 @@ struct SignUpView: View {
 
             guard let user = result?.user else {
                 DispatchQueue.main.async {
-                    self.signUpError = "Unexpected error."
+                    self.signUpError = L10n.t("AUTH_UNEXPECTED_ERROR")
                 }
                 return
             }
@@ -373,14 +373,14 @@ struct SignUpView: View {
         Auth.auth().signIn(withEmail: email, password: password) { result, error in
             if error != nil {
                 DispatchQueue.main.async {
-                    self.signUpError = "This email already has an account. Log in or reset your password."
+                    self.signUpError = L10n.t("AUTH_EMAIL_ALREADY_ACCOUNT")
                 }
                 return
             }
 
             guard let user = result?.user else {
                 DispatchQueue.main.async {
-                    self.signUpError = "Unable to access this account. Please try logging in."
+                    self.signUpError = L10n.t("AUTH_UNABLE_ACCESS_ACCOUNT")
                 }
                 return
             }
@@ -388,7 +388,7 @@ struct SignUpView: View {
             if user.isEmailVerified {
                 try? Auth.auth().signOut()
                 DispatchQueue.main.async {
-                    self.signUpError = "This email is already verified. Please log in."
+                    self.signUpError = L10n.t("AUTH_EMAIL_ALREADY_VERIFIED")
                 }
                 return
             }
@@ -410,9 +410,9 @@ struct SignUpView: View {
 
     private func verificationEmailErrorMessage(for error: Error) -> String {
         if AuthErrorCode(rawValue: (error as NSError).code) == .tooManyRequests {
-            return "Too many verification requests from this device. Please wait before trying again."
+            return L10n.t("AUTH_VERIFY_TOO_MANY")
         }
 
-        return "Failed to send verification email: \(error.localizedDescription)"
+        return L10n.f("AUTH_VERIFY_SEND_FAILED_FORMAT", error.localizedDescription)
     }
 }

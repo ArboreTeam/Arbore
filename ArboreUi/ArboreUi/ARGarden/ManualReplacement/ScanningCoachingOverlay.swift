@@ -38,10 +38,10 @@ struct ScanningCoachingOverlay: View {
                         .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: pulse)
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Scannez votre jardin")
+                        Text(L10n.t("AR_MANUAL_SCAN_TITLE"))
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundStyle(.white)
-                        Text("Bougez votre téléphone autour de la pièce")
+                        Text(L10n.t("AR_MANUAL_SCAN_SUBTITLE"))
                             .font(.system(size: 12))
                             .foregroundStyle(.white.opacity(0.7))
                     }
@@ -65,7 +65,7 @@ struct ScanningCoachingOverlay: View {
                     HStack(spacing: 10) {
                         Image(systemName: "rectangle.dashed.and.paperclip")
                             .font(.system(size: 15, weight: .semibold))
-                        Text("Replacer manuellement")
+                        Text(L10n.t("AR_MANUAL_REPLACE"))
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                     }
                     .foregroundStyle(.white)

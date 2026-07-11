@@ -259,7 +259,7 @@ struct ARViewWrapper: View {
                 Spacer()
                 
                 // Instruction text
-                Text("Scannez le sol pour placer la plante automatiquement\n(Vous pouvez la déplacer en touchant un autre endroit)")
+                Text(L10n.t("AR_CAMERA_SCAN_FLOOR_HINT"))
                     .font(.caption)
                     .multilineTextAlignment(.center)
                     .padding(8)
@@ -273,7 +273,7 @@ struct ARViewWrapper: View {
                 }) {
                     HStack {
                         Image(systemName: "camera.fill").font(.title)
-                        Text("Prendre une photo").fontWeight(.bold)
+                        Text(L10n.t("AR_CAMERA_TAKE_PHOTO")).fontWeight(.bold)
                     }
                     .padding()
                     .background(Color.white.opacity(0.8))
@@ -322,7 +322,7 @@ struct ARPage: View {
                     // Contenu Carte
                     VStack(spacing: 20) {
                         Spacer(minLength: 40)
-                        Text("Bonjour, \(userName) \u{1F44B}")
+                        Text(L10n.f("AR_CAMERA_GREETING_FORMAT", userName))
                             .font(.title2)
                             .fontWeight(.medium)
                             .foregroundColor(.primary)
@@ -333,12 +333,12 @@ struct ARPage: View {
                             .frame(width: 60, height: 60)
                             .foregroundColor(.green)
 
-                        Text("AR Experience")
+                        Text(L10n.t("AR_CAMERA_EXPERIENCE_TITLE"))
                             .font(.largeTitle)
                             .fontWeight(.bold)
                             .foregroundColor(.primary)
 
-                        Text("Découvrez cet arbre en réalité augmentée")
+                        Text(L10n.t("AR_CAMERA_EXPERIENCE_SUBTITLE"))
                             .font(.body)
                             .multilineTextAlignment(.center)
                             .foregroundColor(.secondary)
@@ -349,7 +349,7 @@ struct ARPage: View {
                         NavigationLink(destination: destinationView()) {
                             HStack {
                                 Image(systemName: "camera.viewfinder")
-                                Text("Lancer l'AR")
+                                Text(L10n.t("AR_CAMERA_START_AR"))
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -361,18 +361,18 @@ struct ARPage: View {
 
                         // Indicateur de compatibilité
                         if ARWorldTrackingConfiguration.isSupported {
-                            Text("AR Ready")
+                            Text(L10n.t("AR_CAMERA_READY"))
                                 .foregroundColor(.green)
                                 .font(.caption)
                         } else {
-                            Text("AR Not Supported")
+                            Text(L10n.t("AR_CAMERA_NOT_SUPPORTED"))
                                 .foregroundColor(.red)
                                 .font(.caption)
                         }
 
                         // Bouton Déconnexion
                         Button(action: { logout() }) {
-                            Text("Déconnexion")
+                            Text(L10n.t("AUTH_LOGOUT"))
                                 .fontWeight(.bold)
                                 .frame(width: 140, height: 40)
                                 .background(
@@ -445,9 +445,9 @@ struct ARPage: View {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.largeTitle)
                     .foregroundColor(.orange)
-                Text("Aucun modèle 3D trouvé.")
+                Text(L10n.t("AR_CAMERA_NO_MODEL"))
                     .padding()
-                Text("Fichier cherché : \(plant.modelURL ?? "inconnu")")
+                Text(L10n.f("AR_CAMERA_FILE_LOOKED_FOR_FORMAT", plant.modelURL ?? L10n.t("COMMON_UNKNOWN")))
                     .font(.caption)
                     .foregroundColor(.gray)
             }

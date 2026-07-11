@@ -11,12 +11,12 @@ struct AdjustingHintBanner: View {
                 Image(systemName: "hand.tap.fill")
                     .font(.system(size: 14))
                     .foregroundStyle(.white.opacity(0.85))
-                Text("Ajustez les plantes si besoin")
+                Text(L10n.t("AR_ADJUST_PLANTS_TITLE"))
                     .font(.system(size: 13, weight: .medium, design: .rounded))
                     .foregroundStyle(.white)
                 Spacer()
             }
-            Text("Visez une plante avec le réticule et tapez pour la sélectionner. Glissez ou tapez la nouvelle position pour la déplacer.")
+            Text(L10n.t("AR_ADJUST_PLANTS_SUBTITLE"))
                 .font(.system(size: 11, weight: .regular, design: .rounded))
                 .foregroundStyle(.white.opacity(0.75))
                 .fixedSize(horizontal: false, vertical: true)
@@ -44,13 +44,13 @@ struct AdjustingActionButtons: View {
     var body: some View {
         HStack(spacing: 10) {
             actionButton(
-                title: "Annuler ajustements",
+                title: L10n.t("AR_ADJUST_CANCEL"),
                 icon: "arrow.uturn.backward",
                 tint: .gray.opacity(0.85),
                 action: onRevert
             )
             actionButton(
-                title: "Valider et sauvegarder",
+                title: L10n.t("AR_ADJUST_VALIDATE_SAVE"),
                 icon: "checkmark.seal.fill",
                 tint: Color(hex: "#2BEE79"),
                 action: onValidate

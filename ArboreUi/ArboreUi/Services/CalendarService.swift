@@ -101,14 +101,14 @@ final class CalendarService {
     ) throws -> String {
         var eventNotes: [String] = []
         if !amount.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            eventNotes.append("💧 Quantité : \(amount)")
+            eventNotes.append("💧 \(L10n.f("CALENDAR_AMOUNT_NOTE_FORMAT", amount))")
         }
         if !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             eventNotes.append("📝 \(notes)")
         }
 
         return try createRoutineEvent(
-            title: "💧 Arroser \(plantName)",
+            title: "💧 \(L10n.f("CALENDAR_WATER_TITLE_FORMAT", plantName))",
             frequency: frequency,
             customDays: customDays,
             reminderTime: reminderTime,
@@ -131,14 +131,14 @@ final class CalendarService {
     ) throws -> String {
         var eventNotes: [String] = []
         if !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            eventNotes.append("📌 \(detailLabel) : \(detail)")
+            eventNotes.append("📌 \(L10n.f("CALENDAR_DETAIL_NOTE_FORMAT", detailLabel, detail))")
         }
         if !notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             eventNotes.append("📝 \(notes)")
         }
 
         return try createRoutineEvent(
-            title: "🌱 \(actionTitle) - \(plantName)",
+            title: "🌱 \(L10n.f("CALENDAR_CARE_TITLE_FORMAT", actionTitle, plantName))",
             frequency: frequency,
             customDays: customDays,
             reminderTime: reminderTime,
@@ -178,7 +178,7 @@ final class CalendarService {
         event.endDate = cal.date(byAdding: .minute, value: 30, to: startDate)
 
         var eventNotes = notes
-        eventNotes.append("\n🌱 Créé par Arbore")
+        eventNotes.append("\n🌱 \(L10n.t("CALENDAR_CREATED_BY_ARBORE"))")
         event.notes = eventNotes.joined(separator: "\n")
 
         // Alarme 15 min avant

@@ -41,7 +41,7 @@ struct ReAuthView: View {
                 }
 
                 if isLoading {
-                    ProgressView("Reauthenticating...")
+                    ProgressView(L10n.t("AUTH_REAUTH_LOADING"))
                         .progressViewStyle(CircularProgressViewStyle())
                         .scaleEffect(1.5)
                 } else {
@@ -58,11 +58,11 @@ struct ReAuthView: View {
                             }
 
                             VStack(spacing: 8) {
-                                Text("Re-authenticate")
+                                Text(L10n.t("AUTH_REAUTH_TITLE"))
                                     .font(.system(size: 42, weight: .bold, design: .serif))
                                     .foregroundColor(Color(hex: "#2D3E30"))
 
-                                Text("For security reasons, please confirm your identity by entering your login information again. If you registered using Google or Apple, please use the same option below.")
+                                Text(L10n.t("AUTH_REAUTH_SUBTITLE"))
                                     .font(.system(size: 16))
                                     .foregroundColor(.gray)
                                     .multilineTextAlignment(.center)
@@ -76,7 +76,7 @@ struct ReAuthView: View {
                             .padding(.horizontal, 30)
 
                             Button(action: reauthenticate) {
-                                Text("Confirm Deletion")
+                                Text(L10n.t("AUTH_CONFIRM_DELETION"))
                                     .fontWeight(.semibold)
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity)
@@ -102,7 +102,7 @@ struct ReAuthView: View {
                                         Image("google")
                                             .resizable()
                                             .frame(width: 18, height: 18)
-                                        Text("Continue with Google")
+                                        Text(L10n.t("AUTH_CONTINUE_GOOGLE"))
                                             .fontWeight(.medium)
                                     }
                                     .padding()
@@ -133,7 +133,7 @@ struct ReAuthView: View {
     var emailField: some View {
         TextField("", text: $email)
             .placeholder(when: email.isEmpty) {
-                Text("Email").foregroundColor(.gray)
+                Text(L10n.t("AUTH_EMAIL")).foregroundColor(.gray)
             }
             .focused($focusedField, equals: .email)
             .foregroundColor(.black)
@@ -152,13 +152,13 @@ struct ReAuthView: View {
                 if isPasswordVisible {
                     TextField("", text: $password)
                         .placeholder(when: password.isEmpty) {
-                            Text("Password").foregroundColor(.gray)
+                            Text(L10n.t("AUTH_PASSWORD")).foregroundColor(.gray)
                         }
                         .focused($focusedField, equals: .password)
                 } else {
                     SecureField("", text: $password)
                         .placeholder(when: password.isEmpty) {
-                            Text("Password").foregroundColor(.gray)
+                            Text(L10n.t("AUTH_PASSWORD")).foregroundColor(.gray)
                         }
                         .focused($focusedField, equals: .password)
                 }
@@ -183,7 +183,7 @@ struct ReAuthView: View {
 
     func reauthenticate() {
         guard let user = Auth.auth().currentUser else {
-            errorMessage = "User not logged in."
+            errorMessage = L10n.t("AUTH_USER_NOT_LOGGED_IN")
             return
         }
 
@@ -196,7 +196,7 @@ struct ReAuthView: View {
             DispatchQueue.main.async {
                 isLoading = false
                 if let error = error {
-                    errorMessage = "Incorrect email or password."
+                    errorMessage = L10n.t("AUTH_ERROR_INVALID_CREDENTIALS")
                     print("❌ Re-auth error: \(error.localizedDescription)")
                     return
                 }
@@ -213,7 +213,7 @@ struct ReAuthView: View {
                     // Re-auth succeeded — let CloseAccountView handle deletion
                     onSuccess()
                 } else {
-                    errorMessage = "Google re-authentication failed."
+                    errorMessage = L10n.t("AUTH_GOOGLE_REAUTH_FAILED")
                 }
             }
         }

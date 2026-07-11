@@ -20,7 +20,7 @@ enum GardenRoutinePlanningKind: Hashable, Identifiable {
     var displayName: String {
         switch self {
         case .watering:
-            return "Arroser"
+            return L10n.t("ROUTINE_ACTION_WATERING")
         case .care(let kind):
             return kind.displayName
         }
@@ -29,25 +29,25 @@ enum GardenRoutinePlanningKind: Hashable, Identifiable {
     var subtitle: String {
         switch self {
         case .watering:
-            return "Planifiez une routine d’arrosage régulière."
+            return L10n.t("ROUTINE_ACTION_WATERING_SUBTITLE")
         case .care(let kind):
             switch kind {
             case .pruneLeaves:
-                return "Programmez la taille des feuilles abîmées."
+                return L10n.t("ROUTINE_ACTION_PRUNE_SUBTITLE")
             case .cleanLeaves:
-                return "Gardez les feuilles propres et respirantes."
+                return L10n.t("ROUTINE_ACTION_CLEAN_SUBTITLE")
             case .fertilize:
-                return "Ajoutez un rappel pour l’apport d’engrais."
+                return L10n.t("ROUTINE_ACTION_FERTILIZE_SUBTITLE")
             case .repot:
-                return "Anticipez le rempotage et le substrat."
+                return L10n.t("ROUTINE_ACTION_REPOT_SUBTITLE")
             case .pestCheck:
-                return "Surveillez les signes de parasites."
+                return L10n.t("ROUTINE_ACTION_PEST_SUBTITLE")
             case .rotatePot:
-                return "Tournez la plante pour équilibrer la lumière."
+                return L10n.t("ROUTINE_ACTION_ROTATE_SUBTITLE")
             case .soilCheck:
-                return "Vérifiez l’état du sol et l’humidité."
+                return L10n.t("ROUTINE_ACTION_SOIL_SUBTITLE")
             case .custom:
-                return "Créez votre propre action récurrente."
+                return L10n.t("ROUTINE_ACTION_CUSTOM_SUBTITLE")
             }
         }
     }
@@ -108,21 +108,21 @@ enum GardenRoutinePlanningKind: Hashable, Identifiable {
         case .care(let kind):
             switch kind {
             case .pruneLeaves:
-                return "Taille prévue"
+                return L10n.t("ROUTINE_DETAIL_PRUNE_TITLE")
             case .cleanLeaves:
-                return "Nettoyage prévu"
+                return L10n.t("ROUTINE_DETAIL_CLEAN_TITLE")
             case .fertilize:
-                return "Engrais / dosage"
+                return L10n.t("ROUTINE_DETAIL_FERTILIZE_TITLE")
             case .repot:
-                return "Pot / substrat"
+                return L10n.t("ROUTINE_DETAIL_REPOT_TITLE")
             case .pestCheck:
-                return "Points à vérifier"
+                return L10n.t("ROUTINE_DETAIL_PEST_TITLE")
             case .rotatePot:
-                return "Rotation"
+                return L10n.t("ROUTINE_DETAIL_ROTATE_TITLE")
             case .soilCheck:
-                return "Contrôle du sol"
+                return L10n.t("ROUTINE_DETAIL_SOIL_TITLE")
             case .custom:
-                return "Détail de l’action"
+                return L10n.t("ROUTINE_DETAIL_CUSTOM_TITLE")
             }
         }
     }
@@ -134,21 +134,21 @@ enum GardenRoutinePlanningKind: Hashable, Identifiable {
         case .care(let kind):
             switch kind {
             case .pruneLeaves:
-                return "Ex : retirer les feuilles jaunes"
+                return L10n.t("ROUTINE_DETAIL_PRUNE_PLACEHOLDER")
             case .cleanLeaves:
-                return "Ex : chiffon humide, dessus des feuilles"
+                return L10n.t("ROUTINE_DETAIL_CLEAN_PLACEHOLDER")
             case .fertilize:
-                return "Ex : 1/2 dose d’engrais liquide"
+                return L10n.t("ROUTINE_DETAIL_FERTILIZE_PLACEHOLDER")
             case .repot:
-                return "Ex : pot +2 cm, terreau drainant"
+                return L10n.t("ROUTINE_DETAIL_REPOT_PLACEHOLDER")
             case .pestCheck:
-                return "Ex : vérifier sous les feuilles"
+                return L10n.t("ROUTINE_DETAIL_PEST_PLACEHOLDER")
             case .rotatePot:
-                return "Ex : tourner d’un quart de tour"
+                return L10n.t("ROUTINE_DETAIL_ROTATE_PLACEHOLDER")
             case .soilCheck:
-                return "Ex : vérifier les 3 premiers cm"
+                return L10n.t("ROUTINE_DETAIL_SOIL_PLACEHOLDER")
             case .custom:
-                return "Ex : brumiser, tuteurer, déplacer..."
+                return L10n.t("ROUTINE_DETAIL_CUSTOM_PLACEHOLDER")
             }
         }
     }
@@ -283,7 +283,7 @@ struct CreateWateringRoutineView: View {
                     }
                 }
             }
-            .navigationTitle("Planifier une action")
+            .navigationTitle(L10n.t("ROUTINE_PLAN_ACTION_TITLE"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -396,7 +396,7 @@ struct CreateWateringRoutineView: View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeaderLabel(
                 icon: "checklist",
-                title: "Action à planifier",
+                title: L10n.t("ROUTINE_ACTION_SECTION_TITLE"),
                 tint: actionTint
             )
 
@@ -413,7 +413,7 @@ struct CreateWateringRoutineView: View {
             } label: {
                 selectionRow(
                     icon: selectedAction.icon,
-                    title: "Action",
+                    title: L10n.t("ROUTINE_ACTION_LABEL"),
                     value: actionTitle,
                     tint: actionTint,
                     showsChevron: true
@@ -422,7 +422,7 @@ struct CreateWateringRoutineView: View {
             .buttonStyle(.plain)
 
             if selectedAction.requiresCustomTitle {
-                TextField("Nom de l’action", text: $customActionTitle)
+                TextField(L10n.t("ROUTINE_CUSTOM_ACTION_NAME_PLACEHOLDER"), text: $customActionTitle)
                     .padding(16)
                     .background(cardBackgroundColor)
                     .cornerRadius(12)
@@ -438,14 +438,14 @@ struct CreateWateringRoutineView: View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeaderLabel(
                 icon: "leaf",
-                title: "Plante",
+                title: L10n.t("ROUTINE_PLANT_SECTION_TITLE"),
                 tint: actionTint
             )
 
             if availablePlants.isEmpty {
                 selectionRow(
                     icon: "leaf.fill",
-                    title: "Plante",
+                    title: L10n.t("ROUTINE_PLANT_LABEL"),
                     value: selectedPlantName,
                     tint: actionTint,
                     showsChevron: false
@@ -462,7 +462,7 @@ struct CreateWateringRoutineView: View {
                 } label: {
                     selectionRow(
                         icon: "leaf.fill",
-                        title: "Plante",
+                        title: L10n.t("ROUTINE_PLANT_LABEL"),
                         value: selectedPlantName,
                         tint: actionTint,
                         showsChevron: true
@@ -560,12 +560,12 @@ struct CreateWateringRoutineView: View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeaderLabel(
                 icon: "calendar.badge.clock",
-                title: "Première date",
+                title: L10n.t("ROUTINE_FIRST_DATE_SECTION_TITLE"),
                 tint: actionTint
             )
 
             DatePicker(
-                "Commencer le",
+                L10n.t("ROUTINE_FIRST_DATE_PICKER_LABEL"),
                 selection: $firstActionDate,
                 displayedComponents: .date
             )
@@ -958,8 +958,8 @@ struct CreateWateringRoutineView: View {
                 : NSLocalizedString("ROUTINE_SUCCESS_MESSAGE", comment: "")
         case .care:
             return addToCalendar
-                ? "Ta routine de soin a été créée et ajoutée à ton calendrier Apple."
-                : "Ta routine de soin a été créée."
+                ? L10n.t("ROUTINE_CARE_SUCCESS_WITH_CALENDAR")
+                : L10n.t("ROUTINE_CARE_SUCCESS_MESSAGE")
         }
     }
 }

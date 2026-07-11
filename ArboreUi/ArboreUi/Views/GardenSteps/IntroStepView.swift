@@ -19,12 +19,12 @@ struct IntroStepView: View {
                         .foregroundColor(Color.gardenPrimary)
                         .padding(.bottom, 8)
                     
-                    Text("Construisons ensemble\nvotre futur jardin")
+                    Text(L10n.t("WIZARD_INTRO_TITLE"))
                         .font(.system(size: 32, weight: .bold))
                         .multilineTextAlignment(.center)
                         .lineSpacing(4)
                     
-                    Text("Répondez à quelques questions pour\npersonnaliser votre espace avec nos\nconseils d'experts.")
+                    Text(L10n.t("WIZARD_INTRO_SUBTITLE"))
                         .font(.system(size: 16))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -34,7 +34,7 @@ struct IntroStepView: View {
                 
                 Spacer()
                 
-                Button("Commencer") { onNext() }
+                Button(L10n.t("COMMON_START")) { onNext() }
                     .buttonStyle(PrimaryWizardButtonStyle(isEnabled: true))
                     .padding(.horizontal, 24)
                     .padding(.bottom, 32)

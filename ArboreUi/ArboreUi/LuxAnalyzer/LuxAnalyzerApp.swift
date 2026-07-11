@@ -468,7 +468,7 @@ struct LightHUDView: View {
                 
                 // 1. Info Bar (Orientation & Zone)
                 HStack {
-                    Label("\(vm.orientation) Facing", systemImage: "safari")
+                    Label(L10n.f("LUX_ORIENTATION_FACING_FORMAT", vm.orientation), systemImage: "safari")
                         .font(.caption2.bold())
                     
                     Spacer()
@@ -493,7 +493,7 @@ struct LightHUDView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.5)
                         
-                        Text("LUX INSTANTANÉ")
+                        Text(L10n.t("LUX_INSTANT"))
                             .font(.system(size: 9, weight: .bold))
                             .tracking(1)
                             .foregroundColor(.secondary)
@@ -592,7 +592,7 @@ struct SunTimelineView: View {
             HStack {
                 Image(systemName: isNight ? "moon.stars.fill" : "sun.max.fill")
                     .foregroundColor(isNight ? .blue : .yellow)
-                Text(isNight ? "Cycle Nocturne" : "Lumière du Jour")
+                Text(isNight ? L10n.t("LUX_NIGHT_CYCLE") : L10n.t("LUX_DAYLIGHT"))
                     .font(.headline)
                     .foregroundColor(.white)
             }
@@ -627,7 +627,7 @@ struct SunTimelineView: View {
             // Les Heures (Réelles)
             HStack {
                 VStack(alignment: .leading) {
-                    Text("Lever")
+                    Text(L10n.t("LUX_SUNRISE"))
                         .font(.caption2)
                         .foregroundColor(.gray)
                     Text(timeFormatter.string(from: sunrise))
@@ -638,14 +638,14 @@ struct SunTimelineView: View {
                 Spacer()
                 
                 // Durée totale (Info Saisonnière)
-                Text("~ \(String(format: "%.1f", sunset.timeIntervalSince(sunrise)/3600))h d'ensoleillement")
+                Text(L10n.f("LUX_SUNLIGHT_HOURS_FORMAT", sunset.timeIntervalSince(sunrise) / 3600))
                     .font(.caption2)
                     .foregroundColor(.yellow.opacity(0.8))
                 
                 Spacer()
                 
                 VStack(alignment: .trailing) {
-                    Text("Coucher")
+                    Text(L10n.t("LUX_SUNSET"))
                         .font(.caption2)
                         .foregroundColor(.gray)
                     Text(timeFormatter.string(from: sunset))
@@ -735,7 +735,7 @@ struct DiagnosticResultView: View {
     
     var body: some View {
         VStack(spacing: 24) {
-            Text("Analyse Terminée")
+            Text(L10n.t("LUX_ANALYSIS_COMPLETE"))
                 .font(.title2.bold())
                 .foregroundColor(.white)
             
@@ -756,7 +756,7 @@ struct DiagnosticResultView: View {
                     )
                     .shadow(color: getScoreColor(result.score).opacity(0.5), radius: 20, x: 0, y: 0)
                 
-                Text("Score Global")
+                Text(L10n.t("LUX_GLOBAL_SCORE"))
                     .font(.caption)
                     .fontWeight(.bold)
                     .foregroundColor(.gray)
@@ -767,9 +767,9 @@ struct DiagnosticResultView: View {
             
             // Grille d'informations
             VStack(alignment: .leading, spacing: 12) {
-                InfoRow(icon: "sun.max", title: "Moyenne Lux", value: "\(result.averageLux) lx")
-                InfoRow(icon: "leaf", title: "Plantes", value: result.recommendation)
-                InfoRow(icon: "clock", title: "Durée du jour", value: "\(String(format: "%.1f", result.sunDuration))h")
+                InfoRow(icon: "sun.max", title: L10n.t("LUX_AVERAGE"), value: "\(result.averageLux) lx")
+                InfoRow(icon: "leaf", title: L10n.t("LUX_PLANTS"), value: result.recommendation)
+                InfoRow(icon: "clock", title: L10n.t("LUX_DAY_DURATION"), value: L10n.f("LUX_HOURS_VALUE_FORMAT", result.sunDuration))
             }
             .padding()
             .background(Color.white.opacity(0.1))
@@ -783,7 +783,7 @@ struct DiagnosticResultView: View {
             Button(action: onReset) {
                 HStack {
                     Image(systemName: "arrow.counterclockwise")
-                    Text("Nouvelle Analyse")
+                    Text(L10n.t("LUX_NEW_ANALYSIS"))
                 }
                 .fontWeight(.bold)
                 .frame(maxWidth: .infinity)

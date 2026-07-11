@@ -64,20 +64,20 @@ struct AllGardensView: View {
         .navigationBarHidden(true)
         .onAppear { Task { await fetchGardens() } }
         .preferredColorScheme(themeManager.colorScheme)
-        .alert("Supprimer ce jardin ?", isPresented: deleteConfirmationPresented) {
-            Button("Annuler", role: .cancel) {
+        .alert(L10n.t("ALL_GARDENS_DELETE_CONFIRM_TITLE"), isPresented: deleteConfirmationPresented) {
+            Button(L10n.t("COMMON_CANCEL"), role: .cancel) {
                 gardenToDelete = nil
             }
-            Button("Supprimer", role: .destructive) {
+            Button(L10n.t("COMMON_DELETE"), role: .destructive) {
                 if let gardenToDelete {
                     Task { await deleteGarden(gardenToDelete) }
                 }
             }
         } message: {
-            Text("Cette action supprimera le jardin et ses données sauvegardées. Elle ne peut pas être annulée.")
+            Text(L10n.t("ALL_GARDENS_DELETE_CONFIRM_MESSAGE"))
         }
-        .alert("Suppression impossible", isPresented: deleteErrorPresented) {
-            Button("OK", role: .cancel) {
+        .alert(L10n.t("ALL_GARDENS_DELETE_ERROR_TITLE"), isPresented: deleteErrorPresented) {
+            Button(L10n.t("COMMON_OK"), role: .cancel) {
                 deleteErrorMessage = nil
             }
         } message: {
@@ -206,11 +206,11 @@ private extension AllGardensView {
             .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Vos jardins")
+                Text(L10n.t("ALL_GARDENS_TITLE"))
                     .font(.system(size: 26, weight: .bold, design: .serif))
                     .foregroundColor(textDark)
 
-                Text(isSelectionMode ? "Sélectionnez le jardin à afficher" : "\(gardens.count) au total")
+                Text(isSelectionMode ? L10n.t("ALL_GARDENS_SELECTION_SUBTITLE") : L10n.f("ALL_GARDENS_TOTAL_FORMAT", gardens.count))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(textSubtle.opacity(0.9))
             }
@@ -222,11 +222,11 @@ private extension AllGardensView {
     var emptyState: some View {
         HStack {
             VStack(alignment: .leading, spacing: 6) {
-                Text("Aucun jardin pour le moment")
+                Text(L10n.t("ALL_GARDENS_EMPTY_TITLE"))
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(textDark)
 
-                Text("Vos jardins enregistrés apparaîtront ici.\nCommencez par en créer un nouveau.")
+                Text(L10n.t("ALL_GARDENS_EMPTY_SUBTITLE"))
                     .font(.system(size: 14))
                     .foregroundColor(textSubtle)
             }
@@ -278,7 +278,7 @@ private extension AllGardensView {
                     HStack(spacing: 6) {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 12, weight: .bold))
-                        Text("Actuel")
+                        Text(L10n.t("ALL_GARDENS_CURRENT"))
                             .font(.system(size: 12, weight: .bold))
                     }
                     .foregroundColor(.white)
@@ -299,16 +299,16 @@ private extension AllGardensView {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(garden.name)
+                        Text(L10n.displayGardenName(garden.name))
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(textDark)
 
-                        Text("\(garden.plants.count) plantes")
+                        Text(L10n.f("PLANT_COUNT_FORMAT", garden.plants.count))
                             .font(.system(size: 13))
                             .foregroundColor(textSubtle)
 
                         if let d = garden.updatedAt {
-                            Text("Dernière modification : \(d.formatted(date: .abbreviated, time: .omitted))")
+                            Text(L10n.f("LAST_MODIFIED_FORMAT", d.formatted(date: .abbreviated, time: .omitted)))
                                 .font(.system(size: 12))
                                 .foregroundColor(textSubtle.opacity(0.9))
                         }
@@ -336,12 +336,12 @@ private extension AllGardensView {
                     .background(ArboreDesign.Colors.danger.opacity(0.10))
                     .clipShape(Capsule())
                     .disabled(isDeleting)
-                    .accessibilityLabel("Supprimer \(garden.name)")
+                    .accessibilityLabel(L10n.f("ALL_GARDENS_DELETE_ACCESSIBILITY_FORMAT", garden.name))
 
                     Button {
                         openGarden(garden)
                     } label: {
-                        Text(isSelectionMode ? (isCurrent ? "Sélectionné" : "Choisir") : "Ouvrir")
+                        Text(isSelectionMode ? (isCurrent ? L10n.t("COMMON_SELECTED") : L10n.t("COMMON_CHOOSE")) : L10n.t("COMMON_OPEN"))
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity)

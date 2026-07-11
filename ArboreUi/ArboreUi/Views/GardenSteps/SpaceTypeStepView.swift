@@ -12,7 +12,7 @@ struct SpaceTypeStepView: View {
             
             VStack(spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Où souhaitez-vous ajouter des plantes ?")
+                    Text(L10n.t("WIZARD_SPACE_TITLE"))
                         .font(.system(size: 26, weight: .bold))
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -42,14 +42,14 @@ struct SpaceTypeStepView: View {
                 VStack(spacing: 12) {
                     Button(action: onNext) {
                         HStack {
-                            Text("Continuer")
+                            Text(L10n.t("COMMON_CONTINUE"))
                             Image(systemName: "arrow.right")
                         }
                     }
                     .buttonStyle(PrimaryWizardButtonStyle(isEnabled: state.spaceType != nil))
                     .disabled(state.spaceType == nil)
                     
-                    Button("Retour") { onBack() }
+                    Button(L10n.t("COMMON_BACK")) { onBack() }
                         .buttonStyle(SecondaryWizardButtonStyle())
                 }
                 .padding(.horizontal, 24)

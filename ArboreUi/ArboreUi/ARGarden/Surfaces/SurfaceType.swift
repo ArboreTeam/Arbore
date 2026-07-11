@@ -27,14 +27,14 @@ enum SurfaceType: String, Codable, CaseIterable {
     /// Display name in the AR HUD chip.
     var label: String {
         switch self {
-        case .floor:      return "Sol"
-        case .wall:       return "Mur"
-        case .ceiling:    return "Plafond"
-        case .shelf:      return "Étagère"
-        case .table:      return "Table"
-        case .windowsill: return "Rebord"
-        case .furniture:  return "Meuble"
-        case .unknown:    return "?"
+        case .floor:      return L10n.t("SURFACE_FLOOR")
+        case .wall:       return L10n.t("SURFACE_WALL")
+        case .ceiling:    return L10n.t("SURFACE_CEILING")
+        case .shelf:      return L10n.t("SURFACE_SHELF")
+        case .table:      return L10n.t("SURFACE_TABLE")
+        case .windowsill: return L10n.t("SURFACE_WINDOWSILL")
+        case .furniture:  return L10n.t("SURFACE_FURNITURE")
+        case .unknown:    return L10n.t("SURFACE_UNKNOWN")
         }
     }
 

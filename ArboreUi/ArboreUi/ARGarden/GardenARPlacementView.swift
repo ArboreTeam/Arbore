@@ -522,17 +522,17 @@ struct GardenARPlacementView: View {
                 Image(systemName: "icloud.slash")
                     .font(.system(size: 56, weight: .light))
                     .foregroundStyle(.white.opacity(0.85))
-                Text("Jardin indisponible")
+                Text(L10n.t("AR_GARDEN_UNAVAILABLE_TITLE"))
                     .font(.system(size: 22, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white)
-                Text("Ce jardin a été créé sur un autre appareil ou avant une réinstallation. Les données AR (carte de l'environnement et placement des plantes) ne sont stockées que localement et ont été supprimées.\n\nRecréez le jardin pour pouvoir le visualiser à nouveau.")
+                Text(L10n.t("AR_GARDEN_UNAVAILABLE_MESSAGE"))
                     .font(.system(size: 14, weight: .regular, design: .rounded))
                     .foregroundStyle(.white.opacity(0.75))
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 28)
                 Spacer()
                 Button { dismiss() } label: {
-                    Text("Retour")
+                    Text(L10n.t("COMMON_BACK"))
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
@@ -682,7 +682,7 @@ struct GardenARPlacementView: View {
                 }
             }
             .disabled(isCapturingSharePhoto)
-            .accessibilityLabel("Prendre une photo du jardin")
+            .accessibilityLabel(L10n.t("AR_CAPTURE_GARDEN_PHOTO_ACCESSIBILITY"))
 
             Spacer(minLength: 26)
 
@@ -719,7 +719,7 @@ struct GardenARPlacementView: View {
         HStack(spacing: 10) {
             ProgressView()
                 .tint(.white)
-            Text("Sauvegarde du jardin...")
+            Text(L10n.t("AR_SAVING_GARDEN"))
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(.white)
         }
@@ -737,19 +737,19 @@ struct GardenARPlacementView: View {
         let luxIcon: String
 
         if currentLux > 1000 {
-            luxLabel = "Soleil direct"
+            luxLabel = L10n.t("AR_LUX_DIRECT")
             luxColor = .orange
             luxIcon = "sun.max.fill"
         } else if currentLux > 300 {
-            luxLabel = "Lumière vive"
+            luxLabel = L10n.t("AR_LUX_BRIGHT")
             luxColor = .yellow
             luxIcon = "sun.min.fill"
         } else if currentLux > 50 {
-            luxLabel = "Lumière diffuse"
+            luxLabel = L10n.t("AR_LUX_DIFFUSE")
             luxColor = .green
             luxIcon = "cloud.sun.fill"
         } else {
-            luxLabel = "Faible luminosité"
+            luxLabel = L10n.t("AR_LUX_LOW")
             luxColor = .blue
             luxIcon = "moon.fill"
         }
@@ -831,30 +831,30 @@ struct GardenARPlacementView: View {
         var title: String {
             switch self {
             case .relocalizing:
-                return "Reconnaissance de la zone…"
+                return L10n.t("AR_AUTOPLACE_RELOCALIZING_TITLE")
             case .analyzing:
-                return "Analyse de l'environnement…"
+                return L10n.t("AR_AUTOPLACE_ANALYZING_TITLE")
             case .adjustReticle:
-                return "Bouge un peu pour fixer le sol"
+                return L10n.t("AR_AUTOPLACE_ADJUST_RETICLE_TITLE")
             case .pointLower(let cm):
-                return "Pointe plus bas (\(cm) cm trop haut)"
+                return L10n.f("AR_AUTOPLACE_POINT_LOWER_TITLE_FORMAT", cm)
             case .stabilizing(let p, let t):
-                return "Sol détecté, ne bouge plus… \(p)/\(t)"
+                return L10n.f("AR_AUTOPLACE_STABILIZING_TITLE_FORMAT", p, t)
             }
         }
 
         var subtitle: String {
             switch self {
             case .relocalizing:
-                return "Balaie lentement ton espace pour qu'ARKit retrouve le jardin mesuré."
+                return L10n.t("AR_AUTOPLACE_RELOCALIZING_SUBTITLE")
             case .analyzing:
-                return "Bouge ton téléphone lentement pour qu'ARKit détecte le sol."
+                return L10n.t("AR_AUTOPLACE_ANALYZING_SUBTITLE")
             case .adjustReticle:
-                return "Le réticule n'a pas encore accroché une surface stable."
+                return L10n.t("AR_AUTOPLACE_ADJUST_RETICLE_SUBTITLE")
             case .pointLower:
-                return "Vise le sol plat, pas un meuble ou un tapis épais."
+                return L10n.t("AR_AUTOPLACE_POINT_LOWER_SUBTITLE")
             case .stabilizing:
-                return "Le placement automatique démarre dès la stabilité atteinte."
+                return L10n.t("AR_AUTOPLACE_STABILIZING_SUBTITLE")
             }
         }
     }
@@ -940,8 +940,8 @@ struct GardenARPlacementView: View {
 
                 VStack(spacing: 6) {
                     Text(autoPlaceTotal > 0
-                         ? "Placement en cours…"
-                         : "Téléchargement des modèles…")
+                         ? L10n.t("AR_AUTOPLACE_PLACING")
+                         : L10n.t("AR_AUTOPLACE_DOWNLOADING_MODELS"))
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.white)
 
@@ -954,7 +954,7 @@ struct GardenARPlacementView: View {
                     }
 
                     if autoPlaceTotal > 0 {
-                        Text("\(autoPlacePlaced) sur \(autoPlaceTotal) plantes placées")
+                        Text(L10n.f("AR_AUTOPLACE_PLACED_FORMAT", autoPlacePlaced, autoPlaceTotal))
                             .font(.system(size: 12))
                             .foregroundColor(.white.opacity(0.6))
                     }
@@ -4574,7 +4574,7 @@ private struct GardenSharePreviewView: View {
 
                     Spacer()
 
-                    Text("Aperçu du partage")
+                    Text(L10n.t("AR_SHARE_PREVIEW_TITLE"))
                         .font(.system(size: 18, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
 
@@ -4602,7 +4602,7 @@ private struct GardenSharePreviewView: View {
                 } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "square.and.arrow.up")
-                            Text("Partager la photo")
+                            Text(L10n.t("AR_SHARE_PHOTO"))
                         }
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
@@ -4619,7 +4619,7 @@ private struct GardenSharePreviewView: View {
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "camera.rotate")
-                            Text("Reprendre la photo")
+                            Text(L10n.t("AR_RETAKE_PHOTO"))
                         }
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundColor(.white.opacity(0.86))
@@ -4634,7 +4634,7 @@ private struct GardenSharePreviewView: View {
                 }
                 .buttonStyle(.plain)
 
-                    Text("Vous pouvez reprendre la photo si le cadrage ou la lumière ne vous convient pas.")
+                    Text(L10n.t("AR_RETAKE_PHOTO_HINT"))
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundColor(.white.opacity(0.56))
                         .multilineTextAlignment(.center)

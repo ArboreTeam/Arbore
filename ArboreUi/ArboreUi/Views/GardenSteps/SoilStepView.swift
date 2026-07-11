@@ -12,7 +12,7 @@ struct SoilStepView: View {
             
             VStack(spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Quel est le type de sol ?")
+                    Text(L10n.t("WIZARD_SOIL_TITLE"))
                         .font(.system(size: 26, weight: .bold))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -38,11 +38,11 @@ struct SoilStepView: View {
                 Spacer()
                 
                 VStack(spacing: 12) {
-                    Button("Continuer") { onNext() }
+                    Button(L10n.t("COMMON_CONTINUE")) { onNext() }
                         .buttonStyle(PrimaryWizardButtonStyle(isEnabled: state.soil != nil))
                         .disabled(state.soil == nil)
                     
-                    Button("Retour") { onBack() }
+                    Button(L10n.t("COMMON_BACK")) { onBack() }
                         .buttonStyle(SecondaryWizardButtonStyle())
                 }
                 .padding(.horizontal, 24)

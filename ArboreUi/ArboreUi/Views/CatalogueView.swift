@@ -53,7 +53,7 @@ struct CatalogueView: View {
         VStack(alignment: .leading, spacing: 16) {
             
             // Titre de la page
-            Text(NSLocalizedString("CATALOG_TITLE", value: "Catalogue", comment: "Page Title"))
+            Text(L10n.t("CATALOG_TITLE"))
                 .font(.system(size: 34, weight: .bold, design: .rounded))
                 .foregroundColor(themeManager.textColor)
                 .padding(.horizontal, 20)
@@ -146,7 +146,7 @@ struct CatalogueView: View {
                         .multilineTextAlignment(.center)
                         .foregroundColor(themeManager.secondaryTextColor)
                         .padding()
-                    Button("Réessayer") {
+                    Button(L10n.t("COMMON_RETRY")) {
                         fetchPlants()
                     }
                     .padding(.top)

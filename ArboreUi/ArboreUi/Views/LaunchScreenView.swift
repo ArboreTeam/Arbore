@@ -17,7 +17,7 @@ struct LaunchScreenView: View {
                     .scaleEffect(isVisible ? 1 : 0.8)
                     .animation(.easeOut(duration: 0.6), value: isVisible)
 
-                Text("Arbore glow with harmony")
+                Text(L10n.t("LAUNCH_TAGLINE"))
                     .font(.system(size: 20, weight: .medium, design: .serif))
                     .foregroundColor(.white)
                     .opacity(isVisible ? 1 : 0)

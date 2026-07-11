@@ -90,7 +90,7 @@ private extension HomeView {
                 .font(.system(size: 34, weight: .bold, design: .rounded))
                 .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-            Text("Créez, visualisez et suivez vos jardins dans un espace simple et naturel.")
+            Text(L10n.t("HOME_SUBTITLE"))
                 .font(ArboreDesign.Typography.bodySmall)
                 .foregroundColor(ArboreDesign.Colors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -107,12 +107,12 @@ private extension HomeView {
                 SettingsIconBadge(systemImage: "leaf.fill", tint: ArboreDesign.Colors.primaryGreen, size: 44)
 
                 VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
-                    Text("Créer un futur jardin")
+                    Text(L10n.t("HOME_CREATE_GARDEN_TITLE"))
                         .font(ArboreDesign.Typography.sectionTitle)
                         .foregroundColor(ArboreDesign.Colors.textPrimary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("Répondez à quelques questions, choisissez vos plantes puis placez-les en AR.")
+                    Text(L10n.t("HOME_CREATE_GARDEN_SUBTITLE"))
                         .font(ArboreDesign.Typography.bodySmall)
                         .foregroundColor(ArboreDesign.Colors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -123,7 +123,7 @@ private extension HomeView {
                 goToQuestionnaire = true
             } label: {
                 HStack(spacing: 10) {
-                    Text("Commencer")
+                    Text(L10n.t("COMMON_START"))
                         .font(ArboreDesign.Typography.button)
                     Image(systemName: "arrow.right")
                         .font(.system(size: 14, weight: .bold))
@@ -162,14 +162,14 @@ private extension HomeView {
 private extension HomeView {
     var gardensHeader: some View {
         HStack(alignment: .lastTextBaseline) {
-            Text("Vos jardins")
+            Text(L10n.t("HOME_YOUR_GARDENS"))
                 .font(ArboreDesign.Typography.sectionTitle)
                 .foregroundColor(ArboreDesign.Colors.textPrimary)
 
             Spacer()
 
             if gardens.count > 2 {
-                Button("Voir tout") {
+                Button(L10n.t("COMMON_SEE_ALL")) {
                     goToAllGardens = true
                 }
                 .font(.system(size: 13, weight: .bold))
@@ -187,11 +187,11 @@ private extension HomeView {
                 SettingsIconBadge(systemImage: "leaf", tint: ArboreDesign.Colors.primaryGreen, size: 44)
 
                 VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
-                    Text("Aucun jardin pour le moment")
+                    Text(L10n.t("HOME_EMPTY_TITLE"))
                         .font(ArboreDesign.Typography.cardTitle)
                         .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                    Text("Commencez par créer un projet pour retrouver vos plans ici.")
+                    Text(L10n.t("HOME_EMPTY_SUBTITLE"))
                         .font(ArboreDesign.Typography.bodySmall)
                         .foregroundColor(ArboreDesign.Colors.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -238,17 +238,17 @@ private extension HomeView {
 
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(garden.name)
+                        Text(L10n.displayGardenName(garden.name))
                             .font(ArboreDesign.Typography.cardTitle)
                             .foregroundColor(ArboreDesign.Colors.textPrimary)
                             .lineLimit(2)
 
-                        Text("\(garden.plants.count) plantes")
+                        Text(L10n.f("PLANT_COUNT_FORMAT", garden.plants.count))
                             .font(ArboreDesign.Typography.caption)
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
 
                         if let d = garden.updatedAt {
-                            Text("Dernière modification : \(d.formatted(date: .abbreviated, time: .omitted))")
+                            Text(L10n.f("LAST_MODIFIED_FORMAT", d.formatted(date: .abbreviated, time: .omitted)))
                                 .font(ArboreDesign.Typography.caption)
                                 .foregroundColor(ArboreDesign.Colors.textMuted)
                         }
@@ -256,7 +256,7 @@ private extension HomeView {
 
                     Spacer()
 
-                    Text("Ouvrir")
+                    Text(L10n.t("COMMON_OPEN"))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 12)

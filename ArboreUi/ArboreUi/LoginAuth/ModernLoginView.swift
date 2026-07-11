@@ -111,12 +111,12 @@ struct ModernLoginView: View {
                 .animation(.spring(response: 0.5, dampingFraction: 0.75), value: focusedField)
 
                 VStack(spacing: 6) {
-                    Text("Bienvenue sur Arbore")
+                    Text(L10n.t("AUTH_WELCOME_TITLE"))
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
 
-                    Text("Connectez-vous pour gérer votre jardin")
+                    Text(L10n.t("AUTH_WELCOME_SUBTITLE"))
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.white.opacity(0.80))
                         .multilineTextAlignment(.center)
@@ -138,7 +138,7 @@ struct ModernLoginView: View {
                 // Email
                 ArborTextField(
                     text: $email,
-                    placeholder: "Adresse email",
+                    placeholder: L10n.t("AUTH_EMAIL"),
                     systemImage: "envelope.fill",
                     keyboardType: .emailAddress,
                     isSecure: false,
@@ -150,7 +150,7 @@ struct ModernLoginView: View {
                 // Mot de passe
                 ArborTextField(
                     text: $password,
-                    placeholder: "Mot de passe",
+                    placeholder: L10n.t("AUTH_PASSWORD"),
                     systemImage: "lock.fill",
                     keyboardType: .default,
                     isSecure: !isPasswordVisible,
@@ -164,7 +164,7 @@ struct ModernLoginView: View {
                 // Mot de passe oublié
                 HStack {
                     Spacer()
-                    Button("Mot de passe oublié ?") { showReset = true }
+                    Button(L10n.t("AUTH_FORGOT_PASSWORD")) { showReset = true }
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(themeManager.brandPrimary)
                 }
@@ -178,7 +178,7 @@ struct ModernLoginView: View {
                                 .progressViewStyle(CircularProgressViewStyle(tint: .white))
                                 .scaleEffect(0.85)
                         } else {
-                            Text("Se connecter")
+                            Text(L10n.t("AUTH_SIGN_IN"))
                                 .font(.system(size: 16, weight: .bold, design: .rounded))
                             Image(systemName: "arrow.right")
                                 .font(.system(size: 14, weight: .bold))
@@ -235,7 +235,7 @@ struct ModernLoginView: View {
                 Rectangle()
                     .fill(themeManager.secondaryTextColor.opacity(0.2))
                     .frame(height: 1)
-                Text("ou")
+                Text(L10n.t("AUTH_OR"))
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(themeManager.secondaryTextColor)
                     .padding(.horizontal, 14)
@@ -252,7 +252,7 @@ struct ModernLoginView: View {
                 AppleSignInButton(appleAuth: appleAuth)
 
                 ArborSocialButton(
-                    title: "Continuer avec Google",
+                    title: L10n.t("AUTH_CONTINUE_GOOGLE"),
                     icon: "google",
                     backgroundColor: themeManager.cardBackgroundColor,
                     foregroundColor: themeManager.textColor,
@@ -275,11 +275,11 @@ struct ModernLoginView: View {
     // MARK: - Sign Up Footer
     private var signUpFooter: some View {
         HStack(spacing: 4) {
-            Text("Pas de compte ?")
+            Text(L10n.t("AUTH_NO_ACCOUNT"))
                 .font(.system(size: 14, weight: .medium))
                 .foregroundColor(themeManager.secondaryTextColor)
 
-            Button("Créer un compte") {
+            Button(L10n.t("AUTH_SIGN_UP")) {
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) { showSignUp = true }
             }
             .font(.system(size: 14, weight: .bold))
@@ -296,7 +296,7 @@ struct ModernLoginView: View {
         let trimmedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedEmail.isEmpty && !trimmedPassword.isEmpty else {
-            errorMessage = "Veuillez saisir votre email et mot de passe."
+            errorMessage = L10n.t("AUTH_ERROR_EMPTY_CREDENTIALS")
             isLoading = false
             return
         }
@@ -318,27 +318,27 @@ struct ModernLoginView: View {
 
                         switch firebaseMessage {
                         case "INVALID_LOGIN_CREDENTIALS":
-                            self.errorMessage = "Email ou mot de passe incorrect."
+                            self.errorMessage = L10n.t("AUTH_ERROR_INVALID_CREDENTIALS")
                         case "TOO_MANY_ATTEMPTS_TRY_LATER":
-                            self.errorMessage = "Trop de tentatives. Veuillez réessayer plus tard."
+                            self.errorMessage = L10n.t("AUTH_ERROR_TOO_MANY")
                         case "EMAIL_NOT_FOUND":
-                            self.errorMessage = "Aucun compte trouvé avec cet email."
+                            self.errorMessage = L10n.t("AUTH_ERROR_NO_ACCOUNT")
                         default:
-                            self.errorMessage = "Erreur d'authentification: \(firebaseMessage)"
+                            self.errorMessage = L10n.f("AUTH_ERROR_GENERIC_FORMAT", firebaseMessage)
                         }
                     } else if let authError = AuthErrorCode(rawValue: error.code) {
                         switch authError {
                         case .wrongPassword:
-                            self.errorMessage = "Email ou mot de passe incorrect."
+                            self.errorMessage = L10n.t("AUTH_ERROR_INVALID_CREDENTIALS")
                         case .tooManyRequests:
-                            self.errorMessage = "Trop de tentatives. Veuillez réessayer plus tard."
+                            self.errorMessage = L10n.t("AUTH_ERROR_TOO_MANY")
                         case .userNotFound:
-                            self.errorMessage = "Aucun compte trouvé avec cet email."
+                            self.errorMessage = L10n.t("AUTH_ERROR_NO_ACCOUNT")
                         default:
-                            self.errorMessage = "Erreur d'authentification: \(error.localizedDescription)"
+                            self.errorMessage = L10n.f("AUTH_ERROR_GENERIC_FORMAT", error.localizedDescription)
                         }
                     } else {
-                        self.errorMessage = "Erreur d'authentification inconnue. Veuillez réessayer."
+                        self.errorMessage = L10n.t("AUTH_ERROR_UNKNOWN")
                     }
                     return
                 }
@@ -347,7 +347,7 @@ struct ModernLoginView: View {
 
                 if !user.isEmailVerified {
                     checkAndDeleteIfExpired(uid: user.uid)
-                    self.errorMessage = "Veuillez vérifier votre email avant de vous connecter."
+                    self.errorMessage = L10n.t("AUTH_VERIFY_BEFORE_LOGIN")
                     try? Auth.auth().signOut()
                     return
                 }

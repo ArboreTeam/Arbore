@@ -1,5 +1,31 @@
 import SwiftUI
 
+enum L10n {
+    static func t(_ key: String, comment: String = "") -> String {
+        NSLocalizedString(key, comment: comment)
+    }
+
+    static func f(_ key: String, _ arguments: CVarArg..., comment: String = "") -> String {
+        String(format: t(key, comment: comment), locale: Locale.current, arguments: arguments)
+    }
+
+    static func displayGardenName(_ name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized = trimmed
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .lowercased()
+
+        let defaultNames: Set<String> = [
+            "mon jardin",
+            "my garden",
+            "mi jardin",
+            "mein garten"
+        ]
+
+        return defaultNames.contains(normalized) ? t("MY_GARDEN_TITLE") : name
+    }
+}
+
 // Extension pour faciliter l'application des couleurs ajustées du thème
 extension View {
     func themedForeground(_ themeManager: ThemeManager) -> some View {

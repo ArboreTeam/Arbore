@@ -109,14 +109,14 @@ struct PlantCatalogARView: View {
                         .padding(.bottom, 10)
 
                     HStack {
-                        Text("Select a Plant")
+                        Text(L10n.t("AR_PLANT_CATALOG_TITLE"))
                             .font(.system(size: 32, weight: .bold))
                             .foregroundColor(.white)
 
                         Spacer()
 
                         Button { dismiss() } label: {
-                            Text("Fermer")
+                            Text(L10n.t("COMMON_CLOSE"))
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundColor(.white.opacity(0.92))
                                 .padding(.horizontal, 14)
@@ -160,7 +160,7 @@ struct PlantCatalogARView: View {
             Image(systemName: "magnifyingglass")
                 .foregroundColor(.white.opacity(0.55))
 
-            TextField("Search for monstera, palm…", text: $searchText)
+            TextField(L10n.t("AR_PLANT_CATALOG_SEARCH_PLACEHOLDER"), text: $searchText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
                 .foregroundColor(.white)
@@ -207,14 +207,14 @@ struct PlantCatalogARView: View {
                 VStack(spacing: 10) {
                     Spacer()
                     ProgressView().tint(.white)
-                    Text("Chargement…")
+                    Text(L10n.t("COMMON_LOADING"))
                         .foregroundColor(.white.opacity(0.7))
                     Spacer()
                 }
             } else if let errorMessage {
                 VStack(spacing: 10) {
                     Spacer()
-                    Text("❌ \(errorMessage)")
+                    Text(L10n.f("AR_PLANT_CATALOG_ERROR_FORMAT", errorMessage))
                         .foregroundColor(.white.opacity(0.75))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 20)
@@ -269,7 +269,7 @@ struct PlantCatalogARView: View {
                 .foregroundColor(ARCatColor.primary)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Sélection personnalisée")
+                Text(L10n.t("AR_PLANT_CATALOG_CUSTOM_SELECTION"))
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(.white)
 
@@ -281,12 +281,9 @@ struct PlantCatalogARView: View {
 
             Spacer()
 
-            Text("\(filteredPlants.count)")
+            Text(L10n.f("PLANT_COUNT_FORMAT", filteredPlants.count))
                 .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundColor(ARCatColor.primary)
-                + Text(" plantes")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white.opacity(0.6))
         }
         .padding(12)
         .background(
@@ -303,7 +300,7 @@ struct PlantCatalogARView: View {
         guard let wiz = wizardFilter else { return "" }
         var parts: [String] = []
         if !wiz.style.isEmpty && !wiz.style.lowercased().contains("sans préférence") {
-            parts.append("Style \(wiz.style.components(separatedBy: " &").first ?? wiz.style)")
+            parts.append(L10n.f("AR_PLANT_CATALOG_FILTER_STYLE_FORMAT", wiz.style.components(separatedBy: " &").first ?? wiz.style))
         }
         if let e = wiz.exposure, !e.isEmpty {
             // Shorten the exposure text
@@ -311,17 +308,17 @@ struct PlantCatalogARView: View {
             parts.append(short)
         }
         if let m = wiz.maintenance, !m.isEmpty {
-            parts.append("Entretien \(m.lowercased())")
+            parts.append(L10n.f("AR_PLANT_CATALOG_FILTER_MAINTENANCE_FORMAT", m.lowercased()))
         }
         if let safety = wiz.safety, !safety.isEmpty,
            !safety.contains("Aucune contrainte") {
-            parts.append("Sécurité activée")
+            parts.append(L10n.t("AR_PLANT_CATALOG_FILTER_SAFETY"))
         }
         if let s = wiz.soil, !s.isEmpty,
            !s.lowercased().contains("je ne sais pas") {
-            parts.append("Sol \(s.lowercased())")
+            parts.append(L10n.f("AR_PLANT_CATALOG_FILTER_SOIL_FORMAT", s.lowercased()))
         }
-        return parts.isEmpty ? "Basé sur vos préférences" : parts.joined(separator: " · ")
+        return parts.isEmpty ? L10n.t("AR_PLANT_CATALOG_FILTER_BASED_ON_PREFS") : parts.joined(separator: " · ")
     }
 
     private func iconForChip(_ chip: String) -> String {

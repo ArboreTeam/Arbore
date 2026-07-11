@@ -19,16 +19,16 @@ struct PlantFilters: Equatable {
             let normalizedSelected = selectedLight.lowercased()
             
             // Correspondance flexible
-            if normalizedSelected.contains("faible") || normalizedSelected.contains("low") {
-                if !plantLight.contains("faible") && !plantLight.contains("low") && !plantLight.contains("ombre") && !plantLight.contains("shade") {
+            if normalizedSelected.contains("faible") || normalizedSelected.contains("low") || normalizedSelected.contains("schwach") || normalizedSelected.contains("niedrig") || normalizedSelected.contains("baja") {
+                if !plantLight.contains("faible") && !plantLight.contains("low") && !plantLight.contains("ombre") && !plantLight.contains("shade") && !plantLight.contains("schwach") && !plantLight.contains("schatten") && !plantLight.contains("baja") && !plantLight.contains("sombra") {
                     return false
                 }
-            } else if normalizedSelected.contains("modér") || normalizedSelected.contains("medium") {
-                if !plantLight.contains("modér") && !plantLight.contains("medium") && !plantLight.contains("indirect") {
+            } else if normalizedSelected.contains("modér") || normalizedSelected.contains("medium") || normalizedSelected.contains("mittel") || normalizedSelected.contains("moderat") || normalizedSelected.contains("moderada") {
+                if !plantLight.contains("modér") && !plantLight.contains("medium") && !plantLight.contains("indirect") && !plantLight.contains("mittel") && !plantLight.contains("moderat") && !plantLight.contains("indirekt") && !plantLight.contains("moderada") && !plantLight.contains("indirecta") {
                     return false
                 }
-            } else if normalizedSelected.contains("forte") || normalizedSelected.contains("high") {
-                if !plantLight.contains("direct") && !plantLight.contains("forte") && !plantLight.contains("high") && !plantLight.contains("soleil") && !plantLight.contains("sun") {
+            } else if normalizedSelected.contains("forte") || normalizedSelected.contains("high") || normalizedSelected.contains("stark") || normalizedSelected.contains("hoch") || normalizedSelected.contains("alta") {
+                if !plantLight.contains("direct") && !plantLight.contains("forte") && !plantLight.contains("high") && !plantLight.contains("soleil") && !plantLight.contains("sun") && !plantLight.contains("direkt") && !plantLight.contains("stark") && !plantLight.contains("hoch") && !plantLight.contains("sonne") && !plantLight.contains("alta") && !plantLight.contains("sol") {
                     return false
                 }
             }
@@ -39,16 +39,16 @@ struct PlantFilters: Equatable {
             let plantWater = translation.water?.frequency?.lowercased() ?? ""
             let normalizedSelected = selectedWater.lowercased()
             
-            if normalizedSelected.contains("peu") || normalizedSelected.contains("low") {
-                if !plantWater.contains("peu") && !plantWater.contains("low") && !plantWater.contains("rare") {
+            if normalizedSelected.contains("peu") || normalizedSelected.contains("low") || normalizedSelected.contains("wenig") || normalizedSelected.contains("bajo") || normalizedSelected.contains("poco") {
+                if !plantWater.contains("peu") && !plantWater.contains("low") && !plantWater.contains("rare") && !plantWater.contains("wenig") && !plantWater.contains("selten") && !plantWater.contains("bajo") && !plantWater.contains("poco") {
                     return false
                 }
-            } else if normalizedSelected.contains("moyen") || normalizedSelected.contains("medium") {
-                if !plantWater.contains("moyen") && !plantWater.contains("medium") && !plantWater.contains("modér") {
+            } else if normalizedSelected.contains("moyen") || normalizedSelected.contains("medium") || normalizedSelected.contains("mittel") || normalizedSelected.contains("moderado") {
+                if !plantWater.contains("moyen") && !plantWater.contains("medium") && !plantWater.contains("modér") && !plantWater.contains("mittel") && !plantWater.contains("moderat") && !plantWater.contains("moderado") {
                     return false
                 }
-            } else if normalizedSelected.contains("souvent") || normalizedSelected.contains("high") {
-                if !plantWater.contains("souvent") && !plantWater.contains("fréquent") && !plantWater.contains("high") && !plantWater.contains("regular") {
+            } else if normalizedSelected.contains("souvent") || normalizedSelected.contains("high") || normalizedSelected.contains("häufig") || normalizedSelected.contains("haeufig") || normalizedSelected.contains("oft") || normalizedSelected.contains("frecuente") {
+                if !plantWater.contains("souvent") && !plantWater.contains("fréquent") && !plantWater.contains("high") && !plantWater.contains("regular") && !plantWater.contains("häufig") && !plantWater.contains("haeufig") && !plantWater.contains("oft") && !plantWater.contains("frecuente") {
                     return false
                 }
             }
@@ -59,16 +59,16 @@ struct PlantFilters: Equatable {
             let plantCare = translation.care?.difficulty?.lowercased() ?? ""
             let normalizedSelected = selectedDiff.lowercased()
             
-            if normalizedSelected.contains("facile") || normalizedSelected.contains("easy") {
-                if !plantCare.contains("facile") && !plantCare.contains("easy") && !plantCare.contains("simple") {
+            if normalizedSelected.contains("facile") || normalizedSelected.contains("easy") || normalizedSelected.contains("einfach") || normalizedSelected.contains("fácil") || normalizedSelected.contains("facil") {
+                if !plantCare.contains("facile") && !plantCare.contains("easy") && !plantCare.contains("simple") && !plantCare.contains("einfach") && !plantCare.contains("leicht") && !plantCare.contains("fácil") && !plantCare.contains("facil") {
                     return false
                 }
-            } else if normalizedSelected.contains("intermé") || normalizedSelected.contains("medium") {
-                if !plantCare.contains("intermé") && !plantCare.contains("medium") && !plantCare.contains("modér") {
+            } else if normalizedSelected.contains("intermé") || normalizedSelected.contains("medium") || normalizedSelected.contains("mittel") || normalizedSelected.contains("intermedio") {
+                if !plantCare.contains("intermé") && !plantCare.contains("medium") && !plantCare.contains("modér") && !plantCare.contains("mittel") && !plantCare.contains("moderat") && !plantCare.contains("intermedio") {
                     return false
                 }
-            } else if normalizedSelected.contains("exigeant") || normalizedSelected.contains("hard") {
-                if !plantCare.contains("exigeant") && !plantCare.contains("difficile") && !plantCare.contains("hard") && !plantCare.contains("expert") {
+            } else if normalizedSelected.contains("exigeant") || normalizedSelected.contains("hard") || normalizedSelected.contains("anspruchsvoll") || normalizedSelected.contains("dificil") || normalizedSelected.contains("difícil") {
+                if !plantCare.contains("exigeant") && !plantCare.contains("difficile") && !plantCare.contains("hard") && !plantCare.contains("expert") && !plantCare.contains("anspruchsvoll") && !plantCare.contains("schwer") && !plantCare.contains("dificil") && !plantCare.contains("difícil") {
                     return false
                 }
             }
@@ -92,21 +92,21 @@ struct FilterView: View {
     }
     
     let lightOptions = [
-        NSLocalizedString("FILTER_LIGHT_LOW", value: "Faible", comment: "Low light"),
-        NSLocalizedString("FILTER_LIGHT_MEDIUM", value: "Modérée", comment: "Medium light"),
-        NSLocalizedString("FILTER_LIGHT_HIGH", value: "Forte", comment: "High light")
+        L10n.t("FILTER_LIGHT_LOW"),
+        L10n.t("FILTER_LIGHT_MEDIUM"),
+        L10n.t("FILTER_LIGHT_HIGH")
     ]
     
     let waterOptions = [
-        NSLocalizedString("FILTER_WATER_LOW", value: "Peu", comment: "Low water"),
-        NSLocalizedString("FILTER_WATER_MEDIUM", value: "Moyen", comment: "Medium water"),
-        NSLocalizedString("FILTER_WATER_HIGH", value: "Souvent", comment: "High water")
+        L10n.t("FILTER_WATER_LOW"),
+        L10n.t("FILTER_WATER_MEDIUM"),
+        L10n.t("FILTER_WATER_HIGH")
     ]
     
     let difficultyOptions = [
-        NSLocalizedString("FILTER_DIFFICULTY_EASY", value: "Facile", comment: "Easy"),
-        NSLocalizedString("FILTER_DIFFICULTY_MEDIUM", value: "Intermédiaire", comment: "Medium"),
-        NSLocalizedString("FILTER_DIFFICULTY_HARD", value: "Exigeante", comment: "Hard")
+        L10n.t("FILTER_DIFFICULTY_EASY"),
+        L10n.t("FILTER_DIFFICULTY_MEDIUM"),
+        L10n.t("FILTER_DIFFICULTY_HARD")
     ]
 
     var body: some View {
@@ -114,21 +114,21 @@ struct FilterView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 32) {
                     FilterSection(
-                        title: NSLocalizedString("FILTER_LIGHT_TITLE", value: "Luminosité", comment: "Light section"),
+                        title: L10n.t("FILTER_LIGHT_TITLE"),
                         icon: "sun.max.fill",
                         options: lightOptions,
                         selectedOption: $tempFilters.lightType
                     )
                     
                     FilterSection(
-                        title: NSLocalizedString("FILTER_WATER_TITLE", value: "Arrosage", comment: "Water section"),
+                        title: L10n.t("FILTER_WATER_TITLE"),
                         icon: "drop.fill",
                         options: waterOptions,
                         selectedOption: $tempFilters.waterFrequency
                     )
                     
                     FilterSection(
-                        title: NSLocalizedString("FILTER_DIFFICULTY_TITLE", value: "Difficulté d'entretien", comment: "Difficulty section"),
+                        title: L10n.t("FILTER_DIFFICULTY_TITLE"),
                         icon: "star.fill",
                         options: difficultyOptions,
                         selectedOption: $tempFilters.difficulty
@@ -139,7 +139,7 @@ struct FilterView: View {
                 .padding(20)
             }
             .background(ArboreDesign.Colors.background.ignoresSafeArea())
-            .navigationTitle(NSLocalizedString("FILTER_TITLE", value: "Filtres", comment: "Filters"))
+            .navigationTitle(L10n.t("FILTER_TITLE"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -151,7 +151,7 @@ struct FilterView: View {
                 
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button(action: resetFilters) {
-                        Text(NSLocalizedString("FILTER_RESET", value: "Réinitialiser", comment: "Reset"))
+                        Text(L10n.t("FILTER_RESET"))
                             .font(ArboreDesign.Typography.bodySmall.weight(.semibold))
                             .foregroundColor(ArboreDesign.Colors.primaryGreen)
                     }
@@ -173,7 +173,7 @@ struct FilterView: View {
                 Button(action: {
                     dismiss()
                 }) {
-                    Text(NSLocalizedString("FILTER_CANCEL", value: "Annuler", comment: "Cancel"))
+                    Text(L10n.t("FILTER_CANCEL"))
                         .font(ArboreDesign.Typography.button)
                         .foregroundColor(ArboreDesign.Colors.textPrimary)
                         .frame(maxWidth: .infinity)
@@ -191,7 +191,7 @@ struct FilterView: View {
                 Button(action: applyFilters) {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark")
-                        Text(NSLocalizedString("FILTER_APPLY", value: "Appliquer", comment: "Apply"))
+                        Text(L10n.t("FILTER_APPLY"))
                     }
                     .font(ArboreDesign.Typography.button)
                     .foregroundColor(.white)

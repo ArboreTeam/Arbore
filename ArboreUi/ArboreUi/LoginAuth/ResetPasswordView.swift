@@ -25,12 +25,12 @@ struct ResetPasswordView: View {
                         .font(.system(size: 42, weight: .bold, design: .rounded))
                         .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                    Text("Forgot password")
+                    Text(L10n.t("AUTH_RESET_TITLE"))
                         .font(.system(size: 18, weight: .medium, design: .rounded))
                         .foregroundColor(ArboreDesign.Colors.textSecondary)
                 }
 
-                Text("Enter the email address associated with your account and we’ll send you a link to reset your password.")
+                Text(L10n.t("AUTH_RESET_DESCRIPTION"))
                     .font(.footnote)
                     .foregroundColor(ArboreDesign.Colors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -40,7 +40,7 @@ struct ResetPasswordView: View {
                 TextField("", text: $email)
                     .focused($focusedField)
                     .placeholder(when: email.isEmpty) {
-                        Text("Email").foregroundColor(ArboreDesign.Colors.placeholder)
+                        Text(L10n.t("AUTH_EMAIL")).foregroundColor(ArboreDesign.Colors.placeholder)
                     }
                     .foregroundColor(ArboreDesign.Colors.textPrimary)
                     .padding()
@@ -65,7 +65,7 @@ struct ResetPasswordView: View {
                             }
                         } else {
                             withAnimation {
-                                successMessage = "✅ A reset link has been sent to your email."
+                                successMessage = L10n.t("AUTH_RESET_SUCCESS")
                                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                                 errorMessage = ""
                             }
@@ -77,7 +77,7 @@ struct ResetPasswordView: View {
                         }
                     }
                 }) {
-                    Text("Send")
+                    Text(L10n.t("AUTH_SEND"))
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)

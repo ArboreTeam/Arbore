@@ -28,12 +28,12 @@ struct VerifyEmailView: View {
                     .frame(width: 80, height: 80)
                     .foregroundColor(ArboreDesign.Colors.primaryGreen)
 
-                Text("Verify your email")
+                Text(L10n.t("AUTH_VERIFY_TITLE"))
                     .font(.title)
                     .fontWeight(.bold)
                     .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                Text("We've sent a verification link to:\n\(email). Please verify your email to continue.")
+                Text(L10n.f("AUTH_VERIFY_MESSAGE_FORMAT", email))
                     .multilineTextAlignment(.center)
                     .foregroundColor(ArboreDesign.Colors.textSecondary)
                     .padding(.horizontal)
@@ -48,7 +48,7 @@ struct VerifyEmailView: View {
 
                 VStack(spacing: 12) {
                     Button(action: resendVerificationEmail) {
-                        Text(resendCooldown > 0 ? "Resend in \(resendCooldown)s" : "Resend Email")
+                        Text(resendCooldown > 0 ? L10n.f("AUTH_RESEND_IN_FORMAT", resendCooldown) : L10n.t("AUTH_RESEND_EMAIL"))
                             .fontWeight(.medium)
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -69,7 +69,7 @@ struct VerifyEmailView: View {
                                 .background(ArboreDesign.Colors.primaryButton.opacity(0.6))
                                 .cornerRadius(ArboreDesign.Radius.button)
                         } else {
-                            Text("I've Verified")
+                            Text(L10n.t("AUTH_VERIFIED"))
                                 .fontWeight(.bold)
                                 .frame(maxWidth: .infinity)
                                 .padding()
@@ -90,7 +90,7 @@ struct VerifyEmailView: View {
     func resendVerificationEmail() {
         guard let user = Auth.auth().currentUser else {
             isResendError = true
-            resendMessage = "Please sign in again to resend the verification email."
+            resendMessage = L10n.t("AUTH_RESEND_SIGN_IN_AGAIN")
             return
         }
 
@@ -104,7 +104,7 @@ struct VerifyEmailView: View {
                 } else {
                     print("✅ Verification email resent.")
                     isResendError = false
-                    resendMessage = "A new link has been sent to your inbox."
+                    resendMessage = L10n.t("AUTH_RESEND_SUCCESS")
                 }
             }
         }
@@ -113,7 +113,7 @@ struct VerifyEmailView: View {
     func checkVerificationStatus() {
         guard let user = Auth.auth().currentUser else {
             isResendError = true
-            resendMessage = "Your session expired. Please log in again."
+            resendMessage = L10n.t("AUTH_SESSION_EXPIRED")
             onBackToLogin()
             return
         }
@@ -125,14 +125,14 @@ struct VerifyEmailView: View {
                 if let error = error {
                     print("❌ Error reloading user: \(error.localizedDescription)")
                     isResendError = true
-                    resendMessage = "Unable to check verification. Try again."
+                    resendMessage = L10n.t("AUTH_VERIFY_CHECK_FAILED")
                 } else if Auth.auth().currentUser?.isEmailVerified == true {
                     print("✅ Email verified — logging in")
                     isLoggedIn = true
                     onBackToLogin()
                 } else {
                     isResendError = false
-                    resendMessage = "Email not verified yet."
+                    resendMessage = L10n.t("AUTH_EMAIL_NOT_VERIFIED_YET")
                 }
             }
         })
@@ -155,9 +155,9 @@ struct VerifyEmailView: View {
 
     private func resendErrorMessage(for error: Error) -> String {
         if AuthErrorCode(rawValue: (error as NSError).code) == .tooManyRequests {
-            return "Too many requests from this device. Please wait before trying again."
+            return L10n.t("AUTH_RESEND_TOO_MANY")
         }
 
-        return "Failed to resend. Try again."
+        return L10n.t("AUTH_RESEND_FAILED")
     }
 }

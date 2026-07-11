@@ -9,15 +9,15 @@ struct BoundaryTracingHintBanner: View {
 
     var body: some View {
         VStack(spacing: 4) {
-            Text("Tracez votre jardin")
+            Text(L10n.t("AR_BOUNDARY_TRACE_TITLE"))
                 .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white)
-            Text("Tapez le sol aux coins de votre jardin")
+            Text(L10n.t("AR_BOUNDARY_TRACE_SUBTITLE"))
                 .font(.system(size: 12))
                 .foregroundStyle(.white.opacity(0.75))
 
             HStack(spacing: 18) {
-                Label("\(pointCount) point\(pointCount > 1 ? "s" : "")", systemImage: "circle.dotted")
+                Label(L10n.f("AR_BOUNDARY_POINT_COUNT_FORMAT", pointCount), systemImage: "circle.dotted")
                     .font(.system(size: 12, weight: .medium))
                 if pointCount >= 3 {
                     Text(String(format: "%.1f m²", area))

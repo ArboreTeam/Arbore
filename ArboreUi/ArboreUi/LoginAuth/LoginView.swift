@@ -49,7 +49,7 @@ struct LoginView: View {
                                     .foregroundColor(ArboreDesign.Colors.textPrimary)
                                     .transition(.opacity.combined(with: .move(edge: .top)))
 
-                                Text("Grow with harmony")
+                                Text(L10n.t("AUTH_TAGLINE"))
                                     .font(.system(size: 18, weight: .medium, design: .rounded))
                                     .foregroundColor(ArboreDesign.Colors.textSecondary)
                                     .transition(.opacity)
@@ -59,7 +59,7 @@ struct LoginView: View {
                             VStack(spacing: 14) {
                                 TextField("", text: $email)
                                     .placeholder(when: email.isEmpty) {
-                                        Text("Email").foregroundColor(ArboreDesign.Colors.placeholder)
+                                        Text(L10n.t("AUTH_EMAIL")).foregroundColor(ArboreDesign.Colors.placeholder)
                                     }
                                     .focused($focusedField, equals: .email)
                                     .foregroundColor(ArboreDesign.Colors.textPrimary)
@@ -83,7 +83,7 @@ struct LoginView: View {
                                             TextField("", text: $password)
                                                 .focused($focusedField, equals: .password)
                                                 .placeholder(when: password.isEmpty) {
-                                                    Text("Password").foregroundColor(ArboreDesign.Colors.placeholder)
+                                                    Text(L10n.t("AUTH_PASSWORD")).foregroundColor(ArboreDesign.Colors.placeholder)
                                                 }
                                                 .submitLabel(.go)
                                                 .onSubmit { loginUser() }
@@ -91,7 +91,7 @@ struct LoginView: View {
                                             SecureField("", text: $password)
                                                 .focused($focusedField, equals: .password)
                                                 .placeholder(when: password.isEmpty) {
-                                                    Text("Password").foregroundColor(ArboreDesign.Colors.placeholder)
+                                                    Text(L10n.t("AUTH_PASSWORD")).foregroundColor(ArboreDesign.Colors.placeholder)
                                                 }
                                                 .submitLabel(.go)
                                                 .onSubmit { loginUser() }
@@ -121,7 +121,7 @@ struct LoginView: View {
 
                                 HStack {
                                     Spacer()
-                                    Button("Forgot password?") {
+                                    Button(L10n.t("AUTH_FORGOT_PASSWORD")) {
                                         showReset = true
                                     }
                                     .padding(.trailing, 4)
@@ -134,7 +134,7 @@ struct LoginView: View {
                             .transition(.move(edge: .bottom))
 
                             Button(action: loginUser) {
-                                Text("Sign In")
+                                Text(L10n.t("AUTH_SIGN_IN"))
                                     .fontWeight(.semibold)
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity)
@@ -158,7 +158,7 @@ struct LoginView: View {
 
                             HStack {
                                 Rectangle().fill(ArboreDesign.Colors.border).frame(height: 1)
-                                Text("or")
+                                Text(L10n.t("AUTH_OR"))
                                     .foregroundColor(ArboreDesign.Colors.textSecondary)
                                     .padding(.horizontal)
                                 Rectangle().fill(ArboreDesign.Colors.border).frame(height: 1)
@@ -177,7 +177,7 @@ struct LoginView: View {
                                         Image("google")
                                             .resizable()
                                             .frame(width: 18, height: 18)
-                                        Text("Continue with Google")
+                                        Text(L10n.t("AUTH_CONTINUE_GOOGLE"))
                                             .fontWeight(.medium)
                                     }
                                     .padding()
@@ -223,12 +223,12 @@ struct LoginView: View {
                             .padding(.top, 12)
 
                             HStack {
-                                Text("Don’t have an account?")
+                                Text(L10n.t("AUTH_NO_ACCOUNT"))
                                     .foregroundColor(ArboreDesign.Colors.textSecondary)
                                 Button(action: {
                                     withAnimation { showSignUp = true }
                                 }) {
-                                    Text("Sign up")
+                                    Text(L10n.t("AUTH_SIGN_UP"))
                                         .fontWeight(.semibold)
                                         .foregroundColor(ArboreDesign.Colors.primaryGreen)
                                 }
@@ -264,7 +264,7 @@ struct LoginView: View {
         let trimmedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !trimmedEmail.isEmpty && !trimmedPassword.isEmpty else {
-            errorMessage = "Please enter email and password."
+            errorMessage = L10n.t("AUTH_ERROR_EMPTY_CREDENTIALS")
             return
         }
 
@@ -280,28 +280,28 @@ struct LoginView: View {
                     
                     switch firebaseMessage {
                     case "INVALID_LOGIN_CREDENTIALS":
-                        self.errorMessage = "Incorrect email or password."
+                        self.errorMessage = L10n.t("AUTH_ERROR_INVALID_CREDENTIALS")
                     case "TOO_MANY_ATTEMPTS_TRY_LATER":
-                        self.errorMessage = "Too many unsuccessful login attempts. Please try again later."
+                        self.errorMessage = L10n.t("AUTH_ERROR_TOO_MANY")
                     case "EMAIL_NOT_FOUND":
-                        self.errorMessage = "No account found with this email."
+                        self.errorMessage = L10n.t("AUTH_ERROR_NO_ACCOUNT")
                     default:
-                        self.errorMessage = "Authentication error: \(firebaseMessage)"
+                        self.errorMessage = L10n.f("AUTH_ERROR_GENERIC_FORMAT", firebaseMessage)
                     }
                 } else if let authError = AuthErrorCode(rawValue: error.code) {
                     // Cas où Firebase mappe bien l'erreur
                     switch authError {
                     case .wrongPassword:
-                        self.errorMessage = "Incorrect email or password."
+                        self.errorMessage = L10n.t("AUTH_ERROR_INVALID_CREDENTIALS")
                     case .tooManyRequests:
-                        self.errorMessage = "Too many unsuccessful login attempts. Please try again later."
+                        self.errorMessage = L10n.t("AUTH_ERROR_TOO_MANY")
                     case .userNotFound:
-                        self.errorMessage = "No account found with this email."
+                        self.errorMessage = L10n.t("AUTH_ERROR_NO_ACCOUNT")
                     default:
-                        self.errorMessage = "Authentication error: \(error.localizedDescription)"
+                        self.errorMessage = L10n.f("AUTH_ERROR_GENERIC_FORMAT", error.localizedDescription)
                     }
                 } else {
-                    self.errorMessage = "Unknown authentication error. Please try again."
+                    self.errorMessage = L10n.t("AUTH_ERROR_UNKNOWN")
                 }
                 return
             }
@@ -310,7 +310,7 @@ struct LoginView: View {
 
             if !user.isEmailVerified {
                 checkAndDeleteIfExpired(uid: user.uid)
-                self.errorMessage = "Please verify your email before logging in."
+                self.errorMessage = L10n.t("AUTH_VERIFY_BEFORE_LOGIN")
                 try? Auth.auth().signOut()
                 return
             }

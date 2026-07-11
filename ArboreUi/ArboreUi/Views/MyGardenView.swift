@@ -19,19 +19,19 @@ struct MyGardenView: View {
                     myPlantsSection
                         .tabItem {
                             Image(systemName: "leaf.fill")
-                            Text("Mes Plantes")
+                            Text(L10n.t("MY_GARDEN_MY_PLANTS"))
                         }
 
                     wishlistSection
                         .tabItem {
                             Image(systemName: "heart.fill")
-                            Text("Souhaits")
+                            Text(L10n.t("MY_GARDEN_WISHLIST"))
                         }
 
                     statisticsSection
                         .tabItem {
                             Image(systemName: "chart.bar.fill")
-                            Text("Stats")
+                            Text(L10n.t("MY_GARDEN_STATS"))
                         }
                 }
                 .tabViewStyle(PageTabViewStyle(indexDisplayMode: .automatic))
@@ -40,7 +40,7 @@ struct MyGardenView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .navigationBarBackButtonHidden(true)
-            .searchable(text: $searchText, prompt: "Rechercher dans mon jardin")
+            .searchable(text: $searchText, prompt: L10n.t("MY_GARDEN_SEARCH_PROMPT"))
         }
         .preferredColorScheme(themeManager.colorScheme)
     }
@@ -50,12 +50,12 @@ struct MyGardenView: View {
         VStack(spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Mon Jardin")
+                    Text(L10n.t("MY_GARDEN_TITLE"))
                         .font(.largeTitle)
                         .bold()
                         .foregroundColor(themeManager.textColor)
                     
-                    Text("Gérez votre collection de plantes")
+                    Text(L10n.t("MY_GARDEN_SUBTITLE"))
                         .font(.subheadline)
                         .foregroundColor(themeManager.secondaryTextColor)
                 }
@@ -76,21 +76,21 @@ struct MyGardenView: View {
             // Cards avec statistiques rapides
             HStack(spacing: 12) {
                 StatCard(
-                    title: "Mes Plantes",
+                    title: L10n.t("MY_GARDEN_STAT_PLANTS"),
                     value: "\(myPlants.count)",
                     icon: "leaf.fill",
                     color: themeManager.systemGreen
                 )
                 
                 StatCard(
-                    title: "À Arroser",
+                    title: L10n.t("MY_GARDEN_STAT_TO_WATER"),
                     value: "3",
                     icon: "drop.fill",
                     color: themeManager.systemBlue
                 )
                 
                 StatCard(
-                    title: "En Santé",
+                    title: L10n.t("MY_GARDEN_STAT_HEALTHY"),
                     value: "95%",
                     icon: "heart.fill",
                     color: themeManager.systemRed
@@ -108,9 +108,9 @@ struct MyGardenView: View {
             LazyVStack(spacing: 16) {
                 if myPlants.isEmpty {
                     emptyStateView(
-                        title: "Aucune plante pour le moment",
-                        description: "Commencez à construire votre jardin en ajoutant votre première plante !",
-                        buttonText: "Ajouter une plante",
+                        title: L10n.t("MY_GARDEN_EMPTY_PLANTS_TITLE"),
+                        description: L10n.t("MY_GARDEN_EMPTY_PLANTS_DESCRIPTION"),
+                        buttonText: L10n.t("MY_GARDEN_ADD_PLANT"),
                         action: {}
                     )
                 } else {
@@ -130,9 +130,9 @@ struct MyGardenView: View {
             LazyVStack(spacing: 16) {
                 if wishlistPlants.isEmpty {
                     emptyStateView(
-                        title: "Votre liste de souhaits est vide",
-                        description: "Ajoutez des plantes que vous aimeriez avoir dans votre jardin !",
-                        buttonText: "Explorer le catalogue",
+                        title: L10n.t("MY_GARDEN_EMPTY_WISHLIST_TITLE"),
+                        description: L10n.t("MY_GARDEN_EMPTY_WISHLIST_DESCRIPTION"),
+                        buttonText: L10n.t("MY_GARDEN_EXPLORE_CATALOG"),
                         action: {}
                     )
                 } else {
@@ -152,7 +152,7 @@ struct MyGardenView: View {
             VStack(spacing: 20) {
                 // Graphique de santé des plantes
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Santé de vos plantes")
+                    Text(L10n.t("MY_GARDEN_HEALTH_TITLE"))
                         .font(.headline)
                         .foregroundColor(themeManager.textColor)
                     
@@ -167,7 +167,7 @@ struct MyGardenView: View {
                                         .bold()
                                         .foregroundColor(.white)
                                 )
-                            Text("Excellente")
+                            Text(L10n.t("MY_GARDEN_HEALTH_EXCELLENT"))
                                 .font(.caption2)
                                 .foregroundColor(themeManager.secondaryTextColor)
                         }
@@ -175,9 +175,9 @@ struct MyGardenView: View {
                         Spacer()
                         
                         VStack(alignment: .leading, spacing: 8) {
-                            HealthBarItem(label: "Bien hydratées", percentage: 0.9, color: themeManager.systemBlue)
-                            HealthBarItem(label: "Bien exposées", percentage: 0.85, color: themeManager.adjust(.orange))
-                            HealthBarItem(label: "Bien nourries", percentage: 0.95, color: themeManager.systemGreen)
+                            HealthBarItem(label: L10n.t("MY_GARDEN_HEALTH_HYDRATED"), percentage: 0.9, color: themeManager.systemBlue)
+                            HealthBarItem(label: L10n.t("MY_GARDEN_HEALTH_EXPOSED"), percentage: 0.85, color: themeManager.adjust(.orange))
+                            HealthBarItem(label: L10n.t("MY_GARDEN_HEALTH_FED"), percentage: 0.95, color: themeManager.systemGreen)
                         }
                     }
                 }
@@ -187,27 +187,27 @@ struct MyGardenView: View {
                 
                 // Activité récente
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Activité récente")
+                    Text(L10n.t("MY_GARDEN_RECENT_ACTIVITY"))
                         .font(.headline)
                         .foregroundColor(themeManager.textColor)
                     
                     VStack(spacing: 8) {
                         ActivityItem(
                             icon: "drop.fill",
-                            text: "Monstera arrosée",
-                            time: "Il y a 2h",
+                            text: L10n.t("MY_GARDEN_ACTIVITY_WATERED"),
+                            time: L10n.t("MY_GARDEN_TIME_2H_AGO"),
                             color: themeManager.systemBlue
                         )
                         ActivityItem(
                             icon: "leaf.fill",
-                            text: "Nouvelle pousse sur le Ficus",
-                            time: "Hier",
+                            text: L10n.t("MY_GARDEN_ACTIVITY_NEW_GROWTH"),
+                            time: L10n.t("MY_GARDEN_TIME_YESTERDAY"),
                             color: themeManager.systemGreen
                         )
                         ActivityItem(
                             icon: "plus.circle.fill",
-                            text: "Pothos ajouté au jardin",
-                            time: "Il y a 3 jours",
+                            text: L10n.t("MY_GARDEN_ACTIVITY_ADDED"),
+                            time: L10n.t("MY_GARDEN_TIME_3_DAYS_AGO"),
                             color: themeManager.adjust(.purple)
                         )
                     }
@@ -317,7 +317,7 @@ struct PlantGardenCard: View {
                     .font(.headline)
                     .foregroundColor(themeManager.textColor)
                 
-                Text("Dernière activité: Arrosage")
+                Text(L10n.t("MY_GARDEN_LAST_ACTIVITY_WATERING"))
                     .font(.caption)
                     .foregroundColor(themeManager.secondaryTextColor)
             }
@@ -330,7 +330,7 @@ struct PlantGardenCard: View {
                     .fill(themeManager.systemGreen)
                     .frame(width: 12, height: 12)
                 
-                Text("Bonne")
+                Text(L10n.t("MY_GARDEN_HEALTH_GOOD"))
                     .font(.caption2)
                     .foregroundColor(themeManager.secondaryTextColor)
             }
@@ -368,7 +368,7 @@ struct WishlistPlantCard: View {
                     .font(.headline)
                     .foregroundColor(themeManager.textColor)
                 
-                Text("Ajouté à la liste")
+                Text(L10n.t("MY_GARDEN_ADDED_TO_LIST"))
                     .font(.caption)
                     .foregroundColor(themeManager.secondaryTextColor)
             }

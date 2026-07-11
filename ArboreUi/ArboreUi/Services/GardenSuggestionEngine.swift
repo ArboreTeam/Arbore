@@ -34,6 +34,16 @@ struct SuggestedPlant: Identifiable {
         case low = "Basse"
         case groundCover = "Couvre-sol"
         case climbing = "Grimpante"
+
+        var displayName: String {
+            switch self {
+            case .tall: return L10n.t("PLANT_CATEGORY_TALL")
+            case .medium: return L10n.t("PLANT_CATEGORY_MEDIUM")
+            case .low: return L10n.t("PLANT_CATEGORY_LOW")
+            case .groundCover: return L10n.t("PLANT_CATEGORY_GROUND_COVER")
+            case .climbing: return L10n.t("PLANT_CATEGORY_CLIMBING")
+            }
+        }
     }
 }
 
@@ -135,33 +145,33 @@ final class GardenSuggestionEngine {
         // --- Style axis ---
         let styleScore = scoreStyle(plant: plant, translation: translation, style: wizard.style)
         if styleScore > 0.7 {
-            reasons.append("Correspond au style \(wizard.style)")
+            reasons.append(L10n.f("SUGGESTION_REASON_STYLE_MATCH", localizedStyleName(from: wizard.style)))
         }
 
         // --- Exposure axis ---
         let exposureScore = scoreExposure(plant: plant, translation: translation, exposure: wizard.exposure)
         if exposureScore > 0.7 {
-            reasons.append("Luminosité adaptée")
+            reasons.append(L10n.t("SUGGESTION_REASON_LIGHT_MATCH"))
         } else if exposureScore < 0.3 {
-            reasons.append("⚠️ Lumière peu compatible")
+            reasons.append(L10n.t("SUGGESTION_REASON_LIGHT_LOW"))
         }
 
         // --- Soil axis ---
         let soilScore = scoreSoil(plant: plant, translation: translation, soil: wizard.soil)
         if soilScore > 0.7 {
-            reasons.append("Sol compatible")
+            reasons.append(L10n.t("SUGGESTION_REASON_SOIL_MATCH"))
         }
 
         // --- Maintenance axis ---
         let maintenanceScore = scoreMaintenance(plant: plant, translation: translation, maintenance: wizard.maintenance)
         if maintenanceScore > 0.7 {
-            reasons.append("Entretien adapté")
+            reasons.append(L10n.t("SUGGESTION_REASON_CARE_MATCH"))
         }
 
         // --- Safety axis ---
         let safetyScore = scoreSafety(plant: plant, translation: translation, safety: wizard.safety)
         if safetyScore < 0.5 {
-            reasons.append("⚠️ Plante potentiellement toxique")
+            reasons.append(L10n.t("SUGGESTION_REASON_TOXIC_WARNING"))
         }
 
         // Weighted average (poids distants si disponibles, sinon repli)
@@ -173,7 +183,7 @@ final class GardenSuggestionEngine {
             + safetyScore * weights.safety
 
         if reasons.isEmpty {
-            reasons.append("Compatible avec vos critères")
+            reasons.append(L10n.t("SUGGESTION_REASON_GENERIC_MATCH"))
         }
 
         return ScoreResult(score: total, reasons: reasons)
@@ -545,7 +555,7 @@ final class GardenSuggestionEngine {
     /// Generate a human-readable summary of the suggestion.
     private func generateSummary(plants: [SuggestedPlant], wizard: GardenWizardDTO) -> String {
         guard !plants.isEmpty else {
-            return "Aucune plante ne correspond parfaitement à vos critères. Essayez d'élargir vos filtres."
+            return L10n.t("SUGGESTION_SUMMARY_EMPTY")
         }
 
         let style = wizard.style
@@ -554,25 +564,36 @@ final class GardenSuggestionEngine {
 
         // Style-specific intros
         let styleIntros: [String: String] = [
-            "moderne": "Un jardin aux lignes épurées avec des plantes graphiques et structurées.",
-            "fleuri": "Une explosion de couleurs et de parfums pour un jardin vibrant.",
-            "champêtre": "Un jardin naturel et sauvage, facile à entretenir.",
-            "zen": "Un espace de calme et de méditation avec des plantes apaisantes.",
-            "méditerranéen": "Un jardin résistant au soleil, aux saveurs aromatiques."
+            "moderne": L10n.t("SUGGESTION_SUMMARY_STYLE_MODERN"),
+            "fleuri": L10n.t("SUGGESTION_SUMMARY_STYLE_FLORAL"),
+            "champêtre": L10n.t("SUGGESTION_SUMMARY_STYLE_WILD"),
+            "zen": L10n.t("SUGGESTION_SUMMARY_STYLE_ZEN"),
+            "méditerranéen": L10n.t("SUGGESTION_SUMMARY_STYLE_MEDITERRANEAN")
         ]
 
         let intro = styleIntros.first(where: { style.lowercased().contains($0.key) })?.value
-            ?? "Une sélection personnalisée adaptée à votre espace."
+            ?? L10n.t("SUGGESTION_SUMMARY_STYLE_CUSTOM")
 
         let quality: String
         if avgScore > 0.75 {
-            quality = "Excellente compatibilité avec vos critères !"
+            quality = L10n.t("SUGGESTION_SUMMARY_QUALITY_EXCELLENT")
         } else if avgScore > 0.5 {
-            quality = "Bonne compatibilité avec vos critères."
+            quality = L10n.t("SUGGESTION_SUMMARY_QUALITY_GOOD")
         } else {
-            quality = "Compatibilité modérée — certaines plantes sont des compromis."
+            quality = L10n.t("SUGGESTION_SUMMARY_QUALITY_MODERATE")
         }
 
-        return "\(intro)\n\(count) plantes sélectionnées. \(quality)"
+        return "\(intro)\n\(L10n.f("SUGGESTION_SUMMARY_COUNT_FORMAT", count)) \(quality)"
+    }
+
+    private func localizedStyleName(from rawStyle: String) -> String {
+        let style = rawStyle.lowercased()
+        if style.contains("moderne") { return L10n.t("WIZARD_STYLE_MODERN_TITLE") }
+        if style.contains("fleuri") { return L10n.t("WIZARD_STYLE_FLORAL_TITLE") }
+        if style.contains("champêtre") { return L10n.t("WIZARD_STYLE_WILD_TITLE") }
+        if style.contains("zen") { return L10n.t("WIZARD_STYLE_ZEN_TITLE") }
+        if style.contains("méditerranéen") { return L10n.t("WIZARD_STYLE_MEDITERRANEAN_TITLE") }
+        if style.contains("sans préférence") { return L10n.t("WIZARD_STYLE_NO_PREFERENCE_TITLE") }
+        return rawStyle.isEmpty ? L10n.t("WIZARD_STYLE_NO_PREFERENCE_TITLE") : rawStyle
     }
 }

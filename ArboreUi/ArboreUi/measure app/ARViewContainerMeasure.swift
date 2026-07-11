@@ -290,10 +290,10 @@ struct ExportableView: View {
         ZStack {
             Color.white
             VStack(spacing: 20) {
-                Text("PLAN DU JARDIN").font(.headline).tracking(4).foregroundColor(.black).padding(.top, 40)
+                Text(L10n.t("MEASURE_GARDEN_PLAN_TITLE")).font(.headline).tracking(4).foregroundColor(.black).padding(.top, 40)
                 VStack {
                     Text("\(String(format: "%.2f", manager.area)) m²").font(.system(size: 60, weight: .bold)).foregroundColor(.black)
-                    Text("Périmètre: \(String(format: "%.2f", manager.perimeter)) m").font(.subheadline).foregroundColor(.gray)
+                    Text(L10n.f("MEASURE_PERIMETER_FORMAT", Double(manager.perimeter))).font(.subheadline).foregroundColor(.gray)
                 }
                 Divider().padding(.horizontal)
                 ZStack {
@@ -302,7 +302,7 @@ struct ExportableView: View {
                 }
                 .frame(height: 400).padding()
                 Spacer()
-                Text("Généré via GardenAR").font(.caption2).foregroundColor(.gray).padding(.bottom, 20)
+                Text(L10n.t("MEASURE_GENERATED_BY")).font(.caption2).foregroundColor(.gray).padding(.bottom, 20)
             }
         }.frame(width: 500, height: 700)
     }
@@ -357,7 +357,7 @@ struct ARViewContainerMesure: View {
             soil: nil,
             scanMethod: nil
         ),
-        gardenName: String = "Mon jardin",
+        gardenName: String = L10n.t("MY_GARDEN_TITLE"),
         thumbnailKey: String? = nil,
         existingGardenId: String? = nil,
         measurementOnly: Bool = false,
@@ -556,7 +556,7 @@ struct ARViewContainerMesure: View {
                             Circle()
                                 .fill(Color.green)
                                 .frame(width: 8, height: 8)
-                            Text("AR Active")
+                            Text(L10n.t("MEASURE_AR_ACTIVE"))
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(.white)
                         }
@@ -565,7 +565,7 @@ struct ARViewContainerMesure: View {
                         .background(.ultraThinMaterial)
                         .cornerRadius(20)
                         
-                        Text("Touchez le sol pour placer des points")
+                        Text(L10n.t("MEASURE_TAP_FLOOR_HINT"))
                             .font(.system(size: 10))
                             .foregroundColor(.white.opacity(0.8))
                             .padding(.horizontal, 8)
@@ -577,7 +577,7 @@ struct ARViewContainerMesure: View {
                     Spacer()
 
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("SURFACE TOTALE")
+                        Text(L10n.t("MEASURE_TOTAL_AREA"))
                             .font(.system(size: 10, weight: .bold)).tracking(1.5)
                             .foregroundStyle(.white.opacity(0.6))
                         HStack(alignment: .firstTextBaseline, spacing: 4) {
@@ -611,11 +611,11 @@ struct ARViewContainerMesure: View {
                     VStack(alignment: .leading) {
                         HStack {
                             Image(systemName: "ruler").font(.caption).foregroundColor(.green)
-                            Text("Relevés").font(.caption).fontWeight(.bold).textCase(.uppercase).foregroundColor(.white.opacity(0.6))
+                            Text(L10n.t("MEASURE_READINGS")).font(.caption).fontWeight(.bold).textCase(.uppercase).foregroundColor(.white.opacity(0.6))
                         }.padding(.bottom, 5)
 
                         if gardenManager.points.count < 2 {
-                            Text("Placez des points...")
+                            Text(L10n.t("MEASURE_PLACE_POINTS"))
                                 .font(.caption).italic().foregroundColor(.white.opacity(0.4))
                                 .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 10)
                         } else {
@@ -663,7 +663,7 @@ struct ARViewContainerMesure: View {
                                 }
                                 .frame(height: 70)
 
-                                Text("VOIR PLAN")
+                                Text(L10n.t("MEASURE_VIEW_PLAN"))
                                     .font(.system(size: 10, weight: .bold))
                                     .tracking(1)
                                     .foregroundColor(.white.opacity(0.8))
@@ -692,7 +692,7 @@ struct ARViewContainerMesure: View {
                                 }
                             }
                         } label: {
-                            Text("CONTINUER")
+                            Text(L10n.t("COMMON_CONTINUE"))
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundColor(.white)
                                 .frame(width: 120)
@@ -751,7 +751,7 @@ struct ARViewContainerMesure: View {
         .sheet(isPresented: $showFullScreenPlan) {
             VStack {
                 HStack {
-                    Text("Plan Vue du Dessus").font(.title2).bold()
+                    Text(L10n.t("MEASURE_TOP_VIEW_PLAN")).font(.title2).bold()
                     Spacer()
                     Button(action: { showFullScreenPlan = false }) {
                         Image(systemName: "xmark.circle.fill").font(.title2).foregroundColor(.gray.opacity(0.5))
@@ -777,7 +777,7 @@ struct ARViewContainerMesure: View {
                 Button(action: { saveToGallery() }) {
                     HStack {
                         Image(systemName: "square.and.arrow.down")
-                        Text("Sauvegarder dans Photos")
+                        Text(L10n.t("MEASURE_SAVE_TO_PHOTOS"))
                     }
                     .font(.headline).foregroundColor(.white).padding()
                     .frame(maxWidth: .infinity)
@@ -786,7 +786,7 @@ struct ARViewContainerMesure: View {
                 }.padding()
 
                 if saveSuccess {
-                    Text("✅ Image sauvegardée !")
+                    Text(L10n.t("MEASURE_IMAGE_SAVED"))
                         .font(.caption).bold()
                         .foregroundColor(.green)
                         .transition(.opacity)

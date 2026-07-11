@@ -6,38 +6,38 @@ struct UpgradePlanView: View {
     private let benefits: [PremiumBenefit] = [
         PremiumBenefit(
             icon: "paintpalette",
-            title: "Tous les styles de jardin",
-            description: "Explorez des ambiances plus riches pour créer un espace qui vous ressemble."
+            title: L10n.t("PREMIUM_BENEFIT_STYLES_TITLE"),
+            description: L10n.t("PREMIUM_BENEFIT_STYLES_DESC")
         ),
         PremiumBenefit(
             icon: "square.grid.2x2",
-            title: "Jusqu'à 30 jardins sauvegardés",
-            description: "Gardez vos idées, variantes et projets prêts à reprendre à tout moment."
+            title: L10n.t("PREMIUM_BENEFIT_GARDENS_TITLE"),
+            description: L10n.t("PREMIUM_BENEFIT_GARDENS_DESC")
         ),
         PremiumBenefit(
             icon: "sparkles",
-            title: "Outils intelligents pour vos plantes",
-            description: "Luminosité, pot et santé : prenez de meilleures décisions, plus vite."
+            title: L10n.t("PREMIUM_BENEFIT_TOOLS_TITLE"),
+            description: L10n.t("PREMIUM_BENEFIT_TOOLS_DESC")
         ),
         PremiumBenefit(
             icon: "person.crop.circle.badge.checkmark",
-            title: "Recommandations personnalisées",
-            description: "Recevez des conseils plus pertinents selon vos plantes et votre espace."
+            title: L10n.t("PREMIUM_BENEFIT_RECS_TITLE"),
+            description: L10n.t("PREMIUM_BENEFIT_RECS_DESC")
         )
     ]
 
     private let comparisonRows: [PremiumComparison] = [
-        PremiumComparison(feature: "Styles", freemium: "2 styles", premium: "Tous les styles"),
-        PremiumComparison(feature: "Jardins sauvegardés", freemium: "2", premium: "Jusqu'à 30"),
-        PremiumComparison(feature: "Catalogue de plantes", freemium: "Limité", premium: "Complet"),
-        PremiumComparison(feature: "Outils intelligents", freemium: "Non inclus", premium: "Inclus"),
-        PremiumComparison(feature: "Recommandations avancées", freemium: "Limitées", premium: "Incluses")
+        PremiumComparison(feature: L10n.t("PREMIUM_FEATURE_STYLES"), freemium: L10n.t("PREMIUM_FREE_STYLES"), premium: L10n.t("PREMIUM_ALL_STYLES")),
+        PremiumComparison(feature: L10n.t("PREMIUM_FEATURE_SAVED_GARDENS"), freemium: "2", premium: L10n.t("PREMIUM_UP_TO_30")),
+        PremiumComparison(feature: L10n.t("PREMIUM_FEATURE_CATALOG"), freemium: L10n.t("PREMIUM_LIMITED"), premium: L10n.t("PREMIUM_COMPLETE")),
+        PremiumComparison(feature: L10n.t("PREMIUM_FEATURE_SMART_TOOLS"), freemium: L10n.t("PREMIUM_NOT_INCLUDED"), premium: L10n.t("PREMIUM_INCLUDED")),
+        PremiumComparison(feature: L10n.t("PREMIUM_FEATURE_ADVANCED_RECS"), freemium: L10n.t("PREMIUM_LIMITED_PLURAL"), premium: L10n.t("PREMIUM_INCLUDED_PLURAL"))
     ]
 
     var body: some View {
         AppBackground {
             VStack(spacing: 0) {
-                SettingsTopBar(title: "Premium") {
+                SettingsTopBar(title: L10n.t("PREMIUM_TITLE")) {
                     dismiss()
                 }
 
@@ -76,12 +76,12 @@ struct UpgradePlanView: View {
             }
 
             VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
-                Text("Créez le jardin parfait")
+                Text(L10n.t("PREMIUM_HERO_TITLE"))
                     .font(.system(size: 34, weight: .bold))
                     .foregroundColor(ArboreDesign.Colors.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("Débloquez tous les styles, créez plus de jardins et profitez d'outils intelligents pour prendre soin de vos plantes.")
+                Text(L10n.t("PREMIUM_HERO_SUBTITLE"))
                     .font(ArboreDesign.Typography.body)
                     .foregroundColor(ArboreDesign.Colors.textSecondary)
                     .lineSpacing(3)
@@ -97,12 +97,12 @@ struct UpgradePlanView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.82)
 
-                        Text("/mois")
+                        Text(L10n.t("PREMIUM_PER_MONTH"))
                             .font(.system(size: 17, weight: .semibold))
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
                     }
 
-                    Label("Annulable à tout moment", systemImage: "checkmark.circle")
+                    Label(L10n.t("PREMIUM_CANCEL_ANYTIME"), systemImage: "checkmark.circle")
                         .font(ArboreDesign.Typography.bodySmall)
                         .foregroundColor(ArboreDesign.Colors.textSecondary)
                 }
@@ -153,7 +153,7 @@ struct UpgradePlanView: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 12, weight: .bold))
 
-            Text("1er mois gratuit")
+            Text(L10n.t("PREMIUM_FIRST_MONTH_FREE"))
                 .font(.system(size: 13, weight: .semibold))
         }
         .foregroundColor(ArboreDesign.Colors.textPrimary)
@@ -170,8 +170,8 @@ struct UpgradePlanView: View {
     private var benefitsSection: some View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
             sectionHeader(
-                eyebrow: "Ce que vous débloquez",
-                title: "Plus de liberté, moins d'hésitation"
+                eyebrow: L10n.t("PREMIUM_UNLOCK_EYEBROW"),
+                title: L10n.t("PREMIUM_UNLOCK_TITLE")
             )
 
             AppCard {
@@ -191,15 +191,15 @@ struct UpgradePlanView: View {
     private var comparisonSection: some View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
             sectionHeader(
-                eyebrow: "Comparaison",
-                title: "Premium en un coup d'oeil"
+                eyebrow: L10n.t("PREMIUM_COMPARISON_EYEBROW"),
+                title: L10n.t("PREMIUM_COMPARISON_TITLE")
             )
 
             AppCard {
                 VStack(spacing: ArboreDesign.Spacing.md) {
                     HStack(spacing: ArboreDesign.Spacing.sm) {
-                        PlanColumnHeader(title: "Freemium", isPremium: false)
-                        PlanColumnHeader(title: "Premium", isPremium: true)
+                        PlanColumnHeader(title: L10n.t("PREMIUM_FREE_PLAN"), isPremium: false)
+                        PlanColumnHeader(title: L10n.t("PREMIUM_TITLE"), isPremium: true)
                     }
 
                     VStack(spacing: ArboreDesign.Spacing.sm) {
@@ -225,11 +225,11 @@ struct UpgradePlanView: View {
             )
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Essayez Premium librement.")
+                Text(L10n.t("PREMIUM_REASSURANCE_TITLE"))
                     .font(ArboreDesign.Typography.cardTitle)
                     .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                Text("Conçu pour simplifier le jardinage, pas pour le compliquer. Vous pouvez annuler à tout moment.")
+                Text(L10n.t("PREMIUM_REASSURANCE_SUBTITLE"))
                     .font(ArboreDesign.Typography.bodySmall)
                     .foregroundColor(ArboreDesign.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -251,14 +251,14 @@ struct UpgradePlanView: View {
             Button(action: startPremiumTrial) {
                 HStack(spacing: ArboreDesign.Spacing.xs) {
                     Image(systemName: "sparkles")
-                    Text("Commencer mon essai gratuit")
+                    Text(L10n.t("PREMIUM_START_TRIAL"))
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
                 }
             }
             .buttonStyle(.arborePrimary)
 
-            Text("Puis 4,99 €/mois · annulable à tout moment")
+            Text(L10n.t("PREMIUM_TRIAL_FOOTNOTE"))
                 .font(ArboreDesign.Typography.caption)
                 .foregroundColor(ArboreDesign.Colors.textSecondary)
                 .multilineTextAlignment(.center)

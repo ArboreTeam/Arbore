@@ -12,11 +12,11 @@ struct ExposureStepView: View {
             
             VStack(spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Quelle est l'exposition de votre espace ?")
+                    Text(L10n.t("WIZARD_EXPOSURE_TITLE"))
                         .font(.system(size: 26, weight: .bold))
                         .fixedSize(horizontal: false, vertical: true)
                     
-                    Text("Une estimation suffit.")
+                    Text(L10n.t("WIZARD_EXPOSURE_SUBTITLE"))
                         .font(.system(size: 15))
                         .foregroundColor(.secondary)
                 }
@@ -46,14 +46,14 @@ struct ExposureStepView: View {
                 VStack(spacing: 12) {
                     Button(action: onNext) {
                         HStack {
-                            Text("Continuer")
+                            Text(L10n.t("COMMON_CONTINUE"))
                             Image(systemName: "arrow.right")
                         }
                     }
                     .buttonStyle(PrimaryWizardButtonStyle(isEnabled: state.exposure != nil))
                     .disabled(state.exposure == nil)
                     
-                    Button("Retour") { onBack() }
+                    Button(L10n.t("COMMON_BACK")) { onBack() }
                         .buttonStyle(SecondaryWizardButtonStyle())
                 }
                 .padding(.horizontal, 24)

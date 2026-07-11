@@ -9,7 +9,7 @@ struct WaterReminderRow: View {
             Image(systemName: "drop.fill")
                 .foregroundColor(.blue)
             
-            Text("\(plantName) - Arroser dans \(daysLeft) jour(s)")
+            Text(L10n.f("WATER_REMINDER_ROW_FORMAT", plantName, daysLeft))
                 .foregroundColor(.white)
             
             Spacer()

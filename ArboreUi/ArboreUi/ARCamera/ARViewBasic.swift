@@ -30,7 +30,7 @@ struct ARViewBasic: View {
             // Instructions en haut au centre
             VStack {
                 VStack(spacing: 8) {
-                    Text("🌱 Mode AR Basique")
+                    Text(L10n.t("AR_BASIC_MODE_TITLE"))
                         .font(.headline)
                         .foregroundColor(.white)
                         .padding(.horizontal, 16)
@@ -38,7 +38,7 @@ struct ARViewBasic: View {
                         .background(Color.black.opacity(0.7))
                         .cornerRadius(12)
                     
-                    Text("Pointez votre caméra vers une surface plane pour commencer")
+                    Text(L10n.t("AR_BASIC_SURFACE_HINT"))
                         .font(.subheadline)
                         .foregroundColor(.white)
                         .multilineTextAlignment(.center)
@@ -56,7 +56,7 @@ struct ARViewBasic: View {
                     HStack {
                         Image(systemName: "camera.fill")
                             .font(.title)
-                        Text("Prendre une photo")
+                        Text(L10n.t("AR_CAMERA_TAKE_PHOTO"))
                             .fontWeight(.bold)
                     }
                     .padding()

@@ -54,16 +54,25 @@ enum GardenStyle: String, CaseIterable, Identifiable {
         }
     }
     
-    var title: String { rawValue }
+    var title: String {
+        switch self {
+        case .modern: return L10n.t("WIZARD_STYLE_MODERN_TITLE")
+        case .floral: return L10n.t("WIZARD_STYLE_FLORAL_TITLE")
+        case .wild: return L10n.t("WIZARD_STYLE_WILD_TITLE")
+        case .zen: return L10n.t("WIZARD_STYLE_ZEN_TITLE")
+        case .mediterranean: return L10n.t("WIZARD_STYLE_MEDITERRANEAN_TITLE")
+        case .noPreference: return L10n.t("WIZARD_STYLE_NO_PREFERENCE_TITLE")
+        }
+    }
     
     var subtitle: String {
         switch self {
-        case .modern: return "Lignes épurées et géométriques"
-        case .floral: return "Explosion de couleurs et parfums"
-        case .wild: return "Naturel et peu d'entretien"
-        case .zen: return "Calme et méditation"
-        case .mediterranean: return "Résistant et aromatique"
-        case .noPreference: return "Je me laisse guider"
+        case .modern: return L10n.t("WIZARD_STYLE_MODERN_SUBTITLE")
+        case .floral: return L10n.t("WIZARD_STYLE_FLORAL_SUBTITLE")
+        case .wild: return L10n.t("WIZARD_STYLE_WILD_SUBTITLE")
+        case .zen: return L10n.t("WIZARD_STYLE_ZEN_SUBTITLE")
+        case .mediterranean: return L10n.t("WIZARD_STYLE_MEDITERRANEAN_SUBTITLE")
+        case .noPreference: return L10n.t("WIZARD_STYLE_NO_PREFERENCE_SUBTITLE")
         }
     }
     
@@ -95,13 +104,19 @@ enum GardenSpaceType: String, CaseIterable, Identifiable {
         }
     }
     
-    var title: String { rawValue }
+    var title: String {
+        switch self {
+        case .garden: return L10n.t("WIZARD_SPACE_GARDEN_TITLE")
+        case .balcony: return L10n.t("WIZARD_SPACE_BALCONY_TITLE")
+        case .interior: return L10n.t("WIZARD_SPACE_INTERIOR_TITLE")
+        }
+    }
     
     var subtitle: String {
         switch self {
-        case .garden: return "Pleine terre, grands espaces"
-        case .balcony: return "Pots, jardinières"
-        case .interior: return "Plantes d'intérieur"
+        case .garden: return L10n.t("WIZARD_SPACE_GARDEN_SUBTITLE")
+        case .balcony: return L10n.t("WIZARD_SPACE_BALCONY_SUBTITLE")
+        case .interior: return L10n.t("WIZARD_SPACE_INTERIOR_SUBTITLE")
         }
     }
 }
@@ -123,14 +138,21 @@ enum SunExposure: String, CaseIterable, Identifiable {
         }
     }
     
-    var title: String { rawValue }
+    var title: String {
+        switch self {
+        case .fullSun: return L10n.t("WIZARD_EXPOSURE_FULLSUN_TITLE")
+        case .partialShade: return L10n.t("WIZARD_EXPOSURE_PARTIAL_TITLE")
+        case .shade: return L10n.t("WIZARD_EXPOSURE_SHADE_TITLE")
+        case .unknown: return L10n.t("WIZARD_EXPOSURE_UNKNOWN_TITLE")
+        }
+    }
     
     var subtitle: String {
         switch self {
-        case .fullSun: return "Le soleil tape fort toute la journée."
-        case .partialShade: return "Quelques heures de soleil le matin ou le soir."
-        case .shade: return "Peu ou pas de soleil direct."
-        case .unknown: return "On vous aidera à le déterminer plus tard."
+        case .fullSun: return L10n.t("WIZARD_EXPOSURE_FULLSUN_SUBTITLE")
+        case .partialShade: return L10n.t("WIZARD_EXPOSURE_PARTIAL_SUBTITLE")
+        case .shade: return L10n.t("WIZARD_EXPOSURE_SHADE_SUBTITLE")
+        case .unknown: return L10n.t("WIZARD_EXPOSURE_UNKNOWN_SUBTITLE")
         }
     }
 }
@@ -150,13 +172,19 @@ enum MaintenanceLevel: String, CaseIterable, Identifiable {
         }
     }
     
-    var title: String { rawValue }
+    var title: String {
+        switch self {
+        case .veryEasy: return L10n.t("WIZARD_MAINTENANCE_VERY_EASY_TITLE")
+        case .easy: return L10n.t("WIZARD_MAINTENANCE_EASY_TITLE")
+        case .demanding: return L10n.t("WIZARD_MAINTENANCE_DEMANDING_TITLE")
+        }
+    }
     
     var subtitle: String {
         switch self {
-        case .veryEasy: return "Pour ceux qui n'ont pas la main verte. Arrosage minimal."
-        case .easy: return "Un peu d'attention, mais rien de compliqué."
-        case .demanding: return "Pour les passionnés prêts à y consacrer du temps."
+        case .veryEasy: return L10n.t("WIZARD_MAINTENANCE_VERY_EASY_SUBTITLE")
+        case .easy: return L10n.t("WIZARD_MAINTENANCE_EASY_SUBTITLE")
+        case .demanding: return L10n.t("WIZARD_MAINTENANCE_DEMANDING_SUBTITLE")
         }
     }
 }
@@ -176,7 +204,13 @@ enum SafetyOption: String, CaseIterable, Identifiable {
         }
     }
     
-    var title: String { rawValue }
+    var title: String {
+        switch self {
+        case .pets: return L10n.t("WIZARD_SAFETY_PETS_TITLE")
+        case .children: return L10n.t("WIZARD_SAFETY_CHILDREN_TITLE")
+        case .none: return L10n.t("WIZARD_SAFETY_NONE_TITLE")
+        }
+    }
 }
 
 enum SoilType: String, CaseIterable, Identifiable {
@@ -198,7 +232,15 @@ enum SoilType: String, CaseIterable, Identifiable {
         }
     }
     
-    var title: String { rawValue }
+    var title: String {
+        switch self {
+        case .rich: return L10n.t("WIZARD_SOIL_RICH_TITLE")
+        case .dry: return L10n.t("WIZARD_SOIL_DRY_TITLE")
+        case .rocky: return L10n.t("WIZARD_SOIL_ROCKY_TITLE")
+        case .waterRetentive: return L10n.t("WIZARD_SOIL_WATER_RETENTIVE_TITLE")
+        case .unknown: return L10n.t("WIZARD_SOIL_UNKNOWN_TITLE")
+        }
+    }
 }
 
 // MARK: - Wizard State
@@ -362,7 +404,7 @@ struct GardenWizardView: View {
         )
     }
 
-    private var gardenName: String { "Mon jardin" }
+    private var gardenName: String { L10n.t("MY_GARDEN_TITLE") }
 
     /// Si tu veux une clé d’image cohérente: utilise imageName
     private var thumbnailKey: String? { state.style?.imageName }
@@ -609,7 +651,7 @@ struct WizardProgressHeader: View {
     
     var body: some View {
         VStack(spacing: 10) {
-            Text("ÉTAPE \(currentIndex + 1) SUR \(total)")
+            Text(L10n.f("WIZARD_STEP_PROGRESS_FORMAT", currentIndex + 1, total))
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(ArboreDesign.Colors.textSecondary)
                 .tracking(1.2)
@@ -953,4 +995,3 @@ struct QuestionnaireView_Previews: PreviewProvider {
         }
     }
 }
-

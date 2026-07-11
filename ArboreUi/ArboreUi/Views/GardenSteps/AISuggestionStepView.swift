@@ -122,11 +122,11 @@ struct AISuggestionStepView: View {
             }
 
             VStack(spacing: 10) {
-                Text("Analyse en cours…")
+                Text(L10n.t("AI_SUGGESTION_LOADING_TITLE"))
                     .font(.system(size: 24, weight: .bold))
                     .foregroundColor(colorScheme == .dark ? .white : .primary)
 
-                Text("Notre IA sélectionne les plantes\nles plus adaptées à votre jardin")
+                Text(L10n.t("AI_SUGGESTION_LOADING_SUBTITLE"))
                     .font(.system(size: 15))
                     .foregroundColor(subtitleColor)
                     .multilineTextAlignment(.center)
@@ -151,7 +151,7 @@ struct AISuggestionStepView: View {
                             .font(.system(size: 22, weight: .semibold))
                             .foregroundColor(Color.gardenAccent)
 
-                        Text("Jardin suggéré")
+                        Text(L10n.t("AI_SUGGESTION_RESULT_TITLE"))
                             .font(.system(size: 28, weight: .bold))
                             .foregroundColor(colorScheme == .dark ? .white : .primary)
                     }
@@ -191,7 +191,7 @@ struct AISuggestionStepView: View {
                             }
                         } label: {
                             HStack(spacing: 8) {
-                                Text("Voir les \(suggestion.plants.count - 5) autres")
+                            Text(L10n.f("AI_SUGGESTION_SEE_OTHERS_FORMAT", suggestion.plants.count - 5))
                                     .font(.system(size: 15, weight: .semibold))
                                 Image(systemName: "chevron.down")
                                     .font(.system(size: 12, weight: .bold))
@@ -230,7 +230,7 @@ struct AISuggestionStepView: View {
 
                     Spacer()
 
-                    Text("\(acceptedPlantIds.count) plante\(acceptedPlantIds.count > 1 ? "s" : "") sélectionnée\(acceptedPlantIds.count > 1 ? "s" : "")")
+                    Text(L10n.f("AI_SUGGESTION_SELECTED_COUNT_FORMAT", acceptedPlantIds.count))
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(subtitleColor)
                 }
@@ -268,13 +268,13 @@ struct AISuggestionStepView: View {
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Compatibilité globale")
+                Text(L10n.t("AI_SUGGESTION_COMPATIBILITY_TITLE"))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(colorScheme == .dark ? .white : .primary)
 
-                Text(score > 0.75 ? "Excellente adéquation avec vos critères"
-                     : score > 0.5 ? "Bonne adéquation"
-                     : "Compatibilité modérée")
+                Text(score > 0.75 ? L10n.t("AI_SUGGESTION_COMPATIBILITY_EXCELLENT")
+                     : score > 0.5 ? L10n.t("AI_SUGGESTION_COMPATIBILITY_GOOD")
+                     : L10n.t("AI_SUGGESTION_COMPATIBILITY_MODERATE"))
                     .font(.system(size: 12))
                     .foregroundColor(subtitleColor)
             }
@@ -301,14 +301,14 @@ struct AISuggestionStepView: View {
             }) {
                 HStack {
                     Text(acceptedPlantIds.isEmpty
-                         ? "Placer le jardin sans plantes"
-                         : "Placer \(acceptedPlantIds.count) plante\(acceptedPlantIds.count > 1 ? "s" : "") en AR")
+                         ? L10n.t("AI_SUGGESTION_PLACE_EMPTY")
+                         : L10n.f("AI_SUGGESTION_PLACE_COUNT_FORMAT", acceptedPlantIds.count))
                     Image(systemName: "arkit")
                 }
             }
             .buttonStyle(PrimaryWizardButtonStyle(isEnabled: true))
 
-            Button("Retour") { onBack() }
+            Button(L10n.t("COMMON_BACK")) { onBack() }
                 .buttonStyle(SecondaryWizardButtonStyle())
         }
         .padding(.horizontal, 24)
@@ -567,7 +567,7 @@ struct PlantCategoryBadge: View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.system(size: 9, weight: .bold))
-            Text(category.rawValue)
+            Text(category.displayName)
                 .font(.system(size: 10, weight: .semibold))
         }
         .foregroundColor(Color.gardenPrimary)

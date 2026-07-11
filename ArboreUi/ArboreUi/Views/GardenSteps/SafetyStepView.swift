@@ -26,11 +26,11 @@ struct SafetyStepView: View {
             VStack(spacing: 24) {
                 // Header
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Y a-t-il des contraintes particulières ?")
+                    Text(L10n.t("WIZARD_SAFETY_TITLE"))
                         .font(.system(size: 26, weight: .bold))
                         .fixedSize(horizontal: false, vertical: true)
                     
-                    Text("Sélection multiple possible")
+                    Text(L10n.t("WIZARD_SAFETY_SUBTITLE"))
                         .font(.system(size: 15))
                         .foregroundColor(.secondary)
                 }
@@ -60,13 +60,13 @@ struct SafetyStepView: View {
                 VStack(spacing: 12) {
                     Button(action: onNext) {
                         HStack {
-                            Text("Continuer")
+                            Text(L10n.t("COMMON_CONTINUE"))
                             Image(systemName: "arrow.right")
                         }
                     }
                     .buttonStyle(PrimaryWizardButtonStyle(isEnabled: true))
                     
-                    Button("Retour") { onBack() }
+                    Button(L10n.t("COMMON_BACK")) { onBack() }
                         .buttonStyle(SecondaryWizardButtonStyle())
                 }
                 .padding(.horizontal, 24)

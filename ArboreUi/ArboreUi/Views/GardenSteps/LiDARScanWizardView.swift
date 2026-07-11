@@ -104,10 +104,10 @@ struct LiDARScanWizardView: View {
                     Spacer()
 
                     VStack {
-                        Text("Scan 3D")
+                        Text(L10n.t("LIDAR_SCAN_TITLE"))
                             .font(.headline)
                             .foregroundColor(.white)
-                        Text("Balayez les murs et l'espace de votre jardin/pièce.")
+                        Text(L10n.t("LIDAR_SCAN_SUBTITLE"))
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.8))
                     }
@@ -123,7 +123,7 @@ struct LiDARScanWizardView: View {
                             HStack(spacing: 6) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 15, weight: .semibold))
-                                Text("Terminer")
+                                Text(L10n.t("COMMON_FINISH"))
                                     .font(.system(size: 14, weight: .semibold))
                             }
                             .foregroundColor(.white)
@@ -167,7 +167,7 @@ struct LiDARScanWizardView: View {
                         ProgressView()
                             .progressViewStyle(CircularProgressViewStyle(tint: .white))
                             .scaleEffect(1.2)
-                        Text("Calcul des mesures...")
+                        Text(L10n.t("LIDAR_SCAN_PROCESSING"))
                             .foregroundColor(.white)
                             .font(.subheadline)
                     }
@@ -181,7 +181,7 @@ struct LiDARScanWizardView: View {
                         processScanAndContinue()
                     }) {
                         HStack {
-                            Text("Scanner le jardin terminé")
+                            Text(L10n.t("LIDAR_SCAN_DONE"))
                             Image(systemName: "checkmark")
                         }
                         .font(.headline)

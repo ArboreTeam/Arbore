@@ -6,10 +6,10 @@ import AVFoundation
 
 class PlantHealthAnalyzer: NSObject, ObservableObject {
     // Variables publiées pour l'UI
-    @Published var diagnosedIssue: String = "Calibration en cours..."
+    @Published var diagnosedIssue: String = L10n.t("HEALTH_SCAN_CALIBRATING")
     @Published var confidenceLevel: Double = 0.0 // Valeur lissée pour l'affichage
     @Published var isHealthy: Bool = true
-    @Published var scientificName: String = "Initialisation..."
+    @Published var scientificName: String = L10n.t("HEALTH_SCAN_INITIALIZING")
     
     // Variables internes pour la logique
     private var targetConfidence: Double = 0.0
@@ -62,8 +62,8 @@ class PlantHealthAnalyzer: NSObject, ObservableObject {
                 self.targetConfidence = randomFluctuation
                 
                 if self.confidenceLevel < 0.6 {
-                    self.diagnosedIssue = "Analyse de la surface..."
-                    self.scientificName = "Scan en cours"
+                    self.diagnosedIssue = L10n.t("HEALTH_SCAN_ANALYZING_SURFACE")
+                    self.scientificName = L10n.t("HEALTH_SCAN_IN_PROGRESS")
                     self.isHealthy = true
                 }
             }
@@ -76,10 +76,10 @@ class PlantHealthAnalyzer: NSObject, ObservableObject {
         self.isHealthy = healthy
         
         if healthy {
-            self.diagnosedIssue = "Plante saine détectée"
+            self.diagnosedIssue = L10n.t("HEALTH_SCAN_HEALTHY_DETECTED")
             self.scientificName = "Plantae Sanus"
         } else {
-            self.diagnosedIssue = "Attention: Mildiou détecté"
+            self.diagnosedIssue = L10n.t("HEALTH_SCAN_MILDEW_DETECTED")
             self.scientificName = "Plasmopara viticola"
         }
     }
@@ -183,7 +183,7 @@ struct HealthARScannerView: View {
                             .overlay(Image(systemName: "xmark").foregroundColor(.white))
                     }
                     Spacer()
-                    Text("SCANNER IA v1.2")
+                    Text(L10n.t("HEALTH_SCAN_TITLE"))
                         .font(.caption2).fontWeight(.heavy)
                         .padding(8).background(.ultraThinMaterial).cornerRadius(8).foregroundColor(.white)
                 }
@@ -211,7 +211,7 @@ struct HealthARScannerView: View {
                     Divider().background(Color.white.opacity(0.3))
                     
                     HStack {
-                        Text("Confiance").font(.caption).foregroundColor(.white.opacity(0.7))
+                        Text(L10n.t("HEALTH_SCAN_CONFIDENCE")).font(.caption).foregroundColor(.white.opacity(0.7))
                         Spacer()
                         Text("\(Int(analyzer.confidenceLevel * 100))%")
                             .font(.caption).bold().foregroundColor(colorForConfidence(analyzer.confidenceLevel))
@@ -239,26 +239,26 @@ struct HealthARScannerView: View {
                 // C'est ici que tu peux forcer le résultat
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 10) {
-                        Text("MODE TEST :")
+                        Text(L10n.t("HEALTH_SCAN_TEST_MODE"))
                             .font(.caption).fontWeight(.bold).foregroundColor(.white)
                             .padding(.leading)
                         
                         Button(action: { analyzer.forceHealthyState() }) {
-                            Text("Forcer Sain")
+                            Text(L10n.t("HEALTH_SCAN_FORCE_HEALTHY"))
                                 .font(.caption).bold()
                                 .padding(.vertical, 8).padding(.horizontal, 12)
                                 .background(Color.green.opacity(0.8)).cornerRadius(20).foregroundColor(.white)
                         }
                         
                         Button(action: { analyzer.forceSickState() }) {
-                            Text("Forcer Malade")
+                            Text(L10n.t("HEALTH_SCAN_FORCE_SICK"))
                                 .font(.caption).bold()
                                 .padding(.vertical, 8).padding(.horizontal, 12)
                                 .background(Color.orange.opacity(0.8)).cornerRadius(20).foregroundColor(.white)
                         }
                         
                         Button(action: { analyzer.resetAuto() }) {
-                            Text("Reset Auto")
+                            Text(L10n.t("HEALTH_SCAN_RESET_AUTO"))
                                 .font(.caption).bold()
                                 .padding(.vertical, 8).padding(.horizontal, 12)
                                 .background(Color.gray.opacity(0.8)).cornerRadius(20).foregroundColor(.white)

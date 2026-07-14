@@ -5,6 +5,7 @@ struct HomeView: View {
     @State private var gardens: [GardenDTO] = []
     @State private var goToQuestionnaire = false
     @State private var goToAllGardens = false
+    @State private var showChat = false
     @EnvironmentObject var themeManager: ThemeManager
 
     @State private var gardenToOpen: GardenDTO? = nil
@@ -64,6 +65,10 @@ struct HomeView: View {
                     }
                 )
             }
+            .fullScreenCover(isPresented: $showChat) {
+                ChatBotView(showsDismissButton: true)
+                    .environmentObject(themeManager)
+            }
         }
     }
 }
@@ -86,9 +91,15 @@ private extension HomeView {
 private extension HomeView {
     var header: some View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
-            Text("Arbore")
-                .font(.system(size: 34, weight: .bold, design: .rounded))
-                .foregroundColor(ArboreDesign.Colors.textPrimary)
+            HStack(alignment: .center, spacing: ArboreDesign.Spacing.md) {
+                Text("Arbore")
+                    .font(.system(size: 34, weight: .bold, design: .rounded))
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+
+                Spacer(minLength: ArboreDesign.Spacing.sm)
+
+                chatButton
+            }
 
             Text(L10n.t("HOME_SUBTITLE"))
                 .font(ArboreDesign.Typography.bodySmall)
@@ -96,6 +107,32 @@ private extension HomeView {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    var chatButton: some View {
+        if #available(iOS 26.0, *) {
+            Button {
+                showChat = true
+            } label: {
+                chatButtonLabel
+            }
+            .buttonStyle(.glass)
+        } else {
+            Button {
+                showChat = true
+            } label: {
+                chatButtonLabel
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    var chatButtonLabel: some View {
+        Image(systemName: "bubble.left.and.text.bubble.right.fill")
+            .font(.system(size: 17, weight: .semibold))
+            .frame(width: 28, height: 28)
+            .accessibilityLabel("Ouvrir le Chat")
     }
 }
 

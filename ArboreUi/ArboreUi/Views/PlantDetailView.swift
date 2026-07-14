@@ -1,12 +1,5 @@
 import SwiftUI
 
-struct ScrollOffsetKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 struct PlantDetailView: View {
     let plantID: String
     let previewPlant: Plant?
@@ -116,17 +109,16 @@ struct PlantDetailView: View {
 
     private var topBar: some View {
         ZStack(alignment: .bottom) {
-            Group {
-                if scrollOffset < -5 {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                } else {
-                    ArboreDesign.Colors.background
-                }
-            }
-            .ignoresSafeArea(edges: .top)
-            .frame(height: 64)
-            .animation(.easeInOut(duration: 0.2), value: scrollOffset)
+            ArboreDesign.Colors.background
+                .ignoresSafeArea(edges: .top)
+                .frame(height: 64)
+
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .ignoresSafeArea(edges: .top)
+                .frame(height: 64)
+                .opacity(scrollOffset < 58 ? 1 : 0)
+                .animation(.easeInOut(duration: 0.2), value: scrollOffset)
 
             HStack {
                 Button(action: { dismiss() }) {
@@ -180,12 +172,8 @@ struct PlantDetailView: View {
 
         return ScrollView(showsIndicators: false) {
             VStack(spacing: 0) {
-                GeometryReader { geo in
-                    Color.clear
-                        .preference(key: ScrollOffsetKey.self,
-                                    value: geo.frame(in: .named("scroll")).minY)
-                }
-                .frame(height: 64)
+                Color.clear
+                    .frame(height: 64)
 
                 plantHeaderImage(for: displayPlant)
 
@@ -216,9 +204,6 @@ struct PlantDetailView: View {
             }
         }
         .coordinateSpace(name: "scroll")
-        .onPreferenceChange(ScrollOffsetKey.self) { value in
-            scrollOffset = value
-        }
     }
 
     // MARK: - HEADER IMAGE
@@ -228,22 +213,29 @@ struct PlantDetailView: View {
             GeometryReader { geo in
                 let offset = geo.frame(in: .named("scroll")).minY
 
-                if let imageURL = displayPlant?.imageURLs.first, !imageURL.isEmpty {
-                    AsyncImage(url: URL(string: imageURL)) { image in
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(
-                                width: UIScreen.main.bounds.width,
-                                height: offset > 0 ? 320 + offset : 320
-                            )
-                            .clipped()
-                            .offset(y: offset > 0 ? -offset : 0)
-                    } placeholder: {
+                ZStack {
+                    if let imageURL = displayPlant?.imageURLs.first, !imageURL.isEmpty {
+                        AsyncImage(url: URL(string: imageURL)) { image in
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .frame(
+                                    width: UIScreen.main.bounds.width,
+                                    height: offset > 0 ? 320 + offset : 320
+                                )
+                                .clipped()
+                                .offset(y: offset > 0 ? -offset : 0)
+                        } placeholder: {
+                            heroSkeleton
+                        }
+                    } else {
                         heroSkeleton
                     }
-                } else {
-                    heroSkeleton
+
+                    Color.clear
+                        .onChange(of: offset) { _, newValue in
+                            scrollOffset = newValue
+                        }
                 }
             }
             .frame(height: 320)
@@ -698,7 +690,7 @@ struct GeneralInfoGridView: View {
                     title: L10n.t("PLANTDETAIL_HEALTH_TITLE"),
                     description: L10n.t("PLANTDETAIL_HEALTH_SUBTITLE"),
                     color: ArboreDesign.Colors.danger,
-                    destination: SanteDetailView(health: translation?.health)
+                    destination: SanteDetailView(health: translation?.health, plantName: plantName)
                 )
                 GeneralInfoCard(
                     icon: "calendar",

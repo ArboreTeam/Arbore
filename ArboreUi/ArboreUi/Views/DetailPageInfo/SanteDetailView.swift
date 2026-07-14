@@ -1,300 +1,18 @@
 import SwiftUI
 import Vision
 import AVFoundation
+import CoreImage
+import CoreImage.CIFilterBuiltins
+import UIKit
 
-// MARK: - PARTIE 1 : MOTEUR D'ANALYSE STABILISÉ
-
-class PlantHealthAnalyzer: NSObject, ObservableObject {
-    // Variables publiées pour l'UI
-    @Published var diagnosedIssue: String = L10n.t("HEALTH_SCAN_CALIBRATING")
-    @Published var confidenceLevel: Double = 0.0 // Valeur lissée pour l'affichage
-    @Published var isHealthy: Bool = true
-    @Published var scientificName: String = L10n.t("HEALTH_SCAN_INITIALIZING")
-    
-    // Variables internes pour la logique
-    private var targetConfidence: Double = 0.0
-    private var stabilizationTimer: Timer?
-    
-    // MODE DÉMO / TEST
-    // Permet de forcer un état pour tester sans plante réelle
-    enum ForceMode {
-        case auto // Comportement aléatoire simulant l'IA
-        case forceHealthy // Force le résultat sain
-        case forceSick // Force le résultat malade
-    }
-    var currentMode: ForceMode = .auto
-    
-    override init() {
-        super.init()
-        startStabilizationLoop()
-    }
-    
-    // Cette boucle tourne 60 fois par seconde pour animer la jauge de manière fluide
-    private func startStabilizationLoop() {
-        stabilizationTimer = Timer.scheduledTimer(withTimeInterval: 0.02, repeats: true) { [weak self] _ in
-            guard let self = self else { return }
-            
-            // FORMULE DE LISSAGE (Linear Interpolation)
-            // On déplace la valeur actuelle vers la cible de 5% à chaque frame
-            // Cela empêche la barre de "sauter", elle glisse.
-            let step = 0.05
-            self.confidenceLevel = self.confidenceLevel + (self.targetConfidence - self.confidenceLevel) * step
-        }
-    }
-    
-    // Appelé à chaque frame de la caméra
-    func analyzePixelBuffer(buffer: CVPixelBuffer) {
-        // On ne fait le calcul "lourd" (simulation) que de temps en temps pour ne pas surcharger
-        // Ici on simule juste la mise à jour de la cible
-        
-        DispatchQueue.main.async {
-            switch self.currentMode {
-            case .forceHealthy:
-                self.setResult(healthy: true, confidence: 0.95)
-                
-            case .forceSick:
-                self.setResult(healthy: false, confidence: 0.92)
-                
-            case .auto:
-                // Simulation d'une fluctuation naturelle (comme si l'IA cherchait)
-                // Change légèrement la cible aléatoirement
-                let randomFluctuation = Double.random(in: 0.4...0.7) // Valeurs basses par défaut (incertitude)
-                self.targetConfidence = randomFluctuation
-                
-                if self.confidenceLevel < 0.6 {
-                    self.diagnosedIssue = L10n.t("HEALTH_SCAN_ANALYZING_SURFACE")
-                    self.scientificName = L10n.t("HEALTH_SCAN_IN_PROGRESS")
-                    self.isHealthy = true
-                }
-            }
-        }
-    }
-    
-    // Helper pour définir les résultats proprement
-    private func setResult(healthy: Bool, confidence: Double) {
-        self.targetConfidence = confidence
-        self.isHealthy = healthy
-        
-        if healthy {
-            self.diagnosedIssue = L10n.t("HEALTH_SCAN_HEALTHY_DETECTED")
-            self.scientificName = "Plantae Sanus"
-        } else {
-            self.diagnosedIssue = L10n.t("HEALTH_SCAN_MILDEW_DETECTED")
-            self.scientificName = "Plasmopara viticola"
-        }
-    }
-    
-    // Fonctions pour les boutons de test
-    func forceHealthyState() {
-        currentMode = .forceHealthy
-    }
-    
-    func forceSickState() {
-        currentMode = .forceSick
-    }
-    
-    func resetAuto() {
-        currentMode = .auto
-        targetConfidence = 0.0
-    }
-}
-
-// MARK: - PARTIE 2 : VUE CAMÉRA (Technique)
-
-struct PlantARCameraPreview: UIViewRepresentable {
-    @ObservedObject var analyzer: PlantHealthAnalyzer
-    
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: UIScreen.main.bounds)
-        view.backgroundColor = .black
-        
-        let captureSession = AVCaptureSession()
-        captureSession.sessionPreset = .hd1920x1080
-        
-        guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else { return view }
-        let videoInput: AVCaptureDeviceInput
-        
-        do {
-            videoInput = try AVCaptureDeviceInput(device: videoCaptureDevice)
-        } catch { return view }
-        
-        if (captureSession.canAddInput(videoInput)) { captureSession.addInput(videoInput) }
-        
-        let videoOutput = AVCaptureVideoDataOutput()
-        videoOutput.setSampleBufferDelegate(context.coordinator, queue: DispatchQueue(label: "videoQueue"))
-        if (captureSession.canAddOutput(videoOutput)) { captureSession.addOutput(videoOutput) }
-        
-        let previewLayer = AVCaptureVideoPreviewLayer(session: captureSession)
-        previewLayer.frame = view.bounds
-        previewLayer.videoGravity = .resizeAspectFill
-        view.layer.addSublayer(previewLayer)
-        
-        DispatchQueue.global(qos: .userInitiated).async { captureSession.startRunning() }
-        return view
-    }
-    
-    func updateUIView(_ uiView: UIView, context: Context) {}
-    func makeCoordinator() -> Coordinator { Coordinator(analyzer: analyzer) }
-    
-    class Coordinator: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
-        var analyzer: PlantHealthAnalyzer
-        init(analyzer: PlantHealthAnalyzer) { self.analyzer = analyzer }
-        
-        func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-            guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-            analyzer.analyzePixelBuffer(buffer: pixelBuffer)
-        }
-    }
-}
-
-// MARK: - PARTIE 3 : INTERFACE AR AVEC MODE TEST
-
-struct HealthARScannerView: View {
-    @StateObject private var analyzer = PlantHealthAnalyzer()
-    @Environment(\.presentationMode) var presentationMode
-    
-    var body: some View {
-        ZStack {
-            // 1. Caméra
-            PlantARCameraPreview(analyzer: analyzer)
-                .edgesIgnoringSafeArea(.all)
-            
-            // 2. Grille HUD (Visée)
-            VStack {
-                HStack {
-                    PlantScannerCorner(rotation: 0); Spacer(); PlantScannerCorner(rotation: 90)
-                }
-                Spacer()
-                Image(systemName: "plus").font(.system(size: 24, weight: .thin)).foregroundColor(.white.opacity(0.5))
-                Spacer()
-                HStack {
-                    PlantScannerCorner(rotation: -90); Spacer(); PlantScannerCorner(rotation: 180)
-                }
-            }
-            .padding(50)
-            .opacity(0.6)
-            
-            // 3. UI Principale
-            VStack {
-                // Header
-                HStack {
-                    Button(action: { presentationMode.wrappedValue.dismiss() }) {
-                        Circle().fill(.ultraThinMaterial).frame(width: 44, height: 44)
-                            .overlay(Image(systemName: "xmark").foregroundColor(.white))
-                    }
-                    Spacer()
-                    Text(L10n.t("HEALTH_SCAN_TITLE"))
-                        .font(.caption2).fontWeight(.heavy)
-                        .padding(8).background(.ultraThinMaterial).cornerRadius(8).foregroundColor(.white)
-                }
-                .padding(.top, 50).padding(.horizontal)
-                
-                Spacer()
-                
-                // PANEL DE RÉSULTAT
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .top) {
-                        Image(systemName: analyzer.isHealthy ? "leaf.fill" : "exclamationmark.triangle.fill")
-                            .font(.title2)
-                            .foregroundColor(analyzer.isHealthy ? .green : .orange)
-                            .padding(10)
-                            .background(Circle().fill(Color.white.opacity(0.2)))
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(analyzer.diagnosedIssue)
-                                .font(.headline).foregroundColor(.white).lineLimit(2)
-                            Text(analyzer.scientificName)
-                                .font(.caption).italic().foregroundColor(.white.opacity(0.7))
-                        }
-                    }
-                    
-                    Divider().background(Color.white.opacity(0.3))
-                    
-                    HStack {
-                        Text(L10n.t("HEALTH_SCAN_CONFIDENCE")).font(.caption).foregroundColor(.white.opacity(0.7))
-                        Spacer()
-                        Text("\(Int(analyzer.confidenceLevel * 100))%")
-                            .font(.caption).bold().foregroundColor(colorForConfidence(analyzer.confidenceLevel))
-                    }
-                    
-                    // Jauge personnalisée fluide
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.black.opacity(0.3)).frame(height: 6)
-                            Capsule().fill(
-                                LinearGradient(colors: [.orange, .green], startPoint: .leading, endPoint: .trailing)
-                            )
-                            .frame(width: geo.size.width * analyzer.confidenceLevel, height: 6)
-                            // L'animation est gérée par le Timer dans l'analyzer pour la fluidité
-                        }
-                    }
-                    .frame(height: 6)
-                }
-                .padding(20)
-                .background(.ultraThinMaterial)
-                .cornerRadius(24)
-                .padding(.horizontal)
-                
-                // 4. BOUTONS DE TEST (DEBUG MODE)
-                // C'est ici que tu peux forcer le résultat
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        Text(L10n.t("HEALTH_SCAN_TEST_MODE"))
-                            .font(.caption).fontWeight(.bold).foregroundColor(.white)
-                            .padding(.leading)
-                        
-                        Button(action: { analyzer.forceHealthyState() }) {
-                            Text(L10n.t("HEALTH_SCAN_FORCE_HEALTHY"))
-                                .font(.caption).bold()
-                                .padding(.vertical, 8).padding(.horizontal, 12)
-                                .background(Color.green.opacity(0.8)).cornerRadius(20).foregroundColor(.white)
-                        }
-                        
-                        Button(action: { analyzer.forceSickState() }) {
-                            Text(L10n.t("HEALTH_SCAN_FORCE_SICK"))
-                                .font(.caption).bold()
-                                .padding(.vertical, 8).padding(.horizontal, 12)
-                                .background(Color.orange.opacity(0.8)).cornerRadius(20).foregroundColor(.white)
-                        }
-                        
-                        Button(action: { analyzer.resetAuto() }) {
-                            Text(L10n.t("HEALTH_SCAN_RESET_AUTO"))
-                                .font(.caption).bold()
-                                .padding(.vertical, 8).padding(.horizontal, 12)
-                                .background(Color.gray.opacity(0.8)).cornerRadius(20).foregroundColor(.white)
-                        }
-                    }
-                    .padding(.vertical, 20)
-                }
-                .background(Color.black.opacity(0.5))
-            }
-        }
-    }
-    
-    func colorForConfidence(_ level: Double) -> Color {
-        if level > 0.8 { return .green }
-        if level > 0.5 { return .yellow }
-        return .red
-    }
-}
-
-struct PlantScannerCorner: View {
-    let rotation: Double
-    var body: some View {
-        Image(systemName: "viewfinder")
-            .font(.system(size: 32, weight: .ultraLight))
-            .foregroundColor(.white)
-            .rotationEffect(.degrees(rotation))
-    }
-}
-
-// MARK: - PARTIE 4 : VUE PRINCIPALE INTÉGRÉE (Inchangée mais nécessaire)
+// MARK: - VUE SANTÉ PRINCIPALE
 
 struct SanteDetailView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.colorScheme) private var colorScheme
     let health: HealthInfo?
-    @State private var showARScanner = false
+    var plantName: String?
+    @State private var showScanner = false
 
     var body: some View {
         ZStack {
@@ -303,7 +21,7 @@ struct SanteDetailView: View {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 24) {
                     headerHero
-                    
+
                     if let health = health {
                         if hasProblemInfo(health: health) { problemsSection(health: health) }
                         if hasPestInfo(health: health) { pestsSection(health: health) }
@@ -326,14 +44,14 @@ struct SanteDetailView: View {
                 .padding(.top, 16).padding(.horizontal, 16).padding(.bottom, 32)
             }
         }
-        .fullScreenCover(isPresented: $showARScanner) {
-            HealthARScannerView() // Ouvre la nouvelle vue avec Debug Buttons
+        .fullScreenCover(isPresented: $showScanner) {
+            PlantHealthScannerView(plantName: plantName)
         }
         .navigationBarTitleDisplayMode(.inline)
         .navigationTitle(NSLocalizedString("HEALTHDETAIL_NAV_TITLE", comment: ""))
     }
 
-    // --- Helpers de la vue principale ---
+    // --- Helpers ---
     private var primaryTextColor: Color { colorScheme == .dark ? .white : .black }
     private var secondaryTextColor: Color { colorScheme == .dark ? .white.opacity(0.7) : .black.opacity(0.7) }
     private var headerSubtitle: String {
@@ -439,7 +157,7 @@ struct SanteDetailView: View {
     }
 
     private var scanSanteCTA: some View {
-        Button(action: { showARScanner = true }) {
+        Button(action: { showScanner = true }) {
             HStack(spacing: 10) {
                 Image(systemName: "camera.viewfinder")
                 Text(NSLocalizedString("HEALTHDETAIL_CTA_SCAN_TITLE", comment: ""))
@@ -451,7 +169,7 @@ struct SanteDetailView: View {
     }
 }
 
-// Subviews minimales
+// MARK: - Subviews
 private struct HealthSectionCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     let icon: String; let iconColor: Color; let title: String; let content: Content

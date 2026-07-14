@@ -87,6 +87,8 @@ struct AppConfig {
     /// Numéro de build
     static let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
 
+    // MARK: - AI Chatbot
+
     // MARK: - Observability (Sentry — issue #205)
 
     /// Environnement reporté à Sentry pour filtrer les events.

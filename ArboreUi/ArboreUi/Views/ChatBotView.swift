@@ -1,9 +1,12 @@
 import SwiftUI
 import SwiftData
 import PhotosUI
+import Combine
 
 struct ChatBotView: View {
+    let showsDismissButton: Bool
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @Query(sort: \ChatConversation.updatedAt, order: .reverse) private var conversations: [ChatConversation]
     @State private var activeConversationId: UUID? = nil
     @State private var inputText = ""
@@ -15,6 +18,10 @@ struct ChatBotView: View {
     @State private var pendingImageData: Data? = nil
     @EnvironmentObject var themeManager: ThemeManager
     @FocusState private var isFocused: Bool
+
+    init(showsDismissButton: Bool = false) {
+        self.showsDismissButton = showsDismissButton
+    }
 
     var body: some View {
         NavigationStack {
@@ -38,6 +45,21 @@ struct ChatBotView: View {
             VStack(spacing: 0) {
                 // Header matching HomeView style
                 HStack(alignment: .top, spacing: ArboreDesign.Spacing.md) {
+                    if showsDismissButton {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(ArboreDesign.Colors.textPrimary)
+                                .frame(width: 42, height: 42)
+                                .background(ArboreDesign.Colors.softSurface)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Fermer le Chat")
+                    }
+
                     VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
                         Text("Chat")
                             .font(.system(size: 34, weight: .bold, design: .rounded))

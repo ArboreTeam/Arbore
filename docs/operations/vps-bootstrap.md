@@ -116,6 +116,9 @@ server {
     listen 80;
     server_name _;
 
+    # Les publications Community acceptent une image (12 MB maximum côté Go).
+    client_max_body_size 16m;
+
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;

@@ -172,6 +172,21 @@ do_show_logs() {
 # (cf. issue #121 pour la migration HTTPS). Le check est bloquant :
 # un health != 200 fait sortir en erreur pour signaler clairement
 # qu'il faut intervenir.
+# La route Community est elle aussi vérifiée : sans API key, elle doit exister
+# et répondre 401. Un 404 révèle immédiatement une image backend obsolète.
+check_community_route() {
+    local code
+    code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 \
+        http://localhost:8080/api/v1/community/feed || true)"
+
+    if [ "$code" = "401" ]; then
+        ok "Community route registered (401 attendu sans API key)"
+    else
+        fail "Community route: HTTP ${code:-000} (401 attendu)"
+        exit 1
+    fi
+}
+
 # Check web non bloquant : le conteneur Next écoute sur :3000. Un échec n'arrête
 # pas le déploiement (le routage reverse-proxy / Cloudflare peut être posé après).
 check_web() {
@@ -194,6 +209,7 @@ do_health_check() {
         http_code="$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:8080/health || echo "000")"
         if [ "$http_code" = "200" ]; then
             ok "Backend health 200 OK"
+            check_community_route
             check_web
             echo
             return 0

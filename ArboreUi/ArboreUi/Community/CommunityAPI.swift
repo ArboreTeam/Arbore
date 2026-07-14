@@ -55,7 +55,7 @@ final class CommunityAPI {
         try validate(response: response, data: data)
 
         do {
-            return try communityJSONDecoder.decode([CommunityPost].self, from: data)
+            return try CommunityPayloadDecoder.decodeFeed(from: data)
         } catch {
             throw CommunityAPIError.decoding(error)
         }
@@ -67,7 +67,7 @@ final class CommunityAPI {
         type: CommunityPostType,
         image: UIImage
     ) async throws -> CommunityPost {
-        guard let imageData = image.normalizedJPEGData(compressionQuality: 0.82) else {
+        guard let imageData = image.communityUploadJPEGData() else {
             throw CommunityAPIError.missingImageData
         }
 
@@ -102,7 +102,7 @@ final class CommunityAPI {
         try validate(response: response, data: data)
 
         do {
-            return try communityJSONDecoder.decode(CommunityPost.self, from: data)
+            return try CommunityPayloadDecoder.decodePost(from: data)
         } catch {
             throw CommunityAPIError.decoding(error)
         }
@@ -156,6 +156,12 @@ final class CommunityAPI {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 413 {
+                throw CommunityAPIError.server(
+                    message: "La photo est trop volumineuse pour le serveur. Choisissez une autre image ou réessayez."
+                )
+            }
+
             if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let message = object["error"] as? String {
                 throw CommunityAPIError.server(message: message)
@@ -166,26 +172,134 @@ final class CommunityAPI {
     }
 }
 
-private let communityJSONDecoder: JSONDecoder = {
+enum CommunityPayloadDecoder {
+    static func decodeFeed(from data: Data) throws -> [CommunityPost] {
+        let root = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+        let decoder = makeCommunityJSONDecoder()
+
+        switch root {
+        case is NSNull:
+            return []
+        case is [Any]:
+            return try decoder.decode([CommunityPost].self, from: data)
+        case is [String: Any]:
+            return try decoder.decode(CommunityFeedEnvelope.self, from: data).posts
+        default:
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: [], debugDescription: "Format de feed communautaire inattendu.")
+            )
+        }
+    }
+
+    static func decodePost(from data: Data) throws -> CommunityPost {
+        let decoder = makeCommunityJSONDecoder()
+        let root = try JSONSerialization.jsonObject(with: data, options: [.fragmentsAllowed])
+
+        if let object = root as? [String: Any],
+           object["post"] != nil || (object["data"] != nil && object["title"] == nil) {
+            return try decoder.decode(CommunityPostEnvelope.self, from: data).post
+        }
+
+        return try decoder.decode(CommunityPost.self, from: data)
+    }
+}
+
+private struct CommunityFeedEnvelope: Decodable {
+    let posts: [CommunityPost]
+
+    enum CodingKeys: String, CodingKey {
+        case posts
+        case feed
+        case data
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        for key in [CodingKeys.posts, .feed] where container.contains(key) {
+            posts = try container.decodeIfPresent([CommunityPost].self, forKey: key) ?? []
+            return
+        }
+
+        if container.contains(.data) {
+            if let posts = try? container.decode([CommunityPost].self, forKey: .data) {
+                self.posts = posts
+                return
+            }
+            if let nested = try? container.decode(CommunityFeedEnvelope.self, forKey: .data) {
+                posts = nested.posts
+                return
+            }
+            if try container.decodeNil(forKey: .data) {
+                posts = []
+                return
+            }
+        }
+
+        throw DecodingError.keyNotFound(
+            CodingKeys.posts,
+            .init(codingPath: decoder.codingPath, debugDescription: "Aucun tableau de publications dans la réponse.")
+        )
+    }
+}
+
+private struct CommunityPostEnvelope: Decodable {
+    let post: CommunityPost
+
+    enum CodingKeys: String, CodingKey {
+        case post
+        case data
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let post = try container.decodeIfPresent(CommunityPost.self, forKey: .post) {
+            self.post = post
+        } else {
+            post = try container.decode(CommunityPost.self, forKey: .data)
+        }
+    }
+}
+
+private func makeCommunityJSONDecoder() -> JSONDecoder {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .custom { decoder in
         let container = try decoder.singleValueContainer()
-        let string = try container.decode(String.self)
 
-        if let date = CommunityDateFormatters.fractional.date(from: string) {
-            return date
+        if let timestamp = try? container.decode(Double.self) {
+            let seconds = timestamp > 10_000_000_000 ? timestamp / 1_000 : timestamp
+            return Date(timeIntervalSince1970: seconds)
         }
-        if let date = CommunityDateFormatters.standard.date(from: string) {
+
+        if let string = try? container.decode(String.self) {
+            if let timestamp = Double(string) {
+                let seconds = timestamp > 10_000_000_000 ? timestamp / 1_000 : timestamp
+                return Date(timeIntervalSince1970: seconds)
+            }
+            if let date = CommunityDateFormatters.fractional.date(from: string) {
+                return date
+            }
+            if let date = CommunityDateFormatters.standard.date(from: string) {
+                return date
+            }
+        }
+
+        if let mongoDate = try? decoder.container(keyedBy: MongoDateKeys.self),
+           let date = try mongoDate.decodeIfPresent(Date.self, forKey: .date) {
             return date
         }
 
         throw DecodingError.dataCorruptedError(
             in: container,
-            debugDescription: "Date ISO-8601 invalide: \(string)"
+            debugDescription: "Date communautaire invalide."
         )
     }
     return decoder
-}()
+}
+
+private enum MongoDateKeys: String, CodingKey {
+    case date = "$date"
+}
 
 private enum CommunityDateFormatters {
     static let fractional: ISO8601DateFormatter = {
@@ -241,18 +355,50 @@ private extension Data {
     }
 }
 
-private extension UIImage {
-    func normalizedJPEGData(compressionQuality: CGFloat) -> Data? {
-        if imageOrientation == .up {
-            return jpegData(compressionQuality: compressionQuality)
-        }
+extension UIImage {
+    func communityUploadJPEGData(
+        maxPixelDimension: CGFloat = 1_600,
+        maxByteCount: Int = 850_000
+    ) -> Data? {
+        guard maxPixelDimension > 0, maxByteCount > 0 else { return nil }
 
+        let sourceSize = CGSize(
+            width: max(size.width * scale, 1),
+            height: max(size.height * scale, 1)
+        )
+        var currentMaxDimension = min(maxPixelDimension, max(sourceSize.width, sourceSize.height))
+        let qualities: [CGFloat] = [0.82, 0.72, 0.62, 0.52, 0.42, 0.34]
+
+        repeat {
+            let ratio = min(1, currentMaxDimension / max(sourceSize.width, sourceSize.height))
+            let targetSize = CGSize(
+                width: max((sourceSize.width * ratio).rounded(), 1),
+                height: max((sourceSize.height * ratio).rounded(), 1)
+            )
+            let renderedImage = normalizedImage(pixelSize: targetSize)
+
+            for quality in qualities {
+                guard let data = renderedImage.jpegData(compressionQuality: quality) else { continue }
+                if data.count <= maxByteCount {
+                    return data
+                }
+            }
+
+            currentMaxDimension *= 0.8
+        } while currentMaxDimension >= 500
+
+        return nil
+    }
+
+    private func normalizedImage(pixelSize: CGSize) -> UIImage {
         let format = UIGraphicsImageRendererFormat.default()
-        format.scale = scale
-        let renderer = UIGraphicsImageRenderer(size: size, format: format)
-        let renderedImage = renderer.image { _ in
-            draw(in: CGRect(origin: .zero, size: size))
+        format.scale = 1
+        format.opaque = true
+        let renderer = UIGraphicsImageRenderer(size: pixelSize, format: format)
+        return renderer.image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(origin: .zero, size: pixelSize))
+            draw(in: CGRect(origin: .zero, size: pixelSize))
         }
-        return renderedImage.jpegData(compressionQuality: compressionQuality)
     }
 }

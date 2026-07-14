@@ -36,13 +36,6 @@ struct MainView: View {
                 }
                 .tag(TabSelection.community)
 
-            ChatBotView()
-                .tabItem {
-                    Image(systemName: tabRouter.selectedTab == .chatbot ? "bubble.left.and.text.bubble.right.fill" : "bubble.left.and.text.bubble.right")
-                    Text("Chat")
-                }
-                .tag(TabSelection.chatbot)
-
             ProfileView()
                 .environmentObject(themeManager)
                 .tabItem {
@@ -51,10 +44,9 @@ struct MainView: View {
                 }
                 .tag(TabSelection.profile)
         }
-        .accentColor(themeManager.accentColor)
-        .environmentObject(tabRouter) // ✅ injecte le router à toute l'app
+        .tint(themeManager.accentColor)
+        .environmentObject(tabRouter)
         .onAppear {
-            ArboreTabBarAppearance.apply()
             applyNotificationRoute(notificationRouter.pendingRoute)
         }
         .onChange(of: notificationRouter.pendingRoute) { _, route in

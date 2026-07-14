@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -69,7 +70,9 @@ func getCommunityFeed(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Impossible de charger le feed communautaire"})
 		return
 	}
-	defer cursor.Close(ctx)
+	defer func() {
+		_ = cursor.Close(ctx)
+	}()
 
 	var posts []Post
 	if err := cursor.All(ctx, &posts); err != nil {
@@ -146,17 +149,17 @@ func createCommunityPost(c *gin.Context) {
 func validateCommunityPostInput(title, description, postType string) error {
 	switch {
 	case title == "":
-		return fmt.Errorf("Titre requis")
+		return newCommunityUserError("Titre requis")
 	case len([]rune(title)) > 120:
-		return fmt.Errorf("Le titre ne peut pas dépasser 120 caractères")
+		return newCommunityUserError("Le titre ne peut pas dépasser 120 caractères")
 	case description == "":
-		return fmt.Errorf("Description requise")
+		return newCommunityUserError("Description requise")
 	case len([]rune(description)) > 1200:
-		return fmt.Errorf("La description ne peut pas dépasser 1200 caractères")
+		return newCommunityUserError("La description ne peut pas dépasser 1200 caractères")
 	}
 
 	if _, ok := allowedCommunityPostTypes[postType]; !ok {
-		return fmt.Errorf("Type de post invalide")
+		return newCommunityUserError("Type de post invalide")
 	}
 
 	return nil
@@ -165,16 +168,18 @@ func validateCommunityPostInput(title, description, postType string) error {
 func saveCommunityImage(c *gin.Context, fileHeader *multipart.FileHeader) (string, error) {
 	file, err := fileHeader.Open()
 	if err != nil {
-		return "", fmt.Errorf("Impossible de lire l'image")
+		return "", newCommunityUserError("Impossible de lire l'image")
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	data, err := io.ReadAll(io.LimitReader(file, maxCommunityImageBytes+1))
 	if err != nil {
-		return "", fmt.Errorf("Impossible de lire l'image")
+		return "", newCommunityUserError("Impossible de lire l'image")
 	}
 	if len(data) == 0 || len(data) > maxCommunityImageBytes {
-		return "", fmt.Errorf("L'image doit peser moins de 12 MB")
+		return "", newCommunityUserError("L'image doit peser moins de 12 MB")
 	}
 
 	contentType := http.DetectContentType(data[:minInt(len(data), 512)])
@@ -184,18 +189,18 @@ func saveCommunityImage(c *gin.Context, fileHeader *multipart.FileHeader) (strin
 	}
 
 	uploadDir := communityUploadsDir()
-	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
-		return "", fmt.Errorf("Impossible de préparer le dossier d'upload")
+	if err := os.MkdirAll(uploadDir, 0o750); err != nil {
+		return "", newCommunityUserError("Impossible de préparer le dossier d'upload")
 	}
 
 	filename, err := secureCommunityFilename(extension)
 	if err != nil {
-		return "", fmt.Errorf("Impossible de générer un nom de fichier")
+		return "", newCommunityUserError("Impossible de générer un nom de fichier")
 	}
 
 	destination := filepath.Join(uploadDir, filename)
-	if err := os.WriteFile(destination, data, 0o644); err != nil {
-		return "", fmt.Errorf("Impossible de sauvegarder l'image")
+	if err := os.WriteFile(destination, data, 0o600); err != nil {
+		return "", newCommunityUserError("Impossible de sauvegarder l'image")
 	}
 
 	return absoluteCommunityImageURL(c, filename), nil
@@ -208,8 +213,12 @@ func communityImageExtension(contentType string) (string, error) {
 	case "image/png":
 		return ".png", nil
 	default:
-		return "", fmt.Errorf("Format d'image non supporté")
+		return "", newCommunityUserError("Format d'image non supporté")
 	}
+}
+
+func newCommunityUserError(message string) error {
+	return errors.New(message)
 }
 
 func secureCommunityFilename(extension string) (string, error) {

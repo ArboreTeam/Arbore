@@ -1454,7 +1454,7 @@ func callGeminiAPI(payload map[string]interface{}) ([]byte, error) {
 	maxAttempts := 4
 
 	for attempt < maxAttempts {
-		// nolint:no_ctx_http_request // Simple HTTP call with a timeout is sufficient here
+		//nolint:noctx,gosec // URL is built from trusted Gemini endpoint and env-configured model/API key.
 		req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyBytes))
 		if err != nil {
 			return nil, fmt.Errorf("erreur lors de la création de la requête Gemini: %w", err)
@@ -1462,6 +1462,7 @@ func callGeminiAPI(payload map[string]interface{}) ([]byte, error) {
 		req.Header.Set("Content-Type", "application/json")
 
 		client := &http.Client{Timeout: 60 * time.Second}
+		//nolint:gosec // Request target is fixed Gemini endpoint with controlled model segment.
 		resp, err := client.Do(req)
 		if err != nil {
 			lastErr = err
@@ -1469,11 +1470,16 @@ func callGeminiAPI(payload map[string]interface{}) ([]byte, error) {
 			time.Sleep(time.Duration(attempt*attempt) * time.Second)
 			continue
 		}
-		defer resp.Body.Close()
 
 		respData, err = io.ReadAll(resp.Body)
+		closeErr := resp.Body.Close()
 		if err != nil {
 			lastErr = err
+			attempt++
+			continue
+		}
+		if closeErr != nil {
+			lastErr = closeErr
 			attempt++
 			continue
 		}
@@ -1549,6 +1555,7 @@ func handleGeminiChat(c *gin.Context) {
 		"parts": newParts,
 	})
 
+	//nolint:misspell // French prompt vocabulary intentionally preserved.
 	chatPrompt := `Tu es Arbore, l'assistant intelligent de jardinage intégré dans l'application Arbore. Tu es un expert passionné en botanique, horticulture et aménagement de jardins.
 
 🌿 TON RÔLE :
@@ -1642,6 +1649,7 @@ func handleGeminiDiagnose(c *gin.Context) {
 		req.Colorimetry.WhiteSpotRatio*100,
 	)
 
+	//nolint:misspell // French prompt vocabulary intentionally preserved.
 	systemPrompt := `Tu es un expert en phytopathologie et botanique appliquée. Tu analyses des photos de plantes pour diagnostiquer leur état de santé. Tu dois être EXTRÊMEMENT prudent et ne JAMAIS inventer de diagnostic. Si tu n'es pas sûr, dis-le clairement.
 
 RÈGLES STRICTES :

@@ -129,6 +129,8 @@ secrets/
 
 # Docker
 .dockerignore
+# Backend runtime assets are mounted by Compose and must stay out of build contexts.
+!ArboreBackend/.dockerignore
 # Exception : le .dockerignore du web est suivi (build Docker léger sur le VPS).
 !web/.dockerignore
 
@@ -205,6 +207,9 @@ fastlane/metadata/review_information/
 .deepl_api
 .deepl_api.backups/
 backups/
+
+# Community uploads are runtime data persisted by Docker, never source files.
+ArboreBackend/uploads/
 
 # CoreML model bundles — too large to commit (DETR Semantic Seg = 86 MB).
 # Auto-fetched by scripts/fetch-ml-models.sh via the Xcode Run Script

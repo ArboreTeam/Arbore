@@ -89,35 +89,3 @@ enum ArboreDesign {
         static let loading = "leaf.circle"
     }
 }
-
-enum ArboreTabBarAppearance {
-    static func apply() {
-        let appearance = UITabBarAppearance()
-        appearance.configureWithOpaqueBackground()
-        appearance.backgroundColor = UIColor { trait in
-            trait.userInterfaceStyle == .dark ? UIColor(hex: "#1B1A17") : UIColor(hex: "#FFFFFF")
-        }
-        appearance.shadowColor = UIColor { trait in
-            trait.userInterfaceStyle == .dark ? UIColor(hex: "#3B3932") : UIColor(hex: "#DDD8CF")
-        }
-
-        let selected = UIColor { trait in
-            trait.userInterfaceStyle == .dark ? UIColor(hex: "#F7F4EF") : UIColor(hex: "#234632")
-        }
-        let normal = UIColor { trait in
-            trait.userInterfaceStyle == .dark ? UIColor(hex: "#C5CBBF") : UIColor(hex: "#8C928A")
-        }
-
-        [appearance.stackedLayoutAppearance, appearance.inlineLayoutAppearance, appearance.compactInlineLayoutAppearance].forEach { item in
-            item.selected.iconColor = selected
-            item.selected.titleTextAttributes = [.foregroundColor: selected]
-            item.normal.iconColor = normal
-            item.normal.titleTextAttributes = [.foregroundColor: normal]
-        }
-
-        UITabBar.appearance().standardAppearance = appearance
-        UITabBar.appearance().scrollEdgeAppearance = appearance
-        UITabBar.appearance().tintColor = selected
-        UITabBar.appearance().unselectedItemTintColor = normal
-    }
-}

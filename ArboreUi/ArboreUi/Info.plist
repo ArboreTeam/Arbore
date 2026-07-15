@@ -34,11 +34,23 @@
 				<string>com.googleusercontent.apps.66927287937-72cn4i6cjliekvs01mr0i0ac3tdm7fsp</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>com.arboreteam.arbore.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>arbore</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>22</string>
 	<key>FirebaseAutomaticScreenReportingEnabled</key>
 	<true/>
+	<key>GEMINI_API_KEY</key>
+	<string>$(GEMINI_API_KEY)</string>
 	<key>GIDClientID</key>
 	<string>66927287937-72cn4i6cjliekvs01mr0i0ac3tdm7fsp.apps.googleusercontent.com</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
@@ -58,7 +70,7 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>L'application a besoin d'accéder au microphone pour certaines fonctionnalités.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Arbore accède à vos photos pour définir votre photo de profil.</string>
+	<string>Arbore accède à vos photos pour définir votre photo de profil et publier des images dans la communauté.</string>
 	<key>NSWorldSensingUsageDescription</key>
 	<string>Nous utilisons le scanner LiDAR pour créer un plan 3D précis de votre espace.</string>
 	<key>SENTRY_DSN_HOST</key>
@@ -72,6 +84,10 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchScreen</key>

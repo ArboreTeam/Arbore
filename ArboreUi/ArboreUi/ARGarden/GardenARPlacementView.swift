@@ -3034,7 +3034,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 // Light estimation is kept as an internal auto-placement
                 // signal only; the HUD no longer displays lux.
                 if let frame = arView.session.currentFrame {
-                    let lux = Int(frame.lightEstimate?.ambientIntensity ?? 0)
+                    let rawLux = frame.lightEstimate?.ambientIntensity ?? 0
+                    let lux = rawLux.isFinite ? Int(rawLux) : 0
                     let camCol = frame.camera.transform.columns.3
                     lastCameraY = camCol.y
                     if abs(lux - (parentProps?.currentLux ?? 0)) >= 25 {

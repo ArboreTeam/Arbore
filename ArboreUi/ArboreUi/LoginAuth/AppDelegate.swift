@@ -10,8 +10,9 @@ import SwiftUI
 import FirebaseCore
 import GoogleSignIn
 import GoogleSignInSwift
+import UserNotifications
 
-class AppDelegate: NSObject, UIApplicationDelegate{
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool{
         // Sentry en premier (issue #205), AVANT Firebase, pour capturer aussi un
         // éventuel crash pendant l'init de Firebase. No-op si pas de DSN ou si
@@ -20,6 +21,8 @@ class AppDelegate: NSObject, UIApplicationDelegate{
         SentryManager.start()
 
         FirebaseApp.configure()
+        NotificationManager.shared.configureCategories()
+        UNUserNotificationCenter.current().delegate = self
 
         // Le contexte user Sentry suit l'état d'auth Firebase (login → UID,
         // logout → nil). Centralisé ici : inutile de toucher chaque écran de
@@ -51,13 +54,81 @@ class AppDelegate: NSObject, UIApplicationDelegate{
         // UI component subscribed (cf. ThermalStateBanner). Issue #82.
         ARQualityObserver.shared.start()
 
+        if let remoteNotification = launchOptions?[.remoteNotification] as? [AnyHashable: Any] {
+            Task { @MainActor in
+                NotificationRouter.shared.handle(userInfo: remoteNotification)
+            }
+        }
+
+        Task {
+            let state = await NotificationManager.shared.currentAuthorizationState()
+            if state.canScheduleNotifications {
+                await NotificationManager.shared.registerForRemoteNotifications()
+                await ArborePushTokenService.shared.uploadPendingTokenIfNeeded()
+            }
+        }
+
         return true
     }
 
     @available(iOS 9.0, *)
 
     func application(_ application: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
-        return GIDSignIn.sharedInstance.handle(url)
+        if GIDSignIn.sharedInstance.handle(url) {
+            return true
+        }
+
+        if url.scheme?.lowercased() == "arbore" {
+            Task { @MainActor in
+                NotificationRouter.shared.handle(url: url)
+            }
+            return true
+        }
+
+        return false
+    }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        ArborePushTokenService.shared.register(deviceToken: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        ArborePushTokenService.shared.handleRegistrationFailure(error)
+    }
+
+    func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        Task { @MainActor in
+            NotificationRouter.shared.handle(userInfo: userInfo)
+            completionHandler(.newData)
+        }
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        Task { @MainActor in
+            NotificationRouter.shared.presentInAppNotification(from: notification)
+        }
+        completionHandler([.banner, .list, .sound, .badge])
+    }
+
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        Task {
+            await NotificationManager.shared.handleNotificationAction(response)
+            await MainActor.run {
+                NotificationRouter.shared.handle(response: response)
+                completionHandler()
+            }
+        }
     }
 }
-

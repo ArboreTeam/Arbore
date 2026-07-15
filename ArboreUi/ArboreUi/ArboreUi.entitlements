@@ -2,14 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Issue #201 — Sign in with Apple capability. Apple Guideline 4.8
-	     impose qu'on offre SIWA dès lors qu'on propose un autre social
-	     login (Google). Le bouton "Continue with Apple" était dead
-	     avant cette PR. -->
-	<key>com.apple.developer.applesignin</key>
-	<array>
-		<string>Default</string>
-	</array>
+	<key>aps-environment</key>
+	<string>development</string>
 	<key>keychain-access-groups</key>
 	<array>
 		<string>$(AppIdentifierPrefix)com.Arbore.ArboreUi</string>

@@ -10,6 +10,7 @@ struct NotificationsView: View {
     @AppStorage("diseaseAlerts") private var diseaseAlerts: Bool = true
     @AppStorage("seasonalTips") private var seasonalTips: Bool = true
     @AppStorage("weatherAlerts") private var weatherAlerts: Bool = true
+    @State private var authorizationState: ArboreNotificationAuthorizationState = .unknown
 
     var body: some View {
         SettingsPage(title: NSLocalizedString("NOTIF_TITLE", comment: "Notification settings title")) {
@@ -84,6 +85,24 @@ struct NotificationsView: View {
             }
         }
         .interactiveDismissDisabled()
+        .task {
+            authorizationState = await NotificationManager.shared.currentAuthorizationState()
+        }
+        .onChange(of: notificationsEnabled) { _, isEnabled in
+            Task {
+                if isEnabled {
+                    authorizationState = await NotificationManager.shared.requestAuthorization()
+                    if authorizationState.canScheduleNotifications {
+                        await NotificationManager.shared.rescheduleAllRoutineNotifications(
+                            watering: WateringRoutineStore.shared.routines,
+                            care: WateringRoutineStore.shared.careRoutines
+                        )
+                    }
+                } else {
+                    await NotificationManager.shared.cancelAllArboreNotifications()
+                }
+            }
+        }
     }
     
     // MARK: - Toggle Card Component

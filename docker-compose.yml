@@ -48,6 +48,8 @@ services:
       - AI_GENERATOR_URL=http://ai-generator:8000
       # Thumbnails dans un chemin séparé (hors du montage read-only /root/models)
       - THUMBNAILS_DIR=/root/thumbnails
+      # Images Community conservées sur l'hôte entre deux rebuilds du conteneur
+      - COMMUNITY_UPLOADS_DIR=/root/uploads/community
     ports:
       - "${PORT:-8080}:8080"
     volumes:
@@ -55,6 +57,8 @@ services:
       - ./ArboreBackend/models:/root/models:ro
       # Thumbnails : bind mount sur le dossier existant de la VM (conserve les anciens thumbnails)
       - ./ArboreBackend/models/thumbnails:/root/thumbnails
+      # Images publiées dans Community : stockage persistant hors du conteneur
+      - ./ArboreBackend/uploads/community:/root/uploads/community
       # Firebase service account JSON (le vrai fichier du projet)
       - ./arbore-firebase-adminsdk.json:/root/firebase-adminsdk.json:ro
     depends_on:

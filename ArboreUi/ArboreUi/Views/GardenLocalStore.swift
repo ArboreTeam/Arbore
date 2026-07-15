@@ -23,6 +23,7 @@ import SwiftUI
 //   - `plants[*].position`         : [x, y, z] en world frame
 //   - `plants[*].transform[12..14]`: tx, ty, tz en world frame
 //   - `plants[*].surfaceHeight`    : Y de la surface en world frame
+//   - `plants[*].placementMode`    : intention AR ("floor", "wall", "ceiling")
 //   - `boundaryPoints[*]`          : [x, y, z] en world frame
 //
 // `position[0,2]` et `transform[12,14]` du même plant doivent toujours
@@ -68,6 +69,34 @@ struct PersistedARScene: Codable {
     }
 }
 
+struct PersistedSurfaceAnchor: Codable, Equatable {
+    let source: String
+    let reliabilityScore: Float
+    let normal: [Float]
+    let center: [Float]?
+    let extent: [Float]?
+    let localOffset: [Float]?
+    let worldPosition: [Float]
+
+    init(
+        source: String,
+        reliabilityScore: Float,
+        normal: [Float],
+        center: [Float]? = nil,
+        extent: [Float]? = nil,
+        localOffset: [Float]? = nil,
+        worldPosition: [Float]
+    ) {
+        self.source = source
+        self.reliabilityScore = reliabilityScore
+        self.normal = normal
+        self.center = center
+        self.extent = extent
+        self.localOffset = localOffset
+        self.worldPosition = worldPosition
+    }
+}
+
 struct PersistedPlant: Codable {
     let plantID: String
     let plantName: String
@@ -79,8 +108,12 @@ struct PersistedPlant: Codable {
     let upAxis: String?
     // Issue #113 — surface info for snap-to-plane on elevated plants.
     // Optional for backward compatibility with old saved JSONs.
-    let surfaceType: String?     // "floor" | "elevated" | nil
+    let surfaceType: String?     // SurfaceType raw value, legacy "elevated", or nil
     let surfaceHeight: Float?    // Y of the surface at save-time, in world coords
+    // AR multi-surface placement intent. Optional for old saved JSONs.
+    let placementMode: String?   // "floor" | "wall" | "ceiling" | nil
+    // Premium anchoring metadata. Optional for old saved JSONs.
+    let surfaceAnchor: PersistedSurfaceAnchor?
     // LOD : indique si une version 3D haute définition existe pour cette plante,
     // pour ré-déclencher le swap heavy à la ré-ouverture du jardin. Optionnel →
     // les anciennes sauvegardes (sans la clé) décodent à nil (= pas d'upgrade).
@@ -97,6 +130,8 @@ struct PersistedPlant: Codable {
         upAxis: String? = nil,
         surfaceType: String? = nil,
         surfaceHeight: Float? = nil,
+        placementMode: String? = nil,
+        surfaceAnchor: PersistedSurfaceAnchor? = nil,
         hasHeavy: Bool? = nil
     ) {
         self.plantID = plantID
@@ -109,6 +144,8 @@ struct PersistedPlant: Codable {
         self.upAxis = upAxis
         self.surfaceType = surfaceType
         self.surfaceHeight = surfaceHeight
+        self.placementMode = placementMode
+        self.surfaceAnchor = surfaceAnchor
         self.hasHeavy = hasHeavy
     }
 }
@@ -177,6 +214,8 @@ extension PersistedARScene {
                 upAxis: plant.upAxis,
                 surfaceType: plant.surfaceType,
                 surfaceHeight: plant.surfaceHeight,
+                placementMode: plant.placementMode,
+                surfaceAnchor: plant.surfaceAnchor,
                 hasHeavy: plant.hasHeavy
             )
         }

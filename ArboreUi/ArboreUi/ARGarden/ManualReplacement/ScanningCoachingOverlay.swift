@@ -5,60 +5,53 @@ import SwiftUI
 /// from the start so the user is never stuck if relocalization fails.
 struct ScanningCoachingOverlay: View {
     let onReplaceManually: () -> Void
-    let onCancel: () -> Void
 
     @State private var pulse = false
 
     var body: some View {
         VStack {
-            // Top-right cancel (X) — never the primary action, but always accessible.
-            HStack {
-                Spacer()
-                Button(action: onCancel) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 36, height: 36)
-                        .background(.black.opacity(0.45), in: Circle())
-                }
-                .padding(.trailing, 16)
-                .padding(.top, 12)
-            }
-
             Spacer()
 
-            // Coaching card
-            VStack(spacing: 12) {
-                HStack(spacing: 14) {
-                    Image(systemName: "viewfinder.circle")
-                        .font(.system(size: 28))
-                        .foregroundStyle(Color(hex: "#2BEE79"))
-                        .scaleEffect(pulse ? 1.08 : 0.95)
-                        .opacity(pulse ? 1.0 : 0.75)
-                        .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: pulse)
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .fill(ArboreDesign.Colors.softSurface.opacity(0.92))
+                            .frame(width: 42, height: 42)
 
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(L10n.t("AR_MANUAL_SCAN_TITLE"))
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white)
-                        Text(L10n.t("AR_MANUAL_SCAN_SUBTITLE"))
-                            .font(.system(size: 12))
-                            .foregroundStyle(.white.opacity(0.7))
+                        Image(systemName: "viewfinder")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundStyle(ArboreDesign.Colors.primaryGreen)
+                            .scaleEffect(pulse ? 1.08 : 0.96)
+                            .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: pulse)
                     }
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(L10n.t("AR_MANUAL_SCAN_TITLE"))
+                            .font(.system(size: 18, weight: .bold, design: .rounded))
+                            .foregroundStyle(ArboreDesign.Colors.textPrimary)
+                        Text(L10n.t("AR_MANUAL_SCAN_SUBTITLE"))
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundStyle(ArboreDesign.Colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
                     Spacer()
+
                     ProgressView()
-                        .tint(.white)
+                        .tint(ArboreDesign.Colors.primaryGreen)
                 }
-                .padding(.horizontal, 18)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(.ultraThinMaterial)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
-                        )
-                )
+
+                VStack(alignment: .leading, spacing: 8) {
+                    scanStep(
+                        icon: "iphone.gen3.radiowaves.left.and.right",
+                        text: L10n.t("AR_REOPEN_SCAN_STEP_MOVE")
+                    )
+                    scanStep(
+                        icon: "leaf",
+                        text: L10n.t("AR_REOPEN_SCAN_STEP_RESTORE")
+                    )
+                }
 
                 // Manual replacement entry-point — visible immediately.
                 Button(action: onReplaceManually) {
@@ -68,24 +61,55 @@ struct ScanningCoachingOverlay: View {
                         Text(L10n.t("AR_MANUAL_REPLACE"))
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(ArboreDesign.Colors.textPrimary)
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
+                    .padding(.vertical, 12)
                     .background(
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(Color(hex: "#2BEE79").opacity(0.85))
+                        RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                            .fill(ArboreDesign.Colors.softSurface.opacity(0.88))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 14)
-                                    .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+                                RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                                    .strokeBorder(ArboreDesign.Colors.border.opacity(0.84), lineWidth: 1)
                             )
                     )
-                    .shadow(color: .black.opacity(0.25), radius: 6, x: 0, y: 2)
                 }
+                .buttonStyle(.plain)
             }
-            .padding(.horizontal, 18)
-            .padding(.bottom, 32)
+            .padding(14)
+            .background(coachingCardBackground)
+            .padding(.horizontal, 16)
+            .padding(.bottom, 18)
         }
         .onAppear { pulse = true }
         .transition(.opacity.animation(.easeInOut(duration: 0.25)))
+    }
+
+    private func scanStep(icon: String, text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(ArboreDesign.Colors.primaryGreen)
+                .frame(width: 22, height: 22)
+                .background(ArboreDesign.Colors.primaryGreen.opacity(0.10), in: Circle())
+
+            Text(text)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(ArboreDesign.Colors.textSecondary)
+                .lineLimit(2)
+        }
+    }
+
+    private var coachingCardBackground: some View {
+        RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+            .fill(.ultraThinMaterial)
+            .background(
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                    .fill(ArboreDesign.Colors.card.opacity(0.82))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                    .stroke(ArboreDesign.Colors.border.opacity(0.86), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.18), radius: 18, x: 0, y: 8)
     }
 }

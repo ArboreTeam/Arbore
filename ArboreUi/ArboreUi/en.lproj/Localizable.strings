@@ -904,8 +904,8 @@
 "GARDEN_LOADING_SUBTITLE" = "Slowly scan your environment\nto reposition your plants";
 
 // Thermal banner
-"THERMAL_BANNER_TITLE" = "Your phone is getting hot";
-"THERMAL_BANNER_SUBTITLE" = "Consider reducing AR usage to avoid slowdowns.";
+"THERMAL_BANNER_TITLE" = "AR reduced";
+"THERMAL_BANNER_SUBTITLE" = "AR rendering is reduced briefly to keep the app smooth.";
 "THERMAL_BANNER_DISMISS" = "Dismiss alert";
 
 // App-wide navigation
@@ -1080,6 +1080,18 @@
 "SURFACE_WINDOWSILL" = "Windowsill";
 "SURFACE_FURNITURE" = "Furniture";
 "SURFACE_UNKNOWN" = "?";
+"AR_PLACEMENT_MODE_FLOOR" = "Floor";
+"AR_PLACEMENT_MODE_WALL" = "Wall";
+"AR_PLACEMENT_MODE_CEILING" = "Ceiling";
+"AR_PLACEMENT_INCOMPATIBLE_WALL" = "Choose a climbing or trailing plant for the wall.";
+"AR_PLACEMENT_INCOMPATIBLE_HANGING" = "Choose a trailing plant intended for ceiling placement.";
+"AR_PLACEMENT_SURFACE_NEEDS_FLOOR" = "Aim at a floor, table, or shelf.";
+"AR_PLACEMENT_SURFACE_NEEDS_WALL" = "Aim at a detected wall for this mode.";
+"AR_PLACEMENT_SURFACE_NEEDS_HANGING_SUPPORT" = "Aim at the ceiling, then move slowly if the reticle does not lock.";
+"AR_ANCHOR_TRACKING_LIMITED" = "Move the phone gently, AR tracking is not stable yet.";
+"AR_ANCHOR_SURFACE_UNSTABLE" = "Surface still unstable. Sweep it for a moment before placing.";
+"AR_ANCHOR_CONFIDENCE_LOW" = "Fragile surface. Aim at an area with better detection.";
+"AR_ANCHOR_SURFACE_RESTORED" = "Surface found: placement snapped back.";
 
 // AI suggestions
 "PLANT_CATEGORY_TALL" = "Tall";
@@ -1293,15 +1305,43 @@
 "AR_SHARE_PHOTO" = "Share photo";
 "AR_RETAKE_PHOTO" = "Retake photo";
 "AR_RETAKE_PHOTO_HINT" = "You can retake the photo if the framing or light does not look right.";
+"AR_SHARE_CAMERA_MODE_PHOTO" = "Photo";
+"AR_SHARE_CAMERA_MODE_VIDEO" = "Video";
+"AR_SHARE_OPEN_LAST_CAPTURE" = "Open last capture";
+"AR_SHARE_VIDEO_FAILED" = "Could not record the video.";
+"AR_SHARE_MEDIA" = "Share";
+"AR_RETAKE_CAPTURE" = "Retake";
+"AR_SHARE_GALLERY_TITLE" = "AR Gallery";
+"AR_SHARE_GALLERY_COUNT_FORMAT" = "%d capture(s)";
+"AR_SHARE_GALLERY_EMPTY" = "No captures";
+"AR_SHARE_DELETE_CONFIRM_TITLE" = "Delete this capture?";
+"AR_SHARE_OPTIONS_TITLE" = "Publication";
+"AR_SHARE_CAPTURE_PHOTO_LABEL" = "Photo";
+"AR_SHARE_CAPTURE_VIDEO_LABEL" = "Video";
+"AR_SHARE_FILTERS_TITLE" = "Style";
+"AR_SHARE_FILTER_ORIGINAL" = "Original";
+"AR_SHARE_FILTER_ARBORE" = "Arbore";
+"AR_SHARE_FILTER_WARM" = "Warm";
+"AR_SHARE_FILTER_VIVID" = "Vivid";
+"AR_SHARE_BRANDING_TOGGLE" = "Arbore logo";
+"AR_SHARE_GARDEN_NAME_TOGGLE" = "Garden name";
+"AR_SHARE_PLANT_COUNT_TOGGLE" = "Plant count";
+"AR_SHARE_MESSAGE_TOGGLE" = "Arbore message";
+"AR_SHARE_PLANT_COUNT_FORMAT" = "%d plants";
+"AR_SHARE_DEFAULT_MESSAGE" = "Created with Arbore";
 "AR_PLANT_CATALOG_TITLE" = "Select a plant";
 "AR_PLANT_CATALOG_SEARCH_PLACEHOLDER" = "Search for monstera, palm…";
+"AR_PLANT_CATALOG_PLACE" = "Place";
+"AR_PLANT_CATALOG_VIEW_DETAILS" = "View details";
 "AR_PLANT_CATALOG_ERROR_FORMAT" = "❌ %@";
-"AR_PLANT_CATALOG_CUSTOM_SELECTION" = "Personalized selection";
-"AR_PLANT_CATALOG_FILTER_STYLE_FORMAT" = "Style %@";
-"AR_PLANT_CATALOG_FILTER_MAINTENANCE_FORMAT" = "Care %@";
-"AR_PLANT_CATALOG_FILTER_SAFETY" = "Safety enabled";
-"AR_PLANT_CATALOG_FILTER_SOIL_FORMAT" = "Soil %@";
-"AR_PLANT_CATALOG_FILTER_BASED_ON_PREFS" = "Based on your preferences";
+"AR_PLANT_CATALOG_MODE_BADGE_FORMAT" = "%@ mode";
+"AR_PLANT_CATALOG_NO_COMPATIBLE_PLANTS" = "No plants are compatible with this mode.";
+"AR_EDIT_MODE_TITLE" = "Edit mode";
+"AR_EDIT_SELECTED_PLANT" = "Selected plant";
+"AR_EDIT_EXIT" = "Exit edit mode";
+"AR_EDIT_ROTATE" = "Rotate plant";
+"AR_EDIT_SCALE_UP" = "Scale plant up";
+"AR_EDIT_SCALE_DOWN" = "Scale plant down";
 
 "SHOP_CATEGORY_PLANTS" = "Plants";
 "SHOP_CATEGORY_SOIL" = "Soil";
@@ -1467,6 +1507,8 @@
 "AR_BASIC_SURFACE_HINT" = "Point your camera at a flat surface to start";
 "AR_MANUAL_SCAN_TITLE" = "Scan your garden";
 "AR_MANUAL_SCAN_SUBTITLE" = "Move your phone around the room";
+"AR_REOPEN_SCAN_STEP_MOVE" = "Slowly sweep the room, especially walls and the floor.";
+"AR_REOPEN_SCAN_STEP_RESTORE" = "Your plants reappear automatically once the garden is recognized.";
 "AR_MANUAL_REPLACE" = "Replace manually";
 "AR_ADJUST_PLANTS_TITLE" = "Adjust plants if needed";
 "AR_ADJUST_PLANTS_SUBTITLE" = "Aim at a plant with the reticle and tap to select it. Drag or tap a new position to move it.";

@@ -22,7 +22,7 @@ flowchart TB
     detect_mode{mode ?}
 
     create_flow["Mode .create<br/>fresh ARKit session<br/>boundary known from wizard"]
-    place_create["User places plants<br/>via catalog picker + tap on ground"]
+    place_create["User places plants<br/>via catalog picker + Floor/Wall/Ceiling modes"]
 
     reopen_flow["Mode .reopen<br/>loads arworldmap worldmap"]
     arkit_reloc["ARKit relocalizes the WorldMap"]
@@ -90,11 +90,29 @@ Entry happens from the wizard exit (see [`garden-creation.md`](garden-creation.m
 
 1. `ARSession` started fresh (no relocalization to attempt).
 2. The boundary is drawn on the ground as blue cylinders.
-3. The user opens the **catalog picker** via the **+** button, taps on the ground to place a plant, and can drag/scale/rotate it.
+3. The user chooses **Floor**, **Wall**, or **Ceiling**, opens the **catalog picker** via the **+** button, then taps on a compatible surface to place a plant. They can then drag/scale/rotate it.
 4. **Valider** button: the current WorldMap is archived, the `scene_{id}.json` is written, and `PUT /gardens/:id` sends the plant state to the backend.
 5. Back to Home with success feedback.
 
 At this stage, `RelocationPhase` stays at its initial value `.scanning`, but no manual-replace overlay appears — the machine is not relevant in `.create` mode.
+
+### Placement Interface
+
+The HUD keeps the camera as the primary surface: the top bar contains back, undo/redo, and validation with compact buttons, while the bottom dock fits on one row. In placement mode, the dock shows the **Floor/Wall/Ceiling** modes, the share photo/video capture, and plant add, then automatically folds back to the active mode to free up the camera. When a plant is selected, that same dock replaces placement actions with compact edit mode: plant name, exit edit mode, rotate, zoom +/−, and delete. The lux indicator is no longer shown; light level stays only as an internal signal for legacy auto-placement heuristics. The share button opens a dedicated Camera-inspired capture mode: hidden HUD, hidden placement reticle, central shutter, compact **Photo/Video** selector, recording counter for video, and last-capture thumbnail. The thumbnail opens a local AR gallery persisted for the garden; captures can be deleted, and tapping a capture then opens a separate edit/share page with retake, sharing, and an optional Arbore logo overlay. The AR catalog now opens as an opaque full-screen page with search, the current-mode badge, and a result count, without filters or "For you"/"Top Picks" tabs. Its cards reuse the main catalog style: tapping a card places the plant, while details stay available from the context menu without a visible button on the card.
+
+### Multi-surface modes
+
+The ARKit session now detects both horizontal and vertical planes (`planeDetection = [.horizontal, .vertical]`). The reticle chooses its raycast from the current placement mode:
+
+| Mode | Accepted surfaces | Plant rule |
+|---|---|---|
+| **Floor** | `floor`, `shelf`, `table`, `windowsill`, `furniture`, or horizontal estimated fallback | All plants. Shelves/tables/windowsills stay in Floor mode. |
+| **Wall** | `wall`, vertical existing-plane infinite, or vertical estimated fallback | `climbing`/`trailing` plants or catalog keyword matches (ivy, pothos, philodendron scandens, hoya, ceropegia, etc.). |
+| **Ceiling** | `ceiling`, horizontal existing-plane infinite above the camera, or estimated fallback above the camera | Trailing/hanging plants only. |
+
+The raycast tries `existingPlaneGeometry`, then `existingPlaneInfinite`, then `estimatedPlane`. This makes white walls/ceilings easier to target while keeping plant/surface compatibility checks before commit. Before creating the final `ARAnchor`, `PlacementReliabilityScorer` combines the hit source, tracking state, plane size, camera distance, and reticle stability over a few tenths of a second. Estimated surfaces must therefore stay stable briefly before commit; otherwise a short feedback message asks the user to sweep the surface. The catalog is filtered in Wall/Ceiling mode, and a short HUD message appears when the selected plant or aimed surface is incompatible.
+
+Each placement also saves a `surfaceAnchor` relative to the surface: hit source, score, normal, plane center/extent, local offset, and world position. On reopen, if a current plane matches that saved surface, the plant is snapped back onto that plane before falling back to a Y-coordinate snap. If a plant was initially placed on an estimated hit and ARKit later detects a compatible real plane, the app automatically migrates the plant to that plane and updates the persisted metadata.
 
 ## Mode `.reopen` — reopening an existing garden
 
@@ -109,7 +127,7 @@ Entry happens from the Home, tapping on a garden card. The AR view receives:
    - The WorldMap from disk (`GardenLocalStore.worldMapURL(for: id)`).
    - The scene JSON (plant positions) from disk.
 2. `ARSession` is started with `initialWorldMap` set to the loaded WorldMap → ARKit enters **relocalization** mode.
-3. The coaching overlay (`ScanningCoachingOverlay` component) is shown at the bottom of the screen, **non-blocking**: the user sees the camera and can move their phone.
+3. The coaching overlay (`ScanningCoachingOverlay` component) is shown at the bottom of the screen as a compact Arbore-themed card, **non-blocking**: the user sees the camera, the expected gestures, and can move their phone.
 4. ARKit launches a relocalization thread that runs as long as `frame.camera.trackingState != .normal`.
 
 From here, two paths are possible.
@@ -128,7 +146,7 @@ This path is the fastest in UX (a few seconds for relocalization if the lighting
 
 ### Degraded path: relocalization fails
 
-If after a few seconds the WorldMap stays in `.limited` (lighting change between sessions, modified environment — see issue #96), the coaching overlay remains displayed with the **"Replace manually"** button accessible.
+If after a few seconds the WorldMap stays in `.limited` (lighting change between sessions, modified environment — see issue #96), the coaching overlay remains displayed with the secondary **"Replace manually"** button accessible.
 
 At that point, two options for the user:
 
@@ -136,7 +154,7 @@ At that point, two options for the user:
 |---|---|
 | Keep waiting / moving the phone | ARKit `relocalize` may still succeed if the lighting becomes compatible. If it never does, the machine stays at `.scanning`. |
 | Tap **"Replace manually"** | `enterManualReplacement()` → the [`RelocationPhase`](../state-machines/relocation-phase.md) machine switches to `.tracingBoundary` and the manual flow takes over. |
-| Tap X | Full dismiss, back to Home with no changes to the garden. |
+| Tap back | Full dismiss, back to Home with no changes to the garden. |
 
 Once manual replace is launched (`tracingBoundary` → `morphingPreview` → `adjusting`), the end of the flow rejoins the common save path.
 
@@ -148,9 +166,10 @@ Whatever the origin of the flow (`create`, nominal `reopen`, `reopen` manual rep
    - If a drag/teleport override is present in `pendingDragTransform[uuid]`, it is used (issue #138 — guarantees that the user's last gesture is persisted even if `rebaseAnchorAtCurrentPosition` fails silently).
    - Otherwise, it reads the transform of the associated `ARAnchor`.
    - As a last resort, it reads `node.simdWorldTransform` directly.
-2. Archives the current `ARWorldMap` via `NSKeyedArchiver` and writes it to disk (`worldmap_{id}.arworldmap`).
-3. Serializes the scene JSON (positions, models, scales) and writes it to disk (`scene_{id}.json`).
-4. Emits a `PUT /gardens/:id` with the updated positions (the `plants[]` field of the `gardens` document).
+2. Also persists `surfaceType`, `surfaceHeight`, `placementMode`, and `surfaceAnchor` so the placement intent (`floor`, `wall`, `ceiling`) and the relative relationship to the surface survive reopening.
+3. Archives the current `ARWorldMap` via `NSKeyedArchiver` and writes it to disk (`worldmap_{id}.arworldmap`).
+4. Serializes the scene JSON (positions, models, scales) and writes it to disk (`scene_{id}.json`).
+5. Emits a `PUT /gardens/:id` with the updated positions (the `plants[]` field of the `gardens` document).
 
 After the save, `pendingDragTransform` is purged and the view closes.
 
@@ -169,7 +188,7 @@ After the save, `pendingDragTransform` is purged and the view closes.
 | Gesture | Effect |
 |---|---|
 | Tap on a plant (`.adjusting` mode or normal editing) | Selects the plant, shows the pulsing green ring. |
-| Tap on the ground with a plant selected | Teleports the plant to the raycast position. |
+| Tap on a compatible surface with a plant selected | Teleports the plant to the current mode's raycast position. |
 | Long-press + drag | Moves the plant continuously. |
 | Pinch | Scales (if allowed for the plant). |
 | Two-finger rotate | Rotation around the Y axis. |

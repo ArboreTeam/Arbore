@@ -252,6 +252,8 @@ extension GardenARPlacementContainerView.Coordinator {
                                     upAxis: persisted.upAxis,
                                     surfaceType: persisted.surfaceType,
                                     surfaceHeight: persisted.surfaceHeight,
+                                    placementMode: ARPlacementMode.fromPersisted(persisted.placementMode),
+                                    surfaceAnchor: persisted.surfaceAnchor,
                                     autoSelect: false,  // batch — entering .adjusting
                                     hasHeavy: persisted.hasHeavy == true
                                 )
@@ -269,6 +271,8 @@ extension GardenARPlacementContainerView.Coordinator {
                                         upAxis: persisted.upAxis,
                                         surfaceType: persisted.surfaceType,
                                         surfaceHeight: persisted.surfaceHeight,
+                                        placementMode: ARPlacementMode.fromPersisted(persisted.placementMode),
+                                        surfaceAnchor: persisted.surfaceAnchor,
                                         autoSelect: false,
                                         hasHeavy: persisted.hasHeavy == true
                                     )

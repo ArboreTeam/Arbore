@@ -5,6 +5,8 @@ import Foundation
 import os
 import simd
 import UIKit
+import AVFoundation
+import AVKit
 
 // NOTE: Les modèles de données (PersistedARScene, PersistedPlant)
 // et GardenLocalStore doivent être présents dans le fichier "GardenDataModels.swift".
@@ -15,6 +17,79 @@ enum GardenARMode {
     case reopen
 }
 
+private enum ARShareCaptureMode: String, CaseIterable, Identifiable {
+    case photo
+    case video
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .photo: return L10n.t("AR_SHARE_CAMERA_MODE_PHOTO")
+        case .video: return L10n.t("AR_SHARE_CAMERA_MODE_VIDEO")
+        }
+    }
+}
+
+private enum GardenShareCaptureKind {
+    case photo
+    case video
+}
+
+private struct GardenShareCapture: Identifiable {
+    let id: UUID
+    let kind: GardenShareCaptureKind
+    let image: UIImage?
+    let videoURL: URL?
+    let mediaURL: URL?
+    let thumbnail: UIImage?
+    let thumbnailURL: URL?
+    let createdAt: Date
+    let requiresPlaybackRotation: Bool
+
+    var isVideo: Bool { kind == .video }
+
+    static func photo(
+        _ image: UIImage,
+        id: UUID = UUID(),
+        mediaURL: URL? = nil,
+        createdAt: Date = Date()
+    ) -> GardenShareCapture {
+        GardenShareCapture(
+            id: id,
+            kind: .photo,
+            image: image,
+            videoURL: nil,
+            mediaURL: mediaURL,
+            thumbnail: image,
+            thumbnailURL: nil,
+            createdAt: createdAt,
+            requiresPlaybackRotation: false
+        )
+    }
+
+    static func video(
+        url: URL,
+        thumbnail: UIImage?,
+        id: UUID = UUID(),
+        thumbnailURL: URL? = nil,
+        createdAt: Date = Date(),
+        requiresPlaybackRotation: Bool = false
+    ) -> GardenShareCapture {
+        GardenShareCapture(
+            id: id,
+            kind: .video,
+            image: nil,
+            videoURL: url,
+            mediaURL: url,
+            thumbnail: thumbnail,
+            thumbnailURL: thumbnailURL,
+            createdAt: createdAt,
+            requiresPlaybackRotation: requiresPlaybackRotation
+        )
+    }
+}
+
 extension Notification.Name {
     static let gardenARValidate = Notification.Name("gardenARValidate")
     static let gardenARUndo = Notification.Name("gardenARUndo")
@@ -23,6 +98,7 @@ extension Notification.Name {
     static let gardenARRotate = Notification.Name("gardenARRotate")
     static let gardenARScaleUp = Notification.Name("gardenARScaleUp")
     static let gardenARScaleDown = Notification.Name("gardenARScaleDown")
+    static let gardenARDeselect = Notification.Name("gardenARDeselect")
     // Manual replacement (Issue #111)
     static let gardenAREnterManualReplacement = Notification.Name("gardenAREnterManualReplacement")
     static let gardenARCancelManualReplacement = Notification.Name("gardenARCancelManualReplacement")
@@ -58,14 +134,28 @@ struct GardenARPlacementView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showPicker = false
     @State private var selectedPlantForPlacement: Plant? = nil
+    @State private var placementMode: ARPlacementMode = .floor
+    @State private var placementFeedback: String? = nil
+    @State private var isPlacementDockExpanded = true
+    @State private var dockCollapseTask: Task<Void, Never>? = nil
     @State private var hasSelectedNode = false
     @State private var selectedNodeName: String? = nil
     @State private var isSaving = false
     @State private var shouldCaptureSharePhoto = false
     @State private var capturedShareImage: UIImage?
-    @State private var showShareSheet = false
+    @State private var capturedShareVideoURL: URL?
+    @State private var capturedShareVideoThumbnail: UIImage?
+    @State private var shareCaptures: [GardenShareCapture] = []
+    @State private var selectedShareCaptureID: UUID?
     @State private var showSharePreview = false
     @State private var isCapturingSharePhoto = false
+    @State private var isShareCameraMode = false
+    @State private var shareCaptureMode: ARShareCaptureMode = .photo
+    @State private var shouldStartShareVideoRecording = false
+    @State private var shouldStopShareVideoRecording = false
+    @State private var isRecordingShareVideo = false
+    @State private var shareVideoRecordingStartedAt: Date?
+    @State private var loadedShareCaptureStorageKey: String?
 
     // Model download state
     @State private var downloadedModelURL: URL? = nil
@@ -110,6 +200,23 @@ struct GardenARPlacementView: View {
     @State private var autoPlacePlaced: Int = 0
     @State private var autoPlaceTotal: Int = 0
     @State private var autoPlaceCurrentName: String = ""
+
+    private var latestShareCapture: GardenShareCapture? {
+        shareCaptures.first
+    }
+
+    private var shareCaptureStorageKey: String {
+        if let existingGardenId, !existingGardenId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "garden_\(existingGardenId)"
+        }
+        if let thumbnailKey, !thumbnailKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "thumbnail_\(thumbnailKey)"
+        }
+        let fallbackName = gardenName
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        return fallbackName.isEmpty ? "draft_default" : "draft_\(fallbackName)"
+    }
     /// Issue #169 — set true the first time AI auto-placement actually
     /// triggers (i.e. the reticle reached the floor + stability). Used
     /// to hide the "Pointez vers le sol" coaching banner once the user
@@ -211,6 +318,8 @@ struct GardenARPlacementView: View {
                 selectedPlant: $selectedPlantForPlacement,
                 downloadedModelURL: $downloadedModelURL,
                 isDownloadingModel: $isDownloadingModel,
+                placementMode: $placementMode,
+                placementFeedback: $placementFeedback,
                 isRelocating: $isRelocating,
                 hasSelectedNode: $hasSelectedNode,
                 selectedNodeName: $selectedNodeName,
@@ -228,7 +337,13 @@ struct GardenARPlacementView: View {
                 currentLux: $currentLux,
                 shouldCaptureSharePhoto: $shouldCaptureSharePhoto,
                 capturedShareImage: $capturedShareImage,
+                capturedShareVideoURL: $capturedShareVideoURL,
                 isCapturingSharePhoto: $isCapturingSharePhoto,
+                shouldStartShareVideoRecording: $shouldStartShareVideoRecording,
+                shouldStopShareVideoRecording: $shouldStopShareVideoRecording,
+                isRecordingShareVideo: $isRecordingShareVideo,
+                shareVideoRecordingStartedAt: $shareVideoRecordingStartedAt,
+                isShareCameraMode: $isShareCameraMode,
                 surfaceVizEnabled: $surfaceVizEnabled,
                 semSegVizEnabled: $semSegVizEnabled,
                 depthVizEnabled: $depthVizEnabled,
@@ -261,8 +376,7 @@ struct GardenARPlacementView: View {
                     ScanningCoachingOverlay(
                         onReplaceManually: {
                             NotificationCenter.default.post(name: .gardenAREnterManualReplacement, object: nil)
-                        },
-                        onCancel: { dismiss() }
+                        }
                     )
                 case .tracingBoundary, .morphingPreview, .adjusting:
                     // Hint + actions for these phases live inside the HUD
@@ -279,149 +393,152 @@ struct GardenARPlacementView: View {
                 autoPlacingOverlay
             }
 
-            // --- HUD Interface ---
-            VStack(spacing: 0) {
-                // 1. Barre du haut
-                topBar
-
-                // 1b. Phase-specific hint banner — sits directly under topBar
-                // so it never collides with back/undo/redo. One banner per
-                // phase (only the matching case renders).
-                if mode == .reopen {
-                    Group {
-                        switch relocationPhase {
-                        case .tracingBoundary:
-                            BoundaryTracingHintBanner(
-                                pointCount: newBoundaryPoints.count,
-                                area: newBoundaryArea
-                            )
-                        case .morphingPreview:
-                            MorphingPreviewHintBanner(warnings: distortionWarnings)
-                        case .adjusting:
-                            AdjustingHintBanner()
-                        default:
-                            EmptyView()
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
+            if isShareCameraMode {
+                shareCameraOverlay
                     .transition(.opacity)
-                }
+            } else {
+                // --- HUD Interface ---
+                VStack(spacing: 0) {
+                    // 1. Barre du haut
+                    topBar
 
-                // 💡 Lux widget — only in placement contexts (.create or
-                // post-relocalization .scanning). Hidden during manual
-                // replacement phases and during initial relocalization
-                // coaching to keep the HUD focused.
-                if !relocationPhase.isManualReplacement && !isRelocating {
-                    luxWidget
-                        .padding(.horizontal, 20)
-                        .padding(.top, 6)
-                }
-
-                // Issue #169 — AI placement coaching. Visible whenever
-                // the user lands on the AR screen with AI plants queued
-                // but hasn't yet pointed at the floor long enough to
-                // trigger the batch. Disappears as soon as auto-place
-                // fires (the autoPlacingOverlay + toast take over).
-                if automaticSuggestionPlacementEnabled,
-                   mode == .create,
-                   !selectedPlants.isEmpty,
-                   !isAutoPlacing,
-                   !hasTriggeredAutoPlace {
-                    awaitingFloorPointBanner
-                        .padding(.horizontal, 16)
-                        .padding(.top, 6)
-                        .transition(.opacity)
-                }
-
-                Spacer()
-
-                // 🤖 Auto-place toast
-                if let toast = autoPlaceToast {
-                    autoPlaceToastView(toast)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .onAppear {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
-                                withAnimation(.easeOut(duration: 0.4)) {
-                                    autoPlaceToast = nil
-                                }
+                    // 1b. Phase-specific hint banner — sits directly under topBar
+                    // so it never collides with back/undo/redo. One banner per
+                    // phase (only the matching case renders).
+                    if mode == .reopen {
+                        Group {
+                            switch relocationPhase {
+                            case .tracingBoundary:
+                                BoundaryTracingHintBanner(
+                                    pointCount: newBoundaryPoints.count,
+                                    area: newBoundaryArea
+                                )
+                            case .morphingPreview:
+                                MorphingPreviewHintBanner(warnings: distortionWarnings)
+                            case .adjusting:
+                                AdjustingHintBanner()
+                            default:
+                                EmptyView()
                             }
                         }
-                }
-
-                // 2. Indicateur de sauvegarde
-                if isSaving {
-                    savingIndicator
-                }
-
-                // 3. Menu d'édition (si une plante est sélectionnée)
-                if hasSelectedNode {
-                    editingHUD.transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-
-                // 3b. Phase-specific action row — sits directly under the
-                // editingHUD (when a plant is selected) or just above the
-                // safe-area bottom. One row per phase.
-                if mode == .reopen {
-                    Group {
-                        switch relocationPhase {
-                        case .tracingBoundary:
-                            BoundaryTracingActionButtons(
-                                pointCount: newBoundaryPoints.count,
-                                onCancel: {
-                                    NotificationCenter.default.post(name: .gardenARCancelManualReplacement, object: nil)
-                                },
-                                onUndoLast: {
-                                    NotificationCenter.default.post(name: .gardenARBoundaryUndoLast, object: nil)
-                                },
-                                onValidate: {
-                                    NotificationCenter.default.post(name: .gardenARValidateNewBoundary, object: nil)
-                                }
-                            )
-                        case .morphingPreview:
-                            MorphingPreviewActionButtons(
-                                onCancel: {
-                                    NotificationCenter.default.post(name: .gardenARCancelManualReplacement, object: nil)
-                                },
-                                onConfirm: {
-                                    NotificationCenter.default.post(name: .gardenARConfirmMorphedPlacement, object: nil)
-                                }
-                            )
-                        case .adjusting:
-                            AdjustingActionButtons(
-                                onRevert: {
-                                    NotificationCenter.default.post(name: .gardenARRevertToMorphed, object: nil)
-                                },
-                                onValidate: {
-                                    NotificationCenter.default.post(name: .gardenARValidate, object: nil)
-                                }
-                            )
-                        default:
-                            EmptyView()
-                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .transition(.opacity)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .transition(.opacity)
-                }
 
-                // 4. Dock du bas (Bouton Ajouter) — caché pendant les
-                // phases de manual-replacement (Issue #111) ET pendant
-                // la relocalisation initiale (sinon le `+` chevauche le
-                // bouton "Replacer manuellement" de la coaching overlay).
-                if !relocationPhase.isManualReplacement && !isRelocating {
-                    bottomDock
+                    if let placementFeedback {
+                        placementFeedbackBanner(placementFeedback)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+                            .transition(.move(edge: .top).combined(with: .opacity))
+                            .onAppear {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) {
+                                    withAnimation(.easeOut(duration: 0.25)) {
+                                        self.placementFeedback = nil
+                                    }
+                                }
+                            }
+                    }
+
+                    // Issue #169 — AI placement coaching. Visible whenever
+                    // the user lands on the AR screen with AI plants queued
+                    // but hasn't yet pointed at the floor long enough to
+                    // trigger the batch. Disappears as soon as auto-place
+                    // fires (the autoPlacingOverlay + toast take over).
+                    if automaticSuggestionPlacementEnabled,
+                       mode == .create,
+                       !selectedPlants.isEmpty,
+                       !isAutoPlacing,
+                       !hasTriggeredAutoPlace {
+                        awaitingFloorPointBanner
+                            .padding(.horizontal, 16)
+                            .padding(.top, 6)
+                            .transition(.opacity)
+                    }
+
+                    Spacer()
+
+                    // 🤖 Auto-place toast
+                    if let toast = autoPlaceToast {
+                        autoPlaceToastView(toast)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                            .onAppear {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+                                    withAnimation(.easeOut(duration: 0.4)) {
+                                        autoPlaceToast = nil
+                                    }
+                                }
+                            }
+                    }
+
+                    // 2. Indicateur de sauvegarde
+                    if isSaving {
+                        savingIndicator
+                    }
+
+                    // 3b. Phase-specific action row — shown above the bottom
+                    // dock. One row per manual-replacement phase.
+                    if mode == .reopen {
+                        Group {
+                            switch relocationPhase {
+                            case .tracingBoundary:
+                                BoundaryTracingActionButtons(
+                                    pointCount: newBoundaryPoints.count,
+                                    onCancel: {
+                                        NotificationCenter.default.post(name: .gardenARCancelManualReplacement, object: nil)
+                                    },
+                                    onUndoLast: {
+                                        NotificationCenter.default.post(name: .gardenARBoundaryUndoLast, object: nil)
+                                    },
+                                    onValidate: {
+                                        NotificationCenter.default.post(name: .gardenARValidateNewBoundary, object: nil)
+                                    }
+                                )
+                            case .morphingPreview:
+                                MorphingPreviewActionButtons(
+                                    onCancel: {
+                                        NotificationCenter.default.post(name: .gardenARCancelManualReplacement, object: nil)
+                                    },
+                                    onConfirm: {
+                                        NotificationCenter.default.post(name: .gardenARConfirmMorphedPlacement, object: nil)
+                                    }
+                                )
+                            case .adjusting:
+                                AdjustingActionButtons(
+                                    onRevert: {
+                                        NotificationCenter.default.post(name: .gardenARRevertToMorphed, object: nil)
+                                    },
+                                    onValidate: {
+                                        NotificationCenter.default.post(name: .gardenARValidate, object: nil)
+                                    }
+                                )
+                            default:
+                                EmptyView()
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .transition(.opacity)
+                    }
+
+                    // 4. Dock du bas (Bouton Ajouter) — caché pendant les
+                    // phases de manual-replacement (Issue #111) ET pendant
+                    // la relocalisation initiale (sinon le `+` chevauche le
+                    // bouton "Replacer manuellement" de la coaching overlay).
+                    if !relocationPhase.isManualReplacement && !isRelocating {
+                        bottomDock
+                    }
                 }
             }
         }
         .overlay(alignment: .top) {
-            // Banner thermal critique (#82). Invisible par défaut, apparait
-            // sur .arboreThermalCritical posée par ARQualityObserver, se
-            // masque sur .arboreThermalRecovered.
+            // Statut thermique discret (#82). Invisible par défaut, apparait
+            // brièvement sur .arboreThermalCritical posée par
+            // ARQualityObserver, se masque sur .arboreThermalRecovered.
             ThermalStateBanner()
         }
-        .sheet(isPresented: $showPicker) {
-            PlantCatalogARView(wizardFilter: wizard) { plant in
+        .fullScreenCover(isPresented: $showPicker) {
+            PlantCatalogARView(placementMode: placementMode) { plant in
                 selectedPlantForPlacement = plant
                 // Pré-télécharger le modèle 3D de la plante sélectionnée
                 Task {
@@ -439,17 +556,35 @@ struct GardenARPlacementView: View {
                     isDownloadingModel = false
                 }
             }
-            .presentationDetents([.large])
-            .presentationBackground(.clear)
-        }
-        .sheet(isPresented: $showShareSheet) {
-            if let capturedShareImage {
-                ShareSheet(items: [capturedShareImage])
-            }
         }
         .onChange(of: capturedShareImage) { _, image in
-            guard image != nil else { return }
-            showSharePreview = true
+            guard let image else { return }
+            let capture = GardenShareCaptureStore.savePhoto(
+                image,
+                for: shareCaptureStorageKey
+            ) ?? GardenShareCapture.photo(image)
+            insertShareCapture(capture)
+            isCapturingSharePhoto = false
+            capturedShareVideoThumbnail = nil
+        }
+        .onChange(of: capturedShareVideoURL) { _, url in
+            guard let url else { return }
+            isRecordingShareVideo = false
+            shareVideoRecordingStartedAt = nil
+            Task {
+                let thumbnail = await GardenShareVideoThumbnailer.thumbnail(for: url)
+                guard capturedShareVideoURL == url else { return }
+                capturedShareVideoThumbnail = thumbnail
+                let capture = GardenShareCaptureStore.saveVideo(
+                    at: url,
+                    thumbnail: thumbnail,
+                    for: shareCaptureStorageKey
+                ) ?? GardenShareCapture.video(url: url, thumbnail: thumbnail)
+                insertShareCapture(capture)
+            }
+        }
+        .onChange(of: shareCaptureStorageKey) { _, _ in
+            loadPersistedShareCaptures()
         }
         .onChange(of: isAutoPlacing) { _, new in
             // Issue #169 — latch the "auto-place fired at least once"
@@ -458,20 +593,27 @@ struct GardenARPlacementView: View {
             if new { hasTriggeredAutoPlace = true }
         }
         .fullScreenCover(isPresented: $showSharePreview) {
-            if let capturedShareImage {
-                GardenSharePreviewView(
-                    image: capturedShareImage,
+            if !shareCaptures.isEmpty {
+                GardenShareGalleryView(
+                    captures: shareCaptures,
+                    selectedCaptureID: selectedShareCaptureID,
                     onRetake: {
                         showSharePreview = false
-                        self.capturedShareImage = nil
+                        isShareCameraMode = true
                     },
-                    onShare: {
-                        showShareSheet = true
+                    onDelete: { capture in
+                        deleteShareCapture(capture)
+                    },
+                    onClose: {
+                        showSharePreview = false
                     }
                 )
             }
         }
         .onAppear {
+            loadPersistedShareCaptures()
+            disableBetaDebugVisualizations()
+
             if mode == .reopen, let id = existingGardenId {
                 // Issue: local-only AR data is wiped on app reinstall — the
                 // garden card still shows because the backend keeps the plant
@@ -568,46 +710,17 @@ struct GardenARPlacementView: View {
     }
 
     private var topBar: some View {
-        HStack {
+        HStack(spacing: 10) {
             Button { dismiss() } label: {
                 Image(systemName: "arrow.left").modifier(GlassButtonStyle())
             }
-            Spacer()
-
-            if !topBarShouldShowOnlyBack {
-                HStack(spacing: 20) {
-                    Button { NotificationCenter.default.post(name: .gardenARUndo, object: nil) } label: {
-                        Image(systemName: "arrow.uturn.backward").modifier(GlassButtonStyle())
-                    }
-                    Button { NotificationCenter.default.post(name: .gardenARRedo, object: nil) } label: {
-                        Image(systemName: "arrow.uturn.forward").modifier(GlassButtonStyle())
-                    }
-                    // BETA #191: debug overlays button hidden for beta —
-                    // the Scene Understanding pipeline is dormant. Restore
-                    // when the post-jury reactivation lands.
-                    /*
-                    Button {
-                        showDebugPanel = true
-                    } label: {
-                        Image(systemName: anyDebugVizOn
-                              ? "cube.transparent.fill" : "cube.transparent")
-                            .modifier(GlassButtonStyle(isGreen: anyDebugVizOn))
-                    }
-                    .onLongPressGesture {
-                        surfaceVizEnabled = false
-                        semSegVizEnabled = false
-                        depthVizEnabled = false
-                        fusedVizEnabled = false
-                        voxelScanEnabled = false
-                        scanViewEnabled = false
-                    }
-                    */
-                }
-            }
+            .buttonStyle(.plain)
 
             Spacer()
 
             if !topBarShouldShowOnlyBack {
+                undoRedoControl
+
                 Button {
                     NotificationCenter.default.post(name: .gardenARValidate, object: nil)
                 } label: {
@@ -615,104 +728,530 @@ struct GardenARPlacementView: View {
                 }
                 .disabled(isSaving)
                 .opacity(isSaving ? 0.5 : 1)
+                .buttonStyle(.plain)
             } else {
                 // Keep the trailing slot at the same width so the back button
                 // stays visually anchored on the left, no bar reflow.
                 Color.clear.frame(width: 44, height: 44)
             }
         }
-        .padding(.horizontal, 20).padding(.top, 10)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 
-    private var editingHUD: some View {
-        VStack(spacing: 12) {
-            if let name = selectedNodeName {
-                Text(name)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(.black.opacity(0.7))
-                    .clipShape(Capsule())
+    private var undoRedoControl: some View {
+        HStack(spacing: 2) {
+            Button { NotificationCenter.default.post(name: .gardenARUndo, object: nil) } label: {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+                    .frame(width: 36, height: 36)
             }
-            HStack(spacing: 12) {
-                Button { NotificationCenter.default.post(name: .gardenARRotate, object: nil) } label: {
-                    ActionButton(icon: "rotate.right", active: false)
-                }
-                Button { NotificationCenter.default.post(name: .gardenARScaleUp, object: nil) } label: {
-                    ActionButton(icon: "plus.magnifyingglass", active: false)
-                }
-                Button { NotificationCenter.default.post(name: .gardenARScaleDown, object: nil) } label: {
-                    ActionButton(icon: "minus.magnifyingglass", active: false)
-                }
-                Button { NotificationCenter.default.post(name: .gardenARDelete, object: nil) } label: {
-                    Image(systemName: "trash")
-                        .foregroundColor(.white)
-                        .frame(width: 48, height: 48)
-                        .background(.red.opacity(0.7))
-                        .clipShape(Circle())
-                }
+            .buttonStyle(.plain)
+
+            Button { NotificationCenter.default.post(name: .gardenARRedo, object: nil) } label: {
+                Image(systemName: "arrow.uturn.forward")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+                    .frame(width: 36, height: 36)
             }
-            .padding(10)
-            .background(.ultraThinMaterial)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(.white.opacity(0.1), lineWidth: 1))
+            .buttonStyle(.plain)
         }
-        .padding(.bottom, 30)
+        .padding(3)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .background(
+                    Capsule()
+                        .fill(ArboreDesign.Colors.card.opacity(0.70))
+                )
+        )
+        .overlay(Capsule().stroke(ArboreDesign.Colors.border.opacity(0.82), lineWidth: 1))
+    }
+
+    private var shareCameraOverlay: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button {
+                    exitShareCameraMode()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background(.black.opacity(0.34), in: Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.12), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.t("COMMON_CLOSE"))
+
+                Spacer()
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 8)
+
+            if isRecordingShareVideo, let startedAt = shareVideoRecordingStartedAt {
+                recordingDurationBadge(startedAt: startedAt)
+                    .padding(.top, 14)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            Spacer()
+
+            ZStack(alignment: .bottom) {
+                HStack {
+                    shareGalleryButton
+                    Spacer()
+                    Color.clear.frame(width: 64, height: 64)
+                }
+                .padding(.horizontal, 28)
+                .padding(.bottom, 32)
+
+                VStack(spacing: 13) {
+                    shareShutterButton
+                    shareCaptureModeSelector
+                }
+                .padding(.bottom, 24)
+            }
+        }
+        .background(
+            LinearGradient(
+                colors: [.black.opacity(0.28), .clear, .black.opacity(0.42)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+        )
+        .ignoresSafeArea(edges: .bottom)
+    }
+
+    private var shareGalleryButton: some View {
+        Button {
+            guard latestShareCapture != nil else { return }
+            showSharePreview = true
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(.black.opacity(0.42))
+                    .frame(width: 54, height: 54)
+                    .overlay(Circle().stroke(.white.opacity(0.24), lineWidth: 1))
+
+                if let thumbnail = latestShareCapture?.thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 48, height: 48)
+                        .clipShape(Circle())
+                } else if latestShareCapture != nil {
+                    Circle()
+                        .fill(.black.opacity(0.62))
+                        .frame(width: 48, height: 48)
+                }
+
+                if latestShareCapture?.isVideo == true {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(latestShareCapture == nil)
+        .opacity(latestShareCapture == nil ? 0.35 : 1)
+        .accessibilityLabel(L10n.t("AR_SHARE_OPEN_LAST_CAPTURE"))
+    }
+
+    private func recordingDurationBadge(startedAt: Date) -> some View {
+        TimelineView(.periodic(from: startedAt, by: 0.25)) { timeline in
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color(hex: "#E5484D"))
+                    .frame(width: 8, height: 8)
+
+                Text(formattedRecordingDuration(from: startedAt, to: timeline.date))
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 34)
+            .background(.black.opacity(0.46), in: Capsule())
+            .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
+        }
+    }
+
+    private var shareShutterButton: some View {
+        Button {
+            switch shareCaptureMode {
+            case .photo:
+                captureGardenSharePhoto()
+            case .video:
+                toggleShareVideoRecording()
+            }
+        } label: {
+            ZStack {
+                Circle()
+                    .stroke(.white.opacity(0.82), lineWidth: 6)
+                    .frame(width: 78, height: 78)
+                Circle()
+                    .fill(shareCaptureMode == .video ? Color(hex: "#E5484D") : .white)
+                    .frame(width: isRecordingShareVideo ? 30 : 62, height: isRecordingShareVideo ? 30 : 62)
+                    .clipShape(
+                        RoundedRectangle(
+                            cornerRadius: isRecordingShareVideo ? 8 : 31,
+                            style: .continuous
+                        )
+                    )
+
+                if isCapturingSharePhoto {
+                    ProgressView()
+                        .tint(.black)
+                }
+            }
+            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: isRecordingShareVideo)
+        }
+        .buttonStyle(.plain)
+        .disabled(isCapturingSharePhoto)
+        .accessibilityLabel(
+            shareCaptureMode == .video
+            ? L10n.t("AR_SHARE_CAMERA_MODE_VIDEO")
+            : L10n.t("AR_CAPTURE_GARDEN_PHOTO_ACCESSIBILITY")
+        )
+    }
+
+    private var shareCaptureModeSelector: some View {
+        HStack(spacing: 18) {
+            ForEach(ARShareCaptureMode.allCases) { mode in
+                Button {
+                    guard !isRecordingShareVideo else { return }
+                    withAnimation(.spring(response: 0.22, dampingFraction: 0.86)) {
+                        shareCaptureMode = mode
+                    }
+                } label: {
+                    Text(mode.label.uppercased())
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(shareCaptureMode == mode ? Color(hex: "#F5D84B") : .white.opacity(0.82))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule()
+                                .fill(shareCaptureMode == mode ? .white.opacity(0.13) : .clear)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(.black.opacity(0.34), in: Capsule())
+        .overlay(Capsule().stroke(.white.opacity(0.10), lineWidth: 1))
     }
 
     private var bottomDock: some View {
-        HStack {
-            Spacer()
+        Group {
+            if hasSelectedNode {
+                editDockContent
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                placementDockContent
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .padding(10)
+        .background(dockBackground)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 14)
+        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: hasSelectedNode)
+        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: isPlacementDockExpanded)
+        .onAppear {
+            schedulePlacementDockCollapse()
+        }
+        .onDisappear {
+            dockCollapseTask?.cancel()
+        }
+        .onChange(of: hasSelectedNode) { _, isSelected in
+            if isSelected {
+                dockCollapseTask?.cancel()
+            } else {
+                wakePlacementDock()
+            }
+        }
+    }
 
-            Button { captureGardenSharePhoto() } label: {
-                ZStack {
-                    Circle().fill(.black.opacity(0.62))
-                        .frame(width: 58, height: 58)
-                        .overlay(Circle().stroke(.white.opacity(0.22), lineWidth: 1))
-
-                    if isCapturingSharePhoto {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(.white)
-                    }
+    private var placementDockContent: some View {
+        HStack(spacing: 8) {
+            Group {
+                if isPlacementDockExpanded {
+                    placementModeSelector
+                } else {
+                    activePlacementModeButton
                 }
             }
+            .frame(maxWidth: .infinity)
+
+            arDockIconButton(
+                systemImage: "camera.fill",
+                isLoading: isCapturingSharePhoto,
+                size: 48,
+                action: {
+                    wakePlacementDock()
+                    enterShareCameraMode()
+                }
+            )
             .disabled(isCapturingSharePhoto)
             .accessibilityLabel(L10n.t("AR_CAPTURE_GARDEN_PHOTO_ACCESSIBILITY"))
 
-            Spacer(minLength: 26)
-
-            Button { showPicker = true } label: {
+            Button {
+                wakePlacementDock()
+                showPicker = true
+            } label: {
                 ZStack {
-                    Circle().fill(Color(hex: "#2BEE79"))
-                        .frame(width: 68, height: 68)
-                        .shadow(color: Color(hex: "#2BEE79").opacity(0.4), radius: 15)
+                    RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                        .fill(ArboreDesign.Colors.primaryGreen)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                                .stroke(.white.opacity(0.16), lineWidth: 1)
+                        )
 
                     if isDownloadingModel {
                         ProgressView()
-                            .tint(.black)
+                            .tint(.white)
                     } else {
                         Image(systemName: "plus")
-                            .font(.system(size: 30, weight: .bold))
-                            .foregroundColor(.black)
+                            .font(.system(size: 26, weight: .bold))
+                            .foregroundColor(.white)
                     }
                 }
+                .frame(width: 54, height: 48)
             }
             .disabled(isDownloadingModel)
-
-            Spacer()
+            .buttonStyle(.plain)
+            .accessibilityLabel(L10n.t("COMMON_ADD"))
         }
-        .padding(.bottom, 20)
+    }
+
+    private var editDockContent: some View {
+        HStack(spacing: 8) {
+            Text(selectedNodeName ?? L10n.t("AR_EDIT_SELECTED_PLANT"))
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(ArboreDesign.Colors.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 4)
+
+            HStack(spacing: 6) {
+                arDockIconButton(systemImage: "xmark", size: 44) {
+                    NotificationCenter.default.post(name: .gardenARDeselect, object: nil)
+                }
+                .accessibilityLabel(L10n.t("AR_EDIT_EXIT"))
+
+                editToolButton(systemImage: "rotate.right", size: 44) {
+                    NotificationCenter.default.post(name: .gardenARRotate, object: nil)
+                }
+                .accessibilityLabel(L10n.t("AR_EDIT_ROTATE"))
+
+                editToolButton(systemImage: "plus.magnifyingglass", size: 44) {
+                    NotificationCenter.default.post(name: .gardenARScaleUp, object: nil)
+                }
+                .accessibilityLabel(L10n.t("AR_EDIT_SCALE_UP"))
+
+                editToolButton(systemImage: "minus.magnifyingglass", size: 44) {
+                    NotificationCenter.default.post(name: .gardenARScaleDown, object: nil)
+                }
+                .accessibilityLabel(L10n.t("AR_EDIT_SCALE_DOWN"))
+
+                editToolButton(systemImage: "trash", isDestructive: true, size: 44) {
+                    NotificationCenter.default.post(name: .gardenARDelete, object: nil)
+                }
+                .accessibilityLabel(L10n.t("COMMON_DELETE"))
+            }
+        }
+    }
+
+    private var dockBackground: some View {
+        RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+            .fill(.ultraThinMaterial)
+            .background(
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                    .fill(ArboreDesign.Colors.card.opacity(0.76))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
+                    .stroke(ArboreDesign.Colors.border.opacity(0.85), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.18), radius: 18, x: 0, y: 8)
+    }
+
+    private func arDockIconButton(
+        systemImage: String,
+        isLoading: Bool = false,
+        size: CGFloat = 48,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            ZStack {
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                    .fill(ArboreDesign.Colors.softSurface.opacity(0.78))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                            .stroke(ArboreDesign.Colors.border.opacity(0.85), lineWidth: 1)
+                    )
+
+                if isLoading {
+                    ProgressView()
+                        .tint(ArboreDesign.Colors.primaryGreen)
+                } else {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(ArboreDesign.Colors.textPrimary)
+                }
+            }
+            .frame(width: size, height: size)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func editToolButton(
+        systemImage: String,
+        isDestructive: Bool = false,
+        size: CGFloat = 48,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(isDestructive ? .white : ArboreDesign.Colors.textPrimary)
+                .frame(width: size, height: size)
+                .background(isDestructive ? ArboreDesign.Colors.danger : ArboreDesign.Colors.softSurface.opacity(0.78))
+                .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                        .stroke(isDestructive ? .white.opacity(0.14) : ArboreDesign.Colors.border.opacity(0.85), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func loadPersistedShareCaptures() {
+        let storageKey = shareCaptureStorageKey
+        guard loadedShareCaptureStorageKey != storageKey else { return }
+        loadedShareCaptureStorageKey = storageKey
+
+        let persistedCaptures = GardenShareCaptureStore.load(for: storageKey)
+        shareCaptures = persistedCaptures.sorted { $0.createdAt > $1.createdAt }
+        selectedShareCaptureID = shareCaptures.first?.id
+    }
+
+    private func insertShareCapture(_ capture: GardenShareCapture) {
+        shareCaptures.removeAll { $0.id == capture.id }
+        shareCaptures.insert(capture, at: 0)
+        shareCaptures.sort { $0.createdAt > $1.createdAt }
+        selectedShareCaptureID = capture.id
+    }
+
+    private func deleteShareCapture(_ capture: GardenShareCapture) {
+        GardenShareCaptureStore.delete(capture, for: shareCaptureStorageKey)
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+            shareCaptures.removeAll { $0.id == capture.id }
+        }
+        selectedShareCaptureID = shareCaptures.first?.id
+        if shareCaptures.isEmpty {
+            showSharePreview = false
+        }
     }
 
     private func captureGardenSharePhoto() {
         capturedShareImage = nil
+        capturedShareVideoURL = nil
+        capturedShareVideoThumbnail = nil
         isCapturingSharePhoto = true
         shouldCaptureSharePhoto = true
+    }
+
+    private func enterShareCameraMode() {
+        NotificationCenter.default.post(name: .gardenARDeselect, object: nil)
+        dockCollapseTask?.cancel()
+        withAnimation(.easeOut(duration: 0.18)) {
+            isShareCameraMode = true
+        }
+    }
+
+    private func exitShareCameraMode() {
+        if isRecordingShareVideo {
+            shouldStopShareVideoRecording = true
+            shareVideoRecordingStartedAt = nil
+        }
+        withAnimation(.easeOut(duration: 0.18)) {
+            isShareCameraMode = false
+        }
+        schedulePlacementDockCollapse(after: 1.2)
+    }
+
+    private func resetShareCapture() {
+        capturedShareImage = nil
+        capturedShareVideoURL = nil
+        capturedShareVideoThumbnail = nil
+        isCapturingSharePhoto = false
+        shouldCaptureSharePhoto = false
+        shouldStartShareVideoRecording = false
+        shouldStopShareVideoRecording = false
+        isRecordingShareVideo = false
+        shareVideoRecordingStartedAt = nil
+    }
+
+    private func toggleShareVideoRecording() {
+        if isRecordingShareVideo {
+            shouldStopShareVideoRecording = true
+            shareVideoRecordingStartedAt = nil
+        } else {
+            capturedShareImage = nil
+            capturedShareVideoURL = nil
+            capturedShareVideoThumbnail = nil
+            shareVideoRecordingStartedAt = Date()
+            shouldStartShareVideoRecording = true
+        }
+    }
+
+    private func formattedRecordingDuration(from start: Date, to end: Date) -> String {
+        let totalSeconds = max(0, Int(end.timeIntervalSince(start)))
+        let minutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    private func wakePlacementDock() {
+        guard !hasSelectedNode else { return }
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+            isPlacementDockExpanded = true
+        }
+        schedulePlacementDockCollapse()
+    }
+
+    private func schedulePlacementDockCollapse(after seconds: Double = 3.4) {
+        guard !hasSelectedNode else { return }
+        dockCollapseTask?.cancel()
+        dockCollapseTask = Task {
+            let delay = UInt64(seconds * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: delay)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                    isPlacementDockExpanded = false
+                }
+            }
+        }
+    }
+
+    private func disableBetaDebugVisualizations() {
+        surfaceVizEnabled = false
+        semSegVizEnabled = false
+        depthVizEnabled = false
+        fusedVizEnabled = false
+        voxelScanEnabled = false
+        scanViewEnabled = false
+        tsdfScanEnabled = false
     }
     
     private var savingIndicator: some View {
@@ -729,54 +1268,117 @@ struct GardenARPlacementView: View {
         .padding(.bottom, 10)
     }
 
-    // MARK: - 💡 Lux Widget
+    private var placementModeSelector: some View {
+        HStack(spacing: 6) {
+            ForEach(ARPlacementMode.allCases) { mode in
+                let isActive = placementMode == mode
+                Button {
+                    withAnimation(.spring(response: 0.25, dampingFraction: 0.86)) {
+                        placementMode = mode
+                    }
+                    placementFeedback = compatibilityFeedback(for: mode)
+                    schedulePlacementDockCollapse()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: mode.icon)
+                            .font(.system(size: 12, weight: .bold))
+                        Text(mode.label)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.78)
+                    }
+                    .foregroundStyle(isActive ? Color.white : ArboreDesign.Colors.textPrimary)
+                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .padding(.horizontal, 3)
+                    .background(isActive ? ArboreDesign.Colors.primaryGreen : ArboreDesign.Colors.softSurface.opacity(0.64))
+                    .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
+                            .stroke(
+                                isActive ? .white.opacity(0.14) : ArboreDesign.Colors.border.opacity(0.74),
+                                lineWidth: 1
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(5)
+        .background(ArboreDesign.Colors.card.opacity(0.58))
+        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                .stroke(ArboreDesign.Colors.border.opacity(0.78), lineWidth: 1)
+        )
+    }
 
-    private var luxWidget: some View {
-        let luxLabel: String
-        let luxColor: Color
-        let luxIcon: String
+    private var activePlacementModeButton: some View {
+        Button {
+            wakePlacementDock()
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: placementMode.icon)
+                    .font(.system(size: 13, weight: .bold))
+                Text(L10n.f("AR_PLANT_CATALOG_MODE_BADGE_FORMAT", placementMode.label))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.76)
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 10, weight: .bold))
+                    .opacity(0.7)
+            }
+            .foregroundStyle(ArboreDesign.Colors.textPrimary)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .padding(.horizontal, 10)
+            .background(ArboreDesign.Colors.softSurface.opacity(0.72))
+            .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                    .stroke(ArboreDesign.Colors.border.opacity(0.78), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
 
-        if currentLux > 1000 {
-            luxLabel = L10n.t("AR_LUX_DIRECT")
-            luxColor = .orange
-            luxIcon = "sun.max.fill"
-        } else if currentLux > 300 {
-            luxLabel = L10n.t("AR_LUX_BRIGHT")
-            luxColor = .yellow
-            luxIcon = "sun.min.fill"
-        } else if currentLux > 50 {
-            luxLabel = L10n.t("AR_LUX_DIFFUSE")
-            luxColor = .green
-            luxIcon = "cloud.sun.fill"
-        } else {
-            luxLabel = L10n.t("AR_LUX_LOW")
-            luxColor = .blue
-            luxIcon = "moon.fill"
+    private func compatibilityFeedback(for mode: ARPlacementMode) -> String? {
+        guard let plant = selectedPlantForPlacement,
+              mode.needsPlantCompatibility,
+              !PlantPlacementCompatibility.supports(plant, mode: mode) else {
+            return nil
         }
 
-        return HStack(spacing: 8) {
-            Image(systemName: luxIcon)
+        switch mode {
+        case .wall:
+            return L10n.t("AR_PLACEMENT_INCOMPATIBLE_WALL")
+        case .ceiling:
+            return L10n.t("AR_PLACEMENT_INCOMPATIBLE_HANGING")
+        case .floor:
+            return nil
+        }
+    }
+
+    private func placementFeedbackBanner(_ text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundColor(luxColor)
+                .foregroundStyle(Color(hex: "#FFB020"))
 
-            Text("\(currentLux) lux")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-                .contentTransition(.numericText(value: Double(currentLux)))
+            Text(text)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
 
-            Text("·")
-                .foregroundColor(.white.opacity(0.4))
-
-            Text(luxLabel)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white.opacity(0.8))
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(.black.opacity(0.45))
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
-        .animation(.easeInOut(duration: 0.3), value: currentLux)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(.black.opacity(0.68))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(hex: "#FFB020").opacity(0.32), lineWidth: 1)
+        )
     }
 
     // MARK: - 🤖 Auto-Placement Overlay
@@ -1056,6 +1658,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var selectedPlant: Plant?
     @Binding var downloadedModelURL: URL?
     @Binding var isDownloadingModel: Bool
+    @Binding var placementMode: ARPlacementMode
+    @Binding var placementFeedback: String?
     @Binding var isRelocating: Bool
     @Binding var hasSelectedNode: Bool
     @Binding var selectedNodeName: String?
@@ -1079,7 +1683,13 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var currentLux: Int
     @Binding var shouldCaptureSharePhoto: Bool
     @Binding var capturedShareImage: UIImage?
+    @Binding var capturedShareVideoURL: URL?
     @Binding var isCapturingSharePhoto: Bool
+    @Binding var shouldStartShareVideoRecording: Bool
+    @Binding var shouldStopShareVideoRecording: Bool
+    @Binding var isRecordingShareVideo: Bool
+    @Binding var shareVideoRecordingStartedAt: Date?
+    @Binding var isShareCameraMode: Bool
 
     /// Phase 1 (#186) — colour each detected plane by its `SurfaceType`.
     @Binding var surfaceVizEnabled: Bool
@@ -1124,11 +1734,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
         sceneView.session.delegate = context.coordinator
         
         let config = ARWorldTrackingConfiguration()
-        // BETA #191: floor-only detection for the beta build. Vertical
-        // plane detection (walls — needed by #186) is paused until the
-        // post-jury Scene Understanding reactivation. Was:
-        //     config.planeDetection = [.horizontal, .vertical]
-        config.planeDetection = [.horizontal]
+        config.planeDetection = [.horizontal, .vertical]
         config.environmentTexturing = ARQuality.recommended.environmentTexturing
 
         sceneView.session.run(config, options: [.resetTracking, .removeExistingAnchors])
@@ -1163,8 +1769,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
                 DispatchQueue.main.async {
                     let restartConfig = ARWorldTrackingConfiguration()
-                    // BETA #191: same floor-only override as the initial config above.
-                    restartConfig.planeDetection = [.horizontal]
+                    restartConfig.planeDetection = [.horizontal, .vertical]
                     restartConfig.environmentTexturing = ARQuality.recommended.environmentTexturing
                     restartConfig.initialWorldMap = worldMap
                     sceneView.session.run(restartConfig, options: [.resetTracking, .removeExistingAnchors])
@@ -1197,6 +1802,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
     func updateUIView(_ uiView: ARSCNView, context: Context) {
         context.coordinator.parentProps = self
         context.coordinator.updateCachedBounds()
+        context.coordinator.setShareCameraMode(isShareCameraMode)
         // BETA #191: ARKit surface viz + Scene Understanding wiring paused
         // for beta — even if a stale @AppStorage flag is still true on a
         // dev device, the calls below stay no-op'd so no guizmo can appear.
@@ -1216,14 +1822,41 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
 
         if shouldCaptureSharePhoto {
             DispatchQueue.main.async {
-                let rawSnapshot = uiView.snapshot()
-                let brandedSnapshot = GardenARShareComposer.compose(
-                    snapshot: rawSnapshot,
-                    gardenName: gardenName
-                )
-                capturedShareImage = brandedSnapshot
+                capturedShareImage = uiView.snapshot()
                 isCapturingSharePhoto = false
                 shouldCaptureSharePhoto = false
+            }
+        }
+
+        if shouldStartShareVideoRecording {
+            DispatchQueue.main.async {
+                do {
+                    try context.coordinator.startShareVideoRecording(in: uiView) { url in
+                        capturedShareVideoURL = url
+                        isRecordingShareVideo = false
+                    }
+                    isRecordingShareVideo = true
+                } catch {
+                    placementFeedback = L10n.t("AR_SHARE_VIDEO_FAILED")
+                    isRecordingShareVideo = false
+                    shareVideoRecordingStartedAt = nil
+                }
+                shouldStartShareVideoRecording = false
+            }
+        }
+
+        if shouldStopShareVideoRecording {
+            DispatchQueue.main.async {
+                context.coordinator.stopShareVideoRecording { url in
+                    if let url {
+                        capturedShareVideoURL = url
+                    } else {
+                        placementFeedback = L10n.t("AR_SHARE_VIDEO_FAILED")
+                    }
+                    isRecordingShareVideo = false
+                    shareVideoRecordingStartedAt = nil
+                }
+                shouldStopShareVideoRecording = false
             }
         }
     }
@@ -1242,6 +1875,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
         uiView.delegate = nil
         coordinator.cancelPendingRestore()
         coordinator.cancelAllHeavyUpgrades()
+        coordinator.cancelShareVideoRecording()
         NotificationCenter.default.removeObserver(coordinator)
         coordinator.arView = nil
     }
@@ -1253,9 +1887,25 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             
             private var reticleNode: SCNNode?
             private var lastReticleTransform: simd_float4x4?
+            private var lastReticleHit: SurfaceRaycastHit?
+            private var currentReticleReliability: PlacementReliability = .unavailable
+            private var reticleStabilityKey: String?
+            private var reticleStableSince: TimeInterval?
+            private var reticleLastPosition: SIMD3<Float>?
             // Quality of the surface under the reticle. Drives color feedback
             // and decides whether boundary taps are accepted reliably.
             private enum ReticleQuality: String { case none, estimated, geometry }
+            private struct SurfaceRaycastHit {
+                let placementTransform: simd_float4x4
+                let reticleTransform: simd_float4x4
+                let quality: ReticleQuality
+                let source: SurfaceHitSource
+                let surfaceType: SurfaceType?
+                let placementMode: ARPlacementMode
+                let planeAnchorId: UUID?
+                let planeTransform: simd_float4x4?
+                let planeFeatures: PlaneFeatures?
+            }
             private var reticleQuality: ReticleQuality = .none
             /// Combined quality + surfaceType key used to detect a "real"
             /// transition (so we only re-apply the reticle's diffuse colour
@@ -1354,6 +2004,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             private var plantAnchorMap: [UUID: ARAnchor] = [:]
             // anchor.identifier → pending visual to attach when ARKit creates the anchor's node.
             private var anchorPendingPlacements: [UUID: PendingPlantPlacement] = [:]
+            private let shareVideoRecorder = GardenARShareVideoRecorder()
             // anchor.identifier → world transform set by the most recent drag /
             // tap-teleport. captureCurrentState reads this in priority over
             // anchor.transform so saves persist the user's final position even
@@ -1372,6 +2023,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 let isRestore: Bool   // captured at queue-time (placeObject's isRestoring may flip async)
                 let surfaceType: String?
                 let surfaceHeight: Float?
+                let placementMode: ARPlacementMode?
+                let surfaceAnchor: PersistedSurfaceAnchor?
                 let instanceId: UUID  // anchor.identifier — used so the loaded node can find its anchor
                 let autoSelect: Bool  // false for batch placements (AI auto-place) to avoid orange-halo flicker
                 var hasHeavy: Bool = false  // LOD: si true, on charge la version lourde en fond puis on swap
@@ -1415,6 +2068,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 nc.addObserver(self, selector: #selector(handleRotateAction), name: .gardenARRotate, object: nil)
                 nc.addObserver(self, selector: #selector(handleScaleUpAction), name: .gardenARScaleUp, object: nil)
                 nc.addObserver(self, selector: #selector(handleScaleDownAction), name: .gardenARScaleDown, object: nil)
+                nc.addObserver(self, selector: #selector(handleDeselectAction), name: .gardenARDeselect, object: nil)
                 nc.addObserver(self, selector: #selector(handleUndo), name: .gardenARUndo, object: nil)
                 nc.addObserver(self, selector: #selector(handleRedo), name: .gardenARRedo, object: nil)
                 // Manual replacement observers (Issue #111)
@@ -1425,6 +2079,21 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 nc.addObserver(self, selector: #selector(handleConfirmMorphedPlacement), name: .gardenARConfirmMorphedPlacement, object: nil)
                 nc.addObserver(self, selector: #selector(handleRevertToMorphed), name: .gardenARRevertToMorphed, object: nil)
                 nc.addObserver(self, selector: #selector(handleLoadOldData(_:)), name: .gardenARLoadOldData, object: nil)
+            }
+
+            func startShareVideoRecording(
+                in sceneView: ARSCNView,
+                completion: @escaping (URL?) -> Void
+            ) throws {
+                try shareVideoRecorder.start(sceneView: sceneView, completion: completion)
+            }
+
+            func stopShareVideoRecording(completion: @escaping (URL?) -> Void) {
+                shareVideoRecorder.stop(completion: completion)
+            }
+
+            func cancelShareVideoRecording() {
+                shareVideoRecorder.stop { _ in }
             }
 
             @objc func handleLoadOldData(_ note: Notification) {
@@ -1438,6 +2107,14 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 ring.opacity = 0
                 reticleNode = ring
                 arView?.scene.rootNode.addChildNode(ring)
+            }
+
+            func setShareCameraMode(_ isActive: Bool) {
+                guard isActive else { return }
+                reticleNode?.opacity = 0
+                lastReticleHit = nil
+                lastReticleTransform = nil
+                resetReticleReliability()
             }
 
             // MARK: - WorldMap relocalization tracking
@@ -1693,21 +2370,675 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 cachedViewCenter = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
             }
 
+            private func activePlacementMode() -> ARPlacementMode {
+                if parentProps?.relocationPhase.isManualReplacement == true {
+                    return .floor
+                }
+                return parentProps?.placementMode ?? .floor
+            }
+
+            private func raycastHit(at point: CGPoint, mode: ARPlacementMode) -> SurfaceRaycastHit? {
+                guard let arView = arView else { return nil }
+
+                let alignment: ARRaycastQuery.TargetAlignment
+                switch mode {
+                case .floor, .ceiling:
+                    alignment = .horizontal
+                case .wall:
+                    alignment = .vertical
+                }
+
+                let concreteTargets: [(ARRaycastQuery.Target, ReticleQuality, SurfaceHitSource)] = [
+                    (.existingPlaneGeometry, .geometry, .existingPlaneGeometry),
+                    (.existingPlaneInfinite, .estimated, .existingPlaneInfinite)
+                ]
+
+                var blockedCandidate: SurfaceRaycastHit?
+                for (target, quality, source) in concreteTargets {
+                    if let hit = raycastHit(
+                        at: point,
+                        mode: mode,
+                        allowing: target,
+                        alignment: alignment,
+                        quality: quality,
+                        source: source
+                    ) {
+                        if surfaceAccepted(hit) {
+                            return hit
+                        }
+                        blockedCandidate = blockedCandidate ?? hit
+                    }
+                }
+
+                // White walls/ceilings often fail to grow a full ARPlaneAnchor.
+                // Let ARKit provide an estimated plane in the requested
+                // orientation, but keep the mode-specific compatibility checks
+                // before the user can commit the placement.
+                if let hit = raycastHit(
+                    at: point,
+                    mode: mode,
+                    allowing: .estimatedPlane,
+                    alignment: alignment,
+                    quality: .estimated,
+                    source: .estimatedPlane
+                ) {
+                    if surfaceAccepted(hit) {
+                        return hit
+                    }
+                    blockedCandidate = blockedCandidate ?? hit
+                }
+
+                if let hit = syntheticFallbackHit(at: point, mode: mode) {
+                    return hit
+                }
+
+                return blockedCandidate
+            }
+
+            private func raycastHit(
+                at point: CGPoint,
+                mode: ARPlacementMode,
+                allowing target: ARRaycastQuery.Target,
+                alignment: ARRaycastQuery.TargetAlignment,
+                quality: ReticleQuality,
+                source: SurfaceHitSource
+            ) -> SurfaceRaycastHit? {
+                guard let arView = arView,
+                      let query = arView.raycastQuery(from: point, allowing: target, alignment: alignment),
+                      let result = arView.session.raycast(query).first else {
+                    return nil
+                }
+
+                let inferredSurface = inferredSurfaceType(
+                    for: result,
+                    mode: mode,
+                    target: target
+                )
+
+                if mode == .ceiling,
+                   inferredSurface != .ceiling,
+                   target == .estimatedPlane {
+                    return nil
+                }
+
+                let plane = result.anchor as? ARPlaneAnchor
+                let features = plane.map(PlaneFeatures.init)
+                return SurfaceRaycastHit(
+                    placementTransform: placementTransform(for: result, mode: mode, surfaceType: inferredSurface),
+                    reticleTransform: result.worldTransform,
+                    quality: quality,
+                    source: source,
+                    surfaceType: inferredSurface,
+                    placementMode: mode,
+                    planeAnchorId: plane?.identifier,
+                    planeTransform: plane?.transform,
+                    planeFeatures: features
+                )
+            }
+
+            private func inferredSurfaceType(
+                for result: ARRaycastResult,
+                mode: ARPlacementMode,
+                target: ARRaycastQuery.Target
+            ) -> SurfaceType? {
+                if let surfaceType = resolvedSurfaceType(for: result) {
+                    return surfaceType
+                }
+
+                guard target == .estimatedPlane else { return nil }
+
+                switch mode {
+                case .floor:
+                    let hitY = result.worldTransform.columns.3.y
+                    let cameraY = currentCameraPosition()?.y ?? lastCameraY
+                    if hitY > cameraY + 0.9 {
+                        return .ceiling
+                    }
+                    return .floor
+                case .wall:
+                    return .wall
+                case .ceiling:
+                    let hitY = result.worldTransform.columns.3.y
+                    let cameraY = currentCameraPosition()?.y ?? lastCameraY
+                    return hitY > cameraY + 0.25 ? .ceiling : nil
+                }
+            }
+
+            private func syntheticFallbackHit(at point: CGPoint, mode: ARPlacementMode) -> SurfaceRaycastHit? {
+                guard let ray = viewRay(from: point) else { return nil }
+
+                switch mode {
+                case .floor:
+                    return nil
+                case .wall:
+                    let flatDirection = SIMD3<Float>(ray.direction.x, 0, ray.direction.z)
+                    guard simd_length(flatDirection) > 0.2 else { return nil }
+
+                    let distance: Float = 1.45
+                    let position = ray.origin + ray.direction * distance
+                    let normal = -simd_normalize(flatDirection)
+                    let transform = wallAlignedTransform(position: position, normal: normal)
+                    return SurfaceRaycastHit(
+                        placementTransform: transform,
+                        reticleTransform: transform,
+                        quality: .estimated,
+                        source: .syntheticFallback,
+                        surfaceType: .wall,
+                        placementMode: mode,
+                        planeAnchorId: nil,
+                        planeTransform: nil,
+                        planeFeatures: nil
+                    )
+                case .ceiling:
+                    guard ray.direction.y > 0.08 else { return nil }
+                    let ceilingY = fallbackCeilingY()
+                    let t = (ceilingY - ray.origin.y) / ray.direction.y
+                    guard t > 0.2, t < 6.0 else { return nil }
+
+                    let position = ray.origin + ray.direction * t
+                    let transform = uprightTransform(at: SIMD4<Float>(position.x, position.y, position.z, 1))
+                    return SurfaceRaycastHit(
+                        placementTransform: transform,
+                        reticleTransform: transform,
+                        quality: .estimated,
+                        source: .syntheticFallback,
+                        surfaceType: .ceiling,
+                        placementMode: mode,
+                        planeAnchorId: nil,
+                        planeTransform: nil,
+                        planeFeatures: nil
+                    )
+                }
+            }
+
+            private func viewRay(from point: CGPoint) -> (origin: SIMD3<Float>, direction: SIMD3<Float>)? {
+                guard let arView = arView else { return nil }
+                let nearPoint = arView.unprojectPoint(SCNVector3(Float(point.x), Float(point.y), 0))
+                let farPoint = arView.unprojectPoint(SCNVector3(Float(point.x), Float(point.y), 1))
+                let origin = SIMD3<Float>(nearPoint.x, nearPoint.y, nearPoint.z)
+                let far = SIMD3<Float>(farPoint.x, farPoint.y, farPoint.z)
+                let direction = far - origin
+                guard simd_length(direction) > 0.001 else { return nil }
+                return (origin, simd_normalize(direction))
+            }
+
+            private func fallbackCeilingY() -> Float {
+                let snapshot = surfacesLock.withLock { () -> (floor: Float?, ceilings: [Float]) in
+                    let ceilingHeights = self.planeTypes.compactMap { entry -> Float? in
+                        guard entry.value == .ceiling else { return nil }
+                        return self.planeFeatures[entry.key]?.center.y
+                    }
+                    return (self.floorY, ceilingHeights)
+                }
+
+                if let knownCeiling = snapshot.ceilings.min() {
+                    return knownCeiling
+                }
+
+                let cameraY = currentCameraPosition()?.y ?? lastCameraY
+                if let floorY = snapshot.floor {
+                    let commonCeilingY = floorY + 2.45
+                    if commonCeilingY > cameraY + 0.45 {
+                        return commonCeilingY
+                    }
+                }
+
+                return cameraY + 1.25
+            }
+
+            private func resolvedSurfaceType(for result: ARRaycastResult) -> SurfaceType? {
+                guard let plane = result.anchor as? ARPlaneAnchor else { return nil }
+                if let cached = surfacesLock.withLock({ self.planeTypes[plane.identifier] }) {
+                    return cached
+                }
+
+                let features = PlaneFeatures(plane)
+                let verticals = surfacesLock.withLock {
+                    self.planeFeatures.values.filter { $0.alignment == .vertical }
+                }
+                return SurfaceClassifier.classify(
+                    plane: features,
+                    floorY: surfacesLock.withLock { self.floorY },
+                    cameraY: lastCameraY,
+                    nearbyVerticals: verticals
+                )
+            }
+
+            private func placementTransform(
+                for result: ARRaycastResult,
+                mode: ARPlacementMode,
+                surfaceType: SurfaceType?
+            ) -> simd_float4x4 {
+                switch mode {
+                case .wall:
+                    return wallAlignedTransform(from: result)
+                case .ceiling:
+                    return uprightTransform(at: result.worldTransform.columns.3)
+                case .floor:
+                    return result.worldTransform
+                }
+            }
+
+            private func wallAlignedTransform(from result: ARRaycastResult) -> simd_float4x4 {
+                var position = result.worldTransform.columns.3
+                var normal: SIMD3<Float>
+
+                if let plane = result.anchor as? ARPlaneAnchor {
+                    normal = PlaneFeatures(plane).normal
+                } else {
+                    let c1 = result.worldTransform.columns.1
+                    normal = SIMD3<Float>(c1.x, c1.y, c1.z)
+                }
+
+                normal.y = 0
+                if simd_length(normal) < 0.001 {
+                    normal = SIMD3<Float>(0, 0, 1)
+                } else {
+                    normal = simd_normalize(normal)
+                }
+
+                if let cameraPos = currentCameraPosition() {
+                    let delta = cameraPos - SIMD3<Float>(position.x, position.y, position.z)
+                    if simd_length(delta) > 0.001 {
+                        let toCamera = simd_normalize(delta)
+                        if simd_dot(normal, toCamera) < 0 {
+                            normal = -normal
+                        }
+                    }
+                }
+
+                position.x += normal.x * 0.025
+                position.z += normal.z * 0.025
+
+                return wallAlignedTransform(
+                    position: SIMD3<Float>(position.x, position.y, position.z),
+                    normal: normal
+                )
+            }
+
+            private func wallAlignedTransform(position: SIMD3<Float>, normal inputNormal: SIMD3<Float>) -> simd_float4x4 {
+                var normal = inputNormal
+                normal.y = 0
+                if simd_length(normal) < 0.001 {
+                    normal = SIMD3<Float>(0, 0, 1)
+                } else {
+                    normal = simd_normalize(normal)
+                }
+
+                let up = SIMD3<Float>(0, 1, 0)
+                let xAxis = simd_normalize(simd_cross(up, normal))
+                return matrixFromBasis(
+                    x: xAxis,
+                    y: up,
+                    z: normal,
+                    position: position
+                )
+            }
+
+            private func uprightTransform(at position4: SIMD4<Float>) -> simd_float4x4 {
+                let position = SIMD3<Float>(position4.x, position4.y, position4.z)
+                let up = SIMD3<Float>(0, 1, 0)
+                var forward = SIMD3<Float>(0, 0, 1)
+
+                if let cameraPos = currentCameraPosition() {
+                    let flat = SIMD3<Float>(cameraPos.x - position.x, 0, cameraPos.z - position.z)
+                    if simd_length(flat) > 0.001 {
+                        forward = simd_normalize(flat)
+                    }
+                }
+
+                let xAxis = simd_normalize(simd_cross(up, forward))
+                return matrixFromBasis(x: xAxis, y: up, z: forward, position: position)
+            }
+
+            private func matrixFromBasis(
+                x: SIMD3<Float>,
+                y: SIMD3<Float>,
+                z: SIMD3<Float>,
+                position: SIMD3<Float>
+            ) -> simd_float4x4 {
+                simd_float4x4(
+                    SIMD4<Float>(x.x, x.y, x.z, 0),
+                    SIMD4<Float>(y.x, y.y, y.z, 0),
+                    SIMD4<Float>(z.x, z.y, z.z, 0),
+                    SIMD4<Float>(position.x, position.y, position.z, 1)
+                )
+            }
+
+            private func currentCameraPosition() -> SIMD3<Float>? {
+                guard let transform = arView?.session.currentFrame?.camera.transform else { return nil }
+                let c = transform.columns.3
+                return SIMD3<Float>(c.x, c.y, c.z)
+            }
+
+            private func surfaceAccepted(_ hit: SurfaceRaycastHit) -> Bool {
+                guard let surfaceType = hit.surfaceType else {
+                    return false
+                }
+                return hit.placementMode.acceptedSurfaceTypes.contains(surfaceType)
+            }
+
+            private func placementBlockedMessage(for hit: SurfaceRaycastHit, plant: Plant?) -> String? {
+                if let plant,
+                   hit.placementMode.needsPlantCompatibility,
+                   !PlantPlacementCompatibility.supports(plant, mode: hit.placementMode) {
+                    switch hit.placementMode {
+                    case .wall:
+                        return L10n.t("AR_PLACEMENT_INCOMPATIBLE_WALL")
+                    case .ceiling:
+                        return L10n.t("AR_PLACEMENT_INCOMPATIBLE_HANGING")
+                    case .floor:
+                        break
+                    }
+                }
+
+                if !surfaceAccepted(hit) {
+                    switch hit.placementMode {
+                    case .floor:
+                        return L10n.t("AR_PLACEMENT_SURFACE_NEEDS_FLOOR")
+                    case .wall:
+                        return L10n.t("AR_PLACEMENT_SURFACE_NEEDS_WALL")
+                    case .ceiling:
+                        return L10n.t("AR_PLACEMENT_SURFACE_NEEDS_HANGING_SUPPORT")
+                    }
+                }
+
+                return nil
+            }
+
+            private func noSurfaceMessage(for mode: ARPlacementMode) -> String {
+                switch mode {
+                case .floor:
+                    return L10n.t("AR_PLACEMENT_SURFACE_NEEDS_FLOOR")
+                case .wall:
+                    return L10n.t("AR_PLACEMENT_SURFACE_NEEDS_WALL")
+                case .ceiling:
+                    return L10n.t("AR_PLACEMENT_SURFACE_NEEDS_HANGING_SUPPORT")
+                }
+            }
+
+            private func updatePlacementReliability(
+                for hit: SurfaceRaycastHit,
+                trackingNormal: Bool,
+                time: TimeInterval
+            ) -> PlacementReliability {
+                let position = worldPosition(from: hit.placementTransform)
+                let key = [
+                    hit.placementMode.rawValue,
+                    hit.surfaceType?.rawValue ?? "nil",
+                    hit.source.rawValue,
+                    hit.planeAnchorId?.uuidString ?? "no-plane"
+                ].joined(separator: "|")
+                let movedTooMuch: Bool
+                if let previous = reticleLastPosition {
+                    movedTooMuch = simd_distance(previous, position) > 0.04
+                } else {
+                    movedTooMuch = true
+                }
+
+                if key != reticleStabilityKey || movedTooMuch {
+                    reticleStabilityKey = key
+                    reticleStableSince = time
+                }
+                reticleLastPosition = position
+
+                let stableDuration = max(0, time - (reticleStableSince ?? time))
+                let area = hit.planeFeatures.map { $0.extentWidth * $0.extentDepth }
+                let distance = currentCameraPosition().map { simd_distance($0, position) }
+                let reliability = PlacementReliabilityScorer.evaluate(
+                    source: hit.source,
+                    trackingNormal: trackingNormal,
+                    surfaceAccepted: surfaceAccepted(hit),
+                    planeArea: area,
+                    cameraDistance: distance,
+                    stableDuration: stableDuration
+                )
+                currentReticleReliability = reliability
+                return reliability
+            }
+
+            private func immediatePlacementReliability(for hit: SurfaceRaycastHit) -> PlacementReliability {
+                let area = hit.planeFeatures.map { $0.extentWidth * $0.extentDepth }
+                let position = worldPosition(from: hit.placementTransform)
+                let distance = currentCameraPosition().map { simd_distance($0, position) }
+                return PlacementReliabilityScorer.evaluate(
+                    source: hit.source,
+                    trackingNormal: true,
+                    surfaceAccepted: surfaceAccepted(hit),
+                    planeArea: area,
+                    cameraDistance: distance,
+                    stableDuration: PlacementReliabilityScorer.fullStabilityDuration
+                )
+            }
+
+            private func resetReticleReliability() {
+                currentReticleReliability = .unavailable
+                reticleStabilityKey = nil
+                reticleStableSince = nil
+                reticleLastPosition = nil
+            }
+
+            private func placementReliabilityMessage(for reliability: PlacementReliability) -> String {
+                switch reliability.reason {
+                case .ready:
+                    return ""
+                case .trackingLimited:
+                    return L10n.t("AR_ANCHOR_TRACKING_LIMITED")
+                case .incompatibleSurface:
+                    return L10n.t("AR_ANCHOR_CONFIDENCE_LOW")
+                case .unstableSurface:
+                    return L10n.t("AR_ANCHOR_SURFACE_UNSTABLE")
+                case .lowConfidence:
+                    return L10n.t("AR_ANCHOR_CONFIDENCE_LOW")
+                }
+            }
+
+            private func persistedSurfaceAnchor(
+                for hit: SurfaceRaycastHit,
+                reliability: PlacementReliability
+            ) -> PersistedSurfaceAnchor {
+                let position = worldPosition(from: hit.placementTransform)
+                return surfaceAnchorMetadata(
+                    source: hit.source,
+                    reliabilityScore: reliability.score,
+                    normal: surfaceNormal(for: hit),
+                    features: hit.planeFeatures,
+                    planeTransform: hit.planeTransform,
+                    position: position
+                )
+            }
+
+            private func surfaceAnchorMetadata(
+                source: SurfaceHitSource,
+                reliabilityScore: Float,
+                normal: SIMD3<Float>,
+                features: PlaneFeatures?,
+                planeTransform: simd_float4x4?,
+                position: SIMD3<Float>
+            ) -> PersistedSurfaceAnchor {
+                let localOffset: [Float]? = planeTransform.map { transform in
+                    let local = simd_inverse(transform) * SIMD4<Float>(position.x, position.y, position.z, 1)
+                    return [local.x, local.y, local.z]
+                }
+                return PersistedSurfaceAnchor(
+                    source: source.rawValue,
+                    reliabilityScore: reliabilityScore,
+                    normal: [normal.x, normal.y, normal.z],
+                    center: features.map { [$0.center.x, $0.center.y, $0.center.z] },
+                    extent: features.map { [$0.extentWidth, $0.extentDepth] },
+                    localOffset: localOffset,
+                    worldPosition: [position.x, position.y, position.z]
+                )
+            }
+
+            private struct SurfacePlaneSnapshot {
+                let anchor: ARPlaneAnchor
+                let features: PlaneFeatures
+                let type: SurfaceType
+            }
+
+            private func surfacePlaneSnapshots() -> [SurfacePlaneSnapshot] {
+                surfacesLock.withLock {
+                    self.planeAnchors.compactMap { id, anchor in
+                        guard let features = self.planeFeatures[id],
+                              let type = self.planeTypes[id] else {
+                            return nil
+                        }
+                        return SurfacePlaneSnapshot(anchor: anchor, features: features, type: type)
+                    }
+                }
+            }
+
+            private func refinedTransformForPersistedSurface(
+                _ transform: simd_float4x4,
+                plant: PersistedPlant
+            ) -> (transform: simd_float4x4, didRefine: Bool) {
+                guard let surfaceAnchor = plant.surfaceAnchor,
+                      let mode = ARPlacementMode.fromPersisted(plant.placementMode),
+                      let match = bestMatchingPlane(for: surfaceAnchor, mode: mode, savedSurfaceType: plant.surfaceType) else {
+                    return (transform, false)
+                }
+
+                let originalPosition = worldPosition(from: transform)
+                let snappedPosition: SIMD3<Float>
+                if let offset = surfaceAnchor.localOffset, offset.count >= 3 {
+                    let world = match.anchor.transform * SIMD4<Float>(offset[0], offset[1], offset[2], 1)
+                    snappedPosition = SIMD3<Float>(world.x, world.y, world.z)
+                } else {
+                    let normal = match.features.normal
+                    let delta = originalPosition - match.features.center
+                    snappedPosition = originalPosition - normal * simd_dot(delta, normal)
+                }
+
+                var refined: simd_float4x4
+                switch mode {
+                case .wall:
+                    var normal = match.features.normal
+                    if let camera = currentCameraPosition() {
+                        let toCamera = camera - snappedPosition
+                        if simd_length(toCamera) > 0.001,
+                           simd_dot(normal, simd_normalize(toCamera)) < 0 {
+                            normal = -normal
+                        }
+                    }
+                    refined = wallAlignedTransform(position: snappedPosition + normal * 0.025, normal: normal)
+                case .ceiling:
+                    refined = uprightTransform(at: SIMD4<Float>(snappedPosition.x, snappedPosition.y, snappedPosition.z, 1))
+                case .floor:
+                    refined = transform
+                    refined.columns.3 = SIMD4<Float>(snappedPosition.x, snappedPosition.y, snappedPosition.z, 1)
+                }
+
+                AppLog.gardenLoad.notice("""
+                    surfaceRefine plant=\(plant.plantName, privacy: .public) \
+                    mode=\(mode.rawValue, privacy: .public) \
+                    savedSource=\(surfaceAnchor.source, privacy: .public) \
+                    targetSurface=\(match.type.rawValue, privacy: .public) \
+                    delta=\(simd_distance(originalPosition, snappedPosition), format: .fixed(precision: 3), privacy: .public)
+                    """)
+                return (refined, true)
+            }
+
+            private func bestMatchingPlane(
+                for surfaceAnchor: PersistedSurfaceAnchor,
+                mode: ARPlacementMode,
+                savedSurfaceType: String?
+            ) -> SurfacePlaneSnapshot? {
+                let savedPosition = vector3(from: surfaceAnchor.worldPosition)
+                let savedCenter = surfaceAnchor.center.flatMap(vector3(from:))
+                let savedNormal = surfaceAnchor.normal.count >= 3
+                    ? simd_normalize(SIMD3<Float>(surfaceAnchor.normal[0], surfaceAnchor.normal[1], surfaceAnchor.normal[2]))
+                    : nil
+                let preferredType = savedSurfaceType.flatMap(SurfaceType.init(rawValue:))
+                let candidates = surfacePlaneSnapshots().filter { snapshot in
+                    mode.acceptedSurfaceTypes.contains(snapshot.type)
+                        || (preferredType != nil && snapshot.type == preferredType)
+                }
+
+                return candidates.min { lhs, rhs in
+                    surfacePlaneMatchScore(lhs, savedPosition: savedPosition, savedCenter: savedCenter, savedNormal: savedNormal, preferredType: preferredType)
+                        < surfacePlaneMatchScore(rhs, savedPosition: savedPosition, savedCenter: savedCenter, savedNormal: savedNormal, preferredType: preferredType)
+                }.flatMap { best in
+                    let score = surfacePlaneMatchScore(best, savedPosition: savedPosition, savedCenter: savedCenter, savedNormal: savedNormal, preferredType: preferredType)
+                    return score < 1.25 ? best : nil
+                }
+            }
+
+            private func surfacePlaneMatchScore(
+                _ snapshot: SurfacePlaneSnapshot,
+                savedPosition: SIMD3<Float>?,
+                savedCenter: SIMD3<Float>?,
+                savedNormal: SIMD3<Float>?,
+                preferredType: SurfaceType?
+            ) -> Float {
+                var score: Float = 0
+                if let savedCenter {
+                    score += min(simd_distance(snapshot.features.center, savedCenter), 2.0)
+                } else if let savedPosition {
+                    let planeDistance = abs(simd_dot(savedPosition - snapshot.features.center, snapshot.features.normal))
+                    score += min(planeDistance * 4, 1.2)
+                    score += min(simd_distance(snapshot.features.center, savedPosition) * 0.12, 0.5)
+                }
+                if let savedNormal {
+                    let dot = abs(simd_dot(snapshot.features.normal, savedNormal))
+                    score += (1 - min(max(dot, 0), 1)) * 0.8
+                }
+                if let preferredType, snapshot.type != preferredType {
+                    score += 0.25
+                }
+                return score
+            }
+
+            private func vector3(from values: [Float]?) -> SIMD3<Float>? {
+                guard let values, values.count >= 3 else { return nil }
+                return SIMD3<Float>(values[0], values[1], values[2])
+            }
+
+            private func surfaceNormal(for hit: SurfaceRaycastHit) -> SIMD3<Float> {
+                if let normal = hit.planeFeatures?.normal, simd_length(normal) > 0.001 {
+                    return normal
+                }
+                switch hit.placementMode {
+                case .wall:
+                    let z = hit.placementTransform.columns.2
+                    let normal = SIMD3<Float>(z.x, z.y, z.z)
+                    return simd_length(normal) > 0.001 ? simd_normalize(normal) : SIMD3<Float>(0, 0, 1)
+                case .ceiling:
+                    return SIMD3<Float>(0, -1, 0)
+                case .floor:
+                    return SIMD3<Float>(0, 1, 0)
+                }
+            }
+
+            private func worldPosition(from transform: simd_float4x4) -> SIMD3<Float> {
+                SIMD3<Float>(
+                    transform.columns.3.x,
+                    transform.columns.3.y,
+                    transform.columns.3.z
+                )
+            }
+
+            private func pushPlacementFeedback(_ message: String) {
+                DispatchQueue.main.async { [weak self] in
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        self?.parentProps?.placementFeedback = message
+                    }
+                }
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            }
+
             func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
                 guard let arView = arView, let reticle = reticleNode else { return }
 
-                // 💡 Update Lux from ARKit light estimation. We piggyback
-                // on this once-per-frame currentFrame read to refresh the
-                // cached `lastCameraY` used by SurfaceClassifier — avoids
-                // additional currentFrame queries in the classification
-                // hot path (which would retain extra ARFrames, cf
-                // "delegate is retaining N ARFrames" warnings).
+                // Refresh the cached camera Y used by SurfaceClassifier.
+                // Light estimation is kept as an internal auto-placement
+                // signal only; the HUD no longer displays lux.
                 if let frame = arView.session.currentFrame {
                     let lux = Int(frame.lightEstimate?.ambientIntensity ?? 0)
                     let camCol = frame.camera.transform.columns.3
                     lastCameraY = camCol.y
-                    DispatchQueue.main.async { [weak self] in
-                        withAnimation(.linear(duration: 0.2)) {
+                    if abs(lux - (parentProps?.currentLux ?? 0)) >= 25 {
+                        DispatchQueue.main.async { [weak self] in
                             self?.parentProps?.currentLux = lux
                         }
                     }
@@ -1718,6 +3049,14 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         let camPos = SIMD3<Float>(camCol.x, camCol.y, camCol.z)
                         DispatchQueue.main.async { [weak self] in self?.evaluateLOD(cameraPosition: camPos) }
                     }
+                }
+
+                if parentProps?.isShareCameraMode == true {
+                    reticle.opacity = 0
+                    lastReticleHit = nil
+                    lastReticleTransform = nil
+                    resetReticleReliability()
+                    return
                 }
 
                 let center = cachedViewCenter
@@ -1741,56 +3080,31 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     AppLog.plants.notice("🤖 [AUTOPLACE CHECK] props=\(propsDesc, privacy: .public) mode=\(modeDesc, privacy: .public) mapId=\(mapIdDesc, privacy: .public) boundaryPoints=\(boundaryCount, privacy: .public) didAutoPlace=\(self.didAutoPlace, privacy: .public) isWaiting=\(self.isWaitingForWorldMapLoad, privacy: .public) trackingState=\(trackingStateDesc, privacy: .public) plantsToAutoPlace=\(plantsCount, privacy: .public) trackingNormal=\(trackingNormal, privacy: .public)")
                 }
 
-                // Two-tier raycast: prefer a real detected plane (.existingPlaneGeometry,
-                // surveyed surface — reliable). Fall back to .estimatedPlane (ARKit
-                // guesses a plausible plane from feature points — less precise but
-                // usable in low-light or poorly-textured scenes). Both keep the
-                // reticle interactive; only the color changes.
-                //
-                // The reticle stays on horizontal surfaces (placement
-                // contract for now). Issue #186 will widen this when the
-                // tap handler learns plant-surface compatibility rules
-                // (item 7-8 in the implementation order).
-                var newQuality: ReticleQuality = .none
-                var newTransform: simd_float4x4?
-                var newSurfaceType: SurfaceType? = nil
+                let requestedMode = activePlacementMode()
+                let currentHit = raycastHit(at: center, mode: requestedMode)
 
-                if let q = arView.raycastQuery(from: center, allowing: .existingPlaneGeometry, alignment: .horizontal),
-                   let r = arView.session.raycast(q).first {
-                    newQuality = .geometry
-                    newTransform = r.worldTransform
-                    if let plane = r.anchor as? ARPlaneAnchor {
-                        newSurfaceType = surfacesLock.withLock { self.planeTypes[plane.identifier] }
-                    }
-                } else if let q = arView.raycastQuery(from: center, allowing: .estimatedPlane, alignment: .horizontal),
-                          let r = arView.session.raycast(q).first {
-                    newQuality = .estimated
-                    newTransform = r.worldTransform
-                }
+                lastReticleHit = currentHit
+                lastReticleTransform = currentHit?.placementTransform
+                if let hit = currentHit {
+                    let t = hit.placementTransform
+                    let newQuality = hit.quality
+                    let newSurfaceType = hit.surfaceType
+                    let acceptsCurrentSurface = surfaceAccepted(hit)
+                    let reliability = updatePlacementReliability(
+                        for: hit,
+                        trackingNormal: trackingNormal,
+                        time: time
+                    )
 
-                // Surface-type **look** (informational, doesn't affect
-                // placement) — peek what's under the centre regardless of
-                // alignment. The reticle colours itself with this verdict
-                // when it's stronger than the placement-friendly horizontal
-                // result (e.g. user points at a wall : reticle goes orange
-                // even though it visually still sits on the floor).
-                if newSurfaceType == nil,
-                   let q = arView.raycastQuery(from: center, allowing: .existingPlaneGeometry, alignment: .any),
-                   let peek = arView.session.raycast(q).first,
-                   let plane = peek.anchor as? ARPlaneAnchor {
-                    newSurfaceType = surfacesLock.withLock { self.planeTypes[plane.identifier] }
-                }
-
-                lastReticleTransform = newTransform
-                if let t = newTransform {
-                    reticle.simdTransform = t
+                    reticle.simdTransform = hit.reticleTransform
                     reticle.opacity = (newQuality == .geometry) ? 1.0 : 0.6
 
                     // 🤖 AI Auto-placement: Place instantly as soon as a surface is found,
                     // without requiring the user to aim specifically at the floor or wait for stability.
                     let currentProps = parentProps
                     let acceptsEstimatedSurface = currentProps.map { self.acceptsEstimatedAutoPlace(for: $0) } ?? false
-                    let hasAutoPlaceSurface = newQuality == .geometry || (newQuality == .estimated && acceptsEstimatedSurface)
+                    let hasAutoPlaceSurface = acceptsCurrentSurface
+                        && (newQuality == .geometry || (newQuality == .estimated && acceptsEstimatedSurface))
                     
                     let timeSinceLoad = CACurrentMediaTime() - worldMapLoadedAt
                     
@@ -1838,23 +3152,26 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     // plane, the colour reflects the surface type (orange
                     // wall, green table, …). Falls back to the prior
                     // green/amber logic for unclassified hits.
-                    let transitionKey = "\(newQuality.rawValue)|\(newSurfaceType?.rawValue ?? "")"
+                    let transitionKey = "\(requestedMode.rawValue)|\(newQuality.rawValue)|\(newSurfaceType?.rawValue ?? "")|\(acceptsCurrentSurface)|\(reliability.level.rawValue)|\(reliability.reason.rawValue)"
                     if transitionKey != lastReticleColorKey {
                         lastReticleColorKey = transitionKey
                         reticleQuality = newQuality
                         let color: UIColor
-                        switch newQuality {
-                        case .geometry:
-                            color = newSurfaceType?.debugColor ?? UIColor(hex: "#2BEE79")
-                        case .estimated:
+                        switch reliability.reason {
+                        case .ready:
+                            color = acceptsCurrentSurface
+                                ? (newSurfaceType?.debugColor ?? UIColor(hex: "#2BEE79"))
+                                : UIColor(hex: "#FF4B4B")
+                        case .unstableSurface, .lowConfidence:
                             color = UIColor(hex: "#FFB020")
-                        case .none:
-                            color = UIColor(hex: "#2BEE79")
+                        case .trackingLimited, .incompatibleSurface:
+                            color = UIColor(hex: "#FF4B4B")
                         }
                         reticle.geometry?.firstMaterial?.diffuse.contents = color
                     }
                 } else {
                     reticle.opacity = 0
+                    resetReticleReliability()
                     // Reset stability counter if we lose the plane
                     if !didAutoPlace { stablePlaneFrameCount = 0 }
 
@@ -2094,6 +3411,9 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                     name: item.plant.name,
                                     modelURLString: item.plant.modelURL,
                                     upAxis: item.plant.upAxis,
+                                    surfaceType: SurfaceType.floor.rawValue,
+                                    surfaceHeight: finalY,
+                                    placementMode: .floor,
                                     autoSelect: false,   // batch — no halo flicker
                                     hasHeavy: item.plant.hasHeavy == true
                                 )
@@ -2606,26 +3926,17 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     let worldEuler = node.eulerAngles
                     let worldScale = SIMD3<Float>(node.scale.x, node.scale.y, node.scale.z)
 
-                    // Surface detection (Issue #113) — RELATIVE to the detected
-                    // floor plane, not to the session's Y=0 origin (which can
-                    // be anywhere depending on where the user held the phone
-                    // at session start). A plant > 10cm above floor = elevated.
-                    let surfaceType: String
+                    // Prefer explicit multi-surface metadata captured when
+                    // the plant was placed or dragged. Legacy nodes fall back
+                    // to the old floor/elevated heuristic.
+                    let inferredSurfaceType: String
                     if let floorY = floorY {
-                        surfaceType = (worldPos.y - floorY) > Self.elevationThresholdMeters ? "elevated" : "floor"
+                        inferredSurfaceType = (worldPos.y - floorY) > Self.elevationThresholdMeters ? "elevated" : "floor"
                     } else {
-                        // No floor detected yet — default to `floor`. The
-                        // previous fallback `worldPos.y > threshold` assumed
-                        // Y=0 was the floor, which is wrong: Y=0 is the
-                        // device pose at session start, and a phone held at
-                        // chest height puts the real floor at ~Y=-1.5 m,
-                        // mis-classifying every plant as `elevated` (cf
-                        // issue #168). A `floor` mis-classification is safer:
-                        // it falls back to re-snapping at next restore once a
-                        // floor plane is detected, while an `elevated` one
-                        // freezes a stale `surfaceHeight` reference.
-                        surfaceType = "floor"
+                        inferredSurfaceType = "floor"
                     }
+                    let surfaceType = node.arboreSurfaceType ?? inferredSurfaceType
+                    let placementMode = node.arborePlacementMode
                     let surfaceHeight: Float = worldPos.y
 
                     // captureCurrentState is invoked on every undo snapshot and
@@ -2638,6 +3949,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         anchorPos=\(worldPos.logDescription, privacy: .public) \
                         scale=\(worldScale.logDescription, privacy: .public) \
                         surface=\(surfaceType, privacy: .public) \
+                        mode=\(placementMode ?? "nil", privacy: .public) \
                         surfaceY=\(surfaceHeight, format: .fixed(precision: 3), privacy: .public)
                         """)
 
@@ -2652,6 +3964,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         upAxis: plantUpAxisMap[plantId],
                         surfaceType: surfaceType,
                         surfaceHeight: surfaceHeight,
+                        placementMode: placementMode,
+                        surfaceAnchor: node.arboreSurfaceAnchor,
                         hasHeavy: node.arboreHasHeavy
                     )
                 }
@@ -3045,6 +4359,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                             isRestore: true,
                             surfaceType: p.surfaceType,
                             surfaceHeight: p.surfaceHeight,
+                            placementMode: ARPlacementMode.fromPersisted(p.placementMode),
+                            surfaceAnchor: p.surfaceAnchor,
                             instanceId: anchor.identifier,
                             autoSelect: false,
                             hasHeavy: p.hasHeavy == true
@@ -3097,27 +4413,55 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                             let savedY = transform.columns.3.y
                             let snapTarget: Float?
                             let snapTolerance: Float
+                            let placementMode = ARPlacementMode.fromPersisted(p.placementMode)
 
-                            switch p.surfaceType {
-                            case "floor":
+                            switch placementMode {
+                            case .some(.floor):
                                 // Use the freshly detected floor Y if available;
                                 // accept up to 15cm drift to allow re-anchoring
                                 // a plant that was on a slightly mis-detected floor
                                 // last session.
                                 snapTarget = currentFloorY
                                 snapTolerance = 0.15
-                            case "elevated":
-                                // Look for a plane near the saved furniture Y.
-                                snapTarget = p.surfaceHeight ?? savedY
-                                snapTolerance = 0.05
-                            default:
-                                // Legacy data (no surfaceType saved) — keep the
-                                // saved Y untouched.
+                            case .some(.wall), .some(.ceiling):
+                                // Wall and ceiling placements depend on full
+                                // transform orientation, not just a Y snap.
+                                // The WorldMap claim path is preferred; if this
+                                // fallback runs, keep the saved transform.
                                 snapTarget = nil
                                 snapTolerance = 0
+                            default:
+                                switch p.surfaceType {
+                                case SurfaceType.floor.rawValue:
+                                    snapTarget = currentFloorY
+                                    snapTolerance = 0.15
+                                case "elevated",
+                                     SurfaceType.shelf.rawValue,
+                                     SurfaceType.table.rawValue,
+                                     SurfaceType.windowsill.rawValue,
+                                     SurfaceType.furniture.rawValue:
+                                    snapTarget = p.surfaceHeight ?? savedY
+                                    snapTolerance = 0.05
+                                default:
+                                    // Legacy data (no surfaceType saved) — keep
+                                    // the saved Y untouched.
+                                    snapTarget = nil
+                                    snapTolerance = 0
+                                }
                             }
 
-                            if let target = snapTarget,
+                            let surfaceRefinement = await MainActor.run {
+                                self.refinedTransformForPersistedSurface(transform, plant: p)
+                            }
+                            transform = surfaceRefinement.transform
+
+                            if surfaceRefinement.didRefine {
+                                AppLog.gardenLoad.notice("""
+                                    snap plant=\(p.plantName, privacy: .public) \
+                                    surface=\(p.surfaceType ?? "nil", privacy: .public) \
+                                    restored via saved surface anchor
+                                    """)
+                            } else if let target = snapTarget,
                                let snappedY = await MainActor.run(body: { self.findNearestPlaneY(target: target, tolerance: snapTolerance) }) {
                                 transform.columns.3.y = snappedY
                                 AppLog.gardenLoad.notice("""
@@ -3154,6 +4498,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                             upAxis: p.upAxis,
                                             surfaceType: p.surfaceType,
                                             surfaceHeight: p.surfaceHeight,
+                                            placementMode: ARPlacementMode.fromPersisted(p.placementMode),
+                                            surfaceAnchor: p.surfaceAnchor,
                                             hasHeavy: p.hasHeavy == true
                                         )
                                     }
@@ -3171,6 +4517,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                                 upAxis: p.upAxis,
                                                 surfaceType: p.surfaceType,
                                                 surfaceHeight: p.surfaceHeight,
+                                                placementMode: ARPlacementMode.fromPersisted(p.placementMode),
+                                                surfaceAnchor: p.surfaceAnchor,
                                                 hasHeavy: p.hasHeavy == true
                                             )
                                         }
@@ -3307,6 +4655,10 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 }
             }
 
+            @objc func handleDeselectAction() {
+                deselectAll()
+            }
+
             /// Re-computes the pivot Y from the node's current scale. The pivot
             /// is set once at placement to make the visible base land at the
             /// anchor's position, but it doesn't track scale changes — which
@@ -3314,8 +4666,10 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             /// (or sink) by `(1 - scaleRatio) * |minY|`. Call this every time
             /// the user changes a plant's scale.
             private func refreshPivotForScale(node: SCNNode) {
-                guard let origMinY = node.value(forKey: "arboreOriginalMinY") as? Float else { return }
-                let pivotY = node.scale.y * origMinY
+                let attachByTop = ARPlacementMode.fromPersisted(node.arborePlacementMode) == .ceiling
+                let key = attachByTop ? "arboreOriginalMaxY" : "arboreOriginalMinY"
+                guard let originalY = node.value(forKey: key) as? Float else { return }
+                let pivotY = node.scale.y * originalY
                 node.pivot = SCNMatrix4MakeTranslation(0, pivotY, 0)
             }
 
@@ -3365,7 +4719,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             @objc func handleTapToPlace(_ gesture: UITapGestureRecognizer) {
                 // During manual boundary tracing, taps add boundary points (Issue #111).
                 if parentProps?.relocationPhase == .tracingBoundary {
-                    if let transform = lastReticleTransform {
+                    if let transform = lastReticleHit?.placementTransform ?? lastReticleTransform {
                         // Accept both .geometry and .estimated hits — the user
                         // gets visual feedback via the reticle color (green vs.
                         // amber) so they know when the surface is approximate.
@@ -3429,14 +4783,38 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     return
                 }
 
-                guard let transform = lastReticleTransform else {
+                guard let hit = lastReticleHit else {
                     AppLog.plants.debug("tap ignored — no surface under reticle")
+                    pushPlacementFeedback(noSurfaceMessage(for: activePlacementMode()))
                     deselectAll()
                     return
                 }
                 guard let plant = parentProps?.selectedPlant else {
                     AppLog.plants.debug("tap ignored — no plant selected from picker")
                     deselectAll()
+                    return
+                }
+
+                if let blocked = placementBlockedMessage(for: hit, plant: plant) {
+                    AppLog.plants.notice("""
+                        tap placement blocked mode=\(hit.placementMode.rawValue, privacy: .public) \
+                        surface=\(hit.surfaceType?.rawValue ?? "nil", privacy: .public) \
+                        plant=\(plant.name, privacy: .public)
+                        """)
+                    pushPlacementFeedback(blocked)
+                    return
+                }
+
+                let reliability = currentReticleReliability
+                guard reliability.isPlaceable else {
+                    AppLog.plants.notice("""
+                        tap placement blocked reliability score=\(reliability.score, format: .fixed(precision: 2), privacy: .public) \
+                        reason=\(reliability.reason.rawValue, privacy: .public) \
+                        stable=\(reliability.stableDuration, format: .fixed(precision: 2), privacy: .public) \
+                        source=\(hit.source.rawValue, privacy: .public)
+                        """)
+                    let message = placementReliabilityMessage(for: reliability)
+                    pushPlacementFeedback(message.isEmpty ? L10n.t("AR_ANCHOR_CONFIDENCE_LOW") : message)
                     return
                 }
 
@@ -3449,7 +4827,19 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
 
                 saveStateForUndo()
                 if let axis = plant.upAxis { plantUpAxisMap[plant.id] = axis }
-                placeObject(at: transform, modelURL: url, id: plant.id, name: plant.name, modelURLString: plant.modelURL, upAxis: plant.upAxis, hasHeavy: plant.hasHeavy == true)
+                placeObject(
+                    at: hit.placementTransform,
+                    modelURL: url,
+                    id: plant.id,
+                    name: plant.name,
+                    modelURLString: plant.modelURL,
+                    upAxis: plant.upAxis,
+                    surfaceType: hit.surfaceType?.rawValue ?? hit.placementMode.rawValue,
+                    surfaceHeight: hit.placementTransform.columns.3.y,
+                    placementMode: hit.placementMode,
+                    surfaceAnchor: persistedSurfaceAnchor(for: hit, reliability: reliability),
+                    hasHeavy: plant.hasHeavy == true
+                )
             }
 
             @objc func handleLongPressToSelect(_ gesture: UILongPressGestureRecognizer) {
@@ -3473,8 +4863,18 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 // locks Y to detectedFloorY() when falling back to estimated
                 // (cf audit AR finding Y-4 / issue #171).
                 let location = gesture.location(in: arView)
-                if let p = resolvedFloorRaycast(at: location) {
-                    node.simdWorldPosition = p
+                let mode = ARPlacementMode.fromPersisted(node.arborePlacementMode)
+                    ?? parentProps?.placementMode
+                    ?? .floor
+                if let hit = raycastHit(at: location, mode: mode),
+                   placementBlockedMessage(for: hit, plant: nil) == nil {
+                    let currentScale = node.scale
+                    node.simdWorldTransform = hit.placementTransform
+                    node.scale = currentScale
+                    node.arboreSurfaceType = hit.surfaceType?.rawValue ?? mode.rawValue
+                    node.arborePlacementMode = mode.rawValue
+                    let reliability = immediatePlacementReliability(for: hit)
+                    node.arboreSurfaceAnchor = persistedSurfaceAnchor(for: hit, reliability: reliability)
                 }
 
                 // Persist final position on .ended regardless of last raycast.
@@ -3539,6 +4939,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 upAxis: String? = nil,
                 surfaceType: String? = nil,
                 surfaceHeight: Float? = nil,
+                placementMode: ARPlacementMode? = nil,
+                surfaceAnchor: PersistedSurfaceAnchor? = nil,
                 autoSelect: Bool = true,
                 hasHeavy: Bool = false
             ) {
@@ -3564,6 +4966,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     isRestore: isRestoring,
                     surfaceType: surfaceType,
                     surfaceHeight: surfaceHeight,
+                    placementMode: placementMode,
+                    surfaceAnchor: surfaceAnchor,
                     instanceId: anchor.identifier,
                     autoSelect: autoSelect,
                     hasHeavy: hasHeavy
@@ -3577,6 +4981,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     isRestore=\(self.isRestoring, privacy: .public) \
                     rigid=\(rigidTransform.logDescription, privacy: .public) \
                     surface=\(surfaceType ?? "nil", privacy: .public) \
+                    mode=\(placementMode?.rawValue ?? "nil", privacy: .public) \
                     surfaceY=\(surfaceHeight ?? -1, format: .fixed(precision: 3), privacy: .public) \
                     finalScale=\(finalScale?.logDescription ?? "auto", privacy: .public)
                     """)
@@ -3617,6 +5022,9 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     container.arboreInstanceId = pending.instanceId
                     container.arboreModelURLString = pending.modelURLString
                         ?? pending.modelURL.lastPathComponent
+                    container.arboreSurfaceType = pending.surfaceType
+                    container.arborePlacementMode = pending.placementMode?.rawValue
+                    container.arboreSurfaceAnchor = pending.surfaceAnchor
                     container.arboreHasHeavy = pending.hasHeavy
 
                     let wrapper = SCNNode()
@@ -3653,26 +5061,32 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     //   simdWorldTransform = parent.world * pivot.inverse * transform
                     // so a pivot of `T(0, scaleFactor * minY, 0)` makes the
                     // base vertex (0, minY, 0) land exactly at anchor.t.
+                    let attachByTop = pending.placementMode == .ceiling
+
                     if let scale = pending.finalScale {
                         container.scale = scale
                         if rawHeight > 0 {
-                            let pivotY = scale.y * minVec.y
+                            let pivotY = scale.y * (attachByTop ? maxVec.y : minVec.y)
                             container.pivot = SCNMatrix4MakeTranslation(0, pivotY, 0)
                         }
                         AppLog.plants.debug("""
                             restoreScale plant=\(pending.plantName, privacy: .public) \
                             scale=\(scale.logDescription, privacy: .public) \
-                            pivotY=\(rawHeight > 0 ? scale.y * minVec.y : 0, format: .fixed(precision: 3), privacy: .public)
+                            pivotY=\(rawHeight > 0 ? scale.y * (attachByTop ? maxVec.y : minVec.y) : 0, format: .fixed(precision: 3), privacy: .public)
                             """)
                     } else if !pending.isRestore {
                         if rawHeight > 0 {
                             let scaleFactor = Self.autoScaleTargetHeightMeters / rawHeight
                             container.scale = SCNVector3(scaleFactor, scaleFactor, scaleFactor)
-                            container.pivot = SCNMatrix4MakeTranslation(0, scaleFactor * minVec.y, 0)
+                            container.pivot = SCNMatrix4MakeTranslation(
+                                0,
+                                scaleFactor * (attachByTop ? maxVec.y : minVec.y),
+                                0
+                            )
                             AppLog.plants.debug("""
                                 autoScale plant=\(pending.plantName, privacy: .public) \
                                 scaleFactor=\(scaleFactor, format: .fixed(precision: 3), privacy: .public) \
-                                pivotY=\(scaleFactor * minVec.y, format: .fixed(precision: 3), privacy: .public)
+                                pivotY=\(scaleFactor * (attachByTop ? maxVec.y : minVec.y), format: .fixed(precision: 3), privacy: .public)
                                 """)
                         }
                     }
@@ -3680,6 +5094,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     // recompute the pivot after the user pinches/zooms.
                     if rawHeight > 0 {
                         container.setValue(NSNumber(value: minVec.y), forKey: "arboreOriginalMinY")
+                        container.setValue(NSNumber(value: maxVec.y), forKey: "arboreOriginalMaxY")
                     }
 
                     // Build the cached halo NOW, while we still have a clean
@@ -3701,7 +5116,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     parentNode.addChildNode(container)
                     // Auto-select per the placement's explicit `autoSelect`
                     // flag. Catalogue taps pass true (default) so the
-                    // editingHUD (rotate / scale +- / delete) appears
+                    // bottom dock switches to edit mode (rotate / scale +- / delete)
                     // immediately. Batch placements (AI auto-place,
                     // morph-confirm) pass false to avoid the orange-halo
                     // flicker as we loop through plants. Restore is also
@@ -3770,6 +5185,9 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 next.arborePlantName = current.arborePlantName
                 next.arboreInstanceId = current.arboreInstanceId
                 next.arboreModelURLString = current.arboreModelURLString
+                next.arboreSurfaceType = current.arboreSurfaceType
+                next.arborePlacementMode = current.arborePlacementMode
+                next.arboreSurfaceAnchor = current.arboreSurfaceAnchor
                 next.arboreHasHeavy = current.arboreHasHeavy
                 next.arboreCurrentLOD = lod.rawValue
                 next.arboreLODLockedUntil = CACurrentMediaTime() + PlantLODPolicy.swapDebounce
@@ -3784,8 +5202,14 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 next.simdTransform = current.simdTransform  // encode déjà T·R·S
                 let (minV, maxV) = next.boundingBox
                 if maxV.y - minV.y > 0 {
-                    next.pivot = SCNMatrix4MakeTranslation(0, next.scale.y * minV.y, 0)
+                    let attachByTop = ARPlacementMode.fromPersisted(next.arborePlacementMode) == .ceiling
+                    next.pivot = SCNMatrix4MakeTranslation(
+                        0,
+                        next.scale.y * (attachByTop ? maxV.y : minV.y),
+                        0
+                    )
                     next.setValue(NSNumber(value: minV.y), forKey: "arboreOriginalMinY")
+                    next.setValue(NSNumber(value: maxV.y), forKey: "arboreOriginalMaxY")
                 } else {
                     next.pivot = current.pivot
                 }
@@ -3971,6 +5395,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                 upAxis: pending.upAxis,
                                 surfaceType: pending.surfaceType,
                                 surfaceHeight: pending.surfaceHeight,
+                                placementMode: pending.placementMode,
+                                surfaceAnchor: pending.surfaceAnchor,
                                 hasHeavy: pending.hasHeavy
                             )
                         }
@@ -4089,6 +5515,98 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     reclassifyCachedPlanes(except: anchor.identifier,
                                             cameraY: cameraY,
                                             verticals: result.verticals)
+                }
+                maybeReanchorEstimatedPlants(to: anchor, type: result.kind)
+            }
+
+            private func maybeReanchorEstimatedPlants(to anchor: ARPlaneAnchor, type: SurfaceType) {
+                let features = PlaneFeatures(anchor)
+                var restoredCount = 0
+
+                for node in currentPlantNodes() {
+                    guard let metadata = node.arboreSurfaceAnchor,
+                          let source = SurfaceHitSource(rawValue: metadata.source),
+                          source.isEstimatedLike else {
+                        continue
+                    }
+
+                    let mode = ARPlacementMode.fromPersisted(node.arborePlacementMode)
+                        ?? (type == .wall ? .wall : (type == .ceiling ? .ceiling : .floor))
+                    guard mode.acceptedSurfaceTypes.contains(type) else { continue }
+
+                    let position = SIMD3<Float>(
+                        node.simdWorldPosition.x,
+                        node.simdWorldPosition.y,
+                        node.simdWorldPosition.z
+                    )
+                    let planeDistance = abs(simd_dot(position - features.center, features.normal))
+                    let maxDistance: Float = (mode == .wall) ? 0.18 : 0.12
+                    guard planeDistance <= maxDistance else { continue }
+
+                    let snapped = position - features.normal * simd_dot(position - features.center, features.normal)
+                    let currentScale = node.scale
+                    let transform: simd_float4x4
+                    switch mode {
+                    case .wall:
+                        var normal = features.normal
+                        if let camera = currentCameraPosition() {
+                            let toCamera = camera - snapped
+                            if simd_length(toCamera) > 0.001,
+                               simd_dot(normal, simd_normalize(toCamera)) < 0 {
+                                normal = -normal
+                            }
+                        }
+                        transform = wallAlignedTransform(position: snapped + normal * 0.025, normal: normal)
+                    case .ceiling:
+                        transform = uprightTransform(at: SIMD4<Float>(snapped.x, snapped.y, snapped.z, 1))
+                    case .floor:
+                        var preserved = stripScale(from: node.simdWorldTransform)
+                        preserved.columns.3 = SIMD4<Float>(snapped.x, snapped.y, snapped.z, 1)
+                        transform = preserved
+                    }
+
+                    node.simdWorldTransform = transform
+                    node.scale = currentScale
+                    node.arboreSurfaceType = type.rawValue
+                    node.arborePlacementMode = mode.rawValue
+                    node.arboreSurfaceAnchor = surfaceAnchorMetadata(
+                        source: .existingPlaneGeometry,
+                        reliabilityScore: 0.9,
+                        normal: features.normal,
+                        features: features,
+                        planeTransform: anchor.transform,
+                        position: worldPosition(from: transform)
+                    )
+                    recordDraggedTransform(for: node)
+                    refreshPivotForScale(node: node)
+                    restoredCount += 1
+
+                    AppLog.arAnchor.notice("""
+                        reanchor plant=\(node.arborePlantName ?? node.name ?? "plant", privacy: .public) \
+                        surface=\(type.rawValue, privacy: .public) \
+                        plane=\(anchor.identifier.uuidString.prefix(8), privacy: .public) \
+                        distance=\(planeDistance, format: .fixed(precision: 3), privacy: .public)
+                        """)
+                }
+
+                if restoredCount > 0 {
+                    DispatchQueue.main.async { [weak self] in
+                        withAnimation(.easeOut(duration: 0.2)) {
+                            self?.parentProps?.placementFeedback = L10n.t("AR_ANCHOR_SURFACE_RESTORED")
+                        }
+                    }
+                }
+            }
+
+            private func currentPlantNodes() -> [SCNNode] {
+                guard let arView = arView else { return [] }
+                return arView.scene.rootNode.childNodes.flatMap { rootChild -> [SCNNode] in
+                    if rootChild.name?.starts(with: "plant_") == true {
+                        return [rootChild]
+                    }
+                    return rootChild.childNodes.filter {
+                        $0.name?.starts(with: "plant_") == true
+                    }
                 }
             }
 
@@ -4437,34 +5955,36 @@ func floatArrayToMatrix(_ a: [Float]) -> simd_float4x4? {
     )
 }
 
-struct ActionButton: View {
-    let icon: String
-    let active: Bool
-    var body: some View {
-        Image(systemName: icon)
-            .font(.system(size: 18, weight: .bold))
-            .foregroundColor(active ? .black : .white)
-            .frame(width: 48, height: 48)
-            .background(active ? Color(hex: "#2BEE79") : .white.opacity(0.15))
-            .clipShape(Circle())
-    }
-}
-
 struct GlassButtonStyle: ViewModifier {
     var isGreen: Bool = false
     func body(content: Content) -> some View {
         content
-            .font(.system(size: 18, weight: .bold))
-            .foregroundColor(.white)
-            .frame(width: 44, height: 44)
-            .background(isGreen ? Color(hex: "#2BEE79") : .black.opacity(0.35))
-            .clipShape(Circle())
-            .overlay(Circle().stroke(.white.opacity(0.15), lineWidth: 1))
+            .font(.system(size: 17, weight: .bold))
+            .foregroundColor(isGreen ? .white : ArboreDesign.Colors.textPrimary)
+            .frame(width: 42, height: 42)
+            .background(
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                    .fill(isGreen ? ArboreDesign.Colors.primaryGreen : ArboreDesign.Colors.card.opacity(0.72))
+                    .background(
+                        RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                            .fill(.ultraThinMaterial)
+                    )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                    .stroke(isGreen ? .white.opacity(0.16) : ArboreDesign.Colors.border.opacity(0.82), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.16), radius: 10, x: 0, y: 4)
     }
 }
 
+private struct GardenShareRenderOptions: Equatable {
+    var showsBranding: Bool = false
+}
+
 private enum GardenARShareComposer {
-    static func compose(snapshot: UIImage, gardenName: String) -> UIImage {
+    static func compose(snapshot: UIImage, options: GardenShareRenderOptions) -> UIImage {
         let format = UIGraphicsImageRendererFormat()
         format.scale = snapshot.scale
         format.opaque = true
@@ -4474,11 +5994,445 @@ private enum GardenARShareComposer {
             let rect = CGRect(origin: .zero, size: snapshot.size)
             snapshot.draw(in: rect)
 
-            drawGradient(in: context.cgContext, rect: rect)
-            drawBranding(in: context.cgContext, rect: rect, snapshot: snapshot)
+            if options.showsBranding {
+                drawGradient(in: context.cgContext, rect: rect)
+                drawBranding(in: context.cgContext, rect: rect, snapshot: snapshot)
+            }
+        }
+    }
+}
+
+private enum GardenShareCaptureStore {
+    private struct Index: Codable {
+        var captures: [Record] = []
+    }
+
+    private struct Record: Codable {
+        let id: UUID
+        let kind: String
+        let fileName: String
+        let thumbnailFileName: String?
+        let createdAt: Date
+        let orientationVersion: Int?
+    }
+
+    private static let directoryPrefix = "ar_share_captures_"
+    private static let indexFileName = "index.json"
+    private static let currentVideoOrientationVersion = 2
+
+    static func load(for storageKey: String) -> [GardenShareCapture] {
+        let directory = directoryURL(for: storageKey)
+        let index = readIndex(from: directory)
+
+        return index.captures
+            .sorted { $0.createdAt > $1.createdAt }
+            .compactMap { record in
+                let mediaURL = directory.appendingPathComponent(record.fileName)
+                guard FileManager.default.fileExists(atPath: mediaURL.path) else { return nil }
+
+                switch record.kind {
+                case "photo":
+                    guard let image = UIImage(contentsOfFile: mediaURL.path) else { return nil }
+                    return GardenShareCapture.photo(
+                        image,
+                        id: record.id,
+                        mediaURL: mediaURL,
+                        createdAt: record.createdAt
+                    )
+                case "video":
+                    let needsLegacyRotation = record.orientationVersion == nil
+                    let thumbnail = record.thumbnailFileName.flatMap { fileName -> UIImage? in
+                        let thumbnailURL = directory.appendingPathComponent(fileName)
+                        return UIImage(contentsOfFile: thumbnailURL.path)
+                    }
+                    let thumbnailURL = record.thumbnailFileName.map { directory.appendingPathComponent($0) }
+                    return GardenShareCapture.video(
+                        url: mediaURL,
+                        thumbnail: needsLegacyRotation ? thumbnail?.rotated180() : thumbnail,
+                        id: record.id,
+                        thumbnailURL: thumbnailURL,
+                        createdAt: record.createdAt,
+                        requiresPlaybackRotation: needsLegacyRotation
+                    )
+                default:
+                    return nil
+                }
+            }
+    }
+
+    static func savePhoto(
+        _ image: UIImage,
+        for storageKey: String,
+        id: UUID = UUID(),
+        createdAt: Date = Date()
+    ) -> GardenShareCapture? {
+        guard let data = image.jpegData(compressionQuality: 0.92) else { return nil }
+
+        let directory = directoryURL(for: storageKey)
+        let fileName = "\(id.uuidString).jpg"
+        let mediaURL = directory.appendingPathComponent(fileName)
+
+        do {
+            try ensureDirectoryExists(directory)
+            try data.write(to: mediaURL, options: [.atomic])
+            upsert(
+                Record(
+                    id: id,
+                    kind: "photo",
+                    fileName: fileName,
+                    thumbnailFileName: nil,
+                    createdAt: createdAt,
+                    orientationVersion: nil
+                ),
+                in: directory
+            )
+            return GardenShareCapture.photo(
+                image,
+                id: id,
+                mediaURL: mediaURL,
+                createdAt: createdAt
+            )
+        } catch {
+            AppLog.gardenSave.error("share photo save failed error=\(String(describing: error), privacy: .public)")
+            return nil
         }
     }
 
+    static func saveVideo(
+        at sourceURL: URL,
+        thumbnail: UIImage?,
+        for storageKey: String,
+        id: UUID = UUID(),
+        createdAt: Date = Date()
+    ) -> GardenShareCapture? {
+        let directory = directoryURL(for: storageKey)
+        let fileName = "\(id.uuidString).mp4"
+        let mediaURL = directory.appendingPathComponent(fileName)
+        let thumbnailFileName = thumbnail.map { _ in "\(id.uuidString)_thumb.jpg" }
+        let thumbnailURL = thumbnailFileName.map { directory.appendingPathComponent($0) }
+
+        do {
+            try ensureDirectoryExists(directory)
+            let sourceIsAlreadyPersistent = sourceURL.standardizedFileURL.path == mediaURL.standardizedFileURL.path
+            if !sourceIsAlreadyPersistent {
+                if FileManager.default.fileExists(atPath: mediaURL.path) {
+                    try FileManager.default.removeItem(at: mediaURL)
+                }
+                try FileManager.default.copyItem(at: sourceURL, to: mediaURL)
+            }
+            if let thumbnail, let thumbnailURL, let data = thumbnail.jpegData(compressionQuality: 0.82) {
+                try data.write(to: thumbnailURL, options: [.atomic])
+            }
+
+            upsert(
+                Record(
+                    id: id,
+                    kind: "video",
+                    fileName: fileName,
+                    thumbnailFileName: thumbnailFileName,
+                    createdAt: createdAt,
+                    orientationVersion: currentVideoOrientationVersion
+                ),
+                in: directory
+            )
+            return GardenShareCapture.video(
+                url: mediaURL,
+                thumbnail: thumbnail,
+                id: id,
+                thumbnailURL: thumbnailURL,
+                createdAt: createdAt
+            )
+        } catch {
+            AppLog.gardenSave.error("share video save failed error=\(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
+    static func delete(_ capture: GardenShareCapture, for storageKey: String) {
+        let directory = directoryURL(for: storageKey)
+        var index = readIndex(from: directory)
+        guard let record = index.captures.first(where: { $0.id == capture.id }) else {
+            removeLooseFiles(for: capture)
+            return
+        }
+
+        let mediaURL = directory.appendingPathComponent(record.fileName)
+        try? FileManager.default.removeItem(at: mediaURL)
+        if let thumbnailFileName = record.thumbnailFileName {
+            let thumbnailURL = directory.appendingPathComponent(thumbnailFileName)
+            try? FileManager.default.removeItem(at: thumbnailURL)
+        }
+
+        index.captures.removeAll { $0.id == capture.id }
+        writeIndex(index, to: directory)
+    }
+
+    private static func removeLooseFiles(for capture: GardenShareCapture) {
+        if let mediaURL = capture.mediaURL {
+            try? FileManager.default.removeItem(at: mediaURL)
+        }
+        if let thumbnailURL = capture.thumbnailURL {
+            try? FileManager.default.removeItem(at: thumbnailURL)
+        }
+    }
+
+    private static func upsert(_ record: Record, in directory: URL) {
+        var index = readIndex(from: directory)
+        index.captures.removeAll { $0.id == record.id }
+        index.captures.insert(record, at: 0)
+        index.captures.sort { $0.createdAt > $1.createdAt }
+        writeIndex(index, to: directory)
+    }
+
+    private static func readIndex(from directory: URL) -> Index {
+        let url = directory.appendingPathComponent(indexFileName)
+        guard let data = try? Data(contentsOf: url),
+              let index = try? JSONDecoder().decode(Index.self, from: data) else {
+            return Index()
+        }
+        return index
+    }
+
+    private static func writeIndex(_ index: Index, to directory: URL) {
+        do {
+            try ensureDirectoryExists(directory)
+            let data = try JSONEncoder().encode(index)
+            try data.write(to: directory.appendingPathComponent(indexFileName), options: [.atomic])
+        } catch {
+            AppLog.gardenSave.error("share capture index write failed error=\(String(describing: error), privacy: .public)")
+        }
+    }
+
+    private static func directoryURL(for storageKey: String) -> URL {
+        let sanitizedKey = storageKey
+            .replacingOccurrences(of: "[^A-Za-z0-9_-]", with: "_", options: .regularExpression)
+        let folderName = directoryPrefix + (sanitizedKey.isEmpty ? "default" : sanitizedKey)
+        return documentsURL().appendingPathComponent(folderName, isDirectory: true)
+    }
+
+    private static func ensureDirectoryExists(_ url: URL) throws {
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+    }
+
+    private static func documentsURL() -> URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+}
+
+private final class GardenARShareVideoRecorder {
+    private let fps: Int32 = 30
+    private let videoTimescale: CMTimeScale = 600
+    private var writer: AVAssetWriter?
+    private var input: AVAssetWriterInput?
+    private var adaptor: AVAssetWriterInputPixelBufferAdaptor?
+    private var timer: Timer?
+    private weak var sceneView: ARSCNView?
+    private var recordingStartedAt: CFTimeInterval = 0
+    private var lastPresentationSeconds: Double = -1
+    private var outputURL: URL?
+    private var targetSize: CGSize = .zero
+    private var completion: ((URL?) -> Void)?
+
+    func start(sceneView: ARSCNView, completion: @escaping (URL?) -> Void) throws {
+        stop { _ in }
+
+        let firstFrame = sceneView.snapshot()
+        let size = Self.targetSize(for: firstFrame.size)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("arbore_ar_share_\(UUID().uuidString).mp4")
+
+        let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        let settings: [String: Any] = [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: Int(size.width),
+            AVVideoHeightKey: Int(size.height),
+            AVVideoCompressionPropertiesKey: [
+                AVVideoAverageBitRateKey: 6_000_000,
+                AVVideoExpectedSourceFrameRateKey: fps,
+                AVVideoMaxKeyFrameIntervalKey: fps,
+                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
+            ]
+        ]
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+        input.expectsMediaDataInRealTime = true
+        input.transform = CGAffineTransform(rotationAngle: .pi)
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: input,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey as String: Int(size.width),
+                kCVPixelBufferHeightKey as String: Int(size.height)
+            ]
+        )
+        guard writer.canAdd(input) else { throw CocoaError(.fileWriteUnknown) }
+        writer.add(input)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+
+        self.writer = writer
+        self.input = input
+        self.adaptor = adaptor
+        self.sceneView = sceneView
+        self.recordingStartedAt = CACurrentMediaTime()
+        self.lastPresentationSeconds = -1
+        self.outputURL = url
+        self.targetSize = size
+        self.completion = completion
+
+        append(firstFrame, at: .zero)
+        let timer = Timer(timeInterval: 1 / Double(fps), repeats: true) { [weak self] _ in
+            self?.captureFrame()
+        }
+        timer.tolerance = 1 / Double(fps * 4)
+        self.timer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    func stop(completion: @escaping (URL?) -> Void) {
+        timer?.invalidate()
+        timer = nil
+
+        guard let writer, let input else {
+            completion(nil)
+            return
+        }
+
+        let url = outputURL
+        let storedCompletion = self.completion
+        self.writer = nil
+        self.input = nil
+        self.adaptor = nil
+        self.sceneView = nil
+        self.outputURL = nil
+        self.completion = nil
+
+        input.markAsFinished()
+        writer.finishWriting {
+            DispatchQueue.main.async {
+                let result = writer.status == .completed ? url : nil
+                storedCompletion?(result)
+                completion(result)
+            }
+        }
+    }
+
+    private func captureFrame() {
+        guard let sceneView else { return }
+        let elapsed = max(0, CACurrentMediaTime() - recordingStartedAt)
+        let time = CMTime(seconds: elapsed, preferredTimescale: videoTimescale)
+        append(sceneView.snapshot(), at: time)
+    }
+
+    private func append(_ image: UIImage, at time: CMTime) {
+        let presentationSeconds = time.seconds
+        guard presentationSeconds.isFinite,
+              presentationSeconds > lastPresentationSeconds + 0.001 else {
+            return
+        }
+        guard let input, let adaptor, input.isReadyForMoreMediaData,
+              let buffer = image.pixelBuffer(renderSize: targetSize, pixelBufferPool: adaptor.pixelBufferPool) else {
+            return
+        }
+        adaptor.append(buffer, withPresentationTime: time)
+        lastPresentationSeconds = presentationSeconds
+    }
+
+    private static func targetSize(for source: CGSize) -> CGSize {
+        let maxLongSide: CGFloat = 1280
+        let ratio = min(1, maxLongSide / max(source.width, source.height))
+        func even(_ value: CGFloat) -> Int {
+            max(2, Int((value * ratio).rounded(.down)) / 2 * 2)
+        }
+        return CGSize(width: even(source.width), height: even(source.height))
+    }
+}
+
+private enum GardenShareVideoThumbnailer {
+    static func thumbnail(for url: URL) async -> UIImage? {
+        let asset = AVURLAsset(url: url)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 320, height: 320)
+
+        return await withCheckedContinuation { continuation in
+            generator.generateCGImageAsynchronously(for: .zero) { cgImage, _, _ in
+                guard let cgImage else {
+                    continuation.resume(returning: nil)
+                    return
+                }
+                continuation.resume(returning: UIImage(cgImage: cgImage))
+            }
+        }
+    }
+}
+
+private extension UIImage {
+    func pixelBuffer(renderSize: CGSize, pixelBufferPool: CVPixelBufferPool?) -> CVPixelBuffer? {
+        var pixelBuffer: CVPixelBuffer?
+        let status: CVReturn
+        if let pixelBufferPool {
+            status = CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pixelBufferPool, &pixelBuffer)
+        } else {
+            let attrs: [String: Any] = [
+                kCVPixelBufferCGImageCompatibilityKey as String: true,
+                kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
+            ]
+            status = CVPixelBufferCreate(
+                kCFAllocatorDefault,
+                Int(renderSize.width),
+                Int(renderSize.height),
+                kCVPixelFormatType_32BGRA,
+                attrs as CFDictionary,
+                &pixelBuffer
+            )
+        }
+        guard status == kCVReturnSuccess, let pixelBuffer else { return nil }
+
+        CVPixelBufferLockBaseAddress(pixelBuffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+
+        guard let context = CGContext(
+            data: CVPixelBufferGetBaseAddress(pixelBuffer),
+            width: Int(renderSize.width),
+            height: Int(renderSize.height),
+            bitsPerComponent: 8,
+            bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
+        ) else {
+            return nil
+        }
+
+        let rendererFormat = UIGraphicsImageRendererFormat()
+        rendererFormat.scale = 1
+        rendererFormat.opaque = true
+        let normalizedFrame = UIGraphicsImageRenderer(size: renderSize, format: rendererFormat)
+            .image { _ in
+                draw(in: CGRect(origin: .zero, size: renderSize))
+            }
+
+        guard let cgImage = normalizedFrame.cgImage else { return nil }
+        context.interpolationQuality = .high
+        context.translateBy(x: 0, y: renderSize.height)
+        context.scaleBy(x: 1, y: -1)
+        context.draw(cgImage, in: CGRect(origin: .zero, size: renderSize))
+        return pixelBuffer
+    }
+
+    func rotated180() -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            context.cgContext.translateBy(x: size.width, y: size.height)
+            context.cgContext.rotate(by: .pi)
+            draw(in: CGRect(origin: .zero, size: size))
+        }
+    }
+}
+
+private extension GardenARShareComposer {
     private static func drawGradient(in cgContext: CGContext, rect: CGRect) {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let colors = [
@@ -4499,28 +6453,31 @@ private enum GardenARShareComposer {
 
     private static func drawBranding(in cgContext: CGContext, rect: CGRect, snapshot: UIImage) {
         let bottomInset = rect.height * 0.045
-        let logoSize = rect.width * 0.12
-        let totalWidth = logoSize + rect.width * 0.025 + rect.width * 0.34
-        let logoX = rect.midX - totalWidth / 2
+        let logoSize = rect.width * 0.112
+        let spacing = rect.width * 0.026
+        let font = UIFont.systemFont(ofSize: rect.width * 0.058, weight: .bold)
+        let text = "arbore"
+        let textSize = (text as NSString).size(withAttributes: [.font: font])
+        let groupWidth = logoSize + spacing + textSize.width
+        let groupX = rect.midX - groupWidth / 2
         let logoY = rect.maxY - bottomInset - logoSize
 
         cgContext.saveGState()
-        let logoRect = CGRect(x: logoX, y: logoY, width: logoSize, height: logoSize)
-        UIBezierPath(roundedRect: logoRect, cornerRadius: logoSize * 0.22).addClip()
+        let logoRect = CGRect(x: groupX, y: logoY, width: logoSize, height: logoSize)
         if let logo = UIImage(named: "arbore_logo") {
             logo.draw(in: logoRect)
         } else {
             UIColor(red: 0.13, green: 0.27, blue: 0.19, alpha: 1).setFill()
-            cgContext.fill(logoRect)
+            UIBezierPath(roundedRect: logoRect, cornerRadius: logoSize * 0.22).fill()
         }
         cgContext.restoreGState()
 
-        let textX = logoRect.maxX + rect.width * 0.025
-        let brandY = logoY + logoSize * 0.04
+        let textX = logoRect.maxX + spacing
+        let textY = logoRect.midY - textSize.height / 2
         drawText(
-            "arbore",
-            in: CGRect(x: textX, y: brandY, width: rect.width * 0.42, height: logoSize * 0.48),
-            font: .systemFont(ofSize: rect.width * 0.058, weight: .bold),
+            text,
+            in: CGRect(x: textX, y: textY, width: textSize.width + 4, height: textSize.height),
+            font: font,
             color: UIColor.white.withAlphaComponent(0.86)
         )
     }
@@ -4546,104 +6503,413 @@ private enum GardenARShareComposer {
     }
 }
 
-private struct GardenSharePreviewView: View {
-    let image: UIImage
+private struct GardenShareGalleryView: View {
+    let captures: [GardenShareCapture]
+    let selectedCaptureID: UUID?
     let onRetake: () -> Void
-    let onShare: () -> Void
+    let onDelete: (GardenShareCapture) -> Void
+    let onClose: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @State private var editingCaptureID: UUID?
+    @State private var showsBranding = false
+    @State private var shareItems: [Any] = []
+    @State private var showShareSheet = false
+    @State private var capturePendingDeletion: GardenShareCapture?
+    @State private var showDeleteConfirmation = false
+
+    init(
+        captures: [GardenShareCapture],
+        selectedCaptureID: UUID?,
+        onRetake: @escaping () -> Void,
+        onDelete: @escaping (GardenShareCapture) -> Void,
+        onClose: @escaping () -> Void
+    ) {
+        self.captures = captures
+        self.selectedCaptureID = selectedCaptureID
+        self.onRetake = onRetake
+        self.onDelete = onDelete
+        self.onClose = onClose
+    }
+
+    private var editingCapture: GardenShareCapture? {
+        guard let editingCaptureID else { return nil }
+        return captures.first { $0.id == editingCaptureID }
+    }
+
+    private var galleryColumns: [GridItem] {
+        [
+            GridItem(.flexible(), spacing: 14),
+            GridItem(.flexible(), spacing: 14)
+        ]
+    }
 
     var body: some View {
         ZStack {
-            Color(hex: "#0D120F").ignoresSafeArea()
+            ArboreDesign.Colors.background.ignoresSafeArea()
 
-            VStack(spacing: 18) {
-                HStack {
-                    Button {
-                        dismiss()
-                        onRetake()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 42, height: 42)
-                            .background(.white.opacity(0.12))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-
-                    Spacer()
-
-                    Text(L10n.t("AR_SHARE_PREVIEW_TITLE"))
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-
-                    Spacer()
-
-                    Color.clear.frame(width: 42, height: 42)
+            if let editingCapture {
+                editSharePage(editingCapture)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            } else {
+                galleryPage
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+        }
+        .onChange(of: captures.count) { _, _ in
+            if let editingCaptureID, !captures.contains(where: { $0.id == editingCaptureID }) {
+                self.editingCaptureID = nil
+            }
+        }
+        .sheet(isPresented: $showShareSheet) {
+            if !shareItems.isEmpty {
+                ShareSheet(items: shareItems)
+            }
+        }
+        .confirmationDialog(
+            L10n.t("AR_SHARE_DELETE_CONFIRM_TITLE"),
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(L10n.t("COMMON_DELETE"), role: .destructive) {
+                guard let capture = capturePendingDeletion else { return }
+                if editingCaptureID == capture.id {
+                    editingCaptureID = nil
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
+                onDelete(capture)
+                capturePendingDeletion = nil
+            }
+            Button(L10n.t("COMMON_CANCEL"), role: .cancel) {
+                capturePendingDeletion = nil
+            }
+        }
+    }
 
+    private var galleryPage: some View {
+        VStack(spacing: 0) {
+            galleryHeader
+
+            if captures.isEmpty {
+                Spacer()
+                ContentUnavailableView(
+                    L10n.t("AR_SHARE_GALLERY_EMPTY"),
+                    systemImage: "photo.on.rectangle.angled"
+                )
+                .foregroundStyle(ArboreDesign.Colors.textSecondary)
+                Spacer()
+            } else {
+                ScrollView(showsIndicators: false) {
+                    LazyVGrid(columns: galleryColumns, spacing: 14) {
+                        ForEach(captures) { capture in
+                            ZStack(alignment: .topTrailing) {
+                                Button {
+                                    showsBranding = false
+                                    withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
+                                        editingCaptureID = capture.id
+                                    }
+                                } label: {
+                                    galleryCaptureCard(capture)
+                                }
+                                .buttonStyle(.plain)
+
+                                deleteCaptureButton(capture)
+                                    .padding(9)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 18)
+                    .padding(.bottom, 18)
+                }
+            }
+
+            retakeButton
+                .padding(.horizontal, 18)
+                .padding(.bottom, 14)
+        }
+    }
+
+    private var galleryHeader: some View {
+        HStack {
+            Button {
+                dismiss()
+                onClose()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(ArboreDesign.Colors.textPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(ArboreDesign.Colors.softSurface, in: Circle())
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            VStack(spacing: 2) {
+                Text(L10n.t("AR_SHARE_GALLERY_TITLE"))
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(ArboreDesign.Colors.textPrimary)
+
+                Text(String(format: L10n.t("AR_SHARE_GALLERY_COUNT_FORMAT"), captures.count))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(ArboreDesign.Colors.textSecondary)
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+
+            Spacer()
+
+            Color.clear.frame(width: 42, height: 42)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 10)
+    }
+
+    private func deleteCaptureButton(_ capture: GardenShareCapture) -> some View {
+        Button {
+            capturePendingDeletion = capture
+            showDeleteConfirmation = true
+        } label: {
+            Image(systemName: "trash")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(ArboreDesign.Colors.danger.opacity(0.92), in: Circle())
+                .overlay(Circle().stroke(.white.opacity(0.18), lineWidth: 1))
+                .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 3)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(L10n.t("COMMON_DELETE"))
+    }
+
+    private func galleryCaptureCard(_ capture: GardenShareCapture) -> some View {
+        let isHighlighted = capture.id == selectedCaptureID
+        return ZStack(alignment: .bottomLeading) {
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(ArboreDesign.Colors.card)
+
+            GeometryReader { proxy in
+                if let thumbnail = capture.thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .clipped()
+                } else {
+                    Image(systemName: capture.isVideo ? "video.fill" : "photo.fill")
+                        .font(.system(size: 30, weight: .bold))
+                        .foregroundStyle(ArboreDesign.Colors.textSecondary)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                }
+            }
+
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.62)],
+                startPoint: .center,
+                endPoint: .bottom
+            )
+
+            mediaTypeBadge(capture)
+                .padding(10)
+        }
+        .aspectRatio(0.74, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(
+                    isHighlighted ? ArboreDesign.Colors.primaryGreen : ArboreDesign.Colors.border.opacity(0.72),
+                    lineWidth: isHighlighted ? 3 : 1
+                )
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    private func editSharePage(_ capture: GardenShareCapture) -> some View {
+        VStack(spacing: 14) {
+            editHeader(capture)
+
+            editMediaPreview(capture)
+                .frame(maxWidth: .infinity)
+                .frame(maxHeight: .infinity)
+                .padding(.horizontal, 18)
+
+            if capture.image != nil {
+                brandingControl
+                    .padding(.horizontal, 18)
+            }
+
+            editActionRow(capture)
+                .padding(.horizontal, 18)
+                .padding(.bottom, 14)
+        }
+    }
+
+    private func editHeader(_ capture: GardenShareCapture) -> some View {
+        HStack {
+            Button {
+                withAnimation(.spring(response: 0.26, dampingFraction: 0.88)) {
+                    editingCaptureID = nil
+                }
+            } label: {
+                Image(systemName: "arrow.left")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(ArboreDesign.Colors.textPrimary)
+                    .frame(width: 42, height: 42)
+                    .background(ArboreDesign.Colors.softSurface, in: Circle())
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            VStack(spacing: 2) {
+                Text(L10n.t("AR_SHARE_MEDIA"))
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(ArboreDesign.Colors.textPrimary)
+
+                Text(capture.isVideo ? L10n.t("AR_SHARE_CAPTURE_VIDEO_LABEL") : L10n.t("AR_SHARE_CAPTURE_PHOTO_LABEL"))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(ArboreDesign.Colors.textSecondary)
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+
+            Spacer()
+
+            Button {
+                shareCurrentMedia(capture)
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(ArboreDesign.Colors.primaryGreen)
+                    .frame(width: 42, height: 42)
+                    .background(ArboreDesign.Colors.softSurface, in: Circle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 10)
+    }
+
+    @ViewBuilder
+    private func editMediaPreview(_ capture: GardenShareCapture) -> some View {
+        ZStack(alignment: .topTrailing) {
+            if let image = renderedImage(for: capture) {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFit()
-                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(.white.opacity(0.12), lineWidth: 1)
-                    )
-                    .shadow(color: .black.opacity(0.35), radius: 22, x: 0, y: 14)
-                    .padding(.horizontal, 18)
-
-                VStack(spacing: 12) {
-                Button {
-                        onShare()
-                } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "square.and.arrow.up")
-                            Text(L10n.t("AR_SHARE_PHOTO"))
-                        }
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 54)
-                        .background(Color(hex: "#2F6B46"))
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        dismiss()
-                        onRetake()
-                    } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "camera.rotate")
-                            Text(L10n.t("AR_RETAKE_PHOTO"))
-                        }
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white.opacity(0.86))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(.white.opacity(0.1))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(.white.opacity(0.12), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-
-                    Text(L10n.t("AR_RETAKE_PHOTO_HINT"))
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.56))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 10)
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let videoURL = capture.videoURL {
+                VideoPlayer(player: AVPlayer(url: videoURL))
+                    .rotationEffect(.degrees(capture.requiresPlaybackRotation ? 180 : 0))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let thumbnail = capture.thumbnail {
+                Image(uiImage: thumbnail)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+
+            mediaTypeBadge(capture)
+                .padding(12)
         }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(ArboreDesign.Colors.border.opacity(0.7), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.20), radius: 20, x: 0, y: 12)
+    }
+
+    private var brandingControl: some View {
+        Toggle(isOn: $showsBranding) {
+            Label(L10n.t("AR_SHARE_BRANDING_TOGGLE"), systemImage: "leaf.fill")
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(ArboreDesign.Colors.textPrimary)
+        }
+        .tint(ArboreDesign.Colors.primaryGreen)
+        .padding(.horizontal, 14)
+        .frame(height: 54)
+        .background(ArboreDesign.Colors.card)
+        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                .stroke(ArboreDesign.Colors.border.opacity(0.65), lineWidth: 1)
+        )
+    }
+
+    private func editActionRow(_ capture: GardenShareCapture) -> some View {
+        VStack(spacing: 10) {
+            Button {
+                shareCurrentMedia(capture)
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "square.and.arrow.up")
+                    Text(L10n.t("AR_SHARE_MEDIA"))
+                }
+                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 54)
+                .background(ArboreDesign.Colors.primaryGreen)
+                .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+            retakeButton
+        }
+    }
+
+    private var retakeButton: some View {
+        Button {
+            dismiss()
+            onRetake()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "camera.rotate")
+                Text(L10n.t("AR_RETAKE_CAPTURE"))
+            }
+            .font(.system(size: 15, weight: .semibold, design: .rounded))
+            .foregroundStyle(ArboreDesign.Colors.textPrimary)
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(ArboreDesign.Colors.softSurface)
+            .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func mediaTypeBadge(_ capture: GardenShareCapture) -> some View {
+        Label(
+            capture.isVideo ? L10n.t("AR_SHARE_CAPTURE_VIDEO_LABEL") : L10n.t("AR_SHARE_CAPTURE_PHOTO_LABEL"),
+            systemImage: capture.isVideo ? "video.fill" : "camera.fill"
+        )
+        .font(.system(size: 12, weight: .bold, design: .rounded))
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .frame(height: 30)
+        .background(.black.opacity(0.42), in: Capsule())
+    }
+
+    private func renderedImage(for capture: GardenShareCapture) -> UIImage? {
+        guard let image = capture.image else { return nil }
+        guard showsBranding else { return image }
+        return GardenARShareComposer.compose(
+            snapshot: image,
+            options: GardenShareRenderOptions(showsBranding: true)
+        )
+    }
+
+    private func shareCurrentMedia(_ capture: GardenShareCapture) {
+        var items: [Any] = []
+        if let image = renderedImage(for: capture) {
+            items.append(image)
+        } else if let videoURL = capture.videoURL {
+            items.append(videoURL)
+        }
+
+        guard !items.isEmpty else { return }
+        shareItems = items
+        showShareSheet = true
     }
 }
 
@@ -4676,6 +6942,32 @@ extension SCNNode {
     var arboreModelURLString: String? {
         get { value(forKey: "arboreModelURLString") as? String }
         set { setValue(newValue, forKey: "arboreModelURLString") }
+    }
+    var arboreSurfaceType: String? {
+        get { value(forKey: "arboreSurfaceType") as? String }
+        set { setValue(newValue, forKey: "arboreSurfaceType") }
+    }
+    var arborePlacementMode: String? {
+        get { value(forKey: "arborePlacementMode") as? String }
+        set { setValue(newValue, forKey: "arborePlacementMode") }
+    }
+    var arboreSurfaceAnchor: PersistedSurfaceAnchor? {
+        get {
+            guard let raw = value(forKey: "arboreSurfaceAnchorJSON") as? String,
+                  let data = raw.data(using: .utf8) else {
+                return nil
+            }
+            return try? JSONDecoder().decode(PersistedSurfaceAnchor.self, from: data)
+        }
+        set {
+            guard let newValue,
+                  let data = try? JSONEncoder().encode(newValue),
+                  let raw = String(data: data, encoding: .utf8) else {
+                setValue(nil, forKey: "arboreSurfaceAnchorJSON")
+                return
+            }
+            setValue(raw, forKey: "arboreSurfaceAnchorJSON")
+        }
     }
     /// LOD : une version heavy existe pour cette plante (propagé à la sauvegarde
     /// pour que la ré-ouverture du jardin re-déclenche l'upgrade).

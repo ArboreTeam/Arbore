@@ -884,8 +884,8 @@
 "GARDEN_LOADING_SUBTITLE" = "Escanea lentamente tu entorno\npara reposicionar tus plantas";
 
 // Thermal banner
-"THERMAL_BANNER_TITLE" = "Tu teléfono se está calentando";
-"THERMAL_BANNER_SUBTITLE" = "Reduce el uso de AR para evitar ralentizaciones.";
+"THERMAL_BANNER_TITLE" = "AR reducida";
+"THERMAL_BANNER_SUBTITLE" = "El renderizado AR se reduce unos instantes para mantener la app fluida.";
 "THERMAL_BANNER_DISMISS" = "Cerrar alerta";
 
 // App-wide navigation
@@ -1060,6 +1060,18 @@
 "SURFACE_WINDOWSILL" = "Alféizar";
 "SURFACE_FURNITURE" = "Mueble";
 "SURFACE_UNKNOWN" = "?";
+"AR_PLACEMENT_MODE_FLOOR" = "Suelo";
+"AR_PLACEMENT_MODE_WALL" = "Pared";
+"AR_PLACEMENT_MODE_CEILING" = "Techo";
+"AR_PLACEMENT_INCOMPATIBLE_WALL" = "Elige una planta trepadora o colgante para la pared.";
+"AR_PLACEMENT_INCOMPATIBLE_HANGING" = "Elige una planta colgante prevista para el techo.";
+"AR_PLACEMENT_SURFACE_NEEDS_FLOOR" = "Apunta a un suelo, mesa o estante.";
+"AR_PLACEMENT_SURFACE_NEEDS_WALL" = "Apunta a una pared detectada para este modo.";
+"AR_PLACEMENT_SURFACE_NEEDS_HANGING_SUPPORT" = "Apunta al techo y muévete despacio si el retículo no se fija.";
+"AR_ANCHOR_TRACKING_LIMITED" = "Mueve el teléfono suavemente, el seguimiento AR aún no es estable.";
+"AR_ANCHOR_SURFACE_UNSTABLE" = "La superficie aún es inestable. Escanéala unos instantes antes de colocar.";
+"AR_ANCHOR_CONFIDENCE_LOW" = "Superficie frágil. Apunta a una zona mejor detectada.";
+"AR_ANCHOR_SURFACE_RESTORED" = "Superficie encontrada: colocación ajustada.";
 
 // AI suggestions
 "PLANT_CATEGORY_TALL" = "Alta";
@@ -1273,15 +1285,43 @@
 "AR_SHARE_PHOTO" = "Compartir foto";
 "AR_RETAKE_PHOTO" = "Repetir foto";
 "AR_RETAKE_PHOTO_HINT" = "Puedes repetir la foto si el encuadre o la luz no te convencen.";
+"AR_SHARE_CAMERA_MODE_PHOTO" = "Foto";
+"AR_SHARE_CAMERA_MODE_VIDEO" = "Vídeo";
+"AR_SHARE_OPEN_LAST_CAPTURE" = "Abrir la última captura";
+"AR_SHARE_VIDEO_FAILED" = "No se pudo grabar el vídeo.";
+"AR_SHARE_MEDIA" = "Compartir";
+"AR_RETAKE_CAPTURE" = "Repetir";
+"AR_SHARE_GALLERY_TITLE" = "Galería AR";
+"AR_SHARE_GALLERY_COUNT_FORMAT" = "%d captura(s)";
+"AR_SHARE_GALLERY_EMPTY" = "No hay capturas";
+"AR_SHARE_DELETE_CONFIRM_TITLE" = "¿Eliminar esta captura?";
+"AR_SHARE_OPTIONS_TITLE" = "Publicación";
+"AR_SHARE_CAPTURE_PHOTO_LABEL" = "Foto";
+"AR_SHARE_CAPTURE_VIDEO_LABEL" = "Vídeo";
+"AR_SHARE_FILTERS_TITLE" = "Estilo";
+"AR_SHARE_FILTER_ORIGINAL" = "Original";
+"AR_SHARE_FILTER_ARBORE" = "Arbore";
+"AR_SHARE_FILTER_WARM" = "Cálido";
+"AR_SHARE_FILTER_VIVID" = "Vivo";
+"AR_SHARE_BRANDING_TOGGLE" = "Logo Arbore";
+"AR_SHARE_GARDEN_NAME_TOGGLE" = "Nombre del jardín";
+"AR_SHARE_PLANT_COUNT_TOGGLE" = "Número de plantas";
+"AR_SHARE_MESSAGE_TOGGLE" = "Mensaje Arbore";
+"AR_SHARE_PLANT_COUNT_FORMAT" = "%d plantas";
+"AR_SHARE_DEFAULT_MESSAGE" = "Creado con Arbore";
 "AR_PLANT_CATALOG_TITLE" = "Seleccionar una planta";
 "AR_PLANT_CATALOG_SEARCH_PLACEHOLDER" = "Buscar monstera, palmera…";
+"AR_PLANT_CATALOG_PLACE" = "Colocar";
+"AR_PLANT_CATALOG_VIEW_DETAILS" = "Ver ficha";
 "AR_PLANT_CATALOG_ERROR_FORMAT" = "❌ %@";
-"AR_PLANT_CATALOG_CUSTOM_SELECTION" = "Selección personalizada";
-"AR_PLANT_CATALOG_FILTER_STYLE_FORMAT" = "Estilo %@";
-"AR_PLANT_CATALOG_FILTER_MAINTENANCE_FORMAT" = "Cuidado %@";
-"AR_PLANT_CATALOG_FILTER_SAFETY" = "Seguridad activada";
-"AR_PLANT_CATALOG_FILTER_SOIL_FORMAT" = "Suelo %@";
-"AR_PLANT_CATALOG_FILTER_BASED_ON_PREFS" = "Basado en tus preferencias";
+"AR_PLANT_CATALOG_MODE_BADGE_FORMAT" = "Modo %@";
+"AR_PLANT_CATALOG_NO_COMPATIBLE_PLANTS" = "No hay plantas compatibles con este modo.";
+"AR_EDIT_MODE_TITLE" = "Modo edición";
+"AR_EDIT_SELECTED_PLANT" = "Planta seleccionada";
+"AR_EDIT_EXIT" = "Salir de edición";
+"AR_EDIT_ROTATE" = "Girar planta";
+"AR_EDIT_SCALE_UP" = "Agrandar planta";
+"AR_EDIT_SCALE_DOWN" = "Reducir planta";
 
 "SHOP_CATEGORY_PLANTS" = "Plantas";
 "SHOP_CATEGORY_SOIL" = "Sustrato";
@@ -1447,6 +1487,8 @@
 "AR_BASIC_SURFACE_HINT" = "Apunta la cámara a una superficie plana para empezar";
 "AR_MANUAL_SCAN_TITLE" = "Escanea tu jardín";
 "AR_MANUAL_SCAN_SUBTITLE" = "Mueve el teléfono alrededor de la habitación";
+"AR_REOPEN_SCAN_STEP_MOVE" = "Recorre lentamente la habitación, especialmente las paredes y el suelo.";
+"AR_REOPEN_SCAN_STEP_RESTORE" = "Tus plantas reaparecen automáticamente cuando se reconoce el jardín.";
 "AR_MANUAL_REPLACE" = "Recolocar manualmente";
 "AR_ADJUST_PLANTS_TITLE" = "Ajusta las plantas si hace falta";
 "AR_ADJUST_PLANTS_SUBTITLE" = "Apunta a una planta con el retículo y toca para seleccionarla. Arrastra o toca una nueva posición para moverla.";

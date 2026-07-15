@@ -2,20 +2,19 @@
 //  ThermalStateBanner.swift
 //  ArboreUi
 //
-//  Banner UI à attacher en `safeAreaInset(edge: .top)` ou `overlay` sur
-//  une vue AR. Devient visible lorsque `ARQualityObserver` poste
-//  `.arboreThermalCritical`, se masque sur `.arboreThermalRecovered`.
+//  Compact status UI à attacher en `overlay` sur une vue AR. Devient visible
+//  lorsque `ARQualityObserver` poste `.arboreThermalCritical`, se masque sur
+//  `.arboreThermalRecovered`.
 //
-//  Le banner est dismissable manuellement — l'utilisateur qui sait ce
-//  qu'il fait peut le cacher pour continuer sa session. Il réapparaît
-//  uniquement à la prochaine transition vers un état critique.
+//  Le statut est volontairement bref : il confirme que l'app allège l'AR sans
+//  interrompre le placement ni masquer la caméra.
 //
 
 import SwiftUI
 
 struct ThermalStateBanner: View {
     @State private var isVisible: Bool = false
-    @State private var dismissedThisCycle: Bool = false
+    @State private var autoHideTask: Task<Void, Never>?
 
     var body: some View {
         Group {
@@ -26,52 +25,57 @@ struct ThermalStateBanner: View {
         }
         .animation(.easeInOut(duration: 0.25), value: isVisible)
         .onReceive(NotificationCenter.default.publisher(for: .arboreThermalCritical)) { _ in
-            // Une nouvelle alerte critique réactive l'affichage même si
-            // l'utilisateur avait dismiss la précédente.
-            dismissedThisCycle = false
-            isVisible = true
+            showBriefly()
         }
         .onReceive(NotificationCenter.default.publisher(for: .arboreThermalRecovered)) { _ in
+            autoHideTask?.cancel()
             isVisible = false
-            dismissedThisCycle = false
+        }
+        .onDisappear {
+            autoHideTask?.cancel()
         }
     }
 
     private var bannerContent: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 7) {
             Image(systemName: "thermometer.high")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.white)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(ArboreDesign.Colors.accentGold)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(NSLocalizedString("THERMAL_BANNER_TITLE", comment: ""))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-                Text(NSLocalizedString("THERMAL_BANNER_SUBTITLE", comment: ""))
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.85))
-            }
-
-            Spacer(minLength: 8)
-
-            Button(action: {
-                dismissedThisCycle = true
-                isVisible = false
-            }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(.white.opacity(0.85))
-            }
-            .accessibilityLabel(NSLocalizedString("THERMAL_BANNER_DISMISS", comment: ""))
+            Text(NSLocalizedString("THERMAL_BANNER_TITLE", comment: ""))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundColor(ArboreDesign.Colors.textPrimary)
+                .lineLimit(1)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.orange.opacity(0.95))
+            Capsule(style: .continuous)
+                .fill(.ultraThinMaterial)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(ArboreDesign.Colors.card.opacity(0.74))
+                )
+                .overlay(
+                    Capsule(style: .continuous)
+                        .stroke(ArboreDesign.Colors.border.opacity(0.78), lineWidth: 1)
+                )
         )
-        .padding(.horizontal, 16)
+        .shadow(color: Color.black.opacity(0.14), radius: 10, x: 0, y: 4)
         .padding(.top, 8)
+        .accessibilityLabel(NSLocalizedString("THERMAL_BANNER_SUBTITLE", comment: ""))
+    }
+
+    private func showBriefly() {
+        autoHideTask?.cancel()
+        isVisible = true
+        autoHideTask = Task {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                isVisible = false
+            }
+        }
     }
 }
 

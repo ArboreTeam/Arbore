@@ -22,7 +22,7 @@ flowchart TB
     detect_mode{mode ?}
 
     create_flow["Mode .create<br/>session ARKit fraîche<br/>boundary connue depuis wizard"]
-    place_create["Utilisateur place les plantes<br/>via picker catalogue + tap au sol"]
+    place_create["Utilisateur place les plantes<br/>via picker catalogue + modes Sol/Mur/Plafond"]
 
     reopen_flow["Mode .reopen<br/>charge worldmap arworldmap"]
     arkit_reloc["ARKit relocalize la WorldMap"]
@@ -90,11 +90,29 @@ L'entrée se fait depuis la sortie du wizard (cf. [`garden-creation.md`](garden-
 
 1. `ARSession` démarrée fraîchement (pas de relocalisation à tenter).
 2. La boundary est dessinée au sol en cylindres bleus.
-3. L'utilisateur ouvre le **picker catalogue** via le bouton **+**, tape sur le sol pour placer une plante, peut drag/scale/rotate.
+3. L'utilisateur choisit un mode **Sol**, **Mur** ou **Plafond**, ouvre le **picker catalogue** via le bouton **+**, puis tape sur une surface compatible pour placer une plante. Il peut ensuite drag/scale/rotate.
 4. Bouton **Valider** : la WorldMap actuelle est archivée, le `scene_{id}.json` est écrit, et `PUT /gardens/:id` envoie l'état des plantes au backend.
 5. Retour Home avec feedback de succès.
 
 À ce stade, `RelocationPhase` reste à sa valeur initiale `.scanning` mais aucun overlay manual replace n'apparaît — la machine n'est pas pertinente en mode `.create`.
+
+### Interface de placement
+
+Le HUD garde la caméra comme surface principale : la barre haute contient retour, undo/redo et validation avec des boutons compacts, tandis que le dock bas tient sur une seule rangée. En placement, le dock affiche les modes **Sol/Mur/Plafond**, la capture photo/vidéo de partage et l'ajout de plante, puis se replie automatiquement sur le mode actif pour libérer la caméra. Quand une plante est sélectionnée, ce même dock remplace les actions de placement par le mode édition compact : nom de la plante, quitter l'édition, rotation, zoom +/− et suppression. L'indicateur lux n'est plus affiché ; la luminosité reste seulement un signal interne pour les anciennes heuristiques d'auto-placement. Le bouton de partage ouvre un mode capture dédié inspiré de l'app Caméra : HUD masqué, réticule de placement caché, déclencheur central, sélecteur **Photo/Vidéo** compact, compteur pendant l'enregistrement vidéo et miniature de la dernière capture. La miniature ouvre une galerie AR locale persistée pour le jardin ; les captures peuvent être supprimées, et toucher une capture ouvre ensuite une page édition/partage séparée avec reprise, partage et ajout facultatif du logo Arbore. Le catalogue AR s'ouvre maintenant en page plein écran opaque avec recherche, badge du mode courant et compteur de résultats, sans filtres ni onglets "Pour toi" ou "Top Picks". Ses cartes réutilisent le style du catalogue principal : tap sur une carte pour placer la plante, fiche détaillée accessible depuis le menu contextuel sans bouton visible sur la carte.
+
+### Modes multi-surfaces
+
+La session ARKit détecte maintenant les plans horizontaux et verticaux (`planeDetection = [.horizontal, .vertical]`). Le réticule utilise le mode courant pour choisir son raycast :
+
+| Mode | Surfaces acceptées | Règle plante |
+|---|---|---|
+| **Sol** | `floor`, `shelf`, `table`, `windowsill`, `furniture`, ou fallback estimé horizontal | Toutes les plantes. Les étagères/tables/rebords restent donc du mode Sol. |
+| **Mur** | `wall`, plan vertical infini, ou fallback estimé vertical | Plantes `climbing`/`trailing` ou reconnues par mots-clés de catalogue (lierre, pothos, philodendron scandens, hoya, ceropegia, etc.). |
+| **Plafond** | `ceiling`, plan horizontal infini au-dessus de la caméra, ou fallback estimé au-dessus de la caméra | Plantes retombantes/suspendues uniquement. |
+
+Le raycast essaie `existingPlaneGeometry`, puis `existingPlaneInfinite`, puis `estimatedPlane`. Ce fallback rend les murs/plafonds blancs plus faciles à viser, tout en gardant le filtrage plante/surface avant la pose. Avant de créer l'`ARAnchor` final, `PlacementReliabilityScorer` combine la source du hit, l'état de tracking, la taille du plan, la distance caméra et la stabilité du réticule pendant quelques dixièmes de seconde. Les surfaces estimées doivent donc rester stables brièvement avant validation ; sinon un feedback court demande de balayer la surface. Le catalogue est filtré en mode Mur/Plafond, et le tap affiche un message HUD si la plante ou la surface ne correspond pas.
+
+Chaque pose sauvegarde aussi un `surfaceAnchor` relatif à la surface : source du hit, score, normale, centre/étendue du plan, offset local et position monde. À la réouverture, si une plane actuelle correspond à cette surface sauvegardée, la plante est recollée sur cette plane avant le fallback par coordonnée Y. Si une plante a d'abord été posée sur un hit estimé et qu'ARKit détecte ensuite une vraie plane compatible, l'app migre automatiquement son ancrage vers cette plane et met à jour la metadata persistée.
 
 ## Mode `.reopen` — réouverture jardin existant
 
@@ -109,7 +127,7 @@ L'entrée se fait depuis la Home, tap sur une carte jardin. La vue AR reçoit :
    - La WorldMap depuis disque (`GardenLocalStore.worldMapURL(for: id)`).
    - Le scene JSON (positions des plantes) depuis disque.
 2. `ARSession` est démarrée avec `initialWorldMap` posée sur la WorldMap chargée → ARKit entre en mode **relocalisation**.
-3. Le coaching overlay (composant `ScanningCoachingOverlay`) est affiché au bas de l'écran, **non-bloquant** : l'utilisateur voit la caméra et peut bouger son téléphone.
+3. Le coaching overlay (composant `ScanningCoachingOverlay`) est affiché au bas de l'écran sous forme de carte compacte au thème Arbore, **non-bloquante** : l'utilisateur voit la caméra, les gestes attendus et peut bouger son téléphone.
 4. ARKit lance un thread de relocalisation qui tourne tant que `frame.camera.trackingState != .normal`.
 
 À partir de là, deux chemins possibles.
@@ -128,7 +146,7 @@ Ce chemin est le plus rapide en UX (quelques secondes pour la relocalisation si 
 
 ### Chemin dégradé : relocalisation échoue
 
-Si après quelques secondes la WorldMap reste en `.limited` (changement d'éclairage entre sessions, environnement modifié — cf. issue #96), le coaching overlay reste affiché avec le bouton **« Replacer manuellement »** accessible.
+Si après quelques secondes la WorldMap reste en `.limited` (changement d'éclairage entre sessions, environnement modifié — cf. issue #96), le coaching overlay reste affiché avec le bouton secondaire **« Replacer manuellement »** accessible.
 
 À ce moment, deux options pour l'utilisateur :
 
@@ -136,7 +154,7 @@ Si après quelques secondes la WorldMap reste en `.limited` (changement d'éclai
 |---|---|
 | Continuer à attendre / bouger le téléphone | L'ARKit `relocalize` peut encore réussir si l'éclairage devient compatible. Si jamais, la machine reste à `.scanning`. |
 | Tap **« Replacer manuellement »** | `enterManualReplacement()` → la machine [`RelocationPhase`](../state-machines/relocation-phase.md) bascule sur `.tracingBoundary` et le flux manuel prend le relais. |
-| Tap X | Dismiss complet, retour Home sans modification du jardin. |
+| Tap retour | Dismiss complet, retour Home sans modification du jardin. |
 
 Une fois le manual replace lancé (`tracingBoundary` → `morphingPreview` → `adjusting`), la fin du flow rejoint le chemin de sauvegarde commun.
 
@@ -148,9 +166,10 @@ Quelle que soit l'origine du flow (`create`, `reopen` nominal, `reopen` manual r
    - Si une override drag/teleport est présente dans `pendingDragTransform[uuid]`, l'utilise (issue #138 — garantit que le dernier geste utilisateur est persisté même si le `rebaseAnchorAtCurrentPosition` échoue silencieusement).
    - Sinon, lit le transform de l'`ARAnchor` associée.
    - En dernier recours, lit `node.simdWorldTransform` directement.
-2. Archive la `ARWorldMap` actuelle via `NSKeyedArchiver` et l'écrit sur disque (`worldmap_{id}.arworldmap`).
-3. Sérialise le scene JSON (positions, modèles, scales) et l'écrit sur disque (`scene_{id}.json`).
-4. Émet un `PUT /gardens/:id` avec les positions actualisées (champ `plants[]` du document `gardens`).
+2. Persiste aussi `surfaceType`, `surfaceHeight`, `placementMode` et `surfaceAnchor` pour conserver l'intention de pose (`floor`, `wall`, `ceiling`) et la relation relative à la surface entre deux sessions.
+3. Archive la `ARWorldMap` actuelle via `NSKeyedArchiver` et l'écrit sur disque (`worldmap_{id}.arworldmap`).
+4. Sérialise le scene JSON (positions, modèles, scales) et l'écrit sur disque (`scene_{id}.json`).
+5. Émet un `PUT /gardens/:id` avec les positions actualisées (champ `plants[]` du document `gardens`).
 
 Après la sauvegarde, `pendingDragTransform` est purgée et la vue se ferme.
 
@@ -169,7 +188,7 @@ Après la sauvegarde, `pendingDragTransform` est purgée et la vue se ferme.
 | Geste | Effet |
 |---|---|
 | Tap sur une plante (mode `.adjusting` ou édition normale) | Sélectionne la plante, affiche l'anneau vert pulsant. |
-| Tap sur le sol avec une plante sélectionnée | Téléporte la plante à la position raycast. |
+| Tap sur une surface compatible avec une plante sélectionnée | Téléporte la plante à la position raycast du mode courant. |
 | Long-press + drag | Déplace la plante en continu. |
 | Pinch | Met à l'échelle (si autorisé pour la plante). |
 | Two-finger rotate | Rotation autour de l'axe Y. |

@@ -1,204 +1,165 @@
 import SwiftUI
-import simd
-import ARKit
 
 struct PlantCatalogARView: View {
-    let wizardFilter: GardenWizardDTO?
+    let placementMode: ARPlacementMode
     let onSelect: (Plant) -> Void
+
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var themeManager: ThemeManager
 
     @State private var searchText = ""
     @State private var plants: [Plant] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
-
-    @State private var selectedChip: String = "Top Picks"
-
-    private var plantFilter: WizardPlantFilter? {
-        guard let wiz = wizardFilter else { return nil }
-        return WizardPlantFilter(wizard: wiz)
-    }
+    @State private var detailPlant: Plant?
 
     private let columns: [GridItem] = [
-        GridItem(.flexible(), spacing: 14),
-        GridItem(.flexible(), spacing: 14)
+        GridItem(.flexible(), spacing: 16),
+        GridItem(.flexible(), spacing: 16)
     ]
 
-    private var types: [String] {
-        let base = Set(
-            plants
-                .map { $0.type.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-        )
-        return base.sorted()
+    private var resultsTitle: String {
+        let count = filteredPlants.count
+        let key = count == 1 ? "CATALOG_RESULTS_SINGLE" : "CATALOG_RESULTS_PLURAL"
+        return String(format: NSLocalizedString(key, comment: "Catalog result count"), count)
     }
 
-    private var chips: [String] {
-        if let pf = plantFilter, pf.hasActiveFilters {
-            return ["Pour toi 🌱", "Top Picks"] + types
-        }
-        return ["Top Picks"] + types
+    private var compatiblePlants: [Plant] {
+        plants.filter { PlantPlacementCompatibility.supports($0, mode: placementMode) }
     }
 
     private var filteredPlants: [Plant] {
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        var list = plants
-
-        // Apply wizard filter when "Pour toi" chip is selected
-        if selectedChip == "Pour toi 🌱", let pf = plantFilter {
-            list = list.filter { pf.matches(plant: $0, locale: "fr") }
-        } else if selectedChip != "Top Picks" && selectedChip != "Pour toi 🌱" {
-            list = list.filter { $0.type == selectedChip }
-        }
+        var list = compatiblePlants
 
         if !q.isEmpty {
-            list = list.filter { $0.name.lowercased().contains(q) || $0.type.lowercased().contains(q) }
-        }
-
-        if (selectedChip == "Top Picks" || selectedChip == "Pour toi 🌱") && q.isEmpty {
-            list = list.sorted {
-                let a = ($0.modelURL?.isEmpty == false) ? 0 : 1
-                let b = ($1.modelURL?.isEmpty == false) ? 0 : 1
-                if a != b { return a < b }
-                return $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            list = list.filter {
+                $0.name.lowercased().contains(q)
+                    || $0.type.lowercased().contains(q)
             }
         }
 
-        return list
+        return list.sorted { lhs, rhs in
+            let lhsHasModel = lhs.modelURL?.isEmpty == false
+            let rhsHasModel = rhs.modelURL?.isEmpty == false
+            if lhsHasModel != rhsHasModel { return lhsHasModel }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
     }
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                Color.clear.ignoresSafeArea()
-                sheetFullscreen
-            }
-            .navigationBarHidden(true)
-            .onAppear {
-                // Set default chip to "Pour toi" if wizard filters are active
-                if let pf = plantFilter, pf.hasActiveFilters {
-                    selectedChip = "Pour toi 🌱"
+            catalogPage
+                .navigationBarHidden(true)
+                .sheet(item: $detailPlant) { plant in
+                    PlantDetailView(plantID: plant.id, previewPlant: plant)
                 }
-                fetchPlants()
-            }
+                .onAppear {
+                    fetchPlants()
+                }
         }
     }
 
-    private var sheetFullscreen: some View {
-        GeometryReader { geo in
-            let height = geo.size.height
+    private var catalogPage: some View {
+        ZStack {
+            themeManager.backgroundColor.ignoresSafeArea()
 
-            ZStack(alignment: .top) {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(.regularMaterial)
-                    .overlay(
-                        ARCatColor.tint.opacity(0.08)
-                            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(Color.white.opacity(0.10), lineWidth: 1)
-                    )
-                    .shadow(color: .black.opacity(0.22), radius: 26, x: 0, y: 8)
+            VStack(spacing: 0) {
+                catalogHeader
+                    .padding(.horizontal, 20)
+                    .padding(.top, 6)
+                    .padding(.bottom, 12)
 
-                VStack(spacing: 0) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.20))
-                        .frame(width: 48, height: 6)
-                        .padding(.top, 10)
-                        .padding(.bottom, 10)
-
-                    HStack {
-                        Text(L10n.t("AR_PLANT_CATALOG_TITLE"))
-                            .font(.system(size: 32, weight: .bold))
-                            .foregroundColor(.white)
-
-                        Spacer()
-
-                        Button { dismiss() } label: {
-                            Text(L10n.t("COMMON_CLOSE"))
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.92))
-                                .padding(.horizontal, 14)
-                                .frame(height: 40)
-                                .background(Color.black.opacity(0.18))
-                                .clipShape(Capsule())
-                                .overlay(
-                                    Capsule().stroke(Color.white.opacity(0.10), lineWidth: 1)
-                                )
-                        }
-                    }
+                searchBar
                     .padding(.horizontal, 20)
                     .padding(.bottom, 12)
 
-                    searchBar
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 12)
-
-                    chipsRow
-                        .padding(.bottom, 6)
-
-                    // Wizard filter banner
-                    if selectedChip == "Pour toi 🌱" {
-                        wizardFilterBanner
-                            .padding(.horizontal, 20)
-                            .padding(.bottom, 8)
-                    }
-
-                    content
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                HStack {
+                    modeBadge
+                    Spacer(minLength: 10)
+                    Text(resultsTitle)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(themeManager.secondaryTextColor)
                 }
-                .frame(height: height)
-                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 16)
+
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(width: geo.size.width, height: height)
         }
     }
 
+    private var catalogHeader: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L10n.t("AR_PLANT_CATALOG_TITLE"))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(themeManager.textColor)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.78)
+            }
+
+            Spacer()
+
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(themeManager.textColor)
+                    .frame(width: 42, height: 42)
+                    .background(themeManager.cardBackgroundColor)
+                    .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous)
+                            .stroke(themeManager.separatorColor.opacity(0.85), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var modeBadge: some View {
+        Label(L10n.f("AR_PLANT_CATALOG_MODE_BADGE_FORMAT", placementMode.label), systemImage: placementMode.icon)
+            .font(.system(size: 12, weight: .bold, design: .rounded))
+            .foregroundColor(themeManager.brandPrimary)
+            .padding(.horizontal, 12)
+            .frame(height: 34)
+            .background(themeManager.brandPrimary.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                    .stroke(themeManager.brandPrimary.opacity(0.22), lineWidth: 1)
+            )
+    }
+
     private var searchBar: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.white.opacity(0.55))
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(themeManager.secondaryTextColor)
 
             TextField(L10n.t("AR_PLANT_CATALOG_SEARCH_PLACEHOLDER"), text: $searchText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
-                .foregroundColor(.white)
+                .foregroundColor(themeManager.textColor)
 
             if !searchText.isEmpty {
                 Button { searchText = "" } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.white.opacity(0.45))
+                        .foregroundColor(themeManager.secondaryTextColor)
                 }
+                .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 14)
-        .frame(height: 48)
-        .background(Color.white.opacity(0.06))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(themeManager.cardBackgroundColor)
+                .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: ARCatColor.primary.opacity(0.14), radius: 18, x: 0, y: 8)
-    }
-
-    private var chipsRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(chips, id: \.self) { chip in
-                    ChipView(
-                        title: chip,
-                        systemIcon: iconForChip(chip),
-                        isActive: selectedChip == chip
-                    ) {
-                        selectedChip = chip
-                    }
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 6)
-        }
     }
 
     private var content: some View {
@@ -206,129 +167,78 @@ struct PlantCatalogARView: View {
             if isLoading {
                 VStack(spacing: 10) {
                     Spacer()
-                    ProgressView().tint(.white)
+                    ProgressView().tint(themeManager.brandPrimary)
                     Text(L10n.t("COMMON_LOADING"))
-                        .foregroundColor(.white.opacity(0.7))
+                        .foregroundColor(themeManager.secondaryTextColor)
                     Spacer()
                 }
             } else if let errorMessage {
-                VStack(spacing: 10) {
+                VStack(spacing: 14) {
                     Spacer()
-                    Text(L10n.f("AR_PLANT_CATALOG_ERROR_FORMAT", errorMessage))
-                        .foregroundColor(.white.opacity(0.75))
+                    Image(systemName: "wifi.exclamationmark")
+                        .font(.system(size: 28, weight: .semibold))
+                        .foregroundColor(themeManager.secondaryTextColor)
+                    Text(errorMessage)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .foregroundColor(themeManager.secondaryTextColor)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 20)
+                    Button(L10n.t("COMMON_RETRY")) { fetchPlants() }
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 18)
+                        .frame(height: 42)
+                        .background(themeManager.brandPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
                     Spacer()
                 }
             } else {
                 ScrollView(showsIndicators: false) {
-                    LazyVGrid(columns: columns, spacing: 14) {
-                        ForEach(filteredPlants) { plant in
-                            ZStack(alignment: .topTrailing) {
-                                PlantCard(plant: plant)
-                                    .contentShape(RoundedRectangle(cornerRadius: 16))
-                                    .onTapGesture {
-                                        onSelect(plant)
-                                        dismiss()
-                                    }
-
-                                NavigationLink(destination: PlantDetailView(plantID: plant.id)) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(.ultraThinMaterial)
-                                            .overlay(Circle().fill(Color.black.opacity(0.18)))
-                                            .frame(width: 34, height: 34)
-                                            .overlay(
-                                                Circle().stroke(Color.white.opacity(0.12), lineWidth: 1)
-                                            )
-
-                                        Image(systemName: "info")
-                                            .font(.system(size: 14, weight: .bold))
-                                            .foregroundColor(.white.opacity(0.92))
-                                    }
+                    if filteredPlants.isEmpty {
+                        VStack(spacing: 10) {
+                            Spacer(minLength: 60)
+                            Image(systemName: placementMode.icon)
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundColor(themeManager.secondaryTextColor)
+                            Text(L10n.t("AR_PLANT_CATALOG_NO_COMPATIBLE_PLANTS"))
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(themeManager.secondaryTextColor)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 20)
+                        }
+                    } else {
+                        LazyVGrid(columns: columns, spacing: 20) {
+                            ForEach(filteredPlants) { plant in
+                                Button {
+                                    onSelect(plant)
+                                    dismiss()
+                                } label: {
+                                    PlantCard(plant: plant)
                                 }
                                 .buttonStyle(.plain)
-                                .padding(10)
+                                .contextMenu {
+                                    Button {
+                                        onSelect(plant)
+                                        dismiss()
+                                    } label: {
+                                        Label(L10n.t("AR_PLANT_CATALOG_PLACE"), systemImage: "plus")
+                                    }
+
+                                    Button {
+                                        detailPlant = plant
+                                    } label: {
+                                        Label(L10n.t("AR_PLANT_CATALOG_VIEW_DETAILS"), systemImage: "info.circle")
+                                    }
+                                }
                             }
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 10)
+                        .padding(.bottom, 40)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
-                    .padding(.bottom, 30)
                 }
             }
         }
-    }
-
-    // MARK: - Wizard filter banner
-
-    private var wizardFilterBanner: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "wand.and.stars")
-                .font(.system(size: 16, weight: .bold))
-                .foregroundColor(ARCatColor.primary)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(L10n.t("AR_PLANT_CATALOG_CUSTOM_SELECTION"))
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
-
-                Text(wizardFilterSummary)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(.white.opacity(0.65))
-                    .lineLimit(2)
-            }
-
-            Spacer()
-
-            Text(L10n.f("PLANT_COUNT_FORMAT", filteredPlants.count))
-                .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundColor(ARCatColor.primary)
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.06))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(ARCatColor.primary.opacity(0.25), lineWidth: 1)
-                )
-        )
-    }
-
-    private var wizardFilterSummary: String {
-        guard let wiz = wizardFilter else { return "" }
-        var parts: [String] = []
-        if !wiz.style.isEmpty && !wiz.style.lowercased().contains("sans préférence") {
-            parts.append(L10n.f("AR_PLANT_CATALOG_FILTER_STYLE_FORMAT", wiz.style.components(separatedBy: " &").first ?? wiz.style))
-        }
-        if let e = wiz.exposure, !e.isEmpty {
-            // Shorten the exposure text
-            let short = e.replacingOccurrences(of: " (6h+)", with: "")
-            parts.append(short)
-        }
-        if let m = wiz.maintenance, !m.isEmpty {
-            parts.append(L10n.f("AR_PLANT_CATALOG_FILTER_MAINTENANCE_FORMAT", m.lowercased()))
-        }
-        if let safety = wiz.safety, !safety.isEmpty,
-           !safety.contains("Aucune contrainte") {
-            parts.append(L10n.t("AR_PLANT_CATALOG_FILTER_SAFETY"))
-        }
-        if let s = wiz.soil, !s.isEmpty,
-           !s.lowercased().contains("je ne sais pas") {
-            parts.append(L10n.f("AR_PLANT_CATALOG_FILTER_SOIL_FORMAT", s.lowercased()))
-        }
-        return parts.isEmpty ? L10n.t("AR_PLANT_CATALOG_FILTER_BASED_ON_PREFS") : parts.joined(separator: " · ")
-    }
-
-    private func iconForChip(_ chip: String) -> String {
-        if chip == "Pour toi \u{1F331}" { return "sparkles" }
-        if chip == "Top Picks" { return "star.fill" }
-        let t = chip.lowercased()
-        if t.contains("indoor") || t.contains("int") { return "house" }
-        if t.contains("succ") || t.contains("cactus") { return "camera.macro" }
-        if t.contains("tree") || t.contains("arbre") { return "leaf" }
-        return "leaf"
     }
 
     private func fetchPlants() {
@@ -354,229 +264,6 @@ struct PlantCatalogARView: View {
             }
         }
     }
-}
-
-// MARK: - Chip
-
-fileprivate struct ChipView: View {
-    let title: String
-    let systemIcon: String
-    let isActive: Bool
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 8) {
-                Image(systemName: systemIcon)
-                    .font(.system(size: 14, weight: .bold))
-                Text(title)
-                    .font(.system(size: 13, weight: isActive ? .bold : .semibold))
-            }
-            .foregroundColor(isActive ? ARCatColor.backgroundDark : .white)
-            .padding(.horizontal, 14)
-            .frame(height: 38)
-            .background(isActive ? ARCatColor.primary : Color.white.opacity(0.06))
-            .overlay(
-                Capsule().stroke(Color.white.opacity(isActive ? 0.0 : 0.06), lineWidth: 1)
-            )
-            .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Card FIX (plus de “bande verte”)
-
-fileprivate struct PlantCardGlass: View {
-    let plant: Plant
-    let onTap: () -> Void
-
-    private var hasModel: Bool { (plant.modelURL?.isEmpty == false) }
-
-    var body: some View {
-        Button(action: onTap) {
-            ZStack {
-                ZStack {
-                    AsyncThumb(plant: plant)
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(ARCatColor.surfaceDark)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.06), lineWidth: 1)
-                )
-
-                VStack {
-                    HStack {
-                        Spacer()
-                        if hasModel {
-                            ZStack {
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .overlay(Color.black.opacity(0.10))
-                                Image(systemName: "arkit")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(ARCatColor.primary)
-                            }
-                            .frame(width: 32, height: 32)
-                            .overlay(Circle().stroke(Color.white.opacity(0.10), lineWidth: 1))
-                            .padding(10)
-                        }
-                    }
-                    Spacer()
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Spacer()
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(plant.name)
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                            .shadow(color: .black.opacity(0.35), radius: 10, x: 0, y: 2)
-
-                        Text(plant.type)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.white.opacity(0.80))
-                            .italic()
-                            .lineLimit(1)
-                            .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 2)
-
-                        HStack {
-                            Text(hasModel ? "AR Ready" : "2D Preview")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(hasModel ? ARCatColor.primary : .white.opacity(0.75))
-                                .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 2)
-
-                            Spacer()
-
-                            ZStack {
-                                Circle().fill(ARCatColor.primary)
-                                Image(systemName: "plus")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundColor(ARCatColor.backgroundDark)
-                            }
-                            .frame(width: 32, height: 32)
-                        }
-                        .padding(.top, 4)
-                    }
-                    .padding(12)
-                    .background(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(.ultraThinMaterial)
-                            .overlay(Color.black.opacity(0.10))
-                    )
-                }
-                .padding(10)
-            }
-            .aspectRatio(4/5, contentMode: .fit)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Async thumb
-
-fileprivate struct AsyncThumb: View {
-    let plant: Plant
-
-    @State private var fetchedImage: UIImage?
-    @State private var didFailLoading = false
-
-    var body: some View {
-        Group {
-            if let cached = PlantThumbnailCache.load(for: plant.id) {
-                Image(uiImage: cached)
-                    .resizable()
-            } else if let fetchedImage {
-                Image(uiImage: fetchedImage)
-                    .resizable()
-            } else if plant.imageURLs.first != nil, !didFailLoading {
-                ZStack {
-                    Color.white.opacity(0.06)
-                    ProgressView().tint(.white.opacity(0.7))
-                }
-            } else {
-                ZStack {
-                    Color.white.opacity(0.06)
-                    Image(systemName: "leaf")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(.white.opacity(0.5))
-                }
-            }
-        }
-        .task(id: taskKey) {
-            await loadRemoteThumbnailIfNeeded()
-        }
-    }
-
-    private var taskKey: String {
-        "\(plant.id)|\(plant.imageURLs.first ?? "")"
-    }
-
-    private func loadRemoteThumbnailIfNeeded() async {
-        await MainActor.run {
-            didFailLoading = false
-        }
-
-        guard fetchedImage == nil else { return }
-
-        if PlantThumbnailCache.load(for: plant.id) != nil {
-            return
-        }
-
-        guard let urlString = plant.imageURLs.first,
-              let url = URL(string: urlString) else { return }
-
-        do {
-            var request = URLRequest(url: url)
-            request.cachePolicy = .returnCacheDataElseLoad
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            guard let httpResponse = response as? HTTPURLResponse,
-                  (200...299).contains(httpResponse.statusCode),
-                  let image = UIImage(data: data) else {
-                await MainActor.run {
-                    didFailLoading = true
-                }
-                return
-            }
-
-            if PlantThumbnailCache.isLegacyThumbnail(image) {
-                await MainActor.run {
-                    didFailLoading = true
-                }
-                return
-            }
-
-            let cachedImage = await Task.detached(priority: .utility) {
-                PlantThumbnailCache.save(image, plantID: plant.id)
-            }.value
-
-            await MainActor.run {
-                fetchedImage = cachedImage
-                didFailLoading = false
-            }
-        } catch {
-            await MainActor.run {
-                didFailLoading = true
-            }
-        }
-    }
-}
-
-// MARK: - Colors
-
-fileprivate enum ARCatColor {
-    static let primary = Color(hex: "#2BEE79")
-    static let backgroundDark = Color(hex: "#102217")
-    static let surfaceDark = Color(hex: "#162B1E")
-    static let tint = Color(hex: "#102217")
 }
 
 // MARK: - Notifications

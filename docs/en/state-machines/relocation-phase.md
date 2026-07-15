@@ -44,17 +44,17 @@ The **self-transitions** are not shown on the diagram to keep it readable; they 
 ARKit attempts to relocate the saved `ARWorldMap`. The user sees:
 
 - The rear camera in full screen.
-- A **bottom-anchored coaching overlay** (`ScanningCoachingOverlay` component) prompting them to move the phone to recognize the environment.
+- A **bottom-anchored coaching overlay** (`ScanningCoachingOverlay` component) as a compact Arbore-themed card prompting them to move the phone to recognize the environment.
 - A **"Replacer manuellement"** button available immediately (no artificial timeout).
-- An **X** button in the top right to fully dismiss the view.
+- The HUD back button to fully dismiss the view.
 
 **Possible exits**:
 
 | Event | Transition |
 |---|---|
-| ARKit `relocalize` succeeds | The machine is short-circuited: `loadGardenFromDisk` is called and the plants are restored via their saved `ARAnchor`s. The machine stays at `scanning` but no manual overlay appears. |
+| ARKit `relocalize` succeeds | The machine is short-circuited: `loadGardenFromDisk` is called and the plants are restored via their saved `ARAnchor`s, then snapped back onto a compatible plane when their persisted `surfaceAnchor` matches a detected surface. The machine stays at `scanning` but no manual overlay appears. |
 | Tap "Replacer manuellement" | `enterManualReplacement()` → switches to `tracingBoundary`. |
-| Tap X | Dismiss the view, machine finished. |
+| Tap back | Dismiss the view, machine finished. |
 
 ### `tracingBoundary`
 

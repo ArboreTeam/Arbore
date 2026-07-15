@@ -888,8 +888,8 @@
 "GARDEN_LOADING_SUBTITLE" = "Scannen Sie langsam Ihre Umgebung,\num Ihre Pflanzen neu zu positionieren";
 
 // Thermal banner
-"THERMAL_BANNER_TITLE" = "Dein Telefon wird heiß";
-"THERMAL_BANNER_SUBTITLE" = "Reduziere die AR-Nutzung, um Verlangsamungen zu vermeiden.";
+"THERMAL_BANNER_TITLE" = "AR reduziert";
+"THERMAL_BANNER_SUBTITLE" = "Das AR-Rendering wird kurz reduziert, damit die App flüssig bleibt.";
 "THERMAL_BANNER_DISMISS" = "Warnung schließen";
 
 // App-wide navigation
@@ -1064,6 +1064,18 @@
 "SURFACE_WINDOWSILL" = "Fensterbank";
 "SURFACE_FURNITURE" = "Möbel";
 "SURFACE_UNKNOWN" = "?";
+"AR_PLACEMENT_MODE_FLOOR" = "Boden";
+"AR_PLACEMENT_MODE_WALL" = "Wand";
+"AR_PLACEMENT_MODE_CEILING" = "Decke";
+"AR_PLACEMENT_INCOMPATIBLE_WALL" = "Wähle eine kletternde oder rankende Pflanze für die Wand.";
+"AR_PLACEMENT_INCOMPATIBLE_HANGING" = "Wähle eine Hängepflanze für die Decke.";
+"AR_PLACEMENT_SURFACE_NEEDS_FLOOR" = "Ziele auf Boden, Tisch oder Regal.";
+"AR_PLACEMENT_SURFACE_NEEDS_WALL" = "Ziele für diesen Modus auf eine erkannte Wand.";
+"AR_PLACEMENT_SURFACE_NEEDS_HANGING_SUPPORT" = "Ziele auf die Decke und bewege dich langsam, falls das Fadenkreuz nicht einrastet.";
+"AR_ANCHOR_TRACKING_LIMITED" = "Bewege das Telefon ruhig, das AR-Tracking ist noch nicht stabil.";
+"AR_ANCHOR_SURFACE_UNSTABLE" = "Die Oberfläche ist noch instabil. Scanne sie kurz vor dem Platzieren.";
+"AR_ANCHOR_CONFIDENCE_LOW" = "Fragile Oberfläche. Ziele auf einen besser erkannten Bereich.";
+"AR_ANCHOR_SURFACE_RESTORED" = "Oberfläche gefunden: Platzierung angedockt.";
 
 // AI suggestions
 "PLANT_CATEGORY_TALL" = "Hoch";
@@ -1277,15 +1289,43 @@
 "AR_SHARE_PHOTO" = "Foto teilen";
 "AR_RETAKE_PHOTO" = "Foto neu aufnehmen";
 "AR_RETAKE_PHOTO_HINT" = "Du kannst das Foto neu aufnehmen, wenn Bildausschnitt oder Licht nicht passen.";
+"AR_SHARE_CAMERA_MODE_PHOTO" = "Foto";
+"AR_SHARE_CAMERA_MODE_VIDEO" = "Video";
+"AR_SHARE_OPEN_LAST_CAPTURE" = "Letzte Aufnahme öffnen";
+"AR_SHARE_VIDEO_FAILED" = "Video konnte nicht aufgenommen werden.";
+"AR_SHARE_MEDIA" = "Teilen";
+"AR_RETAKE_CAPTURE" = "Neu aufnehmen";
+"AR_SHARE_GALLERY_TITLE" = "AR-Galerie";
+"AR_SHARE_GALLERY_COUNT_FORMAT" = "%d Aufnahme(n)";
+"AR_SHARE_GALLERY_EMPTY" = "Keine Aufnahmen";
+"AR_SHARE_DELETE_CONFIRM_TITLE" = "Diese Aufnahme löschen?";
+"AR_SHARE_OPTIONS_TITLE" = "Beitrag";
+"AR_SHARE_CAPTURE_PHOTO_LABEL" = "Foto";
+"AR_SHARE_CAPTURE_VIDEO_LABEL" = "Video";
+"AR_SHARE_FILTERS_TITLE" = "Stil";
+"AR_SHARE_FILTER_ORIGINAL" = "Original";
+"AR_SHARE_FILTER_ARBORE" = "Arbore";
+"AR_SHARE_FILTER_WARM" = "Warm";
+"AR_SHARE_FILTER_VIVID" = "Kräftig";
+"AR_SHARE_BRANDING_TOGGLE" = "Arbore-Logo";
+"AR_SHARE_GARDEN_NAME_TOGGLE" = "Gartenname";
+"AR_SHARE_PLANT_COUNT_TOGGLE" = "Pflanzenanzahl";
+"AR_SHARE_MESSAGE_TOGGLE" = "Arbore-Nachricht";
+"AR_SHARE_PLANT_COUNT_FORMAT" = "%d Pflanzen";
+"AR_SHARE_DEFAULT_MESSAGE" = "Erstellt mit Arbore";
 "AR_PLANT_CATALOG_TITLE" = "Pflanze auswählen";
 "AR_PLANT_CATALOG_SEARCH_PLACEHOLDER" = "Monstera, Palme suchen…";
+"AR_PLANT_CATALOG_PLACE" = "Platzieren";
+"AR_PLANT_CATALOG_VIEW_DETAILS" = "Details ansehen";
 "AR_PLANT_CATALOG_ERROR_FORMAT" = "❌ %@";
-"AR_PLANT_CATALOG_CUSTOM_SELECTION" = "Personalisierte Auswahl";
-"AR_PLANT_CATALOG_FILTER_STYLE_FORMAT" = "Stil %@";
-"AR_PLANT_CATALOG_FILTER_MAINTENANCE_FORMAT" = "Pflege %@";
-"AR_PLANT_CATALOG_FILTER_SAFETY" = "Sicherheit aktiviert";
-"AR_PLANT_CATALOG_FILTER_SOIL_FORMAT" = "Boden %@";
-"AR_PLANT_CATALOG_FILTER_BASED_ON_PREFS" = "Basierend auf deinen Vorlieben";
+"AR_PLANT_CATALOG_MODE_BADGE_FORMAT" = "Modus %@";
+"AR_PLANT_CATALOG_NO_COMPATIBLE_PLANTS" = "Keine Pflanzen passen zu diesem Modus.";
+"AR_EDIT_MODE_TITLE" = "Bearbeiten";
+"AR_EDIT_SELECTED_PLANT" = "Ausgewählte Pflanze";
+"AR_EDIT_EXIT" = "Bearbeitung beenden";
+"AR_EDIT_ROTATE" = "Pflanze drehen";
+"AR_EDIT_SCALE_UP" = "Pflanze vergrößern";
+"AR_EDIT_SCALE_DOWN" = "Pflanze verkleinern";
 
 "SHOP_CATEGORY_PLANTS" = "Pflanzen";
 "SHOP_CATEGORY_SOIL" = "Erde";
@@ -1451,6 +1491,8 @@
 "AR_BASIC_SURFACE_HINT" = "Richte deine Kamera auf eine ebene Fläche, um zu starten";
 "AR_MANUAL_SCAN_TITLE" = "Garten scannen";
 "AR_MANUAL_SCAN_SUBTITLE" = "Bewege dein Telefon durch den Raum";
+"AR_REOPEN_SCAN_STEP_MOVE" = "Bewege dich langsam durch den Raum, besonders entlang von Wänden und Boden.";
+"AR_REOPEN_SCAN_STEP_RESTORE" = "Deine Pflanzen erscheinen automatisch, sobald der Garten erkannt wurde.";
 "AR_MANUAL_REPLACE" = "Manuell neu platzieren";
 "AR_ADJUST_PLANTS_TITLE" = "Pflanzen bei Bedarf anpassen";
 "AR_ADJUST_PLANTS_SUBTITLE" = "Ziele mit dem Fadenkreuz auf eine Pflanze und tippe, um sie auszuwählen. Ziehe sie oder tippe auf eine neue Position, um sie zu bewegen.";

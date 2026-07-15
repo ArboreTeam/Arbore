@@ -29,13 +29,6 @@ struct MainView: View {
                 }
                 .tag(TabSelection.garden)
 
-            CommunityView()
-                .tabItem {
-                    Image(systemName: tabRouter.selectedTab == .community ? "person.2.fill" : "person.2")
-                    Text("Communauté")
-                }
-                .tag(TabSelection.community)
-
             ProfileView()
                 .environmentObject(themeManager)
                 .tabItem {

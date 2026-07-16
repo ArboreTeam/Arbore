@@ -23,7 +23,7 @@ flowchart TB
     user["👤 Utilisateur"]
 
     login["📱 LoginAuth/<br/>SignUpView · LoginView · VerifyEmailView · ReAuthView"]
-    wizard["📱 Views/GardenSteps/<br/>QuestionnaireView · ScanMethodSelectionView · AISuggestionStepView · LiDARScanWizardView"]
+    wizard["📱 Views/GardenSteps/<br/>QuestionnaireView · GardenAnalysisAuthorizationFlowView<br/>GardenExposureCaptureOverlay · GardenLocationCaptureView<br/>SpaceTypeStepView · EssentialQuestionsStepView<br/>AISuggestionStepView · LiDARScanWizardView"]
     ar_view["📱 ARGarden/<br/>GardenARPlacementView · PlantCatalogView"]
     manual_rep["📱 ARGarden/ManualReplacement/<br/>RelocationPhase · GardenMorpher · MVC · DistortionAnalyzer · Overlays"]
     profile["📱 Views/Profile/<br/>PersonalDetailsView · DataExportView · PrivacySettingsView · CloseAccountView"]
@@ -100,12 +100,12 @@ flowchart TB
 | Dossier / fichier | Rôle |
 |---|---|
 | `LoginAuth/` | Signup, login, vérification email, reset mot de passe (`SignUpView`, `LoginView`, `VerifyEmailView`, `ReAuthView`). |
-| `Views/GardenSteps/` | Wizard de création de jardin en 8 à 9 étapes (`QuestionnaireView`, `ScanMethodSelectionView`, `AISuggestionStepView`, `LiDARScanWizardView`). `scanMethod` précède `aiSuggestion` (étape finale) ; pas d'étape « summary ». |
+| `Views/GardenSteps/` | Wizard piloté par `QuestionnaireView` avec trois écrans visibles : choix de l'espace, trois questions conditionnelles dans `EssentialQuestionsStepView`, puis suggestion finale. La méthode est choisie automatiquement et le prompt système caméra précède directement le scan ; `GardenAnalysisAuthorizationFlowView` ne sert qu'après un refus. `GardenExposureCaptureOverlay` collecte la direction lumineuse sans quitter la caméra pour une pièce, un balcon ou une terrasse ; `GardenLocationCaptureView` demande une nouvelle localisation après chaque scan. `LiDARScanWizardView` gère RoomPlan. |
 | `ARGarden/` | Placement et visualisation des plantes en AR (`GardenARPlacementView`, god object ~4 700 LOC, `PlantCatalogView`). |
 | `ARGarden/SceneUnderstanding/` | Compréhension de scène (profondeur, segmentation sémantique, fusion) : `SceneUnderstandingController`, grilles `VoxelGrid`/`TSDFGrid`, `MarchingCubes`, classifieur `SurfaceClassifier`. |
 | `ARGarden/ManualReplacement/` | Sous-module dédié au flow de re-placement manuel (#111). Composants : `RelocationPhase`, `MeanValueCoordinates`, `GardenMorpher`, `DistortionAnalyzer`, `DistortionWarning`, `GhostRenderer`, plus quatre overlays SwiftUI (`Scanning`, `BoundaryTracing`, `MorphingPreview`, `Adjusting`). La machine d'états sera diagrammée dans `state-machines/relocation-phase.md` (Phase 3). |
 | `Views/Profile/` | Gestion du compte (`PersonalDetailsView`, `DataExportView`, `PrivacySettingsView`, `CloseAccountView`). |
-| `measure app/` | Tracé du périmètre du jardin au sol via raycasts ARKit (`ARViewContainerMeasure`), utilisé en non-LiDAR. |
+| `measure app/` | Tracé guidé du périmètre au sol via viseur central et raycasts ARKit (`ARViewContainerMeasure`). Le contour est rendu en AR, réordonné automatiquement et décroisé ; utilisé hors RoomPlan. Il expose aussi la direction caméra et la luminosité ambiante à la capture d'exposition. |
 
 ### Couche domaine — Models et Services métier
 

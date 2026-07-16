@@ -77,6 +77,21 @@
             </array>
         </dict>
 
+        <!-- Localisation grossière propre à chaque jardin : ville saisie ou
+             coordonnées arrondies à deux décimales avant envoi. -->
+        <dict>
+            <key>NSPrivacyCollectedDataType</key>
+            <string>NSPrivacyCollectedDataTypeCoarseLocation</string>
+            <key>NSPrivacyCollectedDataTypeLinked</key>
+            <true/>
+            <key>NSPrivacyCollectedDataTypeTracking</key>
+            <false/>
+            <key>NSPrivacyCollectedDataTypePurposes</key>
+            <array>
+                <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+            </array>
+        </dict>
+
         <!-- Photo de profil : upload via POST /users/:uid/photo, stockée
              dans Mongo users.photo (binary). Pas de capture caméra
              auto, c'est un picker utilisateur explicite. -->

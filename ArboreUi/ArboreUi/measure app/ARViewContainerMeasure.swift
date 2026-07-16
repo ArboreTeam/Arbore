@@ -9,51 +9,170 @@ extension Notification.Name {
     static let saveWorldMapForMeasurement = Notification.Name("saveWorldMapForMeasurement")
 }
 
-// MARK: - 1. LE CERVEAU (ViewModel)
-// (Inchangé, il fonctionne très bien)
-class GardenManager: ObservableObject {
+// MARK: - 1. État et géométrie du tracé
+final class GardenManager: ObservableObject {
     @Published var points: [SIMD3<Float>] = []
     @Published var area: Float = 0.0
     @Published var perimeter: Float = 0.0
-    
-    let resetSignal = PassthroughSubject<Void, Never>()
-    
-    func addPoint(_ point: SIMD3<Float>) {
-        DispatchQueue.main.async {
-            self.points.append(point)
-            self.calculateStats()
+    @Published var canPlacePoint = false
+    @Published var currentCameraDirection: SIMD3<Float>?
+    @Published var currentAmbientIntensity: Double?
+
+    let placePointSignal = PassthroughSubject<Void, Never>()
+    private var placementHistory: [SIMD3<Float>] = []
+
+    @discardableResult
+    func addPoint(_ rawPoint: SIMD3<Float>) -> Bool {
+        var point = rawPoint
+
+        // Les raycasts successifs peuvent varier légèrement en hauteur. Sur un
+        // même sol, on stabilise le nouveau point sur le plan déjà établi.
+        if !points.isEmpty {
+            let referenceY = points.map(\.y).reduce(0, +) / Float(points.count)
+            if abs(point.y - referenceY) < 0.25 {
+                point.y = referenceY
+            }
         }
+
+        // Évite les doubles poses involontaires au même endroit.
+        let isTooClose = points.contains { existing in
+            let dx = existing.x - point.x
+            let dz = existing.z - point.z
+            return sqrt(dx * dx + dz * dz) < 0.12
+        }
+        guard !isTooClose else { return false }
+
+        placementHistory.append(point)
+        points = Self.orderedBoundaryPoints(placementHistory)
+        calculateStats()
+        return true
     }
-    
+
+    func requestPointPlacement() {
+        placePointSignal.send()
+    }
+
+    func undoLastPoint() {
+        guard placementHistory.popLast() != nil else { return }
+        points = Self.orderedBoundaryPoints(placementHistory)
+        calculateStats()
+    }
+
     func reset() {
+        placementHistory.removeAll()
         points.removeAll()
         area = 0.0
         perimeter = 0.0
-        resetSignal.send()
     }
-    
+
     private func calculateStats() {
-        guard points.count > 1 else { return }
-        
-        // Périmètre
+        guard points.count > 1 else {
+            area = 0
+            perimeter = 0
+            return
+        }
+
         var tempPerimeter: Float = 0
-        for i in 0..<points.count-1 {
-            tempPerimeter += distance(points[i], points[i+1])
+        for index in 0..<(points.count - 1) {
+            tempPerimeter += Self.horizontalDistance(points[index], points[index + 1])
         }
         if points.count > 2 {
-            tempPerimeter += distance(points.last!, points.first!)
+            tempPerimeter += Self.horizontalDistance(points[points.count - 1], points[0])
         }
-        self.perimeter = tempPerimeter
-        
-        // Surface (Shoelace)
-        guard points.count > 2 else { self.area = 0; return }
-        var tempArea: Float = 0.0
-        for i in 0..<points.count {
-            let j = (i + 1) % points.count
-            let tempAreaVal = (points[i].x * points[j].z) - (points[i].z * points[j].x)
-            tempArea += tempAreaVal
+        perimeter = tempPerimeter
+        area = Self.polygonAreaXZ(points)
+    }
+
+    static func polygonAreaXZ(_ points: [SIMD3<Float>]) -> Float {
+        guard points.count > 2 else { return 0 }
+        var sum: Float = 0
+        for index in points.indices {
+            let next = points[(index + 1) % points.count]
+            sum += points[index].x * next.z - points[index].z * next.x
         }
-        self.area = abs(tempArea) / 2.0
+        return abs(sum) * 0.5
+    }
+
+    /// Conserve l'ordre naturel suivi par l'utilisateur tant qu'il produit un
+    /// contour valide. Un passage 2-opt inverse uniquement les portions qui se
+    /// croisent : le cas courant du rectangle posé en diagonale est corrigé
+    /// sans déformer un contour concave correctement parcouru.
+    static func orderedBoundaryPoints(_ input: [SIMD3<Float>]) -> [SIMD3<Float>] {
+        guard input.count >= 3 else { return input }
+        var ordered = input
+
+        guard ordered.count >= 4 else { return ordered }
+
+        var changed = true
+        var pass = 0
+        let maximumPasses = ordered.count * ordered.count
+
+        while changed, pass < maximumPasses {
+            changed = false
+            pass += 1
+
+            crossingSearch: for firstIndex in ordered.indices {
+                let firstNext = (firstIndex + 1) % ordered.count
+                guard firstIndex + 2 < ordered.count else { continue }
+
+                for secondIndex in (firstIndex + 2)..<ordered.count {
+                    let secondNext = (secondIndex + 1) % ordered.count
+
+                    // Deux arêtes qui partagent un sommet ne se croisent pas.
+                    if firstIndex == secondNext || firstNext == secondIndex {
+                        continue
+                    }
+
+                    if segmentsIntersectXZ(
+                        ordered[firstIndex],
+                        ordered[firstNext],
+                        ordered[secondIndex],
+                        ordered[secondNext]
+                    ) {
+                        ordered.replaceSubrange(
+                            firstNext...secondIndex,
+                            with: ordered[firstNext...secondIndex].reversed()
+                        )
+                        changed = true
+                        break crossingSearch
+                    }
+                }
+            }
+        }
+
+        return ordered
+    }
+
+    private static func horizontalDistance(_ lhs: SIMD3<Float>, _ rhs: SIMD3<Float>) -> Float {
+        let dx = lhs.x - rhs.x
+        let dz = lhs.z - rhs.z
+        return sqrt(dx * dx + dz * dz)
+    }
+
+    private static func segmentsIntersectXZ(
+        _ a: SIMD3<Float>,
+        _ b: SIMD3<Float>,
+        _ c: SIMD3<Float>,
+        _ d: SIMD3<Float>
+    ) -> Bool {
+        func orientation(_ p: SIMD3<Float>, _ q: SIMD3<Float>, _ r: SIMD3<Float>) -> Float {
+            (q.x - p.x) * (r.z - p.z) - (q.z - p.z) * (r.x - p.x)
+        }
+
+        let first = orientation(a, b, c)
+        let second = orientation(a, b, d)
+        let third = orientation(c, d, a)
+        let fourth = orientation(c, d, b)
+        let epsilon: Float = 0.0001
+
+        guard abs(first) > epsilon,
+              abs(second) > epsilon,
+              abs(third) > epsilon,
+              abs(fourth) > epsilon else {
+            return false
+        }
+
+        return (first > 0) != (second > 0) && (third > 0) != (fourth > 0)
     }
 }
 
@@ -86,12 +205,8 @@ struct ARViewContainerGarden: UIViewRepresentable {
         //     config.frameSemantics.insert(.sceneDepth)
         // }
         
-        // 4. Gestion du Tap
-        let tapGesture = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap(_:)))
-        sceneView.addGestureRecognizer(tapGesture)
-        
         context.coordinator.arView = sceneView
-        context.coordinator.setupSubscription()
+        context.coordinator.setupSubscriptions()
         
         // 5. Lancement
         DispatchQueue.main.async {
@@ -115,8 +230,10 @@ struct ARViewContainerGarden: UIViewRepresentable {
     class Coordinator: NSObject, ARSCNViewDelegate, ARSessionDelegate {
         var arView: ARSCNView?
         var manager: GardenManager
-        var cancellable: AnyCancellable?
+        var cancellables = Set<AnyCancellable>()
         var worldMapObserver: NSObjectProtocol?
+        private var lastTargetingUpdate: TimeInterval = 0
+        private let boundaryRootName = "arbore.measurement.boundary"
         
         init(manager: GardenManager) {
             self.manager = manager
@@ -167,63 +284,157 @@ struct ARViewContainerGarden: UIViewRepresentable {
             }
         }
         
-        func setupSubscription() {
-            // Reset : On supprime tous les noeuds enfants de la scène
-            cancellable = manager.resetSignal.sink { [weak self] in
-                self?.arView?.scene.rootNode.childNodes.forEach { node in
-                    // On garde les lumières ou caméras par défaut, on supprime juste nos sphères
-                    if node.geometry is SCNSphere {
-                        node.removeFromParentNode()
-                    }
+        func setupSubscriptions() {
+            manager.placePointSignal
+                .receive(on: RunLoop.main)
+                .sink { [weak self] in
+                    self?.placePointAtCenter()
                 }
+                .store(in: &cancellables)
+
+            manager.$points
+                .receive(on: RunLoop.main)
+                .sink { [weak self] points in
+                    self?.renderBoundary(points)
+                }
+                .store(in: &cancellables)
+        }
+
+        func session(_ session: ARSession, didUpdate frame: ARFrame) {
+            let cameraTransform = frame.camera.transform
+            let direction = SIMD3<Float>(
+                -cameraTransform.columns.2.x,
+                -cameraTransform.columns.2.y,
+                -cameraTransform.columns.2.z
+            )
+            let intensity = frame.lightEstimate.map { Double($0.ambientIntensity) }
+
+            DispatchQueue.main.async { [weak self] in
+                self?.manager.currentCameraDirection = direction
+                self?.manager.currentAmbientIntensity = intensity
             }
         }
-        
-        @objc func handleTap(_ sender: UITapGestureRecognizer) {
-            guard let arView = self.arView else { return }
-            let location = sender.location(in: arView)
 
-            // Two-tier raycast (cf audit AR finding Y-10 / issue #171) :
-            // prefer .existingPlaneGeometry (real detected plane) over
-            // .estimatedPlane (ARKit's best-guess from feature points,
-            // ±10-30 cm en zone faible texture). Le Y de la boundary sert
-            // ensuite de référence dans GardenMorpher.morph(floorY:), donc
-            // une erreur de quelques cm propagée à tous les points de la
-            // boundary contamine durablement les futurs morphs.
-            let result: ARRaycastResult? = {
-                if let q = arView.raycastQuery(from: location, allowing: .existingPlaneGeometry, alignment: .horizontal),
-                   let r = arView.session.raycast(q).first {
-                    return r
-                }
-                if let q = arView.raycastQuery(from: location, allowing: .estimatedPlane, alignment: .horizontal),
-                   let r = arView.session.raycast(q).first {
-                    return r
-                }
-                return nil
-            }()
+        private func placePointAtCenter() {
+            guard let arView else { return }
+            let location = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+            guard let result = raycastResult(at: location) else {
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                manager.canPlacePoint = false
+                return
+            }
 
-            if let firstResult = result {
-                // 1. Création visuelle (Sphère verte) en SceneKit
-                let sphereGeometry = SCNSphere(radius: 0.05)
-                sphereGeometry.firstMaterial?.diffuse.contents = UIColor.green
-                sphereGeometry.firstMaterial?.lightingModel = .physicallyBased
-                
-                let sphereNode = SCNNode(geometry: sphereGeometry)
-                // Positionnement via la matrice de transformation du raycast
-                sphereNode.simdTransform = firstResult.worldTransform
-                
-                // Petit ajustement Y pour que la sphère soit posée "sur" le sol et non "dedans"
-                sphereNode.position.y += 0.05
-                
-                arView.scene.rootNode.addChildNode(sphereNode)
-                
-                // 2. Enregistrement des données
-                let position = SIMD3<Float>(
-                    firstResult.worldTransform.columns.3.x,
-                    firstResult.worldTransform.columns.3.y,
-                    firstResult.worldTransform.columns.3.z
+            let position = SIMD3<Float>(
+                result.worldTransform.columns.3.x,
+                result.worldTransform.columns.3.y,
+                result.worldTransform.columns.3.z
+            )
+
+            if manager.addPoint(position) {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            } else {
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            }
+        }
+
+        private func raycastResult(at location: CGPoint) -> ARRaycastResult? {
+            guard let arView else { return nil }
+
+            // On privilégie un vrai plan détecté. Le plan estimé reste un
+            // secours pour ne pas bloquer l'utilisateur sur un sol peu texturé.
+            if let query = arView.raycastQuery(
+                from: location,
+                allowing: .existingPlaneGeometry,
+                alignment: .horizontal
+            ), let result = arView.session.raycast(query).first {
+                return result
+            }
+
+            if let query = arView.raycastQuery(
+                from: location,
+                allowing: .estimatedPlane,
+                alignment: .horizontal
+            ) {
+                return arView.session.raycast(query).first
+            }
+
+            return nil
+        }
+
+        private func renderBoundary(_ points: [SIMD3<Float>]) {
+            guard let arView else { return }
+            arView.scene.rootNode.childNode(withName: boundaryRootName, recursively: false)?.removeFromParentNode()
+
+            let root = SCNNode()
+            root.name = boundaryRootName
+            arView.scene.rootNode.addChildNode(root)
+
+            for (index, point) in points.enumerated() {
+                let sphere = SCNSphere(radius: index == 0 ? 0.045 : 0.035)
+                sphere.firstMaterial?.diffuse.contents = index == 0 ? UIColor.white : Self.arboreGreen
+                sphere.firstMaterial?.emission.contents = index == 0
+                    ? UIColor.white.withAlphaComponent(0.5)
+                    : Self.arboreGreen.withAlphaComponent(0.45)
+
+                let node = SCNNode(geometry: sphere)
+                node.simdPosition = point + SIMD3<Float>(0, 0.035, 0)
+                root.addChildNode(node)
+
+                if index == 0 {
+                    let ring = SCNTorus(ringRadius: 0.075, pipeRadius: 0.006)
+                    ring.firstMaterial?.diffuse.contents = Self.arboreGreen
+                    ring.firstMaterial?.emission.contents = Self.arboreGreen.withAlphaComponent(0.5)
+                    let ringNode = SCNNode(geometry: ring)
+                    ringNode.simdPosition = point + SIMD3<Float>(0, 0.012, 0)
+                    root.addChildNode(ringNode)
+                }
+            }
+
+            guard points.count >= 2 else { return }
+            for index in 0..<(points.count - 1) {
+                root.addChildNode(makeSegment(from: points[index], to: points[index + 1]))
+            }
+            if points.count >= 3 {
+                root.addChildNode(makeSegment(from: points[points.count - 1], to: points[0]))
+            }
+        }
+
+        private func makeSegment(from start: SIMD3<Float>, to end: SIMD3<Float>) -> SCNNode {
+            let raisedStart = start + SIMD3<Float>(0, 0.018, 0)
+            let raisedEnd = end + SIMD3<Float>(0, 0.018, 0)
+            let vector = raisedEnd - raisedStart
+            let length = simd_length(vector)
+
+            let cylinder = SCNCylinder(radius: 0.009, height: CGFloat(max(length, 0.001)))
+            cylinder.firstMaterial?.diffuse.contents = Self.arboreGreen
+            cylinder.firstMaterial?.emission.contents = Self.arboreGreen.withAlphaComponent(0.6)
+
+            let node = SCNNode(geometry: cylinder)
+            node.simdPosition = (raisedStart + raisedEnd) / 2
+            if length > 0.0001 {
+                node.simdOrientation = simd_quatf(
+                    from: SIMD3<Float>(0, 1, 0),
+                    to: simd_normalize(vector)
                 )
-                manager.addPoint(position)
+            }
+            return node
+        }
+
+        private static let arboreGreen = UIColor(
+            red: 46 / 255,
+            green: 125 / 255,
+            blue: 80 / 255,
+            alpha: 1
+        )
+
+        func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+            guard time - lastTargetingUpdate >= 0.12, let arView else { return }
+            lastTargetingUpdate = time
+            let center = CGPoint(x: arView.bounds.midX, y: arView.bounds.midY)
+            let isAvailable = raycastResult(at: center) != nil
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.manager.canPlacePoint != isAvailable else { return }
+                self.manager.canPlacePoint = isAvailable
             }
         }
         
@@ -319,6 +530,7 @@ struct ARViewContainerMesure: View {
     let thumbnailKey: String?
     let existingGardenId: String?
     let measurementOnly: Bool
+    let exposureSpaceType: GardenSpaceType?
     let onSuccess: () -> Void
 
     /// Callback du wizard (`QuestionnaireView`) : appelé quand le tracé est
@@ -326,17 +538,21 @@ struct ARViewContainerMesure: View {
     /// serveur + les mesures pour que le wizard passe à l'étape suivante.
     /// Si nil, on retombe sur le flow historique (nested
     /// `GardenARPlacementView`) qui POST en fin de placement.
-    let onTraceValidated: ((String, [SIMD3<Float>], Float, Float) -> Void)?
+    let onTraceValidated: ((String, [SIMD3<Float>], Float, Float, GardenLightExposureDTO?) -> Void)?
     /// Callback wizard : appelé si l'utilisateur dismiss sans valider.
     let onCancel: (() -> Void)?
+    /// Disponible uniquement lorsqu'une autre méthode de mesure est réellement
+    /// supportée sur l'appareil (pièce avec RoomPlan).
+    let onChangeMethod: (() -> Void)?
 
     @StateObject var gardenManager = GardenManager()
     @State private var showFullScreenPlan = false
     @State private var saveSuccess = false
     @State private var showARPlacement = false
-    @State private var arIsReady = false  // 🆕 Indicateur AR
     @State private var isCreatingGarden = false
     @State private var createGardenError: String? = nil
+    @State private var showExposureStep = false
+    @State private var capturedLightExposure: GardenLightExposureDTO?
 
     // 🆕 ID temporaire pour la WorldMap
     @State private var tempGardenId = UUID().uuidString
@@ -361,9 +577,11 @@ struct ARViewContainerMesure: View {
         thumbnailKey: String? = nil,
         existingGardenId: String? = nil,
         measurementOnly: Bool = false,
+        exposureSpaceType: GardenSpaceType? = nil,
         onSuccess: @escaping () -> Void = {},
-        onTraceValidated: ((String, [SIMD3<Float>], Float, Float) -> Void)? = nil,
-        onCancel: (() -> Void)? = nil
+        onTraceValidated: ((String, [SIMD3<Float>], Float, Float, GardenLightExposureDTO?) -> Void)? = nil,
+        onCancel: (() -> Void)? = nil,
+        onChangeMethod: (() -> Void)? = nil
     ) {
         self.selectedPlants = selectedPlants
         self.uid = uid
@@ -372,9 +590,11 @@ struct ARViewContainerMesure: View {
         self.thumbnailKey = thumbnailKey
         self.existingGardenId = existingGardenId
         self.measurementOnly = measurementOnly
+        self.exposureSpaceType = exposureSpaceType
         self.onSuccess = onSuccess
         self.onTraceValidated = onTraceValidated
         self.onCancel = onCancel
+        self.onChangeMethod = onChangeMethod
     }
 
     // 🆕 Crée le jardin en base APRÈS le tracé : sauvegarde locale, POST
@@ -412,9 +632,12 @@ struct ARViewContainerMesure: View {
         }
 
         // 3. POST /gardens — plants vides à ce stade.
+        var completedWizard = wizard
+        completedWizard.lightExposure = capturedLightExposure
+
         let createDTO = GardenCreateDTO(
             name: gardenName,
-            wizard: wizard,
+            wizard: completedWizard,
             plants: [],
             thumbnailKey: thumbnailKey,
             measurements: GardenMeasurementsDTO(
@@ -435,10 +658,16 @@ struct ARViewContainerMesure: View {
 
             // 5. Callback vers le wizard. Pas de presentationMode.dismiss()
             //    ici — c'est le wizard qui contrôle la cover.
-            onTraceValidated?(serverId, boundary, gardenManager.area, gardenManager.perimeter)
+            onTraceValidated?(
+                serverId,
+                boundary,
+                gardenManager.area,
+                gardenManager.perimeter,
+                capturedLightExposure
+            )
         } catch {
             print("❌ POST /gardens a échoué: \(error)")
-            createGardenError = "Impossible de sauvegarder le jardin. Vérifie ta connexion et réessaie."
+            createGardenError = L10n.t("MEASURE_SAVE_ERROR")
         }
         isCreatingGarden = false
     }
@@ -482,13 +711,15 @@ struct ARViewContainerMesure: View {
         print("📢 Notification envoyée")
     }
 
-    private func saveMeasurementsOnly() {
+    @MainActor
+    private func saveMeasurementsOnly() async {
         guard let existingGardenId else {
             showARPlacement = true
             return
         }
 
-        saveWorldMapForPlacement()
+        isCreatingGarden = true
+        createGardenError = nil
 
         let sceneURL = GardenLocalStore.sceneURL(for: existingGardenId)
         let existingPlants: [PersistedPlant]
@@ -516,204 +747,75 @@ struct ARViewContainerMesure: View {
         )
 
         do {
+            try await GardenAPI.shared.updateGarden(
+                id: existingGardenId,
+                patch: GardenAPI.GardenPatch(
+                    measurements: GardenMeasurementsDTO(
+                        boundaryPoints: boundary,
+                        area: gardenManager.area,
+                        perimeter: gardenManager.perimeter
+                    )
+                )
+            )
+
+            saveWorldMapForPlacement()
+            try? await Task.sleep(nanoseconds: 600_000_000)
+
             let data = try JSONEncoder().encode(scene)
             try data.write(to: sceneURL)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                presentationMode.wrappedValue.dismiss()
-                onSuccess()
-            }
+            isCreatingGarden = false
+            presentationMode.wrappedValue.dismiss()
+            onSuccess()
         } catch {
             print("❌ Erreur sauvegarde mesures 2D: \(error)")
+            createGardenError = L10n.t("MEASURE_SAVE_ERROR")
+            isCreatingGarden = false
         }
     }
 
     var body: some View {
         ZStack {
-            // Fond gris système
-            Color(UIColor.systemGray6).edgesIgnoringSafeArea(.all)
-
-            // --- AR VIEW CORRIGÉE (SceneKit) ---
             ARViewContainerGarden(manager: gardenManager)
-                .edgesIgnoringSafeArea(.all)
+                .ignoresSafeArea()
 
-            // --- INTERFACE UI ---
-            VStack {
-                // Header
-                HStack(alignment: .top) {
-                    Button(action: { presentationMode.wrappedValue.dismiss() }) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.white)
-                            .padding(12)
-                            .background(.ultraThinMaterial, in: Circle())
-                    }
+            LinearGradient(
+                colors: [.black.opacity(0.62), .clear],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 180)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
 
-                    Spacer()
-                    
-                    // 🆕 Indicateur AR Status
-                    VStack(spacing: 4) {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: 8, height: 8)
-                            Text(L10n.t("MEASURE_AR_ACTIVE"))
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(20)
-                        
-                        Text(L10n.t("MEASURE_TAP_FLOOR_HINT"))
-                            .font(.system(size: 10))
-                            .foregroundColor(.white.opacity(0.8))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(.black.opacity(0.4))
-                            .cornerRadius(6)
-                    }
-                    
-                    Spacer()
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.48)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 370)
+            .frame(maxHeight: .infinity, alignment: .bottom)
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
 
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(L10n.t("MEASURE_TOTAL_AREA"))
-                            .font(.system(size: 10, weight: .bold)).tracking(1.5)
-                            .foregroundStyle(.white.opacity(0.6))
-                        HStack(alignment: .firstTextBaseline, spacing: 4) {
-                            Text(String(format: "%.2f", gardenManager.area))
-                                .font(.system(size: 42, weight: .heavy, design: .rounded))
-                                .foregroundStyle(.white)
-                            Text("m²")
-                                .font(.headline).foregroundStyle(.white.opacity(0.8))
-                        }
-                    }
+            if !showExposureStep {
+                targetReticle
+            }
 
-                    Spacer()
-
-                    Button(action: { gardenManager.reset() }) {
-                        Image(systemName: "arrow.counterclockwise")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1))
-                    }
+            VStack(spacing: 0) {
+                if !showExposureStep {
+                    measurementHeader
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 60)
-
-                Spacer()
-
-                // Footer
-                HStack(spacing: 0) {
-                    VStack(alignment: .leading) {
-                        HStack {
-                            Image(systemName: "ruler").font(.caption).foregroundColor(.green)
-                            Text(L10n.t("MEASURE_READINGS")).font(.caption).fontWeight(.bold).textCase(.uppercase).foregroundColor(.white.opacity(0.6))
-                        }.padding(.bottom, 5)
-
-                        if gardenManager.points.count < 2 {
-                            Text(L10n.t("MEASURE_PLACE_POINTS"))
-                                .font(.caption).italic().foregroundColor(.white.opacity(0.4))
-                                .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 10)
-                        } else {
-                            ScrollView(showsIndicators: false) {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    ForEach(1..<gardenManager.points.count, id: \.self) { i in
-                                        HStack {
-                                            Circle().fill(Color.green).frame(width: 6, height: 6)
-                                            Text("P\(i) → P\(i+1)")
-                                                .font(.system(size: 14, weight: .medium, design: .monospaced))
-                                                .foregroundColor(.white.opacity(0.9))
-                                            Spacer()
-                                            Text(String(format: "%.2f m", distance(gardenManager.points[i], gardenManager.points[i-1])))
-                                                .font(.system(size: 14, weight: .bold, design: .rounded))
-                                                .foregroundColor(.white)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Rectangle()
-                        .fill(LinearGradient(colors: [.clear, .white.opacity(0.2), .clear], startPoint: .top, endPoint: .bottom))
-                        .frame(width: 1)
-                        .padding(.vertical, 20)
-
-                    // Droite : aperçu + boutons
-                    VStack(spacing: 10) {
-                        Button(action: { showFullScreenPlan = true }) {
-                            VStack {
-                                ZStack {
-                                    if gardenManager.points.isEmpty {
-                                        Image(systemName: "square.dashed")
-                                            .font(.largeTitle)
-                                            .foregroundColor(.white.opacity(0.3))
-                                    } else {
-                                        GardenShape(points: gardenManager.points)
-                                            .stroke(Color.green, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
-                                            .padding(10)
-                                            .shadow(color: .green.opacity(0.6), radius: 8)
-                                    }
-                                }
-                                .frame(height: 70)
-
-                                Text(L10n.t("MEASURE_VIEW_PLAN"))
-                                    .font(.system(size: 10, weight: .bold))
-                                    .tracking(1)
-                                    .foregroundColor(.white.opacity(0.8))
-                            }
-                            .frame(width: 120)
-                            .contentShape(Rectangle())
-                        }
-
-                        Button {
-                            print("🎯 Bouton CONTINUER cliqué")
-                            if measurementOnly {
-                                // Flow re-mesure depuis ManageGardenView — inchangé.
-                                saveMeasurementsOnly()
-                            } else if onTraceValidated != nil {
-                                // 🆕 Flow wizard : POST /gardens immédiatement et
-                                // rendre la main au wizard pour passer à l'étape
-                                // suivante. Pas de nested AR placement view ici.
-                                Task { await createGardenAfterTrace() }
-                            } else {
-                                // Fallback legacy : nested AR placement chain
-                                // (utilisé quand la vue est appelée hors-wizard).
-                                saveWorldMapForPlacement()
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                                    print("🎯 Ouverture GardenARPlacementView avec ID: \(tempGardenId)")
-                                    showARPlacement = true
-                                }
-                            }
-                        } label: {
-                            Text(L10n.t("COMMON_CONTINUE"))
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(.white)
-                                .frame(width: 120)
-                                .padding(.vertical, 10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.green.opacity(canContinue ? 1 : 0.35))
-                                )
-                        }
-                        .disabled(!canContinue)
-                    }
-                    .padding(.trailing, 12)
-                    .frame(width: 140)
+                Spacer(minLength: 120)
+                if !showExposureStep {
+                    measurementPanel
                 }
-                .frame(height: 160)
-                .background(.ultraThinMaterial)
-                .cornerRadius(30)
-                .overlay(RoundedRectangle(cornerRadius: 30).stroke(.white.opacity(0.15), lineWidth: 1))
-                .shadow(color: .black.opacity(0.2), radius: 20, x: 0, y: 10)
-                .padding(.horizontal, 16)
-                .padding(.bottom, 30)
+            }
+
+            if showExposureStep, let exposureSpaceType {
+                GardenExposureCaptureOverlay(spaceType: exposureSpaceType) { magneticYaw in
+                    captureLightExposure(magneticYawRadians: magneticYaw)
+                }
             }
         }
         .navigationBarHidden(true)
@@ -723,6 +825,8 @@ struct ARViewContainerMesure: View {
             print("🎯 ARViewContainerMesure: Vue chargée - AR devrait démarrer")
             print("🎯 Points actuels: \(gardenManager.points.count)")
         }
+        .animation(.easeInOut(duration: 0.2), value: gardenManager.canPlacePoint)
+        .animation(.easeInOut(duration: 0.2), value: gardenManager.points.count)
 
         .fullScreenCover(isPresented: $showARPlacement) {
             GardenARPlacementView(
@@ -798,7 +902,284 @@ struct ARViewContainerMesure: View {
     }
 
     private var canContinue: Bool {
-        gardenManager.points.count >= 3 // Corrigé à 3 pour avoir un polygone valide
+        gardenManager.points.count >= 3
+    }
+
+    private var measurementHeader: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Button(action: cancelMeasurement) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 46, height: 46)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1))
+                }
+
+                Spacer()
+
+                HStack(spacing: 7) {
+                    Circle()
+                        .fill(gardenManager.canPlacePoint ? Color.green : Color.orange)
+                        .frame(width: 8, height: 8)
+                    Text(
+                        L10n.f(
+                            gardenManager.points.count == 1
+                                ? "MEASURE_POINT_FORMAT"
+                                : "MEASURE_POINTS_FORMAT",
+                            gardenManager.points.count
+                        )
+                    )
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                .padding(.horizontal, 14)
+                .frame(height: 40)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 1))
+            }
+
+            if let onChangeMethod {
+                Button(action: onChangeMethod) {
+                    Label(L10n.t("WIZARD_SCAN_CHANGE_METHOD"), systemImage: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 13)
+                        .frame(height: 34)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+    }
+
+    private var targetReticle: some View {
+        ZStack {
+            ZStack {
+                Circle()
+                    .fill(.black.opacity(0.25))
+                    .frame(width: 76, height: 76)
+
+                Circle()
+                    .stroke(
+                        gardenManager.canPlacePoint ? Color.green : Color.white,
+                        style: StrokeStyle(
+                            lineWidth: 2.5,
+                            lineCap: .round,
+                            dash: gardenManager.canPlacePoint ? [] : [7, 6]
+                        )
+                    )
+                    .frame(width: 62, height: 62)
+
+                Circle()
+                    .fill(gardenManager.canPlacePoint ? Color.green : Color.white)
+                    .frame(width: 10, height: 10)
+                    .shadow(color: .black.opacity(0.35), radius: 3)
+            }
+            .scaleEffect(gardenManager.canPlacePoint ? 1 : 0.92)
+
+            Text(
+                L10n.t(
+                    gardenManager.canPlacePoint
+                        ? "MEASURE_TARGET_READY"
+                        : "MEASURE_TARGET_SEARCHING"
+                )
+            )
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial, in: Capsule())
+            .offset(y: 58)
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var measurementPanel: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 0) {
+                measurementStat(
+                    icon: "point.3.connected.trianglepath.dotted",
+                    value: "\(gardenManager.points.count)",
+                    label: L10n.t("MEASURE_POINTS_LABEL")
+                )
+                measurementStat(
+                    icon: "square.dashed",
+                    value: String(format: "%.2f m²", gardenManager.area),
+                    label: L10n.t("MEASURE_AREA_LABEL")
+                )
+                measurementStat(
+                    icon: "ruler",
+                    value: String(format: "%.2f m", gardenManager.perimeter),
+                    label: L10n.t("MEASURE_PERIMETER_LABEL")
+                )
+            }
+
+            Button {
+                gardenManager.requestPointPlacement()
+            } label: {
+                Label(L10n.t("MEASURE_ADD_POINT"), systemImage: "plus.circle.fill")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(
+                        gardenManager.canPlacePoint
+                            ? ArboreDesign.Colors.primaryGreen
+                            : Color.gray.opacity(0.55),
+                        in: RoundedRectangle(cornerRadius: 17, style: .continuous)
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(!gardenManager.canPlacePoint)
+
+            HStack(spacing: 10) {
+                measurementAction(
+                    title: L10n.t("MEASURE_UNDO_POINT"),
+                    icon: "arrow.uturn.backward",
+                    isEnabled: !gardenManager.points.isEmpty,
+                    action: gardenManager.undoLastPoint
+                )
+                measurementAction(
+                    title: L10n.t("MEASURE_RESTART"),
+                    icon: "arrow.counterclockwise",
+                    isEnabled: !gardenManager.points.isEmpty,
+                    action: gardenManager.reset
+                )
+                measurementAction(
+                    title: L10n.t("MEASURE_PLAN"),
+                    icon: "map",
+                    isEnabled: canContinue,
+                    action: { showFullScreenPlan = true }
+                )
+            }
+
+            if let createGardenError {
+                Text(createGardenError)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.red)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button(action: validateBoundary) {
+                HStack(spacing: 9) {
+                    if isCreatingGarden {
+                        ProgressView().tint(.white)
+                    } else {
+                        Image(systemName: "checkmark")
+                    }
+                    Text(L10n.t("MEASURE_VALIDATE_BOUNDARY"))
+                }
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(
+                    Color.black.opacity(canContinue && !isCreatingGarden ? 0.82 : 0.28),
+                    in: RoundedRectangle(cornerRadius: 17, style: .continuous)
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(!canContinue || isCreatingGarden)
+        }
+        .padding(16)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(.white.opacity(0.2), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.26), radius: 20, y: 10)
+        .padding(.horizontal, 14)
+        .padding(.bottom, 14)
+    }
+
+    private func measurementStat(icon: String, value: String, label: String) -> some View {
+        VStack(spacing: 4) {
+            Label(value, systemImage: icon)
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(.white.opacity(0.68))
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func measurementAction(
+        title: String,
+        icon: String,
+        isEnabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 10, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .foregroundColor(.white.opacity(isEnabled ? 0.95 : 0.38))
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .background(.white.opacity(isEnabled ? 0.12 : 0.05), in: RoundedRectangle(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+    }
+
+    private func cancelMeasurement() {
+        if let onCancel {
+            onCancel()
+        } else {
+            presentationMode.wrappedValue.dismiss()
+        }
+    }
+
+    private func validateBoundary() {
+        guard canContinue, !isCreatingGarden else { return }
+
+        if measurementOnly {
+            Task { await saveMeasurementsOnly() }
+        } else if onTraceValidated != nil {
+            if requiresExposureCapture, capturedLightExposure == nil {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    showExposureStep = true
+                }
+            } else {
+                Task { await createGardenAfterTrace() }
+            }
+        } else {
+            saveWorldMapForPlacement()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                showARPlacement = true
+            }
+        }
+    }
+
+    private var requiresExposureCapture: Bool {
+        guard let exposureSpaceType else { return false }
+        return exposureSpaceType != .garden
+    }
+
+    private func captureLightExposure(magneticYawRadians: Double?) {
+        guard let direction = gardenManager.currentCameraDirection else { return }
+        capturedLightExposure = .capture(
+            direction: direction,
+            magneticYawRadians: magneticYawRadians,
+            ambientIntensity: gardenManager.currentAmbientIntensity
+        )
+        showExposureStep = false
+        Task { await createGardenAfterTrace() }
     }
 
     @MainActor

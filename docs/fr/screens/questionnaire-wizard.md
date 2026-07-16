@@ -1,135 +1,101 @@
 # Per-screen spec — `QuestionnaireView` (wizard de création)
 
-## Purpose
+## Objectif
 
-Cet écran guide l'utilisateur à travers la **création complète d'un jardin** : profil esthétique et fonctionnel (style, espace, exposition, entretien, sécurité, sol), choix de la méthode de scan **qui crée le jardin en base**, puis sélection de plantes assistée par IA. À sa sortie, l'utilisateur est routé vers la vue AR de placement.
+`QuestionnaireView` conduit l'utilisateur du choix de l'espace au placement AR avec **trois écrans visibles** : `spaceType`, `essentialQuestions`, puis `aiSuggestion`. La mesure, l'exposition éventuelle et la localisation restent des sous-flows contextuels, sans page de récapitulatif.
 
-Implémenté dans `Views/GardenSteps/QuestionnaireView.swift`. Composé de 8 à 9 étapes (selon les choix), portées par une `TabView` non-paginable dont la sélection est gouvernée par l'enum `GardenWizardStep`. **Ordre inversé volontaire** : l'étape `scanMethod` ouvre d'abord la vue AR de tracé, qui crée le jardin en base avec sa boundary, **avant** de rendre la main au wizard pour l'étape **finale** `aiSuggestion`. Il n'y a **pas** d'étape « summary ».
+Implémentation principale : `Views/GardenSteps/QuestionnaireView.swift`.
 
-## Entry points
+## Entrée et sorties
 
-| Source | Paramètres clés |
+| Action | Destination |
 |---|---|
-| Bouton **« Créer un jardin »** depuis la Home | `uid: String`, `selectedPlants: [Plant]` (généralement `[]`), `onFinish: (GardenWizardState) -> Void` |
-| Action « Recommencer » depuis la fin du wizard | Mêmes paramètres, état `GardenWizardState` réinitialisé |
+| « Créer un jardin » depuis la Home | `GardenWizardView`, première étape `spaceType`. |
+| **Continuer** après le choix de l'espace | Prompt système caméra si nécessaire, puis scan direct. |
+| Validation de la localisation | Étape `essentialQuestions`. |
+| Questions validées ou « Répondre plus tard » | Étape `aiSuggestion`. |
+| **Placer mes plantes en AR** | `GardenARPlacementView` avec le jardin déjà créé. |
+| Retour depuis la première étape ou X | `dismiss()` vers la Home. |
 
-## Exit points
-
-| Action utilisateur | Destination |
-|---|---|
-| Tap **« Démarrer le tracé »** à l'étape `scanMethod`, `scanMethod == gardenPerimeter` | `fullScreenCover` vers `ARViewContainerMeasure` (tracé périmètre non-LiDAR) → `POST /gardens` à la fin du tracé → retour au wizard sur `aiSuggestion`. |
-| Tap **« Scanner la pièce »** à l'étape `scanMethod`, `scanMethod == roomScan` | `fullScreenCover` vers `LiDARScanWizardView` (RoomPlan) → `POST /gardens` → retour au wizard sur `aiSuggestion`. |
-| Tap **« Placer mes plantes en AR »** à l'étape finale `aiSuggestion` | `fullScreenCover` vers `GardenARPlacementView` (placement des plantes, `PUT /gardens/:id`). |
-| Tap **« Retour »** sur la première étape (intro) ou **X (close)** | `dismiss()` — retour à la Home. Aucune confirmation tant que le jardin n'est pas créé. |
-
-## Screen-level flow
-
-Le flux complet est documenté dans [`../flows/garden-creation.md`](../flows/garden-creation.md). Le diagramme ci-dessous se concentre sur la **navigation interne entre étapes**, gérée par le computed `visibleSteps` et les helpers `goToNext` / `goToPrevious`.
+## Flux
 
 ```mermaid
 flowchart TB
-    intro[1 intro]
-    style_step[2 style]
-    spaceType[3 spaceType]
-    exposure[4 exposure]
-    maintenance[5 maintenance]
-    safety[6 safety]
-    soil[7 soil — conditionnel]
-    scan[8 scanMethod]
-    ai[9 aiSuggestion — finale]
-    placement[placement AR<br/>fullScreenCover GardenARPlacementView]
+    space["1 — Choisir l'espace"]
+    permission["Prompt caméra si nécessaire"]
+    scan["Scan automatique<br/>RoomPlan ou tracé"]
+    exposure["Exposition en caméra<br/>sauf jardin"]
+    location["Localisation fraîche"]
+    questions["2 — 3 questions conditionnelles"]
+    ai["3 — Suggestions de plantes"]
+    placement["Placement AR"]
 
-    intro --> style_step --> spaceType
-    spaceType --> exposure --> maintenance --> safety
-    safety -->|spaceType garden| soil --> scan
-    safety -->|sinon| scan
-    scan -->|tracé AR + POST /gardens| ai
-    ai -->|tap Placer en AR| placement
-
-    classDef step fill:#1168BD,stroke:#0B4884,color:#fff
-    classDef cond fill:#2E7D32,stroke:#1B5E20,color:#fff
-    class intro,style_step,spaceType,exposure,maintenance,safety,scan,ai,placement step
-    class soil cond
+    space --> permission --> scan
+    scan -->|pièce, balcon, terrasse| exposure --> location
+    scan -->|jardin| location
+    location --> questions --> ai --> placement
 ```
 
-## Widgets
+`visibleSteps` ne contient que :
 
-### `WizardProgressHeader`
+```swift
+[.spaceType, .essentialQuestions, .aiSuggestion]
+```
 
-Barre de progression. Affiche l'étape courante (`currentIndex + 1`) et le total d'étapes visibles (`visibleSteps.count`). Recalculée quand `visibleSteps` change (par exemple si `spaceType` repasse de `garden` à `indoor`, l'étape `soil` apparaît/disparaît).
+## Choix automatique de la méthode
 
-### Boutons de navigation
+- Pièce et `RoomCaptureSession.isSupported == true` : `roomScan`.
+- Tous les autres cas : `gardenPerimeter`.
+- « Changer de méthode » apparaît dans la caméra uniquement pour une pièce compatible RoomPlan.
 
-| Bouton | Style | Action |
-|---|---|---|
-| **« Continuer »** | Primary | `goToNext()` — incrémente `currentIndex`. Désactivé tant que l'étape n'a pas reçu de réponse valide. |
-| **« Retour »** | Secondary | `goToPrevious()` — décrémente `currentIndex`. Désactivé à l'étape `intro`. |
+La page `ScanMethodSelectionView` n'existe plus. Le CTA **Continuer** de `SpaceTypeStepView` pose `state.scanMethod`, demande directement l'autorisation système si son état est `.notDetermined`, puis ouvre la full-screen cover AR. `GardenAnalysisAuthorizationFlowView` est uniquement un écran de récupération après refus, avec accès aux Réglages.
 
-Les styles `PrimaryWizardButtonStyle` / `SecondaryWizardButtonStyle` sont partagés entre toutes les étapes.
+## Sous-flows
 
-### `ImprovedSelectableCard`
+### Mesure et création
 
-Carte sélectionnable utilisée sur la plupart des étapes (style, spaceType, exposure, maintenance, scanMethod). Icône système, titre, sous-titre, dégradé ; bordure + check quand `isSelected`.
+`ARViewContainerMeasure` trace le contour au sol. `LiDARScanWizardView` utilise RoomPlan. Après validation des dimensions, aucune vérification supplémentaire n'est demandée. Le scan enregistre la WorldMap et les mesures, puis crée le jardin avec `POST /gardens` et `plants: []`.
 
-### `ScanMethodStepView` (étape 8) — création du jardin
+### Exposition
 
-Choix de la méthode de scan, **étape qui crée le jardin** :
+Pour une pièce, un balcon ou une terrasse, `GardenExposureCaptureOverlay` apparaît sans fermer la caméra. L'utilisateur vise la source lumineuse principale et confirme. Un jardin ignore cette capture.
 
-- **Tracer mon jardin au sol** (`gardenPerimeter`) — toujours active.
-- **Scanner la pièce en 3D** (`roomScan`) — désactivée (`opacity(0.4)`) si `RoomCaptureSession.isSupported == false` (pas de LiDAR).
+### Localisation
 
-Au lancement du scan/tracé, la vue AR correspondante s'ouvre ; à la fin du tracé, `POST /gardens` crée le document avec sa boundary, puis le wizard revient sur `aiSuggestion`.
+Après fermeture de la caméra, `GardenLocationCaptureView` demande une nouvelle localisation approximative pour chaque jardin. `state.location` est toujours réinitialisé avant une création. La ville manuelle et la poursuite sans localisation restent disponibles. La valeur est ajoutée au jardin par `PUT /gardens/:id`.
 
-### `AISuggestionStepView` (étape 9, finale)
+### Questions conditionnelles
 
-Affiche les plantes recommandées par `GardenSuggestionEngine` selon le profil. Bouton primaire **« Placer mes plantes en AR »** → ouvre `GardenARPlacementView` (placement, `PUT /gardens/:id`).
+`EssentialQuestionsStepView` tient sur une page et affiche trois cartes compactes :
 
-## Edge cases
+- Jardin : mode de plantation, drainage après pluie, sécurité.
+- Balcon / terrasse : vent, pots existants ou nouvelle composition, sécurité.
+- Pièce : humidité de l'air, chauffage proche, sécurité.
+
+Chaque carte possède « Je ne sais pas ». Toutes les réponses sont facultatives et le CTA reste actif avec zéro, une, deux ou trois réponses. Les valeurs inconnues ne sont pas sérialisées. Les réponses connues alimentent `wizard.conditionalAnswers`, tandis que la sécurité alimente le champ existant `wizard.safety`. Elles sont sauvegardées avant la suggestion, sans bloquer l'utilisateur si le réseau échoue.
+
+### Suggestion et placement
+
+`AISuggestionStepView` utilise le catalogue et les mesures disponibles. Son CTA ouvre `GardenARPlacementView` avec `existingGardenId`; la validation finale met à jour le jardin par `PUT /gardens/:id`, puis ouvre directement son plan 2D dans l'onglet Jardin. La fiche éditable `GardenSpaceProfileView` y regroupe les données mesurées, déduites ou déclarées sans ajouter d'étape au wizard.
+
+## Cas limites
 
 | Situation | Comportement |
 |---|---|
-| « Retour » jusqu'à `intro` | Le bouton « Retour » se désactive ; quitter via le X. |
-| `spaceType` modifié en arrière | `visibleSteps` recalculé : passer de `garden` à `indoor` retire `soil`. Un `onChange(of: visibleSteps)` repositionne l'étape courante si elle disparaît. |
-| Backend down au tracé (`scanMethod`) | `POST /gardens` lève une `NetworkError` ; message inline « Impossible de créer le jardin. Réessayez. » et nouvelle tentative possible. |
-| LiDAR sélectionné mais non supporté | Ne devrait pas arriver (carte grisée). Sinon `LiDARScanWizardView` affiche « Scan 3D indisponible » et propose de revenir au choix. |
-| Permission caméra refusée | Demandée par `ARViewContainerMeasure` / `LiDARScanWizardView` ; si refusée, retour au wizard avec message d'erreur. |
-| `selectedPlants == []` | Toléré : l'utilisateur peut placer des plantes depuis le picker AR. |
-| Dismiss avant création | Aucune persistance disque pendant le wizard tant que le jardin n'est pas créé. Décision tracée dans [`../flows/garden-creation.md`](../flows/garden-creation.md). |
+| Caméra déjà autorisée | Le scan s'ouvre directement. |
+| Première demande caméra | Le prompt iOS apparaît sur l'écran de choix de l'espace. |
+| Caméra refusée | Écran de récupération avec ouverture des Réglages. |
+| Localisation refusée | Ville manuelle ou poursuite sans localisation ; aucune ancienne position n'est reprise. |
+| Question inconnue ou ignorée | Aucun champ n'est inventé ; la suggestion continue avec les données disponibles. |
+| Enregistrement des questions indisponible | Les réponses restent en mémoire et seront renvoyées lors du placement final. |
+| Backend indisponible après le tracé | Message inline et nouvelle tentative possible. |
+| Changement de méthode | L'ancienne caméra se ferme et l'autre moteur s'ouvre ; uniquement pour une pièce compatible RoomPlan. |
 
-## Dependencies
+## Dépendances
 
-### Endpoints backend
-
-- `GET /plants` — chargement du catalogue pour l'étape `aiSuggestion` (`onAppear`).
-- `POST /gardens` — création du document jardin **à la fin du tracé** (`scanMethod`).
-- `PUT /gardens/:id` — mise à jour du jardin avec les plantes placées (depuis `GardenARPlacementView`).
-
-### États partagés et services
-
-- `GardenWizardState` (`@StateObject`) — vit le temps du wizard ; stocke les sélections (style, spaceType, exposure, maintenance, safety, soil, scanMethod) et les données de scan (`measuredBoundaryPoints`, `measuredArea`, `measuredPerimeter`).
-- `GardenSuggestionEngine` — filtre/propose les plantes adaptées au profil pour `aiSuggestion`.
-- `TabRouter` (`@EnvironmentObject`) — redirection vers la Home après création.
-- `NetworkManager.shared` — appels backend.
-
-### Permissions iOS
-
-Aucune permission requise pendant le wizard lui-même. Les permissions caméra/LiDAR sont demandées par les vues AR ouvertes à l'étape `scanMethod`.
-
-### Frameworks Apple utilisés
-
-- **SwiftUI** pour l'intégralité de la vue (`TabView` non-paginable).
-- **RoomPlan** pour `RoomCaptureSession.isSupported` côté `ScanMethodStepView`.
-
-## Issues associées
-
-| # | Sujet |
-|---|---|
-| #139 | Validation LiDAR end-to-end — bouton « roomScan » du wizard. |
-| #97 | Pipeline neural (alternative future à RoomPlan pour le scan non-LiDAR). |
-| #21 | Sauvegarde des modèles de jardin avec autosave et versions. |
-
-## Hors-scope de cette spec
-
-- Le détail du placement AR est documenté dans [`garden-ar-placement.md`](garden-ar-placement.md) et [`../flows/ar-placement.md`](../flows/ar-placement.md).
-- Le scoring du filtrage AI (`GardenSuggestionEngine`) est un détail d'implémentation testé en unitaire.
-- La spec backend du handler `createGarden` est dans [`../architecture/03-components-backend.md`](../architecture/03-components-backend.md).
+- `AVFoundation` : statut et demande caméra.
+- `RoomPlan` : disponibilité et scan 3D.
+- `CoreLocation` : localisation ponctuelle approximative.
+- `CoreMotion` et ARKit : orientation et luminosité lors de l'exposition.
+- `GardenAPI` / `NetworkManager` : création et mises à jour du jardin.
+- Détail du flux : [`../flows/garden-creation.md`](../flows/garden-creation.md).

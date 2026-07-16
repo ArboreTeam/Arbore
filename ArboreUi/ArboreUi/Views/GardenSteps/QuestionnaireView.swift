@@ -1,5 +1,6 @@
 import SwiftUI
 import RoomPlan
+import AVFoundation
 
 // MARK: - Theme Colors
 
@@ -90,33 +91,46 @@ enum GardenStyle: String, CaseIterable, Identifiable {
 }
 
 enum GardenSpaceType: String, CaseIterable, Identifiable {
-    case garden = "Jardin extérieur"
-    case balcony = "Terrasse / balcon"
     case interior = "Intérieur d'appartement"
+    case balcony = "Terrasse / balcon"
+    case terrace = "Terrasse"
+    case garden = "Jardin extérieur"
     
     var id: String { rawValue }
     
     var iconName: String {
         switch self {
-        case .garden: return "house.and.flag"
-        case .balcony: return "sun.max"
         case .interior: return "house"
+        case .balcony: return "building.2"
+        case .terrace: return "chair.lounge"
+        case .garden: return "house.and.flag"
         }
     }
     
     var title: String {
         switch self {
-        case .garden: return L10n.t("WIZARD_SPACE_GARDEN_TITLE")
-        case .balcony: return L10n.t("WIZARD_SPACE_BALCONY_TITLE")
         case .interior: return L10n.t("WIZARD_SPACE_INTERIOR_TITLE")
+        case .balcony: return L10n.t("WIZARD_SPACE_BALCONY_TITLE")
+        case .terrace: return L10n.t("WIZARD_SPACE_TERRACE_TITLE")
+        case .garden: return L10n.t("WIZARD_SPACE_GARDEN_TITLE")
         }
     }
     
     var subtitle: String {
         switch self {
-        case .garden: return L10n.t("WIZARD_SPACE_GARDEN_SUBTITLE")
-        case .balcony: return L10n.t("WIZARD_SPACE_BALCONY_SUBTITLE")
         case .interior: return L10n.t("WIZARD_SPACE_INTERIOR_SUBTITLE")
+        case .balcony: return L10n.t("WIZARD_SPACE_BALCONY_SUBTITLE")
+        case .terrace: return L10n.t("WIZARD_SPACE_TERRACE_SUBTITLE")
+        case .garden: return L10n.t("WIZARD_SPACE_GARDEN_SUBTITLE")
+        }
+    }
+
+    var imageName: String {
+        switch self {
+        case .interior: return "space_interior"
+        case .balcony: return "space_balcony"
+        case .terrace: return "space_terrace"
+        case .garden: return "space_garden"
         }
     }
 }
@@ -253,6 +267,9 @@ final class GardenWizardState: ObservableObject {
     @Published var safetySelections: Set<SafetyOption> = []
     @Published var soil: SoilType?
     @Published var scanMethod: ScanMethod?
+    @Published var location: GardenLocationDTO?
+    @Published var lightExposure: GardenLightExposureDTO?
+    @Published var conditionalAnswers = GardenConditionalAnswersDTO()
 
     /// ID Mongo du jardin créé au step `scanMethod` une fois le tracé validé.
     /// Le tracé entraîne un `POST /gardens` avec `plants: []` ; cet identifiant
@@ -272,14 +289,8 @@ final class GardenWizardState: ObservableObject {
 // MARK: - Wizard Steps
 
 enum GardenWizardStep: Int, CaseIterable, Identifiable {
-    case intro
-    case style
     case spaceType
-    case exposure
-    case maintenance
-    case safety
-    case soil
-    case scanMethod      // Choose perimeter vs LiDAR room scan, then trace.
+    case essentialQuestions
     case aiSuggestion    // 🤖 AI garden suggestion step — last step, exposes the
                          //   "Placer mes plantes en AR" CTA.
 
@@ -288,17 +299,21 @@ enum GardenWizardStep: Int, CaseIterable, Identifiable {
 
 struct GardenWizardView: View {
     @StateObject private var state = GardenWizardState()
-    @State private var currentStep: GardenWizardStep = .intro
+    @State private var currentStep: GardenWizardStep = .spaceType
 
-    // Step `scanMethod` déclenche immédiatement l'un de ces deux flows
-    // selon la méthode choisie par l'utilisateur :
+    // La validation du type d'espace déclenche immédiatement l'un de ces deux
+    // flows selon la méthode recommandée par Arbore :
     // - perimeter → ouvre ARViewContainerMesure pour tracer la boundary
     // - roomScan  → ouvre LiDARScanWizardView pour le scan RoomPlan
-    // À la fin de l'AR (tracé validé + POST /gardens réussi), le wizard
-    // récupère le `createdGardenId` via `state.createdGardenId` et avance
-    // automatiquement vers `aiSuggestion`.
+    // À la fin de l'AR (tracé validé + exposition éventuelle + POST réussi),
+    // le wizard ferme la caméra, demande une localisation fraîche, puis avance
+    // automatiquement vers les trois questions conditionnelles, puis la
+    // suggestion de plantes.
     @State private var showPerimeterFlow = false
     @State private var showLiDARFlow = false
+    @State private var showAnalysisAuthorizationFlow = false
+    @State private var showLocationFlow = false
+    @State private var isRequestingCameraPermission = false
 
     // Step `aiSuggestion` est désormais le dernier step du wizard. Au tap
     // sur « Placer mes plantes en AR », on ouvre `GardenARPlacementView`
@@ -328,19 +343,7 @@ struct GardenWizardView: View {
     let onFinish: (GardenWizardState) -> Void
 
     private var visibleSteps: [GardenWizardStep] {
-        var steps: [GardenWizardStep] = [.intro, .style, .spaceType, .exposure, .maintenance, .safety]
-
-        if state.spaceType == .garden {
-            steps.append(.soil)
-        }
-
-        // 🆕 Ordre inversé : on trace d'abord (scanMethod déclenche le
-        // tracé AR + crée le jardin en base avec sa boundary), puis on
-        // suggère des plantes en s'appuyant sur les vraies dimensions
-        // mesurées. L'étape summary a été retirée — l'AI suggestion est
-        // désormais la dernière étape et expose le CTA placement.
-        steps.append(contentsOf: [.scanMethod, .aiSuggestion])
-        return steps
+        [.spaceType, .essentialQuestions, .aiSuggestion]
     }
 
     private var currentIndex: Int {
@@ -358,21 +361,140 @@ struct GardenWizardView: View {
         let prevIndex = currentIndex - 1
         if prevIndex >= 0 {
             withAnimation(.easeInOut) { currentStep = visibleSteps[prevIndex] }
+        } else {
+            dismiss()
         }
     }
 
-    /// Déclenché par le CTA primaire du step `scanMethod`. Ouvre la
-    /// fullScreenCover AR correspondant à la méthode choisie. À la fin de
-    /// l'AR, le callback `onTraceValidated` (cf. plus bas dans la view)
-    /// pose `state.createdGardenId` puis appelle `goToNext()` pour avancer
-    /// vers `aiSuggestion`.
+    private var recommendedScanMethod: ScanMethod {
+        if state.spaceType == .interior, RoomCaptureSession.isSupported {
+            return .roomScan
+        }
+        return .gardenPerimeter
+    }
+
+    private var canChangeScanMethod: Bool {
+        state.spaceType == .interior && RoomCaptureSession.isSupported
+    }
+
+    /// Déclenché directement depuis « Choisir l'espace ». La méthode est
+    /// sélectionnée automatiquement et iOS présente son propre prompt caméra.
+    /// L'écran Arbore d'autorisation n'est conservé qu'en récupération après
+    /// un refus, pour donner accès aux Réglages.
     private func startScanFlow() {
+        guard state.spaceType != nil, !isRequestingCameraPermission else { return }
+        state.scanMethod = recommendedScanMethod
+
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            openAuthorizedScanFlow()
+        case .notDetermined:
+            isRequestingCameraPermission = true
+            Task { @MainActor in
+                let granted = await AVCaptureDevice.requestAccess(for: .video)
+                isRequestingCameraPermission = false
+                if granted {
+                    openAuthorizedScanFlow()
+                } else {
+                    showAnalysisAuthorizationFlow = true
+                }
+            }
+        case .denied, .restricted:
+            showAnalysisAuthorizationFlow = true
+        @unknown default:
+            showAnalysisAuthorizationFlow = true
+        }
+    }
+
+    private func openAuthorizedScanFlow() {
         switch state.scanMethod {
         case .roomScan:
             showLiDARFlow = true
         case .gardenPerimeter, .none:
             showPerimeterFlow = true
         }
+    }
+
+    private func switchScanMethod(to method: ScanMethod, dismissCurrentScan: @escaping () -> Void) {
+        guard canChangeScanMethod else { return }
+        state.scanMethod = method
+        state.lightExposure = nil
+        dismissCurrentScan()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            openAuthorizedScanFlow()
+        }
+    }
+
+    private func handleCompletedScan(
+        gardenId: String,
+        boundary: [SIMD3<Float>],
+        area: Float,
+        perimeter: Float,
+        lightExposure: GardenLightExposureDTO?,
+        dismissScan: @escaping () -> Void
+    ) {
+        state.createdGardenId = gardenId
+        state.measuredBoundaryPoints = boundary
+        state.measuredArea = area
+        state.measuredPerimeter = perimeter
+        state.lightExposure = lightExposure
+        dismissScan()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            showLocationFlow = true
+        }
+    }
+
+    private func completeLocationStep(with location: GardenLocationDTO?) {
+        state.location = location
+        showLocationFlow = false
+
+        // Le jardin existe déjà depuis la fin du scan : on enrichit son
+        // wizard avec l'exposition et la localisation fraîche. En cas de
+        // coupure réseau, le PUT final du placement renverra le même DTO.
+        if let gardenId = state.createdGardenId {
+            let completedWizard = wizardDTO
+            Task {
+                do {
+                    try await GardenAPI.shared.updateGarden(
+                        id: gardenId,
+                        patch: GardenAPI.GardenPatch(wizard: completedWizard)
+                    )
+                } catch {
+                    AppLog.gardenSave.warning(
+                        "Mise à jour exposition/localisation différée: \(error.localizedDescription, privacy: .public)"
+                    )
+                }
+            }
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            goToNext()
+        }
+    }
+
+    /// Sauvegarde les seules contraintes que l'utilisateur a pu déclarer.
+    /// Les questions sans réponse et « Je ne sais pas » restent absentes du
+    /// DTO, puis l'expérience continue même si le réseau est indisponible.
+    private func completeEssentialQuestions() {
+        if let gardenId = state.createdGardenId {
+            let completedWizard = wizardDTO
+            Task {
+                do {
+                    try await GardenAPI.shared.updateGarden(
+                        id: gardenId,
+                        patch: GardenAPI.GardenPatch(wizard: completedWizard)
+                    )
+                } catch {
+                    AppLog.gardenSave.warning(
+                        "Mise à jour des contraintes différée: \(error.localizedDescription, privacy: .public)"
+                    )
+                }
+            }
+        }
+
+        goToNext()
     }
 
     /// Déclenché par le CTA primaire du dernier step `aiSuggestion`. Ouvre
@@ -398,16 +520,23 @@ struct GardenWizardView: View {
             spaceType: state.spaceType?.rawValue ?? "",
             exposure: state.exposure?.rawValue,
             maintenance: state.maintenance?.rawValue,
-            safety: state.safetySelections.map { $0.rawValue },
+            safety: state.safetySelections.isEmpty
+                ? nil
+                : state.safetySelections.map(\.rawValue).sorted(),
             soil: state.soil?.rawValue,
-            scanMethod: state.scanMethod?.rawValue
+            scanMethod: state.scanMethod?.rawValue,
+            location: state.location,
+            lightExposure: state.lightExposure,
+            conditionalAnswers: state.conditionalAnswers.isEmpty
+                ? nil
+                : state.conditionalAnswers
         )
     }
 
     private var gardenName: String { L10n.t("MY_GARDEN_TITLE") }
 
-    /// Si tu veux une clé d’image cohérente: utilise imageName
-    private var thumbnailKey: String? { state.style?.imageName }
+    /// Utilise le visuel du type d'espace comme miniature du jardin.
+    private var thumbnailKey: String? { state.spaceType?.imageName }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -415,45 +544,21 @@ struct GardenWizardView: View {
 
             VStack(spacing: 0) {
 
-                // Progress header (pas sur intro)
-                if currentStep != .intro {
-                    WizardProgressHeader(currentIndex: currentIndex, total: visibleSteps.count)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 60)
-                        .padding(.bottom, 12)
-                }
+                WizardProgressHeader(currentIndex: currentIndex, total: visibleSteps.count)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 60)
+                    .padding(.bottom, 12)
 
                 TabView(selection: $currentStep) {
-
-                    IntroStepView(onNext: goToNext)
-                        .tag(GardenWizardStep.intro)
-
-                    StyleStepView(state: state, onNext: goToNext, onBack: goToPrevious)
-                        .tag(GardenWizardStep.style)
-
-                    SpaceTypeStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+                    SpaceTypeStepView(state: state, onNext: startScanFlow, onBack: goToPrevious)
                         .tag(GardenWizardStep.spaceType)
 
-                    ExposureStepView(state: state, onNext: goToNext, onBack: goToPrevious)
-                        .tag(GardenWizardStep.exposure)
-
-                    MaintenanceStepView(state: state, onNext: goToNext, onBack: goToPrevious)
-                        .tag(GardenWizardStep.maintenance)
-
-                    SafetyStepView(state: state, onNext: goToNext, onBack: goToPrevious)
-                        .tag(GardenWizardStep.safety)
-
-                    if state.spaceType == .garden {
-                        SoilStepView(state: state, onNext: goToNext, onBack: goToPrevious)
-                            .tag(GardenWizardStep.soil)
-                    }
-
-                    ScanMethodStepView(
+                    EssentialQuestionsStepView(
                         state: state,
-                        onStartScan: startScanFlow,
-                        onBack: goToPrevious
+                        onContinue: completeEssentialQuestions,
+                        onSkip: completeEssentialQuestions
                     )
-                    .tag(GardenWizardStep.scanMethod)
+                    .tag(GardenWizardStep.essentialQuestions)
 
                     AISuggestionStepView(
                         state: state,
@@ -484,11 +589,26 @@ struct GardenWizardView: View {
         .toolbar(.hidden, for: .navigationBar)
         .toolbar(.hidden, for: .tabBar)
 
+        .fullScreenCover(isPresented: $showAnalysisAuthorizationFlow) {
+            GardenAnalysisAuthorizationFlowView(
+                onReady: {
+                    showAnalysisAuthorizationFlow = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        openAuthorizedScanFlow()
+                    }
+                },
+                onCancel: {
+                    showAnalysisAuthorizationFlow = false
+                }
+            )
+        }
+
         // Mode « tracer le périmètre au sol » — branche non-LiDAR.
         // ARViewContainerMesure trace les coins puis POST /gardens avec la
         // boundary (plants vides à ce stade) et renvoie le `gardenId` créé.
-        // On stocke l'id et les mesures dans `state`, on ferme la cover,
-        // et le wizard avance automatiquement vers `aiSuggestion`.
+        // On stocke l'id et les mesures dans `state`, on ferme la caméra,
+        // puis on demande la localisation et les questions essentielles avant
+        // `aiSuggestion`.
         .fullScreenCover(isPresented: $showPerimeterFlow) {
             ARViewContainerMesure(
                 selectedPlants: [],
@@ -498,24 +618,32 @@ struct GardenWizardView: View {
                 thumbnailKey: thumbnailKey,
                 existingGardenId: nil,
                 measurementOnly: false,
-                onTraceValidated: { gardenId, boundary, area, perimeter in
-                    state.createdGardenId = gardenId
-                    state.measuredBoundaryPoints = boundary
-                    state.measuredArea = area
-                    state.measuredPerimeter = perimeter
-                    showPerimeterFlow = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        goToNext()
-                    }
+                exposureSpaceType: state.spaceType,
+                onTraceValidated: { gardenId, boundary, area, perimeter, lightExposure in
+                    handleCompletedScan(
+                        gardenId: gardenId,
+                        boundary: boundary,
+                        area: area,
+                        perimeter: perimeter,
+                        lightExposure: lightExposure,
+                        dismissScan: { showPerimeterFlow = false }
+                    )
                 },
                 onCancel: {
                     showPerimeterFlow = false
-                }
+                },
+                onChangeMethod: canChangeScanMethod ? {
+                    switchScanMethod(
+                        to: .roomScan,
+                        dismissCurrentScan: { showPerimeterFlow = false }
+                    )
+                } : nil
             )
         }
         // Mode « scan 3D » — branche LiDAR. Même contrat que la branche
         // perimeter : POST /gardens à la fin du scan, callback avec l'id
-        // créé, retour au wizard à l'étape aiSuggestion.
+        // créé, fermeture de la caméra puis localisation et questions avant
+        // aiSuggestion.
         .fullScreenCover(isPresented: $showLiDARFlow) {
             LiDARScanWizardView(
                 uid: uid,
@@ -523,18 +651,35 @@ struct GardenWizardView: View {
                 wizard: wizardDTO,
                 gardenName: gardenName,
                 thumbnailKey: thumbnailKey,
-                onTraceValidated: { gardenId, boundary, area, perimeter in
-                    state.createdGardenId = gardenId
-                    state.measuredBoundaryPoints = boundary
-                    state.measuredArea = area
-                    state.measuredPerimeter = perimeter
-                    showLiDARFlow = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        goToNext()
-                    }
+                exposureSpaceType: state.spaceType,
+                onTraceValidated: { gardenId, boundary, area, perimeter, lightExposure in
+                    handleCompletedScan(
+                        gardenId: gardenId,
+                        boundary: boundary,
+                        area: area,
+                        perimeter: perimeter,
+                        lightExposure: lightExposure,
+                        dismissScan: { showLiDARFlow = false }
+                    )
                 },
                 onCancel: {
                     showLiDARFlow = false
+                },
+                onChangeMethod: canChangeScanMethod ? {
+                    switchScanMethod(
+                        to: .gardenPerimeter,
+                        dismissCurrentScan: { showLiDARFlow = false }
+                    )
+                } : nil
+            )
+        }
+        .fullScreenCover(isPresented: $showLocationFlow) {
+            GardenLocationCaptureView(
+                onReady: { location in
+                    completeLocationStep(with: location)
+                },
+                onSkip: {
+                    completeLocationStep(with: nil)
                 }
             )
         }
@@ -559,9 +704,10 @@ struct GardenWizardView: View {
                 perimeter: state.measuredPerimeter,
                 measurementWorldMapId: data.gardenId,
                 onValidated: {
+                    tabRouter.targetGardenId = data.gardenId
                     finalPlacementData = nil
                     onFinish(state)
-                    tabRouter.selectedTab = .home
+                    tabRouter.selectedTab = .garden
                     dismiss()
                 }
             )
@@ -569,7 +715,7 @@ struct GardenWizardView: View {
         }
         // ✅ super important: quand tu ré-ouvres un wizard, on repart de 0
         .onAppear {
-            currentStep = .intro
+            currentStep = .spaceType
             state.scanMethod = nil
             // Reset des champs liés au tracé pour éviter qu'un ancien tracé
             // ne soit réutilisé sur une session wizard fraîche (sinon, lors
@@ -579,16 +725,25 @@ struct GardenWizardView: View {
             state.measuredBoundaryPoints = []
             state.measuredArea = 0
             state.measuredPerimeter = 0
+            state.location = nil
+            state.lightExposure = nil
+            state.conditionalAnswers = GardenConditionalAnswersDTO()
+            state.safetySelections = []
             finalPlacementPlants = []
             aiSelectedPlants = []
 
             // 🤖 Fetch all catalogue plants for AI suggestion
             fetchCataloguePlants()
         }
-        .onChange(of: state.spaceType) { _, newValue in
-            if newValue != .garden {
-                state.soil = nil
-            }
+        .onChange(of: state.spaceType) { _, _ in
+            state.scanMethod = nil
+            state.exposure = nil
+            state.maintenance = nil
+            state.safetySelections = []
+            state.soil = nil
+            state.location = nil
+            state.lightExposure = nil
+            state.conditionalAnswers = GardenConditionalAnswersDTO()
 
             if !visibleSteps.contains(currentStep) {
                 currentStep = visibleSteps.last ?? .aiSuggestion

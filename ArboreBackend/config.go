@@ -22,10 +22,9 @@ import (
 // configVersion est incrémenté à chaque modification du contenu servi.
 // Les clients peuvent comparer cette valeur pour invalider leur cache local.
 //
-// v2 : alignement des options du wizard sur les enums réellement consommés par
-// l'iOS (QuestionnaireView.swift) — les `value` correspondent aux noms de cas
-// Swift, les `label` aux rawValue affichés.
-const configVersion = 2
+// v3 : l'entrée du wizard devient un choix d'espace en quatre cartes
+// (pièce, balcon, terrasse, jardin).
+const configVersion = 3
 
 // wizardOption représente une option proposée dans le questionnaire de jardin.
 type wizardOption struct {
@@ -78,9 +77,10 @@ func getConfig(c *gin.Context) {
 
 			// Type d'espace à aménager.
 			"spaceTypes": []wizardOption{
-				free("garden", "Jardin extérieur", "house.and.flag"),
-				free("balcony", "Terrasse / balcon", "sun.max"),
-				free("interior", "Intérieur d'appartement", "house"),
+				free("interior", "Pièce", "house"),
+				free("balcony", "Balcon", "building.2"),
+				free("terrace", "Terrasse", "chair.lounge"),
+				free("garden", "Jardin", "house.and.flag"),
 			},
 
 			// Exposition au soleil.

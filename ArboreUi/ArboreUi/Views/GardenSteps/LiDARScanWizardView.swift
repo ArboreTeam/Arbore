@@ -9,11 +9,15 @@ struct LiDARScanWizardView: View {
     let wizard: GardenWizardDTO
     let gardenName: String
     let thumbnailKey: String?
+    let exposureSpaceType: GardenSpaceType?
+    let existingGardenId: String?
+    let measurementOnly: Bool
     /// Callback wizard : appelé quand le scan est validé ET que
     /// `POST /gardens` a renvoyé un id Mongo. Fournit (serverId, boundary,
     /// area, perimeter). Si nil, on retombe sur le flow legacy (nested AR placement).
-    let onTraceValidated: ((String, [SIMD3<Float>], Float, Float) -> Void)?
+    let onTraceValidated: ((String, [SIMD3<Float>], Float, Float, GardenLightExposureDTO?) -> Void)?
     let onCancel: (() -> Void)?
+    let onChangeMethod: (() -> Void)?
     /// Callback legacy conservé pour compatibilité avec un éventuel appel
     /// hors-wizard. Ignoré quand `onTraceValidated` est fourni.
     let onSuccess: () -> Void
@@ -26,6 +30,8 @@ struct LiDARScanWizardView: View {
     @State private var isProcessing = false
     @State private var showARPlacement = false
     @State private var createGardenError: String? = nil
+    @State private var showExposureStep = false
+    @State private var capturedLightExposure: GardenLightExposureDTO?
 
     // Mesures extraites
     @State private var extractedBoundaryPoints: [SIMD3<Float>] = []
@@ -45,8 +51,12 @@ struct LiDARScanWizardView: View {
         wizard: GardenWizardDTO,
         gardenName: String,
         thumbnailKey: String?,
-        onTraceValidated: ((String, [SIMD3<Float>], Float, Float) -> Void)? = nil,
+        exposureSpaceType: GardenSpaceType? = nil,
+        existingGardenId: String? = nil,
+        measurementOnly: Bool = false,
+        onTraceValidated: ((String, [SIMD3<Float>], Float, Float, GardenLightExposureDTO?) -> Void)? = nil,
         onCancel: (() -> Void)? = nil,
+        onChangeMethod: (() -> Void)? = nil,
         onSuccess: @escaping () -> Void = {}
     ) {
         self.uid = uid
@@ -54,8 +64,12 @@ struct LiDARScanWizardView: View {
         self.wizard = wizard
         self.gardenName = gardenName
         self.thumbnailKey = thumbnailKey
+        self.exposureSpaceType = exposureSpaceType
+        self.existingGardenId = existingGardenId
+        self.measurementOnly = measurementOnly
         self.onTraceValidated = onTraceValidated
         self.onCancel = onCancel
+        self.onChangeMethod = onChangeMethod
         self.onSuccess = onSuccess
     }
 
@@ -87,8 +101,15 @@ struct LiDARScanWizardView: View {
                     captureController.stopSession()
                 }
 
+            if showExposureStep, let exposureSpaceType {
+                GardenExposureCaptureOverlay(spaceType: exposureSpaceType) { magneticYaw in
+                    captureLightExposure(magneticYawRadians: magneticYaw)
+                }
+            }
+
             // Interface
-            VStack {
+            if !showExposureStep {
+                VStack {
                 HStack(alignment: .top) {
                     Button(action: {
                         onCancel?()
@@ -117,9 +138,7 @@ struct LiDARScanWizardView: View {
                     // "Terminer le scan" button — top right, out of the way
                     // of the 3D room rendering at the bottom.
                     if showFinishButton && !isProcessing && !captureController.showSaveButton {
-                        Button(action: {
-                            finishScanManually()
-                        }) {
+                        Button(action: beginFinishFlow) {
                             HStack(spacing: 6) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 15, weight: .semibold))
@@ -147,6 +166,28 @@ struct LiDARScanWizardView: View {
                 .padding(.horizontal, 24)
                 .padding(.top, 50)
                 .animation(.easeOut(duration: 0.3), value: showFinishButton)
+
+                if let onChangeMethod {
+                    Button {
+                        captureController.stopSession()
+                        onChangeMethod()
+                    } label: {
+                        Label(
+                            L10n.t("WIZARD_SCAN_CHANGE_METHOD"),
+                            systemImage: "arrow.triangle.2.circlepath"
+                        )
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 13)
+                        .frame(height: 34)
+                        .background(.ultraThinMaterial, in: Capsule())
+                        .overlay(Capsule().stroke(.white.opacity(0.16), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+                }
 
                 Spacer()
 
@@ -176,10 +217,7 @@ struct LiDARScanWizardView: View {
                     .cornerRadius(16)
                     .padding(.bottom, 50)
                 } else if captureController.showSaveButton {
-                    Button(action: {
-                        captureController.stopSession()
-                        processScanAndContinue()
-                    }) {
+                    Button(action: beginFinishFlow) {
                         HStack {
                             Text(L10n.t("LIDAR_SCAN_DONE"))
                             Image(systemName: "checkmark")
@@ -192,6 +230,7 @@ struct LiDARScanWizardView: View {
                         .cornerRadius(30)
                     }
                     .padding(.bottom, 40)
+                }
                 }
             }
         }
@@ -234,14 +273,49 @@ struct LiDARScanWizardView: View {
         }
     }
 
+    private var requiresExposureCapture: Bool {
+        guard !measurementOnly else { return false }
+        guard let exposureSpaceType else { return false }
+        return exposureSpaceType != .garden
+    }
+
+    private func beginFinishFlow() {
+        if requiresExposureCapture, capturedLightExposure == nil {
+            showFinishButton = false
+            withAnimation(.easeInOut(duration: 0.25)) {
+                showExposureStep = true
+            }
+        } else {
+            finishScanManually()
+        }
+    }
+
+    private func captureLightExposure(magneticYawRadians: Double?) {
+        guard let frame = captureController.roomCaptureView.captureSession.arSession.currentFrame else { return }
+        let transform = frame.camera.transform
+        let direction = SIMD3<Float>(
+            -transform.columns.2.x,
+            -transform.columns.2.y,
+            -transform.columns.2.z
+        )
+        capturedLightExposure = .capture(
+            direction: direction,
+            magneticYawRadians: magneticYawRadians,
+            ambientIntensity: frame.lightEstimate.map { Double($0.ambientIntensity) }
+        )
+        showExposureStep = false
+        finishScanManually()
+    }
+
     private func processScanAndContinue() {
         isProcessing = true
-        print("🗺️ LiDAR: Sauvegarde WorldMap pour AR Placement avec ID \(tempGardenId)")
+        let storageGardenId = existingGardenId ?? tempGardenId
+        print("🗺️ LiDAR: Sauvegarde WorldMap pour AR Placement avec ID \(storageGardenId)")
         captureController.roomCaptureView.captureSession.arSession.getCurrentWorldMap { worldMap, error in
             if let map = worldMap {
                 do {
                     let mapData = try NSKeyedArchiver.archivedData(withRootObject: map, requiringSecureCoding: true)
-                    let url = GardenLocalStore.worldMapURL(for: tempGardenId)
+                    let url = GardenLocalStore.worldMapURL(for: storageGardenId)
                     try mapData.write(to: url)
                     print("✅ WorldMap LiDAR sauvegardée")
                 } catch {
@@ -262,7 +336,9 @@ struct LiDARScanWizardView: View {
                 self.extractedPerimeter = perimeter
 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    if onTraceValidated != nil {
+                    if measurementOnly, existingGardenId != nil {
+                        Task { await self.updateExistingGardenAfterScan(boundary: boundary, area: area, perimeter: perimeter) }
+                    } else if onTraceValidated != nil {
                         // 🆕 Flow wizard : POST /gardens et callback.
                         Task { await self.createGardenAfterScan(boundary: boundary, area: area, perimeter: perimeter) }
                     } else {
@@ -272,6 +348,57 @@ struct LiDARScanWizardView: View {
                     }
                 }
             }
+        }
+    }
+
+    @MainActor
+    private func updateExistingGardenAfterScan(
+        boundary: [SIMD3<Float>],
+        area: Float,
+        perimeter: Float
+    ) async {
+        guard let existingGardenId else {
+            isProcessing = false
+            return
+        }
+
+        let sceneURL = GardenLocalStore.sceneURL(for: existingGardenId)
+        let existingPlants: [PersistedPlant]
+        if FileManager.default.fileExists(atPath: sceneURL.path),
+           let data = try? Data(contentsOf: sceneURL),
+           let scene = try? JSONDecoder().decode(PersistedARScene.self, from: data).normalizedToWorldFrame() {
+            existingPlants = scene.plants
+        } else {
+            existingPlants = []
+        }
+
+        let points = boundary.map { [$0.x, $0.y, $0.z] }
+        let scene = PersistedARScene(
+            savedAt: Date(),
+            plants: existingPlants,
+            boundaryPoints: points,
+            area: area,
+            perimeter: perimeter
+        )
+
+        do {
+            try await GardenAPI.shared.updateGarden(
+                id: existingGardenId,
+                patch: GardenAPI.GardenPatch(
+                    measurements: GardenMeasurementsDTO(
+                        boundaryPoints: points,
+                        area: area,
+                        perimeter: perimeter
+                    )
+                )
+            )
+            try JSONEncoder().encode(scene).write(to: sceneURL)
+            isProcessing = false
+            dismiss()
+            onSuccess()
+        } catch {
+            createGardenError = L10n.t("MEASURE_SAVE_ERROR")
+            isProcessing = false
         }
     }
 
@@ -288,9 +415,12 @@ struct LiDARScanWizardView: View {
         let tempSceneURL = GardenLocalStore.sceneURL(for: tempGardenId)
         try? JSONEncoder().encode(scene).write(to: tempSceneURL)
 
+        var completedWizard = wizard
+        completedWizard.lightExposure = capturedLightExposure
+
         let createDTO = GardenCreateDTO(
             name: gardenName,
-            wizard: wizard,
+            wizard: completedWizard,
             plants: [],
             thumbnailKey: thumbnailKey,
             measurements: GardenMeasurementsDTO(
@@ -309,7 +439,7 @@ struct LiDARScanWizardView: View {
             }
 
             isProcessing = false
-            onTraceValidated?(serverId, boundary, area, perimeter)
+            onTraceValidated?(serverId, boundary, area, perimeter, capturedLightExposure)
         } catch {
             print("❌ POST /gardens (LiDAR) a échoué: \(error)")
             isProcessing = false

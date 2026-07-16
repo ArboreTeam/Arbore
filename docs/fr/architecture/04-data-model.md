@@ -16,6 +16,8 @@ erDiagram
     GARDENS ||--|{ PLACED_PLANTS : "contient (embedded)"
     PLANTS ||--o| PLANT_FLAGS : "qualifié par (embedded)"
     GARDENS ||--o| MEASUREMENTS : "mesuré par (embedded)"
+    GARDENS ||--o| GARDEN_LOCATION : "localisé approximativement par (embedded)"
+    GARDENS ||--o| LIGHT_EXPOSURE : "orienté vers la lumière par (embedded)"
 
     USERS {
         string uid PK "Firebase UID"
@@ -83,6 +85,21 @@ erDiagram
         array boundaryPoints "polygone [[x,z], ...]"
         float area
         float perimeter
+    }
+
+    GARDEN_LOCATION {
+        string city "optionnel pour deviceApproximate"
+        float latitude "arrondie à 2 décimales"
+        float longitude "arrondie à 2 décimales"
+        string source "deviceApproximate ou manualCity"
+    }
+
+    LIGHT_EXPOSURE {
+        float directionX "direction horizontale normalisée AR"
+        float directionY "toujours 0"
+        float directionZ "direction horizontale normalisée AR"
+        float magneticYawRadians "optionnel"
+        float ambientIntensity "lux estimés ARKit, optionnel"
     }
 
     CONSENTS {
@@ -176,11 +193,58 @@ Document représentant un jardin créé par un utilisateur. Les plantes placées
 | `_id` | ObjectID | Clé primaire. |
 | `uid` | string | UID propriétaire (FK logique vers `users.uid`). Posé côté serveur depuis le token, filtré dans tous les CRUD. |
 | `name` | string | Nom affiché. |
-| `wizard` | `GardenWizardData` | Choix du wizard (style, spaceType, exposure, maintenance, safety, soil, scanMethod). |
+| `wizard` | `GardenWizardData` | Choix du wizard, méthode de scan, capture d'exposition optionnelle, localisation approximative, réponses conditionnelles et fiche d'espace optionnelle. |
 | `plants` | array<`PlacedPlant`> | Plantes placées (voir ci-dessous). |
 | `measurements` | `GardenMeasurements` (optionnel) | Géométrie de la pièce/jardin tracée en AR : `boundaryPoints` (polygone), `area`, `perimeter`. Acceptée en création et en mise à jour. |
 | `thumbnailKey` | string (optionnel) | Clé d'image pour la vignette du jardin sur la home. |
 | `createdAt`, `updatedAt` | date | Timestamps gérés par le backend (`updateGarden` met à jour `updatedAt`). |
+
+Sous-document optionnel `wizard.location` (`GardenLocationData`) :
+
+| Champ | Type | Notes |
+|---|---|---|
+| `city` | string (optionnel) | Ville issue du géocodage approximatif ou saisie manuelle. |
+| `latitude`, `longitude` | float (optionnels) | Coordonnées appareil arrondies à deux décimales côté iOS avant envoi ; absentes lors d'une saisie manuelle. |
+| `source` | string | `deviceApproximate` ou `manualCity`. |
+
+Le modèle ne possède volontairement aucun champ d'adresse exacte. Le backend persiste uniquement le DTO déjà minimisé par le client.
+
+`state.location` est réinitialisé au lancement de chaque nouveau jardin. Après le scan, l'application effectue une nouvelle mesure ponctuelle ou demande une nouvelle ville ; elle ne copie jamais la localisation d'un autre jardin.
+
+Sous-document optionnel `wizard.lightExposure` (`GardenLightExposureData`), collecté uniquement pour une pièce, un balcon ou une terrasse :
+
+| Champ | Type | Notes |
+|---|---|---|
+| `directionX`, `directionY`, `directionZ` | float | Direction visée par la caméra dans le repère AR du scan, projetée et normalisée horizontalement (`directionY = 0`). |
+| `magneticYawRadians` | float (optionnel) | Lacet par rapport au nord magnétique lorsque Core Motion fournit ce repère. |
+| `ambientIntensity` | float (optionnel) | Estimation instantanée de la lumière ambiante fournie par `ARLightEstimate`, en lux. |
+
+La direction AR et le lacet magnétique permettent de relier la géométrie mesurée à une orientation réelle. La valeur de luminosité est un indice ponctuel, pas une mesure durable de l'ensoleillement.
+
+Sous-document optionnel `wizard.conditionalAnswers` (`GardenConditionalAnswersData`), déclaré après la localisation :
+
+| Champ | Valeurs | Contexte |
+|---|---|---|
+| `plantingMode` | `inGround`, `containers`, `both` | Jardin. |
+| `drainage` | `fast`, `normal`, `slow` | Jardin, comportement de l'eau après une forte pluie. |
+| `windExposure` | `sheltered`, `sometimesWindy`, `veryExposed` | Balcon ou terrasse. |
+| `containerProject` | `existingPots`, `newComposition`, `both` | Balcon ou terrasse. |
+| `indoorHumidity` | `dry`, `normal`, `humid` | Pièce. |
+| `nearbyHeat` | `none`, `radiator`, `underfloorHeating` | Pièce. |
+
+Les animaux et jeunes enfants restent dans le champ historique `wizard.safety` afin de conserver le filtrage de toxicité existant. Une question ignorée ou « Je ne sais pas » n'est jamais encodée : le sous-document entier reste absent si aucune réponse n'est connue.
+
+Sous-document optionnel `wizard.siteProfile` (`GardenSiteProfileData`), édité depuis le plan 2D :
+
+| Champ | Type | Notes |
+|---|---|---|
+| `orientation` | `GardenOrientationData` (optionnel) | Direction 0–360°, 0° = nord. |
+| `sunlight` | `GardenSunlightData` (optionnel) | Fourchette `minimumHours` / `maximumHours`. |
+| `wind` | `GardenWindData` (optionnel) | `sheltered`, `light`, `moderate` ou `strong`. |
+| `availableHeight` | `GardenAvailableHeightData` (optionnel) | Hauteur en mètres, déclarée tant qu'elle n'est pas mesurée. |
+| `plantingZones` | array<`GardenPlantingZoneData`> | Polygones X/Y/Z dans le repère du contour, nommables et excluables. |
+
+Chaque valeur possède un `metadata` avec `source` (`measured`, `inferred`, `declared`, `regionalEstimate`) et `confidence` (`high`, `medium`, `low`). Les champs restent absents tant qu'aucune donnée réelle n'est disponible ; l'interface ne fabrique pas de valeur de remplacement.
 
 Sous-document `PlacedPlant` :
 

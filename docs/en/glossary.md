@@ -76,7 +76,7 @@ Apple framework (iOS 16+, LiDAR only) that scans a room in 3D and produces a str
 
 ## scanMethod
 
-Enum held by `GardenWizardState` that determines the scan strategy: `.gardenPerimeter` (2D ground tracing, non-LiDAR) or `.roomScan` (RoomPlan, LiDAR only). Chosen at the wizard's `.scanMethod` step.
+Enum held by `GardenWizardState` that determines the scan strategy: `.gardenPerimeter` (2D ground tracing, non-LiDAR) or `.roomScan` (RoomPlan, LiDAR only). Determined automatically after space selection; changeable in the camera only for a RoomPlan-compatible room.
 
 ## ScreenSpec
 
@@ -112,7 +112,7 @@ See [**ARWorldMap**](#arworldmap).
 
 ## Wizard
 
-Garden creation flow (`GardenWizardStep`) in eight to nine steps: intro → style → spaceType → exposure → maintenance → safety → (soil, if garden) → scanMethod → aiSuggestion. **`scanMethod` precedes `aiSuggestion`** (final step); there is **no** "summary" step. The `POST /gardens` is triggered at the tracing step (`scanMethod`), not at the end. Implemented in `QuestionnaireView`. Documented in [`screens/questionnaire-wizard.md`](screens/questionnaire-wizard.md) and [`flows/garden-creation.md`](flows/garden-creation.md).
+Garden creation flow (`GardenWizardStep`) with three visible screens: `spaceType` → `essentialQuestions` → `aiSuggestion`. After space choice, Arbore automatically selects the method, opens the scan, optionally captures exposure, creates the garden, then requests a fresh location. The following three questions are space-specific and optional. There is no method page or recap screen. Implemented in `QuestionnaireView`. Documented in [`screens/questionnaire-wizard.md`](screens/questionnaire-wizard.md) and [`flows/garden-creation.md`](flows/garden-creation.md).
 
 ---
 

@@ -176,17 +176,97 @@ final class GardenSuggestionEngine {
 
         // Weighted average (poids distants si disponibles, sinon repli)
         let weights = Weights.resolved
-        let total = styleScore * weights.style
+        var total = styleScore * weights.style
             + exposureScore * weights.exposure
             + soilScore * weights.soil
             + maintenanceScore * weights.maintenance
             + safetyScore * weights.safety
+
+        // Les réponses conditionnelles affinent le classement sans exclure
+        // brutalement une plante. Les données inconnues n'influencent pas le
+        // score et les anciens jardins gardent exactement le calcul historique.
+        if let contextualScore = scoreConditionalAnswers(
+            plant: plant,
+            answers: wizard.conditionalAnswers
+        ) {
+            total = total * 0.85 + contextualScore * 0.15
+        }
 
         if reasons.isEmpty {
             reasons.append(L10n.t("SUGGESTION_REASON_GENERIC_MATCH"))
         }
 
         return ScoreResult(score: total, reasons: reasons)
+    }
+
+    private func scoreConditionalAnswers(
+        plant: Plant,
+        answers: GardenConditionalAnswersDTO?
+    ) -> Double? {
+        guard let answers, let flags = plant.flags else { return nil }
+        var scores: [Double] = []
+
+        if let plantingMode = answers.plantingMode {
+            switch plantingMode {
+            case .inGround, .both:
+                scores.append(0.85)
+            case .containers:
+                scores.append(flags.compact ? 1.0 : 0.60)
+            }
+        }
+
+        if let drainage = answers.drainage {
+            switch drainage {
+            case .fast:
+                scores.append(flags.droughtTolerant ? 1.0 : (flags.humidityLoving ? 0.45 : 0.75))
+            case .normal:
+                scores.append(0.85)
+            case .slow:
+                scores.append(flags.humidityLoving ? 1.0 : (flags.droughtTolerant ? 0.35 : 0.70))
+            }
+        }
+
+        if let wind = answers.windExposure {
+            switch wind {
+            case .sheltered:
+                scores.append(0.85)
+            case .sometimesWindy:
+                scores.append((flags.compact || flags.droughtTolerant) ? 0.95 : 0.70)
+            case .veryExposed:
+                if flags.compact && flags.droughtTolerant {
+                    scores.append(1.0)
+                } else if flags.compact || flags.droughtTolerant {
+                    scores.append(0.80)
+                } else if flags.climbing || flags.trailing {
+                    scores.append(0.35)
+                } else {
+                    scores.append(0.55)
+                }
+            }
+        }
+
+        if let humidity = answers.indoorHumidity {
+            switch humidity {
+            case .dry:
+                scores.append(flags.droughtTolerant ? 1.0 : (flags.humidityLoving ? 0.35 : 0.70))
+            case .normal:
+                scores.append(0.85)
+            case .humid:
+                scores.append(flags.humidityLoving ? 1.0 : (flags.droughtTolerant ? 0.45 : 0.70))
+            }
+        }
+
+        if let nearbyHeat = answers.nearbyHeat {
+            switch nearbyHeat {
+            case .none:
+                scores.append(0.85)
+            case .radiator, .underfloorHeating:
+                scores.append(flags.droughtTolerant ? 0.95 : (flags.humidityLoving ? 0.35 : 0.65))
+            }
+        }
+
+        guard !scores.isEmpty else { return nil }
+        return scores.reduce(0, +) / Double(scores.count)
     }
 
     // MARK: - Style Scoring

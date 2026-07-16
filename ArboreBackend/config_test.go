@@ -48,6 +48,14 @@ func TestGetConfig(t *testing.T) {
 		assert.Equal(t, tierFree, opt["tier"], "tout doit être free pendant la bêta")
 	}
 
+	spaceTypes, ok := wizard["spaceTypes"].([]interface{})
+	assert.True(t, ok, "spaceTypes doit être une liste")
+	assert.Len(t, spaceTypes, 4)
+	assert.Equal(t, "interior", spaceTypes[0].(map[string]interface{})["value"])
+	assert.Equal(t, "balcony", spaceTypes[1].(map[string]interface{})["value"])
+	assert.Equal(t, "terrace", spaceTypes[2].(map[string]interface{})["value"])
+	assert.Equal(t, "garden", spaceTypes[3].(map[string]interface{})["value"])
+
 	// Care : intervalles de soin présents
 	care, ok := body["care"].(map[string]interface{})
 	assert.True(t, ok, "care doit être un objet")

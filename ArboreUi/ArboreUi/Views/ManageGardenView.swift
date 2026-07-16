@@ -8,6 +8,7 @@
 import SwiftUI
 import Foundation
 import UIKit
+import RoomPlan
 
 // MARK: - 1. MODELS (Fusionnés)
 
@@ -155,6 +156,7 @@ class GardenLocalStorageService: ObservableObject {
 struct ManageGardenView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @EnvironmentObject private var notificationRouter: NotificationRouter
+    @EnvironmentObject private var tabRouter: TabRouter
     @StateObject private var projectService = GardenLocalStorageService()
     @State private var showingNewProjectSheet = false
     @State private var showingGardenList = false
@@ -192,6 +194,7 @@ struct ManageGardenView: View {
             .onAppear {
                 isResolvingInitialGarden = selectedProject == nil
                 projectService.refreshProjects()
+                applyTabGardenTarget()
                 applyNotificationRoute(notificationRouter.pendingRoute)
                 Task {
                     await resolveInitialGarden()
@@ -203,6 +206,9 @@ struct ManageGardenView: View {
             }
             .onChange(of: notificationRouter.pendingRoute) { _, route in
                 applyNotificationRoute(route)
+            }
+            .onChange(of: tabRouter.targetGardenId) { _, _ in
+                applyTabGardenTarget()
             }
         }
         .preferredColorScheme(themeManager.colorScheme)
@@ -311,7 +317,6 @@ struct ManageGardenView: View {
     
     private func syncSelectedProject() {
         guard !projectService.projects.isEmpty else {
-            selectedProject = nil
             return
         }
         
@@ -350,6 +355,22 @@ struct ManageGardenView: View {
         showingGardenList = false
         isResolvingInitialGarden = false
     }
+
+    private func applyTabGardenTarget() {
+        guard let gardenId = tabRouter.targetGardenId, !gardenId.isEmpty else { return }
+
+        let project = projectService.projects.first(where: { $0.id == gardenId }) ?? GardenModel(
+            id: gardenId,
+            name: L10n.t("MY_GARDEN_TITLE"),
+            lastModified: Date(),
+            thumbnail: "leaf.fill"
+        )
+
+        selectedProject = project
+        showingGardenList = false
+        isResolvingInitialGarden = false
+        tabRouter.targetGardenId = nil
+    }
 }
 
 // MARK: - 5. VUE DÉTAIL FUSIONNÉE (Tabs + Map + Purchase)
@@ -370,6 +391,7 @@ struct GardenDetailsPage: View {
     @State private var mapTextureKind: MapTextureKind = .garden
     @State private var gardenDetails: GardenDTO?
     @State private var showMeasurementApp = false
+    @State private var showSpaceProfileEditor = false
     @State private var currentGardenName: String
     @State private var renameText = ""
     @State private var showRenameAlert = false
@@ -463,20 +485,22 @@ struct GardenDetailsPage: View {
                 .scrollIndicators(.hidden)
             }
             
-            // FAB (Floating Action Button)
-            Button {
-                handleFloatingAction()
-            } label: {
-                Image(systemName: floatingActionIcon)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(Color.white)
-                    .frame(width: 56, height: 56)
-                    .background(ArboreDesign.Colors.primaryButton)
-                    .clipShape(Circle())
-                    .shadow(color: ArboreDesign.Colors.primaryGreen.opacity(0.28), radius: 12, x: 0, y: 7)
+            // Le plan 2D possède déjà toutes ses actions dans la fiche espace.
+            if selectedTab != .plan2D {
+                Button {
+                    handleFloatingAction()
+                } label: {
+                    Image(systemName: floatingActionIcon)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .frame(width: 56, height: 56)
+                        .background(ArboreDesign.Colors.primaryButton)
+                        .clipShape(Circle())
+                        .shadow(color: ArboreDesign.Colors.primaryGreen.opacity(0.28), radius: 12, x: 0, y: 7)
+                }
+                .padding(.trailing, ArboreDesign.Spacing.screenHorizontal)
+                .padding(.bottom, ArboreDesign.Spacing.md)
             }
-            .padding(.trailing, ArboreDesign.Spacing.screenHorizontal)
-            .padding(.bottom, ArboreDesign.Spacing.md)
         }
         .navigationBarHidden(true)
         .alert(L10n.t("GARDEN_RENAME_TITLE"), isPresented: $showRenameAlert) {
@@ -496,18 +520,31 @@ struct GardenDetailsPage: View {
             Text(checkoutSummaryText)
         }
         .fullScreenCover(isPresented: $showMeasurementApp) {
-            ARViewContainerMesure(
-                uid: gardenDetails?.uid ?? "",
-                wizard: gardenDetails?.wizard ?? fallbackWizardDTO,
-                gardenName: currentGardenName,
-                thumbnailKey: gardenDetails?.thumbnailKey,
-                existingGardenId: gardenId,
-                measurementOnly: true,
-                onSuccess: {
-                    showMeasurementApp = false
-                    mapViewModel.loadGarden(gardenId: gardenId)
-                }
-            )
+            if shouldUseRoomPlanForRemeasurement {
+                LiDARScanWizardView(
+                    uid: gardenDetails?.uid ?? "",
+                    selectedPlants: [],
+                    wizard: gardenDetails?.wizard ?? fallbackWizardDTO,
+                    gardenName: currentGardenName,
+                    thumbnailKey: gardenDetails?.thumbnailKey,
+                    existingGardenId: gardenId,
+                    measurementOnly: true,
+                    onCancel: {
+                        showMeasurementApp = false
+                    },
+                    onSuccess: completeRemeasurement
+                )
+            } else {
+                ARViewContainerMesure(
+                    uid: gardenDetails?.uid ?? "",
+                    wizard: gardenDetails?.wizard ?? fallbackWizardDTO,
+                    gardenName: currentGardenName,
+                    thumbnailKey: gardenDetails?.thumbnailKey,
+                    existingGardenId: gardenId,
+                    measurementOnly: true,
+                    onSuccess: completeRemeasurement
+                )
+            }
         }
         .fullScreenCover(isPresented: $showARShareCapture) {
             GardenARPlacementView(
@@ -540,6 +577,24 @@ struct GardenDetailsPage: View {
                     allowedActions: GardenRoutinePlanningKind.allPlanningCases
                 )
                 .environmentObject(themeManager)
+            }
+        }
+        .sheet(isPresented: $showSpaceProfileEditor) {
+            if let gardenDetails {
+                GardenSpaceProfileEditor(
+                    initialWizard: gardenDetails.wizard,
+                    area: mapViewModel.area,
+                    perimeter: mapViewModel.perimeter,
+                    boundaryPoints: mapViewModel.boundaryPoints,
+                    onRemeasure: {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                            showMeasurementApp = true
+                        }
+                    },
+                    onSave: { wizard in
+                        try await saveSpaceProfile(wizard)
+                    }
+                )
             }
         }
         .onAppear {
@@ -642,7 +697,11 @@ struct GardenDetailsPage: View {
             ZStack(alignment: .bottom) {
                 Group {
                     if hasMeasuredSpace {
-                        GardenPlanInteractiveMap(viewModel: mapViewModel, textureKind: mapTextureKind)
+                        GardenPlanInteractiveMap(
+                            viewModel: mapViewModel,
+                            textureKind: mapTextureKind,
+                            plantingZones: plantingZones
+                        )
                     } else {
                         GardenMeasurementPromptCard {
                             showMeasurementApp = true
@@ -672,6 +731,20 @@ struct GardenDetailsPage: View {
                 taskCount: pendingTaskCount
             )
 
+            if let gardenDetails {
+                GardenSpaceProfileCard(
+                    wizard: gardenDetails.wizard,
+                    area: mapViewModel.area,
+                    perimeter: mapViewModel.perimeter,
+                    onEdit: {
+                        showSpaceProfileEditor = true
+                    },
+                    onRemeasure: {
+                        showMeasurementApp = true
+                    }
+                )
+            }
+
             if !hasMeasuredSpace {
                 GardenInlineMessage(
                     systemImage: "ruler",
@@ -681,11 +754,6 @@ struct GardenDetailsPage: View {
                 GardenInlineMessage(
                     systemImage: "leaf",
                     text: L10n.t("GARDEN_PLAN_NO_PLANTS")
-                )
-            } else if mapViewModel.selectedPlant == nil {
-                GardenInlineMessage(
-                    systemImage: "hand.tap",
-                    text: L10n.f("GARDEN_PLAN_MARKER_HINT_FORMAT", mapViewModel.displayPlants.count)
                 )
             }
         }
@@ -697,6 +765,23 @@ struct GardenDetailsPage: View {
 
     private var hasMeasuredSpace: Bool {
         mapViewModel.boundaryPoints.count > 2
+    }
+
+    private var plantingZones: [GardenPlantingZoneDTO] {
+        GardenSiteProfileResolver
+            .resolvedProfile(for: gardenDetails?.wizard ?? fallbackWizardDTO)
+            .plantingZones
+    }
+
+    private var shouldUseRoomPlanForRemeasurement: Bool {
+        gardenDetails?.wizard.scanMethod == ScanMethod.roomScan.rawValue
+            && RoomCaptureSession.isSupported
+    }
+
+    private func completeRemeasurement() {
+        showMeasurementApp = false
+        mapViewModel.loadGarden(gardenId: gardenId)
+        Task { await loadMapTextureKind() }
     }
 
     private var careContent: some View {
@@ -1819,6 +1904,20 @@ struct GardenDetailsPage: View {
         }
 
         isRenamingGarden = false
+    }
+
+    @MainActor
+    private func saveSpaceProfile(_ wizard: GardenWizardDTO) async throws {
+        try await GardenAPI.shared.updateGarden(
+            id: gardenId,
+            patch: GardenAPI.GardenPatch(wizard: wizard)
+        )
+
+        if var details = gardenDetails {
+            details.wizard = wizard
+            gardenDetails = details
+        }
+        mapTextureKind = MapTextureKind(spaceType: wizard.spaceType)
     }
 
     private var fallbackWizardDTO: GardenWizardDTO {
@@ -3511,6 +3610,7 @@ enum MapTextureKind {
 struct GardenPlanInteractiveMap: View {
     @ObservedObject var viewModel: Garden2DViewModel
     let textureKind: MapTextureKind
+    let plantingZones: [GardenPlantingZoneDTO]
     @State private var scale: CGFloat = 80.0
     @State private var lastScale: CGFloat = 80.0
     @State private var offset: CGSize = .zero
@@ -3593,6 +3693,28 @@ struct GardenPlanInteractiveMap: View {
                                 style: StrokeStyle(lineWidth: 3.2, lineCap: .round, lineJoin: .round)
                             )
                         }
+
+                        ForEach(plantingZones) { zone in
+                            if zone.points.count >= 3 {
+                                gardenZonePath(zone, centerX: centerX, centerY: centerY)
+                                    .fill(
+                                        zone.isExcluded
+                                            ? Color.orange.opacity(0.16)
+                                            : ArboreDesign.Colors.primaryGreen.opacity(0.28)
+                                    )
+
+                                gardenZonePath(zone, centerX: centerX, centerY: centerY)
+                                    .stroke(
+                                        zone.isExcluded ? Color.orange.opacity(0.8) : ArboreDesign.Colors.primaryGreen,
+                                        style: StrokeStyle(
+                                            lineWidth: 2.2,
+                                            lineCap: .round,
+                                            lineJoin: .round,
+                                            dash: zone.isExcluded ? [7, 5] : []
+                                        )
+                                    )
+                            }
+                        }
                         
                         // Plantes - EXACTEMENT la même formule que les bordures
                         ForEach(Array(viewModel.displayPlants.enumerated()), id: \.element.id) { index, plantWrapper in
@@ -3665,6 +3787,26 @@ struct GardenPlanInteractiveMap: View {
     private func gardenBoundaryPath(centerX: CGFloat, centerY: CGFloat) -> Path {
         Path { path in
             for (index, point) in viewModel.boundaryPoints.enumerated() {
+                let x = centerX + CGFloat(point[0]) * scale + offset.width
+                let z = centerY + CGFloat(point[2]) * scale + offset.height
+
+                if index == 0 {
+                    path.move(to: CGPoint(x: x, y: z))
+                } else {
+                    path.addLine(to: CGPoint(x: x, y: z))
+                }
+            }
+            path.closeSubpath()
+        }
+    }
+
+    private func gardenZonePath(
+        _ zone: GardenPlantingZoneDTO,
+        centerX: CGFloat,
+        centerY: CGFloat
+    ) -> Path {
+        Path { path in
+            for (index, point) in zone.points.filter({ $0.count >= 3 }).enumerated() {
                 let x = centerX + CGFloat(point[0]) * scale + offset.width
                 let z = centerY + CGFloat(point[2]) * scale + offset.height
 

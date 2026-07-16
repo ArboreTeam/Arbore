@@ -340,9 +340,16 @@ struct AISuggestionStepView: View {
             spaceType: state.spaceType?.rawValue ?? "",
             exposure: state.exposure?.rawValue,
             maintenance: state.maintenance?.rawValue,
-            safety: state.safetySelections.map { $0.rawValue },
+            safety: state.safetySelections.isEmpty
+                ? nil
+                : state.safetySelections.map(\.rawValue).sorted(),
             soil: state.soil?.rawValue,
-            scanMethod: state.scanMethod?.rawValue
+            scanMethod: state.scanMethod?.rawValue,
+            location: state.location,
+            lightExposure: state.lightExposure,
+            conditionalAnswers: state.conditionalAnswers.isEmpty
+                ? nil
+                : state.conditionalAnswers
         )
 
         // Simulate a brief "AI thinking" delay for UX delight,

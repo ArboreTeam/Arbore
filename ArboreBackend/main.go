@@ -228,13 +228,88 @@ type AIResponse struct {
 // ---------- GARDENS (NEW) ----------
 
 type GardenWizardData struct {
-	Style       string   `json:"style" bson:"style"`
-	SpaceType   string   `json:"spaceType" bson:"spaceType"`
-	Exposure    string   `json:"exposure,omitempty" bson:"exposure,omitempty"`
-	Maintenance string   `json:"maintenance,omitempty" bson:"maintenance,omitempty"`
-	Safety      []string `json:"safety,omitempty" bson:"safety,omitempty"`
-	Soil        string   `json:"soil,omitempty" bson:"soil,omitempty"`
-	ScanMethod  string   `json:"scanMethod,omitempty" bson:"scanMethod,omitempty"`
+	Style              string                        `json:"style" bson:"style"`
+	SpaceType          string                        `json:"spaceType" bson:"spaceType"`
+	Exposure           string                        `json:"exposure,omitempty" bson:"exposure,omitempty"`
+	Maintenance        string                        `json:"maintenance,omitempty" bson:"maintenance,omitempty"`
+	Safety             []string                      `json:"safety,omitempty" bson:"safety,omitempty"`
+	Soil               string                        `json:"soil,omitempty" bson:"soil,omitempty"`
+	ScanMethod         string                        `json:"scanMethod,omitempty" bson:"scanMethod,omitempty"`
+	Location           *GardenLocationData           `json:"location,omitempty" bson:"location,omitempty"`
+	LightExposure      *GardenLightExposureData      `json:"lightExposure,omitempty" bson:"lightExposure,omitempty"`
+	SiteProfile        *GardenSiteProfileData        `json:"siteProfile,omitempty" bson:"siteProfile,omitempty"`
+	ConditionalAnswers *GardenConditionalAnswersData `json:"conditionalAnswers,omitempty" bson:"conditionalAnswers,omitempty"`
+}
+
+// GardenConditionalAnswersData conserve uniquement les réponses que
+// l'utilisateur connaît. Une question ignorée ou « Je ne sais pas » reste
+// absente du document MongoDB.
+type GardenConditionalAnswersData struct {
+	PlantingMode     string `json:"plantingMode,omitempty" bson:"plantingMode,omitempty"`
+	Drainage         string `json:"drainage,omitempty" bson:"drainage,omitempty"`
+	WindExposure     string `json:"windExposure,omitempty" bson:"windExposure,omitempty"`
+	ContainerProject string `json:"containerProject,omitempty" bson:"containerProject,omitempty"`
+	IndoorHumidity   string `json:"indoorHumidity,omitempty" bson:"indoorHumidity,omitempty"`
+	NearbyHeat       string `json:"nearbyHeat,omitempty" bson:"nearbyHeat,omitempty"`
+}
+
+// GardenLocationData ne contient volontairement aucune adresse. Le client
+// arrondit les coordonnées à deux décimales avant de les transmettre.
+type GardenLocationData struct {
+	City      string   `json:"city,omitempty" bson:"city,omitempty"`
+	Latitude  *float64 `json:"latitude,omitempty" bson:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty" bson:"longitude,omitempty"`
+	Source    string   `json:"source" bson:"source"`
+}
+
+type GardenLightExposureData struct {
+	DirectionX         float64  `json:"directionX" bson:"directionX"`
+	DirectionY         float64  `json:"directionY" bson:"directionY"`
+	DirectionZ         float64  `json:"directionZ" bson:"directionZ"`
+	MagneticYawRadians *float64 `json:"magneticYawRadians,omitempty" bson:"magneticYawRadians,omitempty"`
+	AmbientIntensity   *float64 `json:"ambientIntensity,omitempty" bson:"ambientIntensity,omitempty"`
+}
+
+type GardenValueMetadataData struct {
+	Source     string `json:"source" bson:"source"`
+	Confidence string `json:"confidence" bson:"confidence"`
+}
+
+type GardenOrientationData struct {
+	Degrees  float64                 `json:"degrees" bson:"degrees"`
+	Metadata GardenValueMetadataData `json:"metadata" bson:"metadata"`
+}
+
+type GardenSunlightData struct {
+	MinimumHours float64                 `json:"minimumHours" bson:"minimumHours"`
+	MaximumHours float64                 `json:"maximumHours" bson:"maximumHours"`
+	Metadata     GardenValueMetadataData `json:"metadata" bson:"metadata"`
+}
+
+type GardenWindData struct {
+	Level    string                  `json:"level" bson:"level"`
+	Metadata GardenValueMetadataData `json:"metadata" bson:"metadata"`
+}
+
+type GardenAvailableHeightData struct {
+	Meters   float64                 `json:"meters" bson:"meters"`
+	Metadata GardenValueMetadataData `json:"metadata" bson:"metadata"`
+}
+
+type GardenPlantingZoneData struct {
+	ID         string                  `json:"id" bson:"id"`
+	Name       string                  `json:"name" bson:"name"`
+	Points     [][]float64             `json:"points" bson:"points"`
+	IsExcluded bool                    `json:"isExcluded" bson:"isExcluded"`
+	Metadata   GardenValueMetadataData `json:"metadata" bson:"metadata"`
+}
+
+type GardenSiteProfileData struct {
+	Orientation     *GardenOrientationData     `json:"orientation,omitempty" bson:"orientation,omitempty"`
+	Sunlight        *GardenSunlightData        `json:"sunlight,omitempty" bson:"sunlight,omitempty"`
+	Wind            *GardenWindData            `json:"wind,omitempty" bson:"wind,omitempty"`
+	AvailableHeight *GardenAvailableHeightData `json:"availableHeight,omitempty" bson:"availableHeight,omitempty"`
+	PlantingZones   []GardenPlantingZoneData   `json:"plantingZones" bson:"plantingZones"`
 }
 
 type PlacedPlant struct {

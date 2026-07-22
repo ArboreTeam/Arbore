@@ -229,7 +229,8 @@
 "PRIVACY_SECTION_DATA_ITEM2" = "Foto de perfil: solo si añades una.";
 "PRIVACY_SECTION_DATA_ITEM3" = "Jardines y RA: plantas seleccionadas, posiciones 3D, respuestas del cuestionario.";
 "PRIVACY_SECTION_DATA_ITEM4" = "Consentimientos: tipo, versión y fecha, además de dirección IP y agente de usuario conservados como prueba.";
-"PRIVACY_SECTION_DATA_ITEM5" = "Solo en tu dispositivo (nunca se envía): cámara y LiDAR para la RA, movimiento, mapas espaciales de ARKit, ubicación para la luz solar, calendario para los recordatorios, Face ID.";
+"PRIVACY_SECTION_DATA_ITEM5" = "Solo en tu dispositivo: LiDAR y el flujo de cámara de la RA, movimiento, mapas espaciales de ARKit, ubicación para la luz solar, calendario para los recordatorios, Face ID.";
+"PRIVACY_SECTION_DATA_ITEM6" = "Diagnóstico de salud y asistente: las fotos que envías para un diagnóstico, así como tus mensajes, se transmiten a nuestros servidores y luego a Google (Gemini) para su análisis, incluso fuera de la Unión Europea.";
 
 // Por qué los usamos
 "PRIVACY_SECTION_USAGE_TITLE" = "Por qué usamos estos datos";
@@ -253,7 +254,7 @@
 
 // Compartición
 "PRIVACY_SECTION_SHARING_TITLE" = "Comparticion y destinatarios";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Encargados del tratamiento: Firebase, Apple, MongoDB Atlas, Cloudflare, Unsplash, generación con IA.";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Encargados del tratamiento: Firebase, Apple, MongoDB Atlas, Cloudflare, Unsplash y Google (Gemini) para el análisis de fotos y el asistente.";
 "PRIVACY_SECTION_SHARING_ITEM2" = "Sin publicidad y sin seguimiento entre aplicaciones.";
 "PRIVACY_SECTION_SHARING_ITEM3" = "Nunca vendemos tus datos. Las transferencias se limitan a lo necesario y están reguladas por contrato.";
 

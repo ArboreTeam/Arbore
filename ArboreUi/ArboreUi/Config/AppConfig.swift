@@ -67,7 +67,10 @@ struct AppConfig {
     /// Bumpée à 2.0 (31 mai 2026) : refonte complète, RGPD, FR/EN, alignée sur
     /// https://arbore.app/privacy et https://arbore.app/terms. Les nouveaux
     /// consentements sont horodatés avec cette version.
-    static let privacyPolicyVersion = "2.0"
+    /// Bumpée à 2.1 : le diagnostic santé et l'assistant transmettent désormais
+    /// des photos et des messages à Google (Gemini), y compris hors UE. Ce
+    /// changement matériel doit être re-consenti, d'où le bump de version.
+    static let privacyPolicyVersion = "2.1"
 
     /// Date de dernière mise à jour de la politique
     static let privacyPolicyLastUpdate = "31 May 2026"

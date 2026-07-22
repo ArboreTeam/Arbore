@@ -69,6 +69,8 @@
 	<string>Arbore utilise une position approximative pour adapter les plantes au climat local et calculer l'orientation.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>L'application a besoin d'accéder au microphone pour certaines fonctionnalités.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Arbore enregistre le plan de votre jardin dans vos photos lorsque vous choisissez de le sauvegarder.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Arbore accède à vos photos pour définir votre photo de profil.</string>
 	<key>NSWorldSensingUsageDescription</key>

@@ -246,14 +246,14 @@
 "PRIVACY_SECTION_DATA_TITLE" = "Data we process";
 "PRIVACY_SECTION_DATA_ITEM1" = "Identity: email, name, Firebase ID, and the sign-in provider you use (email, Google or Apple).";
 "PRIVACY_SECTION_DATA_ITEM2" = "Profile photo: only if you choose to add one.";
-"PRIVACY_SECTION_DATA_ITEM3" = "Gardens & AR: selected plants, 3D positions, questionnaire answers.";
-"PRIVACY_SECTION_DATA_ITEM4" = "Consent records: type, version and date, plus IP address and user agent kept as proof.";
-"PRIVACY_SECTION_DATA_ITEM5" = "On your device only (never uploaded): camera and LiDAR for AR, motion, ARKit world maps, location for sunlight, calendar for reminders, Face ID.";
+"PRIVACY_SECTION_DATA_ITEM3" = "Gardens & AR: selected plants, 3D positions, questionnaire answers, city and approximate location if you allow it.";
+"PRIVACY_SECTION_DATA_ITEM4" = "Consent records: type, version, server date and limited technical app information.";
+"PRIVACY_SECTION_DATA_ITEM5" = "Kept on your device: raw camera and LiDAR images, motion data and ARKit world maps. A photo is uploaded only when you add it to chat or plant diagnosis.";
 
 // Why we use it
 "PRIVACY_SECTION_USAGE_TITLE" = "Why we use this data";
 "PRIVACY_SECTION_USAGE_ITEM1" = "Provide %@’s core features: create, save and restore your gardens in AR.";
-"PRIVACY_SECTION_USAGE_ITEM2" = "Generate personalised plant-care recommendations from your answers.";
+"PRIVACY_SECTION_USAGE_ITEM2" = "Match plants to your space and, when requested, process messages or photos sent to AI chat and plant diagnosis.";
 "PRIVACY_SECTION_USAGE_ITEM3" = "Security, abuse prevention, debugging and improving the app.";
 "PRIVACY_SECTION_USAGE_ITEM4" = "Honour the iOS permissions you grant (camera, photos, location, calendar, notifications).";
 "PRIVACY_SECTION_USAGE_ITEM5" = "Keep proof of your consents and meet our legal obligations.";
@@ -268,11 +268,11 @@
 // Retention
 "PRIVACY_SECTION_RETENTION_TITLE" = "Retention";
 "PRIVACY_SECTION_RETENTION_ITEM1" = "Your account, profile and gardens are kept while your account exists.";
-"PRIVACY_SECTION_RETENTION_ITEM2" = "Deleting your account erases your account, gardens and consents; consent proofs may be kept up to 3 years.";
+"PRIVACY_SECTION_RETENTION_ITEM2" = "Deleting from the app erases the Firebase account, profile, gardens, consents, local chat history and any associated legacy shared content.";
 
 // Sharing
 "PRIVACY_SECTION_SHARING_TITLE" = "Sharing & recipients";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Sub-processors: Firebase, Apple, MongoDB Atlas, Cloudflare, Unsplash, AI generation.";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Sub-processors: Firebase and Google (including Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI and Sentry if you enable diagnostics.";
 "PRIVACY_SECTION_SHARING_ITEM2" = "No advertising and no cross-app tracking.";
 "PRIVACY_SECTION_SHARING_ITEM3" = "We never sell your data. Transfers are limited to what is necessary and governed by contract.";
 
@@ -311,7 +311,7 @@
 "PRIVACYSETTINGS_TITLE" = "Privacy settings";
 
 "PRIVACYSETTINGS_HEADER_TITLE" = "Your privacy, your control";
-"PRIVACYSETTINGS_HEADER_SUBTITLE" = "Control who sees your profile and activity, and how we use your data.";
+"PRIVACYSETTINGS_HEADER_SUBTITLE" = "Control optional processing and clearly review how we use your data.";
 
 // Sections
 "PRIVACYSETTINGS_SECTION_PROFILE" = "Profile visibility";
@@ -352,7 +352,7 @@
 // Service description
 "TERMS_SECTION_SERVICE_TITLE" = "Service description";
 "TERMS_SECTION_SERVICE_ITEM1" = "%@ is an augmented-reality gardening app: choose plants, visualise them in 3D and AR, save gardens, and get care recommendations and watering reminders.";
-"TERMS_SECTION_SERVICE_ITEM2" = "Arbore is currently free and in beta: there are no subscriptions or in-app purchases.";
+"TERMS_SECTION_SERVICE_ITEM2" = "Arbore is currently free: there are no subscriptions or in-app purchases.";
 
 // Accounts & security
 "TERMS_SECTION_ACCOUNT_TITLE" = "Accounts & security";
@@ -399,7 +399,7 @@
 
 // Availability & changes
 "TERMS_SECTION_AVAILABILITY_TITLE" = "Availability & changes";
-"TERMS_SECTION_AVAILABILITY_ITEM1" = "The service is provided “as is” and “as available”. As a beta it may be modified, suspended or discontinued at any time, with or without notice.";
+"TERMS_SECTION_AVAILABILITY_ITEM1" = "The service is provided “as is” and “as available”. It may evolve, be suspended or discontinued in accordance with these terms.";
 "TERMS_SECTION_AVAILABILITY_ITEM2" = "We do not guarantee uninterrupted availability or the absence of data loss; keep a copy of anything important.";
 
 // Liability
@@ -798,7 +798,7 @@
 
 // Privacy Settings - Notifications
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notifications";
-"PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Push notifications";
+"PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Notifications";
 "PRIVACYSETTINGS_NOTIFICATIONS_SUB" = "Watering reminders and alerts";
 
 // Auto-translated with DeepL

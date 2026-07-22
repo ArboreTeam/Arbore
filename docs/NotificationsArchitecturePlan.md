@@ -1,5 +1,12 @@
 # Arbore Notifications Architecture Plan
 
+> **État V1 (juillet 2026)** — Arbore utilise uniquement les notifications
+> locales iOS pour les rappels d'arrosage et d'entretien. Le token APNs,
+> l'extension de service, l'entitlement Push Notifications et la synchronisation
+> serveur ont été retirés tant qu'aucun service d'envoi distant n'est disponible.
+> Les sections APNs ci-dessous décrivent une évolution possible, pas le
+> comportement actuellement livré.
+
 ## Objectif
 
 Mettre en place un systeme de notifications iOS moderne, robuste et scalable pour Arbore, compatible iOS 16+, couvrant:

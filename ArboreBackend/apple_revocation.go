@@ -68,21 +68,19 @@ func loadAppleSIWAConfig() (*appleSIWAConfig, error) {
 	return &appleSIWAConfig{teamID: teamID, keyID: keyID, clientID: clientID, privKey: key}, nil
 }
 
-// loadApplePrivateKey charge la clé .p8 (PEM PKCS8 EC) depuis APPLE_SIWA_KEY_PATH
-// (chemin fichier) ou APPLE_SIWA_PRIVATE_KEY (contenu PEM direct).
+// loadApplePrivateKey charge la clé .p8 (PEM PKCS8 EC) depuis un fichier
+// monté en lecture seule. Le contenu PEM n'est volontairement pas accepté dans
+// une variable d'environnement, car il serait visible dans l'inspection du
+// conteneur et dans son environnement de processus.
 func loadApplePrivateKey() (*ecdsa.PrivateKey, error) {
-	var pemBytes []byte
-	if path := strings.TrimSpace(os.Getenv("APPLE_SIWA_KEY_PATH")); path != "" {
-		//nolint:gosec // G304 : chemin .p8 fourni par l'opérateur via env de confiance, pas un input utilisateur.
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("lecture APPLE_SIWA_KEY_PATH: %w", err)
-		}
-		pemBytes = b
-	} else if raw := strings.TrimSpace(os.Getenv("APPLE_SIWA_PRIVATE_KEY")); raw != "" {
-		pemBytes = []byte(raw)
-	} else {
-		return nil, errors.New("APPLE_SIWA_KEY_PATH ou APPLE_SIWA_PRIVATE_KEY requis")
+	path := strings.TrimSpace(os.Getenv("APPLE_SIWA_KEY_PATH"))
+	if path == "" {
+		return nil, errors.New("APPLE_SIWA_KEY_PATH requis")
+	}
+	//nolint:gosec // G304 : chemin .p8 fourni par l'opérateur via env de confiance, pas un input utilisateur.
+	pemBytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("lecture APPLE_SIWA_KEY_PATH: %w", err)
 	}
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
@@ -161,22 +159,22 @@ func (cfg *appleSIWAConfig) revokeRefreshToken(ctx context.Context, refreshToken
 
 // revokeAppleBestEffort déchiffre + révoque le refresh_token Apple sans jamais
 // bloquer la suppression du compte (les échecs sont seulement logués).
-func revokeAppleBestEffort(ctx context.Context, uid string, encrypted []byte) {
+func revokeAppleBestEffort(ctx context.Context, encrypted []byte) {
 	cfg, err := loadAppleSIWAConfig()
 	if err != nil {
-		log.Printf("⚠️ delete %s: révocation Apple impossible (config: %v)", uid, err)
+		log.Printf("⚠️ Révocation Apple impossible (config: %v)", err)
 		return
 	}
 	refreshToken, err := decrypt(encrypted)
 	if err != nil {
-		log.Printf("⚠️ delete %s: déchiffrement refresh_token Apple échoué: %v", uid, err)
+		log.Printf("⚠️ Déchiffrement refresh_token Apple échoué: %v", err)
 		return
 	}
 	if err := cfg.revokeRefreshToken(ctx, string(refreshToken)); err != nil {
-		log.Printf("⚠️ delete %s: révocation Apple échouée: %v", uid, err)
+		log.Printf("⚠️ Révocation Apple échouée: %v", err)
 		return
 	}
-	log.Printf("✅ delete %s: compte Apple révoqué", uid)
+	log.Print("✅ Compte Apple révoqué")
 }
 
 func applePostForm(ctx context.Context, endpoint string, form url.Values, out interface{}) error {

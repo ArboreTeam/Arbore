@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25.12-alpine3.23 AS builder
 
 WORKDIR /app
 
@@ -16,15 +16,20 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o main .
 
 # Final stage
-FROM alpine:latest
+FROM alpine:3.23
 
 # Install ca-certificates for HTTPS requests
 RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /root/
 
+RUN addgroup -g 1000 -S arbore && adduser -u 1000 -S -G arbore arbore
+
 # Copy binary from builder stage
-COPY --from=builder /app/main .
+WORKDIR /app
+COPY --from=builder --chown=arbore:arbore /app/main ./main
+
+USER arbore
 
 # Expose port
 EXPOSE 8080

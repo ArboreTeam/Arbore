@@ -30,36 +30,6 @@ struct PrivacySettingsView: View {
             )
 
             SettingsSectionCard(
-                title: NSLocalizedString("PRIVACYSETTINGS_SECTION_PROFILE", comment: ""),
-                systemImage: "person.crop.circle"
-            ) {
-                SettingsToggleRow(
-                    systemImage: "globe.europe.africa",
-                    title: NSLocalizedString("PRIVACYSETTINGS_PUBLICPROFILE_TITLE", comment: ""),
-                    subtitle: NSLocalizedString("PRIVACYSETTINGS_PUBLICPROFILE_SUB", comment: ""),
-                    isOn: $profilePublic
-                )
-                .onChange(of: profilePublic) { _, newValue in
-                    recordConsentChange(type: "profilePublic", granted: newValue)
-                }
-            }
-
-            SettingsSectionCard(
-                title: NSLocalizedString("PRIVACYSETTINGS_SECTION_ACTIVITY", comment: ""),
-                systemImage: "waveform.path.ecg.rectangle"
-            ) {
-                SettingsToggleRow(
-                    systemImage: "list.bullet.rectangle.portrait",
-                    title: NSLocalizedString("PRIVACYSETTINGS_ACTIVITY_TITLE", comment: ""),
-                    subtitle: NSLocalizedString("PRIVACYSETTINGS_ACTIVITY_SUB", comment: ""),
-                    isOn: $showActivity
-                )
-                .onChange(of: showActivity) { _, newValue in
-                    recordConsentChange(type: "showActivity", granted: newValue)
-                }
-            }
-
-            SettingsSectionCard(
                 title: NSLocalizedString("PRIVACYSETTINGS_SECTION_DATASHARING", comment: ""),
                 systemImage: "chart.bar.doc.horizontal"
             ) {

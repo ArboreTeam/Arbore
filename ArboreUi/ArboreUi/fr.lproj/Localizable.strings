@@ -246,14 +246,14 @@
 "PRIVACY_SECTION_DATA_TITLE" = "Données que nous traitons";
 "PRIVACY_SECTION_DATA_ITEM1" = "Identité : e-mail, nom, identifiant Firebase, et le fournisseur de connexion utilisé (e-mail, Google ou Apple).";
 "PRIVACY_SECTION_DATA_ITEM2" = "Photo de profil : uniquement si tu en ajoutes une.";
-"PRIVACY_SECTION_DATA_ITEM3" = "Jardins & RA : plantes sélectionnées, positions 3D, réponses au questionnaire.";
-"PRIVACY_SECTION_DATA_ITEM4" = "Consentements : type, version et date, plus adresse IP et agent utilisateur conservés comme preuve.";
-"PRIVACY_SECTION_DATA_ITEM5" = "Sur ton appareil uniquement (jamais envoyé) : caméra et LiDAR pour la RA, mouvement, cartes spatiales ARKit (WorldMap), localisation pour l’ensoleillement, calendrier pour les rappels, Face ID.";
+"PRIVACY_SECTION_DATA_ITEM3" = "Jardins & RA : plantes sélectionnées, positions 3D, réponses au questionnaire, ville et position approximative si tu l’autorises.";
+"PRIVACY_SECTION_DATA_ITEM4" = "Consentements : type, version, date serveur et informations techniques limitées de l’application.";
+"PRIVACY_SECTION_DATA_ITEM5" = "Restent sur ton appareil : images brutes de la caméra et du LiDAR, mouvement et cartes spatiales ARKit. Une photo n’est envoyée que si tu l’ajoutes au chatbot ou au diagnostic.";
 
 // Pourquoi nous les utilisons
 "PRIVACY_SECTION_USAGE_TITLE" = "Pourquoi nous utilisons ces données";
 "PRIVACY_SECTION_USAGE_ITEM1" = "Fournir les fonctionnalités principales de %@ : créer, sauvegarder et réafficher tes jardins en RA.";
-"PRIVACY_SECTION_USAGE_ITEM2" = "Générer des recommandations d’entretien personnalisées à partir de tes réponses.";
+"PRIVACY_SECTION_USAGE_ITEM2" = "Adapter les plantes à ton espace et, à ta demande, traiter les messages ou photos envoyés au chatbot et au diagnostic IA.";
 "PRIVACY_SECTION_USAGE_ITEM3" = "Sécurité, prévention des abus, débogage et amélioration de l’app.";
 "PRIVACY_SECTION_USAGE_ITEM4" = "Respecter les autorisations iOS que tu accordes (caméra, photos, localisation, calendrier, notifications).";
 "PRIVACY_SECTION_USAGE_ITEM5" = "Conserver la preuve de tes consentements et respecter nos obligations légales.";
@@ -268,11 +268,11 @@
 // Conservation
 "PRIVACY_SECTION_RETENTION_TITLE" = "Conservation";
 "PRIVACY_SECTION_RETENTION_ITEM1" = "Ton compte, ton profil et tes jardins sont conservés tant que ton compte existe.";
-"PRIVACY_SECTION_RETENTION_ITEM2" = "La suppression de ton compte efface ton compte, tes jardins et tes consentements ; les preuves de consentement peuvent être conservées jusqu’à 3 ans.";
+"PRIVACY_SECTION_RETENTION_ITEM2" = "La suppression depuis l’app efface le compte Firebase, le profil, les jardins, les consentements, l’historique local du chatbot et tout ancien contenu partagé associé.";
 
 // Partage
 "PRIVACY_SECTION_SHARING_TITLE" = "Partage & destinataires";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Sous-traitants : Firebase, Apple, MongoDB Atlas, Cloudflare, Unsplash, génération IA.";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Sous-traitants : Firebase et Google (dont Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI et Sentry si tu actives les diagnostics.";
 "PRIVACY_SECTION_SHARING_ITEM2" = "Aucune publicité et aucun suivi entre applications.";
 "PRIVACY_SECTION_SHARING_ITEM3" = "Nous ne vendons jamais tes données. Les transferts sont limités au nécessaire et encadrés par contrat.";
 
@@ -311,7 +311,7 @@
 "PRIVACYSETTINGS_TITLE" = "Paramètres de confidentialité";
 
 "PRIVACYSETTINGS_HEADER_TITLE" = "Ta vie privée, ton contrôle";
-"PRIVACYSETTINGS_HEADER_SUBTITLE" = "Contrôle qui voit ton profil, ton activité et comment nous utilisons tes données.";
+"PRIVACYSETTINGS_HEADER_SUBTITLE" = "Contrôle les traitements facultatifs et consulte clairement comment nous utilisons tes données.";
 
 // Sections
 "PRIVACYSETTINGS_SECTION_PROFILE" = "Visibilité du profil";
@@ -352,7 +352,7 @@
 // Description du service
 "TERMS_SECTION_SERVICE_TITLE" = "Description du service";
 "TERMS_SECTION_SERVICE_ITEM1" = "%@ est une application de jardinage en réalité augmentée : choisir des plantes, les visualiser en 3D et en RA, sauvegarder des jardins, et obtenir des recommandations d’entretien et des rappels d’arrosage.";
-"TERMS_SECTION_SERVICE_ITEM2" = "Arbore est actuellement gratuite et en bêta : aucun abonnement ni achat intégré.";
+"TERMS_SECTION_SERVICE_ITEM2" = "Arbore est actuellement gratuite : aucun abonnement ni achat intégré.";
 
 // Comptes & sécurité
 "TERMS_SECTION_ACCOUNT_TITLE" = "Comptes & sécurité";
@@ -399,7 +399,7 @@
 
 // Disponibilité & modifications
 "TERMS_SECTION_AVAILABILITY_TITLE" = "Disponibilité & modifications";
-"TERMS_SECTION_AVAILABILITY_ITEM1" = "Le service est fourni « en l’état » et « selon disponibilité ». En tant que produit en bêta, il peut être modifié, suspendu ou interrompu à tout moment, avec ou sans préavis.";
+"TERMS_SECTION_AVAILABILITY_ITEM1" = "Le service est fourni « en l’état » et « selon disponibilité ». Il peut évoluer, être suspendu ou interrompu conformément aux présentes conditions.";
 "TERMS_SECTION_AVAILABILITY_ITEM2" = "Nous ne garantissons pas une disponibilité ininterrompue ni l’absence de perte de données ; conserve une copie de tout contenu important.";
 
 // Limitation de responsabilité
@@ -923,7 +923,7 @@
 
 // Privacy Settings - Notifications
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notifications";
-"PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Push notifications";
+"PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Notifications";
 "PRIVACYSETTINGS_NOTIFICATIONS_SUB" = "Rappels d'arrosage et alertes";
 
 // Garden AR Relocalization

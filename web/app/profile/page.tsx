@@ -128,14 +128,14 @@ export default function ProfilePage() {
             <p className="mt-1 text-arbore-muted">{user.email}</p>
           </motion.div>
 
-          {/* Plan (bêta gratuite) */}
+          {/* Offre actuelle */}
           <div className="arbore-hero flex items-center gap-4 p-5">
             <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-white/15">
               <Sparkles className="h-5 w-5 text-primary-foreground" />
             </div>
             <div className="flex-1">
-              <p className="font-display font-bold text-primary-foreground">Bêta gratuite</p>
-              <p className="text-sm text-primary-foreground/80">Toutes les fonctionnalités débloquées pendant la bêta.</p>
+              <p className="font-display font-bold text-primary-foreground">Arbore gratuit</p>
+              <p className="text-sm text-primary-foreground/80">Aucun abonnement ni achat intégré.</p>
             </div>
           </div>
 
@@ -187,7 +187,7 @@ export default function ProfilePage() {
           </section>
 
           <p className="pt-2 text-center text-xs text-arbore-muted">
-            Arbore Web · v{process.env.NEXT_PUBLIC_APP_VERSION} · bêta publique
+            Arbore Web · v{process.env.NEXT_PUBLIC_APP_VERSION}
           </p>
         </div>
       </main>

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 // Proxy same-origin vers le backend Go.
 // But : la web app appelle les MÊMES endpoints que l'app mobile, sans CORS
@@ -23,7 +23,9 @@ const API_KEY = process.env.ARBORE_API_KEY || '';
 // empêche d'utiliser le proxy comme relais générique vers tout endpoint interne).
 const ALLOWED_PREFIXES = new Set(['users', 'plants', 'gardens', 'consents', 'models', 'config']);
 
-async function proxy(req: Request, path: string[]) {
+const MAX_PROXY_BODY_BYTES = 10 * 1024 * 1024;
+
+async function proxy(req: NextRequest, path: string[]) {
   // Anti-traversal + allowlist.
   if (
     path.length === 0 ||
@@ -32,6 +34,9 @@ async function proxy(req: Request, path: string[]) {
   ) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
+	if (!API_KEY) {
+		return NextResponse.json({ error: 'Backend configuration unavailable' }, { status: 503 });
+	}
 
   // La génération de plantes par IA est debug-only (absente de l'iOS / de la prod) :
   // on la bloque côté proxy pour qu'elle ne soit pas appelable depuis le web.
@@ -53,9 +58,17 @@ async function proxy(req: Request, path: string[]) {
   const method = req.method.toUpperCase();
   const init: RequestInit = { method, headers, cache: 'no-store', redirect: 'manual' };
   if (method !== 'GET' && method !== 'HEAD') {
+	const declaredLength = Number(req.headers.get('content-length') || '0');
+	if (declaredLength > MAX_PROXY_BODY_BYTES) {
+	  return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+	}
     const body = await req.arrayBuffer();
+	if (body.byteLength > MAX_PROXY_BODY_BYTES) {
+	  return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+	}
     if (body.byteLength > 0) init.body = body;
   }
+	init.signal = AbortSignal.timeout(method === 'GET' ? 120_000 : 65_000);
 
   let upstream: Response;
   try {
@@ -71,10 +84,15 @@ async function proxy(req: Request, path: string[]) {
   return new NextResponse(buf, { status: upstream.status, headers: resHeaders });
 }
 
-type Ctx = { params: { path: string[] } };
+type Ctx = { params: Promise<{ path: string[] }> };
 
-export function GET(req: Request, { params }: Ctx) { return proxy(req, params.path); }
-export function POST(req: Request, { params }: Ctx) { return proxy(req, params.path); }
-export function PUT(req: Request, { params }: Ctx) { return proxy(req, params.path); }
-export function PATCH(req: Request, { params }: Ctx) { return proxy(req, params.path); }
-export function DELETE(req: Request, { params }: Ctx) { return proxy(req, params.path); }
+async function handle(req: NextRequest, context: Ctx) {
+	const { path } = await context.params;
+	return proxy(req, path);
+}
+
+export async function GET(req: NextRequest, context: Ctx) { return handle(req, context); }
+export async function POST(req: NextRequest, context: Ctx) { return handle(req, context); }
+export async function PUT(req: NextRequest, context: Ctx) { return handle(req, context); }
+export async function PATCH(req: NextRequest, context: Ctx) { return handle(req, context); }
+export async function DELETE(req: NextRequest, context: Ctx) { return handle(req, context); }

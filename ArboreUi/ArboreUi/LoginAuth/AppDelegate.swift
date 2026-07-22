@@ -54,20 +54,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // UI component subscribed (cf. ThermalStateBanner). Issue #82.
         ARQualityObserver.shared.start()
 
-        if let remoteNotification = launchOptions?[.remoteNotification] as? [AnyHashable: Any] {
-            Task { @MainActor in
-                NotificationRouter.shared.handle(userInfo: remoteNotification)
-            }
-        }
-
-        Task {
-            let state = await NotificationManager.shared.currentAuthorizationState()
-            if state.canScheduleNotifications {
-                await NotificationManager.shared.registerForRemoteNotifications()
-                await ArborePushTokenService.shared.uploadPendingTokenIfNeeded()
-            }
-        }
-
         return true
     }
 
@@ -86,25 +72,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         }
 
         return false
-    }
-
-    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        ArborePushTokenService.shared.register(deviceToken: deviceToken)
-    }
-
-    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        ArborePushTokenService.shared.handleRegistrationFailure(error)
-    }
-
-    func application(
-        _ application: UIApplication,
-        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
-        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
-    ) {
-        Task { @MainActor in
-            NotificationRouter.shared.handle(userInfo: userInfo)
-            completionHandler(.newData)
-        }
     }
 
     func userNotificationCenter(

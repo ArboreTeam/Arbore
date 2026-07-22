@@ -92,9 +92,10 @@
             </array>
         </dict>
 
-        <!-- Photo de profil : upload via POST /users/:uid/photo, stockée
-             dans Mongo users.photo (binary). Pas de capture caméra
-             auto, c'est un picker utilisateur explicite. -->
+        <!-- Photos choisies explicitement par l'utilisateur : photo de profil,
+             image jointe au chatbot ou au diagnostic. Les images de profil
+             sont stockées dans Mongo ; les images IA sont transmises au
+             prestataire uniquement pour produire la réponse demandée. -->
         <dict>
             <key>NSPrivacyCollectedDataType</key>
             <string>NSPrivacyCollectedDataTypePhotosorVideos</string>
@@ -159,11 +160,10 @@
         </dict>
 
         <!--
-            Note : caméra (AR), calendrier (rappels arrosage), micro,
-            localisation (position du soleil), LiDAR (scan), Face ID :
-            ces permissions sont déclarées dans Info.plist mais leurs
-            données ne quittent JAMAIS l'appareil — donc pas à déclarer
-            ici en tant que \"collected data\" au sens d'Apple.
+            Note : les images brutes caméra/LiDAR, le mouvement et les cartes
+            spatiales ARKit restent sur l'appareil. La localisation grossière,
+            les données de jardin et les photos volontairement jointes sont
+            déclarées ci-dessus lorsqu'elles sont envoyées au serveur.
         -->
     </array>
 

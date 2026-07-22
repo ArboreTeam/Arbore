@@ -33,10 +33,10 @@ SENTRY_PROJECT = ENV["SENTRY_PROJECT"] || "arbore-frontend"
 # TestFlight : tant que `distribute_external: false` + `skip_submission: true`,
 # RIEN n'est soumis ni publié sur l'App Store public.
 BETA_APP_DESCRIPTION = ENV["ARBORE_BETA_DESCRIPTION"] ||
-  "Arbore lets you design your future garden in augmented reality: answer a " \
-  "short questionnaire, accept the suggested plants, then place true-to-scale " \
-  "3D plants in your space. Includes a plant catalog with care guides and " \
-  "watering reminders. Free, non-commercial student beta."
+  "Arbore helps you understand and design a planting space in augmented " \
+  "reality: capture the space, discover plants suited to its conditions, then " \
+  "place true-to-scale 3D plants before creating your garden. Includes a plant " \
+  "catalog with care information."
 BETA_FEEDBACK_EMAIL = ENV["ARBORE_FEEDBACK_EMAIL"] || "contact@arbore.app"
 
 default_platform(:ios)

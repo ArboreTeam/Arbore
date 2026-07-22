@@ -48,9 +48,7 @@
 	<key>CFBundleVersion</key>
 	<string>22</string>
 	<key>FirebaseAutomaticScreenReportingEnabled</key>
-	<true/>
-	<key>GEMINI_API_KEY</key>
-	<string>$(GEMINI_API_KEY)</string>
+	<false/>
 	<key>GIDClientID</key>
 	<string>66927287937-72cn4i6cjliekvs01mr0i0ac3tdm7fsp.apps.googleusercontent.com</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
@@ -63,14 +61,10 @@
 	<string>Arbore utilise ton calendrier pour planifier les rappels d'arrosage de tes plantes.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Arbore utilise la caméra pour mesurer votre espace et y afficher les plantes en réalité augmentée.</string>
-	<key>NSFaceIDUsageDescription</key>
-	<string>Utiliser Face ID pour vous connecter plus rapidement</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Arbore utilise une position approximative pour adapter les plantes au climat local et calculer l'orientation.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>L'application a besoin d'accéder au microphone pour certaines fonctionnalités.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Arbore accède à vos photos pour définir votre photo de profil.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Arbore enregistre dans vos photos uniquement l’image de votre aménagement lorsque vous le demandez.</string>
 	<key>NSWorldSensingUsageDescription</key>
 	<string>Nous utilisons le scanner LiDAR pour créer un plan 3D précis de votre espace.</string>
 	<key>SENTRY_DSN_HOST</key>

@@ -150,3 +150,15 @@ func TestMiddleware_InvalidAuthFormat_Returns401(t *testing.T) {
 		t.Errorf("expected 401 for invalid auth format, got %d", w.Code)
 	}
 }
+
+func TestEmailVerificationIsNotRequiredForAccountLifecycle(t *testing.T) {
+	if requiresVerifiedEmail(http.MethodPost, "/users") {
+		t.Fatal("account creation should be available before email verification")
+	}
+	if requiresVerifiedEmail(http.MethodDelete, "/users") {
+		t.Fatal("account deletion should be available before email verification")
+	}
+	if !requiresVerifiedEmail(http.MethodGet, "/gardens") {
+		t.Fatal("business routes should still require a verified email")
+	}
+}

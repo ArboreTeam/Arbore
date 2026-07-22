@@ -64,13 +64,14 @@ struct AppConfig {
     // MARK: - RGPD Configuration
 
     /// Version actuelle de la politique de confidentialité.
-    /// Bumpée à 2.0 (31 mai 2026) : refonte complète, RGPD, FR/EN, alignée sur
+    /// Bumpée à 2.2 (22 juillet 2026) : localisation approximative, services IA,
+	/// diagnostics optionnels et suppression complète du compte documentés.
     /// https://arbore.app/privacy et https://arbore.app/terms. Les nouveaux
     /// consentements sont horodatés avec cette version.
-    static let privacyPolicyVersion = "2.0"
+	static let privacyPolicyVersion = "2.2"
 
     /// Date de dernière mise à jour de la politique
-    static let privacyPolicyLastUpdate = "31 May 2026"
+	static let privacyPolicyLastUpdate = "22 July 2026"
 
     /// URL publique de la politique de confidentialité (FR/EN).
     /// Champ obligatoire App Store Connect + liens in-app.
@@ -92,12 +93,12 @@ struct AppConfig {
     // MARK: - Observability (Sentry — issue #205)
 
     /// Environnement reporté à Sentry pour filtrer les events.
-    /// DEBUG = "debug" (builds Xcode locaux), sinon "beta" (TestFlight / release).
+    /// DEBUG = "debug" (builds Xcode locaux), sinon "production" (TestFlight / App Store).
     static var environment: String {
         #if DEBUG
         return "debug"
         #else
-        return "beta"
+		return "production"
         #endif
     }
 

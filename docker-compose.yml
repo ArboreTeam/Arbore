@@ -8,15 +8,27 @@ services:
       dockerfile: Dockerfile
     container_name: arbore-ai-generator
     restart: unless-stopped
-    env_file:
-      - path: .env
-        required: false
+    init: true
+    read_only: true
+    mem_limit: 1g
+    cpus: 1.5
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=128m,noexec,nosuid,nodev
     environment:
+      - AI_PROVIDER=${AI_PROVIDER:-mistral}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
+      - MISTRAL_MODEL=${MISTRAL_MODEL:-mistral-small-latest}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
     ports:
-      - "8000:8000"
+      - "${BIND_ADDRESS:-127.0.0.1}:8000:8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -33,39 +45,59 @@ services:
       dockerfile: Dockerfile
     container_name: arbore-backend
     restart: unless-stopped
-    env_file:
-      - path: .env
-        required: false
+    init: true
+    read_only: true
+    mem_limit: 1g
+    cpus: 2
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
     environment:
       - MONGODB_URI=${MONGODB_URI}
+      - MONGODB_URI_TEST=${MONGODB_URI_TEST:-}
       - ARBORE_API_KEY=${ARBORE_API_KEY}
-      - FIREBASE_SERVICE_ACCOUNT_PATH=/root/firebase-adminsdk.json
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ARBORE_API_KEY_TEST=${ARBORE_API_KEY_TEST:-}
+      - FIREBASE_SERVICE_ACCOUNT_PATH=/run/secrets/firebase-adminsdk.json
+      - MASTER_ENCRYPTION_KEY=${MASTER_ENCRYPTION_KEY:-}
+      - APPLE_TEAM_ID=${APPLE_TEAM_ID:-}
+      - APPLE_KEY_ID=${APPLE_KEY_ID:-}
+      - APPLE_SIWA_CLIENT_ID=${APPLE_SIWA_CLIENT_ID:-}
+      - APPLE_SIWA_KEY_PATH=/run/secrets/apple-siwa.p8
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
       - UNSPLASH_ACCESS_KEY=${UNSPLASH_ACCESS_KEY}
       - GIN_MODE=${GIN_MODE:-release}
       - PORT=${PORT:-8080}
       # Le backend appelle l'AI Generator via le réseau Docker interne
       - AI_GENERATOR_URL=http://ai-generator:8000
-      # Thumbnails dans un chemin séparé (hors du montage read-only /root/models)
-      - THUMBNAILS_DIR=/root/thumbnails
-      # Images Community conservées sur l'hôte entre deux rebuilds du conteneur
-      - COMMUNITY_UPLOADS_DIR=/root/uploads/community
+      - ARBORE_ADMIN_UIDS=${ARBORE_ADMIN_UIDS:-}
+      # Thumbnails dans un chemin séparé (hors du montage read-only /app/models)
+      - THUMBNAILS_DIR=/app/thumbnails
+      # Montage conservé uniquement pour supprimer les anciens fichiers lors
+      # d'une suppression de compte. Aucune route communautaire n'est exposée.
+      - COMMUNITY_UPLOADS_DIR=/app/uploads/community
     ports:
-      - "${PORT:-8080}:8080"
+      - "${BIND_ADDRESS:-127.0.0.1}:${PORT:-8080}:8080"
     volumes:
       # Fichiers 3D USDZ (lecture seule)
-      - ./ArboreBackend/models:/root/models:ro
+      - ${MODELS_HOST_PATH:-./ArboreBackend/models}:/app/models:ro
       # Thumbnails : bind mount sur le dossier existant de la VM (conserve les anciens thumbnails)
-      - ./ArboreBackend/models/thumbnails:/root/thumbnails
-      # Images publiées dans Community : stockage persistant hors du conteneur
-      - ./ArboreBackend/uploads/community:/root/uploads/community
+      - ${THUMBNAILS_HOST_PATH:-./ArboreBackend/models/thumbnails}:/app/thumbnails
       # Firebase service account JSON (le vrai fichier du projet)
-      - ./arbore-firebase-adminsdk.json:/root/firebase-adminsdk.json:ro
+      - ${FIREBASE_SERVICE_ACCOUNT_HOST_PATH:-./arbore-firebase-adminsdk.json}:/run/secrets/firebase-adminsdk.json:ro
+      # Clé privée Apple : fichier hôte hors Git, lecture seule dans le conteneur.
+      - ${APPLE_SIWA_KEY_HOST_PATH:-./AuthKey_A4X35PAX94.p8}:/run/secrets/apple-siwa.p8:ro
+      # Anciennes images communautaires, accessibles uniquement pour effacement RGPD.
+      - ${LEGACY_COMMUNITY_UPLOADS_HOST_PATH:-./ArboreBackend/uploads/community}:/app/uploads/community
     depends_on:
       ai-generator:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/health"]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -82,23 +114,36 @@ services:
       dockerfile: Dockerfile
     container_name: arbore-web
     restart: unless-stopped
-    env_file:
-      - path: .env
-        required: false
+    init: true
+    read_only: true
+    mem_limit: 768m
+    cpus: 1.5
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+      - /app/.next/cache:size=128m,nosuid,nodev
     environment:
       - NODE_ENV=production
       # Le proxy /api/backend (server-side) appelle le backend via le réseau Docker.
       - BACKEND_API_URL=http://backend:8080
       # Clé API injectée côté serveur par le proxy (jamais exposée au navigateur).
       - ARBORE_API_KEY=${ARBORE_API_KEY}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN:-}
+      - NEXT_PUBLIC_SENTRY_ENV=${NEXT_PUBLIC_SENTRY_ENV:-production}
+      - NEXT_PUBLIC_APP_VERSION=${NEXT_PUBLIC_APP_VERSION:-1.0.0}
       - PORT=3000
     ports:
-      - "${WEB_PORT:-3000}:3000"
+      - "${BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-3000}:3000"
     depends_on:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/"]
       interval: 30s
       timeout: 5s
       retries: 5

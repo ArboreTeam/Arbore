@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import FirebaseAuth
 import GoogleSignIn
 
@@ -6,6 +7,7 @@ struct CloseAccountView: View {
     @AppStorage("isLoggedIn") var isLoggedIn = false
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) var dismiss
+    @Environment(\.modelContext) private var modelContext
     @State private var deletionError: String?
     @State private var needsReAuth = false
 
@@ -111,7 +113,7 @@ struct CloseAccountView: View {
     }
 
     private func performCompleteAccountDeletion() async {
-        guard let user = Auth.auth().currentUser else {
+        guard Auth.auth().currentUser != nil else {
             deletionError = "User not authenticated"
             return
         }
@@ -131,6 +133,7 @@ struct CloseAccountView: View {
 
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
+		request.timeoutInterval = 30
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
 
@@ -148,36 +151,26 @@ struct CloseAccountView: View {
                 return
             }
 
-            // 3. Clean local data
+            // The backend has now removed MongoDB data, the legacy community
+            // records and the Firebase Auth identity. Only local state remains.
+			await NotificationManager.shared.cancelAllArboreNotifications()
             cleanLocalData()
 
-            // 4. Delete Firebase Auth account
-            do {
-                // Sign out from Google and Firebase first so tokens don't linger.
-                // Without this, a subsequent Google sign-in reuses the stale token
-                // against the now-deleted Firebase account, causing a crash.
-                GIDSignIn.sharedInstance.signOut()
-                try? Auth.auth().signOut()
+			GIDSignIn.sharedInstance.signOut()
+			try? Auth.auth().signOut()
+			SentryManager.clearUser()
 
-                try await user.delete()
-
-                // 5. Dismiss all UIKit-presented VCs (CloseAccountView, ReAuthView, etc.)
-                //    before flipping isLoggedIn. If we flip first, SwiftUI replaces
-                //    MainView() while UIKit still holds those VCs as "presented" —
-                //    any GIDSignIn call immediately after would land on a zombie VC.
-                DispatchQueue.main.async {
-                    if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                       let rootVC = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController,
-                       rootVC.presentedViewController != nil {
-                        rootVC.dismiss(animated: false) {
-                            self.isLoggedIn = false
-                        }
-                    } else {
-                        self.isLoggedIn = false
-                    }
+			// Dismiss all UIKit-presented VCs before replacing the root view.
+			DispatchQueue.main.async {
+				if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+				   let rootVC = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController,
+				   rootVC.presentedViewController != nil {
+					rootVC.dismiss(animated: false) {
+						self.isLoggedIn = false
+					}
+				} else {
+					self.isLoggedIn = false
                 }
-            } catch {
-                deletionError = "Failed to delete Firebase account: \(error.localizedDescription)"
             }
 
         } catch {
@@ -198,37 +191,41 @@ struct CloseAccountView: View {
     }
 
     private func cleanLocalData() {
-        // Clean UserDefaults - all privacy and consent data
         let defaults = UserDefaults.standard
-
-        // Remove privacy settings
-        defaults.removeObject(forKey: "privacy_profilePublic")
-        defaults.removeObject(forKey: "privacy_showActivity")
-        defaults.removeObject(forKey: "privacy_shareData")
-
-        // Remove consent history
-        defaults.removeObject(forKey: "consent_history")
-
-        // Remove all consent timestamps
         let allKeys = defaults.dictionaryRepresentation().keys
         for key in allKeys {
-            if key.hasPrefix("consent_") || key.hasPrefix("privacy_") {
+			if key.hasPrefix("consent_")
+				|| key.hasPrefix("privacy_")
+				|| key.hasPrefix("gardenPurchaseCart.")
+				|| [
+					"gardenProjects",
+					"wateringRoutines",
+					"plantCareRoutines",
+					"gardenCareActions",
+					"consent_history",
+					"isLoggedIn"
+				].contains(key) {
                 defaults.removeObject(forKey: key)
             }
         }
 
-        // Clean FileManager cache (if exists)
-        // Note: PlantThumbnailCache needs to be implemented if you have image caching
-
-        defaults.synchronize()
-
-        // Remove AR scene files from Documents/ so the "Jardin" tab
-        // (ManageGardenView → GardenLocalStorageService) no longer lists
-        // orphan scenes from the deleted account.
+		cleanChatData()
         cleanLocalSceneFiles()
 
         print("✅ Local data cleaned")
     }
+
+	private func cleanChatData() {
+		do {
+			let conversations = try modelContext.fetch(FetchDescriptor<ChatConversation>())
+			for conversation in conversations {
+				modelContext.delete(conversation)
+			}
+			try modelContext.save()
+		} catch {
+			print("⚠️ Failed to delete local chat history: \(error)")
+		}
+	}
 
     private func cleanLocalSceneFiles() {
         let fm = FileManager.default
@@ -239,10 +236,15 @@ struct CloseAccountView: View {
         do {
             let fileURLs = try fm.contentsOfDirectory(at: documentsURL, includingPropertiesForKeys: nil)
             var removed = 0
-            for url in fileURLs where url.lastPathComponent.hasPrefix("scene_") {
-                try? fm.removeItem(at: url)
-                removed += 1
+			let personalPrefixes = ["scene_", "worldmap_", "wizard_", "ar_share_captures_"]
+			for url in fileURLs where personalPrefixes.contains(where: url.lastPathComponent.hasPrefix) {
+				try fm.removeItem(at: url)
+				removed += 1
             }
+			let temporaryURLs = try fm.contentsOfDirectory(at: fm.temporaryDirectory, includingPropertiesForKeys: nil)
+			for url in temporaryURLs where url.lastPathComponent.hasPrefix("arbore_ar_share_") {
+				try? fm.removeItem(at: url)
+			}
             print("🧹 Removed \(removed) local scene file(s)")
         } catch {
             print("⚠️ Failed to scan documents directory for scene files: \(error)")

@@ -227,14 +227,14 @@
 "PRIVACY_SECTION_DATA_TITLE" = "Daten, die wir verarbeiten";
 "PRIVACY_SECTION_DATA_ITEM1" = "Identität: E-Mail, Name, Firebase-ID und der genutzte Anmeldedienst (E-Mail, Google oder Apple).";
 "PRIVACY_SECTION_DATA_ITEM2" = "Profilbild: nur, wenn du eines hinzufügst.";
-"PRIVACY_SECTION_DATA_ITEM3" = "Gärten & AR: ausgewählte Pflanzen, 3D-Positionen, Antworten im Fragebogen.";
-"PRIVACY_SECTION_DATA_ITEM4" = "Einwilligungen: Typ, Version und Datum sowie IP-Adresse und User-Agent als Nachweis.";
-"PRIVACY_SECTION_DATA_ITEM5" = "Nur auf deinem Gerät (nie hochgeladen): Kamera und LiDAR für AR, Bewegung, ARKit-Weltkarten, Standort für Sonnenlicht, Kalender für Erinnerungen, Face ID.";
+"PRIVACY_SECTION_DATA_ITEM3" = "Gärten & AR: ausgewählte Pflanzen, 3D-Positionen, Antworten, Stadt und ungefährer Standort, wenn du ihn erlaubst.";
+"PRIVACY_SECTION_DATA_ITEM4" = "Einwilligungen: Typ, Version, Serverdatum und begrenzte technische App-Informationen.";
+"PRIVACY_SECTION_DATA_ITEM5" = "Bleiben auf deinem Gerät: rohe Kamera- und LiDAR-Bilder, Bewegung und ARKit-Weltkarten. Ein Foto wird nur für Chat oder Diagnose hochgeladen.";
 
 // Warum wir sie nutzen
 "PRIVACY_SECTION_USAGE_TITLE" = "Warum wir diese Daten nutzen";
 "PRIVACY_SECTION_USAGE_ITEM1" = "Die Kernfunktionen von %@ bereitstellen: Gärten in AR erstellen, speichern und wiederherstellen.";
-"PRIVACY_SECTION_USAGE_ITEM2" = "Personalisierte Pflegeempfehlungen aus deinen Antworten erstellen.";
+"PRIVACY_SECTION_USAGE_ITEM2" = "Pflanzen an deinen Bereich anpassen und auf Wunsch Nachrichten oder Fotos im KI-Chat und in der Diagnose verarbeiten.";
 "PRIVACY_SECTION_USAGE_ITEM3" = "Sicherheit, Missbrauchsprävention, Fehlerbehebung und Verbesserung der App.";
 "PRIVACY_SECTION_USAGE_ITEM4" = "Die von dir erteilten iOS-Berechtigungen berücksichtigen (Kamera, Fotos, Standort, Kalender, Mitteilungen).";
 "PRIVACY_SECTION_USAGE_ITEM5" = "Den Nachweis deiner Einwilligungen aufbewahren und unsere gesetzlichen Pflichten erfüllen.";
@@ -249,11 +249,11 @@
 // Aufbewahrung
 "PRIVACY_SECTION_RETENTION_TITLE" = "Aufbewahrung";
 "PRIVACY_SECTION_RETENTION_ITEM1" = "Dein Konto, dein Profil und deine Gärten werden aufbewahrt, solange dein Konto besteht.";
-"PRIVACY_SECTION_RETENTION_ITEM2" = "Das Löschen deines Kontos entfernt Konto, Gärten und Einwilligungen; Einwilligungsnachweise können bis zu 3 Jahre aufbewahrt werden.";
+"PRIVACY_SECTION_RETENTION_ITEM2" = "Das Löschen in der App entfernt Firebase-Konto, Profil, Gärten, Einwilligungen, lokalen Chatverlauf und zugehörige frühere geteilte Inhalte.";
 
 // Weitergabe
 "PRIVACY_SECTION_SHARING_TITLE" = "Weitergabe & Empfänger";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Auftragsverarbeiter: Firebase, Apple, MongoDB Atlas, Cloudflare, Unsplash, KI-Generierung.";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Auftragsverarbeiter: Firebase und Google (einschließlich Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI und Sentry bei aktivierter Diagnose.";
 "PRIVACY_SECTION_SHARING_ITEM2" = "Keine Werbung und kein app-übergreifendes Tracking.";
 "PRIVACY_SECTION_SHARING_ITEM3" = "Wir verkaufen deine Daten niemals. Übermittlungen beschränken sich auf das Notwendige und sind vertraglich geregelt.";
 
@@ -290,7 +290,7 @@
 "PRIVACYSETTINGS_TITLE" = "Datenschutzeinstellungen";
 
 "PRIVACYSETTINGS_HEADER_TITLE" = "Deine Privatsphäre, deine Kontrolle";
-"PRIVACYSETTINGS_HEADER_SUBTITLE" = "Bestimme, wer dein Profil und deine Aktivität sieht und wie wir deine Daten nutzen.";
+"PRIVACYSETTINGS_HEADER_SUBTITLE" = "Steuere optionale Verarbeitungen und prüfe transparent, wie wir deine Daten verwenden.";
 
 // Sections
 "PRIVACYSETTINGS_SECTION_PROFILE" = "Profil-Sichtbarkeit";
@@ -329,7 +329,7 @@
 // Beschreibung des Dienstes
 "TERMS_SECTION_SERVICE_TITLE" = "Beschreibung des Dienstes";
 "TERMS_SECTION_SERVICE_ITEM1" = "%@ ist eine Gartenbau-App mit Augmented Reality: Pflanzen auswählen, in 3D und AR ansehen, Gärten speichern sowie Pflegeempfehlungen und Gießerinnerungen erhalten.";
-"TERMS_SECTION_SERVICE_ITEM2" = "Arbore ist derzeit kostenlos und in der Beta: keine Abonnements oder In-App-Käufe.";
+"TERMS_SECTION_SERVICE_ITEM2" = "Arbore ist derzeit kostenlos: keine Abonnements oder In-App-Käufe.";
 
 // Konten & Sicherheit
 "TERMS_SECTION_ACCOUNT_TITLE" = "Konten & Sicherheit";
@@ -376,7 +376,7 @@
 
 // Verfügbarkeit & Änderungen
 "TERMS_SECTION_AVAILABILITY_TITLE" = "Verfügbarkeit & Änderungen";
-"TERMS_SECTION_AVAILABILITY_ITEM1" = "Der Dienst wird „wie besehen“ und „nach Verfügbarkeit“ bereitgestellt. Als Beta kann er jederzeit geändert, ausgesetzt oder eingestellt werden, mit oder ohne Vorankündigung.";
+"TERMS_SECTION_AVAILABILITY_ITEM1" = "Der Dienst wird „wie besehen“ und „nach Verfügbarkeit“ bereitgestellt. Er kann gemäß diesen Bedingungen weiterentwickelt, ausgesetzt oder eingestellt werden.";
 "TERMS_SECTION_AVAILABILITY_ITEM2" = "Wir garantieren keine ununterbrochene Verfügbarkeit und keinen Schutz vor Datenverlust; bewahre eine Kopie wichtiger Inhalte auf.";
 
 // Haftungsbeschränkung
@@ -780,7 +780,7 @@
 
 // Privacy Settings - Notifications
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Benachrichtigungen";
-"PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Push-Benachrichtigungen";
+"PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Benachrichtigungen";
 "PRIVACYSETTINGS_NOTIFICATIONS_SUB" = "Gießerinnerungen und Warnungen";
 
 // Auto-translated with DeepL

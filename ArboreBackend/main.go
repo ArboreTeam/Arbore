@@ -1516,7 +1516,10 @@ func callGeminiAPI(payload map[string]interface{}) ([]byte, error) {
 		model = "gemini-2.5-flash"
 	}
 
-	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", model, apiKey)
+	// La clé API voyage dans l'en-tête `x-goog-api-key`, JAMAIS dans l'URL : une URL
+	// porteuse de la clé se retrouve dans les `*url.Error` renvoyés par le transport
+	// HTTP, donc potentiellement dans une réponse d'erreur ou un log.
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", model)
 
 	bodyBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -1535,6 +1538,7 @@ func callGeminiAPI(payload map[string]interface{}) ([]byte, error) {
 			return nil, fmt.Errorf("erreur lors de la création de la requête Gemini: %w", err)
 		}
 		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("x-goog-api-key", apiKey)
 
 		client := &http.Client{Timeout: 60 * time.Second}
 		resp, err := client.Do(req)
@@ -1666,7 +1670,10 @@ func handleGeminiChat(c *gin.Context) {
 
 	respData, err := callGeminiAPI(payload)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// Ne jamais propager err.Error() au client : l'erreur peut contenir l'URL de
+		// l'appel sortant et d'autres détails internes. Log serveur uniquement.
+		log.Printf("❌ callGeminiAPI (chat) a échoué: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Le service d'assistance est temporairement indisponible."})
 		return
 	}
 
@@ -1770,7 +1777,9 @@ Les valeurs numériques sont entre 0 et 1.
 
 	respData, err := callGeminiAPI(payload)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		// Idem chat : aucune fuite de l'erreur brute (peut contenir l'URL sortante).
+		log.Printf("❌ callGeminiAPI (diagnose) a échoué: %v", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Le service de diagnostic est temporairement indisponible."})
 		return
 	}
 
@@ -1802,7 +1811,8 @@ Les valeurs numériques sont entre 0 et 1.
 	lastBrace := strings.LastIndex(rawText, "}")
 
 	if firstBrace == -1 || lastBrace == -1 || firstBrace >= lastBrace {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Aucun objet JSON trouvé dans la réponse Gemini", "raw": rawText})
+		log.Printf("❌ diagnose: aucun objet JSON dans la réponse Gemini (%d octets)", len(rawText))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse de diagnostic illisible."})
 		return
 	}
 
@@ -1810,7 +1820,8 @@ Les valeurs numériques sont entre 0 et 1.
 
 	var diagnoseResponse map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonString), &diagnoseResponse); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur de parsing du JSON diagnostic: " + err.Error(), "raw": jsonString})
+		log.Printf("❌ diagnose: parsing du JSON de diagnostic impossible: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse de diagnostic illisible."})
 		return
 	}
 

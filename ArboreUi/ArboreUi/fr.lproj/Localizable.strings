@@ -248,7 +248,8 @@
 "PRIVACY_SECTION_DATA_ITEM2" = "Photo de profil : uniquement si tu en ajoutes une.";
 "PRIVACY_SECTION_DATA_ITEM3" = "Jardins & RA : plantes sélectionnées, positions 3D, réponses au questionnaire.";
 "PRIVACY_SECTION_DATA_ITEM4" = "Consentements : type, version et date, plus adresse IP et agent utilisateur conservés comme preuve.";
-"PRIVACY_SECTION_DATA_ITEM5" = "Sur ton appareil uniquement (jamais envoyé) : caméra et LiDAR pour la RA, mouvement, cartes spatiales ARKit (WorldMap), localisation pour l’ensoleillement, calendrier pour les rappels, Face ID.";
+"PRIVACY_SECTION_DATA_ITEM5" = "Sur ton appareil uniquement : LiDAR et flux caméra de la RA, mouvement, cartes spatiales ARKit (WorldMap), localisation pour l'ensoleillement, calendrier pour les rappels, Face ID.";
+"PRIVACY_SECTION_DATA_ITEM6" = "Diagnostic santé & assistant : les photos que tu envoies pour un diagnostic, ainsi que tes messages, sont transmis à nos serveurs puis à Google (Gemini) pour être analysés, y compris hors de l'Union européenne.";
 
 // Pourquoi nous les utilisons
 "PRIVACY_SECTION_USAGE_TITLE" = "Pourquoi nous utilisons ces données";
@@ -272,7 +273,7 @@
 
 // Partage
 "PRIVACY_SECTION_SHARING_TITLE" = "Partage & destinataires";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Sous-traitants : Firebase, Apple, MongoDB Atlas, Cloudflare, Unsplash, génération IA.";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Sous-traitants : Firebase, Apple, MongoDB Atlas, Cloudflare, Unsplash, et Google (Gemini) pour l'analyse photo et l'assistant.";
 "PRIVACY_SECTION_SHARING_ITEM2" = "Aucune publicité et aucun suivi entre applications.";
 "PRIVACY_SECTION_SHARING_ITEM3" = "Nous ne vendons jamais tes données. Les transferts sont limités au nécessaire et encadrés par contrat.";
 

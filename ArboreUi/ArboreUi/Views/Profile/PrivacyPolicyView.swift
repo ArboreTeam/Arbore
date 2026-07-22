@@ -20,7 +20,8 @@ struct PrivacyPolicyView: View {
                     NSLocalizedString("PRIVACY_SECTION_DATA_ITEM2", comment: ""),
                     NSLocalizedString("PRIVACY_SECTION_DATA_ITEM3", comment: ""),
                     NSLocalizedString("PRIVACY_SECTION_DATA_ITEM4", comment: ""),
-                    NSLocalizedString("PRIVACY_SECTION_DATA_ITEM5", comment: "")
+                    NSLocalizedString("PRIVACY_SECTION_DATA_ITEM5", comment: ""),
+                    NSLocalizedString("PRIVACY_SECTION_DATA_ITEM6", comment: "")
                 ],
                 themeManager: themeManager
             )

@@ -248,7 +248,8 @@
 "PRIVACY_SECTION_DATA_ITEM2" = "Profile photo: only if you choose to add one.";
 "PRIVACY_SECTION_DATA_ITEM3" = "Gardens & AR: selected plants, 3D positions, questionnaire answers.";
 "PRIVACY_SECTION_DATA_ITEM4" = "Consent records: type, version and date, plus IP address and user agent kept as proof.";
-"PRIVACY_SECTION_DATA_ITEM5" = "On your device only (never uploaded): camera and LiDAR for AR, motion, ARKit world maps, location for sunlight, calendar for reminders, Face ID.";
+"PRIVACY_SECTION_DATA_ITEM5" = "On your device only: LiDAR and the AR camera feed, motion, ARKit world maps, location for sunlight, calendar for reminders, Face ID.";
+"PRIVACY_SECTION_DATA_ITEM6" = "Health diagnosis & assistant: photos you submit for a diagnosis, and your messages, are sent to our servers and then to Google (Gemini) for analysis, including outside the European Union.";
 
 // Why we use it
 "PRIVACY_SECTION_USAGE_TITLE" = "Why we use this data";
@@ -272,7 +273,7 @@
 
 // Sharing
 "PRIVACY_SECTION_SHARING_TITLE" = "Sharing & recipients";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Sub-processors: Firebase, Apple, MongoDB Atlas, Cloudflare, Unsplash, AI generation.";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Sub-processors: Firebase, Apple, MongoDB Atlas, Cloudflare, Unsplash, and Google (Gemini) for photo analysis and the assistant.";
 "PRIVACY_SECTION_SHARING_ITEM2" = "No advertising and no cross-app tracking.";
 "PRIVACY_SECTION_SHARING_ITEM3" = "We never sell your data. Transfers are limited to what is necessary and governed by contract.";
 

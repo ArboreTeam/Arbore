@@ -4,9 +4,11 @@ struct AboutUsView: View {
     @EnvironmentObject var themeManager: ThemeManager
     @Environment(\.dismiss) var dismiss
     
-    // Version de l'application
-    private let appVersion = "1.0.0"
     private let supportEmail = "support@arbore.app"
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+    }
 
     var body: some View {
         SettingsPage(title: NSLocalizedString("PROFILE_ABOUT", comment: "About Arbore title")) {

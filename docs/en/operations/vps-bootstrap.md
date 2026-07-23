@@ -117,6 +117,9 @@ server {
     listen 80;
     server_name _;
 
+    # The health diagnosis sends a photo (base64-encoded in the JSON body).
+    client_max_body_size 16m;
+
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;

@@ -1505,7 +1505,7 @@ type DiagnoseRequest struct {
 	Colorimetry ColorimetryDTO `json:"colorimetry"`
 }
 
-func callGeminiAPI(payload map[string]interface{}) ([]byte, error) {
+func callGeminiAPI(ctx context.Context, payload map[string]interface{}) ([]byte, error) {
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	if apiKey == "" {
 		return nil, fmt.Errorf("GEMINI_API_KEY non configurée dans l'environnement")
@@ -1534,7 +1534,7 @@ func callGeminiAPI(payload map[string]interface{}) ([]byte, error) {
 	for attempt < maxAttempts {
 		// Hôte codé en dur (generativelanguage.googleapis.com) : seul le nom du
 		// modèle vient de l'env, donc pas de SSRF réel → gosec en faux positif.
-		req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyBytes)) //nolint:gosec // hôte constant Google, pas de SSRF
+		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(bodyBytes)) //nolint:gosec // hôte constant Google, pas de SSRF
 		if err != nil {
 			return nil, fmt.Errorf("erreur lors de la création de la requête Gemini: %w", err)
 		}
@@ -1546,7 +1546,9 @@ func callGeminiAPI(payload map[string]interface{}) ([]byte, error) {
 		if err != nil {
 			lastErr = err
 			attempt++
-			time.Sleep(time.Duration(attempt*attempt) * time.Second)
+			if berr := backoffOrCancel(ctx, time.Duration(attempt*attempt)*time.Second); berr != nil {
+				return nil, berr
+			}
 			continue
 		}
 		defer func() { _ = resp.Body.Close() }()
@@ -1562,7 +1564,9 @@ func callGeminiAPI(payload map[string]interface{}) ([]byte, error) {
 			lastErr = fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respData))
 			if resp.StatusCode == 429 || resp.StatusCode == 503 || resp.StatusCode >= 500 {
 				attempt++
-				time.Sleep(time.Duration(attempt*attempt) * time.Second)
+				if berr := backoffOrCancel(ctx, time.Duration(attempt*attempt)*time.Second); berr != nil {
+					return nil, berr
+				}
 				continue
 			}
 			return nil, lastErr
@@ -1669,7 +1673,7 @@ func handleGeminiChat(c *gin.Context) {
 		"contents": contents,
 	}
 
-	respData, err := callGeminiAPI(payload)
+	respData, err := callGeminiAPI(c.Request.Context(), payload)
 	if err != nil {
 		// Ne jamais propager err.Error() au client : l'erreur peut contenir l'URL de
 		// l'appel sortant et d'autres détails internes. Log serveur uniquement.
@@ -1776,7 +1780,7 @@ Les valeurs numériques sont entre 0 et 1.
 		},
 	}
 
-	respData, err := callGeminiAPI(payload)
+	respData, err := callGeminiAPI(c.Request.Context(), payload)
 	if err != nil {
 		// Idem chat : aucune fuite de l'erreur brute (peut contenir l'URL sortante).
 		log.Printf("❌ callGeminiAPI (diagnose) a échoué: %v", err)
@@ -1940,7 +1944,7 @@ func main() {
 	}))
 
 	// Augmenter la limite de taille pour les uploads de fichiers (1GB max)
-	router.MaxMultipartMemory = 1 << 30 // 1 GB
+	router.MaxMultipartMemory = 32 << 20 // 32 Mo (buffer mémoire du parsing multipart)
 
 	// === ROUTE PUBLIQUE (Health Check) ===
 	router.GET("/health", func(c *gin.Context) {
@@ -2049,8 +2053,8 @@ func main() {
 
 		// Gemini Chat & Scanner Proxies — rate limité par uid pour borner le coût
 		// Gemini et bloquer un client qui boucle (issue #303, cf. ratelimit.go).
-		protected.POST("/chat", chatRateLimiter.middleware(), handleGeminiChat)
-		protected.POST("/diagnose", diagnoseRateLimiter.middleware(), handleGeminiDiagnose)
+		protected.POST("/chat", chatRateLimiter.middleware(), limitRequestBody(maxGeminiBodyBytes), handleGeminiChat)
+		protected.POST("/diagnose", diagnoseRateLimiter.middleware(), limitRequestBody(maxGeminiBodyBytes), handleGeminiDiagnose)
 
 		// Consents (RGPD)
 		protected.POST("/consents", recordConsent)
@@ -2094,8 +2098,10 @@ func main() {
 		protected.POST("/models/thumbnails/:plantId", uploadPlantThumbnail)
 	}
 
+	srv := newServer(":8080", router)
 	fmt.Println("🚀 Serveur démarré sur http://localhost:8080")
-	if err := router.Run(":8080"); err != nil {
+	// Pas d'arrêt gracieux ici : ListenAndServe ne renvoie qu'en cas d'erreur réelle.
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal("❌ Erreur lors du démarrage du serveur :", err) // nolint:misspell
 	}
 

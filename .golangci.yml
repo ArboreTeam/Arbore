@@ -48,6 +48,8 @@ linters:
         - incluse
         - naturels
         - inventer
+        - tournement
+        - absolue
 
     revive:
       confidence: 0.8

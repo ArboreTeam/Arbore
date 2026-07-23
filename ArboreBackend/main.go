@@ -1532,8 +1532,9 @@ func callGeminiAPI(payload map[string]interface{}) ([]byte, error) {
 	maxAttempts := 4
 
 	for attempt < maxAttempts {
-		// nolint:no_ctx_http_request // Simple HTTP call with a timeout is sufficient here
-		req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyBytes))
+		// Hôte codé en dur (generativelanguage.googleapis.com) : seul le nom du
+		// modèle vient de l'env, donc pas de SSRF réel → gosec en faux positif.
+		req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyBytes)) //nolint:gosec // hôte constant Google, pas de SSRF
 		if err != nil {
 			return nil, fmt.Errorf("erreur lors de la création de la requête Gemini: %w", err)
 		}
@@ -1541,14 +1542,14 @@ func callGeminiAPI(payload map[string]interface{}) ([]byte, error) {
 		req.Header.Set("x-goog-api-key", apiKey)
 
 		client := &http.Client{Timeout: 60 * time.Second}
-		resp, err := client.Do(req)
+		resp, err := client.Do(req) //nolint:gosec // hôte constant Google, pas de SSRF
 		if err != nil {
 			lastErr = err
 			attempt++
 			time.Sleep(time.Duration(attempt*attempt) * time.Second)
 			continue
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		respData, err = io.ReadAll(resp.Body)
 		if err != nil {

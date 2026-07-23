@@ -94,7 +94,10 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      # 127.0.0.1 (et pas localhost) : dans le conteneur, localhost résout
+      # d'abord en IPv6 [::1] où Next.js n'écoute pas (bind 0.0.0.0 IPv4) →
+      # faux "unhealthy". Forcer l'IPv4 rend le check fiable.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/"]
       interval: 30s
       timeout: 5s
       retries: 5

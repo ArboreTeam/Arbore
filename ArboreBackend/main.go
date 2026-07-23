@@ -1846,14 +1846,16 @@ Les valeurs numériques sont entre 0 et 1.
 
 	jsonString := rawText[firstBrace : lastBrace+1]
 
-	var diagnoseResponse map[string]interface{}
-	if err := json.Unmarshal([]byte(jsonString), &diagnoseResponse); err != nil {
+	// Normalisation : structure typée, valeurs bornées, tableaux jamais null,
+	// maladies sans nom écartées — cf. contrat iOS (issue #312).
+	normalized, err := normalizeDiagnose([]byte(jsonString))
+	if err != nil {
 		log.Printf("❌ diagnose: parsing du JSON de diagnostic impossible: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse de diagnostic illisible."})
 		return
 	}
 
-	c.JSON(http.StatusOK, diagnoseResponse)
+	c.JSON(http.StatusOK, normalized)
 }
 
 // ---------- LOAD ENV ----------

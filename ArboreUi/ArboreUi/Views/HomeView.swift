@@ -111,6 +111,7 @@ private extension HomeView {
 
     @ViewBuilder
     var chatButton: some View {
+        #if compiler(>=6.2)
         if #available(iOS 26.0, *) {
             Button {
                 showChat = true
@@ -126,6 +127,14 @@ private extension HomeView {
             }
             .buttonStyle(.bordered)
         }
+        #else
+        Button {
+            showChat = true
+        } label: {
+            chatButtonLabel
+        }
+        .buttonStyle(.bordered)
+        #endif
     }
 
     var chatButtonLabel: some View {

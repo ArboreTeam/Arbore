@@ -198,7 +198,7 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 // verification: otherwise an unverified user could create server-side data but
 // would be unable to exercise the right to erase it.
 func requiresVerifiedEmail(method, fullPath string) bool {
-	return !(fullPath == "/users" && (method == http.MethodPost || method == http.MethodDelete))
+	return fullPath != "/users" || (method != http.MethodPost && method != http.MethodDelete)
 }
 
 // RequireAdmin protects catalogue mutation and plant-generation endpoints.
@@ -248,7 +248,7 @@ func isAdminUID(uid string) bool {
 func DeleteFirebaseUser(ctx context.Context, uid string) error {
 	if firebaseAuth == nil {
 		if isReleaseMode() {
-			return fmt.Errorf("Firebase authentication service unavailable")
+			return fmt.Errorf("firebase authentication service unavailable")
 		}
 		return nil
 	}

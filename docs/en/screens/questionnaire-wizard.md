@@ -62,7 +62,7 @@ For a room, balcony, or terrace, `GardenExposureCaptureOverlay` appears without 
 
 After the camera closes, `GardenLocationCaptureView` requests a new approximate location for every garden. `state.location` is always reset before creation. Manual city entry and continuing without location remain available. The value is added to the garden through `PUT /gardens/:id`.
 
-The resolved wizard snapshot (approximate location, exposure, orientation, and inferred sunlight) is also written to `wizard_<gardenId>.json`. When the 2D plan opens, captured values missing from the server response are restored from that snapshot, displayed immediately, then sent back to the backend. An existing remote value, especially a manual correction, always remains authoritative.
+The resolved wizard snapshot (approximate location, exposure, orientation, and inferred sunlight) is also written as a per-garden JSON file by `ArboreUi/ArboreUi/Views/GardenLocalStore.swift`. When the 2D plan opens, captured values missing from the server response are restored from that snapshot, displayed immediately, then sent back to the backend. An existing remote value, especially a manual correction, always remains authoritative.
 
 ### Conditional questions
 

@@ -18,7 +18,9 @@ func deleteLegacyCommunityData(ctx context.Context, db *mongo.Database, uid stri
 	if err != nil {
 		return 0, err
 	}
-	defer cursor.Close(ctx)
+	defer func() {
+		_ = cursor.Close(ctx)
+	}()
 
 	var posts []struct {
 		ImageURL string `bson:"imageUrl"`
@@ -50,5 +52,17 @@ func removeLegacyCommunityImage(imageURL string) {
 	if directory == "" {
 		directory = "./uploads/community"
 	}
-	_ = os.Remove(filepath.Join(directory, filename))
+	baseDirectory, err := filepath.Abs(directory)
+	if err != nil {
+		return
+	}
+	targetPath := filepath.Join(baseDirectory, filename)
+	relativePath, err := filepath.Rel(baseDirectory, targetPath)
+	if err != nil || relativePath == "." || filepath.IsAbs(relativePath) ||
+		relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return
+	}
+	// filename is reduced to a basename, extension-whitelisted, and targetPath
+	// is proven to remain inside baseDirectory above.
+	_ = os.Remove(targetPath) //nolint:gosec
 }

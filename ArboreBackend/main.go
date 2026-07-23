@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -632,7 +633,7 @@ func deleteUser(c *gin.Context) {
 		return
 	}
 
-	// 5. Logger uniquement les compteurs, sans conserver d'autres données.
+	// 5. Logger uniquement les totaux, sans conserver d'autres données.
 	log.Printf("✅ Utilisateur supprimé complètement - Gardens: %d, Consents: %d, LegacyPosts: %d, User: %d, Firebase: 1",
 		gardensResult.DeletedCount, consentsResult.DeletedCount, legacyPostsDeleted, userResult.DeletedCount)
 
@@ -946,13 +947,18 @@ func generateAndInsertPlant(ctx context.Context, name string, dbSelector string)
 	if aiGeneratorURL == "" {
 		aiGeneratorURL = "http://localhost:8001"
 	}
-	// nolint:gosec // aiGeneratorURL comes from trusted AI_GENERATOR_URL environment variable
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, aiGeneratorURL+"/generate", bytes.NewBuffer(jsonData))
+	aiGeneratorEndpoint, err := trustedServiceEndpoint(aiGeneratorURL, "/generate")
+	if err != nil {
+		return Plant{}, false, fmt.Errorf("invalid AI generator URL: %w", err)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, aiGeneratorEndpoint, bytes.NewBuffer(jsonData)) //nolint:gosec
 	if err != nil {
 		return Plant{}, false, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := (&http.Client{Timeout: 60 * time.Second}).Do(req)
+	// The endpoint was parsed and restricted to HTTP(S) by
+	// trustedServiceEndpoint; its base URL comes from server configuration.
+	resp, err := (&http.Client{Timeout: 60 * time.Second}).Do(req) //nolint:gosec
 	if err != nil {
 		log.Println("❌ Erreur appel API IA:", err)
 		return Plant{}, false, err
@@ -1007,6 +1013,23 @@ func generateAndInsertPlant(ctx context.Context, name string, dbSelector string)
 	}
 
 	return plant, false, nil
+}
+
+func trustedServiceEndpoint(rawBaseURL, endpointPath string) (string, error) {
+	parsed, err := url.Parse(strings.TrimSpace(rawBaseURL))
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", fmt.Errorf("unsupported scheme %q", parsed.Scheme)
+	}
+	if parsed.Host == "" || parsed.User != nil {
+		return "", fmt.Errorf("host is missing or contains credentials")
+	}
+	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/" + strings.TrimLeft(endpointPath, "/")
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	return parsed.String(), nil
 }
 
 func normalizeModelNameKey(input string) string {
@@ -1608,7 +1631,7 @@ func callGeminiAPI(ctx context.Context, payload map[string]interface{}) ([]byte,
 			continue
 		}
 		if closeErr != nil {
-			lastErr = closeErr
+			return nil, fmt.Errorf("erreur lors de la fermeture de la réponse Gemini: %w", closeErr)
 		}
 
 		if resp.StatusCode != http.StatusOK {
@@ -1983,29 +2006,25 @@ func loadDotEnv(path string) {
 
 // ---------- MAIN ----------
 
-func main() {
-	loadDotEnv(".env")
-
+func connectMongoDatabases(ctx context.Context) error {
 	// L'URI Mongo est obligatoire et passée par l'environnement
 	// (.env ou variable système) — jamais de credentials en dur dans le code.
 	// export MONGODB_URI="mongodb+srv://..."
-	uri := os.Getenv("MONGODB_URI")
+	uri := strings.TrimSpace(os.Getenv("MONGODB_URI"))
 	if uri == "" {
-		log.Fatal("❌ MONGODB_URI non défini : renseigne-le dans l'environnement avant de démarrer le backend.")
+		return fmt.Errorf("MONGODB_URI non défini")
 	}
 
 	clientOptions := options.Client().ApplyURI(uri)
-
-	var err error
-	client, err = mongo.Connect(context.Background(), clientOptions)
+	productionClient, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		log.Fatal("❌ Erreur lors de la connexion à MongoDB :", err)
+		return fmt.Errorf("connexion MongoDB production: %w", err)
 	}
-
-	err = client.Ping(context.Background(), nil)
-	if err != nil {
-		log.Fatal("❌ Erreur lors de la vérification de la connexion à MongoDB :", err)
+	if err := productionClient.Ping(ctx, nil); err != nil {
+		_ = productionClient.Disconnect(ctx)
+		return fmt.Errorf("ping MongoDB production: %w", err)
 	}
+	client = productionClient
 	fmt.Println("✅ Connecté à MongoDB (prod, DB " + prodDBName + ") !")
 
 	// Connexion optionnelle pour la DB de test. Permet aux runs CI d'écrire
@@ -2015,13 +2034,15 @@ func main() {
 	// ARBORE_API_KEY_TEST sera rejetée par le middleware.
 	if testURI := os.Getenv("MONGODB_URI_TEST"); testURI != "" {
 		testClientOptions := options.Client().ApplyURI(testURI)
-		testClient, err = mongo.Connect(context.Background(), testClientOptions)
+		candidate, err := mongo.Connect(ctx, testClientOptions)
 		if err != nil {
-			log.Fatal("❌ Connexion test MongoDB échouée :", err)
+			return fmt.Errorf("connexion MongoDB test: %w", err)
 		}
-		if err := testClient.Ping(context.Background(), nil); err != nil {
-			log.Fatal("❌ Ping test MongoDB échoué :", err)
+		if err := candidate.Ping(ctx, nil); err != nil {
+			_ = candidate.Disconnect(ctx)
+			return fmt.Errorf("ping MongoDB test: %w", err)
 		}
+		testClient = candidate
 		fmt.Println("✅ Connecté à MongoDB (test, DB " + testDBName + ") !")
 
 		// Auto-seed des plantes dans la DB test si elle est vide. Évite
@@ -2031,6 +2052,30 @@ func main() {
 	} else {
 		fmt.Println("ℹ️ MONGODB_URI_TEST non défini, mode test désactivé.")
 	}
+	return nil
+}
+
+func disconnectMongoDatabases(ctx context.Context) {
+	if testClient != nil {
+		if err := testClient.Disconnect(ctx); err != nil {
+			log.Printf("❌ Erreur lors de la déconnexion de MongoDB test : %v", err)
+		}
+	}
+	if client != nil {
+		if err := client.Disconnect(ctx); err != nil {
+			log.Printf("❌ Erreur lors de la déconnexion de MongoDB production : %v", err)
+		}
+	}
+	fmt.Println("🔌 Déconnecté de MongoDB.")
+}
+
+func main() {
+	loadDotEnv(".env")
+
+	if err := connectMongoDatabases(context.Background()); err != nil {
+		log.Fatalf("❌ MongoDB initialization failed: %v", err)
+	}
+	defer disconnectMongoDatabases(context.Background())
 
 	// Initialiser Firebase Admin SDK.
 	// En release mode, toute erreur est fatale : le backend refuse de démarrer
@@ -2237,13 +2282,6 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal("❌ Erreur lors du démarrage du serveur :", err) // nolint:misspell
 	}
-
-	defer func() {
-		if err = client.Disconnect(context.Background()); err != nil {
-			log.Fatal("❌ Erreur lors de la déconnexion de MongoDB :", err)
-		}
-		fmt.Println("🔌 Déconnecté de MongoDB.")
-	}()
 }
 
 func validateReleaseSecurityConfig() error {
@@ -2251,10 +2289,10 @@ func validateReleaseSecurityConfig() error {
 		return nil
 	}
 	if _, err := loadAppleSIWAConfig(); err != nil {
-		return fmt.Errorf("Sign in with Apple: %w", err)
+		return fmt.Errorf("sign in with Apple: %w", err)
 	}
 	if _, err := parseMasterEncryptionKey(os.Getenv("MASTER_ENCRYPTION_KEY")); err != nil {
-		return fmt.Errorf("Apple token encryption: %w", err)
+		return fmt.Errorf("apple token encryption: %w", err)
 	}
 	return nil
 }

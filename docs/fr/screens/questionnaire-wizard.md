@@ -62,7 +62,7 @@ Pour une pièce, un balcon ou une terrasse, `GardenExposureCaptureOverlay` appar
 
 Après fermeture de la caméra, `GardenLocationCaptureView` demande une nouvelle localisation approximative pour chaque jardin. `state.location` est toujours réinitialisé avant une création. La ville manuelle et la poursuite sans localisation restent disponibles. La valeur est ajoutée au jardin par `PUT /gardens/:id`.
 
-Le snapshot résolu du wizard (localisation approximative, exposition, orientation et ensoleillement déduit) est également écrit dans `wizard_<gardenId>.json`. À l'ouverture du plan 2D, les seules valeurs capturées absentes de la réponse serveur sont restaurées depuis ce snapshot, affichées immédiatement puis renvoyées au backend. Une valeur distante existante, notamment une correction manuelle, reste toujours prioritaire.
+Le snapshot résolu du wizard (localisation approximative, exposition, orientation et ensoleillement déduit) est également écrit dans un fichier JSON propre au jardin par `ArboreUi/ArboreUi/Views/GardenLocalStore.swift`. À l'ouverture du plan 2D, les seules valeurs capturées absentes de la réponse serveur sont restaurées depuis ce snapshot, affichées immédiatement puis renvoyées au backend. Une valeur distante existante, notamment une correction manuelle, reste toujours prioritaire.
 
 ### Questions conditionnelles
 

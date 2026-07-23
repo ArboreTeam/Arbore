@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/hex"
 	"testing"
 )
 
@@ -64,5 +65,21 @@ func TestDecryptShortBlobFails(t *testing.T) {
 	_, _ = rand.Read(key)
 	if _, err := decryptWith(key, []byte("short")); err == nil {
 		t.Fatal("un blob trop court aurait dû échouer")
+	}
+}
+
+func TestParseMasterEncryptionKey(t *testing.T) {
+	rawKey := make([]byte, 32)
+	if _, err := rand.Read(rawKey); err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := parseMasterEncryptionKey(hex.EncodeToString(rawKey))
+	if err != nil || !bytes.Equal(parsed, rawKey) {
+		t.Fatalf("valid key rejected: %v", err)
+	}
+	for _, invalid := range []string{"", "not-hex", "00"} {
+		if _, err := parseMasterEncryptionKey(invalid); err == nil {
+			t.Fatalf("invalid key %q accepted", invalid)
+		}
 	}
 }

@@ -111,7 +111,9 @@ class FirebaseConfigDiagnosticTests: XCTestCase {
     }
     
     /// Test 3: Test Firebase network connectivity
-    func testDiagnostic_Firebase_NetworkConnectivity() {
+    func testDiagnostic_Firebase_NetworkConnectivity() throws {
+        try LiveIntegrationTestGate.requireEnabled()
+
         XCTContext.runActivity(named: "🔍 DIAGNOSTIC: Testing Firebase Network") { _ in
             // Configure Firebase if needed
             if FirebaseApp.app() == nil {
@@ -121,7 +123,7 @@ class FirebaseConfigDiagnosticTests: XCTestCase {
             let expectation = XCTestExpectation(description: "Test Firebase connectivity")
             let startTime = Date()
             
-            let testEmail = "diagnostic-test-\(Int(Date().timeIntervalSince1970))@arbore.test"
+            let testEmail = "diagnostic-test-\(UUID().uuidString.lowercased())@arbore.test"
             let testPassword = "DiagnosticTest2026!"
             
             Auth.auth().createUser(withEmail: testEmail, password: testPassword) { result, error in
@@ -158,6 +160,8 @@ class FirebaseConfigDiagnosticTests: XCTestCase {
     
     /// Test 4: Verify backend connectivity
     func testDiagnostic_Backend_Connectivity() throws {
+        try LiveIntegrationTestGate.requireEnabled()
+
         NSLog("\n========================================")
         NSLog("🔍 DIAGNOSTIC: Testing Backend Connection")
         NSLog("========================================")

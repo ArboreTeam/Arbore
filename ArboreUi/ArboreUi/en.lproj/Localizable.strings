@@ -85,13 +85,13 @@
 "FOOTER_COPYRIGHT" = "© 2025 Arbore. All rights reserved.";
 
 // Profile Components
-"PLAN_TITLE_STANDARD" = "Standard Plan";
+"PLAN_TITLE_STANDARD" = "Arbore Free";
 "PLAN_TITLE_FORMAT" = "%@ Plan";
 "PLAN_FREE" = "Free";
 "PLAN_PAID" = "Paid";
 "PLAN_ACTIVE" = "Active";
 
-"SUBSCRIPTION_DESCRIPTION_STANDARD" = "Basic features. Limited scans.";
+"SUBSCRIPTION_DESCRIPTION_STANDARD" = "Every feature currently available is included, with no subscription or in-app purchase.";
 "SUBSCRIPTION_DESCRIPTION_PREMIUM" = "Active Premium subscription. Unlimited scans and more.";
 "SUBSCRIPTION_DESCRIPTION_METAL" = "Active Metal subscription. Advanced analysis and tracking.";
 "SUBSCRIPTION_DESCRIPTION_ULTRA" = "Active Ultra subscription. Full experience and support.";
@@ -158,6 +158,20 @@
 "CHANGE_PASSWORD_CONFIRM_PLACEHOLDER" = "Confirm new password";
 
 "CHANGE_PASSWORD_UPDATE_BUTTON" = "Update password";
+"CHANGE_PASSWORD_REQUIREMENT" = "At least %d characters.";
+"CHANGE_PASSWORD_SUCCESS" = "Your password has been updated.";
+"CHANGE_PASSWORD_EXTERNAL_TITLE" = "Provider-managed account";
+"CHANGE_PASSWORD_EXTERNAL_MESSAGE" = "This account uses Apple or Google. Its password is managed directly with that provider.";
+"CHANGE_PASSWORD_ERROR_REQUIRED" = "Complete all three fields.";
+"CHANGE_PASSWORD_ERROR_LENGTH" = "Your new password must contain at least 8 characters.";
+"CHANGE_PASSWORD_ERROR_MISMATCH" = "The two new passwords do not match.";
+"CHANGE_PASSWORD_ERROR_SAME" = "Choose a password different from your current one.";
+"CHANGE_PASSWORD_ERROR_SESSION" = "Your session is no longer valid. Sign in again and retry.";
+"CHANGE_PASSWORD_ERROR_CURRENT" = "Your current password is incorrect.";
+"CHANGE_PASSWORD_ERROR_WEAK" = "This password is not strong enough.";
+"CHANGE_PASSWORD_ERROR_NETWORK" = "Unable to connect. Check your network and retry.";
+"CHANGE_PASSWORD_ERROR_RECENT_LOGIN" = "Sign in again before changing your password.";
+"CHANGE_PASSWORD_ERROR_GENERIC" = "Your password cannot be changed right now.";
 
 
 // Close account
@@ -166,14 +180,14 @@
 
 "CLOSE_ACCOUNT_WARNING_TITLE" = "Warning";
 "CLOSE_ACCOUNT_WARNING_TEXT" = "Closing your account will permanently delete all your data and linked content.";
-"CLOSE_ACCOUNT_WARNING_REAUTH" = "For security, you must re-enter your email and password before we proceed.";
+"CLOSE_ACCOUNT_WARNING_REAUTH" = "For security, confirm your identity with your usual sign-in method before proceeding.";
 
 "CLOSE_ACCOUNT_WHAT_HAPPENS_TITLE" = "What will happen";
 
-"CLOSE_ACCOUNT_CONSEQUENCE_PROFILE" = "Your profile, preferences and backups will be deleted.";
+"CLOSE_ACCOUNT_CONSEQUENCE_PROFILE" = "Your profile, gardens and consent records will be deleted.";
 "CLOSE_ACCOUNT_CONSEQUENCE_UPLOADS" = "Uploaded content (e.g. plant scans) will be permanently removed.";
 "CLOSE_ACCOUNT_CONSEQUENCE_SIGNOUT" = "You’ll be signed out on all devices.";
-"CLOSE_ACCOUNT_CONSEQUENCE_CLOUD" = "Cloud sync will be disabled and data erased from our servers.";
+"CLOSE_ACCOUNT_CONSEQUENCE_CLOUD" = "Data linked to your account will be erased from our servers and this device.";
 
 "CLOSE_ACCOUNT_READY_TITLE" = "Ready to close your account?";
 "CLOSE_ACCOUNT_BUTTON" = "Close my account";
@@ -246,15 +260,15 @@
 "PRIVACY_SECTION_DATA_TITLE" = "Data we process";
 "PRIVACY_SECTION_DATA_ITEM1" = "Identity: email, name, Firebase ID, and the sign-in provider you use (email, Google or Apple).";
 "PRIVACY_SECTION_DATA_ITEM2" = "Profile photo: only if you choose to add one.";
-"PRIVACY_SECTION_DATA_ITEM3" = "Gardens & AR: selected plants, 3D positions, questionnaire answers.";
-"PRIVACY_SECTION_DATA_ITEM4" = "Consent records: type, version and date, plus IP address and user agent kept as proof.";
-"PRIVACY_SECTION_DATA_ITEM5" = "On your device only: LiDAR and the AR camera feed, motion, ARKit world maps, location for sunlight, calendar for reminders, Face ID.";
+"PRIVACY_SECTION_DATA_ITEM3" = "Gardens & AR: selected plants, 3D positions, questionnaire answers, city and approximate location if you allow it.";
+"PRIVACY_SECTION_DATA_ITEM4" = "Consent records: type, version, server date and limited technical app information.";
+"PRIVACY_SECTION_DATA_ITEM5" = "Kept on your device: raw camera and LiDAR images, motion data and ARKit world maps. A photo is uploaded only when you add it to chat or plant diagnosis.";
 "PRIVACY_SECTION_DATA_ITEM6" = "Health diagnosis & assistant: photos you submit for a diagnosis, and your messages, are sent to our servers and then to Google (Gemini) for analysis, including outside the European Union.";
 
 // Why we use it
 "PRIVACY_SECTION_USAGE_TITLE" = "Why we use this data";
 "PRIVACY_SECTION_USAGE_ITEM1" = "Provide %@’s core features: create, save and restore your gardens in AR.";
-"PRIVACY_SECTION_USAGE_ITEM2" = "Generate personalised plant-care recommendations from your answers.";
+"PRIVACY_SECTION_USAGE_ITEM2" = "Match plants to your space and, when requested, process messages or photos sent to AI chat and plant diagnosis.";
 "PRIVACY_SECTION_USAGE_ITEM3" = "Security, abuse prevention, debugging and improving the app.";
 "PRIVACY_SECTION_USAGE_ITEM4" = "Honour the iOS permissions you grant (camera, photos, location, calendar, notifications).";
 "PRIVACY_SECTION_USAGE_ITEM5" = "Keep proof of your consents and meet our legal obligations.";
@@ -269,11 +283,11 @@
 // Retention
 "PRIVACY_SECTION_RETENTION_TITLE" = "Retention";
 "PRIVACY_SECTION_RETENTION_ITEM1" = "Your account, profile and gardens are kept while your account exists.";
-"PRIVACY_SECTION_RETENTION_ITEM2" = "Deleting your account erases your account, gardens and consents; consent proofs may be kept up to 3 years.";
+"PRIVACY_SECTION_RETENTION_ITEM2" = "Deleting from the app erases the Firebase account, profile, gardens, consents, local chat history and any associated legacy shared content.";
 
 // Sharing
 "PRIVACY_SECTION_SHARING_TITLE" = "Sharing & recipients";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Sub-processors: Firebase, Apple, MongoDB Atlas, Cloudflare, Unsplash, and Google (Gemini) for photo analysis and the assistant.";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Sub-processors: Firebase and Google (including Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI and Sentry if you enable diagnostics.";
 "PRIVACY_SECTION_SHARING_ITEM2" = "No advertising and no cross-app tracking.";
 "PRIVACY_SECTION_SHARING_ITEM3" = "We never sell your data. Transfers are limited to what is necessary and governed by contract.";
 
@@ -312,7 +326,7 @@
 "PRIVACYSETTINGS_TITLE" = "Privacy settings";
 
 "PRIVACYSETTINGS_HEADER_TITLE" = "Your privacy, your control";
-"PRIVACYSETTINGS_HEADER_SUBTITLE" = "Control who sees your profile and activity, and how we use your data.";
+"PRIVACYSETTINGS_HEADER_SUBTITLE" = "Control optional processing and clearly review how we use your data.";
 
 // Sections
 "PRIVACYSETTINGS_SECTION_PROFILE" = "Profile visibility";
@@ -353,7 +367,7 @@
 // Service description
 "TERMS_SECTION_SERVICE_TITLE" = "Service description";
 "TERMS_SECTION_SERVICE_ITEM1" = "%@ is an augmented-reality gardening app: choose plants, visualise them in 3D and AR, save gardens, and get care recommendations and watering reminders.";
-"TERMS_SECTION_SERVICE_ITEM2" = "Arbore is currently free and in beta: there are no subscriptions or in-app purchases.";
+"TERMS_SECTION_SERVICE_ITEM2" = "Arbore is currently free: there are no subscriptions or in-app purchases.";
 
 // Accounts & security
 "TERMS_SECTION_ACCOUNT_TITLE" = "Accounts & security";
@@ -400,7 +414,7 @@
 
 // Availability & changes
 "TERMS_SECTION_AVAILABILITY_TITLE" = "Availability & changes";
-"TERMS_SECTION_AVAILABILITY_ITEM1" = "The service is provided “as is” and “as available”. As a beta it may be modified, suspended or discontinued at any time, with or without notice.";
+"TERMS_SECTION_AVAILABILITY_ITEM1" = "The service is provided “as is” and “as available”. It may evolve, be suspended or discontinued in accordance with these terms.";
 "TERMS_SECTION_AVAILABILITY_ITEM2" = "We do not guarantee uninterrupted availability or the absence of data loss; keep a copy of anything important.";
 
 // Liability
@@ -799,7 +813,7 @@
 
 // Privacy Settings - Notifications
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notifications";
-"PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Push notifications";
+"PRIVACYSETTINGS_NOTIFICATIONS_TITLE" = "Notifications";
 "PRIVACYSETTINGS_NOTIFICATIONS_SUB" = "Watering reminders and alerts";
 
 // Auto-translated with DeepL
@@ -1177,7 +1191,16 @@
 "AUTH_RESET_TITLE" = "Forgot password";
 "AUTH_RESET_DESCRIPTION" = "Enter the email address associated with your account and we’ll send you a link to reset your password.";
 "AUTH_SEND" = "Send";
-"AUTH_RESET_SUCCESS" = "A reset link has been sent to your email.";
+"AUTH_RESET_SUCCESS" = "If an account matches this address, a reset link has just been sent.";
+"AUTH_RESET_INVALID_EMAIL" = "Enter a valid email address.";
+"AUTH_RESET_NETWORK_ERROR" = "Unable to connect. Check your network and retry.";
+"AUTH_RESET_GENERIC_ERROR" = "The reset link cannot be sent right now. Try again later.";
+"AUTH_RESET_CLOSE" = "Close";
+
+"SHOP_PARTNERS_COMING_SOON_BADGE" = "Coming soon";
+"SHOP_PARTNERS_COMING_SOON_TITLE" = "Partner purchasing is coming soon";
+"SHOP_PARTNERS_COMING_SOON_MESSAGE" = "We are preparing connections with retail partners so you can find the plants and accessories in your project. Purchases are not yet available in Arbore.";
+"SHOP_PARTNERS_NO_PRICE_NOTICE" = "No partner price or stock is shown until live partner data is connected.";
 "AUTH_ERROR_EMPTY_CREDENTIALS" = "Please enter your email and password.";
 "AUTH_ERROR_INVALID_CREDENTIALS" = "Incorrect email or password.";
 "AUTH_ERROR_TOO_MANY" = "Too many unsuccessful login attempts. Please try again later.";
@@ -1355,6 +1378,145 @@
 "AR_PLANT_CATALOG_ERROR_FORMAT" = "❌ %@";
 "AR_PLANT_CATALOG_MODE_BADGE_FORMAT" = "%@ mode";
 "AR_PLANT_CATALOG_NO_COMPATIBLE_PLANTS" = "No plants are compatible with this mode.";
+"AR_CATALOG_SCOPE_ACCESSIBILITY" = "Catalog selection";
+"AR_CATALOG_SCOPE_ADAPTED" = "Suited";
+"AR_CATALOG_SCOPE_ALL" = "All";
+"AR_CATALOG_FILTERS_TITLE" = "Filters";
+"AR_CATALOG_FILTER_MORE" = "More";
+"AR_CATALOG_SHOW_ALL_PLANTS" = "See all plants";
+"AR_CATALOG_RESET_FILTERS" = "Reset";
+"AR_CATALOG_NO_ADAPTED_PLANTS" = "No suitable plant matches these criteria. Unknown information is not treated as compatible by default.";
+"AR_CATALOG_NO_FILTER_RESULTS" = "No plants match this search or these filters.";
+"AR_CATALOG_SUITABILITY_VERY_GOOD" = "Ideal";
+"AR_CATALOG_SUITABILITY_GOOD" = "Suitable";
+"AR_CATALOG_SUITABILITY_REVIEW" = "Check";
+"AR_CATALOG_SUITABILITY_UNSUITABLE" = "Less suitable";
+"AR_CATALOG_FILTER_SECTION_APPEARANCE" = "Appearance and size";
+"AR_CATALOG_FILTER_SECTION_CARE" = "Care";
+"AR_CATALOG_FILTER_SECTION_SHAPE" = "Shape and use";
+"AR_CATALOG_FILTER_SECTION_SAFETY" = "Safety";
+"AR_CATALOG_FILTER_COLORFUL" = "Colorful";
+"AR_CATALOG_FILTER_SMALL" = "Small";
+"AR_CATALOG_FILTER_MEDIUM" = "Medium";
+"AR_CATALOG_FILTER_LARGE" = "Large";
+"AR_CATALOG_FILTER_EASY" = "Easy care";
+"AR_CATALOG_FILTER_LOW_WATER" = "Low water";
+"AR_CATALOG_FILTER_HUMIDITY" = "Humidity loving";
+"AR_CATALOG_FILTER_CLIMBING" = "Climbing";
+"AR_CATALOG_FILTER_TRAILING" = "Trailing";
+"AR_CATALOG_FILTER_AIR_PURIFYING" = "Air purifying";
+"AR_CATALOG_FILTER_PET_SAFE" = "Pet safe";
+"AR_CATALOG_FILTER_CHILD_SAFE" = "Child safe";
+"AR_CATALOG_APPLY_FILTERS_FORMAT" = "See %d plants";
+"AR_CATALOG_APPLY_FILTERS_SINGLE" = "See 1 plant";
+"AR_CATALOG_SUITABILITY_EXPLANATION" = "Arbore compares this plant with the information actually known about your space. Unknown details remain to be checked.";
+"AR_CATALOG_MATCHES_TITLE" = "Why it fits";
+"AR_CATALOG_WARNINGS_TITLE" = "Things to check";
+"AR_CATALOG_COMPATIBILITY_TITLE" = "Suitability";
+"AR_CATALOG_PLACE_ANYWAY" = "Place anyway";
+"AR_CATALOG_REASON_NOT_ENOUGH_DATA" = "The available data is not enough to confirm suitability.";
+"AR_CATALOG_REASON_SPACE_MATCH" = "Its intended use matches this type of space.";
+"AR_CATALOG_REASON_SPACE_CONFLICT" = "This plant is generally intended for another type of space.";
+"AR_CATALOG_REASON_LIGHT_MATCH" = "Its light needs match the estimated sunlight.";
+"AR_CATALOG_REASON_SHADE_CONFLICT" = "It may not receive enough light in this space.";
+"AR_CATALOG_REASON_SUN_CONFLICT" = "Direct sunlight may be too intense for it.";
+"AR_CATALOG_REASON_PET_SAFE" = "It is marked as non-toxic to pets.";
+"AR_CATALOG_REASON_PET_CONFLICT" = "It is marked as toxic to pets.";
+"AR_CATALOG_REASON_CHILD_SAFE" = "It is marked as non-toxic to children.";
+"AR_CATALOG_REASON_CHILD_CONFLICT" = "It is marked as dangerous to children.";
+"AR_CATALOG_REASON_CONTAINER_MATCH" = "Its size works well in a container.";
+"AR_CATALOG_REASON_CONTAINER_CONFLICT" = "Its growth may be substantial for a container.";
+"AR_CATALOG_REASON_DRY_MATCH" = "It tolerates dry conditions well.";
+"AR_CATALOG_REASON_DRAINAGE_CONFLICT" = "Its water needs may not suit the declared drainage.";
+"AR_CATALOG_REASON_HUMIDITY_MATCH" = "It likes the declared humidity level.";
+"AR_CATALOG_REASON_HUMIDITY_CONFLICT" = "The declared humidity level may not suit it.";
+"AR_CATALOG_REASON_WIND_MATCH" = "Its compact habit is better suited to wind exposure.";
+"AR_CATALOG_REASON_WIND_CONFLICT" = "Its habit may be sensitive to wind exposure.";
+"AR_CATALOG_REASON_HEAT_MATCH" = "It better tolerates dryness caused by a nearby heat source.";
+"AR_CATALOG_REASON_HEAT_CONFLICT" = "A nearby heat source may dry it out excessively.";
+"AR_CATALOG_REASON_HEIGHT_MATCH" = "Its size suits the available height.";
+"AR_CATALOG_REASON_HEIGHT_CONFLICT" = "Its size may exceed the available height.";
+"AR_CATALOG_QUICK_FLOWERING" = "Flowering";
+"AR_CATALOG_QUICK_COMPACT" = "Compact";
+"AR_CATALOG_QUICK_EASY" = "Easy care";
+"AR_CATALOG_AUTO_ADAPTATION_TITLE" = "Arbore adaptation is active";
+"AR_CATALOG_AUTO_ADAPTATION_FORMAT" = "%d criteria from your space are already considered, including available light, climate, wind, safety and constraints.";
+"AR_CATALOG_AUTO_ADAPTATION_NOTE" = "They are not requested again in these filters.";
+"AR_CATALOG_PREFERENCES_TITLE" = "YOUR PREFERENCES";
+"AR_CATALOG_NO_PREFERENCE" = "No preference";
+"AR_CATALOG_FILTER_SUMMARY_MORE_FORMAT" = "%@ +%d";
+"AR_CATALOG_CLEAR_SECTION" = "Clear";
+"AR_CATALOG_PREF_GOALS_TITLE" = "Desired effect";
+"AR_CATALOG_PREF_GOALS_SUBTITLE" = "What would you like to achieve in this space? You can choose more than one.";
+"AR_CATALOG_PREF_KINDS_TITLE" = "Plant type";
+"AR_CATALOG_PREF_KINDS_SUBTITLE" = "The categories shown are adapted to the space and selected placement mode.";
+"AR_CATALOG_PREF_APPEARANCE_TITLE" = "Colors and foliage";
+"AR_CATALOG_PREF_APPEARANCE_SUBTITLE" = "Choose the visual result you want. Colors and characteristics can be combined.";
+"AR_CATALOG_PREF_DIMENSIONS_TITLE" = "Desired dimensions";
+"AR_CATALOG_PREF_DIMENSIONS_SUBTITLE" = "Choose the visual volume you want. Arbore still respects the physical limits of your space.";
+"AR_CATALOG_PREF_CARE_TITLE" = "Care";
+"AR_CATALOG_PREF_CARE_SUBTITLE" = "Choose how much effort you want to spend on your plants, separately from measured constraints.";
+"AR_CATALOG_GOAL_COLOR" = "Add flowers and color";
+"AR_CATALOG_GOAL_PRIVACY" = "Create privacy";
+"AR_CATALOG_GOAL_VOLUME" = "Add volume";
+"AR_CATALOG_GOAL_WALL" = "Cover a wall";
+"AR_CATALOG_GOAL_CASCADE" = "Create a cascade";
+"AR_CATALOG_GOAL_GROUNDCOVER" = "Cover the ground";
+"AR_CATALOG_GOAL_POLLINATORS" = "Attract pollinators";
+"AR_CATALOG_GOAL_EDIBLE" = "Herbs and edible plants";
+"AR_CATALOG_GOAL_FOCAL" = "Create a focal point";
+"AR_CATALOG_KIND_GREEN" = "Green plant";
+"AR_CATALOG_KIND_FLOWERING" = "Flowering plant";
+"AR_CATALOG_KIND_SUCCULENT" = "Cactus and succulent";
+"AR_CATALOG_KIND_PALM" = "Palm";
+"AR_CATALOG_KIND_FERN" = "Fern";
+"AR_CATALOG_KIND_ORCHID" = "Orchid";
+"AR_CATALOG_KIND_TREE" = "Tree";
+"AR_CATALOG_KIND_SHRUB" = "Shrub";
+"AR_CATALOG_KIND_PERENNIAL" = "Perennial";
+"AR_CATALOG_KIND_ANNUAL" = "Annual";
+"AR_CATALOG_KIND_GRASS" = "Ornamental grass";
+"AR_CATALOG_KIND_GROUNDCOVER" = "Groundcover";
+"AR_CATALOG_KIND_CLIMBING" = "Climbing plant";
+"AR_CATALOG_KIND_EDIBLE" = "Herb or edible plant";
+"AR_CATALOG_APPEARANCE_TRAITS_TITLE" = "Appearance";
+"AR_CATALOG_APPEARANCE_FLOWERING" = "Flowering";
+"AR_CATALOG_APPEARANCE_VARIEGATED" = "Variegated foliage";
+"AR_CATALOG_APPEARANCE_EVERGREEN" = "Evergreen foliage";
+"AR_CATALOG_APPEARANCE_FRAGRANT" = "Fragrant";
+"AR_CATALOG_APPEARANCE_FOLIAGE" = "Decorative foliage";
+"AR_CATALOG_COLORS_TITLE" = "Desired colors";
+"AR_CATALOG_COLOR_WHITE" = "White";
+"AR_CATALOG_COLOR_YELLOW" = "Yellow";
+"AR_CATALOG_COLOR_ORANGE" = "Orange";
+"AR_CATALOG_COLOR_RED" = "Red";
+"AR_CATALOG_COLOR_PINK" = "Pink";
+"AR_CATALOG_COLOR_PURPLE" = "Purple";
+"AR_CATALOG_COLOR_BLUE" = "Blue";
+"AR_CATALOG_COLOR_GREEN" = "Green";
+"AR_CATALOG_COLOR_DARK" = "Dark";
+"AR_CATALOG_SCALE_TITLE" = "Desired volume";
+"AR_CATALOG_SCALE_COMPACT" = "Compact format";
+"AR_CATALOG_SCALE_COMPACT_SUBTITLE" = "For small spaces and discreet compositions.";
+"AR_CATALOG_SCALE_BALANCED" = "Balanced format";
+"AR_CATALOG_SCALE_BALANCED_SUBTITLE" = "A visible presence without dominating the space.";
+"AR_CATALOG_SCALE_STATEMENT" = "Statement format";
+"AR_CATALOG_SCALE_STATEMENT_SUBTITLE" = "To structure the space or create a strong focal point.";
+"AR_CATALOG_HABIT_TITLE" = "Growth habit";
+"AR_CATALOG_HABIT_UPRIGHT" = "Upright";
+"AR_CATALOG_HABIT_SPREADING" = "Spreading";
+"AR_CATALOG_HABIT_CLIMBING" = "Climbing";
+"AR_CATALOG_HABIT_TRAILING" = "Trailing";
+"AR_CATALOG_CARE_LEVEL_TITLE" = "Care level";
+"AR_CATALOG_CARE_MINIMAL" = "Minimal care";
+"AR_CATALOG_CARE_MINIMAL_SUBTITLE" = "Easy plants suited to beginners.";
+"AR_CATALOG_CARE_REGULAR" = "Regular care is fine";
+"AR_CATALOG_CARE_REGULAR_SUBTITLE" = "You are comfortable with more frequent care.";
+"AR_CATALOG_CARE_OPTIONS_TITLE" = "Practical preferences";
+"AR_CATALOG_CARE_LOW_WATER" = "Less watering";
+"AR_CATALOG_CARE_SLOW_GROWTH" = "Slow growth";
+"AR_CATALOG_CARE_LITTLE_PRUNING" = "Little pruning";
+"AR_CATALOG_CARE_LONG_BLOOM" = "Long flowering";
 "AR_EDIT_MODE_TITLE" = "Edit mode";
 "AR_EDIT_SELECTED_PLANT" = "Selected plant";
 "AR_EDIT_EXIT" = "Exit edit mode";
@@ -1706,7 +1868,7 @@
 
 /* Conditional questions after location */
 "ESSENTIAL_QUESTIONS_TITLE" = "A few useful details";
-"ESSENTIAL_QUESTIONS_SUBTITLE" = "3 quick answers to avoid unsuitable plants. Everything is optional.";
+"ESSENTIAL_QUESTIONS_SUBTITLE" = "Choose what best matches your space.";
 "ESSENTIAL_QUESTIONS_CONTINUE" = "See suitable plants";
 "ESSENTIAL_QUESTIONS_SKIP" = "Answer later";
 "ESSENTIAL_OPTION_UNKNOWN" = "I don’t know";

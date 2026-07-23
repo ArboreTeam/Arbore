@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"strings"
 
@@ -14,6 +15,8 @@ import (
 )
 
 var firebaseAuth *auth.Client
+
+const adminContextKey = "arboreIsAdmin"
 
 // CheckUserBannedFunc is a function to check if a user is banned in the database.
 // It receives the gin.Context so the implementation can read DBSelectorKey
@@ -123,11 +126,12 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 			}
 			log.Println("⚠️  Firebase non initialisé — token non vérifié, auth désactivée (dev only)")
 			c.Set("uid", "unauthenticated")
+			c.Set(adminContextKey, isAdminUID("unauthenticated"))
 			c.Next()
 			return
 		}
 
-		token, err := firebaseAuth.VerifyIDToken(context.Background(), idToken)
+		token, err := firebaseAuth.VerifyIDToken(c.Request.Context(), idToken)
 		if err != nil {
 			log.Printf("❌ Token validation failed: %v", err)
 			c.JSON(401, gin.H{
@@ -167,8 +171,7 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 		// après le signup, avant que l'utilisateur clique le lien de vérif.
 		// Google / Apple renvoient email_verified=true ; seuls les comptes
 		// email/mot de passe non vérifiés sont bloqués.
-		isUserCreation := c.Request.Method == "POST" && c.FullPath() == "/users"
-		if !isUserCreation {
+		if requiresVerifiedEmail(c.Request.Method, c.FullPath()) {
 			verified, _ := token.Claims["email_verified"].(bool)
 			if !verified {
 				c.JSON(403, gin.H{
@@ -181,12 +184,77 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 		}
 
 		c.Set("uid", uid)
+		c.Set(adminContextKey, tokenHasAdminRole(token.Claims) || isAdminUID(uid))
 
 		if email, ok := token.Claims["email"].(string); ok {
 			c.Set("email", email)
 		}
 
-		log.Printf("✅ User authenticated: %s", uid)
 		c.Next()
 	}
+}
+
+// Account creation and deletion must remain available before email
+// verification: otherwise an unverified user could create server-side data but
+// would be unable to exercise the right to erase it.
+func requiresVerifiedEmail(method, fullPath string) bool {
+	return fullPath != "/users" || (method != http.MethodPost && method != http.MethodDelete)
+}
+
+// RequireAdmin protects catalogue mutation and plant-generation endpoints.
+// The preferred source is the Firebase custom claim `admin: true`. The
+// ARBORE_ADMIN_UIDS allow-list is a bootstrap/recovery mechanism for assigning
+// the first administrators without trusting the API key embedded in the app.
+func RequireAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		isAdmin, _ := c.Get(adminContextKey)
+		if allowed, ok := isAdmin.(bool); !ok || !allowed {
+			c.JSON(403, gin.H{
+				"error": "Administrator role required",
+				"code":  "ADMIN_REQUIRED",
+			})
+			c.Abort()
+			return
+		}
+		c.Next()
+	}
+}
+
+func tokenHasAdminRole(claims map[string]interface{}) bool {
+	if admin, ok := claims["admin"].(bool); ok && admin {
+		return true
+	}
+	if role, ok := claims["role"].(string); ok && strings.EqualFold(strings.TrimSpace(role), "admin") {
+		return true
+	}
+	return false
+}
+
+func isAdminUID(uid string) bool {
+	uid = strings.TrimSpace(uid)
+	if uid == "" {
+		return false
+	}
+	for _, candidate := range strings.Split(os.Getenv("ARBORE_ADMIN_UIDS"), ",") {
+		if strings.TrimSpace(candidate) == uid {
+			return true
+		}
+	}
+	return false
+}
+
+// DeleteFirebaseUser removes the authentication identity after the application
+// data has been erased. It deliberately fails closed in release mode.
+func DeleteFirebaseUser(ctx context.Context, uid string) error {
+	if firebaseAuth == nil {
+		if isReleaseMode() {
+			return fmt.Errorf("firebase authentication service unavailable")
+		}
+		return nil
+	}
+	err := firebaseAuth.DeleteUser(ctx, uid)
+	if auth.IsUserNotFound(err) {
+		return nil
+	}
+	return err
 }

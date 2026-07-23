@@ -2,21 +2,73 @@ import UIKit
 import RealityKit
 import simd
 
+/// Conservative perspective framing for the thumbnail studio.
+///
+/// The former calculation only considered the model's raw height and width.
+/// Once the camera was pitched down, depth also contributed to the projected
+/// height and some wide/deep plants could leave the frame. This helper fits the
+/// complete bounding box, including its depth along the viewing direction.
+struct PlantThumbnailFraming: Equatable {
+    let cameraDistance: Float
+    let cameraY: Float
+    let cameraZ: Float
+    let lookAtY: Float
+
+    static func fit(
+        width rawWidth: Float,
+        height rawHeight: Float,
+        depth rawDepth: Float,
+        aspectRatio rawAspectRatio: Float,
+        verticalFOVDegrees: Float = 35,
+        fillFactor rawFillFactor: Float = 0.70,
+        pitchDegrees: Float = 8
+    ) -> PlantThumbnailFraming {
+        let width = max(rawWidth, 0.001)
+        let height = max(rawHeight, 0.001)
+        let depth = max(rawDepth, 0.001)
+        let aspectRatio = max(rawAspectRatio, 0.1)
+        let fillFactor = min(max(rawFillFactor, 0.1), 0.95)
+
+        let halfVerticalFOV = verticalFOVDegrees * .pi / 360
+        let halfVerticalTangent = max(tan(halfVerticalFOV), 0.001)
+        let halfHorizontalTangent = max(halfVerticalTangent * aspectRatio, 0.001)
+        let pitch = pitchDegrees * .pi / 180
+        let sine = abs(sin(pitch))
+        let cosine = abs(cos(pitch))
+
+        // Supports of the axis-aligned bounding box in camera space.
+        let projectedVerticalHalf = (height * 0.5 * cosine) + (depth * 0.5 * sine)
+        let projectedHorizontalHalf = width * 0.5
+        let viewDepthHalf = (height * 0.5 * sine) + (depth * 0.5 * cosine)
+
+        let verticalClearance = projectedVerticalHalf / (halfVerticalTangent * fillFactor)
+        let horizontalClearance = projectedHorizontalHalf / (halfHorizontalTangent * fillFactor)
+        let cameraDistance = viewDepthHalf + max(verticalClearance, horizontalClearance)
+        let lookAtY = height * 0.5
+
+        return PlantThumbnailFraming(
+            cameraDistance: cameraDistance,
+            cameraY: lookAtY + cameraDistance * sin(pitch),
+            cameraZ: cameraDistance * cos(pitch),
+            lookAtY: lookAtY
+        )
+    }
+}
+
 @MainActor
 final class PlantThumbnailRenderer {
 
     private let arView: ARView
-    private let wallColor = UIColor(white: 0.78, alpha: 1.0)
+    private let wallColor = UIColor(white: 0.72, alpha: 1.0)
     private let floorFallbackColor = UIColor(red: 0.58, green: 0.57, blue: 0.52, alpha: 1.0)
     private var floorTexture: TextureResource?
-    private var wallTexture: TextureResource?
 
     // Auto-frame camera parameters. The plant is kept at its native USDZ
     // scale (real-world meters, just like AR placement) and the camera
     // moves per-plant to frame it. This makes thumbnails proportional to
     // the plant's actual size without per-plant hand-tuning.
     private let cameraFOVDegrees: Float = 35
-    private let fillFactor: Float = 0.78
+    private let fillFactor: Float = 0.70
     // Slight downward pitch so the viewer sees the top of the plant and
     // a bit of floor in front, giving a more natural catalog look.
     private let cameraPitchDegrees: Float = 8
@@ -30,7 +82,6 @@ final class PlantThumbnailRenderer {
         self.arView.environment.lighting.intensityExponent = 0.85
 
         self.floorTexture = try? TextureResource.load(named: "studio_floor")
-        self.wallTexture = try? TextureResource.load(named: "studio_wall")
     }
 
     func render(usdzURL: URL, upAxis: String?, completion: @escaping (UIImage?) -> Void) {
@@ -62,25 +113,21 @@ final class PlantThumbnailRenderer {
                 let plantH = max(b.extents.y, 0.001)
                 let plantW = max(b.extents.x, 0.001)
                 let plantD = max(b.extents.z, 0.001)
-                let plantMaxHoriz = max(plantW, plantD)
 
                 print("Thumbnail", modelKey, "H=", plantH, "W=", plantW, "D=", plantD)
 
-                let halfVFov = (cameraFOVDegrees / 2) * .pi / 180
-                let halfVTan = tan(halfVFov)
                 let aspectRatio: Float = 1024.0 / 1280.0
-                let halfHTan = halfVTan * aspectRatio
+                let framing = PlantThumbnailFraming.fit(
+                    width: plantW,
+                    height: plantH,
+                    depth: plantD,
+                    aspectRatio: aspectRatio,
+                    verticalFOVDegrees: cameraFOVDegrees,
+                    fillFactor: fillFactor,
+                    pitchDegrees: cameraPitchDegrees
+                )
 
-                let distForH = (plantH / 2) / (halfVTan * fillFactor)
-                let distForW = (plantMaxHoriz / 2) / (halfHTan * fillFactor)
-                let distance = max(distForH, distForW)
-
-                let pitchRad = cameraPitchDegrees * .pi / 180
-                let lookAtY = plantH * 0.45
-                let cameraY = lookAtY + distance * sin(pitchRad)
-                let cameraZ = plantD / 2 + distance * cos(pitchRad)
-
-                let sceneScale = max(plantH, plantMaxHoriz, distance)
+                let sceneScale = max(plantH, plantW, plantD, framing.cameraDistance)
                 let studioSize = sceneScale * 10
 
                 let floorMesh = Self.makeTiledPlane(
@@ -104,7 +151,7 @@ final class PlantThumbnailRenderer {
                 floor.model?.materials = [floorMat]
                 floor.position = [0, -0.001, 0]
 
-                let wallZ: Float = -(plantD + distance * 0.3)
+                let wallZ: Float = -(plantD + framing.cameraDistance * 0.3)
                 let wallMesh = Self.makeTiledPlane(
                     width: studioSize,
                     depth: studioSize,
@@ -112,27 +159,26 @@ final class PlantThumbnailRenderer {
                     vScale: studioSize * 0.5
                 )
                 let backdrop = ModelEntity(mesh: wallMesh)
-                var wallMat = UnlitMaterial(color: wallColor)
-                if let wallTexture {
-                    wallMat.color = .init(
-                        tint: wallColor,
-                        texture: .init(wallTexture)
-                    )
-                }
+                // Keep the backdrop solid and identical to the ARView
+                // background. A textured wall used to produce a lighter band
+                // wherever the camera saw beyond the backdrop.
+                let wallMat = UnlitMaterial(color: wallColor)
                 backdrop.model?.materials = [wallMat]
                 backdrop.position = [0, studioSize / 2, wallZ]
                 backdrop.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
 
                 let light = DirectionalLight()
-                light.light.intensity = 25000
+                light.light.intensity = 18000
                 light.light.color = UIColor(white: 0.98, alpha: 1.0)
                 light.shadow = DirectionalLightComponent.Shadow(
-                    maximumDistance: sceneScale * 3,
-                    depthBias: 3e-4
+                    maximumDistance: sceneScale * 2,
+                    depthBias: 8e-4
                 )
+                // A mostly overhead key light creates a short contact shadow
+                // instead of the long, detached shadow visible previously.
                 light.orientation =
-                    simd_quatf(angle: -.pi / 3, axis: [1, 0, 0]) *
-                    simd_quatf(angle: .pi / 6, axis: [0, 1, 0])
+                    simd_quatf(angle: -.pi * 0.42, axis: [1, 0, 0]) *
+                    simd_quatf(angle: .pi / 12, axis: [0, 1, 0])
 
                 let lightDist = sceneScale * 1.2
                 let lightPower: Float = 200 * (lightDist * lightDist)
@@ -149,9 +195,9 @@ final class PlantThumbnailRenderer {
 
                 let camera = PerspectiveCamera()
                 camera.camera.fieldOfViewInDegrees = cameraFOVDegrees
-                camera.position = [0, cameraY, cameraZ]
+                camera.position = [0, framing.cameraY, framing.cameraZ]
                 camera.look(
-                    at: [0, lookAtY, 0],
+                    at: [0, framing.lookAtY, 0],
                     from: camera.position,
                     relativeTo: nil
                 )

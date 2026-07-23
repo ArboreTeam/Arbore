@@ -1,4 +1,4 @@
-Willkommen zur Arbore-Beta!
+Willkommen bei Arbore!
 
 • Gestalte deinen Garten in AR: platziere maßstabsgetreue 3D-Pflanzen in deinem Raum und ordne sie frei an.
 • Verbesserte automatische Platzierung, die deine Pflanzen für dich anordnet.

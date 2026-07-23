@@ -485,8 +485,8 @@ struct GardenDetailsPage: View {
                 .scrollIndicators(.hidden)
             }
             
-            // Le plan 2D possède déjà toutes ses actions dans la fiche espace.
-            if selectedTab != .plan2D {
+            // Only the care tab currently exposes a real creation action.
+            if selectedTab == .tasks {
                 Button {
                     handleFloatingAction()
                 } label: {
@@ -513,11 +513,6 @@ struct GardenDetailsPage: View {
             .disabled(renameText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } message: {
             Text(L10n.t("GARDEN_RENAME_HELP"))
-        }
-        .alert(L10n.t("SHOP_CHECKOUT_READY_TITLE"), isPresented: $showCheckoutSummary) {
-            Button(L10n.t("COMMON_OK"), role: .cancel) {}
-        } message: {
-            Text(checkoutSummaryText)
         }
         .fullScreenCover(isPresented: $showMeasurementApp) {
             if shouldUseRoomPlanForRemeasurement {
@@ -600,22 +595,12 @@ struct GardenDetailsPage: View {
         .onAppear {
             mapViewModel.loadGarden(gardenId: gardenId)
             wateringStore.reload()
-            loadPurchaseCart()
-            loadPurchaseCatalogIfNeeded()
             currentGardenName = gardenDetails?.name ?? gardenName
             applyNotificationRoute(notificationRouter.pendingRoute)
             Task { await loadMapTextureKind() }
         }
         .onChange(of: notificationRouter.pendingRoute) { _, route in
             applyNotificationRoute(route)
-        }
-        // Recompute ciblé : recherche catalogue et plantes du jardin changent →
-        // on régénère les listes d'achat en cache (au lieu d'à chaque render).
-        .onChange(of: purchaseSearchText) { _, _ in
-            recomputePurchaseData()
-        }
-        .onChange(of: mapViewModel.displayPlants.map(\.id)) { _, _ in
-            recomputePurchaseData()
         }
     }
     
@@ -1315,6 +1300,53 @@ struct GardenDetailsPage: View {
     }
 
     private var purchaseContent: some View {
+        VStack(spacing: ArboreDesign.Spacing.xl) {
+            AppCard {
+                VStack(alignment: .leading, spacing: ArboreDesign.Spacing.lg) {
+                    HStack(alignment: .top, spacing: ArboreDesign.Spacing.md) {
+                        SettingsIconBadge(
+                            systemImage: "storefront.fill",
+                            tint: ArboreDesign.Colors.primaryGreen,
+                            size: 58
+                        )
+
+                        Spacer()
+
+                        Text(L10n.t("SHOP_PARTNERS_COMING_SOON_BADGE"))
+                            .font(ArboreDesign.Typography.caption.weight(.semibold))
+                            .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                            .padding(.horizontal, ArboreDesign.Spacing.sm)
+                            .padding(.vertical, ArboreDesign.Spacing.xs)
+                            .background(ArboreDesign.Colors.softSurface)
+                            .clipShape(Capsule())
+                    }
+
+                    Text(L10n.t("SHOP_PARTNERS_COMING_SOON_TITLE"))
+                        .font(ArboreDesign.Typography.pageTitle)
+                        .foregroundColor(ArboreDesign.Colors.textPrimary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(L10n.t("SHOP_PARTNERS_COMING_SOON_MESSAGE"))
+                        .font(ArboreDesign.Typography.body)
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Label(
+                        L10n.t("SHOP_PARTNERS_NO_PRICE_NOTICE"),
+                        systemImage: "checkmark.shield.fill"
+                    )
+                    .font(ArboreDesign.Typography.bodySmall)
+                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    /// Historical prototype retained temporarily to minimise churn in this
+    /// sensitive screen. It is not reachable from the product: prices, cart
+    /// and checkout must stay hidden until a real partner feed exists.
+    private var legacyPurchaseContent: some View {
         VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xl) {
             GardenShopHeroCard(
                 gardenName: L10n.displayGardenName(currentGardenName),
@@ -1857,13 +1889,31 @@ struct GardenDetailsPage: View {
 
     private func loadMapTextureKind() async {
         do {
-            let garden = try await GardenAPI.shared.getGarden(id: gardenId)
+            var garden = try await GardenAPI.shared.getGarden(id: gardenId)
+            if let localWizard = try? GardenLocalStore.loadWizard(for: gardenId) {
+                let repairedWizard = garden.wizard.fillingMissingCapturedContext(from: localWizard)
+                if repairedWizard != garden.wizard {
+                    garden.wizard = repairedWizard
+                    do {
+                        try await GardenAPI.shared.updateGarden(
+                            id: gardenId,
+                            patch: GardenAPI.GardenPatch(wizard: repairedWizard)
+                        )
+                        AppLog.gardenSave.notice(
+                            "wizard distant réparé depuis le snapshot local id=\(gardenId, privacy: .public)"
+                        )
+                    } catch {
+                        AppLog.gardenSave.warning(
+                            "réparation wizard distante différée id=\(gardenId, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                        )
+                    }
+                }
+            }
             await MainActor.run {
                 gardenDetails = garden
                 currentGardenName = garden.name
                 mapTextureKind = MapTextureKind(spaceType: garden.wizard.spaceType)
                 mapViewModel.applyRemoteMeasurementsIfNeeded(from: garden)
-                recomputePurchaseData()
             }
         } catch {
             await MainActor.run {
@@ -1912,6 +1962,13 @@ struct GardenDetailsPage: View {
             id: gardenId,
             patch: GardenAPI.GardenPatch(wizard: wizard)
         )
+        do {
+            try GardenLocalStore.saveWizard(wizard, for: gardenId)
+        } catch {
+            AppLog.gardenSave.warning(
+                "Snapshot wizard local non sauvegardé après modification: \(error.localizedDescription, privacy: .public)"
+            )
+        }
 
         if var details = gardenDetails {
             details.wizard = wizard

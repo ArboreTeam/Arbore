@@ -70,6 +70,11 @@ require_prereqs() {
 # ───── [1/6] Git pull ─────────────────────────────────────────────
 do_git_pull() {
     step 1 "Git pull..."
+    if [ -n "$(git status --porcelain)" ]; then
+        fail "Le checkout contient des changements locaux — déploiement refusé"
+        fail "Utiliser un checkout de release propre et les chemins *_HOST_PATH pour les données persistantes"
+        exit 1
+    fi
     if ! git pull --ff-only; then
         fail "Erreur lors du git pull"
         exit 1
@@ -172,6 +177,21 @@ do_show_logs() {
 # (cf. issue #121 pour la migration HTTPS). Le check est bloquant :
 # un health != 200 fait sortir en erreur pour signaler clairement
 # qu'il faut intervenir.
+# La communauté est désactivée avant publication. Un 404 confirme que
+# l'ancienne surface publique n'est plus enregistrée par le backend.
+check_community_disabled() {
+    local code
+    code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 \
+        http://localhost:8080/api/v1/community/feed || true)"
+
+    if [ "$code" = "404" ]; then
+        ok "Community disabled (404 attendu)"
+    else
+        fail "Community route: HTTP ${code:-000} (404 attendu tant que la modération n'est pas disponible)"
+        exit 1
+    fi
+}
+
 # Check web non bloquant : le conteneur Next écoute sur :3000. Un échec n'arrête
 # pas le déploiement (le routage reverse-proxy / Cloudflare peut être posé après).
 check_web() {
@@ -194,6 +214,7 @@ do_health_check() {
         http_code="$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:8080/health || echo "000")"
         if [ "$http_code" = "200" ]; then
             ok "Backend health 200 OK"
+            check_community_disabled
             check_web
             echo
             return 0

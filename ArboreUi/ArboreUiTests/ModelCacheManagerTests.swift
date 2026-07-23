@@ -14,23 +14,19 @@ import FirebaseAuth
 
 class ModelCacheManagerTests: XCTestCase {
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         // Configuration Firebase pour les tests
         if FirebaseApp.app() == nil {
             FirebaseApp.configure()
         }
 
         // Nettoyer le cache avant chaque test
-        Task {
-            try? await ModelCacheManager.shared.clearCache()
-        }
+        try await ModelCacheManager.shared.clearCache()
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         // Nettoyer le cache après chaque test
-        Task {
-            try? await ModelCacheManager.shared.clearCache()
-        }
+        try await ModelCacheManager.shared.clearCache()
     }
 
     // MARK: - ModelCacheError Tests
@@ -215,6 +211,7 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
     }
 
     override func setUpWithError() throws {
+        try LiveIntegrationTestGate.requireEnabled()
         try ensureBackendIsReachableOrSkip()
 
         // Configuration Firebase
@@ -223,8 +220,7 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
         }
 
         // Créer un user de test pour les requêtes authentifiées
-        let timestamp = Int(Date().timeIntervalSince1970)
-        testEmail = "test-cache-\(timestamp)@arbore.test"
+        testEmail = "test-cache-\(UUID().uuidString.lowercased())@arbore.test"
 
         let createExpectation = XCTestExpectation(description: "Create test user")
 
@@ -249,16 +245,17 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
         wait(for: [createExpectation], timeout: 30.0)
 
         // Nettoyer le cache
+        let cacheExpectation = expectation(description: "Clear model cache")
         Task {
             try? await ModelCacheManager.shared.clearCache()
+            cacheExpectation.fulfill()
         }
+        wait(for: [cacheExpectation], timeout: 10.0)
     }
 
-    override func tearDownWithError() throws {
+    override func tearDown() async throws {
         // Nettoyer le cache
-        Task {
-            try? await ModelCacheManager.shared.clearCache()
-        }
+        try await ModelCacheManager.shared.clearCache()
 
         // Supprimer le user de Firebase
         if let currentUser = Auth.auth().currentUser {
@@ -266,7 +263,7 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
             currentUser.delete { _ in
                 deleteExpectation.fulfill()
             }
-            wait(for: [deleteExpectation], timeout: 5.0)
+            await fulfillment(of: [deleteExpectation], timeout: 5.0)
         }
 
         testUserUID = nil

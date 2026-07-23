@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -10,6 +10,14 @@ import { AppleIcon, GoogleIcon } from '@/components/shared/SocialIcons';
 import { AuthLoadingOverlay } from '@/components/shared/AuthLoadingOverlay';
 
 export default function LoginPage() {
+	return (
+		<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>}>
+			<LoginContent />
+		</Suspense>
+	);
+}
+
+function LoginContent() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);

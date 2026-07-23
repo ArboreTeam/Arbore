@@ -24,11 +24,6 @@ final class RemoteConfigService: ObservableObject {
     /// Lue de façon synchrone par les couches modèle, écrite sur le main thread.
     @Published private(set) var config: RemoteConfig?
 
-    /// Indique si l'utilisateur dispose d'un abonnement premium. Toujours false
-    /// pendant la bêta (aucun paiement) ; branché plus tard sur l'état d'achat
-    /// (cf. #4). Utilisé pour décider du verrouillage des options premium.
-    @Published var isPremiumMember = false
-
     private let cacheKey = "arbore.remoteConfig.v1"
     private let defaults = UserDefaults.standard
 
@@ -88,20 +83,17 @@ final class RemoteConfigService: ObservableObject {
         config?.suggestionEngine.weights
     }
 
-    // MARK: - Membership / gating
+    // MARK: - Garden styles
 
     /// Tier d'un style de jardin ("free" par défaut si la config est absente).
     func tier(forStyleKey key: String) -> String {
         config?.wizard.gardenStyles.first { $0.value == key }?.tier ?? "free"
     }
 
-    /// Un style est verrouillé seulement si le gating est actif, que l'option
-    /// est premium, et que l'utilisateur n'est pas abonné. En bêta
-    /// (`enforced == false`) cette méthode renvoie toujours false → tout reste
-    /// accessible, conformément au comportement attendu.
-    func isStyleLocked(forKey key: String) -> Bool {
-        guard let config, config.membership.enforced else { return false }
-        guard tier(forStyleKey: key) == "premium" else { return false }
-        return !isPremiumMember
+    /// Arbore ne commercialise actuellement aucun abonnement : tous les styles
+    /// reçus du backend restent accessibles, même si une ancienne configuration
+    /// les classe encore dans un tier historique.
+    func isStyleLocked(forKey _: String) -> Bool {
+        false
     }
 }

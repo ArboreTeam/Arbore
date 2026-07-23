@@ -9,8 +9,21 @@ Textes prêts à coller dans App Store Connect → **App Information** + **Versi
 - **Age rating** : 4+ (aucun contenu sensible)
 - **Privacy Policy URL** : `https://arbore.app/privacy`
 - **Marketing URL** : `https://arbore.app`
-- **Support URL** : `https://arbore.app/support` (ou `mailto:contact@arbore.app`)
+- **Support URL** : `https://arbore.app` tant que la page `/support` n'est pas publiée. Ajouter aussi `contact@arbore.app` dans les notes de review.
 - **Content rights** : oui (droits sur les modèles 3D + plantes générées)
+
+## App Privacy — réponses à reporter dans App Store Connect
+
+Arbore ne pratique aucun suivi inter-apps et n'utilise aucune donnée pour la publicité. Déclarer les catégories suivantes comme liées à l'identité et utilisées pour les fonctionnalités de l'app :
+
+- coordonnées : adresse e-mail ;
+- informations de contact : nom ;
+- identifiants : identifiant utilisateur Firebase ;
+- localisation : localisation approximative ;
+- contenu utilisateur : photos ou vidéos et autre contenu utilisateur (jardins, réponses, messages IA) ;
+- diagnostics : données de crash et autres données de diagnostic, uniquement lorsque le consentement Sentry est activé.
+
+Répondre « non » au tracking. La caméra/LiDAR brute, le mouvement et les WorldMaps restant sur l'appareil ne sont pas des données collectées. Cette section, `PrivacyInfo.xcprivacy`, la politique publique version 2.2 et le texte in-app doivent évoluer ensemble.
 
 ## Compte démo Apple Reviewer (App Review Information → Sign-In required)
 Compte créé en prod (Firebase Auth `emailVerified=true` + record Mongo), login vérifié de bout en bout.
@@ -22,7 +35,7 @@ Compte créé en prod (Firebase Auth `emailVerified=true` + record Mongo), login
 
 - uid : `ioBLddNo0aXcJqjJLnOz4Yjjzg83`
 - Cocher **« Sign-in required »** et coller ces identifiants.
-- Note de review suggérée : *"Use the demo account above to sign in. Then design a future garden: complete the questionnaire, accept the suggested plants, and place them in AR. Camera + LiDAR are used for AR plant placement on the garden creation flow."*
+- Note de review suggérée : *"Use the demo account above to sign in. Create a garden, choose the space type, measure its boundary, capture the main light direction when requested, and provide an approximate location or city. Answer the three short environment questions, open the catalog (adapted plants are enabled by default), then place a plant in AR. The camera is required for measurement and AR; LiDAR is used only on compatible devices. Approximate location is optional because a city can be entered manually."*
 
 ---
 
@@ -43,7 +56,7 @@ jardin,plantes,RA,jardinage,entretien,arrosage,3D,design,plante,paysage,rappel,b
 Arbore est votre compagnon de jardinage intelligent — concevez, faites pousser et entretenez vos plantes en toute simplicité, que vous ayez la main verte ou que vous débutiez.
 
 CONCEVEZ VOTRE FUTUR JARDIN EN RÉALITÉ AUGMENTÉE
-Répondez à quelques questions sur votre espace, votre style et votre lumière, et laissez Arbore vous suggérer les plantes adaptées. Placez ensuite des plantes 3D à l'échelle directement dans votre pièce ou votre jardin, et disposez-les jusqu'à ce que tout soit parfait.
+Mesurez votre espace, indiquez sa lumière et quelques contraintes essentielles, puis laissez Arbore mettre en avant les plantes adaptées. Placez ensuite des plantes 3D à l'échelle directement dans votre pièce ou votre jardin, et disposez-les jusqu'à ce que tout soit parfait.
 
 DES SUGGESTIONS DE PLANTES SUR MESURE
 Obtenez une sélection personnalisée selon votre exposition, votre niveau d'entretien et l'harmonie de votre espace — aucune expertise requise.
@@ -55,14 +68,14 @@ MESUREZ VOTRE LUMIÈRE
 Évaluez la luminosité d'un emplacement et trouvez les plantes qui s'y épanouiront.
 
 LA CONFIDENTIALITÉ D'ABORD
-Arbore est une bêta gratuite et non commerciale développée par une équipe d'étudiants. Pas de publicité, pas de tracking, pas d'achats intégrés — vos données restent les vôtres (conforme RGPD).
+Arbore ne diffuse aucune publicité, ne suit pas votre activité entre applications et ne propose aucun achat intégré. La localisation approximative n'est enregistrée que pour adapter un jardin. Les diagnostics techniques sont facultatifs.
 
 Cultivez en harmonie. 🌱
 ```
 
 **Nouveautés / What's New** :
 ```
-Bienvenue dans la bêta d'Arbore ! 🌱
+Bienvenue dans Arbore ! 🌱
 
 • Concevez votre jardin en RA : placez des plantes 3D à l'échelle dans votre espace et disposez-les librement.
 • Placement automatique amélioré qui agence vos plantes pour vous.
@@ -75,7 +88,7 @@ Merci de tester — vos retours façonnent la suite !
 
 **Texte promotionnel** (≤170) :
 ```
-Concevez votre futur jardin en réalité augmentée, recevez des suggestions adaptées à votre espace et gardez chaque plante en pleine forme. Bêta gratuite.
+Concevez votre futur jardin en réalité augmentée, recevez des suggestions adaptées à votre espace et gardez chaque plante en pleine forme.
 ```
 
 ---
@@ -97,7 +110,7 @@ garden,plants,AR,gardening,care,watering,3D,design,houseplant,landscape,reminder
 Arbore is your smart gardening companion — design, grow, and care for your plants with ease, whether you're a seasoned gardener or just starting out.
 
 DESIGN YOUR FUTURE GARDEN IN AR
-Answer a few questions about your space, style, and light, and let Arbore suggest the plants that fit. Then place true-to-scale 3D plants right in your room or garden with augmented reality, and arrange them until it feels just right.
+Measure your space, record its light, and answer a few essential questions so Arbore can highlight suitable plants. Then place true-to-scale 3D plants right in your room or garden with augmented reality, and arrange them until it feels just right.
 
 SMART PLANT SUGGESTIONS
 Get a personalized selection based on your exposure, maintenance level, and the harmony of your space — no green thumb required.
@@ -109,14 +122,14 @@ MEASURE YOUR LIGHT
 Gauge the light in a spot and find the plants that will thrive there.
 
 PRIVACY FIRST
-Arbore is a free, non-commercial beta from a student team. No ads, no tracking, no in-app purchases — your data stays yours (GDPR-friendly).
+Arbore has no ads, no cross-app tracking and no in-app purchases. Approximate location is stored only to adapt a garden. Technical diagnostics are optional.
 
 Grow with harmony. 🌱
 ```
 
 **What's New** :
 ```
-Welcome to the Arbore beta! 🌱
+Welcome to Arbore! 🌱
 
 • Design your garden in AR: place true-to-scale 3D plants in your space and arrange them freely.
 • Smarter automatic placement that lays out your selected plants for you.
@@ -129,7 +142,7 @@ Thanks for testing — your feedback shapes what comes next!
 
 **Promotional text** (≤170) :
 ```
-Design your future garden in augmented reality, get plant suggestions tailored to your space, and keep every plant thriving. Free beta — grow with harmony.
+Design your future garden in augmented reality, get plant suggestions tailored to your space, and keep every plant thriving.
 ```
 
 ---
@@ -151,7 +164,7 @@ jardín,plantas,RA,jardinería,cuidado,riego,3D,diseño,planta,paisaje,recordato
 Arbore es tu compañero de jardinería inteligente: diseña, cultiva y cuida tus plantas con facilidad, tengas o no mano para las plantas.
 
 DISEÑA TU FUTURO JARDÍN EN REALIDAD AUMENTADA
-Responde unas preguntas sobre tu espacio, tu estilo y tu luz, y deja que Arbore te sugiera las plantas ideales. Luego coloca plantas 3D a escala real en tu habitación o jardín con realidad aumentada y organízalas hasta que todo encaje.
+Mide tu espacio, registra su luz y responde unas preguntas esenciales para que Arbore destaque las plantas adecuadas. Luego coloca plantas 3D a escala real en tu habitación o jardín con realidad aumentada y organízalas hasta que todo encaje.
 
 SUGERENCIAS DE PLANTAS A TU MEDIDA
 Recibe una selección personalizada según tu exposición, tu nivel de mantenimiento y la armonía de tu espacio, sin necesidad de experiencia.
@@ -163,14 +176,14 @@ MIDE TU LUZ
 Evalúa la luz de un lugar y encuentra las plantas que prosperarán allí.
 
 PRIVACIDAD ANTE TODO
-Arbore es una beta gratuita y sin fines comerciales creada por un equipo de estudiantes. Sin anuncios, sin seguimiento y sin compras integradas: tus datos son tuyos (conforme al RGPD).
+Arbore no contiene publicidad, seguimiento entre aplicaciones ni compras integradas. La ubicación aproximada solo se guarda para adaptar un jardín. Los diagnósticos técnicos son opcionales.
 
 Cultiva en armonía. 🌱
 ```
 
 **Novedades** :
 ```
-¡Bienvenido a la beta de Arbore! 🌱
+¡Te damos la bienvenida a Arbore! 🌱
 
 • Diseña tu jardín en RA: coloca plantas 3D a escala real en tu espacio y organízalas a tu gusto.
 • Colocación automática mejorada que distribuye tus plantas por ti.
@@ -183,7 +196,7 @@ Cultiva en armonía. 🌱
 
 **Texto promocional** (≤170) :
 ```
-Diseña tu futuro jardín en realidad aumentada, recibe sugerencias para tu espacio y mantén cada planta sana. Beta gratuita: cultiva en armonía.
+Diseña tu futuro jardín en realidad aumentada, recibe sugerencias para tu espacio y mantén cada planta sana.
 ```
 
 ---
@@ -205,7 +218,7 @@ Garten,Pflanzen,AR,Gärtnern,Pflege,Gießen,3D,Design,Zimmerpflanze,Landschaft,E
 Arbore ist dein smarter Garten-Begleiter: Gestalte, ziehe und pflege deine Pflanzen ganz einfach – egal ob mit grünem Daumen oder als Anfänger.
 
 GESTALTE DEINEN ZUKÜNFTIGEN GARTEN IN AUGMENTED REALITY
-Beantworte ein paar Fragen zu deinem Raum, deinem Stil und deinem Licht, und Arbore schlägt dir die passenden Pflanzen vor. Platziere anschließend maßstabsgetreue 3D-Pflanzen direkt in deinem Zimmer oder Garten und ordne sie an, bis alles stimmt.
+Vermesse deinen Raum, erfasse das Licht und beantworte einige wichtige Fragen, damit Arbore geeignete Pflanzen hervorheben kann. Platziere anschließend maßstabsgetreue 3D-Pflanzen direkt in deinem Zimmer oder Garten und ordne sie an, bis alles stimmt.
 
 PASSENDE PFLANZEN-VORSCHLÄGE
 Erhalte eine persönliche Auswahl nach Lichtverhältnissen, Pflegeaufwand und der Harmonie deines Raums – ganz ohne Vorkenntnisse.
@@ -217,14 +230,14 @@ MISS DEIN LICHT
 Bewerte das Licht an einem Ort und finde die Pflanzen, die dort gedeihen.
 
 DATENSCHUTZ ZUERST
-Arbore ist eine kostenlose, nicht-kommerzielle Beta eines Studierenden-Teams. Keine Werbung, kein Tracking, keine In-App-Käufe – deine Daten bleiben deine (DSGVO-konform).
+Arbore enthält keine Werbung, kein app-übergreifendes Tracking und keine In-App-Käufe. Der ungefähre Standort wird nur zur Anpassung eines Gartens gespeichert. Technische Diagnosen sind optional.
 
 Wachse in Harmonie. 🌱
 ```
 
 **Neues** :
 ```
-Willkommen zur Arbore-Beta! 🌱
+Willkommen bei Arbore! 🌱
 
 • Gestalte deinen Garten in AR: platziere maßstabsgetreue 3D-Pflanzen in deinem Raum und ordne sie frei an.
 • Verbesserte automatische Platzierung, die deine Pflanzen für dich anordnet.
@@ -237,7 +250,7 @@ Danke fürs Testen – dein Feedback gestaltet die Zukunft!
 
 **Werbetext** (≤170) :
 ```
-Gestalte deinen zukünftigen Garten in Augmented Reality, erhalte passende Vorschläge für deinen Raum und halte jede Pflanze gesund. Kostenlose Beta.
+Gestalte deinen zukünftigen Garten in Augmented Reality, erhalte passende Vorschläge für deinen Raum und halte jede Pflanze gesund.
 ```
 
 ---

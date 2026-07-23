@@ -600,8 +600,8 @@ struct ARViewContainerMesure: View {
     // 🆕 Crée le jardin en base APRÈS le tracé : sauvegarde locale, POST
     // /gardens, migration des fichiers tempId → serverId, puis callback
     // au wizard. Conçu pour ne PAS chaîner sur `GardenARPlacementView` —
-    // c'est le wizard qui ouvrira la placement view ensuite, après l'étape
-    // `aiSuggestion`.
+    // c'est le wizard qui ouvrira la placement view ensuite, après les
+    // questions essentielles.
     @MainActor
     private func createGardenAfterTrace() async {
         guard onTraceValidated != nil else { return }

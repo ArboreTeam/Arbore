@@ -20,7 +20,10 @@ These files only instantiate simple Swift types (`@testable import ArboreUi`, `X
 
 ## Network, cache & privacy tests (unit + integration)
 
-The integration classes guard themselves via `ensureBackendIsReachableOrSkip()` (GET `/health` 5 s → `XCTSkip` if unavailable).
+Live integration classes are disabled by default. They require
+`ARBORE_RUN_LIVE_INTEGRATION_TESTS=1`, a signed test host (Keychain access),
+Firebase, and the test backend. Without the flag, the tests emit an explicit
+`XCTSkip` instead of creating accounts against production during a local run.
 
 | File | Covers |
 |---|---|
@@ -48,6 +51,15 @@ cd ArboreUi && xcodebuild test \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
   -resultBundlePath build/TestResults.xcresult
 
+# Firebase/backend integrations (signed host, test environment only)
+ARBORE_RUN_LIVE_INTEGRATION_TESTS=1 xcodebuild test \
+  -workspace ArboreUi.xcworkspace -scheme ArboreUi \
+  -destination 'platform=iOS,id=<DEVICE_UDID>' \
+  -only-testing:ArboreUiTests/NetworkManagerIntegrationTests \
+  -only-testing:ArboreUiTests/ModelCacheManagerIntegrationTests \
+  -only-testing:ArboreUiTests/PrivacySettingsIntegrationTests \
+  -only-testing:ArboreUiTests/RGPDEndpointsIntegrationTests
+
 # A targeted suite
 cd ArboreUi && xcodebuild test \
   -workspace ArboreUi.xcworkspace -scheme ArboreUi \
@@ -62,5 +74,10 @@ In CI (`.github/workflows/ci.yml`, `ios_ui` job), the secrets (`GoogleService-In
 
 ## Known limitations
 
-- Integration tests depend on the test backend and on Firebase; they are **skipped** if `/health` does not respond.
+- Integration tests depend on the test backend and Firebase; they are **skipped**
+  without explicit opt-in or when `/health` does not respond. Do not enable the
+  flag against production in the current CI.
 - No deterministic E2E coverage for the login → garden → plant flows (currently out of scope for the UI tests).
+- Camera, RoomPlan, real-world location, ARKit, and thermal behaviour must be
+  validated on physical devices with the
+  [P1 device matrix](p1-physical-devices.md).

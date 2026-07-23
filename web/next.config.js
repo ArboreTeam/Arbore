@@ -9,16 +9,7 @@ const nextConfig = {
   },
   // Sortie autonome (server.js + node_modules minimal) → image Docker légère.
   output: 'standalone',
-  eslint: {
-    // Le lint s'exécute au build (les erreurs bloquent). Seuls des warnings
-    // subsistent (img/next-image, exhaustive-deps) — non bloquants.
-    ignoreDuringBuilds: false,
-  },
   images: { unoptimized: true },
-  // Requis en Next 13.5 pour charger instrumentation.ts (config Sentry serveur/edge).
-  experimental: {
-    instrumentationHook: true,
-  },
   poweredByHeader: false,
   // En-têtes de sécurité appliqués à toutes les routes.
   // (CSP volontairement absente ici : à ajouter en Report-Only puis enforce

@@ -20,7 +20,10 @@ Ces fichiers n'instancient que des types Swift simples (`@testable import Arbore
 
 ## Tests réseau, cache & vie privée (unitaires + intégration)
 
-Les classes d'intégration se protègent via `ensureBackendIsReachableOrSkip()` (GET `/health` 5 s → `XCTSkip` si indisponible).
+Les classes d'intégration live sont désactivées par défaut. Elles exigent
+`ARBORE_RUN_LIVE_INTEGRATION_TESTS=1`, un hôte de test signé (accès Keychain),
+Firebase et le backend de test. L'absence du flag produit un `XCTSkip` explicite
+au lieu de créer des comptes sur la production pendant une suite locale.
 
 | Fichier | Couvre |
 |---|---|
@@ -48,6 +51,15 @@ cd ArboreUi && xcodebuild test \
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
   -resultBundlePath build/TestResults.xcresult
 
+# Intégrations Firebase/backend (hôte signé, environnement de test uniquement)
+ARBORE_RUN_LIVE_INTEGRATION_TESTS=1 xcodebuild test \
+  -workspace ArboreUi.xcworkspace -scheme ArboreUi \
+  -destination 'platform=iOS,id=<UDID_APPAREIL>' \
+  -only-testing:ArboreUiTests/NetworkManagerIntegrationTests \
+  -only-testing:ArboreUiTests/ModelCacheManagerIntegrationTests \
+  -only-testing:ArboreUiTests/PrivacySettingsIntegrationTests \
+  -only-testing:ArboreUiTests/RGPDEndpointsIntegrationTests
+
 # Une suite ciblée
 cd ArboreUi && xcodebuild test \
   -workspace ArboreUi.xcworkspace -scheme ArboreUi \
@@ -62,5 +74,10 @@ En CI (`.github/workflows/ci.yml`, job `ios_ui`), les secrets (`GoogleService-In
 
 ## Limites connues
 
-- Les tests d'intégration dépendent du backend de test et de Firebase ; ils sont **skippés** si `/health` ne répond pas.
+- Les tests d'intégration dépendent du backend de test et de Firebase ; ils sont
+  **skippés** sans opt-in explicite ou si `/health` ne répond pas. Ne pas activer
+  le flag contre la production dans la CI courante.
 - Pas de couverture E2E déterministe pour les parcours login → jardin → plante (hors-scope actuel des tests UI).
+- Caméra, RoomPlan, ARKit, localisation réelle et comportement thermique doivent
+  être validés sur appareils physiques avec la
+  [matrice P1](p1-appareils-physiques.md).

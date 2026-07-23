@@ -1,4 +1,4 @@
-Welcome to the Arbore beta!
+Welcome to Arbore!
 
 • Design your garden in AR: place true-to-scale 3D plants in your space and arrange them freely.
 • Smarter automatic placement that lays out your selected plants for you.

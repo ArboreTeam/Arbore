@@ -42,8 +42,6 @@ enum ConsentDefaults {
     /// l'écran Confidentialité. Les clés correspondent à `consent.consentType`
     /// côté backend (`/consents`).
     static let initialSnapshot: [(type: String, granted: Bool)] = [
-        ("profilePublic", profilePublic),
-        ("showActivity", showActivity),
         ("analytics", analytics),
         ("marketing", marketing),
         ("camera", camera),

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { X, Sprout, Leaf, TreePine, Building2, Home, Trees, Flower, Carrot, Droplet, Cherry, Package, Search, BookOpen, TrendingUp, Stethoscope, Heart, Moon, Cloud, Sun, Clock } from 'lucide-react';
+import { X, Sprout, Leaf, TreePine, Building2, Home, Trees, Flower, Carrot, Droplet, Cherry, Package, Search, BookOpen, TrendingUp, Stethoscope, Moon, Cloud, Sun, Clock } from 'lucide-react';
 
 interface QuestionnaireModalProps {
   isOpen: boolean;
@@ -57,7 +57,7 @@ const questions = [
       { label: 'Apprendre', description: 'Conseils et techniques', icon: BookOpen },
       { label: 'Suivre l\'évolution', description: 'Croissance et santé', icon: TrendingUp },
       { label: 'Diagnostiquer', description: 'Détecter maladies et problèmes', icon: Stethoscope },
-      { label: 'Partager', description: 'Communauté et inspiration', icon: Heart },
+      { label: 'Concevoir', description: 'Visualiser mon futur espace', icon: Trees },
     ],
   },
   {

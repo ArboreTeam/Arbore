@@ -46,6 +46,24 @@ struct GardenLocalStore {
     static func sceneURL(for gardenId: String) -> URL {
         documentsURL().appendingPathComponent("scene_\(gardenId).json")
     }
+    static func wizardURL(for gardenId: String) -> URL {
+        documentsURL().appendingPathComponent("wizard_\(gardenId).json")
+    }
+
+    static func saveWizard(_ wizard: GardenWizardDTO, for gardenId: String) throws {
+        let data = try JSONEncoder().encode(wizard)
+        try data.write(to: wizardURL(for: gardenId), options: .atomic)
+    }
+
+    static func loadWizard(for gardenId: String) throws -> GardenWizardDTO {
+        let data = try Data(contentsOf: wizardURL(for: gardenId))
+        return try JSONDecoder().decode(GardenWizardDTO.self, from: data)
+    }
+
+    static func removeWizard(for gardenId: String) {
+        try? FileManager.default.removeItem(at: wizardURL(for: gardenId))
+    }
+
     private static func documentsURL() -> URL {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
@@ -112,7 +130,7 @@ struct PersistedPlant: Codable {
     let surfaceHeight: Float?    // Y of the surface at save-time, in world coords
     // AR multi-surface placement intent. Optional for old saved JSONs.
     let placementMode: String?   // "floor" | "wall" | "ceiling" | nil
-    // Premium anchoring metadata. Optional for old saved JSONs.
+    // Robust anchoring metadata. Optional for old saved JSONs.
     let surfaceAnchor: PersistedSurfaceAnchor?
     // LOD : indique si une version 3D haute définition existe pour cette plante,
     // pour ré-déclencher le swap heavy à la ré-ouverture du jardin. Optionnel →

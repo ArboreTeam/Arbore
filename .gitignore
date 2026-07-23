@@ -208,9 +208,6 @@ fastlane/metadata/review_information/
 .deepl_api.backups/
 backups/
 
-# Community uploads are runtime data persisted by Docker, never source files.
-ArboreBackend/uploads/
-
 # CoreML model bundles — too large to commit (DETR Semantic Seg = 86 MB).
 # Auto-fetched by scripts/fetch-ml-models.sh via the Xcode Run Script
 # build phase, then auto-included by PBXFileSystemSynchronizedRootGroup

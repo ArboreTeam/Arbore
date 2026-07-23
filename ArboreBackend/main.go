@@ -1984,7 +1984,6 @@ func main() {
 		c.Header("Content-Type", "image/png")
 		c.File(filePath)
 	})
-	registerCommunityPublicRoutes(router)
 
 	// === ROUTES API KEY UNIQUEMENT (sans session Firebase) ===
 	// Config de référence (wizard + règles de soin, cf. #236) : non sensible,
@@ -2046,9 +2045,6 @@ func main() {
 		protected.GET("/gardens/:id", getGardenByID)
 		protected.PUT("/gardens/:id", updateGarden)
 		protected.DELETE("/gardens/:id", deleteGarden)
-
-		// Community
-		registerCommunityProtectedRoutes(protected)
 
 		// Gemini Chat & Scanner Proxies
 		protected.POST("/chat", handleGeminiChat)

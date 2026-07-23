@@ -117,7 +117,7 @@ server {
     listen 80;
     server_name _;
 
-    # Les publications Community acceptent une image (12 MB maximum côté Go).
+    # Le diagnostic santé envoie une photo (encodée en base64 dans le corps JSON).
     client_max_body_size 16m;
 
     location / {

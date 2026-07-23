@@ -1595,6 +1595,10 @@ func stripMarkdown(text string) string {
 	return result
 }
 
+// geminiCaller effectue l'appel à l'API Gemini. Passer par une variable permet
+// aux tests de handler d'injecter une réponse sans toucher au réseau.
+var geminiCaller = callGeminiAPI
+
 func handleGeminiChat(c *gin.Context) {
 	var req ChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1684,7 +1688,7 @@ func handleGeminiChat(c *gin.Context) {
 		"contents": contents,
 	}
 
-	respData, err := callGeminiAPI(c.Request.Context(), payload)
+	respData, err := geminiCaller(c.Request.Context(), payload)
 	if err != nil {
 		// Ne jamais propager err.Error() au client : l'erreur peut contenir l'URL de
 		// l'appel sortant et d'autres détails internes. Log serveur uniquement.
@@ -1799,7 +1803,7 @@ Les valeurs numériques sont entre 0 et 1.
 		},
 	}
 
-	respData, err := callGeminiAPI(c.Request.Context(), payload)
+	respData, err := geminiCaller(c.Request.Context(), payload)
 	if err != nil {
 		// Idem chat : aucune fuite de l'erreur brute (peut contenir l'URL sortante).
 		log.Printf("❌ callGeminiAPI (diagnose) a échoué: %v", err)

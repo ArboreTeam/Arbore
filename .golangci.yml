@@ -46,6 +46,8 @@ linters:
         - intervalles
         - interm
         - incluse
+        - naturels
+        - inventer
 
     revive:
       confidence: 0.8

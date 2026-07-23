@@ -2046,9 +2046,10 @@ func main() {
 		protected.PUT("/gardens/:id", updateGarden)
 		protected.DELETE("/gardens/:id", deleteGarden)
 
-		// Gemini Chat & Scanner Proxies
-		protected.POST("/chat", handleGeminiChat)
-		protected.POST("/diagnose", handleGeminiDiagnose)
+		// Gemini Chat & Scanner Proxies — rate limité par uid pour borner le coût
+		// Gemini et bloquer un client qui boucle (issue #303, cf. ratelimit.go).
+		protected.POST("/chat", chatRateLimiter.middleware(), handleGeminiChat)
+		protected.POST("/diagnose", diagnoseRateLimiter.middleware(), handleGeminiDiagnose)
 
 		// Consents (RGPD)
 		protected.POST("/consents", recordConsent)

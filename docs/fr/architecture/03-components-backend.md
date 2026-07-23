@@ -1,6 +1,6 @@
 # C4 — Niveau 3 : Composants Backend
 
-Cette vue ouvre le container **Backend API** (Go 1.24 + Gin) et expose ses modules principaux. Le code est organisé autour d'un fichier `main.go` (~1 680 lignes) regroupant déclarations de types, handlers et bootstrap, complété par un sous-dossier `middleware/` pour l'authentification et quelques fichiers spécialisés (`config.go`, `crypto.go`, `apple_revocation.go`, `unsplash.go`, `setdefault.go`).
+Cette vue ouvre le container **Backend API** (Go 1.24 + Gin) et expose ses modules principaux. Le code est organisé autour d'un fichier `main.go` (~2 140 lignes) regroupant déclarations de types, handlers et bootstrap, complété par un sous-dossier `middleware/` pour l'authentification et quelques fichiers spécialisés (`config.go`, `crypto.go`, `apple_revocation.go`, `unsplash.go`, `setdefault.go`), ainsi que les fichiers dédiés aux **proxies Gemini** (`ratelimit.go`, `httphardening.go`, `promptsafety.go`, `diagnose_normalize.go`).
 
 Pour la vue d'ensemble des containers, consulter [`02-containers.md`](02-containers.md). Pour les composants côté iOS et web, consulter [`03-components-ios.md`](03-components-ios.md) et [`03-components-web.md`](03-components-web.md).
 
@@ -15,7 +15,7 @@ flowchart TB
         public["Routes publiques<br/>/health · GET /models/thumbnails/:filename"]
         apikey["Groupe API-key-only<br/>(APIKeyMiddleware) · GET /config"]
         protected["Groupe protégé<br/>(APIKeyMiddleware + FirebaseAuthMiddleware)"]
-        handlers["Handlers HTTP<br/>users · plants · gardens · consents · models"]
+        handlers["Handlers HTTP<br/>users · plants · gardens · consents · models · assistant IA"]
         access["Accès données + clients externes<br/>(driver MongoDB · crypto · unsplash · apple)"]
 
         apikey --> handlers
@@ -28,6 +28,7 @@ flowchart TB
     ai_gen["[Container]<br/>AI Generator (FastAPI)"]
     unsplash["[System Ext]<br/>Unsplash API"]
     apple["[System Ext]<br/>Apple ID (SIWA)"]
+    gemini["[System Ext]<br/>Google Gemini API"]
 
     client --> public
     client --> apikey
@@ -37,13 +38,14 @@ flowchart TB
     access --> ai_gen
     access --> unsplash
     access --> apple
+    handlers --> gemini
 
     classDef ext   fill:#999,stroke:#666,color:#fff
     classDef layer fill:#1168BD,stroke:#0B4884,color:#fff
     classDef cont  fill:#2E7D32,stroke:#1B5E20,color:#fff
     class public,apikey,protected,handlers,access layer
     class client,ai_gen cont
-    class mongo,firebase_admin,unsplash,apple ext
+    class mongo,firebase_admin,unsplash,apple,gemini ext
 ```
 
 Le backend expose **trois niveaux d'accès** distincts, définis dans `main()` : des routes **publiques** (aucun middleware), un groupe **API-key-only** et un groupe **protégé** (clé API *puis* token Firebase). Cette discipline est imposée par la composition des `router.Group(...)` dans `main.go`.
@@ -130,6 +132,30 @@ Tous ces handlers reçoivent l'`uid` via `c.Get("uid")` après passage des deux 
 
 > Contrairement au PNG de thumbnail (public), `GET /models/:filename` est dans le groupe **protégé** : la consultation d'un modèle 3D exige clé API **et** token Firebase.
 
+#### Domaine Assistant IA (`/chat`, `/diagnose`)
+
+Ces deux routes sont des **proxies** vers l'API **Google Gemini** : le backend relaie l'appel côté serveur pour que la clé Gemini ne soit **jamais** exposée au client. Le prompt système est envoyé via le champ `systemInstruction` (séparé du contenu utilisateur).
+
+| Endpoint | Handler | Notes |
+|---|---|---|
+| `POST /chat` | `handleGeminiChat` | Assistant jardinage conversationnel (historique + message + image optionnelle). Réponse en texte brut (markdown retiré). |
+| `POST /diagnose` | `handleGeminiDiagnose` | Diagnostic phytopathologique à partir d'une photo + données colorimétriques. Réponse **JSON normalisée** (cf. ci-dessous). |
+
+L'appel sortant (`callGeminiAPI`) porte la clé dans l'en-tête `x-goog-api-key` (jamais dans l'URL, qui fuiterait dans les `*url.Error`), avec retries à backoff et **propagation du `context`** de la requête : un client déconnecté annule l'appel Gemini en cours (`http.NewRequestWithContext`). L'erreur brute n'est jamais renvoyée au client (log serveur + `502` générique).
+
+### Durcissement des proxies Gemini (#303, #312)
+
+Regroupé dans des fichiers dédiés, appliqué uniquement à `/chat` et `/diagnose` :
+
+| Fichier | Rôle |
+|---|---|
+| `ratelimit.go` — `userRateLimiter` | **Rate limiting par `uid`** (token bucket `golang.org/x/time/rate`). `/chat` ~30 req/h (burst 10), `/diagnose` ~15 req/h (burst 5). Dépassement → `429` + `Retry-After`. Borne le coût Gemini et bloque un client qui boucle. |
+| `httphardening.go` — `limitRequestBody` | **Cap du corps** à 16 Mo (`http.MaxBytesReader`) sur les deux routes (corps JSON avec image base64). |
+| `httphardening.go` — `newServer` | **Timeouts serveur explicites** (`ReadHeaderTimeout` 15 s anti-Slowloris, `ReadTimeout` 60 s, `WriteTimeout` 300 s, `IdleTimeout` 120 s) — remplace `router.Run`. `MaxMultipartMemory` ramené de 1 Go à 32 Mo. |
+| `httphardening.go` — `backoffOrCancel` | Backoff des retries **interruptible** par le `context` (pas d'attente ni de rappel Gemini pour une requête abandonnée). |
+| `promptsafety.go` | **Anti-prompt-injection** : clause de sécurité prioritaire ajoutée aux system prompts (le contenu utilisateur est une donnée, jamais une instruction) ; entrées bornées (message, historique) ; `plantName` assaini (une ligne, sans caractères de contrôle) et encadré comme donnée non fiable au lieu d'être interpolé brut. |
+| `diagnose_normalize.go` — `normalizeDiagnose` | **Validation du schéma de sortie** du diagnostic : décodage typé, valeurs numériques clampées dans `[0,1]`, tableaux bornés et jamais `null`, maladies sans nom écartées, défauts prudents. Respecte le contrat du décodeur iOS (`diseases[].name` toujours émis, clés camelCase). |
+
 ## Modules de support et clients externes
 
 | Fichier / fonction | Rôle |
@@ -158,12 +184,14 @@ Tous ces handlers reçoivent l'`uid` via `c.Get("uid")` après passage des deux 
 | `APPLE_SIWA_CLIENT_ID` | `client_id` OAuth Apple. Flux natif iOS = bundle ID `com.arboreteam.arbore`. | configuration |
 | `APPLE_SIWA_KEY_PATH` / `APPLE_SIWA_PRIVATE_KEY` | Clé privée `.p8` (PKCS8 EC) SIWA, par chemin ou contenu PEM. | 🔒 secret |
 | `UNSPLASH_ACCESS_KEY` | Clé API Unsplash (photos du catalogue). | 🔒 secret |
+| `GEMINI_API_KEY` | Clé de l'API Google Gemini pour les proxies `/chat` et `/diagnose`. Portée dans l'en-tête `x-goog-api-key`. | 🔒 secret |
+| `GEMINI_MODEL` | Modèle Gemini utilisé. Défaut code : `gemini-2.5-flash`. | configuration |
 | `AI_GENERATOR_URL` | URL de l'AI Generator. Défaut code : `http://localhost:8001` ; en prod : URL interne Docker. Endpoint `/generate`. | configuration |
 | `THUMBNAILS_DIR` | Répertoire des thumbnails PNG. | configuration |
 | `THUMBNAIL_UPLOAD_ALLOWED_UIDS` | UID autorisés à uploader des thumbnails. | configuration |
 | `GIN_MODE` | `release` en prod, `debug` en local. | configuration |
 
-> **Note `OPENAI_API_KEY`** : présente dans `.env.example` mais **consommée par l'AI Generator**, jamais par le backend Go. **Note `PORT`** : présente dans `.env.example` mais inerte — le serveur écoute en dur sur `:8080` (`router.Run(":8080")`) ; `PORT` n'agit que sur le mapping de port côté hôte (docker-compose).
+> **Note `OPENAI_API_KEY`** : présente dans `.env.example` mais **consommée par l'AI Generator**, jamais par le backend Go. **Note `PORT`** : présente dans `.env.example` mais inerte — le serveur écoute en dur sur `:8080` (`http.Server` construit par `newServer` avec timeouts explicites, cf. durcissement Gemini) ; `PORT` n'agit que sur le mapping de port côté hôte (docker-compose).
 
 ## Points clés
 
@@ -171,6 +199,7 @@ Tous ces handlers reçoivent l'`uid` via `c.Get("uid")` après passage des deux 
 - **Aucun ORM** : driver MongoDB officiel utilisé directement avec `bson.M{...}`. Lisibilité maximale, pas de protection structurelle contre les fautes de frappe sur les champs.
 - **Self-only authz omniprésente** : les handlers `users`/`gardens` filtrent par `uid` extrait du token, jamais par l'`uid` du body ou de l'URL (cf. [ADR 0005](../decisions/0005-self-authz-pattern.md)).
 - **Défense en profondeur** : clé API (temps constant) **et** token Firebase (vérifié, email-verified, non banni) sur tout le trafic métier.
+- **Proxies IA durcis** : les routes Gemini (`/chat`, `/diagnose`) ne relaient jamais la clé au client, sont rate-limitées par `uid`, bornées en taille de corps et en temps, protégées contre le prompt injection, et leur sortie de diagnostic est validée/normalisée avant renvoi (#303, #312).
 - **Secrets chiffrés au repos** : le refresh token Apple est chiffré AES-256-GCM (`crypto.go`) avant écriture en base.
 - **Configuration uniquement par l'environnement** : `MONGODB_URI` est obligatoire (`log.Fatal` si absente) — aucun credential Mongo n'est codé en dur.
 - **HTTPS** : l'accès public se fait en HTTPS via Cloudflare (cf. [`../operations/vps-bootstrap.md`](../operations/vps-bootstrap.md)) ; le durcissement TLS Cloudflare → origine est suivi côté opérations.

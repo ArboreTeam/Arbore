@@ -1,6 +1,6 @@
 # Backend Tests (back)
 
-The Go backend tests live at the package root (`ArboreBackend/*_test.go`) and in `middleware/`. They use Gin's test mode and `github.com/stretchr/testify/assert`. No real MongoDB is required: the handlers are **re-implemented as mocked Gin routers** that mirror the real authorization logic, which keeps the tests fast and hermetic.
+The Go backend tests live at the package root (`ArboreBackend/*_test.go`) and in `middleware/`. They use Gin's test mode. No real MongoDB is required: depending on the case, handlers are either **re-implemented as mocked Gin routers** (authorization logic) or **called directly** through an injectable seam (Gemini proxies, where the network call is replaced by a fake response). The tests stay fast and hermetic.
 
 ## Inventory
 
@@ -11,6 +11,11 @@ The Go backend tests live at the package root (`ArboreBackend/*_test.go`) and in
 | `ArboreBackend/crypto_test.go` | AES-256-GCM (`encryptWith`/`decryptWith`): round-trip, the ciphertext does not contain the plaintext, wrong key → failure, tampered tag → failure, blob too short → failure. |
 | `ArboreBackend/apple_revocation_test.go` | Sign in with Apple revocation: `generateClientSecret()` (ES256 JWT with kid/iss/sub/aud), `exchangeAuthorizationCode` against an `httptest` server (verified form fields, returned refresh_token, Apple error path), `revokeRefreshToken` (token + `token_type_hint=refresh_token`). The `appleTokenURL`/`appleRevokeURL` package variables are swapped to the test server. |
 | `ArboreBackend/middleware/firebase_auth_test.go` | `isReleaseMode()`, `InitFirebase()` (fatal in release if the credential is missing/invalid, OK in debug), fail-closed semantics (`firebaseAuth == nil` in release → 503, in debug → passes through with uid `unauthenticated`), missing header → 401, invalid format → 401. |
+| `ArboreBackend/ratelimit_test.go` | Per-`uid` rate limiter (`userRateLimiter`): burst allowed then blocked, per-user isolation, bucket reuse. |
+| `ArboreBackend/httphardening_test.go` | Body cap (`limitRequestBody`: too large → 400, within limit → 200) and **interruptible** backoff (`backoffOrCancel`: waits, or returns immediately if the context is cancelled). |
+| `ArboreBackend/promptsafety_test.go` | Anti-injection helpers: `truncateRunes` (rune-safe truncation) and `sanitizeLine` (control-character removal, whitespace collapsing, truncation). |
+| `ArboreBackend/gemini_handlers_test.go` | The `/chat` and `/diagnose` handlers called **for real** via the `geminiCaller` seam (fake Gemini response injected): empty message → 400, markdown stripped, bounded history + anti-injection clause present, image required, JSON extraction (raw and embedded in prose), upstream errors → 502, `plantName` sanitized and framed. |
+| `ArboreBackend/diagnose_normalize_test.go` | Diagnosis normalization (`normalizeDiagnose`): clamp to `[0,1]`, bounds (max diseases / recommendations), nameless diseases dropped, defaults (`isUncertain=true`, `species` null when empty), arrays never `null`, invalid JSON → error. |
 
 ## What these tests guarantee
 
@@ -18,6 +23,7 @@ The Go backend tests live at the package root (`ArboreBackend/*_test.go`) and in
 - **Ownership-based authorization (self-authz)**: a user can neither read, modify, nor delete another user's gardens / photos; responses avoid disclosing the existence of other users' resources.
 - **Encryption at rest**: the Apple refresh token is protected with AES-256-GCM and resists tampering.
 - **Apple compliance**: the ES256 `client_secret` generation and the token exchanges/revocations follow Apple's protocol.
+- **AI proxy hardening**: per-`uid` rate limiting, body cap and interruptible backoff, bounded inputs and anti-injection clause, and diagnosis output-schema normalization (clamped values, iOS contract honored).
 
 ## Running
 

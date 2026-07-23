@@ -50,6 +50,8 @@ linters:
         - inventer
         - tournement
         - absolue
+        - pointeur
+        - normalis
 
     revive:
       confidence: 0.8

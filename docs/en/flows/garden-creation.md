@@ -4,9 +4,9 @@ This document describes the **flow for creating a new garden** by the user, from
 
 ## Overview
 
-The wizard now has three visible screens: choose the space, answer essential conditional questions, then see plant suggestions. Arbore selects the analysis method automatically and opens the scan directly, with no intermediate page. The previous generic exposure, maintenance, safety, and soil questionnaires have been removed. Exposure is now a very short in-camera capture, only for a room, balcony, or terrace.
+The wizard goes from space selection through three conditional questions, then opens AR directly with no “Suggested garden” page. The progress bar counts four real levels: space selection and each of the three questions. Arbore selects the analysis method automatically and opens the scan directly, with no intermediate page. The previous generic exposure, maintenance, safety, and soil questionnaires have been removed. Exposure is now a very short in-camera capture, only for a room, balcony, or terrace.
 
-The **garden scan** happens after the first screen: the “Choose the space” CTA determines the method, directly requests system camera permission when necessary, then opens the AR view. Once dimensions are confirmed, Arbore does not show a recap screen. For a room, balcony, or terrace, the user stays in the same camera and indicates the main light source; a garden goes directly to creation. After `POST /gardens`, the camera closes and a screen requests a new location for this specific garden. The wizard then asks three space-specific questions before presenting `aiSuggestion`.
+The **garden scan** happens after the first screen: the “Choose the space” CTA determines the method, directly requests system camera permission when necessary, then opens the AR view. Once dimensions are confirmed, Arbore does not show a recap screen. For a room, balcony, or terrace, the user stays in the same camera and indicates the main light source; a garden goes directly to creation. After `POST /gardens`, the camera closes and a screen requests a new location for this specific garden. The wizard then asks three space-specific questions before opening AR placement.
 
 ## Diagram
 
@@ -21,12 +21,10 @@ flowchart TB
     post_garden["POST /gardens<br/>boundary + wizard + plants: []"]
     location["Camera closed — new location<br/>approximate position, city, or skip"]
     update_garden["PUT /gardens/:id<br/>wizard.location"]
-    questions["Step 2 — 3 essential questions<br/>space-specific and optional"]
+    questions["Levels 2 to 4 — 3 essential questions<br/>space-specific and optional"]
     update_constraints["PUT /gardens/:id<br/>wizard.conditionalAnswers + safety"]
-
-    ai["Step 3 — AI Suggestion<br/>refined plant selection"]
     placement["fullScreenCover<br/>GardenARPlacementView (.create + existingGardenId)"]
-    auto_place["AI auto-placement<br/>+ manual adjustment"]
+    manual_place["Plant selection and placement<br/>with AR tools"]
     put_garden["PUT /gardens/:id<br/>plants positions"]
 
     plan2d([Garden tab — 2D plan<br/>editable space profile])
@@ -40,19 +38,18 @@ flowchart TB
     post_garden --> location
     location --> update_garden
     update_garden -->|back to wizard| questions
-    questions --> update_constraints --> ai
-    ai -->|tap Place my plants in AR| placement
-    placement --> auto_place
-    auto_place -->|tap Validate and save| put_garden
+    questions --> update_constraints --> placement
+    placement --> manual_place
+    manual_place -->|tap Validate and save| put_garden
     put_garden --> plan2d
 
     classDef step  fill:#1168BD,stroke:#0B4884,color:#fff
     classDef cond  fill:#2E7D32,stroke:#1B5E20,color:#fff
     classDef ar    fill:#6A1B9A,stroke:#4A148C,color:#fff
     classDef io    fill:#999,stroke:#666,color:#fff
-    class spaceType,permissions,location,questions,ai step
+    class spaceType,permissions,location,questions step
     class post_garden,update_garden,update_constraints,put_garden cond
-    class trace_ar,exposure,placement,auto_place ar
+    class trace_ar,exposure,placement,manual_place ar
     class start_node,plan2d io
 ```
 
@@ -62,7 +59,7 @@ The `visibleSteps` computed property in `QuestionnaireView.swift` implements the
 
 ```swift
 private var visibleSteps: [GardenWizardStep] {
-    [.spaceType, .essentialQuestions, .aiSuggestion]
+    [.spaceType, .essentialQuestions]
 }
 ```
 
@@ -133,28 +130,18 @@ Symmetrical to the perimeter flow, in `LiDARScanWizardView`:
 - Balcony or terrace: wind exposure, existing pots or a new composition, pets or young children.
 - Room: dry / normal / humid air, nearby heat source, pets or young children.
 
-Every question offers “I don’t know” and may also remain unanswered. Neither case creates a fabricated value in `wizard.conditionalAnswers`. “Answer later” clears this step's answers and continues. Known answers are persisted through `PUT /gardens/:id`; safety continues to use `wizard.safety`. `GardenSuggestionEngine` then uses structured catalog flags to refine ranking without blocking the flow.
+The questions form three internal mini-screens that copy the space-type selection structure: title, short instruction, 2 × 2 grid of large cards, “Continue,” and “Back.” The global bar displays 2/4, 3/4, then 4/4. Every question offers “I don’t know” and may also remain unanswered. For safety, “Pets” and “Young children” are multi-selectable so the grid stays at four cards. Unknown values create no fabricated data in `wizard.conditionalAnswers`. “Back” returns to the previous question or reopens location from the first one. Known answers are persisted through `PUT /gardens/:id`; safety continues to use `wizard.safety`.
 
-### Step 3 — AI Suggestion
+### Direct AR placement
 
-`AISuggestionStepView` component. The **final** step of the wizard. Uses `GardenSuggestionEngine` to propose a plant selection tailored to the profile built up (and potentially to the measured surface — enrichment in progress, see issue #125). The user can:
-
-- Accept the suggestion as is.
-- Add / remove plants manually from the catalog.
-
-The primary CTA **"Place X plants in AR"**:
-
-1. Updates `aiSelectedPlants` from the accepted cards.
-2. Calls `startFinalPlacement()`, which opens `GardenARPlacementView` in `.create` mode with `existingGardenId = state.createdGardenId`, `measurementWorldMapId = state.createdGardenId`, and the measured boundary.
-3. The AR view loads the WorldMap from disk, starts a session, and auto-places the plants the moment tracking becomes stable.
-4. On final validation, **`PUT /gardens/:id`** updates the existing garden with the plant positions (`POST` is avoided because the garden already exists).
-5. `TabRouter` stores the created identifier, selects the Garden tab, and opens its 2D plan directly.
+Confirming the third question calls `startFinalPlacement()` and opens `GardenARPlacementView` in `.create` mode with `existingGardenId = state.createdGardenId`, `measurementWorldMapId = state.createdGardenId`, and the measured boundary. The AR view loads the WorldMap from disk, and the user selects and places plants with the existing tools. On final validation, **`PUT /gardens/:id`** updates the existing garden with plant positions. `TabRouter` stores the created identifier, selects the Garden tab, and opens its 2D plan directly.
 
 ### Space profile in the 2D plan
 
 The recap is not a blocking wizard step. It lives permanently below the plan in `GardenSpaceProfileView` and always identifies the source (`measured`, `inferred`, `declared`, `regional estimate`) and confidence.
 
 - Space type, area, perimeter, orientation, sunlight, soil type, location, wind, height, and plantable zones are shown.
+- For a room, balcony, or terrace, the captured magnetic orientation becomes a measured value with medium confidence. Arbore infers a broad sunlight range from orientation and hemisphere; without coordinates, ARKit light intensity is used only as a fallback signal. This range is always labelled as inferred with low confidence.
 - Missing data stays “Measurement unavailable”; no default is presented as real data.
 - Area and perimeter are corrected with “Measure the space again.” The scan replaces the local outline and persists `measurements.boundaryPoints`, `area`, and `perimeter` through `PUT /gardens/:id` so the plan stays consistent.
 - Other values are corrected in a sheet persisted through `PUT /gardens/:id`.
@@ -164,7 +151,7 @@ The recap is not a blocking wizard step. It lives permanently below the plan in 
 
 The historical `POST /gardens` happened **at the very end** of placement (in `GardenARPlacementView.handleValidateNotif`). The new flow triggers it **at the end of the trace**, with `plants: []`. Consequences:
 
-- The garden exists in the database as early as the `aiSuggestion` step, which would eventually enable an area-aware `aiSuggestion` step (issue #125).
+- The garden exists in the database from the end of the scan, before questions and AR placement.
 - A user who dismisses after the trace but before placing plants leaves an orphan garden with `plants: []`. It will be visible from the Home and can be deleted manually.
 - The save logic in `GardenARPlacementView.handleValidateNotif` picks `PUT` vs `POST` based on `existingGardenId` (and no longer based on `mode == .reopen`).
 
@@ -172,7 +159,7 @@ The historical `POST /gardens` happened **at the very end** of placement (in `Ga
 
 `GardenWizardState` is a `@StateObject` that lives for the entire wizard session. **No disk persistence** of the space type or selected method until the trace is validated. If the user dismisses before the trace, the choices are lost.
 
-**Starting from the validated trace**, the garden exists in the database. Dimensions and optional exposure are persisted through `POST /gardens`. After the camera closes, the location specific to this creation is added to the same `garden.wizard` through `PUT /gardens/:id`, then known conditional answers are saved through a second `PUT`. The final placement update also sends the complete wizard, allowing these writes to be retried if an earlier network `PUT` failed.
+**Starting from the validated trace**, the garden exists in the database. Dimensions and optional exposure are persisted through `POST /gardens`. After the camera closes, the location specific to this creation is added to the same `garden.wizard` through `PUT /gardens/:id`, then known conditional answers are saved through a second `PUT`. These writes are serialized so an older snapshot cannot finish last and erase the location or answers. Before each send, Arbore also materializes the measured or inferred orientation and sunlight in `wizard.siteProfile`. The same resolved wizard is stored locally in `wizard_<gardenId>.json`. The 2D plan restores only captured data missing from the server, displays it immediately, then repairs the remote document without overwriting an existing correction. The final placement update sends the complete wizard again and waits for intermediate writes to finish.
 
 After creation, corrections made in the 2D profile are persisted in `wizard.siteProfile` through `PUT /gardens/:id`.
 
@@ -193,5 +180,4 @@ After creation, corrections made in the 2D profile are persisted in `wizard.site
 ## Out of scope for this flow
 
 - The **internal detail of AR placement** (raycasts, anchors, gestures, RelocationPhase state) is documented in [`ar-placement.md`](ar-placement.md).
-- The **filtering and ranking** logic of `GardenSuggestionEngine` at the AI Suggestion step will be documented in a per-screen spec if the screen becomes a hero screen.
 - The **exact schema** of the `gardens` document on the Mongo side is in [`../architecture/04-data-model.md`](../architecture/04-data-model.md).

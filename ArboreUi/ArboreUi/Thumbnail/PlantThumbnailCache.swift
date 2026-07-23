@@ -14,10 +14,33 @@ struct PlantThumbnailCache {
         return dir
     }
 
-    private static let version = "v20"
+    // Bump whenever the studio framing/background changes so old renders do
+    // not mask fixes after an app update.
+    /// Shared by the disk cache and the public thumbnail URL. Changing this
+    /// value invalidates both the on-device files and Cloudflare's cached
+    /// response after a new thumbnail design is uploaded under the same plant
+    /// identifier.
+    static let version = "v22"
+    private static let designMarkerColor = UIColor(
+        red: 94.0 / 255.0,
+        green: 28.0 / 255.0,
+        blue: 186.0 / 255.0,
+        alpha: 1
+    )
 
     static func url(for plantID: String) -> URL {
         directory.appendingPathComponent("\(plantID)_\(version).png")
+    }
+
+    static func remoteURL(for plantID: String, baseURL: String) -> URL? {
+        guard var components = URLComponents(
+            string: "\(baseURL)/models/thumbnails/\(plantID).png"
+        ) else {
+            return nil
+        }
+
+        components.queryItems = [URLQueryItem(name: "v", value: version)]
+        return components.url
     }
 
     static func exists(for plantID: String) -> Bool {
@@ -59,9 +82,10 @@ struct PlantThumbnailCache {
 
     @discardableResult
     static func save(_ image: UIImage, plantID: String) -> UIImage {
-        let cachedImage = needsStudioBackdrop(image)
+        let studioImage = needsStudioBackdrop(image)
             ? imageByCompositingStudioBackdrop(under: image)
             : image
+        let cachedImage = applyingCurrentDesignMarker(to: studioImage)
         guard let data = cachedImage.pngData() else { return cachedImage }
         let path = url(for: plantID)
         try? data.write(to: path)
@@ -70,7 +94,102 @@ struct PlantThumbnailCache {
     }
 
     static func isLegacyThumbnail(_ image: UIImage) -> Bool {
-        isLegacyDarkThumbnail(image) || hasLegacyWhiteWallDarkFloor(image)
+        !hasCurrentDesignMarker(image)
+            || isLegacyDarkThumbnail(image)
+            || hasLegacyWhiteWallDarkFloor(image)
+            || hasTopBackdropSeam(image)
+    }
+
+    /// Adds an invisible-at-card-size signature inside the four corners of the
+    /// PNG. Server thumbnails are stored as their original PNG bytes, so this
+    /// lets the app distinguish a newly generated studio render from every
+    /// previous design instead of relying only on visual heuristics.
+    static func applyingCurrentDesignMarker(to image: UIImage) -> UIImage {
+        let size = CGSize(width: max(image.size.width, 1), height: max(image.size.height, 1))
+        let markerSide = max(4, min(size.width, size.height) * 0.035)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        format.opaque = true
+
+        return UIGraphicsImageRenderer(size: size, format: format).image { context in
+            let rect = CGRect(origin: .zero, size: size)
+            image.draw(in: rect)
+            designMarkerColor.setFill()
+            for markerRect in [
+                CGRect(x: 0, y: 0, width: markerSide, height: markerSide),
+                CGRect(x: size.width - markerSide, y: 0, width: markerSide, height: markerSide),
+                CGRect(x: 0, y: size.height - markerSide, width: markerSide, height: markerSide),
+                CGRect(
+                    x: size.width - markerSide,
+                    y: size.height - markerSide,
+                    width: markerSide,
+                    height: markerSide
+                )
+            ] {
+                context.fill(markerRect)
+            }
+        }
+    }
+
+    static func hasCurrentDesignMarker(_ image: UIImage) -> Bool {
+        guard let cgImage = image.cgImage else { return false }
+
+        let width = cgImage.width
+        let height = cgImage.height
+        let inset = max(1, Int(Double(min(width, height)) * 0.0175))
+        let samplePoints = [
+            (inset, inset),
+            (max(width - inset - 1, 0), inset),
+            (inset, max(height - inset - 1, 0)),
+            (max(width - inset - 1, 0), max(height - inset - 1, 0))
+        ]
+
+        let expected = (red: UInt8(94), green: UInt8(28), blue: UInt8(186))
+        let matchingCorners = samplePoints.reduce(into: 0) { count, point in
+            guard let color = sampledRGB(cgImage, point: point) else { return }
+            let tolerance = 5
+            if abs(Int(color.red) - Int(expected.red)) <= tolerance,
+               abs(Int(color.green) - Int(expected.green)) <= tolerance,
+               abs(Int(color.blue) - Int(expected.blue)) <= tolerance {
+                count += 1
+            }
+        }
+        return matchingCorners >= 3
+    }
+
+    private static func sampledRGB(
+        _ image: CGImage,
+        point: (Int, Int)
+    ) -> (red: UInt8, green: UInt8, blue: UInt8)? {
+        guard let cropped = image.cropping(to: CGRect(
+            x: min(max(point.0, 0), image.width - 1),
+            y: min(max(point.1, 0), image.height - 1),
+            width: 1,
+            height: 1
+        )) else {
+            return nil
+        }
+
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let didDraw = pixel.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(
+                data: buffer.baseAddress,
+                width: 1,
+                height: 1,
+                bitsPerComponent: 8,
+                bytesPerRow: 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue |
+                    CGBitmapInfo.byteOrder32Big.rawValue
+            ) else {
+                return false
+            }
+            context.draw(cropped, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+            return true
+        }
+
+        guard didDraw else { return nil }
+        return (pixel[0], pixel[1], pixel[2])
     }
 
     private static func isLegacyDarkThumbnail(_ image: UIImage) -> Bool {
@@ -182,6 +301,57 @@ struct PlantThumbnailCache {
         return brightWallSamples >= 2
     }
 
+    /// Detects the pale horizontal strip produced by the former studio wall.
+    /// Edge samples avoid confusing a light-colored plant with the backdrop.
+    private static func hasTopBackdropSeam(_ image: UIImage) -> Bool {
+        guard let cgImage = image.cgImage else { return false }
+
+        let gridSize = 20
+        let bytesPerPixel = 4
+        let bytesPerRow = gridSize * bytesPerPixel
+        var pixels = [UInt8](repeating: 0, count: gridSize * gridSize * bytesPerPixel)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue |
+            CGBitmapInfo.byteOrder32Big.rawValue
+
+        let didDraw = pixels.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(
+                data: buffer.baseAddress,
+                width: gridSize,
+                height: gridSize,
+                bitsPerComponent: 8,
+                bytesPerRow: bytesPerRow,
+                space: colorSpace,
+                bitmapInfo: bitmapInfo
+            ) else {
+                return false
+            }
+            context.interpolationQuality = .low
+            context.draw(cgImage, in: CGRect(x: 0, y: 0, width: gridSize, height: gridSize))
+            return true
+        }
+
+        guard didDraw else { return false }
+
+        let edgeColumns = [1, 2, gridSize - 3, gridSize - 2]
+        func hasBrightSeam(edgeRow: Int, innerRow: Int) -> Bool {
+            let edge = edgeColumns.map {
+                sampledBrightness(pixels, gridSize: gridSize, point: ($0, edgeRow))
+            }
+            let inner = edgeColumns.map {
+                sampledBrightness(pixels, gridSize: gridSize, point: ($0, innerRow))
+            }
+            let edgeAverage = edge.reduce(0, +) / Float(edge.count)
+            let innerAverage = inner.reduce(0, +) / Float(inner.count)
+            return edgeAverage > 185 && edgeAverage - innerAverage > 10
+        }
+
+        // Core Graphics bitmap rows may be vertically flipped depending on
+        // the source orientation, so inspect both physical edges.
+        return hasBrightSeam(edgeRow: 1, innerRow: 4)
+            || hasBrightSeam(edgeRow: gridSize - 2, innerRow: gridSize - 5)
+    }
+
     private static func sampledBrightness(
         _ pixels: [UInt8],
         gridSize: Int,
@@ -261,7 +431,7 @@ struct PlantThumbnailCache {
             let wallRect = CGRect(x: 0, y: 0, width: size.width, height: wallHeight)
             let floorRect = CGRect(x: 0, y: wallHeight, width: size.width, height: floorHeight)
 
-            let wallColor = UIColor(white: 0.78, alpha: 1.0)
+            let wallColor = UIColor(white: 0.72, alpha: 1.0)
             let floorColor = UIColor(red: 0.58, green: 0.57, blue: 0.52, alpha: 1.0)
 
             wallColor.setFill()
@@ -269,10 +439,6 @@ struct PlantThumbnailCache {
 
             wallColor.setFill()
             rendererContext.fill(wallRect)
-            if let wall = UIImage(named: "studio_wall") {
-                drawAspectFill(wall, in: wallRect, alpha: 0.36)
-            }
-
             floorColor.setFill()
             rendererContext.fill(floorRect)
             if let floor = UIImage(named: "studio_floor") {
@@ -344,19 +510,19 @@ struct PlantThumbnailCache {
         guard let context = UIGraphicsGetCurrentContext() else { return }
 
         let shadowRect = CGRect(
-            x: size.width * 0.11,
-            y: wallHeight + floorHeight * 0.26,
-            width: size.width * 0.62,
-            height: size.height * 0.13
+            x: size.width * 0.20,
+            y: wallHeight + floorHeight * 0.24,
+            width: size.width * 0.60,
+            height: size.height * 0.075
         )
 
         context.saveGState()
         context.setShadow(
-            offset: .zero,
-            blur: min(size.width, size.height) * 0.035,
-            color: UIColor.black.withAlphaComponent(0.16).cgColor
+            offset: CGSize(width: 0, height: size.height * 0.006),
+            blur: min(size.width, size.height) * 0.045,
+            color: UIColor.black.withAlphaComponent(0.09).cgColor
         )
-        context.setFillColor(UIColor.black.withAlphaComponent(0.12).cgColor)
+        context.setFillColor(UIColor.black.withAlphaComponent(0.045).cgColor)
         context.fillEllipse(in: shadowRect)
         context.restoreGState()
     }

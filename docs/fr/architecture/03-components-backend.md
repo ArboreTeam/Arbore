@@ -182,16 +182,16 @@ Regroupé dans des fichiers dédiés, appliqué uniquement à `/chat` et `/diagn
 | `MASTER_ENCRYPTION_KEY` | Clé AES-256 (64 hex) pour le chiffrement au repos (#210). | 🔒 secret |
 | `APPLE_TEAM_ID` / `APPLE_KEY_ID` | Identifiants Apple Developer (révocation SIWA). | configuration |
 | `APPLE_SIWA_CLIENT_ID` | `client_id` OAuth Apple. Flux natif iOS = bundle ID `com.arboreteam.arbore`. | configuration |
-| `APPLE_SIWA_KEY_PATH` / `APPLE_SIWA_PRIVATE_KEY` | Clé privée `.p8` (PKCS8 EC) SIWA, par chemin ou contenu PEM. | 🔒 secret |
+| `APPLE_SIWA_KEY_PATH` | Chemin interne vers la clé privée `.p8` SIWA, montée en lecture seule hors du dépôt. | 🔒 secret |
 | `UNSPLASH_ACCESS_KEY` | Clé API Unsplash (photos du catalogue). | 🔒 secret |
 | `GEMINI_API_KEY` | Clé de l'API Google Gemini pour les proxies `/chat` et `/diagnose`. Portée dans l'en-tête `x-goog-api-key`. | 🔒 secret |
 | `GEMINI_MODEL` | Modèle Gemini utilisé. Défaut code : `gemini-2.5-flash`. | configuration |
 | `AI_GENERATOR_URL` | URL de l'AI Generator. Défaut code : `http://localhost:8001` ; en prod : URL interne Docker. Endpoint `/generate`. | configuration |
 | `THUMBNAILS_DIR` | Répertoire des thumbnails PNG. | configuration |
-| `THUMBNAIL_UPLOAD_ALLOWED_UIDS` | UID autorisés à uploader des thumbnails. | configuration |
+| `ARBORE_ADMIN_UIDS` | Liste d'amorçage des UID administrateurs ; préférer ensuite les claims Firebase. | 🔒 secret |
 | `GIN_MODE` | `release` en prod, `debug` en local. | configuration |
 
-> **Note `OPENAI_API_KEY`** : présente dans `.env.example` mais **consommée par l'AI Generator**, jamais par le backend Go. **Note `PORT`** : présente dans `.env.example` mais inerte — le serveur écoute en dur sur `:8080` (`http.Server` construit par `newServer` avec timeouts explicites, cf. durcissement Gemini) ; `PORT` n'agit que sur le mapping de port côté hôte (docker-compose).
+> **Note `OPENAI_API_KEY`** : consommée uniquement par l'AI Generator lorsque ce fournisseur est sélectionné, jamais par le backend Go. **Note `PORT`** : définit le port d'écoute du serveur Go en exécution directe ; Docker conserve le port `8080` dans le conteneur et utilise `PORT` uniquement pour le mapping côté hôte.
 
 ## Points clés
 

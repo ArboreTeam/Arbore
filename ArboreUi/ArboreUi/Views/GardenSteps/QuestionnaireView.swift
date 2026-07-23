@@ -273,9 +273,8 @@ final class GardenWizardState: ObservableObject {
 
     /// ID Mongo du jardin créé au step `scanMethod` une fois le tracé validé.
     /// Le tracé entraîne un `POST /gardens` avec `plants: []` ; cet identifiant
-    /// est ensuite utilisé par le step `aiSuggestion` puis par
-    /// `GardenARPlacementView` pour ouvrir le jardin en mode `.create` avec
-    /// la WorldMap déjà sauvée sur disque.
+    /// est ensuite utilisé par `GardenARPlacementView` pour ouvrir directement
+    /// le jardin en mode `.create` avec la WorldMap déjà sauvée sur disque.
     @Published var createdGardenId: String?
 
     /// Données mesurées au step `scanMethod` et persistées dans Mongo via le
@@ -291,8 +290,6 @@ final class GardenWizardState: ObservableObject {
 enum GardenWizardStep: Int, CaseIterable, Identifiable {
     case spaceType
     case essentialQuestions
-    case aiSuggestion    // 🤖 AI garden suggestion step — last step, exposes the
-                         //   "Placer mes plantes en AR" CTA.
 
     var id: Int { rawValue }
 }
@@ -307,19 +304,16 @@ struct GardenWizardView: View {
     // - roomScan  → ouvre LiDARScanWizardView pour le scan RoomPlan
     // À la fin de l'AR (tracé validé + exposition éventuelle + POST réussi),
     // le wizard ferme la caméra, demande une localisation fraîche, puis avance
-    // automatiquement vers les trois questions conditionnelles, puis la
-    // suggestion de plantes.
+    // automatiquement vers les trois questions conditionnelles, puis ouvre
+    // directement la vue AR.
     @State private var showPerimeterFlow = false
     @State private var showLiDARFlow = false
     @State private var showAnalysisAuthorizationFlow = false
     @State private var showLocationFlow = false
     @State private var isRequestingCameraPermission = false
 
-    // Step `aiSuggestion` est désormais le dernier step du wizard. Au tap
-    // sur « Placer mes plantes en AR », on ouvre `GardenARPlacementView`
-    // en mode `.create` avec le `createdGardenId` posé au step `scanMethod`,
-    // ce qui chargera la WorldMap déjà sauvée et déclenchera
-    // l'auto-placement IA des plantes sélectionnées.
+    // Après la dernière question, le wizard ouvre `GardenARPlacementView`
+    // en mode `.create` avec le `createdGardenId` posé après le scan.
     struct FinalPlacementData: Identifiable {
         let id = UUID()
         let gardenId: String
@@ -327,10 +321,14 @@ struct GardenWizardView: View {
     }
     @State private var finalPlacementData: FinalPlacementData? = nil
 
-    // 🤖 AI Suggestion: all catalogue plants + user's selection
-    @State private var allCataloguePlants: [Plant] = []
-    @State private var aiSelectedPlants: [Plant] = []
-    @State private var finalPlacementPlants: [Plant] = []
+    /// Les trois questions sont de vrais écrans du parcours. Leur index est
+    /// remonté ici pour que la barre progresse à chaque changement de carte.
+    @State private var essentialQuestionIndex = 0
+    @State private var essentialQuestionCount = 3
+    /// Les mises à jour intermédiaires du wizard sont sérialisées. Sans cela,
+    /// le PUT de localisation et celui des questions pouvaient terminer dans
+    /// l'ordre inverse et réécrire un snapshot plus ancien sur le backend.
+    @State private var pendingWizardPersistence: Task<Void, Never>?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -343,11 +341,27 @@ struct GardenWizardView: View {
     let onFinish: (GardenWizardState) -> Void
 
     private var visibleSteps: [GardenWizardStep] {
-        [.spaceType, .essentialQuestions, .aiSuggestion]
+        [.spaceType, .essentialQuestions]
     }
 
     private var currentIndex: Int {
         visibleSteps.firstIndex(of: currentStep) ?? 0
+    }
+
+    private var progressIndex: Int {
+        switch currentStep {
+        case .spaceType:
+            return 0
+        case .essentialQuestions:
+            return min(essentialQuestionIndex + 1, progressTotal - 1)
+        }
+    }
+
+    private var progressTotal: Int {
+        // Chaque type d'espace possède actuellement exactement trois
+        // questions. Le minimum évite un bref 1/1 pendant l'initialisation de
+        // la page enfant, avant que le type d'espace ne soit sélectionné.
+        max(essentialQuestionCount + 1, 4)
     }
 
     private func goToNext() {
@@ -447,65 +461,71 @@ struct GardenWizardView: View {
     }
 
     private func completeLocationStep(with location: GardenLocationDTO?) {
+        let shouldAdvanceToQuestions = currentStep == .spaceType
         state.location = location
         showLocationFlow = false
 
         // Le jardin existe déjà depuis la fin du scan : on enrichit son
-        // wizard avec l'exposition et la localisation fraîche. En cas de
-        // coupure réseau, le PUT final du placement renverra le même DTO.
-        if let gardenId = state.createdGardenId {
-            let completedWizard = wizardDTO
-            Task {
-                do {
-                    try await GardenAPI.shared.updateGarden(
-                        id: gardenId,
-                        patch: GardenAPI.GardenPatch(wizard: completedWizard)
-                    )
-                } catch {
-                    AppLog.gardenSave.warning(
-                        "Mise à jour exposition/localisation différée: \(error.localizedDescription, privacy: .public)"
-                    )
-                }
+        // wizard avec l'exposition, le profil déduit et la localisation
+        // fraîche. La file garantit que le prochain snapshot ne pourra pas
+        // être écrasé par celui-ci s'il termine plus tard.
+        queueWizardPersistence(wizardDTO)
+
+        if shouldAdvanceToQuestions {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                goToNext()
             }
         }
+    }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-            goToNext()
-        }
+    private func reopenLocationStep() {
+        showLocationFlow = true
     }
 
     /// Sauvegarde les seules contraintes que l'utilisateur a pu déclarer.
     /// Les questions sans réponse et « Je ne sais pas » restent absentes du
     /// DTO, puis l'expérience continue même si le réseau est indisponible.
     private func completeEssentialQuestions() {
-        if let gardenId = state.createdGardenId {
-            let completedWizard = wizardDTO
-            Task {
-                do {
-                    try await GardenAPI.shared.updateGarden(
-                        id: gardenId,
-                        patch: GardenAPI.GardenPatch(wizard: completedWizard)
-                    )
-                } catch {
-                    AppLog.gardenSave.warning(
-                        "Mise à jour des contraintes différée: \(error.localizedDescription, privacy: .public)"
-                    )
-                }
-            }
-        }
-
-        goToNext()
+        queueWizardPersistence(wizardDTO)
+        startFinalPlacement(with: selectedPlants)
     }
 
-    /// Déclenché par le CTA primaire du dernier step `aiSuggestion`. Ouvre
-    /// `GardenARPlacementView` sur le jardin déjà créé au step précédent
-    /// (`state.createdGardenId` non nil). L'AR placement view chargera la
-    /// WorldMap depuis disque et auto-placera les plantes sélectionnées.
+    private func queueWizardPersistence(_ wizard: GardenWizardDTO) {
+        guard let gardenId = state.createdGardenId else { return }
+        let previousPersistence = pendingWizardPersistence
+
+        do {
+            try GardenLocalStore.saveWizard(wizard, for: gardenId)
+        } catch {
+            AppLog.gardenSave.warning(
+                "Snapshot wizard local non sauvegardé: \(error.localizedDescription, privacy: .public)"
+            )
+        }
+
+        pendingWizardPersistence = Task {
+            await previousPersistence?.value
+            do {
+                try await GardenAPI.shared.updateGarden(
+                    id: gardenId,
+                    patch: GardenAPI.GardenPatch(wizard: wizard)
+                )
+            } catch {
+                AppLog.gardenSave.warning(
+                    "Mise à jour intermédiaire du wizard différée: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+    }
+
+    /// Ouvre directement `GardenARPlacementView` après la dernière question.
+    /// La vue AR charge la WorldMap du jardin déjà créé pendant le scan.
     private func startFinalPlacement(with plants: [Plant]) {
         guard let gardenId = state.createdGardenId else { return }
-        finalPlacementPlants = plants
-        aiSelectedPlants = plants
+        let pendingPersistence = pendingWizardPersistence
         Task {
+            // Évite qu'un ancien PUT de localisation/questions ne termine
+            // après la sauvegarde finale et ne remplace ses données.
+            await pendingPersistence?.value
             await prewarmSelectedPlantModels(plants)
             await MainActor.run {
                 finalPlacementData = FinalPlacementData(gardenId: gardenId, plants: plants)
@@ -515,7 +535,7 @@ struct GardenWizardView: View {
 
     // ✅ state -> DTO pour AR + backend
     private var wizardDTO: GardenWizardDTO {
-        GardenWizardDTO(
+        let wizard = GardenWizardDTO(
             style: state.style?.rawValue ?? "",
             spaceType: state.spaceType?.rawValue ?? "",
             exposure: state.exposure?.rawValue,
@@ -531,6 +551,7 @@ struct GardenWizardView: View {
                 ? nil
                 : state.conditionalAnswers
         )
+        return GardenSiteProfileResolver.wizardByPersistingResolvedProfile(wizard)
     }
 
     private var gardenName: String { L10n.t("MY_GARDEN_TITLE") }
@@ -544,7 +565,7 @@ struct GardenWizardView: View {
 
             VStack(spacing: 0) {
 
-                WizardProgressHeader(currentIndex: currentIndex, total: visibleSteps.count)
+                WizardProgressHeader(currentIndex: progressIndex, total: progressTotal)
                     .padding(.horizontal, 24)
                     .padding(.top, 60)
                     .padding(.bottom, 12)
@@ -556,18 +577,13 @@ struct GardenWizardView: View {
                     EssentialQuestionsStepView(
                         state: state,
                         onContinue: completeEssentialQuestions,
-                        onSkip: completeEssentialQuestions
+                        onBack: reopenLocationStep,
+                        onProgressChange: { index, count in
+                            essentialQuestionIndex = index
+                            essentialQuestionCount = count
+                        }
                     )
                     .tag(GardenWizardStep.essentialQuestions)
-
-                    AISuggestionStepView(
-                        state: state,
-                        allPlants: allCataloguePlants,
-                        onPlaceInAR: startFinalPlacement(with:),
-                        onBack: goToPrevious,
-                        selectedPlants: $aiSelectedPlants
-                    )
-                    .tag(GardenWizardStep.aiSuggestion)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
             }
@@ -608,7 +624,7 @@ struct GardenWizardView: View {
         // boundary (plants vides à ce stade) et renvoie le `gardenId` créé.
         // On stocke l'id et les mesures dans `state`, on ferme la caméra,
         // puis on demande la localisation et les questions essentielles avant
-        // `aiSuggestion`.
+        // d'ouvrir directement l'AR.
         .fullScreenCover(isPresented: $showPerimeterFlow) {
             ARViewContainerMesure(
                 selectedPlants: [],
@@ -643,7 +659,7 @@ struct GardenWizardView: View {
         // Mode « scan 3D » — branche LiDAR. Même contrat que la branche
         // perimeter : POST /gardens à la fin du scan, callback avec l'id
         // créé, fermeture de la caméra puis localisation et questions avant
-        // aiSuggestion.
+        // l'ouverture directe de l'AR.
         .fullScreenCover(isPresented: $showLiDARFlow) {
             LiDARScanWizardView(
                 uid: uid,
@@ -683,11 +699,11 @@ struct GardenWizardView: View {
                 }
             )
         }
-        // Placement final — déclenché par le CTA du step `aiSuggestion`.
+        // Placement final — déclenché après la dernière question.
         // Ouvre le jardin tout neuf (créé au step `scanMethod`) en mode
         // `.create` pour que la WorldMap soit chargée mais que les plantes
-        // soient instanciées à partir de `aiSelectedPlants` (pas du JSON
-        // disque qui n'existe pas encore). À la validation finale, la save
+        // soient instanciées à partir de la sélection initiale éventuelle (pas
+        // du JSON disque qui n'existe pas encore). À la validation finale, la save
         // logic de `GardenARPlacementView` détecte `existingGardenId != nil`
         // et déclenche un `PUT /gardens/:id` au lieu d'un POST.
         .fullScreenCover(item: $finalPlacementData) { data in
@@ -729,13 +745,12 @@ struct GardenWizardView: View {
             state.lightExposure = nil
             state.conditionalAnswers = GardenConditionalAnswersDTO()
             state.safetySelections = []
-            finalPlacementPlants = []
-            aiSelectedPlants = []
-
-            // 🤖 Fetch all catalogue plants for AI suggestion
-            fetchCataloguePlants()
+            essentialQuestionIndex = 0
+            essentialQuestionCount = 3
         }
         .onChange(of: state.spaceType) { _, _ in
+            essentialQuestionIndex = 0
+            essentialQuestionCount = 3
             state.scanMethod = nil
             state.exposure = nil
             state.maintenance = nil
@@ -746,29 +761,7 @@ struct GardenWizardView: View {
             state.conditionalAnswers = GardenConditionalAnswersDTO()
 
             if !visibleSteps.contains(currentStep) {
-                currentStep = visibleSteps.last ?? .aiSuggestion
-            }
-        }
-    }
-
-    // MARK: - Fetch Catalogue Plants for AI Suggestion
-
-    /// Loads the full plant catalogue from the backend.
-    /// Called once on wizard appear — the data is used by the AI suggestion step.
-    private func fetchCataloguePlants() {
-        guard allCataloguePlants.isEmpty else { return } // Already loaded
-        Task {
-            do {
-                let plants: [Plant] = try await NetworkManager.shared.request(
-                    endpoint: "/plants",
-                    method: .GET
-                )
-                await MainActor.run {
-                    self.allCataloguePlants = plants
-                }
-            } catch {
-                print("⚠️ AI Suggestion: Failed to fetch plants — \(error.localizedDescription)")
-                // Non-blocking: the AI step will work with empty array and show a message
+                currentStep = visibleSteps.last ?? .essentialQuestions
             }
         }
     }

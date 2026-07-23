@@ -72,19 +72,26 @@ struct GardenExposureCaptureOverlay: View {
                         onCapture(motion.magneticYawRadians)
                     } label: {
                         HStack(spacing: 9) {
+                            if !motion.isReady {
+                                ProgressView()
+                                    .tint(.white)
+                            }
                             Text(L10n.t("GARDEN_EXPOSURE_CAPTURE"))
-                            Image(systemName: "checkmark")
+                            if motion.isReady {
+                                Image(systemName: "checkmark")
+                            }
                         }
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 54)
                         .background(
-                            ArboreDesign.Colors.primaryGreen,
+                            ArboreDesign.Colors.primaryGreen.opacity(motion.isReady ? 1 : 0.55),
                             in: RoundedRectangle(cornerRadius: 17, style: .continuous)
                         )
                     }
                     .buttonStyle(.plain)
+                    .disabled(!motion.isReady)
                 }
                 .padding(20)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
@@ -117,11 +124,17 @@ struct GardenExposureCaptureOverlay: View {
 @MainActor
 private final class GardenExposureMotionController: ObservableObject {
     @Published private(set) var magneticYawRadians: Double?
+    @Published private(set) var isReady = false
 
     private let manager = CMMotionManager()
 
     func start() {
-        guard manager.isDeviceMotionAvailable else { return }
+        guard manager.isDeviceMotionAvailable else {
+            // L'exposition lumineuse reste capturable sur un appareil sans
+            // mouvement disponible, mais l'orientation sera absente.
+            isReady = true
+            return
+        }
         let available = CMMotionManager.availableAttitudeReferenceFrames()
         let reference: CMAttitudeReferenceFrame = available.contains(.xMagneticNorthZVertical)
             ? .xMagneticNorthZVertical
@@ -131,9 +144,15 @@ private final class GardenExposureMotionController: ObservableObject {
         manager.showsDeviceMovementDisplay = true
         manager.startDeviceMotionUpdates(using: reference, to: .main) { [weak self] motion, _ in
             guard let self, let motion else { return }
-            self.magneticYawRadians = reference == .xMagneticNorthZVertical
-                ? motion.attitude.yaw
+            // `heading` est directement exprimé dans [0, 360) par rapport au
+            // nord magnétique avec le repère xMagneticNorthZVertical. Il est
+            // plus explicite et plus stable ici que l'angle d'Euler `yaw`.
+            self.magneticYawRadians = motion.heading >= 0
+                ? motion.heading * .pi / 180
                 : nil
+            // Empêche surtout la validation dans les toutes premières
+            // millisecondes, avant que la boussole ait fourni sa valeur.
+            self.isReady = true
         }
     }
 

@@ -529,6 +529,7 @@ class PrivacySettingsIntegrationTests: XCTestCase {
     }
 
     override func setUpWithError() throws {
+        try LiveIntegrationTestGate.requireEnabled()
         try ensureBackendIsReachableOrSkip()
 
         // Configuration Firebase
@@ -537,8 +538,7 @@ class PrivacySettingsIntegrationTests: XCTestCase {
         }
 
         // Générer un email unique pour éviter les conflits
-        let timestamp = Int(Date().timeIntervalSince1970)
-        testEmail = "test-rgpd-\(timestamp)@arbore.test"
+        testEmail = "test-rgpd-\(UUID().uuidString.lowercased())@arbore.test"
 
         // Créer le user dans Firebase Auth
         let createExpectation = XCTestExpectation(description: "Create test user")

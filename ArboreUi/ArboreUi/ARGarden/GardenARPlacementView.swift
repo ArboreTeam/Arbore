@@ -538,7 +538,7 @@ struct GardenARPlacementView: View {
             ThermalStateBanner()
         }
         .fullScreenCover(isPresented: $showPicker) {
-            PlantCatalogARView(placementMode: placementMode) { plant in
+            PlantCatalogARView(placementMode: placementMode, wizard: wizard) { plant in
                 selectedPlantForPlacement = plant
                 // Pré-télécharger le modèle 3D de la plante sélectionnée
                 Task {

@@ -1,2 +1,5 @@
 "NSCameraUsageDescription" = "Arbore utilise la caméra pour mesurer votre espace et y afficher les plantes en réalité augmentée.";
 "NSLocationWhenInUseUsageDescription" = "Arbore utilise une position approximative pour adapter les plantes au climat local et calculer l’orientation.";
+"NSCalendarsFullAccessUsageDescription" = "Arbore ajoute à votre demande des rappels d’entretien dans votre calendrier.";
+"NSPhotoLibraryAddUsageDescription" = "Arbore enregistre dans vos photos uniquement l’image de votre aménagement lorsque vous le demandez.";
+"NSWorldSensingUsageDescription" = "Arbore utilise le capteur LiDAR pour mesurer précisément votre espace en 3D.";

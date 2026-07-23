@@ -76,7 +76,7 @@ func checkIfUserExists(uid: String) async -> Bool {
             method: .GET
         )
         return true  // Utilisateur trouvé
-    } catch NetworkError.serverError(let message) where message.contains("404") {
+    } catch NetworkError.notFound {
         return false  // Utilisateur non trouvé
     } catch {
         print("❌ Erreur lors de la vérification de l'utilisateur:", error)
@@ -84,17 +84,39 @@ func checkIfUserExists(uid: String) async -> Bool {
     }
 }
 
+/// Garantit que le profil Mongo existe avant d'enchaîner une opération qui en
+/// dépend (notamment le stockage du refresh token Apple). Contrairement à
+/// `checkIfUserExists`, une erreur réseau n'est jamais confondue avec un 404.
+@discardableResult
+func ensureUserInBackend(uid: String, email: String, name: String, createdAt: Date) async throws -> Bool {
+    do {
+        let _: UserResponse = try await NetworkManager.shared.request(
+            endpoint: "/users/\(uid)",
+            method: .GET
+        )
+        return false
+    } catch NetworkError.notFound {
+        try await saveUserToBackendThrowing(uid: uid, email: email, name: name, createdAt: createdAt)
+        recordInitialConsents(uid: uid)
+        return true
+    }
+}
+
 /// Appelle `saveUserToBackend(...)` uniquement si l'utilisateur n'existe pas encore dans MongoDB
 func saveUserToBackendIfNeeded(uid: String, email: String, name: String, createdAt: Date) {
     Task {
-        let exists = await checkIfUserExists(uid: uid)
-        if !exists {
-            saveUserToBackend(uid: uid, email: email, name: name, createdAt: createdAt)
-            // Nouveau compte (SSO Google/Apple) → capture initiale des consentements (#218).
-            // L'inscription email passe par son propre appel dans SignUpView.
-            recordInitialConsents(uid: uid)
-        } else {
-            print("ℹ️ Utilisateur déjà existant dans MongoDB")
+        do {
+            let created = try await ensureUserInBackend(
+                uid: uid,
+                email: email,
+                name: name,
+                createdAt: createdAt
+            )
+            if !created {
+                print("ℹ️ Utilisateur déjà existant dans MongoDB")
+            }
+        } catch {
+            print("❌ Impossible de garantir le profil backend:", error.localizedDescription)
         }
     }
 }
@@ -113,11 +135,7 @@ func saveUserToBackendIfNeeded(uid: String, email: String, name: String, created
 /// envoyait `consentGiven`/`consentDate` sans `version` → 400 silencieux.
 func recordInitialConsents(uid: String) {
     Task {
-        // IP + User-Agent récupérés une seule fois pour tout le snapshot.
-        let ipAddress = await getUserIPAddress()
-        let userAgent = "ArboreApp/iOS"
         let version = AppConfig.privacyPolicyVersion
-        let timestamp = ISO8601DateFormatter().string(from: Date())
 
         var snapshot: [(type: String, granted: Bool)] = [
             ("terms", true),
@@ -129,10 +147,7 @@ func recordInitialConsents(uid: String) {
             let body: [String: Any] = [
                 "consentType": entry.type,
                 "granted": entry.granted,
-                "version": version,
-                "timestamp": timestamp,
-                "ipAddress": ipAddress,
-                "userAgent": userAgent
+				"version": version
             ]
             do {
                 try await NetworkManager.shared.requestNoResponse(
@@ -154,35 +169,15 @@ func recordInitialConsents(uid: String) {
 /// l'échange contre un refresh_token Apple et le stocke chiffré. Indispensable
 /// pour révoquer le compte Apple à la suppression (Guideline 5.1.1(v)).
 /// Best-effort : n'impacte jamais le login (les échecs sont seulement logués).
-func linkAppleAccountWithBackend(authorizationCode: String) {
-    Task {
-        do {
-            try await NetworkManager.shared.requestNoResponse(
-                endpoint: "/users/me/apple-link",
-                method: .POST,
-                body: ["authorizationCode": authorizationCode]
-            )
-            #if DEBUG
-            print("✅ Apple authorization_code forwardé au backend")
-            #endif
-        } catch {
-            print("⚠️ apple-link forward échoué:", error.localizedDescription)
-        }
-    }
-}
-
-/// Récupère l'adresse IP de l'utilisateur
-private func getUserIPAddress() async -> String {
-    do {
-        let (data, _) = try await URLSession.shared.data(from: URL(string: "https://api.ipify.org?format=json")!)
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: String],
-           let ip = json["ip"] {
-            return ip
-        }
-    } catch {
-        print("❌ Failed to get IP address:", error.localizedDescription)
-    }
-    return "unknown"
+func linkAppleAccountWithBackend(authorizationCode: String) async throws {
+    try await NetworkManager.shared.requestNoResponse(
+        endpoint: "/users/me/apple-link",
+        method: .POST,
+        body: ["authorizationCode": authorizationCode]
+    )
+    #if DEBUG
+    print("✅ Apple authorization_code forwardé au backend")
+    #endif
 }
 
 // MARK: - Response Models

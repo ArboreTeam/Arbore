@@ -182,16 +182,16 @@ Grouped into dedicated files, applied only to `/chat` and `/diagnose`:
 | `MASTER_ENCRYPTION_KEY` | AES-256 key (64 hex) for encryption at rest (#210). | 🔒 secret |
 | `APPLE_TEAM_ID` / `APPLE_KEY_ID` | Apple Developer identifiers (SIWA revocation). | configuration |
 | `APPLE_SIWA_CLIENT_ID` | Apple OAuth `client_id`. Native iOS flow = bundle ID `com.arboreteam.arbore`. | configuration |
-| `APPLE_SIWA_KEY_PATH` / `APPLE_SIWA_PRIVATE_KEY` | SIWA `.p8` private key (PKCS8 EC), by path or PEM content. | 🔒 secret |
+| `APPLE_SIWA_KEY_PATH` | Internal path to the SIWA `.p8` private key, mounted read-only from outside the repository. | 🔒 secret |
 | `UNSPLASH_ACCESS_KEY` | Unsplash API key (catalog photos). | 🔒 secret |
 | `GEMINI_API_KEY` | Google Gemini API key for the `/chat` and `/diagnose` proxies. Carried in the `x-goog-api-key` header. | 🔒 secret |
 | `GEMINI_MODEL` | Gemini model used. Code default: `gemini-2.5-flash`. | configuration |
 | `AI_GENERATOR_URL` | AI Generator URL. Code default: `http://localhost:8001`; in prod: internal Docker URL. Endpoint `/generate`. | configuration |
 | `THUMBNAILS_DIR` | PNG thumbnails directory. | configuration |
-| `THUMBNAIL_UPLOAD_ALLOWED_UIDS` | UIDs allowed to upload thumbnails. | configuration |
+| `ARBORE_ADMIN_UIDS` | Bootstrap administrator UID allow-list; prefer Firebase custom claims afterwards. | 🔒 secret |
 | `GIN_MODE` | `release` in prod, `debug` locally. | configuration |
 
-> **Note on `OPENAI_API_KEY`**: present in `.env.example` but **consumed by the AI Generator**, never by the Go backend. **Note on `PORT`**: present in `.env.example` but inert — the server listens hard-coded on `:8080` (`http.Server` built by `newServer` with explicit timeouts, see Gemini hardening); `PORT` only affects host-side port mapping (docker-compose).
+> **Note on `OPENAI_API_KEY`**: consumed only by the AI Generator when that provider is selected, never by the Go backend. **Note on `PORT`**: sets the Go server's listening port when run directly; Docker keeps port `8080` inside the container and uses `PORT` only for the host-side mapping.
 
 ## Key points
 

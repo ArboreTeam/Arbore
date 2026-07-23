@@ -16,7 +16,7 @@ Result: the catalog is instant (PNG), AR placement is fast (light), and the user
 
 ## Runtime behavior
 
-- **Catalog**: `ArboreUi/ArboreUi/Views/PlantCard.swift` loads the PNG thumbnail via `GET /models/thumbnails/{id}.png` (disk cache `PlantThumbnailCache`, fallback to on-device generation `PlantThumbnailGenerator`). Browsing loads **no** 3D at all.
+- **Catalog**: `ArboreUi/ArboreUi/Views/PlantCard.swift` loads the PNG thumbnail through `GET /models/thumbnails/{id}.png?v={designVersion}` and stores it in `PlantThumbnailCache`. The version parameter invalidates both the iOS disk cache and the former Cloudflare response when a new design replaces a file under the same identifier. Every render also carries a version signature hidden inside the card's clipped corners; any server PNG without that signature is rejected. If a PNG is unavailable or outdated, the catalog photo is used as a lightweight fallback: the customer-facing catalog never builds 3D thumbnails locally. `PlantThumbnailGenerator` remains limited to the debug/admin screen used before upload. Those renders fit the model's complete projected volume with a shared margin, a continuous gray backdrop, and a short contact shadow.
 - **3D model**: `ArboreUi/ArboreUi/Services/ModelCacheManager.swift` downloads the USDZ (disk cache keyed by file name), used in AR and for thumbnail generation.
 - **Backend**: `GET /models/:filename` (protected) serves the USDZ from `./models/`; the `?lod=heavy` parameter switches the read to `./models/heavy/`. `GET /models/thumbnails/:filename` (public) serves the PNGs.
 

@@ -870,6 +870,20 @@ enum GardenSiteProfileResolver {
             }
         }
 
+        // Le nouveau parcours ne demande plus une durée d'ensoleillement.
+        // Il mesure la direction de la source principale et la luminosité
+        // instantanée. On en déduit donc une plage volontairement large et
+        // explicitement marquée comme peu fiable, au lieu de la présenter
+        // comme une mesure quotidienne exacte.
+        if profile.sunlight == nil,
+           let lightExposure = wizard.lightExposure {
+            profile.sunlight = inferredSunlight(
+                from: lightExposure,
+                orientation: profile.orientation,
+                location: wizard.location
+            )
+        }
+
         if profile.wind == nil, let declaredWind = wizard.conditionalAnswers?.windExposure {
             let level: GardenWindLevelDTO
             switch declaredWind {
@@ -887,6 +901,61 @@ enum GardenSiteProfileResolver {
         }
 
         return profile
+    }
+
+    /// Prépare le snapshot envoyé au backend. Les valeurs automatiquement
+    /// comprises par Arbore sont ainsi persistées dans `siteProfile` et ne
+    /// dépendent plus d'une nouvelle interprétation à chaque ouverture.
+    static func wizardByPersistingResolvedProfile(_ wizard: GardenWizardDTO) -> GardenWizardDTO {
+        var persistedWizard = wizard
+        let resolved = resolvedProfile(for: wizard)
+        if resolved != GardenSiteProfileDTO() {
+            persistedWizard.siteProfile = resolved
+        }
+        return persistedWizard
+    }
+
+    private static func inferredSunlight(
+        from exposure: GardenLightExposureDTO,
+        orientation: GardenOrientationDTO?,
+        location: GardenLocationDTO?
+    ) -> GardenSunlightDTO? {
+        let metadata = GardenValueMetadataDTO(source: .inferred, confidence: .low)
+
+        // Pour une façade, une fenêtre ou un balcon, l'orientation par
+        // rapport à la course générale du soleil est plus informative que la
+        // luminosité d'une seule image. L'hémisphère inverse la direction la
+        // plus favorable. Les seuils restent larges car les masques proches
+        // (immeubles, arbres, stores) ne sont pas encore connus.
+        if let latitude = location?.latitude,
+           abs(latitude) >= 10,
+           let degrees = orientation?.degrees {
+            let favorableDirection = latitude >= 0 ? 180.0 : 0.0
+            let rawDifference = abs(normalizedDegrees(degrees) - favorableDirection)
+            let difference = min(rawDifference, 360 - rawDifference)
+
+            if difference <= 67.5 {
+                return GardenSunlightDTO(minimumHours: 6, maximumHours: 12, metadata: metadata)
+            }
+            if difference <= 112.5 {
+                return GardenSunlightDTO(minimumHours: 3, maximumHours: 6, metadata: metadata)
+            }
+            return GardenSunlightDTO(minimumHours: 0, maximumHours: 3, metadata: metadata)
+        }
+
+        // Sans coordonnées exploitables (ville saisie manuellement, par
+        // exemple), l'estimation lumineuse ARKit fournit seulement un indice
+        // de secours. Elle reste signalée avec une confiance faible.
+        guard let intensity = exposure.ambientIntensity, intensity.isFinite, intensity > 0 else {
+            return nil
+        }
+        if intensity >= 900 {
+            return GardenSunlightDTO(minimumHours: 6, maximumHours: 12, metadata: metadata)
+        }
+        if intensity >= 450 {
+            return GardenSunlightDTO(minimumHours: 3, maximumHours: 6, metadata: metadata)
+        }
+        return GardenSunlightDTO(minimumHours: 0, maximumHours: 3, metadata: metadata)
     }
 
     static func normalizedDegrees(_ degrees: Double) -> Double {

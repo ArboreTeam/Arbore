@@ -1,7 +1,7 @@
 Arbore es tu compañero de jardinería inteligente: diseña, cultiva y cuida tus plantas con facilidad, tengas o no mano para las plantas.
 
 DISEÑA TU FUTURO JARDÍN EN REALIDAD AUMENTADA
-Responde unas preguntas sobre tu espacio, tu estilo y tu luz, y deja que Arbore te sugiera las plantas ideales. Luego coloca plantas 3D a escala real en tu habitación o jardín con realidad aumentada y organízalas hasta que todo encaje.
+Mide tu espacio, registra su luz y responde unas preguntas esenciales para que Arbore destaque las plantas adecuadas. Luego coloca plantas 3D a escala real en tu habitación o jardín con realidad aumentada y organízalas hasta que todo encaje.
 
 SUGERENCIAS DE PLANTAS A TU MEDIDA
 Recibe una selección personalizada según tu exposición, tu nivel de mantenimiento y la armonía de tu espacio, sin necesidad de experiencia.
@@ -13,6 +13,6 @@ MIDE TU LUZ
 Evalúa la luz de un lugar y encuentra las plantas que prosperarán allí.
 
 PRIVACIDAD ANTE TODO
-Arbore es una beta gratuita y sin fines comerciales creada por un equipo de estudiantes. Sin anuncios, sin seguimiento y sin compras integradas: tus datos son tuyos (conforme al RGPD).
+Arbore no contiene publicidad, seguimiento entre aplicaciones ni compras integradas. La ubicación aproximada solo se guarda para adaptar un jardín. Los diagnósticos técnicos son opcionales.
 
 Cultiva en armonía.

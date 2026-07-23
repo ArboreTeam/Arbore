@@ -27,23 +27,23 @@ var (
 // MASTER_ENCRYPTION_KEY (64 caractères hex). Erreur si absente ou mal formée.
 func masterEncryptionKey() ([]byte, error) {
 	encKeyOnce.Do(func() {
-		raw := os.Getenv("MASTER_ENCRYPTION_KEY")
-		if raw == "" {
-			encKeyErr = errors.New("MASTER_ENCRYPTION_KEY non défini")
-			return
-		}
-		key, err := hex.DecodeString(raw)
-		if err != nil {
-			encKeyErr = fmt.Errorf("MASTER_ENCRYPTION_KEY invalide (hex attendu): %w", err)
-			return
-		}
-		if len(key) != 32 {
-			encKeyErr = fmt.Errorf("MASTER_ENCRYPTION_KEY doit faire 32 octets (64 hex), reçu %d", len(key))
-			return
-		}
-		encKey = key
+		encKey, encKeyErr = parseMasterEncryptionKey(os.Getenv("MASTER_ENCRYPTION_KEY"))
 	})
 	return encKey, encKeyErr
+}
+
+func parseMasterEncryptionKey(raw string) ([]byte, error) {
+	if raw == "" {
+		return nil, errors.New("MASTER_ENCRYPTION_KEY non défini")
+	}
+	key, err := hex.DecodeString(raw)
+	if err != nil {
+		return nil, fmt.Errorf("MASTER_ENCRYPTION_KEY invalide (hex attendu): %w", err)
+	}
+	if len(key) != 32 {
+		return nil, fmt.Errorf("MASTER_ENCRYPTION_KEY doit faire 32 octets (64 hex), reçu %d", len(key))
+	}
+	return key, nil
 }
 
 // encrypt scelle `plaintext` avec AES-256-GCM sous la clé maître.

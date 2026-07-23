@@ -1,10 +1,10 @@
 # syntax=docker/dockerfile:1
 # ─────────────────────────────────────────────
-# Arbore Web (Next.js 13) — image autonome (output: 'standalone')
+# Arbore Web (Next.js 16) — image autonome (output: 'standalone')
 # ─────────────────────────────────────────────
 
 # 1. Dépendances
-FROM node:20-alpine AS deps
+FROM node:24-alpine3.23 AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -12,7 +12,7 @@ RUN npm ci
 # 2. Build
 #    Les variables NEXT_PUBLIC_* (Firebase, Sentry) sont lues depuis web/.env
 #    (présent dans le contexte) et inlinées dans le bundle à ce stade.
-FROM node:20-alpine AS builder
+FROM node:24-alpine3.23 AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
@@ -20,7 +20,7 @@ COPY . .
 RUN npm run build
 
 # 3. Runtime (image minimale)
-FROM node:20-alpine AS runner
+FROM node:24-alpine3.23 AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

@@ -112,7 +112,7 @@ Voir [**ARWorldMap**](#arworldmap).
 
 ## Wizard
 
-Flux de création de jardin (`GardenWizardStep`) avec trois écrans visibles : `spaceType` → `essentialQuestions` → `aiSuggestion`. Après le choix de l'espace, Arbore sélectionne automatiquement la méthode, ouvre le scan, capture éventuellement l'exposition, crée le jardin, puis demande une localisation fraîche. Les trois questions suivantes sont adaptées au type d'espace et restent facultatives. Il n'existe ni page de méthode ni écran de récapitulatif. Implémenté dans `QuestionnaireView`. Documenté dans [`screens/questionnaire-wizard.md`](screens/questionnaire-wizard.md) et [`flows/garden-creation.md`](flows/garden-creation.md).
+Flux de création de jardin (`GardenWizardStep`) : `spaceType` → `essentialQuestions` → placement AR direct. Après le choix de l'espace, Arbore sélectionne automatiquement la méthode, ouvre le scan, capture éventuellement l'exposition, crée le jardin, puis demande une localisation fraîche. Les trois questions suivantes sont adaptées au type d'espace, restent facultatives et occupent chacune un niveau de la progression globale. Il n'existe ni page de méthode, ni écran de récapitulatif, ni page de suggestion intermédiaire. Implémenté dans `QuestionnaireView`. Documenté dans [`screens/questionnaire-wizard.md`](screens/questionnaire-wizard.md) et [`flows/garden-creation.md`](flows/garden-creation.md).
 
 ---
 

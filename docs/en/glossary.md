@@ -112,7 +112,7 @@ See [**ARWorldMap**](#arworldmap).
 
 ## Wizard
 
-Garden creation flow (`GardenWizardStep`) with three visible screens: `spaceType` → `essentialQuestions` → `aiSuggestion`. After space choice, Arbore automatically selects the method, opens the scan, optionally captures exposure, creates the garden, then requests a fresh location. The following three questions are space-specific and optional. There is no method page or recap screen. Implemented in `QuestionnaireView`. Documented in [`screens/questionnaire-wizard.md`](screens/questionnaire-wizard.md) and [`flows/garden-creation.md`](flows/garden-creation.md).
+Garden creation flow (`GardenWizardStep`): `spaceType` → `essentialQuestions` → direct AR placement. After space choice, Arbore automatically selects the method, opens the scan, optionally captures exposure, creates the garden, then requests a fresh location. The following three questions are space-specific, optional, and each occupies one level of global progress. There is no method page, recap screen, or intermediate suggestion page. Implemented in `QuestionnaireView`. Documented in [`screens/questionnaire-wizard.md`](screens/questionnaire-wizard.md) and [`flows/garden-creation.md`](flows/garden-creation.md).
 
 ---
 

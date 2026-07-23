@@ -19,6 +19,7 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
 
+        try LiveIntegrationTestGate.requireEnabled()
         try ensureBackendIsReachableOrSkip()
 
         // Configure Firebase
@@ -27,8 +28,7 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
         }
 
         // Create unique test user credentials
-        let timestamp = Int(Date().timeIntervalSince1970)
-        testUserEmail = "test.rgpd.\(timestamp)@arbore.test"
+        testUserEmail = "test.rgpd.\(UUID().uuidString.lowercased())@arbore.test"
         testUserPassword = "TestPassword123!"
     }
 

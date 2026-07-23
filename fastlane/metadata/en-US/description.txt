@@ -1,7 +1,7 @@
 Arbore is your smart gardening companion — design, grow, and care for your plants with ease, whether you're a seasoned gardener or just starting out.
 
 DESIGN YOUR FUTURE GARDEN IN AR
-Answer a few questions about your space, style, and light, and let Arbore suggest the plants that fit. Then place true-to-scale 3D plants right in your room or garden with augmented reality, and arrange them until it feels just right.
+Measure your space, record its light, and answer a few essential questions so Arbore can highlight suitable plants. Then place true-to-scale 3D plants right in your room or garden with augmented reality, and arrange them until it feels just right.
 
 SMART PLANT SUGGESTIONS
 Get a personalized selection based on your exposure, maintenance level, and the harmony of your space — no green thumb required.
@@ -13,6 +13,6 @@ MEASURE YOUR LIGHT
 Gauge the light in a spot and find the plants that will thrive there.
 
 PRIVACY FIRST
-Arbore is a free, non-commercial beta from a student team. No ads, no tracking, no in-app purchases — your data stays yours (GDPR-friendly).
+Arbore has no ads, no cross-app tracking and no in-app purchases. Approximate location is stored only to adapt a garden. Technical diagnostics are optional.
 
 Grow with harmony.

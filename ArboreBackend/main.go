@@ -38,6 +38,13 @@ var (
 const (
 	prodDBName = "arbore"
 	testDBName = "arbore_test"
+
+	maxJSONBodyBytes     = int64(10 << 20) // base64 diagnosis image included
+	maxProfilePhotoBytes = int64(5 << 20)
+	maxThumbnailBytes    = int64(8 << 20)
+	maxAIImageBytes      = 6 << 20
+	maxPlantNameRunes    = 120
+	maxBulkPlantNames    = 10
 )
 
 // getDatabaseForRequest retourne la *mongo.Database à utiliser pour la
@@ -472,8 +479,22 @@ func createUser(c *gin.Context) {
 		return
 	}
 	user.UID = tokenUID.(string)
-
-	fmt.Printf("✅ Donnée reçue dans createUser : %+v\n", user)
+	tokenEmail := strings.TrimSpace(c.GetString("email"))
+	if tokenEmail == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Authenticated email is missing"})
+		return
+	}
+	user.Email = tokenEmail
+	user.Name = strings.TrimSpace(user.Name)
+	if len([]rune(user.Name)) > 100 {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Name is too long (max 100 characters)"})
+		return
+	}
+	user.CreatedAt = time.Now().UTC().Format(time.RFC3339)
+	user.Banned = false
+	user.PhotoData = ""
+	user.PhotoContentType = ""
+	user.AppleRefreshTokenEncrypted = nil
 
 	collection := getDatabaseForRequest(c).Collection("users")
 	_, err := collection.InsertOne(context.Background(), maybeLabelTestDoc(c.GetString(middleware.DBSelectorKey), user))
@@ -552,8 +573,17 @@ func deleteUser(c *gin.Context) {
 	}
 
 	uid := authenticatedUID.(string)
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
 	db := getDatabaseForRequest(c)
+	usersCollection := db.Collection("users")
+
+	// Read the Apple token before erasing the profile. Revocation is best-effort
+	// and never prevents the user from deleting their Arbore account.
+	var userDoc User
+	if err := usersCollection.FindOne(ctx, bson.M{"uid": uid}).Decode(&userDoc); err == nil && len(userDoc.AppleRefreshTokenEncrypted) > 0 {
+		revokeAppleBestEffort(ctx, userDoc.AppleRefreshTokenEncrypted)
+	}
 
 	// 1. Supprimer tous les gardens de l'utilisateur
 	gardensCollection := db.Collection("gardens")
@@ -575,15 +605,11 @@ func deleteUser(c *gin.Context) {
 	}
 	log.Printf("✅ %d consentement(s) supprimé(s)", consentsResult.DeletedCount)
 
-	// 2bis. Révocation Apple (Guideline 5.1.1(v), #210) — best-effort, ne bloque
-	// jamais la suppression. Si l'utilisateur s'est connecté via Sign in with
-	// Apple, on révoque son refresh_token côté Apple avant d'effacer le compte.
-	usersCollection := db.Collection("users")
-	var userDoc User
-	if err := usersCollection.FindOne(ctx, bson.M{"uid": uid}).Decode(&userDoc); err == nil {
-		if len(userDoc.AppleRefreshTokenEncrypted) > 0 {
-			revokeAppleBestEffort(ctx, uid, userDoc.AppleRefreshTokenEncrypted)
-		}
+	legacyPostsDeleted, err := deleteLegacyCommunityData(ctx, db, uid)
+	if err != nil {
+		log.Println("❌ Erreur lors de la suppression des anciennes données communautaires:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la suppression des anciennes données communautaires"})
+		return
 	}
 
 	// 3. Supprimer l'utilisateur
@@ -594,19 +620,28 @@ func deleteUser(c *gin.Context) {
 		return
 	}
 
-	if userResult.DeletedCount == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"message": "Aucun utilisateur trouvé avec ce UID"})
+	// 4. Supprimer aussi l'identité Firebase. Cette opération reste rejouable :
+	// les suppressions Mongo ci-dessus sont idempotentes, donc une erreur
+	// temporaire Firebase peut être corrigée en répétant la demande.
+	if err := middleware.DeleteFirebaseUser(ctx, uid); err != nil {
+		log.Printf("❌ Firebase account deletion failed: %v", err)
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "Authentication account deletion is temporarily unavailable",
+			"code":  "AUTH_DELETE_FAILED",
+		})
 		return
 	}
 
-	// 4. Logger la suppression complète (audit trail pour RGPD)
-	log.Printf("✅ Utilisateur %s supprimé complètement - Gardens: %d, Consents: %d, User: 1",
-		uid, gardensResult.DeletedCount, consentsResult.DeletedCount)
+	// 5. Logger uniquement les compteurs, sans conserver d'autres données.
+	log.Printf("✅ Utilisateur supprimé complètement - Gardens: %d, Consents: %d, LegacyPosts: %d, User: %d, Firebase: 1",
+		gardensResult.DeletedCount, consentsResult.DeletedCount, legacyPostsDeleted, userResult.DeletedCount)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":         "Utilisateur supprimé avec succès",
-		"gardensDeleted":  gardensResult.DeletedCount,
-		"consentsDeleted": consentsResult.DeletedCount,
+		"message":               "Utilisateur supprimé avec succès",
+		"gardensDeleted":        gardensResult.DeletedCount,
+		"consentsDeleted":       consentsResult.DeletedCount,
+		"legacyPostsDeleted":    legacyPostsDeleted,
+		"authenticationDeleted": true,
 	})
 }
 
@@ -634,37 +669,44 @@ func linkAppleAccount(c *gin.Context) {
 
 	cfg, err := loadAppleSIWAConfig()
 	if err != nil {
-		log.Printf("⚠️ apple-link: config SIWA indisponible (%v) — skip pour %s", err, uid)
+		log.Printf("⚠️ apple-link: config SIWA indisponible (%v) — liaison ignorée", err)
 		c.JSON(http.StatusOK, gin.H{"linked": false, "reason": "apple_siwa_not_configured"})
 		return
 	}
 
 	refreshToken, err := cfg.exchangeAuthorizationCode(c.Request.Context(), body.AuthorizationCode)
 	if err != nil {
-		log.Printf("❌ apple-link: échange du code échoué pour %s: %v", uid, err)
+		log.Printf("❌ apple-link: échange du code échoué: %v", err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "échange Apple échoué"})
 		return
 	}
 
 	encrypted, err := encrypt([]byte(refreshToken))
 	if err != nil {
-		log.Printf("❌ apple-link: chiffrement échoué pour %s: %v", uid, err)
+		log.Printf("❌ apple-link: chiffrement échoué: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "chiffrement échoué"})
 		return
 	}
 
-	_, err = getDatabaseForRequest(c).Collection("users").UpdateOne(
+	result, err := getDatabaseForRequest(c).Collection("users").UpdateOne(
 		context.Background(),
 		bson.M{"uid": uid},
 		bson.M{"$set": bson.M{"appleRefreshTokenEncrypted": encrypted}},
 	)
 	if err != nil {
-		log.Printf("❌ apple-link: update Mongo échoué pour %s: %v", uid, err)
+		log.Printf("❌ apple-link: update Mongo échoué: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "stockage échoué"})
 		return
 	}
+	if result.MatchedCount == 0 {
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "User profile must exist before linking Sign in with Apple",
+			"code":  "USER_PROFILE_MISSING",
+		})
+		return
+	}
 
-	log.Printf("✅ apple-link: refresh_token Apple stocké (chiffré) pour %s", uid)
+	log.Print("✅ apple-link: refresh_token Apple stocké (chiffré)")
 	c.JSON(http.StatusOK, gin.H{"linked": true})
 }
 
@@ -690,16 +732,14 @@ func recordConsent(c *gin.Context) {
 
 	consent.UID = authenticatedUID.(string)
 	consent.ID = primitive.NewObjectID()
-
-	if consent.Timestamp.IsZero() {
-		consent.Timestamp = time.Now()
-	}
-
-	if consent.IPAddress == "" {
-		consent.IPAddress = c.ClientIP()
-	}
-	if consent.UserAgent == "" {
-		consent.UserAgent = c.GetHeader("User-Agent")
+	// Proof of consent must use server-controlled metadata. The IP address is
+	// deliberately not retained: it is unnecessary for proving the action and
+	// would add personal data to the database.
+	consent.Timestamp = time.Now().UTC()
+	consent.IPAddress = ""
+	consent.UserAgent = strings.TrimSpace(c.GetHeader("User-Agent"))
+	if len([]rune(consent.UserAgent)) > 300 {
+		consent.UserAgent = string([]rune(consent.UserAgent)[:300])
 	}
 
 	collection := getDatabaseForRequest(c).Collection("consents")
@@ -907,7 +947,12 @@ func generateAndInsertPlant(ctx context.Context, name string, dbSelector string)
 		aiGeneratorURL = "http://localhost:8001"
 	}
 	// nolint:gosec // aiGeneratorURL comes from trusted AI_GENERATOR_URL environment variable
-	resp, err := http.Post(aiGeneratorURL+"/generate", "application/json", bytes.NewBuffer(jsonData))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, aiGeneratorURL+"/generate", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return Plant{}, false, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := (&http.Client{Timeout: 60 * time.Second}).Do(req)
 	if err != nil {
 		log.Println("❌ Erreur appel API IA:", err)
 		return Plant{}, false, err
@@ -918,8 +963,13 @@ func generateAndInsertPlant(ctx context.Context, name string, dbSelector string)
 		}
 	}()
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
-	log.Println("🔍 Réponse brute de l'IA (status", resp.StatusCode, "):", string(bodyBytes))
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return Plant{}, false, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return Plant{}, false, fmt.Errorf("AI generator returned HTTP %d", resp.StatusCode)
+	}
 
 	var aiResponse AIResponse
 	err = json.Unmarshal(bodyBytes, &aiResponse)
@@ -929,7 +979,7 @@ func generateAndInsertPlant(ctx context.Context, name string, dbSelector string)
 	}
 
 	// Images Unsplash
-	imageURLs := fetchUnsplashImageURLs(name, 3)
+	imageURLs := fetchUnsplashImageURLs(ctx, name, 3)
 	modelFile := resolveModelFilename(name)
 	if modelFile == "" {
 		log.Println("⚠️ Aucun modèle USDZ trouvé pour:", name)
@@ -1001,7 +1051,15 @@ func generatePlantWithAI(c *gin.Context) {
 		return
 	}
 
-	plant, exists, err := generateAndInsertPlant(context.Background(), req.Name, c.GetString(middleware.DBSelectorKey))
+	req.Name = strings.TrimSpace(req.Name)
+	if req.Name == "" || len([]rune(req.Name)) > maxPlantNameRunes {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Plant name must contain between 1 and 120 characters"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 75*time.Second)
+	defer cancel()
+	plant, exists, err := generateAndInsertPlant(ctx, req.Name, c.GetString(middleware.DBSelectorKey))
 	if err != nil {
 		log.Println("❌ Erreur lors de la génération de la plante :", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la génération de la plante"})
@@ -1030,17 +1088,31 @@ func generateMultiplePlantsHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Requête invalide"})
 		return
 	}
+	if len(req.Names) == 0 || len(req.Names) > maxBulkPlantNames {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Provide between 1 and 10 plant names"})
+		return
+	}
 
 	var created []Plant
 	var skipped []string
+	seen := make(map[string]struct{}, len(req.Names))
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 110*time.Second)
+	defer cancel()
 
 	for _, rawName := range req.Names {
 		name := strings.TrimSpace(rawName)
-		if name == "" {
+		normalized := strings.ToLower(name)
+		if name == "" || len([]rune(name)) > maxPlantNameRunes {
+			skipped = append(skipped, name)
 			continue
 		}
+		if _, duplicate := seen[normalized]; duplicate {
+			skipped = append(skipped, name)
+			continue
+		}
+		seen[normalized] = struct{}{}
 
-		plant, exists, err := generateAndInsertPlant(context.Background(), name, c.GetString(middleware.DBSelectorKey))
+		plant, exists, err := generateAndInsertPlant(ctx, name, c.GetString(middleware.DBSelectorKey))
 		if err != nil {
 			log.Println("❌ Erreur lors de la génération pour", name, ":", err)
 			skipped = append(skipped, name)
@@ -1078,7 +1150,7 @@ func uploadUserPhoto(c *gin.Context) {
 		return
 	}
 
-	file, header, err := c.Request.FormFile("photo")
+	file, _, err := c.Request.FormFile("photo")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "photo not provided or invalid"})
 		return
@@ -1089,17 +1161,22 @@ func uploadUserPhoto(c *gin.Context) {
 		}
 	}()
 
-	imageBytes, err := io.ReadAll(file)
+	imageBytes, err := io.ReadAll(io.LimitReader(file, maxProfilePhotoBytes+1))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot read uploaded file"})
 		return
 	}
-
-	encoded := base64.StdEncoding.EncodeToString(imageBytes)
-	contentType := header.Header.Get("Content-Type")
-	if contentType == "" {
-		contentType = http.DetectContentType(imageBytes)
+	if len(imageBytes) == 0 || int64(len(imageBytes)) > maxProfilePhotoBytes {
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Profile photo too large (max 5 MB)"})
+		return
 	}
+
+	contentType := http.DetectContentType(imageBytes)
+	if contentType != "image/jpeg" && contentType != "image/png" {
+		c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": "Only JPEG and PNG profile photos are supported"})
+		return
+	}
+	encoded := base64.StdEncoding.EncodeToString(imageBytes)
 
 	collection := getDatabaseForRequest(c).Collection("users")
 	filter := bson.M{"uid": uidParam}
@@ -1158,35 +1235,7 @@ func getUserPhoto(c *gin.Context) {
 	c.Data(http.StatusOK, contentType, data)
 }
 
-func canUploadThumbnails(uid string) bool {
-	allowed := strings.TrimSpace(os.Getenv("THUMBNAIL_UPLOAD_ALLOWED_UIDS"))
-	if allowed == "" {
-		return false
-	}
-
-	for _, candidate := range strings.Split(allowed, ",") {
-		if strings.TrimSpace(candidate) == uid {
-			return true
-		}
-	}
-
-	return false
-}
-
 func uploadPlantThumbnail(c *gin.Context) {
-	uidValue, exists := c.Get("uid")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
-		return
-	}
-	uid := uidValue.(string)
-
-	if !canUploadThumbnails(uid) {
-		log.Printf("❌ Thumbnail upload forbidden for uid=%s (set THUMBNAIL_UPLOAD_ALLOWED_UIDS)", uid)
-		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: thumbnail upload not allowed for this account"})
-		return
-	}
-
 	plantID := strings.TrimSpace(c.Param("plantId"))
 	if !thumbnailPlantIDRegex.MatchString(plantID) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plant ID"})
@@ -1204,7 +1253,7 @@ func uploadPlantThumbnail(c *gin.Context) {
 		}
 	}()
 
-	maxUploadBytes := int64(100 << 20) // 100MB
+	maxUploadBytes := maxThumbnailBytes
 	imageBytes, err := io.ReadAll(io.LimitReader(file, maxUploadBytes+1))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot read uploaded thumbnail"})
@@ -1212,7 +1261,7 @@ func uploadPlantThumbnail(c *gin.Context) {
 	}
 	if int64(len(imageBytes)) > maxUploadBytes {
 		log.Printf("❌ Thumbnail too large: %d bytes (max %d)", len(imageBytes), maxUploadBytes)
-		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "thumbnail too large (max 100MB)"})
+		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "thumbnail too large (max 8 MB)"})
 		return
 	}
 
@@ -1223,7 +1272,7 @@ func uploadPlantThumbnail(c *gin.Context) {
 
 	thumbnailsDir := strings.TrimSpace(os.Getenv("THUMBNAILS_DIR"))
 	if thumbnailsDir == "" {
-		thumbnailsDir = "/home/fedora/Arbore/ArboreBackend/models/thumbnails"
+		thumbnailsDir = "./models/thumbnails"
 	}
 
 	// nolint:gosec // thumbnailsDir comes from trusted THUMBNAILS_DIR environment variable
@@ -1534,7 +1583,7 @@ func callGeminiAPI(ctx context.Context, payload map[string]interface{}) ([]byte,
 	for attempt < maxAttempts {
 		// Hôte codé en dur (generativelanguage.googleapis.com) : seul le nom du
 		// modèle vient de l'env, donc pas de SSRF réel → gosec en faux positif.
-		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(bodyBytes)) //nolint:gosec // hôte constant Google, pas de SSRF
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(bodyBytes)) //nolint:gosec // hôte constant Google, pas de SSRF
 		if err != nil {
 			return nil, fmt.Errorf("erreur lors de la création de la requête Gemini: %w", err)
 		}
@@ -1551,13 +1600,15 @@ func callGeminiAPI(ctx context.Context, payload map[string]interface{}) ([]byte,
 			}
 			continue
 		}
-		defer func() { _ = resp.Body.Close() }()
-
-		respData, err = io.ReadAll(resp.Body)
+		respData, err = io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+		closeErr := resp.Body.Close()
 		if err != nil {
 			lastErr = err
 			attempt++
 			continue
+		}
+		if closeErr != nil {
+			lastErr = closeErr
 		}
 
 		if resp.StatusCode != http.StatusOK {
@@ -1603,6 +1654,10 @@ func handleGeminiChat(c *gin.Context) {
 	var req ChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if err := validateAIImage(req.ImageData); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -1688,7 +1743,9 @@ func handleGeminiChat(c *gin.Context) {
 		"contents": contents,
 	}
 
-	respData, err := geminiCaller(c.Request.Context(), payload)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 55*time.Second)
+	defer cancel()
+	respData, err := geminiCaller(ctx, payload)
 	if err != nil {
 		// Ne jamais propager err.Error() au client : l'erreur peut contenir l'URL de
 		// l'appel sortant et d'autres détails internes. Log serveur uniquement.
@@ -1734,6 +1791,18 @@ func handleGeminiDiagnose(c *gin.Context) {
 	if strings.TrimSpace(req.ImageData) == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Photo manquante."})
 		return
+	}
+	if err := validateAIImage(req.ImageData); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	if req.PlantName != nil {
+		trimmed := strings.TrimSpace(*req.PlantName)
+		if len([]rune(trimmed)) > maxPlantNameRunes {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Plant name is too long"})
+			return
+		}
+		req.PlantName = &trimmed
 	}
 
 	var userPrompt = "Analyse cette photo de plante et donne ton diagnostic de santé."
@@ -1803,7 +1872,9 @@ Les valeurs numériques sont entre 0 et 1.
 		},
 	}
 
-	respData, err := geminiCaller(c.Request.Context(), payload)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 55*time.Second)
+	defer cancel()
+	respData, err := geminiCaller(ctx, payload)
 	if err != nil {
 		// Idem chat : aucune fuite de l'erreur brute (peut contenir l'URL sortante).
 		log.Printf("❌ callGeminiAPI (diagnose) a échoué: %v", err)
@@ -1856,6 +1927,19 @@ Les valeurs numériques sont entre 0 et 1.
 	}
 
 	c.JSON(http.StatusOK, normalized)
+}
+
+func validateAIImage(encoded string) error {
+	if encoded == "" {
+		return nil
+	}
+	if base64.StdEncoding.DecodedLen(len(encoded)) > maxAIImageBytes {
+		return fmt.Errorf("image is too large (max 6 MB)")
+	}
+	if _, err := base64.StdEncoding.DecodeString(encoded); err != nil {
+		return fmt.Errorf("image data is not valid base64")
+	}
+	return nil
 }
 
 // ---------- LOAD ENV ----------
@@ -1954,11 +2038,23 @@ func main() {
 	if err := middleware.InitFirebase(); err != nil {
 		log.Fatalf("❌ Firebase init failed: %v", err)
 	}
+	if err := validateReleaseSecurityConfig(); err != nil {
+		log.Fatalf("❌ Production security configuration invalid: %v", err)
+	}
 
 	// Configurer la fonction de vérification ban pour le middleware
 	middleware.CheckUserBannedFunc = checkUserBannedFromDB
 
 	router := gin.Default()
+	publicLimiter := middleware.NewWindowLimiter(300, time.Minute)
+	apiLimiter := middleware.NewWindowLimiter(120, time.Minute)
+	chatMinuteLimiter := middleware.NewWindowLimiter(20, time.Minute)
+	chatDailyQuota := middleware.NewWindowLimiter(100, 24*time.Hour)
+	diagnosisMinuteLimiter := middleware.NewWindowLimiter(6, time.Minute)
+	diagnosisDailyQuota := middleware.NewWindowLimiter(20, 24*time.Hour)
+	generationMinuteLimiter := middleware.NewWindowLimiter(5, time.Minute)
+	generationDailyQuota := middleware.NewWindowLimiter(50, 24*time.Hour)
+	uploadMinuteLimiter := middleware.NewWindowLimiter(10, time.Minute)
 
 	// CORS pour autoriser les requêtes depuis le frontend web
 	router.Use(cors.New(cors.Config{
@@ -1968,8 +2064,9 @@ func main() {
 		AllowCredentials: true,
 	}))
 
-	// Augmenter la limite de taille pour les uploads de fichiers (1GB max)
-	router.MaxMultipartMemory = 32 << 20 // 32 Mo (buffer mémoire du parsing multipart)
+	// Multipart parsing stays bounded; route-specific hard limits below also
+	// cover streamed/chunked requests.
+	router.MaxMultipartMemory = 8 << 20
 
 	// === ROUTE PUBLIQUE (Health Check) ===
 	router.GET("/health", func(c *gin.Context) {
@@ -1980,7 +2077,7 @@ func main() {
 		})
 	})
 
-	router.GET("/models/thumbnails/:filename", func(c *gin.Context) {
+	router.GET("/models/thumbnails/:filename", publicLimiter.Middleware(), func(c *gin.Context) {
 		filename := c.Param("filename")
 
 		if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
@@ -2014,7 +2111,6 @@ func main() {
 		c.Header("Content-Type", "image/png")
 		c.File(filePath)
 	})
-
 	// === ROUTES API KEY UNIQUEMENT (sans session Firebase) ===
 	// Config de référence (wizard + règles de soin, cf. #236) : non sensible,
 	// nécessaire dès le lancement de l'app avant authentification utilisateur.
@@ -2029,6 +2125,8 @@ func main() {
 	protected := router.Group("/")
 	protected.Use(middleware.APIKeyMiddleware())
 	protected.Use(middleware.FirebaseAuthMiddleware())
+	protected.Use(apiLimiter.Middleware())
+	protected.Use(middleware.MaxBodyBytes(maxJSONBodyBytes))
 	{
 		// Users
 		protected.POST("/users", createUser)
@@ -2055,7 +2153,7 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"user": user})
 		})
 
-		protected.POST("/users/:uid/photo", uploadUserPhoto)
+		protected.POST("/users/:uid/photo", middleware.MaxBodyBytes(maxProfilePhotoBytes+(1<<20)), uploadMinuteLimiter.Middleware(), uploadUserPhoto)
 		protected.GET("/users/:uid/photo", getUserPhoto)
 		protected.GET("/users/export", exportUserData)
 		protected.PATCH("/users/me", updateUserSelf)
@@ -2063,11 +2161,8 @@ func main() {
 		protected.DELETE("/users", deleteUser)
 
 		// Plants
-		protected.POST("/plants", createPlant)
 		protected.GET("/plants", getPlants)
 		protected.GET("/plants/:id", getPlantByID)
-		protected.POST("/plants/generate", generatePlantWithAI)
-		protected.POST("/plants/generate-multiple", generateMultiplePlantsHandler)
 
 		// Gardens
 		protected.POST("/gardens", createGarden)
@@ -2077,9 +2172,9 @@ func main() {
 		protected.DELETE("/gardens/:id", deleteGarden)
 
 		// Gemini Chat & Scanner Proxies — rate limité par uid pour borner le coût
-		// Gemini et bloquer un client qui boucle (issue #303, cf. ratelimit.go).
-		protected.POST("/chat", chatRateLimiter.middleware(), limitRequestBody(maxGeminiBodyBytes), handleGeminiChat)
-		protected.POST("/diagnose", diagnoseRateLimiter.middleware(), limitRequestBody(maxGeminiBodyBytes), handleGeminiDiagnose)
+		// Gemini, bloquer les rafales et imposer aussi un quota journalier.
+		protected.POST("/chat", chatRateLimiter.middleware(), chatMinuteLimiter.Middleware(), chatDailyQuota.Middleware(), limitRequestBody(maxGeminiBodyBytes), handleGeminiChat)
+		protected.POST("/diagnose", diagnoseRateLimiter.middleware(), diagnosisMinuteLimiter.Middleware(), diagnosisDailyQuota.Middleware(), limitRequestBody(maxGeminiBodyBytes), handleGeminiDiagnose)
 
 		// Consents (RGPD)
 		protected.POST("/consents", recordConsent)
@@ -2120,13 +2215,26 @@ func main() {
 			c.Header("Content-Type", "model/vnd.usdz+zip")
 			c.File(filePath)
 		})
-		protected.POST("/models/thumbnails/:plantId", uploadPlantThumbnail)
 	}
 
-	srv := newServer(":8080", router)
-	fmt.Println("🚀 Serveur démarré sur http://localhost:8080")
-	// Pas d'arrêt gracieux ici : ListenAndServe ne renvoie qu'en cas d'erreur réelle.
-	if err := srv.ListenAndServe(); err != nil {
+	// Catalogue writes and cost-bearing plant generation require an explicit
+	// Firebase administrator role (or the bootstrap ARBORE_ADMIN_UIDS list).
+	admin := protected.Group("/")
+	admin.Use(middleware.RequireAdmin())
+	{
+		admin.POST("/plants", createPlant)
+		admin.POST("/plants/generate", generationMinuteLimiter.Middleware(), generationDailyQuota.Middleware(), generatePlantWithAI)
+		admin.POST("/plants/generate-multiple", generationMinuteLimiter.Middleware(), generationDailyQuota.Middleware(), generateMultiplePlantsHandler)
+		admin.POST("/models/thumbnails/:plantId", middleware.MaxBodyBytes(maxThumbnailBytes+(1<<20)), uploadMinuteLimiter.Middleware(), uploadPlantThumbnail)
+	}
+
+	port := strings.TrimSpace(os.Getenv("PORT"))
+	if port == "" {
+		port = "8080"
+	}
+	server := newServer(":"+port, router)
+	fmt.Printf("🚀 Serveur démarré sur http://localhost:%s\n", port)
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal("❌ Erreur lors du démarrage du serveur :", err) // nolint:misspell
 	}
 
@@ -2136,4 +2244,17 @@ func main() {
 		}
 		fmt.Println("🔌 Déconnecté de MongoDB.")
 	}()
+}
+
+func validateReleaseSecurityConfig() error {
+	if os.Getenv("GIN_MODE") != gin.ReleaseMode {
+		return nil
+	}
+	if _, err := loadAppleSIWAConfig(); err != nil {
+		return fmt.Errorf("Sign in with Apple: %w", err)
+	}
+	if _, err := parseMasterEncryptionKey(os.Getenv("MASTER_ENCRYPTION_KEY")); err != nil {
+		return fmt.Errorf("Apple token encryption: %w", err)
+	}
+	return nil
 }

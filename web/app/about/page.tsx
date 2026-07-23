@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
 import { Card } from '@/components/ui/card';
-import { Heart, Target, Users } from 'lucide-react';
+import { Heart, Leaf, Target } from 'lucide-react';
 
 const team = [
   {
@@ -89,9 +89,9 @@ export default function AboutPage() {
                 description: 'La technologie doit être invisible. Notre mission est de simplifier le jardinage, pas de le compliquer.',
               },
               {
-                icon: Users,
-                title: 'Communauté',
-                description: 'Nous construisons Arbore avec notre communauté, en écoutant vos besoins et en évoluant ensemble.',
+                icon: Leaf,
+                title: 'Écoute',
+                description: 'Nous faisons évoluer Arbore à partir des besoins concrets et des retours de ses utilisateurs.',
               },
             ].map((value, index) => (
               <motion.div
@@ -179,8 +179,8 @@ export default function AboutPage() {
               Rejoignez l&apos;aventure
             </h2>
             <p className="text-xl text-green-100 mb-8">
-              Nous sommes toujours à l&apos;écoute de notre communauté.
-              Vos retours nous aident à améliorer Arbore chaque jour.
+              Nous sommes toujours à l&apos;écoute de vos retours.
+              Ils nous aident à améliorer Arbore chaque jour.
             </p>
             <button className="bg-white text-[#234632] hover:bg-gray-100 px-8 py-4 rounded-full font-semibold text-lg transition-colors">
               Nous contacter

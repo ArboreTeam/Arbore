@@ -230,7 +230,7 @@ enum GardenNearbyHeatDTO: String, Codable {
     case underfloorHeating
 }
 
-struct GardenWizardDTO: Codable {
+struct GardenWizardDTO: Codable, Equatable {
     var style: String
     var spaceType: String
     var exposure: String?
@@ -242,6 +242,46 @@ struct GardenWizardDTO: Codable {
     var lightExposure: GardenLightExposureDTO? = nil
     var siteProfile: GardenSiteProfileDTO? = nil
     var conditionalAnswers: GardenConditionalAnswersDTO? = nil
+}
+
+extension GardenWizardDTO {
+    /// Complète uniquement les données capturées qui manquent dans la copie
+    /// distante. Une valeur déjà présente sur le serveur reste prioritaire.
+    /// Cela permet au plan 2D de réparer un ancien snapshot incomplet sans
+    /// écraser une correction manuelle plus récente.
+    func fillingMissingCapturedContext(from fallback: GardenWizardDTO) -> GardenWizardDTO {
+        var merged = self
+
+        if merged.location == nil {
+            merged.location = fallback.location
+        }
+        if merged.lightExposure == nil {
+            merged.lightExposure = fallback.lightExposure
+        }
+
+        if merged.siteProfile == nil {
+            merged.siteProfile = fallback.siteProfile
+        } else if let fallbackProfile = fallback.siteProfile {
+            if merged.siteProfile?.orientation == nil {
+                merged.siteProfile?.orientation = fallbackProfile.orientation
+            }
+            if merged.siteProfile?.sunlight == nil {
+                merged.siteProfile?.sunlight = fallbackProfile.sunlight
+            }
+            if merged.siteProfile?.wind == nil {
+                merged.siteProfile?.wind = fallbackProfile.wind
+            }
+            if merged.siteProfile?.availableHeight == nil {
+                merged.siteProfile?.availableHeight = fallbackProfile.availableHeight
+            }
+            if merged.siteProfile?.plantingZones.isEmpty == true,
+               !fallbackProfile.plantingZones.isEmpty {
+                merged.siteProfile?.plantingZones = fallbackProfile.plantingZones
+            }
+        }
+
+        return merged
+    }
 }
 
 struct GardenMeasurementsDTO: Codable {

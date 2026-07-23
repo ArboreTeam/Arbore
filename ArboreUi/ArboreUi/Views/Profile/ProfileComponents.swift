@@ -1,127 +1,50 @@
 import SwiftUI
 import PhotosUI
 
-// MARK: - Subscription Plan Card (AMÉLIORÉE V3, localisée)
+// MARK: - Current plan card
 struct SubscriptionPlanCard: View {
-    @EnvironmentObject var themeManager: ThemeManager
-
-    let currentPlanName: String
-
-    // plansData now holds keys for localized strings
-    private let plansData: [String: (color: Color, icon: String, descriptionKey: String, priceKey: String)] = [
-        "Standard": (
-            color: ArboreDesign.Colors.primaryGreen,
-            icon: "leaf",
-            descriptionKey: "SUBSCRIPTION_DESCRIPTION_STANDARD",
-            priceKey: "PLAN_FREE"
-        ),
-        "Premium": (
-            color: ArboreDesign.Colors.accentGold,
-            icon: "sparkles",
-            descriptionKey: "SUBSCRIPTION_DESCRIPTION_PREMIUM",
-            priceKey: "PLAN_PAID"
-        ),
-        "Metal": (
-            color: ArboreDesign.Colors.secondaryGreen,
-            icon: "shield.lefthalf.filled",
-            descriptionKey: "SUBSCRIPTION_DESCRIPTION_METAL",
-            priceKey: "PLAN_PAID"
-        ),
-        "Ultra": (
-            color: ArboreDesign.Colors.accentGold,
-            icon: "diamond",
-            descriptionKey: "SUBSCRIPTION_DESCRIPTION_ULTRA",
-            priceKey: "PLAN_PAID"
-        )
-    ]
-
-    private var currentPlan: (color: Color, icon: String, descriptionKey: String, priceKey: String)? {
-        plansData[currentPlanName]
-    }
-
-    private var isFreePlan: Bool {
-        currentPlanName == "Standard"
-    }
-
     var body: some View {
-        if let plan = currentPlan {
-            planContent(plan)
-        } else {
-            emptyPlanView
-        }
-    }
-
-    private func planContent(_ plan: (color: Color, icon: String, descriptionKey: String, priceKey: String)) -> some View {
-        let planColor = isFreePlan ? ArboreDesign.Colors.primaryGreen : plan.color
-        let description = NSLocalizedString(plan.descriptionKey, comment: "")
-        let priceText = NSLocalizedString(plan.priceKey, comment: "")
-        let activeBadge = NSLocalizedString("SUBSCRIPTION_BADGE_ACTIVE", comment: "Active badge")
-
-        return AppCard {
+        AppCard {
             VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
                 RoundedRectangle(cornerRadius: ArboreDesign.Radius.small, style: .continuous)
-                    .fill(planColor)
+                    .fill(ArboreDesign.Colors.primaryGreen)
                     .frame(width: 52, height: 4)
 
                 HStack(alignment: .top, spacing: ArboreDesign.Spacing.md) {
-                    Image(systemName: plan.icon)
+                    Image(systemName: "leaf.fill")
                         .font(.system(size: 21, weight: .semibold))
-                        .foregroundColor(planColor)
+                        .foregroundColor(ArboreDesign.Colors.primaryGreen)
                         .frame(width: 46, height: 46)
-                        .background(planColor.opacity(0.14))
+                        .background(ArboreDesign.Colors.primaryGreen.opacity(0.14))
                         .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
 
                     VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
-                        Text(planTitle)
+                        Text(L10n.t("PLAN_TITLE_STANDARD"))
                             .font(ArboreDesign.Typography.cardTitle)
                             .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                        Text(description)
+                        Text(L10n.t("SUBSCRIPTION_DESCRIPTION_STANDARD"))
                             .font(ArboreDesign.Typography.bodySmall)
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
-                            .lineLimit(2)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
                     Spacer(minLength: ArboreDesign.Spacing.sm)
 
                     VStack(alignment: .trailing, spacing: ArboreDesign.Spacing.xs) {
-                        Text(priceText)
+                        Text(L10n.t("PLAN_FREE"))
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(planColor)
+                            .foregroundColor(ArboreDesign.Colors.primaryGreen)
 
-                        Text(activeBadge)
+                        Text(L10n.t("SUBSCRIPTION_BADGE_ACTIVE"))
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(isFreePlan ? .white : ArboreDesign.Colors.textPrimary)
+                            .foregroundColor(.white)
                             .padding(.horizontal, ArboreDesign.Spacing.xs)
                             .padding(.vertical, 5)
-                            .background(planColor.opacity(isFreePlan ? 1 : 0.18))
+                            .background(ArboreDesign.Colors.primaryGreen)
                             .clipShape(Capsule())
                     }
                 }
-            }
-        }
-    }
-
-    private var planTitle: String {
-        if currentPlanName == "Standard" {
-            return NSLocalizedString("PLAN_TITLE_STANDARD", comment: "Standard plan title")
-        } else {
-            return String(format: NSLocalizedString("PLAN_TITLE_FORMAT", comment: "Plan title format"), currentPlanName)
-        }
-    }
-
-    private var emptyPlanView: some View {
-        AppCard {
-            HStack(spacing: ArboreDesign.Spacing.sm) {
-                Image(systemName: "exclamationmark.triangle")
-                    .foregroundColor(ArboreDesign.Colors.danger)
-
-                Text(NSLocalizedString("PLAN_UNDEFINED", comment: "Plan undefined message"))
-                    .font(ArboreDesign.Typography.bodySmall)
-                    .foregroundColor(ArboreDesign.Colors.textPrimary)
-
-                Spacer()
             }
         }
     }
@@ -192,7 +115,6 @@ struct PhotoPicker: UIViewControllerRepresentable {
 
 // Preview pour les composants
 #Preview {
-    SubscriptionPlanCard(currentPlanName: "Premium")
-        .environmentObject(ThemeManager())
+    SubscriptionPlanCard()
         .padding()
 }

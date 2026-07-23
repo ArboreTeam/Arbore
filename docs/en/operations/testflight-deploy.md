@@ -58,7 +58,9 @@ git check-ignore -v fastlane/AuthKey.json
 1. App Store Connect → ArboreUi → **TestFlight → Internal Testing → "+"**.
 2. Group Name: `Internal QA`.
 3. Check **"Enable automatic distribution"** — every new build will be pushed to them with no configuration on the Fastfile side.
-4. Add members: Antonin, Hugo M., Hugo R., Isaac, Tanssime + the internal review address if applicable.
+4. Add only active members who are authorized to test the build and, if needed,
+   the internal review address. Maintain that list in App Store Connect rather
+   than hard-coding it in this document.
 
 > The name **must** match the `INTERNAL_GROUP` constant in `fastlane/Fastfile`. If it changes, update the Fastfile accordingly.
 

@@ -1,22 +1,26 @@
 # ai_generator.py (FastAPI microservice)
 
+import asyncio
+import logging
+
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import os
 import json
-import traceback
 
 AI_PROVIDER = os.getenv("AI_PROVIDER", "mistral").lower()
 MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 app = FastAPI()
+generation_slots = asyncio.Semaphore(2)
+logger = logging.getLogger("arbore.ai-generator")
 
 
 def _call_openai(system_prompt: str, user_prompt: str) -> str:
     from openai import OpenAI
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"), timeout=45.0, max_retries=1)
     completion = client.chat.completions.create(
         model=OPENAI_MODEL,
         response_format={"type": "json_object"},
@@ -62,7 +66,7 @@ async def health():
 
 
 class PlantRequest(BaseModel):
-    name: str
+    name: str = Field(min_length=1, max_length=120)
 
 
 @app.post("/generate")
@@ -152,10 +156,16 @@ async def generate_plant_info(req: PlantRequest):
             "Ne renvoie que l'objet JSON, sans texte supplémentaire."
         )
 
-        raw = _generate_json(system_prompt, user_prompt)
+        async with generation_slots:
+            raw = await asyncio.wait_for(
+                asyncio.to_thread(_generate_json, system_prompt, user_prompt),
+                timeout=55,
+            )
         data = json.loads(raw)
         return data
 
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Erreur IA : {str(e)}")
+    except TimeoutError:
+        raise HTTPException(status_code=504, detail="AI generation timed out")
+    except Exception:
+        logger.exception("Plant generation failed")
+        raise HTTPException(status_code=502, detail="AI generation failed")

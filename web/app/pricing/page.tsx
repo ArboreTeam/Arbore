@@ -17,29 +17,10 @@ const plans = [
       '3 scans par mois',
       'Styles de base',
       'Calendrier d\'entretien simple',
-      'Accès à la communauté',
+      'Sans publicité',
     ],
     cta: 'Commencer gratuitement',
     popular: false,
-  },
-  {
-    name: 'Premium',
-    price: '4,99€',
-    period: 'par mois',
-    description: 'Pour les jardiniers passionnés',
-    features: [
-      'Projets illimités',
-      'Scans illimités',
-      'Tous les styles et designs',
-      'Visualisation 3D avancée',
-      'Calendrier intelligent',
-      'Recommandations IA personnalisées',
-      'Support prioritaire',
-      'Sans publicité',
-      'Export haute résolution',
-    ],
-    cta: 'Essayer Premium',
-    popular: true,
   },
 ];
 
@@ -59,10 +40,10 @@ export default function PricingPage() {
               Tarifs simples et transparents
             </h1>
             <p className="text-xl text-arbore-muted">
-              Les tarifs qui s&apos;appliqueront après la bêta
+              Arbore ne propose actuellement ni abonnement ni achat intégré.
             </p>
             <div className="mt-6 inline-flex items-center gap-2 rounded-pill bg-secondary px-5 py-2.5 text-sm font-semibold text-arbore-green">
-              🌱 Pendant la bêta publique, Arbore est entièrement gratuit — aucun abonnement requis.
+              🌱 Toutes les fonctionnalités actuellement disponibles sont gratuites.
             </div>
           </motion.div>
         </div>
@@ -70,7 +51,7 @@ export default function PricingPage() {
 
       <section className="py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="mx-auto grid max-w-xl grid-cols-1 gap-8">
             {plans.map((plan, index) => (
               <motion.div
                 key={index}
@@ -139,20 +120,18 @@ export default function PricingPage() {
             <div className="space-y-6 text-left">
               <div>
                 <h3 className="text-xl font-semibold text-arbore-ink mb-2">
-                  Puis-je changer de plan à tout moment ?
+                  Arbore propose-t-il un abonnement ?
                 </h3>
                 <p className="text-arbore-muted">
-                  Oui, vous pouvez passer à Premium ou revenir au plan gratuit à tout moment.
-                  Aucun engagement, vous pouvez annuler quand vous voulez.
+                  Non. Aucun abonnement ni achat intégré n&apos;est actuellement proposé.
                 </p>
               </div>
               <div>
                 <h3 className="text-xl font-semibold text-arbore-ink mb-2">
-                  Combien coûte Arbore pendant la bêta ?
+                  Combien coûte Arbore actuellement ?
                 </h3>
                 <p className="text-arbore-muted">
-                  Rien : pendant la bêta publique, toutes les fonctionnalités sont gratuites.
-                  Les abonnements ci-dessus ne s&apos;activeront qu&apos;après la bêta.
+                  L&apos;application et ses fonctionnalités disponibles sont gratuites.
                 </p>
               </div>
               <div>
@@ -160,9 +139,8 @@ export default function PricingPage() {
                   Y a-t-il un paiement à prévoir ?
                 </h3>
                 <p className="text-arbore-muted">
-                  Non. Arbore est une bêta étudiante gratuite et non commerciale : aucun
-                  paiement, aucun abonnement, aucun moyen de paiement n&apos;est demandé. Les
-                  tarifs ci-dessus sont indicatifs pour l&apos;après-bêta.
+                  Non. Aucun paiement, abonnement ou moyen de paiement n&apos;est demandé.
+                  Toute évolution de cette politique sera annoncée avant son entrée en vigueur.
                 </p>
               </div>
             </div>

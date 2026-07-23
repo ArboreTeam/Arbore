@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { onAuthStateChange } from '@/lib/authService';
 import { API_URL, fetchWithAuth } from '@/lib/api';
@@ -24,6 +24,14 @@ import {
 import { motion } from 'framer-motion';
 
 export default function PlantDetailPage() {
+	return (
+		<Suspense fallback={<div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin" /></div>}>
+			<PlantDetailContent />
+		</Suspense>
+	);
+}
+
+function PlantDetailContent() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();

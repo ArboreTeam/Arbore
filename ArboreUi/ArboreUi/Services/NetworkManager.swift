@@ -20,6 +20,7 @@ enum NetworkError: Error {
     case unauthorized
     case forbidden
     case emailNotVerified
+    case notFound
     case decodingError(Error)
 }
 
@@ -40,6 +41,8 @@ extension NetworkError: LocalizedError {
             return "Accès interdit - Compte banni ou permissions insuffisantes"
         case .emailNotVerified:
             return "Email non vérifié - vérifie ta boîte mail pour activer ton compte"
+        case .notFound:
+            return "Ressource introuvable"
         case .decodingError(let error):
             return "Erreur de décodage: \(error.localizedDescription)"
         }
@@ -233,6 +236,9 @@ class NetworkManager {
             print("❌ 403 Forbidden - Accès refusé")
             throw forbiddenError(from: data)
 
+        case 404:
+            throw NetworkError.notFound
+
         default:
             if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let errorMessage = errorData["error"] as? String {
@@ -326,6 +332,9 @@ class NetworkManager {
 
         case 403:
             throw forbiddenError(from: data)
+
+        case 404:
+            throw NetworkError.notFound
 
         default:
             if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

@@ -30,17 +30,7 @@ final class NotificationManager {
             print("Notification authorization request failed: \(error)")
         }
 
-        let state = await currentAuthorizationState()
-        if state.canScheduleNotifications {
-            await registerForRemoteNotifications()
-        }
-        return state
-    }
-
-    func registerForRemoteNotifications() async {
-        await MainActor.run {
-            UIApplication.shared.registerForRemoteNotifications()
-        }
+        return await currentAuthorizationState()
     }
 
     @MainActor

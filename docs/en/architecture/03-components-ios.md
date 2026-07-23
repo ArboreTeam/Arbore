@@ -150,7 +150,7 @@ flowchart TB
 - **SwiftUI** for the entire UI layer (except SCNView/ARSCNView embedded via `UIViewRepresentable`).
 - **ARKit** for AR tracking and `ARWorldMap` serialization.
 - **SceneKit** for 3D rendering of plants — migration to RealityKit tracked by issue #83.
-- **RealityKit** for thumbnail previews and pot measurement.
+- **RealityKit** for admin thumbnail generation and pot measurement; the customer-facing catalog only consumes pre-generated PNGs.
 - **RoomPlan** (LiDAR only) for structured room scanning.
 - **FirebaseAuth** for user auth; **GoogleSignIn** for Google; **AuthenticationServices** for Sign in with Apple.
 

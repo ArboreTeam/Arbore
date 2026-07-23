@@ -10,14 +10,10 @@ struct ProfileView: View {
 
     @StateObject var userService = UserService()
     @State private var userNameFetchError: String? = nil
-    @State private var showUpgradeSheet = false
 
     #if DEBUG
     @State private var showDebugThumbnailGenerator = false
     #endif
-
-    // Variable brute simulée pour le plan actuel (Changer pour tester)
-    @State private var currentSubscriptionPlan: String = "Ultra"
 
     // name
     @State private var firstName: String = ""
@@ -158,51 +154,7 @@ struct ProfileView: View {
 
     // MARK: - Current Plan Section
     private func currentPlanSection() -> some View {
-        let currentPlanLevel = currentSubscriptionPlan
-        var ctaText: String
-        var ctaIcon: String
-
-        switch currentPlanLevel {
-        case "Standard":
-            ctaText = NSLocalizedString("PROFILE_CTA_TRY_PREMIUM", comment: "")
-            ctaIcon = "sparkles"
-        case "Premium":
-            ctaText = NSLocalizedString("PROFILE_CTA_UPGRADE_METAL", comment: "")
-            ctaIcon = "arrow.up.circle.fill"
-        case "Metal":
-            ctaText = NSLocalizedString("PROFILE_CTA_UPGRADE_ULTRA", comment: "")
-            ctaIcon = "arrow.up.circle.fill"
-        case "Ultra":
-            ctaText = NSLocalizedString("PROFILE_CTA_MANAGE", comment: "")
-            ctaIcon = "gearshape.fill"
-        default:
-            ctaText = NSLocalizedString("PROFILE_CTA_TRY_PREMIUM", comment: "")
-            ctaIcon = "sparkles"
-        }
-
-        return VStack(spacing: 16) {
-            SubscriptionPlanCard(currentPlanName: currentPlanLevel)
-                .environmentObject(themeManager)
-
-            // En beta, tous les utilisateurs sont sur « Ultra » : on leur montre
-            // qu'ils testent la version complète, mais sans CTA « Gérer
-            // l'abonnement » (aucun abonnement réel à gérer, pas d'IAP). Le
-            // bouton n'apparaît que s'il y a un vrai upgrade à proposer.
-            if currentPlanLevel != "Ultra" {
-                Button(action: { showUpgradeSheet = true }) {
-                    HStack(spacing: ArboreDesign.Spacing.xs) {
-                        Image(systemName: ctaIcon)
-                        Text(ctaText)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.86)
-                    }
-                }
-                .buttonStyle(.arborePrimary)
-            }
-        }
-        .fullScreenCover(isPresented: $showUpgradeSheet) {
-            UpgradePlanView().environmentObject(themeManager)
-        }
+        SubscriptionPlanCard()
     }
 
     // MARK: - Settings groups
@@ -293,7 +245,7 @@ struct ProfileView: View {
     // MARK: - Footer
     private func footerSection() -> some View {
         VStack(spacing: ArboreDesign.Spacing.md) {
-            Text(String(format: NSLocalizedString("PROFILE_VERSION", comment: ""), "1.0.0"))
+            Text(String(format: NSLocalizedString("PROFILE_VERSION", comment: ""), appVersion))
                 .font(ArboreDesign.Typography.caption)
                 .foregroundColor(ArboreDesign.Colors.textSecondary)
 
@@ -366,8 +318,12 @@ struct ProfileView: View {
 
     private func loadUserData() {
         if let user = Auth.auth().currentUser {
-            self.firstName = user.displayName?.components(separatedBy: " ").first ?? "Hugo"
-            self.lastName = user.displayName?.components(separatedBy: " ").last ?? ""
+            let nameComponents = user.displayName?
+                .split(separator: " ")
+                .map(String.init) ?? []
+            self.firstName = nameComponents.first
+                ?? NSLocalizedString("PROFILE_USER_DEFAULT", comment: "")
+            self.lastName = nameComponents.count > 1 ? nameComponents.dropFirst().joined(separator: " ") : ""
         }
     }
 
@@ -384,6 +340,10 @@ struct ProfileView: View {
         } catch {
             print("Erreur de déconnexion Firebase :", error.localizedDescription)
         }
+    }
+
+    private var appVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
     }
 }
 

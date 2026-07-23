@@ -116,6 +116,15 @@ final class AppleAuthService: NSObject, ObservableObject {
                 : fullName
             let resolvedEmail = user.email ?? appleEmail
 
+            let completeBackendSignIn = { [weak self] in
+                self?.completeBackendSignIn(
+                    uid: user.uid,
+                    email: resolvedEmail,
+                    name: resolvedName,
+                    authorizationCode: authorizationCode
+                )
+            }
+
             if !fullName.isEmpty,
                (user.displayName ?? "").isEmpty {
                 let change = user.createProfileChangeRequest()
@@ -124,37 +133,58 @@ final class AppleAuthService: NSObject, ObservableObject {
                     if let commitError = commitError {
                         print("⚠️ Failed to commit Firebase displayName for Apple user:", commitError.localizedDescription)
                     }
-                    saveUserToBackendIfNeeded(
-                        uid: user.uid,
-                        email: resolvedEmail,
-                        name: resolvedName,
-                        createdAt: Date()
-                    )
+                    completeBackendSignIn()
                 }
             } else {
-                saveUserToBackendIfNeeded(
-                    uid: user.uid,
-                    email: resolvedEmail,
-                    name: resolvedName,
-                    createdAt: Date()
-                )
-            }
-
-            // #210 — forward l'authorization_code (best-effort, hors chemin
-            // critique de login ; se ré-exécute aux signins suivants).
-            if let authorizationCode = authorizationCode, !authorizationCode.isEmpty {
-                linkAppleAccountWithBackend(authorizationCode: authorizationCode)
-            }
-
-            #if DEBUG
-            print("✅ Apple user signed in:", resolvedEmail.isEmpty ? "unknown" : resolvedEmail)
-            #endif
-
-            DispatchQueue.main.async {
-                self?.isLoginSuccessed = true
-                self?.isLoggedIn = true
+                completeBackendSignIn()
             }
         }
+    }
+
+    /// Termine le login seulement lorsque le profil backend existe et que le
+    /// code Apple a été stocké. Cet ordre est indispensable : sans lui, les
+    /// deux requêtes partaient en parallèle et `/apple-link` pouvait arriver
+    /// avant la création du profil Mongo, rendant la révocation impossible lors
+    /// de la suppression du compte.
+    private func completeBackendSignIn(
+        uid: String,
+        email: String,
+        name: String,
+        authorizationCode: String?
+    ) {
+        Task { [weak self] in
+            do {
+                guard let authorizationCode, !authorizationCode.isEmpty else {
+                    throw NetworkError.serverError("Apple authorization code missing")
+                }
+
+                try await ensureUserInBackend(
+                    uid: uid,
+                    email: email,
+                    name: name,
+                    createdAt: Date()
+                )
+                try await linkAppleAccountWithBackend(authorizationCode: authorizationCode)
+
+                #if DEBUG
+                print("✅ Apple user signed in:", email.isEmpty ? "unknown" : email)
+                #endif
+
+                await self?.setLoginState(success: true)
+            } catch {
+                // Ne pas ouvrir une session locale partiellement provisionnée :
+                // elle ne pourrait pas être supprimée proprement ensuite.
+                try? Auth.auth().signOut()
+                await self?.setLoginState(success: false)
+                print("❌ Apple Sign-In backend provisioning failed:", error.localizedDescription)
+            }
+        }
+    }
+
+    @MainActor
+    private func setLoginState(success: Bool) {
+        isLoginSuccessed = success
+        isLoggedIn = success
     }
 
     /// Traite une erreur SIWA. L'annulation utilisateur (code 1001) est

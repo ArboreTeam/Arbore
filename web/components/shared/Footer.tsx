@@ -52,7 +52,7 @@ export function Footer() {
         </div>
 
         <div className="mt-10 border-t border-white/15 pt-8 text-center text-sm text-primary-foreground/70">
-          <p>&copy; {new Date().getFullYear()} Arbore — bêta gratuite non commerciale.</p>
+          <p>&copy; {new Date().getFullYear()} Arbore.</p>
         </div>
       </div>
     </footer>

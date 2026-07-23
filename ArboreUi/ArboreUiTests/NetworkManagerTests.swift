@@ -388,6 +388,7 @@ class NetworkManagerIntegrationTests: XCTestCase {
     }
 
     override func setUpWithError() throws {
+        try LiveIntegrationTestGate.requireEnabled()
         try ensureBackendIsReachableOrSkip()
 
         // Configuration Firebase
@@ -396,8 +397,7 @@ class NetworkManagerIntegrationTests: XCTestCase {
         }
 
         // Créer un user de test
-        let timestamp = Int(Date().timeIntervalSince1970)
-        testEmail = "test-network-\(timestamp)@arbore.test"
+        testEmail = "test-network-\(UUID().uuidString.lowercased())@arbore.test"
 
         let createExpectation = XCTestExpectation(description: "Create test user")
         let startTime = Date()

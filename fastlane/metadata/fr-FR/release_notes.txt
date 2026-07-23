@@ -1,4 +1,4 @@
-Bienvenue dans la bêta d'Arbore !
+Bienvenue dans Arbore !
 
 • Concevez votre jardin en RA : placez des plantes 3D à l'échelle dans votre espace et disposez-les librement.
 • Placement automatique amélioré qui agence vos plantes pour vous.

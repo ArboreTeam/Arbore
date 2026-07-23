@@ -101,4 +101,162 @@ final class GardenLocationDTOTests: XCTestCase {
         XCTAssertTrue(GardenConditionalAnswersDTO().isEmpty)
         XCTAssertFalse(GardenConditionalAnswersDTO(indoorHumidity: .humid).isEmpty)
     }
+
+    func testResolvedProfileUsesCapturedHeadingAndLocationForSunlightEstimate() {
+        let wizard = GardenWizardDTO(
+            style: "",
+            spaceType: GardenSpaceType.balcony.rawValue,
+            exposure: nil,
+            maintenance: nil,
+            safety: nil,
+            soil: nil,
+            scanMethod: ScanMethod.gardenPerimeter.rawValue,
+            location: .deviceApproximate(latitude: 48.86, longitude: 2.35, city: "Paris"),
+            lightExposure: .capture(
+                direction: SIMD3<Float>(0, 0, -1),
+                magneticYawRadians: .pi,
+                ambientIntensity: 700
+            )
+        )
+
+        let profile = GardenSiteProfileResolver.resolvedProfile(for: wizard)
+
+        XCTAssertEqual(profile.orientation?.degrees ?? -1, 180, accuracy: 0.001)
+        XCTAssertEqual(profile.orientation?.metadata.source, .measured)
+        XCTAssertEqual(profile.sunlight?.minimumHours, 6)
+        XCTAssertEqual(profile.sunlight?.maximumHours, 12)
+        XCTAssertEqual(profile.sunlight?.metadata.source, .inferred)
+        XCTAssertEqual(profile.sunlight?.metadata.confidence, .low)
+    }
+
+    func testResolvedProfileFallsBackToInstantLightWhenCoordinatesAreUnavailable() {
+        let wizard = GardenWizardDTO(
+            style: "",
+            spaceType: GardenSpaceType.interior.rawValue,
+            exposure: nil,
+            maintenance: nil,
+            safety: nil,
+            soil: nil,
+            scanMethod: ScanMethod.gardenPerimeter.rawValue,
+            location: .manualCity("Lyon"),
+            lightExposure: .capture(
+                direction: SIMD3<Float>(0, 0, -1),
+                magneticYawRadians: 0,
+                ambientIntensity: 600
+            )
+        )
+
+        let profile = GardenSiteProfileResolver.resolvedProfile(for: wizard)
+
+        XCTAssertEqual(profile.sunlight?.minimumHours, 3)
+        XCTAssertEqual(profile.sunlight?.maximumHours, 6)
+        XCTAssertEqual(profile.sunlight?.metadata.confidence, .low)
+    }
+
+    func testPersistedResolvedProfileKeepsLocationAndMaterializesComputedValues() {
+        let location = GardenLocationDTO.deviceApproximate(
+            latitude: 43.30,
+            longitude: 5.37,
+            city: "Marseille"
+        )
+        let wizard = GardenWizardDTO(
+            style: "",
+            spaceType: GardenSpaceType.terrace.rawValue,
+            exposure: nil,
+            maintenance: nil,
+            safety: nil,
+            soil: nil,
+            scanMethod: ScanMethod.gardenPerimeter.rawValue,
+            location: location,
+            lightExposure: .capture(
+                direction: SIMD3<Float>(0, 0, -1),
+                magneticYawRadians: .pi / 2,
+                ambientIntensity: 1_000
+            )
+        )
+
+        let persisted = GardenSiteProfileResolver.wizardByPersistingResolvedProfile(wizard)
+
+        XCTAssertEqual(persisted.location, location)
+        XCTAssertNotNil(persisted.siteProfile?.orientation)
+        XCTAssertNotNil(persisted.siteProfile?.sunlight)
+    }
+
+    func testMissingRemoteCapturedContextIsRestoredFromLocalSnapshot() {
+        let local = GardenSiteProfileResolver.wizardByPersistingResolvedProfile(
+            GardenWizardDTO(
+                style: "",
+                spaceType: GardenSpaceType.balcony.rawValue,
+                exposure: nil,
+                maintenance: nil,
+                safety: nil,
+                soil: nil,
+                scanMethod: ScanMethod.gardenPerimeter.rawValue,
+                location: .deviceApproximate(latitude: 48.86, longitude: 2.35, city: "Paris"),
+                lightExposure: .capture(
+                    direction: SIMD3<Float>(0, 0, -1),
+                    magneticYawRadians: .pi,
+                    ambientIntensity: 800
+                )
+            )
+        )
+        let remote = GardenWizardDTO(
+            style: "",
+            spaceType: GardenSpaceType.balcony.rawValue,
+            exposure: nil,
+            maintenance: nil,
+            safety: nil,
+            soil: nil,
+            scanMethod: ScanMethod.gardenPerimeter.rawValue
+        )
+
+        let repaired = remote.fillingMissingCapturedContext(from: local)
+
+        XCTAssertEqual(repaired.location, local.location)
+        XCTAssertEqual(repaired.lightExposure, local.lightExposure)
+        XCTAssertEqual(repaired.siteProfile?.orientation, local.siteProfile?.orientation)
+        XCTAssertEqual(repaired.siteProfile?.sunlight, local.siteProfile?.sunlight)
+    }
+
+    func testRemoteManualProfileRemainsAuthoritativeDuringRepair() {
+        let remoteMetadata = GardenValueMetadataDTO(source: .declared, confidence: .high)
+        let remoteOrientation = GardenOrientationDTO(degrees: 225, metadata: remoteMetadata)
+        let remote = GardenWizardDTO(
+            style: "",
+            spaceType: GardenSpaceType.terrace.rawValue,
+            exposure: nil,
+            maintenance: nil,
+            safety: nil,
+            soil: nil,
+            scanMethod: ScanMethod.gardenPerimeter.rawValue,
+            siteProfile: GardenSiteProfileDTO(orientation: remoteOrientation)
+        )
+        let fallback = GardenWizardDTO(
+            style: "",
+            spaceType: GardenSpaceType.terrace.rawValue,
+            exposure: nil,
+            maintenance: nil,
+            safety: nil,
+            soil: nil,
+            scanMethod: ScanMethod.gardenPerimeter.rawValue,
+            location: .manualCity("Lyon"),
+            siteProfile: GardenSiteProfileDTO(
+                orientation: GardenOrientationDTO(
+                    degrees: 90,
+                    metadata: GardenValueMetadataDTO(source: .measured, confidence: .medium)
+                ),
+                sunlight: GardenSunlightDTO(
+                    minimumHours: 3,
+                    maximumHours: 6,
+                    metadata: GardenValueMetadataDTO(source: .inferred, confidence: .low)
+                )
+            )
+        )
+
+        let repaired = remote.fillingMissingCapturedContext(from: fallback)
+
+        XCTAssertEqual(repaired.siteProfile?.orientation, remoteOrientation)
+        XCTAssertEqual(repaired.siteProfile?.sunlight, fallback.siteProfile?.sunlight)
+        XCTAssertEqual(repaired.location, fallback.location)
+    }
 }

@@ -6,10 +6,13 @@ struct ResetPasswordView: View {
     @State private var email = ""
     @State private var successMessage = ""
     @State private var errorMessage = ""
+    @State private var isSending = false
     @FocusState private var focusedField: Bool
 
     var isEmailValid: Bool {
-        !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let value = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let parts = value.split(separator: "@", omittingEmptySubsequences: false)
+        return parts.count == 2 && parts[1].contains(".")
     }
 
     var body: some View {
@@ -20,6 +23,20 @@ struct ResetPasswordView: View {
             ).ignoresSafeArea()
 
             VStack(spacing: 25) {
+                HStack {
+                    Spacer()
+                    Button(action: { dismiss() }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(ArboreDesign.Colors.textPrimary)
+                            .frame(width: 42, height: 42)
+                            .background(ArboreDesign.Colors.card)
+                            .clipShape(Circle())
+                    }
+                    .accessibilityLabel(L10n.t("AUTH_RESET_CLOSE"))
+                }
+                .padding(.horizontal, 24)
+
                 VStack(spacing: 8) {
                     Text("Arbore")
                         .font(.system(size: 42, weight: .bold, design: .rounded))
@@ -56,39 +73,24 @@ struct ResetPasswordView: View {
                     .submitLabel(.done)
 
                 // Submit button
-                Button(action: {
-                    Auth.auth().sendPasswordReset(withEmail: email.trimmingCharacters(in: .whitespacesAndNewlines)) { error in
-                        if let error = error {
-                            withAnimation {
-                                errorMessage = error.localizedDescription
-                                successMessage = ""
-                            }
-                        } else {
-                            withAnimation {
-                                successMessage = L10n.t("AUTH_RESET_SUCCESS")
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                errorMessage = ""
-                            }
-
-                            // ⏳ Ferme automatiquement après 2 secondes
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                dismiss()
-                            }
+                Button(action: sendResetEmail) {
+                    HStack(spacing: 8) {
+                        if isSending {
+                            ProgressView().tint(.white)
                         }
+                        Text(L10n.t("AUTH_SEND"))
+                            .fontWeight(.semibold)
                     }
-                }) {
-                    Text(L10n.t("AUTH_SEND"))
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(isEmailValid ? ArboreDesign.Colors.primaryButton : ArboreDesign.Colors.primaryButton.opacity(0.4))
-                        .cornerRadius(ArboreDesign.Radius.button)
+                    .foregroundColor(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(isEmailValid && !isSending ? ArboreDesign.Colors.primaryButton : ArboreDesign.Colors.primaryButton.opacity(0.4))
+                    .cornerRadius(ArboreDesign.Radius.button)
                 }
-                .disabled(!isEmailValid)
+                .disabled(!isEmailValid || isSending)
                 .padding(.horizontal, 30)
-                .scaleEffect(isEmailValid ? 1.0 : 0.98)
-                .animation(.easeInOut(duration: 0.2), value: isEmailValid)
+                .scaleEffect(isEmailValid && !isSending ? 1.0 : 0.98)
+                .animation(.easeInOut(duration: 0.2), value: isEmailValid && !isSending)
                 
                 if !successMessage.isEmpty {
                     Text(successMessage)
@@ -110,6 +112,36 @@ struct ResetPasswordView: View {
 
             }
             .padding(.top, 40)
+        }
+    }
+
+    private func sendResetEmail() {
+        guard isEmailValid else {
+            errorMessage = L10n.t("AUTH_RESET_INVALID_EMAIL")
+            return
+        }
+
+        isSending = true
+        errorMessage = ""
+        successMessage = ""
+
+        Auth.auth().sendPasswordReset(
+            withEmail: email.trimmingCharacters(in: .whitespacesAndNewlines)
+        ) { error in
+            DispatchQueue.main.async {
+                isSending = false
+                if let error = error as NSError?,
+                   AuthErrorCode(rawValue: error.code) == .networkError {
+                    errorMessage = L10n.t("AUTH_RESET_NETWORK_ERROR")
+                } else if error != nil {
+                    errorMessage = L10n.t("AUTH_RESET_GENERIC_ERROR")
+                } else {
+                    // Deliberately generic: do not disclose whether an account
+                    // exists for this address.
+                    successMessage = L10n.t("AUTH_RESET_SUCCESS")
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                }
+            }
         }
     }
 }

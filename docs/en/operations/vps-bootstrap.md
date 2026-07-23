@@ -117,7 +117,8 @@ server {
     listen 80;
     server_name _;
 
-    # The health diagnosis sends a photo (base64-encoded in the JSON body).
+    # The diagnosis sends a base64 photo; keep proxy headroom above the
+    # API maximum request size (10 MiB in Go).
     client_max_body_size 16m;
 
     location / {
@@ -176,15 +177,21 @@ variables (sources of truth indicated):
 | `MONGODB_URI_TEST` | Atlas → same, `arbore_test` database, user `arbore_test_user` | Optional, only enables the test DB if present |
 | `ARBORE_API_KEY` | GitHub Settings → Secrets → `ARBORE_API_KEY` | Application key for prod traffic |
 | `ARBORE_API_KEY_TEST` | GitHub Settings → Secrets → `ARBORE_API_KEY_TEST` | Key that routes to `arbore_test` |
-| `FIREBASE_SERVICE_ACCOUNT_PATH` | Always `./arbore-firebase-adminsdk.json` | See step 7 |
+| `FIREBASE_SERVICE_ACCOUNT_HOST_PATH` | Absolute path to the Firebase JSON | See step 7; mounted read-only |
+| `MASTER_ENCRYPTION_KEY` | Operator secret | Base64-encoded 32-byte key used for Apple tokens |
+| `APPLE_TEAM_ID` / `APPLE_KEY_ID` | Apple Developer → Keys | Sign in with Apple key identifiers |
+| `APPLE_SIWA_CLIENT_ID` | Bundle ID | `com.arboreteam.arbore` for the native iOS flow |
+| `APPLE_SIWA_KEY_HOST_PATH` | Absolute path to the Apple `.p8` | Mode `0600`, outside Git |
+| `ARBORE_ADMIN_UIDS` | Firebase Authentication | Comma-separated administrator UIDs |
+| `MODELS_HOST_PATH` | Persistent VPS storage | USDZ directory, independent from the code checkout |
+| `THUMBNAILS_HOST_PATH` | Persistent VPS storage | Generated thumbnails directory |
+| `LEGACY_COMMUNITY_UPLOADS_HOST_PATH` | Persistent VPS storage | Retained only for GDPR deletion |
 | `OPENAI_API_KEY` | OpenAI Platform → API keys | For the AI Generator |
 | `UNSPLASH_ACCESS_KEY` | Unsplash Developers → Application | Plant photos |
 | `MISTRAL_API_KEY` | console.mistral.ai → API keys | Alternative backend AI provider |
 | `AI_PROVIDER` | Config constant | `openai` or `mistral` |
 | `GIN_MODE` | Config constant | `release` in prod |
 | `PORT` | Config constant | `8080` |
-| `THUMBNAILS_DIR` | Config constant | `/root/thumbnails` (**in-container** path) |
-| `THUMBNAIL_UPLOAD_ALLOWED_UIDS` | Admin UID allowlist | Comma-separated |
 
 Template to copy:
 
@@ -197,9 +204,18 @@ MONGODB_URI_TEST=mongodb+srv://arbore_test_user:PASSWORD@arbore.cew6l.mongodb.ne
 # Application API keys
 ARBORE_API_KEY=arbore_ios_v1_xxxxxxxxxxxxxxxxxxxx
 ARBORE_API_KEY_TEST=arbore_test_v1_xxxxxxxxxxxxxxxxxxxx
+ARBORE_ADMIN_UIDS=firebase_admin_uid
 
-# Firebase
-FIREBASE_SERVICE_ACCOUNT_PATH=./arbore-firebase-adminsdk.json
+# Secrets and persistent data (absolute host paths)
+FIREBASE_SERVICE_ACCOUNT_HOST_PATH=/home/fedora/arbore-data/secrets/firebase-adminsdk.json
+MASTER_ENCRYPTION_KEY=base64_32_bytes
+APPLE_TEAM_ID=XXXXXXXXXX
+APPLE_KEY_ID=XXXXXXXXXX
+APPLE_SIWA_CLIENT_ID=com.arboreteam.arbore
+APPLE_SIWA_KEY_HOST_PATH=/home/fedora/arbore-data/secrets/AuthKey_XXXXXXXXXX.p8
+MODELS_HOST_PATH=/home/fedora/arbore-data/models
+THUMBNAILS_HOST_PATH=/home/fedora/arbore-data/models/thumbnails
+LEGACY_COMMUNITY_UPLOADS_HOST_PATH=/home/fedora/arbore-data/uploads/community
 
 # AI providers
 AI_PROVIDER=openai
@@ -209,11 +225,9 @@ MISTRAL_API_KEY=...
 # Unsplash
 UNSPLASH_ACCESS_KEY=...
 
-# Gin config / volumes
+# Gin config
 GIN_MODE=release
 PORT=8080
-THUMBNAILS_DIR=/root/thumbnails
-THUMBNAIL_UPLOAD_ALLOWED_UIDS=
 EOF
 chmod 600 /home/fedora/Arbore/.env
 ```
@@ -232,10 +246,9 @@ scp arbore-firebase-adminsdk.json fedora@<VPS>:/home/fedora/Arbore/
 chmod 600 /home/fedora/Arbore/arbore-firebase-adminsdk.json
 ```
 
-The bind mount in `docker-compose.yml` mounts this file as
-`/root/firebase-adminsdk.json` on the container side and the backend reads it via
-`FIREBASE_SERVICE_ACCOUNT_PATH=./arbore-firebase-adminsdk.json` (path
-relative to the Dockerfile's `WORKDIR`).
+The bind mount in `docker-compose.yml` mounts this file read-only as
+`/run/secrets/firebase-adminsdk.json`. Its host path is supplied through
+`FIREBASE_SERVICE_ACCOUNT_HOST_PATH`.
 
 ---
 
@@ -258,7 +271,10 @@ curl -fsS http://<VPS_IP>/health   # via nginx
 ```
 
 From now on, subsequent deployments go through
-`./deploy.sh` (which takes a Mongo snapshot before each rebuild).
+`./deploy.sh` (which takes a Mongo snapshot before each rebuild). The checkout
+must be clean. USDZ files, thumbnails, legacy uploads, and secrets remain under
+`/home/fedora/arbore-data` through absolute `.env` paths, so a fresh release
+checkout cannot overwrite or delete them.
 
 ---
 

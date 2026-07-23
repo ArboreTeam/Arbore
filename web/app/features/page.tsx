@@ -5,43 +5,37 @@ import { motion } from 'framer-motion';
 import { Navbar } from '@/components/shared/Navbar';
 import { Footer } from '@/components/shared/Footer';
 import { SectionTitle } from '@/components/shared/SectionTitle';
-import { Camera, Brain, Box, CalendarCheck, Cloud, Users } from 'lucide-react';
+import { Camera, Brain, Box, CalendarCheck, Sun } from 'lucide-react';
 
 const features = [
   {
     icon: Camera,
-    title: 'Scanner 3D intelligent',
-    description: 'Notre technologie de scan avancée analyse votre espace en 3D pour créer un modèle précis de votre jardin. Capturez les dimensions, l\'exposition au soleil et les caractéristiques uniques de votre terrain en quelques secondes.',
+    title: 'Mesure guidée de l’espace',
+    description: 'Arbore vous guide pour délimiter votre pièce, balcon, terrasse ou jardin et enregistrer les dimensions utiles à votre projet.',
     image: true,
   },
   {
     icon: Brain,
-    title: 'Recommandations personnalisées par IA',
-    description: 'Notre intelligence artificielle prend en compte votre climat, la qualité de votre sol, l\'exposition au soleil et vos préférences esthétiques pour vous suggérer les plantes parfaites. Chaque recommandation est unique et adaptée à votre situation.',
+    title: 'Catalogue adapté à votre environnement',
+    description: 'Les plantes sont filtrées selon les informations disponibles pour votre espace, comme la lumière, la localisation approximative et vos préférences.',
     image: true,
   },
   {
     icon: Box,
     title: 'Visualisation 3D réaliste',
-    description: 'Explorez votre futur jardin sous tous les angles avant de planter la moindre graine. Visualisez la croissance des plantes au fil des saisons et ajustez votre design en temps réel.',
+    description: 'Placez des modèles de plantes dans votre espace en réalité augmentée et ajustez leur disposition avant de faire votre choix.',
     image: true,
   },
   {
     icon: CalendarCheck,
     title: 'Calendrier d\'entretien personnalisé',
-    description: 'Recevez des rappels pour l\'arrosage, la taille, la fertilisation et toutes les tâches d\'entretien. Notre système s\'adapte à la météo locale et aux besoins spécifiques de chaque plante.',
+    description: 'Consultez les conseils de soin et programmez les rappels disponibles pour les plantes que vous souhaitez suivre.',
     image: true,
   },
   {
-    icon: Cloud,
-    title: 'Synchronisation cloud',
-    description: 'Accédez à vos projets depuis n\'importe quel appareil. Vos designs, notes et calendriers sont automatiquement sauvegardés et synchronisés dans le cloud.',
-    image: true,
-  },
-  {
-    icon: Users,
-    title: 'Communauté de jardiniers',
-    description: 'Partagez vos créations, découvrez l\'inspiration des autres jardiniers et bénéficiez des conseils d\'experts. Rejoignez une communauté passionnée qui grandit chaque jour.',
+    icon: Sun,
+    title: 'Lumière et orientation',
+    description: 'Enregistrez l’orientation de la principale source de lumière afin d’affiner les informations de votre espace.',
     image: true,
   },
 ];
@@ -115,10 +109,10 @@ export default function FeaturesPage() {
               Prêt à créer votre jardin ?
             </h2>
             <p className="text-xl text-green-100 mb-8">
-              Rejoignez la bêta publique dès aujourd&apos;hui
+              Arbore est actuellement disponible gratuitement sur iPhone.
             </p>
             <Link href="/signup" className="inline-block bg-white text-[#234632] hover:bg-gray-100 px-8 py-4 rounded-full font-semibold text-lg transition-colors">
-              Rejoindre la bêta
+              Créer un compte
             </Link>
           </motion.div>
         </div>

@@ -179,6 +179,7 @@ private extension AllGardensView {
         let fileManager = FileManager.default
         try? fileManager.removeItem(at: GardenLocalStore.sceneURL(for: id))
         try? fileManager.removeItem(at: GardenLocalStore.worldMapURL(for: id))
+        GardenLocalStore.removeWizard(for: id)
     }
 }
 

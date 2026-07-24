@@ -52,6 +52,7 @@ linters:
         - absolue
         - pointeur
         - normalis
+        - concret
 
     revive:
       confidence: 0.8

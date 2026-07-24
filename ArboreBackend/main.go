@@ -1577,81 +1577,6 @@ type DiagnoseRequest struct {
 	Colorimetry ColorimetryDTO `json:"colorimetry"`
 }
 
-func callGeminiAPI(ctx context.Context, payload map[string]interface{}) ([]byte, error) {
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	if apiKey == "" {
-		return nil, fmt.Errorf("GEMINI_API_KEY non configurée dans l'environnement")
-	}
-
-	model := os.Getenv("GEMINI_MODEL")
-	if model == "" {
-		model = "gemini-2.5-flash"
-	}
-
-	// La clé API voyage dans l'en-tête `x-goog-api-key`, JAMAIS dans l'URL : une URL
-	// porteuse de la clé se retrouve dans les `*url.Error` renvoyés par le transport
-	// HTTP, donc potentiellement dans une réponse d'erreur ou un log.
-	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", model)
-
-	bodyBytes, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("erreur de sérialisation de la requête Gemini: %w", err)
-	}
-
-	var respData []byte
-	var lastErr error
-	attempt := 0
-	maxAttempts := 4
-
-	for attempt < maxAttempts {
-		// Hôte codé en dur (generativelanguage.googleapis.com) : seul le nom du
-		// modèle vient de l'env, donc pas de SSRF réel → gosec en faux positif.
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(bodyBytes)) //nolint:gosec // hôte constant Google, pas de SSRF
-		if err != nil {
-			return nil, fmt.Errorf("erreur lors de la création de la requête Gemini: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("x-goog-api-key", apiKey)
-
-		client := &http.Client{Timeout: 60 * time.Second}
-		resp, err := client.Do(req) //nolint:gosec // hôte constant Google, pas de SSRF
-		if err != nil {
-			lastErr = err
-			attempt++
-			if berr := backoffOrCancel(ctx, time.Duration(attempt*attempt)*time.Second); berr != nil {
-				return nil, berr
-			}
-			continue
-		}
-		respData, err = io.ReadAll(io.LimitReader(resp.Body, 2<<20))
-		closeErr := resp.Body.Close()
-		if err != nil {
-			lastErr = err
-			attempt++
-			continue
-		}
-		if closeErr != nil {
-			return nil, fmt.Errorf("erreur lors de la fermeture de la réponse Gemini: %w", closeErr)
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			lastErr = fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(respData))
-			if resp.StatusCode == 429 || resp.StatusCode == 503 || resp.StatusCode >= 500 {
-				attempt++
-				if berr := backoffOrCancel(ctx, time.Duration(attempt*attempt)*time.Second); berr != nil {
-					return nil, berr
-				}
-				continue
-			}
-			return nil, lastErr
-		}
-
-		return respData, nil
-	}
-
-	return nil, fmt.Errorf("échec après %d tentatives de contact de l'API Gemini: %w", maxAttempts, lastErr)
-}
-
 func stripMarkdown(text string) string {
 	result := text
 	// Supprimer le gras **text** -> text
@@ -1668,10 +1593,6 @@ func stripMarkdown(text string) string {
 
 	return result
 }
-
-// geminiCaller effectue l'appel à l'API Gemini. Passer par une variable permet
-// aux tests de handler d'injecter une réponse sans toucher au réseau.
-var geminiCaller = callGeminiAPI
 
 func handleGeminiChat(c *gin.Context) {
 	var req ChatRequest
@@ -1695,36 +1616,13 @@ func handleGeminiChat(c *gin.Context) {
 		req.History = req.History[len(req.History)-maxHistoryMessages:]
 	}
 
-	contents := []map[string]interface{}{}
+	history := make([]LLMMessage, 0, len(req.History))
 	for _, msg := range req.History {
-		role := "model"
-		if msg.IsUser {
-			role = "user"
-		}
-		contents = append(contents, map[string]interface{}{
-			"role": role,
-			"parts": []map[string]interface{}{
-				{"text": truncateRunes(msg.Content, maxHistoryMessageLen)},
-			},
+		history = append(history, LLMMessage{
+			FromUser: msg.IsUser,
+			Text:     truncateRunes(msg.Content, maxHistoryMessageLen),
 		})
 	}
-
-	newParts := []map[string]interface{}{
-		{"text": req.NewMessage},
-	}
-	if req.ImageData != "" {
-		newParts = append(newParts, map[string]interface{}{
-			"inlineData": map[string]interface{}{
-				"mimeType": "image/jpeg",
-				"data":     req.ImageData,
-			},
-		})
-	}
-
-	contents = append(contents, map[string]interface{}{
-		"role":  "user",
-		"parts": newParts,
-	})
 
 	chatPrompt := `Tu es Arbore, l'assistant intelligent de jardinage intégré dans l'application Arbore. Tu es un expert passionné en botanique, horticulture et aménagement de jardins.
 
@@ -1757,51 +1655,27 @@ func handleGeminiChat(c *gin.Context) {
 - L'application Arbore permet aux utilisateurs de scanner leur jardin en 3D avec LiDAR, de gérer un catalogue de plantes, et de recevoir des suggestions personnalisées.
 - Si on te demande qui tu es, présente-toi comme "Arbore, l'assistant jardinage de l'application Arbore".`
 
-	payload := map[string]interface{}{
-		"systemInstruction": map[string]interface{}{
-			"parts": []map[string]interface{}{
-				{"text": chatPrompt + antiInjectionClause},
-			},
-		},
-		"contents": contents,
-	}
-
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 55*time.Second)
 	defer cancel()
-	respData, err := geminiCaller(ctx, payload)
+	result, err := generateLLM(ctx, LLMRequest{
+		SystemPrompt:    chatPrompt + antiInjectionClause,
+		History:         history,
+		UserText:        req.NewMessage,
+		ImageJPEGBase64: req.ImageData,
+	})
 	if err != nil {
-		// Ne jamais propager err.Error() au client : l'erreur peut contenir l'URL de
-		// l'appel sortant et d'autres détails internes. Log serveur uniquement.
-		log.Printf("❌ callGeminiAPI (chat) a échoué: %v", err)
+		// Ne jamais propager err.Error() au client : l'erreur peut contenir des
+		// détails internes (URL sortante…). Log serveur uniquement.
+		log.Printf("❌ chat (provider %s) a échoué: %v", providerName(), err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Le service d'assistance est temporairement indisponible."})
 		return
 	}
-
-	var geminiResponse map[string]interface{}
-	if err := json.Unmarshal(respData, &geminiResponse); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Impossible de lire la réponse de Gemini"})
-		return
-	}
-
-	candidates, ok := geminiResponse["candidates"].([]interface{})
-	if !ok || len(candidates) == 0 {
+	if result.Blocked {
 		c.JSON(http.StatusOK, gin.H{"reply": "Désolé, ma réponse a été bloquée pour des raisons de sécurité ou de politique de contenu."})
 		return
 	}
 
-	firstCandidate, _ := candidates[0].(map[string]interface{})
-	contentVal, _ := firstCandidate["content"].(map[string]interface{})
-	partsVal, _ := contentVal["parts"].([]interface{})
-	if len(partsVal) == 0 {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse vide de Gemini"})
-		return
-	}
-
-	firstPart, _ := partsVal[0].(map[string]interface{})
-	text, _ := firstPart["text"].(string)
-
-	cleanedText := truncateRunes(stripMarkdown(strings.TrimSpace(text)), maxChatReplyLen)
-
+	cleanedText := truncateRunes(stripMarkdown(strings.TrimSpace(result.Text)), maxChatReplyLen)
 	c.JSON(http.StatusOK, gin.H{"reply": cleanedText})
 }
 
@@ -1873,62 +1747,25 @@ Les valeurs numériques sont entre 0 et 1.
 "confidence" = ta confiance dans ce diagnostic.
 "overallHealth" = score de santé globale (1 = parfaite santé).`
 
-	payload := map[string]interface{}{
-		"systemInstruction": map[string]interface{}{
-			"parts": []map[string]interface{}{
-				{"text": systemPrompt + antiInjectionClause},
-			},
-		},
-		"contents": []map[string]interface{}{
-			{
-				"role": "user",
-				"parts": []map[string]interface{}{
-					{"text": userPrompt},
-					{
-						"inlineData": map[string]interface{}{
-							"mimeType": "image/jpeg",
-							"data":     req.ImageData,
-						},
-					},
-				},
-			},
-		},
-	}
-
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 55*time.Second)
 	defer cancel()
-	respData, err := geminiCaller(ctx, payload)
+	result, err := generateLLM(ctx, LLMRequest{
+		SystemPrompt:    systemPrompt + antiInjectionClause,
+		UserText:        userPrompt,
+		ImageJPEGBase64: req.ImageData,
+	})
 	if err != nil {
-		// Idem chat : aucune fuite de l'erreur brute (peut contenir l'URL sortante).
-		log.Printf("❌ callGeminiAPI (diagnose) a échoué: %v", err)
+		// Idem chat : aucune fuite de l'erreur brute (peut contenir des détails internes).
+		log.Printf("❌ diagnose (provider %s) a échoué: %v", providerName(), err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Le service de diagnostic est temporairement indisponible."})
 		return
 	}
-
-	var geminiResponse map[string]interface{}
-	if err := json.Unmarshal(respData, &geminiResponse); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Impossible de décoder la réponse de Gemini"})
-		return
-	}
-
-	candidates, ok := geminiResponse["candidates"].([]interface{})
-	if !ok || len(candidates) == 0 {
+	if result.Blocked {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse Gemini vide ou bloquée"})
 		return
 	}
 
-	firstCandidate, _ := candidates[0].(map[string]interface{})
-	contentVal, _ := firstCandidate["content"].(map[string]interface{})
-	partsVal, _ := contentVal["parts"].([]interface{})
-	if len(partsVal) == 0 {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse vide dans parts"})
-		return
-	}
-
-	firstPart, _ := partsVal[0].(map[string]interface{})
-	text, _ := firstPart["text"].(string)
-
-	rawText := strings.TrimSpace(text)
+	rawText := strings.TrimSpace(result.Text)
 	firstBrace := strings.Index(rawText, "{")
 	lastBrace := strings.LastIndex(rawText, "}")
 
@@ -2086,6 +1923,12 @@ func main() {
 	if err := validateReleaseSecurityConfig(); err != nil {
 		log.Fatalf("❌ Production security configuration invalid: %v", err)
 	}
+
+	// Sélection du fournisseur d'IA/LLM (Gemini par défaut, cf. AI_PROVIDER).
+	if err := initLLMProvider(); err != nil {
+		log.Fatalf("❌ LLM provider init failed: %v", err)
+	}
+	log.Printf("🤖 Fournisseur d'IA actif : %s", providerName())
 
 	// Configurer la fonction de vérification ban pour le middleware
 	middleware.CheckUserBannedFunc = checkUserBannedFromDB

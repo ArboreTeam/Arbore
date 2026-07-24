@@ -1,6 +1,6 @@
 # C4 — Niveau 3 : Composants Backend
 
-Cette vue ouvre le container **Backend API** (Go 1.24 + Gin) et expose ses modules principaux. Le code est organisé autour d'un fichier `main.go` (~2 140 lignes) regroupant déclarations de types, handlers et bootstrap, complété par un sous-dossier `middleware/` pour l'authentification et quelques fichiers spécialisés (`config.go`, `crypto.go`, `apple_revocation.go`, `unsplash.go`, `setdefault.go`), ainsi que les fichiers dédiés aux **proxies Gemini** (`ratelimit.go`, `httphardening.go`, `promptsafety.go`, `diagnose_normalize.go`).
+Cette vue ouvre le container **Backend API** (Go 1.24 + Gin) et expose ses modules principaux. Le code est organisé autour d'un fichier `main.go` (~2 140 lignes) regroupant déclarations de types, handlers et bootstrap, complété par un sous-dossier `middleware/` pour l'authentification et quelques fichiers spécialisés (`config.go`, `crypto.go`, `apple_revocation.go`, `unsplash.go`, `setdefault.go`), ainsi que les fichiers dédiés aux **proxies IA** (`llmprovider.go`, `gemini_provider.go`, `httphardening.go`, `promptsafety.go`, `diagnose_normalize.go`).
 
 Pour la vue d'ensemble des containers, consulter [`02-containers.md`](02-containers.md). Pour les composants côté iOS et web, consulter [`03-components-ios.md`](03-components-ios.md) et [`03-components-web.md`](03-components-web.md).
 
@@ -141,17 +141,19 @@ Ces deux routes sont des **proxies** vers l'API **Google Gemini** : le backend r
 | `POST /chat` | `handleGeminiChat` | Assistant jardinage conversationnel (historique + message + image optionnelle). Réponse en texte brut (markdown retiré). |
 | `POST /diagnose` | `handleGeminiDiagnose` | Diagnostic phytopathologique à partir d'une photo + données colorimétriques. Réponse **JSON normalisée** (cf. ci-dessous). |
 
-L'appel sortant (`callGeminiAPI`) porte la clé dans l'en-tête `x-goog-api-key` (jamais dans l'URL, qui fuiterait dans les `*url.Error`), avec retries à backoff et **propagation du `context`** de la requête : un client déconnecté annule l'appel Gemini en cours (`http.NewRequestWithContext`). L'erreur brute n'est jamais renvoyée au client (log serveur + `502` générique).
+Les handlers construisent une requête **neutre** (`LLMRequest`) et l'envoient via l'interface `LLMProvider` : ils ignorent tout de Gemini. L'implémentation `GeminiProvider` (`gemini_provider.go`) porte la clé dans l'en-tête `x-goog-api-key` (jamais dans l'URL, qui fuiterait dans les `*url.Error`), avec retries à backoff et **propagation du `context`** : un client déconnecté annule l'appel en cours (`http.NewRequestWithContext`). L'erreur brute n'est jamais renvoyée au client (log serveur + `502` générique). Changer de fournisseur (Gemini, Mistral, …) = ajouter une implémentation de `LLMProvider`, sans toucher aux handlers.
 
-### Durcissement des proxies Gemini (#303, #312)
+### Fournisseur IA & durcissement (#303, #312, #319)
 
-Regroupé dans des fichiers dédiés, appliqué uniquement à `/chat` et `/diagnose` :
+Les proxies `/chat` et `/diagnose` sont découplés du fournisseur concret via `LLMProvider` ; le rate limiting et le cap de corps sont mutualisés avec le reste du groupe protégé (`middleware/security.go`) :
 
 | Fichier | Rôle |
 |---|---|
-| `ratelimit.go` — `userRateLimiter` | **Rate limiting par `uid`** (token bucket `golang.org/x/time/rate`). `/chat` ~30 req/h (burst 10), `/diagnose` ~15 req/h (burst 5). Dépassement → `429` + `Retry-After`. Borne le coût Gemini et bloque un client qui boucle. |
-| `httphardening.go` — `limitRequestBody` | **Cap du corps** à 16 Mo (`http.MaxBytesReader`) sur les deux routes (corps JSON avec image base64). |
-| `httphardening.go` — `newServer` | **Timeouts serveur explicites** (`ReadHeaderTimeout` 15 s anti-Slowloris, `ReadTimeout` 60 s, `WriteTimeout` 300 s, `IdleTimeout` 120 s) — remplace `router.Run`. `MaxMultipartMemory` ramené de 1 Go à 32 Mo. |
+| `llmprovider.go` — `LLMProvider` | **Abstraction du fournisseur** : interface + types neutres (`LLMRequest`/`LLMResult`) + sélection via `AI_PROVIDER` (défaut `gemini`). Les handlers ignorent le fournisseur concret (couplage faible). |
+| `gemini_provider.go` — `GeminiProvider` | Implémentation Gemini : traduction du payload (`systemInstruction`/`contents`/`inlineData`), appel HTTP (`x-goog-api-key`, retries), extraction des candidats. |
+| `middleware/security.go` — `WindowLimiter` | **Rate limiting par `uid`** (fenêtre fixe, quotas minute + jour) : `/chat` 20/min + 100/j, `/diagnose` 6/min + 20/j (couvre aussi generate/uploads/thumbnails). Dépassement → `429` + en-têtes `X-RateLimit-*`. |
+| `middleware/security.go` — `MaxBodyBytes` | **Cap du corps** (10 Mo) global sur le groupe protégé : `413` anticipé sur `Content-Length` + `http.MaxBytesReader` (gère le chunked). |
+| `httphardening.go` — `newServer` | **Timeouts serveur explicites** (`ReadHeaderTimeout` 15 s anti-Slowloris, `ReadTimeout` 60 s, `WriteTimeout` 300 s, `IdleTimeout` 120 s) au lieu de `router.Run`. |
 | `httphardening.go` — `backoffOrCancel` | Backoff des retries **interruptible** par le `context` (pas d'attente ni de rappel Gemini pour une requête abandonnée). |
 | `promptsafety.go` | **Anti-prompt-injection** : clause de sécurité prioritaire ajoutée aux system prompts (le contenu utilisateur est une donnée, jamais une instruction) ; entrées bornées (message, historique) ; `plantName` assaini (une ligne, sans caractères de contrôle) et encadré comme donnée non fiable au lieu d'être interpolé brut. |
 | `diagnose_normalize.go` — `normalizeDiagnose` | **Validation du schéma de sortie** du diagnostic : décodage typé, valeurs numériques clampées dans `[0,1]`, tableaux bornés et jamais `null`, maladies sans nom écartées, défauts prudents. Respecte le contrat du décodeur iOS (`diseases[].name` toujours émis, clés camelCase). |

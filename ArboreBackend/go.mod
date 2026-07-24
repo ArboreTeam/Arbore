@@ -9,7 +9,6 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/stretchr/testify v1.11.1
 	go.mongodb.org/mongo-driver v1.17.7
-	golang.org/x/time v0.14.0
 	google.golang.org/api v0.262.0
 )
 
@@ -87,6 +86,7 @@ require (
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.39.0 // indirect
+	golang.org/x/time v0.14.0 // indirect
 	google.golang.org/appengine/v2 v2.0.6 // indirect
 	google.golang.org/genproto v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260414002931-afd174a4e478 // indirect

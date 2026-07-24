@@ -2059,10 +2059,11 @@ func main() {
 		protected.PUT("/gardens/:id", updateGarden)
 		protected.DELETE("/gardens/:id", deleteGarden)
 
-		// Gemini Chat & Scanner Proxies — rate limité par uid pour borner le coût
-		// Gemini, bloquer les rafales et imposer aussi un quota journalier.
-		protected.POST("/chat", chatRateLimiter.middleware(), chatMinuteLimiter.Middleware(), chatDailyQuota.Middleware(), limitRequestBody(maxGeminiBodyBytes), handleGeminiChat)
-		protected.POST("/diagnose", diagnoseRateLimiter.middleware(), diagnosisMinuteLimiter.Middleware(), diagnosisDailyQuota.Middleware(), limitRequestBody(maxGeminiBodyBytes), handleGeminiDiagnose)
+		// Gemini Chat & Scanner Proxies — rate limité par uid (quota minute + jour)
+		// pour borner le coût Gemini. Le cap de corps est appliqué globalement sur
+		// le groupe protégé (middleware.MaxBodyBytes), les timeouts par newServer.
+		protected.POST("/chat", chatMinuteLimiter.Middleware(), chatDailyQuota.Middleware(), handleGeminiChat)
+		protected.POST("/diagnose", diagnosisMinuteLimiter.Middleware(), diagnosisDailyQuota.Middleware(), handleGeminiDiagnose)
 
 		// Consents (RGPD)
 		protected.POST("/consents", recordConsent)

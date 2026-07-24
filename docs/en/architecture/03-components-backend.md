@@ -1,6 +1,6 @@
 # C4 — Level 3: Backend Components
 
-This view opens up the **Backend API** container (Go 1.24 + Gin) and exposes its main modules. The code is organized around a `main.go` file (~2,140 lines) bundling type declarations, handlers, and bootstrap, supplemented by a `middleware/` subfolder for authentication and a few specialized files (`config.go`, `crypto.go`, `apple_revocation.go`, `unsplash.go`, `setdefault.go`), plus files dedicated to the **Gemini proxies** (`ratelimit.go`, `httphardening.go`, `promptsafety.go`, `diagnose_normalize.go`).
+This view opens up the **Backend API** container (Go 1.24 + Gin) and exposes its main modules. The code is organized around a `main.go` file (~2,140 lines) bundling type declarations, handlers, and bootstrap, supplemented by a `middleware/` subfolder for authentication and a few specialized files (`config.go`, `crypto.go`, `apple_revocation.go`, `unsplash.go`, `setdefault.go`), plus files dedicated to the **AI proxies** (`llmprovider.go`, `gemini_provider.go`, `httphardening.go`, `promptsafety.go`, `diagnose_normalize.go`).
 
 For the container overview, see [`02-containers.md`](02-containers.md). For the iOS and web components, see [`03-components-ios.md`](03-components-ios.md) and [`03-components-web.md`](03-components-web.md).
 
@@ -141,17 +141,19 @@ These two routes are **proxies** to the **Google Gemini** API: the backend relay
 | `POST /chat` | `handleGeminiChat` | Conversational gardening assistant (history + message + optional image). Plain-text reply (markdown stripped). |
 | `POST /diagnose` | `handleGeminiDiagnose` | Phytopathological diagnosis from a photo + colorimetric data. **Normalized JSON** reply (see below). |
 
-The outbound call (`callGeminiAPI`) carries the key in the `x-goog-api-key` header (never in the URL, which would leak into `*url.Error`), with backoff retries and **request `context` propagation**: a disconnected client cancels the in-flight Gemini call (`http.NewRequestWithContext`). The raw error is never returned to the client (server log + generic `502`).
+The handlers build a **neutral** request (`LLMRequest`) and send it through the `LLMProvider` interface: they know nothing about Gemini. The `GeminiProvider` implementation (`gemini_provider.go`) carries the key in the `x-goog-api-key` header (never in the URL, which would leak into `*url.Error`), with backoff retries and **request `context` propagation**: a disconnected client cancels the in-flight call (`http.NewRequestWithContext`). The raw error is never returned to the client (server log + generic `502`). Swapping providers (Gemini, Mistral, …) = adding an `LLMProvider` implementation, without touching the handlers.
 
-### Gemini proxy hardening (#303, #312)
+### AI provider & hardening (#303, #312, #319)
 
-Grouped into dedicated files, applied only to `/chat` and `/diagnose`:
+The `/chat` and `/diagnose` proxies are decoupled from the concrete provider via `LLMProvider`; rate limiting and body cap are shared with the rest of the protected group (`middleware/security.go`):
 
 | File | Role |
 |---|---|
-| `ratelimit.go` — `userRateLimiter` | **Per-`uid` rate limiting** (token bucket, `golang.org/x/time/rate`). `/chat` ~30 req/h (burst 10), `/diagnose` ~15 req/h (burst 5). Exceeded → `429` + `Retry-After`. Bounds the Gemini cost and blocks a looping client. |
-| `httphardening.go` — `limitRequestBody` | **Body cap** at 16 MB (`http.MaxBytesReader`) on both routes (JSON body with base64 image). |
-| `httphardening.go` — `newServer` | **Explicit server timeouts** (`ReadHeaderTimeout` 15s anti-Slowloris, `ReadTimeout` 60s, `WriteTimeout` 300s, `IdleTimeout` 120s) — replaces `router.Run`. `MaxMultipartMemory` lowered from 1 GB to 32 MB. |
+| `llmprovider.go` — `LLMProvider` | **Provider abstraction**: interface + neutral types (`LLMRequest`/`LLMResult`) + selection via `AI_PROVIDER` (default `gemini`). Handlers know nothing about the concrete provider (weak coupling). |
+| `gemini_provider.go` — `GeminiProvider` | Gemini implementation: payload translation (`systemInstruction`/`contents`/`inlineData`), HTTP call (`x-goog-api-key`, retries), candidate extraction. |
+| `middleware/security.go` — `WindowLimiter` | **Per-`uid` rate limiting** (fixed window, minute + daily quotas): `/chat` 20/min + 100/day, `/diagnose` 6/min + 20/day (also covers generate/uploads/thumbnails). Exceeded → `429` + `X-RateLimit-*` headers. |
+| `middleware/security.go` — `MaxBodyBytes` | **Body cap** (10 MB) applied globally on the protected group: early `413` on `Content-Length` + `http.MaxBytesReader` (handles chunked). |
+| `httphardening.go` — `newServer` | **Explicit server timeouts** (`ReadHeaderTimeout` 15s anti-Slowloris, `ReadTimeout` 60s, `WriteTimeout` 300s, `IdleTimeout` 120s) instead of `router.Run`. |
 | `httphardening.go` — `backoffOrCancel` | Retry backoff **interruptible** by the `context` (no waiting or re-calling Gemini for an abandoned request). |
 | `promptsafety.go` | **Anti-prompt-injection**: a priority safety clause added to the system prompts (user content is data, never an instruction); bounded inputs (message, history); `plantName` sanitized (single line, no control characters) and framed as untrusted data instead of being interpolated raw. |
 | `diagnose_normalize.go` — `normalizeDiagnose` | **Output schema validation** for the diagnosis: typed decoding, numeric values clamped to `[0,1]`, bounded arrays never `null`, nameless diseases dropped, safe defaults. Honors the iOS decoder contract (`diseases[].name` always emitted, camelCase keys). |

@@ -32,7 +32,10 @@ concurrency:
 env:
   GO_VERSION: "1.22"
   PYTHON_VERSION: "3.11"
-  XCODE_VERSION: "16.2"
+  # latest-stable : chaque runner prend son Xcode le plus récent.
+  # ios_ui tourne sur macos-15 → Xcode 26 (SDK iOS 26 requis pour Liquid Glass,
+  # ex. .buttonStyle(.glass)). ios_ar reste sur macos-14 → Xcode 16.x.
+  XCODE_VERSION: "latest-stable"
 
 jobs:
   # Détection des changements pour optimiser les builds
@@ -218,7 +221,8 @@ jobs:
   ios_ui:
     needs: changes
     if: needs.changes.outputs.ios_ui == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: macos-14
+    # macos-15 pour disposer d'Xcode 26 (SDK iOS 26, Liquid Glass).
+    runs-on: macos-15
     timeout-minutes: 45
     defaults:
       run:
@@ -329,7 +333,7 @@ jobs:
           xcodebuild clean build \
             -workspace ArboreUi.xcworkspace \
             -scheme ArboreUi \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -configuration Debug \
             -derivedDataPath build/ \
             CODE_SIGNING_ALLOWED=NO \
@@ -376,7 +380,7 @@ jobs:
           xcodebuild test \
             -workspace ArboreUi.xcworkspace \
             -scheme ArboreUi \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -derivedDataPath build/ \
             -resultBundlePath build/TestResults.xcresult \
             -parallel-testing-enabled YES \
@@ -537,7 +541,7 @@ jobs:
           xcodebuild clean build \
             -project ArboreARkit.xcodeproj \
             -scheme ArboreARkit \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -configuration Debug \
             -derivedDataPath build/ \
             CODE_SIGNING_ALLOWED=NO \
@@ -551,7 +555,7 @@ jobs:
           xcodebuild test \
             -project ArboreARkit.xcodeproj \
             -scheme ArboreARkit \
-            -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
+            -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -derivedDataPath build/ \
             CODE_SIGNING_ALLOWED=NO \
             | xcpretty

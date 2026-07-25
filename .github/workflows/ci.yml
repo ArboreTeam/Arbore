@@ -223,7 +223,8 @@ jobs:
     if: needs.changes.outputs.ios_ui == 'true' || github.event_name == 'workflow_dispatch'
     # macos-15 pour disposer d'Xcode 26 (SDK iOS 26, Liquid Glass).
     runs-on: macos-15
-    timeout-minutes: 45
+    # 55 min : marge pour build (~7 min) + Run Unit Tests (jusqu'à 35 min) sous Xcode 26.
+    timeout-minutes: 55
     defaults:
       run:
         working-directory: ./ArboreUi
@@ -364,7 +365,10 @@ jobs:
           echo "✅ Secrets.xcconfig (test) écrit"
 
       - name: 🧪 Run Unit Tests
-        timeout-minutes: 20
+        # 35 min : sous Xcode 26 le `xcodebuild test` recompile l'app + les
+        # cibles de test (dont les UI/integration tests) avant de lancer la
+        # suite ; 20 min étaient trop justes et faisaient timeout le step.
+        timeout-minutes: 35
         env:
           ARBORE_API_KEY_EFFECTIVE: ${{ secrets.ARBORE_API_KEY_TEST != '' && secrets.ARBORE_API_KEY_TEST || secrets.ARBORE_API_KEY }}
         run: |

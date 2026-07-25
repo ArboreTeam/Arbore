@@ -1,11 +1,13 @@
 name: 🌱 Arbore CI/CD
 
-# Déclenche le workflow sur push ou PR vers main/develop
+# Déclenche le workflow sur push ou PR vers main/dev.
+# `dev` est la branche d'intégration : les PR de feature la ciblent, donc la CI
+# doit y tourner (sinon une feature entre dans dev sans build/test/lint).
 on:
   push:
-    branches: [ "main", "develop" ]
+    branches: [ "main", "dev" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
   workflow_dispatch:
     inputs:
       clean_pods_cache:

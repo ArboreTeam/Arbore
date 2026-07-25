@@ -22,6 +22,8 @@ Un écran devient hero screen, et donc cible d'une per-screen spec, lorsqu'**au 
 | `GardenARPlacementView` | [`garden-ar-placement.md`](garden-ar-placement.md) | Machine d'états (`RelocationPhase`), 3 300 LOC, 3 frameworks (ARKit + SceneKit + SwiftUI), ≥ 5 issues (#96, #111, #113, #114, #123, #124, #136, #138). |
 | Wizard de création de jardin | [`questionnaire-wizard.md`](questionnaire-wizard.md) | 10 étapes avec skip rules, `POST /gardens` + branching vers deux flows AR distincts, ≥ 3 issues (#139, #21, #97). |
 | `PersonalDetailsView` | [`personal-details.md`](personal-details.md) | `PATCH /users/me` + mise à jour Firebase `displayName`, machine d'états save (idle → saving → success/error), issue #138. |
+| Scan de santé des plantes | [`plant-health-scan.md`](plant-health-scan.md) | Machine d'états (`ScanPhase`), pipeline 4 étapes, 2 frameworks Apple (Vision + CoreImage), `POST /diagnose`, contrat RGPD (photo envoyée à Gemini). |
+| Catalogue de plantes | [`plant-catalog.md`](plant-catalog.md) | Filtrage multi-dimensions + évaluation de compatibilité (`PlantSuitabilityEvaluator`, 9 critères), ~1 600 LOC, doublon de scoring suivi (#319). |
 
 ## Hero screens non-documentés (à promouvoir si nécessaire)
 
@@ -30,7 +32,7 @@ Les écrans suivants sont en limite mais ne sont pas encore documentés. Ils ser
 - `LiDARScanWizardView` — single screen mais RoomPlan + transition vers `GardenARPlacementView`. Suivi par l'issue #139.
 - `ARViewContainerMeasure` — single screen, principalement pour le tracé périmètre non-LiDAR.
 - `SignUpView` — flow critique (#137) mais le détail est déjà dans [`../flows/auth-signup.md`](../flows/auth-signup.md).
-- `CatalogueView` et `PlantCatalogView` — listings avec filtres mais sans logique complexe.
+- `CatalogueView` — listing avec filtres mais sans logique complexe (`PlantCatalogView` est désormais documenté ci-dessus).
 
 ## Structure d'une per-screen spec
 

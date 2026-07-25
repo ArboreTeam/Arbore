@@ -25,6 +25,9 @@ La documentation est découpée en vues complémentaires. Selon l'information re
 | Per-screen spec — `GardenARPlacementView` | [`screens/garden-ar-placement.md`](screens/garden-ar-placement.md) |
 | Per-screen spec — wizard de création | [`screens/questionnaire-wizard.md`](screens/questionnaire-wizard.md) |
 | Per-screen spec — `PersonalDetailsView` | [`screens/personal-details.md`](screens/personal-details.md) |
+| Per-screen spec — scan de santé des plantes | [`screens/plant-health-scan.md`](screens/plant-health-scan.md) |
+| Per-screen spec — catalogue de plantes | [`screens/plant-catalog.md`](screens/plant-catalog.md) |
+| Notifications locales (arrosage et soins) | [`architecture/notifications.md`](architecture/notifications.md) |
 | Stratégie de test (front + back) | [`testing/_index.md`](testing/_index.md) |
 | Tests iOS | [`testing/ios.md`](testing/ios.md) |
 | Tests Backend (Go) | [`testing/backend.md`](testing/backend.md) |

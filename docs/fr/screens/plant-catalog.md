@@ -17,12 +17,12 @@ Définies dans `PlantCatalogContext.swift`, chacune un `enum` filtrable :
 
 | Dimension | Exemples |
 |---|---|
-| `PlantCatalogGoal` | objectif (déco, potager, dépolluant…) |
-| `PlantCatalogKind` | type (arbre, fleur, succulente…) |
-| `PlantCatalogColor` | couleur dominante |
-| `PlantCatalogAppearance` / `PlantCatalogHabit` | port / silhouette |
-| `PlantCatalogScale` / `PlantCatalogSize` | gabarit |
-| `PlantCatalogCareLevel` | exigence d'entretien |
+| `PlantCatalogGoal` | objectif d'aménagement : ajouter de la couleur, créer de l'intimité, couvrir un mur, attirer les pollinisateurs, aromatique/comestible, point focal… |
+| `PlantCatalogKind` | type : plante verte, fleurie, cactus/succulente, palmier, fougère, orchidée, arbre, arbuste, vivace, annuelle, graminée, couvre-sol, grimpante, aromatique/comestible |
+| `PlantCatalogColor` | couleur dominante (blanc, jaune, orange, rouge, rose, violet, bleu, vert, sombre) |
+| `PlantCatalogAppearance` / `PlantCatalogHabit` | port : dressé, étalé, grimpant, retombant |
+| `PlantCatalogScale` / `PlantCatalogSize` | gabarit : compact, équilibré, imposant |
+| `PlantCatalogCareLevel` | exigence d'entretien : minimal, régulier |
 
 Le style de jardin (ancien step wizard) a vocation à vivre **ici, comme filtre**, plutôt que comme étape du parcours.
 

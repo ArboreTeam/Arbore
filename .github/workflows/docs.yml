@@ -2,7 +2,7 @@ name: 📚 Docs validation
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: ["main", "dev"]
     paths:
       - "docs/**"
       - "ArboreUi/**/*.swift"
@@ -10,7 +10,7 @@ on:
       - ".github/workflows/docs.yml"
       - ".github/scripts/docs-*.sh"
   push:
-    branches: ["main"]
+    branches: ["main", "dev"]
     paths:
       - "docs/**"
       - ".github/workflows/docs.yml"

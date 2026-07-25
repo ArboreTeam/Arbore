@@ -4,8 +4,11 @@ on:
   push:
     branches: [ "main" ]
     tags: [ 'v*.*.*' ]
+  # Les PR vers dev sont buildées pour validation, mais aucune image n'est
+  # publiée (l'étape push est conditionnée à `github.event_name != 'pull_request'`).
+  # `dev` n'est volontairement pas dans `push:` : pas de publication depuis dev.
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "dev" ]
 
 env:
   REGISTRY: ghcr.io

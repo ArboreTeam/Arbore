@@ -8,9 +8,9 @@ name: "🔒 CodeQL Security Analysis"
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "dev"]
   pull_request:
-    branches: ["main"]
+    branches: ["main", "dev"]
   schedule:
     - cron: '30 2 * * 1'  # Tous les lundis à 2h30 UTC
   workflow_dispatch:

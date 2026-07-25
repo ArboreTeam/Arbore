@@ -2,7 +2,6 @@
 
 - **Statut** : Accepted
 - **Date** : 2026-04-15
-- **Mise à jour UX** : 2026-07-16
 - **Décideurs** : Équipe Arbore
 
 ## Contexte
@@ -14,17 +13,15 @@ Le parc d'utilisateurs cible inclut **tous les iPhone à partir de l'iPhone 11**
 - Les **iPhone Pro / Pro Max / iPad Pro** récents (iPhone 12 Pro+) équipés d'un **capteur LiDAR**, qui ouvre l'accès aux API Apple `ARKit.meshWithClassification` et `RoomPlan`.
 - Les **iPhone non-Pro** (iPhone 11 à 15 non-Pro), qui n'ont pas de LiDAR et doivent se contenter du tracking visuel ARKit.
 
-Le wizard de création doit choisir entre ces moteurs sans imposer une page de décision technique à l'utilisateur.
+Le wizard de création de jardin propose donc à l'utilisateur de choisir sa méthode de scan via l'étape `scanMethod` (cf. `Views/GardenSteps/ScanMethodSelectionView.swift`).
 
 ## Décision
 
-L'application maintient **deux stacks de scan parallèles**, sélectionnées automatiquement au runtime selon l'espace et le device :
+L'application maintient **deux stacks de scan parallèles**, sélectionnées au runtime selon le device :
 
 - **`gardenPerimeter` (non-LiDAR, défaut universel)** — `ARViewContainerMeasure` utilise les raycasts ARKit pour permettre à l'utilisateur de tracer manuellement le **polygone du sol** point par point. Aucun mesh 3D n'est construit ; seul un `[SIMD3<Float>]` représentant le périmètre est sauvegardé. Marche sur **tous les iPhones** ciblés.
 
-- **`roomScan` (LiDAR uniquement)** — `LiDARScanWizardView` utilise `RoomPlan.RoomCaptureSession` pour produire un modèle structuré (murs, sols, portes, fenêtres). Il est recommandé automatiquement pour une pièce lorsque `RoomCaptureSession.isSupported == true`.
-
-Le tracé périmétrique est sélectionné pour tous les autres cas. La page `ScanMethodSelectionView` a été retirée : après le choix de l'espace, le prompt caméra puis le scan s'ouvrent directement. « Changer de méthode » reste disponible dans la caméra uniquement pour une pièce lorsque RoomPlan et le tracé sont tous deux utilisables.
+- **`roomScan` (LiDAR uniquement)** — `LiDARScanWizardView` utilise `RoomPlan.RoomCaptureSession` pour produire un modèle structuré (murs, sols, portes, fenêtres). La carte est grisée dans le wizard si `RoomCaptureSession.isSupported == false`.
 
 Apple **ObjectCapture** (`PhotogrammetrySession`, iOS 17+, Area mode iOS 18+) n'est **pas intégrée à ce stade** mais reste en candidate forte pour étendre le scan non-LiDAR à une vraie reconstruction 3D dense. Cette extension fait l'objet de l'issue #140.
 
@@ -34,14 +31,12 @@ Apple **ObjectCapture** (`PhotogrammetrySession`, iOS 17+, Area mode iOS 18+) n'
 
 - Tous les iPhones du parc cible peuvent utiliser l'application sans dégradation fonctionnelle.
 - Les utilisateurs LiDAR bénéficient d'une qualité de scan supérieure (murs et meubles classifiés).
-- L'utilisateur atteint la valeur principale — mesurer son espace — avec une page de moins.
-- La méthode reste modifiable dans le seul cas où une vraie alternative existe.
+- Le wizard expose explicitement le choix à l'utilisateur via `ScanMethodSelectionView`, ce qui rend le compromis lisible.
 
 ### Négatives
 
 - Le codebase porte **deux flows AR distincts**, ce qui double la surface de maintenance (cf. issue #81 : unifier les five AR view containers dupliqués).
 - Le rendu visuel diffère sensiblement entre les deux methods, ce qui peut surprendre l'utilisateur qui change de device.
-- La différence technique entre les moteurs est moins visible avant le démarrage ; l'option en caméra compense ce manque pour les appareils RoomPlan.
 - Le scan non-LiDAR reste limité au polygone du sol, sans information sur les obstacles 3D, ce qui interdit certaines features futures (snap automatique des plantes à un mur, par exemple).
 
 ### Neutres

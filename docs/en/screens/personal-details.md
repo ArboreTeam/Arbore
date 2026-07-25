@@ -113,12 +113,29 @@ Three keys added in fr/en/de/es by issue #138:
 
 ### iOS permissions
 
-No iOS permission required by this screen.
+No iOS permission is required to edit the name. For the profile photo (parent screen, see below), `PHPickerViewController` runs **out-of-process** and therefore requires **no photo-library access authorization**.
 
 ### Apple frameworks used
 
 - **SwiftUI** for the entire view.
 - **FirebaseAuth** for reading the current profile and updating the `displayName`.
+- **PhotosUI** (`PHPickerViewController`) for picking the profile photo from the parent screen.
+
+## Profile photo (parent screen `ProfileView`)
+
+The profile photo is not edited from `PersonalDetailsView` but from its **parent screen** `ProfileView` (button on the header avatar). It is documented here because it is part of the identity data.
+
+| Step | Detail |
+|---|---|
+| Picking | `PhotoPicker` (`ProfileComponents.swift`) wraps `PHPickerViewController` (`filter = .images`, `selectionLimit = 1`). No permission required. |
+| Normalization | `normalizedProfileImage()` then **JPEG quality 0.86** encoding. |
+| Storage | ⚠️ **Local only**: `Documents/ProfileImages/<uid>.jpg` (atomic write). The photo is reloaded when the screen appears (`fetchProfileImage`). |
+| Network | **No upload.** The backend endpoint `POST /users/:uid/photo` still exists server-side but is **no longer called by the iOS app** — the photo never leaves the device. |
+| Error | Write failure → "Impossible de sauvegarder la photo." message (`uploadError`), no retry. |
+
+**Consequences** (tracked in #329): the photo is **not synced across devices** and is lost on uninstall. From a GDPR standpoint this is the most protective behavior (local data, never transmitted) — but the data export (art. 20) cannot include it while it stays on-device.
+
+> **Saving a capture to the photo library** — in a separate flow (`ARViewContainerMeasure`), the app offers to save a capture via `UIImageWriteToSavedPhotosAlbum`, which **requires** `NSPhotoLibraryAddUsageDescription` in `Info.plist` (missing, the app crashed — fixed, see #304).
 
 ## Related issues
 
@@ -130,6 +147,6 @@ No iOS permission required by this screen.
 
 ## Out of scope for this spec
 
-- Managing the **profile photo** goes through the `POST /users/:uid/photo` endpoint (multipart) and is not exposed by this screen. A separate photo editor will be added if needed.
+- The **profile photo** is edited from the parent screen `ProfileView` — described above, in its dedicated section.
 - **Changing the email** and **changing the password** are separate flows not yet implemented.
 - The backend spec for `PATCH /users/me` is in [`../architecture/03-components-backend.md`](../architecture/03-components-backend.md).

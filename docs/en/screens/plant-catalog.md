@@ -17,12 +17,12 @@ Defined in `PlantCatalogContext.swift`, each a filterable `enum`:
 
 | Dimension | Examples |
 |---|---|
-| `PlantCatalogGoal` | goal (decorative, vegetable garden, air-purifying…) |
-| `PlantCatalogKind` | type (tree, flower, succulent…) |
-| `PlantCatalogColor` | dominant color |
-| `PlantCatalogAppearance` / `PlantCatalogHabit` | habit / silhouette |
-| `PlantCatalogScale` / `PlantCatalogSize` | size class |
-| `PlantCatalogCareLevel` | care requirement |
+| `PlantCatalogGoal` | design goal: add color, create privacy, cover a wall, attract pollinators, edible/aromatic, focal point… |
+| `PlantCatalogKind` | type: green plant, flowering, cactus/succulent, palm, fern, orchid, tree, shrub, perennial, annual, grass, groundcover, climbing, edible/aromatic |
+| `PlantCatalogColor` | dominant color (white, yellow, orange, red, pink, purple, blue, green, dark) |
+| `PlantCatalogAppearance` / `PlantCatalogHabit` | habit: upright, spreading, climbing, trailing |
+| `PlantCatalogScale` / `PlantCatalogSize` | size class: compact, balanced, statement |
+| `PlantCatalogCareLevel` | care requirement: minimal, regular |
 
 The garden style (former wizard step) is meant to live **here, as a filter**, rather than as a step in the creation flow.
 

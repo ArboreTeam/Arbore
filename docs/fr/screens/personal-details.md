@@ -113,12 +113,29 @@ Trois clés ajoutées en fr/en/de/es par l'issue #138 :
 
 ### Permissions iOS
 
-Aucune permission iOS requise par cet écran.
+Aucune permission iOS requise par l'édition du nom. Pour la photo de profil (écran parent, cf. ci-dessous), `PHPickerViewController` s'exécute **hors-process** et ne demande donc **aucune autorisation d'accès** à la photothèque.
 
 ### Frameworks Apple utilisés
 
 - **SwiftUI** pour toute la vue.
 - **FirebaseAuth** pour la lecture du profil courant et la mise à jour du `displayName`.
+- **PhotosUI** (`PHPickerViewController`) pour la sélection de la photo de profil depuis l'écran parent.
+
+## Photo de profil (écran parent `ProfileView`)
+
+La photo de profil n'est pas éditée depuis `PersonalDetailsView` mais depuis son **écran parent** `ProfileView` (bouton sur l'avatar de l'en-tête). Elle est documentée ici car elle fait partie des données d'identité.
+
+| Étape | Détail |
+|---|---|
+| Sélection | `PhotoPicker` (`ProfileComponents.swift`) enveloppe `PHPickerViewController` (`filter = .images`, `selectionLimit = 1`). Aucune permission requise. |
+| Normalisation | `normalizedProfileImage()` puis encodage **JPEG qualité 0.86**. |
+| Stockage | ⚠️ **Local uniquement** : `Documents/ProfileImages/<uid>.jpg` (écriture atomique). La photo est rechargée au montage de l'écran (`fetchProfileImage`). |
+| Réseau | **Aucun envoi.** L'endpoint backend `POST /users/:uid/photo` existe toujours côté serveur mais **n'est plus appelé par l'app iOS** — la photo ne quitte pas l'appareil. |
+| Erreur | Échec d'écriture → message « Impossible de sauvegarder la photo. » (`uploadError`), pas de retry. |
+
+**Conséquences** (suivies dans #329) : la photo n'est **pas synchronisée entre appareils** et disparaît à la désinstallation. Côté RGPD c'est le comportement le plus protecteur (donnée locale, jamais transmise) — mais l'export de données (art. 20) ne peut pas l'inclure tant qu'elle reste on-device.
+
+> **Sauvegarde d'une capture en photothèque** — dans un flow distinct (`ARViewContainerMeasure`), l'app propose d'enregistrer une capture via `UIImageWriteToSavedPhotosAlbum`, ce qui **exige** `NSPhotoLibraryAddUsageDescription` dans l'`Info.plist` (absente, l'app crashait — corrigé, cf. #304).
 
 ## Issues associées
 
@@ -130,6 +147,6 @@ Aucune permission iOS requise par cet écran.
 
 ## Hors-scope de cette spec
 
-- La gestion de la **photo de profil** passe par l'endpoint `POST /users/:uid/photo` (multipart) et n'est pas exposée par cet écran. Un éditeur de photo distinct sera ajouté si nécessaire.
+- La **photo de profil** est éditée depuis l'écran parent `ProfileView` — décrite ci-dessus, dans la section dédiée.
 - Le **changement d'email** et le **changement de mot de passe** sont des flows séparés non encore implémentés.
 - La spec backend de `PATCH /users/me` est dans [`../architecture/03-components-backend.md`](../architecture/03-components-backend.md).

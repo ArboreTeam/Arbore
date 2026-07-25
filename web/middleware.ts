@@ -7,7 +7,7 @@ const SESSION_COOKIE = 'arbore_auth';
 const PROTECTED = ['/garden', '/profile', '/welcome'];
 const AUTH_PAGES = ['/login', '/signup'];
 
-export function proxy(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const authed = req.cookies.has(SESSION_COOKIE);
   const isProtected = PROTECTED.some(

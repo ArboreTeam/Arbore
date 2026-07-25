@@ -119,8 +119,11 @@ flowchart TB
 | `Models/PotMeasurement.swift` | Mesure du diamètre d'un pot via ARKit (feature secondaire). |
 | `UserService.swift` | Récupère l'utilisateur courant via `GET /users/:uid`. |
 | `Models/GardenProjectService.swift` | CRUD des jardins via le backend. |
-| `Services/GardenSuggestionEngine.swift` | Filtre et propose les plantes adaptées au profil. |
+| `Services/GardenSuggestionEngine.swift` | Scoring multi-axes pondéré (style, exposition, sol, entretien, sécurité) qui propose les plantes adaptées au profil du wizard. |
 | `Services/CalendarService.swift` | Génère le calendrier d'arrosage à partir des `WateringRoutine`. |
+| `Services/PlantHealthScanner.swift` | Scan de santé : pipeline qualité d'image → détection Vision → colorimétrie → diagnostic IA (`POST /diagnose`), avec repli colorimétrie hors-ligne. Cf. [`../screens/plant-health-scan.md`](../screens/plant-health-scan.md). |
+| `Models/PlantCatalogContext.swift` | Dimensions de filtre du catalogue + `PlantSuitabilityEvaluator` (compatibilité plante ↔ profil de jardin, 9 critères). Cf. [`../screens/plant-catalog.md`](../screens/plant-catalog.md). |
+| `Notifications/NotificationManager.swift` + `ArboreNotificationPlanner.swift` | Notifications **locales** d'arrosage et de soin (autorisation, catégories/actions rapides, planification, ajustement météo). Cf. [`notifications.md`](notifications.md). |
 | `LoginAuth/saveAuthDB.swift` | Pont entre Firebase Auth et `POST /users` — implémente retry exponentiel et rollback Firebase (issue #137). |
 
 ### Couche infrastructure

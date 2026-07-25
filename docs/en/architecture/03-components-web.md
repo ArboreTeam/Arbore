@@ -14,7 +14,7 @@ flowchart TB
         direction TB
         pages["App Router pages<br/>(app/**/page.tsx)"]
         shell["Shell & errors<br/>(layout · error · not-found)"]
-        mw["Guard middleware<br/>(proxy.ts — arbore_auth cookie)"]
+        mw["Guard middleware<br/>(middleware.ts — arbore_auth cookie)"]
         proxy["Backend proxy<br/>(app/api/backend/[...path]/route.ts)"]
         apiclient["API client<br/>(lib/api.ts)"]
         authsvc["Auth & Firebase<br/>(lib/authService.ts · lib/firebase.ts)"]
@@ -65,7 +65,7 @@ The app pages are client components (`'use client'`): they check the authenticat
 
 ### 3. Guard middleware
 
-`web/proxy.ts` runs before rendering and guards the protected prefixes (`/garden`, `/profile`, `/welcome`) based on an `arbore_auth` cookie; it redirects `/login` and `/signup` to `/garden` when the user is already signed in. **It is a UX guard only** — real security is the backend's verification of the Firebase token on every call.
+`web/middleware.ts` runs before rendering and guards the protected prefixes (`/garden`, `/profile`, `/welcome`) based on an `arbore_auth` cookie; it redirects `/login` and `/signup` to `/garden` when the user is already signed in. **It is a UX guard only** — real security is the backend's verification of the Firebase token on every call.
 
 ### 4. Backend proxy (key security component)
 

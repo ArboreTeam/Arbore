@@ -265,16 +265,42 @@ Health check end-to-end :
 
 ```bash
 curl -fsS http://localhost:8080/health
-# → {"status":"ok","service":"arbore-backend","version":"..."}
+# → {"status":"ok","service":"arbore-backend","commit":"<sha>"}
 curl -fsS http://localhost:3000/   # web (Next.js)
 curl -fsS http://<VPS_IP>/health   # via nginx
 ```
 
+Le champ `commit` est le SHA git réellement déployé. C'est le seul moyen de
+savoir si la production suit `main` :
+
+```bash
+curl -s https://api.arbore.app/health | jq -r .commit   # ce qui tourne
+git rev-parse origin/main                               # ce qui devrait tourner
+```
+
 À partir de maintenant, les déploiements suivants passent par
-`./deploy.sh` (qui prend un snapshot Mongo avant chaque rebuild). Le checkout
-doit être propre. Les USDZ, miniatures, anciens uploads et secrets restent dans
-`/home/fedora/arbore-data` grâce aux chemins absolus du `.env` : un nouveau
-checkout de release ne peut donc ni les écraser ni les supprimer.
+`./deploy.sh` (qui prend un snapshot Mongo avant chaque rebuild).
+
+**Garde-fou du checkout.** `deploy.sh` refuse de déployer si un fichier **suivi**
+par git est modifié — c'est du code non committé, donc une divergence
+silencieuse. En revanche il **tolère** deux choses : les fichiers non suivis (ils
+ne peuvent pas faire échouer un fast-forward) et les modifications sous
+`ArboreBackend/models/`, déclarées comme données hors bande dans
+`OUT_OF_BAND_PATHS`. Ces modèles 3D sont regénérés et nettoyés directement sur le
+serveur ; les exiger propres rendait `deploy.sh` inutilisable, et les
+déploiements le contournaient — en sautant le snapshot Mongo pre-deploy, seul
+filet de sécurité puisque Atlas M0 n'a aucun backup automatique (cf. #341).
+
+Les USDZ, miniatures, anciens uploads et secrets sont censés vivre dans
+`/home/fedora/arbore-data` grâce aux chemins absolus du `.env`, pour qu'un
+nouveau checkout de release ne puisse ni les écraser ni les supprimer.
+
+> ⚠️ **État réel au 26/07/2026** : `/home/fedora/arbore-data/models` existe et
+> contient bien les 124 modèles, mais **aucun `MODELS_HOST_PATH` n'est défini
+> dans le `.env` du VPS**. `docker-compose.yml` retombe donc sur son défaut
+> `./ArboreBackend/models`, et la production sert les modèles **depuis le
+> checkout git**. Cette bascule reste à faire (#341) ; d'ici là, toute opération
+> git sur ces fichiers change ce que l'app télécharge.
 
 ---
 

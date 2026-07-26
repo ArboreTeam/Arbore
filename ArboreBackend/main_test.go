@@ -1108,6 +1108,43 @@ func TestValidateReleaseSecurityConfigFailsClosed(t *testing.T) {
 	}
 }
 
+// MARK: - Health endpoint (détection de dérive, #341)
+
+func TestHealthHandlerReportsBuildCommit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	original := buildCommit
+	t.Cleanup(func() { buildCommit = original })
+	buildCommit = "d94496dcafe0000000000000000000000000cafe"
+
+	router := gin.New()
+	router.GET("/health", healthHandler)
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/health", nil))
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var payload map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("réponse /health illisible: %v", err)
+	}
+	assert.Equal(t, "ok", payload["status"])
+	assert.Equal(t, "arbore-backend", payload["service"])
+	// C'est tout l'intérêt de l'endpoint : pouvoir comparer la prod à main.
+	assert.Equal(t, "d94496dcafe0000000000000000000000000cafe", payload["commit"])
+	// L'ancien `"version": "1.0.0"` codé en dur ne renseignait rien (#338 constat 11).
+	assert.NotContains(t, payload, "version")
+}
+
+// Un binaire construit sans -ldflags ne doit pas prétendre connaître sa provenance.
+func TestBuildCommitDefaultsToUnknown(t *testing.T) {
+	if buildCommit != "unknown" {
+		t.Skipf("buildCommit injecté à la compilation (%q) — valeur par défaut non observable", buildCommit)
+	}
+	assert.Equal(t, "unknown", buildCommit)
+}
+
 // MARK: - Client IP hardening (audit #338, constat 2)
 
 func TestHardenClientIPResolution(t *testing.T) {

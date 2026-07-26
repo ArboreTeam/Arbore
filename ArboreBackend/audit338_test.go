@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// Tests des constats 3, 4 et 5 de l'audit sécurité #338.
+// Tests des constats 1, 3, 4, 5 et 8 de l'audit sécurité #338.
 
 // MARK: - Constat 3 — injection regex dans le filtre de déduplication
 
@@ -73,6 +74,75 @@ func TestPlantNameFilterKeepsOrdinaryNamesUsable(t *testing.T) {
 	assert.True(t, compiled.MatchString("acer palmatum"))
 	assert.True(t, compiled.MatchString("ACER PALMATUM"))
 	assert.False(t, compiled.MatchString("Acer Palmatum Nain"))
+}
+
+// MARK: - Constat 1 — RGPD Art. 17, upsert sans destruction de données
+
+func operatorOf(t *testing.T, update bson.M, operator string) bson.M {
+	t.Helper()
+	fields, ok := update[operator].(bson.M)
+	if !ok {
+		t.Fatalf("opérateur %s absent ou de type inattendu: %#v", operator, update[operator])
+	}
+	return fields
+}
+
+// LA propriété à ne jamais casser : un second POST /users ne doit pas effacer la
+// photo de profil ni le refresh token Apple d'un compte existant. Avant l'upsert,
+// `createUser` remettait ces champs à zéro — sans conséquence tant qu'il insérait
+// un document neuf, destructeur dès qu'on écrit sur un document existant.
+func TestBuildCreateUserUpdateNeverTouchesPreservedFields(t *testing.T) {
+	update := buildCreateUserUpdate("user@example.com", "Alice", false, time.Now().UTC())
+
+	preserved := []string{"photoData", "photoContentType", "appleRefreshTokenEncrypted"}
+	for _, operator := range []string{"$set", "$setOnInsert"} {
+		fields := operatorOf(t, update, operator)
+		for _, field := range preserved {
+			assert.NotContains(t, fields, field,
+				"%s ne doit jamais contenir %s : un compte existant perdrait cette donnée", operator, field)
+		}
+	}
+}
+
+func TestBuildCreateUserUpdateSplitsFieldsCorrectly(t *testing.T) {
+	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	update := buildCreateUserUpdate("user@example.com", "Alice", false, now)
+
+	set := operatorOf(t, update, "$set")
+	assert.Equal(t, "user@example.com", set["email"])
+	assert.Equal(t, "Alice", set["name"])
+
+	insert := operatorOf(t, update, "$setOnInsert")
+	assert.Equal(t, now.Format(time.RFC3339), insert["createdAt"])
+	assert.Equal(t, false, insert["banned"])
+
+	// createdAt et banned ne doivent PAS être dans $set : un compte existant
+	// garderait sinon la date du dernier appel, et un bannissement serait levé.
+	assert.NotContains(t, set, "createdAt")
+	assert.NotContains(t, set, "banned")
+}
+
+// Un client qui n'envoie pas de nom ne doit pas effacer celui déjà stocké.
+func TestBuildCreateUserUpdateOmitsEmptyName(t *testing.T) {
+	update := buildCreateUserUpdate("user@example.com", "", false, time.Now().UTC())
+	set := operatorOf(t, update, "$set")
+
+	assert.NotContains(t, set, "name", "un nom vide ne doit pas écraser le nom existant")
+	assert.Equal(t, "user@example.com", set["email"])
+}
+
+// Le marquage des documents de test ne s'applique qu'à la base de test, et
+// seulement à l'insertion.
+func TestBuildCreateUserUpdateLabelsTestDocumentsOnInsertOnly(t *testing.T) {
+	prod := buildCreateUserUpdate("user@example.com", "Alice", false, time.Now().UTC())
+	assert.NotContains(t, operatorOf(t, prod, "$setOnInsert"), "_test")
+
+	test := buildCreateUserUpdate("user@example.com", "Alice", true, time.Now().UTC())
+	insert := operatorOf(t, test, "$setOnInsert")
+	assert.Equal(t, true, insert["_test"])
+	assert.Contains(t, insert, "_createdAtUTC")
+	// Jamais dans $set : un doc de prod relu par erreur ne doit pas être marqué.
+	assert.NotContains(t, operatorOf(t, test, "$set"), "_test")
 }
 
 // MARK: - Constat 8 — pas de détail interne dans les réponses d'erreur

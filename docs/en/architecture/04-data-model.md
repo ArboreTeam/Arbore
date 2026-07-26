@@ -283,7 +283,13 @@ Declared in `indexes.go` (`requiredIndexes`) and created at startup by `ensureIn
 
 Before these indexes, the only indexed collection was indexed on `_id`: every authenticated request triggered a **full collection scan** of `users` (audit #338, finding 7).
 
-> ⚠️ `users.uid` is **not unique yet**, even though that would be the correct constraint. The production database contains duplicate documents (`createUser` performs an unconditional `InsertOne` — audit #338, finding 1) and creating a unique index would fail with `E11000`. Uniqueness must be added **together with** the de-duplication migration, not before.
+> ⚠️ `users.uid` is **not unique yet**. The root cause is fixed — `createUser` now performs an **upsert** instead of an unconditional `InsertOne`, and `deleteUser` a `DeleteMany` (audit #338, finding 1) — but the duplicates **already in the database** must be merged first, otherwise index creation fails with `E11000`.
+>
+> Migration: `ArboreBackend/scripts/dedupe-users.js`, **dry-run by default**. Uniqueness will be enabled in a second step, once the migration has run.
+>
+> **Merge rule**: field missing/empty → the non-empty value wins; two differing non-empty values → the most recent wins; `createdAt` → the oldest; `banned` → `true` if any copy is. The survivor is the document with the oldest `_id`.
+>
+> This rule is deliberately not "keep the most recent copy", and that is not a detail: measured in production, **2 of the 7 duplicated accounts carried their `appleRefreshTokenEncrypted` only on their oldest copy**. Losing it would have made Apple account revocation impossible on deletion (Guideline 5.1.1(v), see #210).
 
 `plants` is not indexed: its only lookup by name (`generateAndInsertPlant`) is a case-insensitive regex, which a classic index cannot use efficiently. If that path becomes hot, the right answer is an indexed `nameNormalized` field.
 

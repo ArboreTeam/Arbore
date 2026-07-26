@@ -59,6 +59,7 @@ linters:
         - existant
         - origines
         - compteurs
+        - portait
 
     revive:
       confidence: 0.8

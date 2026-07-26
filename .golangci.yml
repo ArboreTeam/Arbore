@@ -60,6 +60,7 @@ linters:
         - origines
         - compteurs
         - portait
+        - conflit
 
     revive:
       confidence: 0.8

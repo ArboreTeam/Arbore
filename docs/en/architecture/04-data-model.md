@@ -277,19 +277,21 @@ Declared in `indexes.go` (`requiredIndexes`) and created at startup by `ensureIn
 
 | Collection | Index | Used for |
 |---|---|---|
-| `users` | `{uid: 1}` | Ban check on **every authenticated request** (`checkUserBannedFromDB`) + profile reads/writes |
+| `users` | `{uid: 1}` **unique** | Ban check on **every authenticated request** (`checkUserBannedFromDB`) + profile reads/writes, and the **structural guarantee of account uniqueness** |
 | `gardens` | `{uid: 1, updatedAt: -1}` | `listGardens` (filter `uid` + sort `updatedAt`); also acts as a prefix for queries on `uid` alone |
 | `consents` | `{uid: 1, timestamp: -1}` | `getUserConsents` / `getLatestUserConsents` (filter `uid` + sort `timestamp`) |
 
 Before these indexes, the only indexed collection was indexed on `_id`: every authenticated request triggered a **full collection scan** of `users` (audit #338, finding 7).
 
-> ⚠️ `users.uid` is **not unique yet**. The root cause is fixed — `createUser` now performs an **upsert** instead of an unconditional `InsertOne`, and `deleteUser` a `DeleteMany` (audit #338, finding 1) — but the duplicates **already in the database** must be merged first, otherwise index creation fails with `E11000`.
+> ✅ **`users.uid` is unique.** Two complementary protections, and both are needed: `createUser` as an **upsert** avoids creating duplicates, but only the **unique index** makes duplication impossible — including for a script, a manual write, or a future code path that forgets the rule (audit #338, finding 1).
 >
-> Migration: `ArboreBackend/scripts/dedupe-users.js`, **dry-run by default**. Uniqueness will be enabled in a second step, once the migration has run.
+> **History.** `createUser` performed an unconditional `InsertOne` and `deleteUser` a `DeleteOne`: production held 30 documents for 7 uids, and deleting an account left personal data behind while the Firebase identity was removed. Migration applied on 2026-07-26 via `ArboreBackend/scripts/dedupe-users.js`: **48 → 25 documents, 0 duplicates, no user lost**.
 >
 > **Merge rule**: field missing/empty → the non-empty value wins; two differing non-empty values → the most recent wins; `createdAt` → the oldest; `banned` → `true` if any copy is. The survivor is the document with the oldest `_id`.
 >
 > This rule is deliberately not "keep the most recent copy", and that is not a detail: measured in production, **2 of the 7 duplicated accounts carried their `appleRefreshTokenEncrypted` only on their oldest copy**. Losing it would have made Apple account revocation impossible on deletion (Guideline 5.1.1(v), see #210).
+>
+> ⚠️ **Changing the options of an existing index is not possible in place.** MongoDB returns `IndexOptionsConflict` (code 85). `ensureIndexes` therefore does **not** attempt to replace the index automatically: a `drop` followed by a failing `create` would leave the collection with no index at all, hence a full scan on every authenticated request. The log prints the `dropIndex`/`createIndex` command to run instead, once duplicates are gone.
 
 `plants` is not indexed: its only lookup by name (`generateAndInsertPlant`) is a case-insensitive regex, which a classic index cannot use efficiently. If that path becomes hot, the right answer is an indexed `nameNormalized` field.
 

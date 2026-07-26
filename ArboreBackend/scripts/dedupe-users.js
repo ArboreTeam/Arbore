@@ -37,10 +37,23 @@
 const APPLY = typeof globalThis.APPLY !== "undefined" && globalThis.APPLY === true;
 const mode = APPLY ? "APPLICATION" : "DRY-RUN";
 
+// Base ciblée explicitement, au lieu de dépendre de celle de la connexion.
+//
+// S'en remettre à la connexion obligeait à écrire `mongosh "$URI/arbore"`, or
+// l'URI Atlas contient déjà une query string (`?retryWrites=true&w=majority`) :
+// la concaténation produisait `w=majority/arbore`, et Mongo rejetait toute
+// écriture avec `No write concern mode named 'majority/arbore' found`. Rejet à
+// la validation, donc sans dégât — mais le script était inutilisable en APPLY.
+//
+// Surchargeable : `--eval 'const DB_NAME = "arbore_test"'`.
+const DB_NAME = typeof globalThis.DB_NAME !== "undefined" ? globalThis.DB_NAME : "arbore";
+const target = db.getSiblingDB(DB_NAME);
+print(`[dedupe-users] base ciblée : ${DB_NAME}`);
+
 print(`[dedupe-users] mode: ${mode}${APPLY ? "" : "  (aucune écriture — relancer avec --eval 'const APPLY = true' pour appliquer)"}`);
 print("");
 
-const groups = db.users
+const groups = target.users
     .aggregate([
         { $group: { _id: "$uid", n: { $sum: 1 }, docs: { $push: "$$ROOT" } } },
         { $match: { n: { $gt: 1 } } },
@@ -128,8 +141,8 @@ groups.forEach((group, index) => {
     print(`    supprimés : ${doomed.map((d) => String(d._id).slice(-6)).join(", ")}`);
 
     if (APPLY) {
-        const updateResult = db.users.updateOne({ _id: survivor._id }, { $set: merged });
-        const deleteResult = db.users.deleteMany({ _id: { $in: doomed.map((d) => d._id) } });
+        const updateResult = target.users.updateOne({ _id: survivor._id }, { $set: merged });
+        const deleteResult = target.users.deleteMany({ _id: { $in: doomed.map((d) => d._id) } });
         updatedTotal += updateResult.modifiedCount;
         deletedTotal += deleteResult.deletedCount;
         print(`    → appliqué : ${updateResult.modifiedCount} mis à jour, ${deleteResult.deletedCount} supprimé(s)`);
@@ -155,7 +168,7 @@ if (APPLY) {
     print(`   survivants mis à jour : ${updatedTotal}`);
     print(`   documents supprimés   : ${deletedTotal}`);
 
-    const remaining = db.users
+    const remaining = target.users
         .aggregate([{ $group: { _id: "$uid", n: { $sum: 1 } } }, { $match: { n: { $gt: 1 } } }])
         .toArray().length;
     print(`   doublons restants     : ${remaining}`);

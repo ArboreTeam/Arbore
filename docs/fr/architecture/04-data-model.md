@@ -277,19 +277,21 @@ Déclarés dans `indexes.go` (`requiredIndexes`) et créés au démarrage par `e
 
 | Collection | Index | Sert à |
 |---|---|---|
-| `users` | `{uid: 1}` | Vérification de ban à **chaque requête authentifiée** (`checkUserBannedFromDB`) + lectures/écritures de profil |
+| `users` | `{uid: 1}` **unique** | Vérification de ban à **chaque requête authentifiée** (`checkUserBannedFromDB`) + lectures/écritures de profil, et **garantie structurelle d'unicité du compte** |
 | `gardens` | `{uid: 1, updatedAt: -1}` | `listGardens` (filtre `uid` + tri `updatedAt`) ; sert aussi de préfixe aux requêtes sur `uid` seul |
 | `consents` | `{uid: 1, timestamp: -1}` | `getUserConsents` / `getLatestUserConsents` (filtre `uid` + tri `timestamp`) |
 
 Avant ces index, la seule collection indexée l'était sur `_id` : chaque requête authentifiée déclenchait un **balayage complet** de `users` (audit #338, constat 7).
 
-> ⚠️ `users.uid` **n'est pas encore unique**. La cause a été corrigée — `createUser` fait désormais un **upsert** au lieu d'un `InsertOne` inconditionnel, et `deleteUser` un `DeleteMany` (audit #338, constat 1) — mais les doublons **déjà en base** doivent d'abord être fusionnés, sinon la création de l'index échoue avec `E11000`.
+> ✅ **`users.uid` est unique.** Deux protections complémentaires, et il faut les deux : `createUser` en **upsert** évite de créer des doublons, mais seul l'**index unique** rend la duplication impossible — y compris pour un script, une écriture manuelle ou un futur chemin de code qui oublierait la règle (audit #338, constat 1).
 >
-> Migration : `ArboreBackend/scripts/dedupe-users.js`, en **dry-run par défaut**. L'unicité sera activée dans un second temps, une fois la migration passée.
+> **Historique.** `createUser` faisait un `InsertOne` inconditionnel et `deleteUser` un `DeleteOne` : la production comptait 30 documents pour 7 uid, et l'effacement d'un compte laissait des données personnelles derrière lui alors que l'identité Firebase était supprimée. Migration appliquée le 26/07/2026 via `ArboreBackend/scripts/dedupe-users.js` : **48 → 25 documents, 0 doublon, aucun utilisateur perdu**.
 >
 > **Règle de fusion** : champ absent/vide → la valeur non vide gagne ; deux valeurs non vides qui diffèrent → la plus récente gagne ; `createdAt` → la plus ancienne ; `banned` → `true` si n'importe quelle copie l'est. Le survivant est le document au `_id` le plus ancien.
 >
 > Cette règle n'est pas « garder la copie la plus récente », et ce n'est pas un détail : mesuré en production, **2 des 7 comptes dupliqués ne portaient leur `appleRefreshTokenEncrypted` que sur leur copie la plus ancienne**. Les perdre aurait rendu la révocation du compte Apple impossible à la suppression (Guideline 5.1.1(v), cf. #210).
+>
+> ⚠️ **Changer les options d'un index existant est impossible en place.** MongoDB renvoie `IndexOptionsConflict` (code 85). `ensureIndexes` ne tente donc **pas** de remplacer l'index automatiquement : un `drop` suivi d'un `create` qui échoue laisserait la collection sans aucun index, donc en balayage complet à chaque requête authentifiée. Le log affiche à la place la commande `dropIndex`/`createIndex` à exécuter, une fois les doublons éliminés.
 
 `plants` n'est pas indexée : sa seule recherche par nom (`generateAndInsertPlant`) est une regex insensible à la casse, qu'un index classique ne peut pas exploiter efficacement. Si ce chemin devient chaud, la bonne réponse est un champ `nameNormalized` indexé.
 

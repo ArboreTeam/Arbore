@@ -10,7 +10,10 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -24,22 +27,18 @@ type indexSpec struct {
 	collection string
 	keys       bson.D
 	name       string
+	unique     bool
 	reason     string
 }
 
 // requiredIndexes liste les index attendus sur une base Arbore.
-//
-// ⚠️ `users.uid` n'est volontairement PAS unique ici. La contrainte d'unicité est
-// ce qu'il faudrait, mais la base de production contient déjà des documents
-// dupliqués (cf. #338 constat 1 : 48 documents pour 25 uid distincts) et une
-// création d'index unique échouerait avec E11000. L'unicité doit être ajoutée
-// par le correctif du constat 1, APRÈS la migration de dédoublonnage.
 var requiredIndexes = []indexSpec{
 	{
 		collection: "users",
 		keys:       bson.D{{Key: "uid", Value: 1}},
 		name:       "uid_1",
-		reason:     "vérification de ban à chaque requête authentifiée + lecture/écriture de profil",
+		unique:     true,
+		reason:     "vérification de ban à chaque requête authentifiée + lecture/écriture de profil ; l'unicité est la garantie structurelle contre le retour des doublons (#338 constat 1)",
 	},
 	{
 		collection: "gardens",
@@ -74,15 +73,61 @@ func ensureIndexes(ctx context.Context, databases map[string]*mongo.Database) {
 		for _, spec := range requiredIndexes {
 			model := mongo.IndexModel{
 				Keys:    spec.keys,
-				Options: options.Index().SetName(spec.name),
+				Options: options.Index().SetName(spec.name).SetUnique(spec.unique),
 			}
 			if _, err := db.Collection(spec.collection).Indexes().CreateOne(ctx, model); err != nil {
-				log.Printf("⚠️  Index %s.%s (%s) non créé sur la base %s: %v",
-					spec.collection, spec.name, spec.reason, label, err)
+				logIndexFailure(label, spec, err)
 				continue
 			}
 		}
 		log.Printf("✅ Index vérifiés sur la base %s", label)
+	}
+}
+
+// Codes d'erreur MongoDB rencontrés à la création d'index. Ils méritent des
+// messages distincts : l'un se corrige par une commande d'exploitation, l'autre
+// signale que des données violent la contrainte.
+const (
+	mongoErrIndexOptionsConflict = 85 // même nom/clé, options différentes
+	mongoErrDuplicateKey         = 11000
+)
+
+// formatIndexKeys rend une clé d'index sous la forme attendue par mongosh, pour
+// que le message d'erreur contienne une commande directement copiable.
+// L'ordre des champs est significatif dans un index composé, d'où le parcours du
+// bson.D plutôt qu'une conversion en map.
+func formatIndexKeys(keys bson.D) string {
+	parts := make([]string, 0, len(keys))
+	for _, element := range keys {
+		parts = append(parts, fmt.Sprintf("%s: %v", element.Key, element.Value))
+	}
+	return "{" + strings.Join(parts, ", ") + "}"
+}
+
+// logIndexFailure explique quoi faire, plutôt que de recracher l'erreur brute.
+//
+// Le cas important est le passage de `users.uid` en unique : l'index non unique
+// existe déjà en production, et MongoDB refuse d'en changer les options en
+// place. Le remplacement est une opération d'exploitation délibérée, PAS quelque
+// chose que le démarrage doit tenter : un `drop` suivi d'un `create` qui échoue
+// laisserait la collection sans aucun index, donc en balayage complet à chaque
+// requête authentifiée — exactement le problème que le constat 7 a corrigé.
+func logIndexFailure(label string, spec indexSpec, err error) {
+	var cmdErr mongo.CommandError
+	switch {
+	case errors.As(err, &cmdErr) && cmdErr.Code == mongoErrIndexOptionsConflict:
+		log.Printf("⚠️  Index %s.%s sur la base %s : options divergentes (unique attendu = %t).",
+			spec.collection, spec.name, label, spec.unique)
+		log.Printf("    Remplacement manuel requis, collection vide de doublons au préalable :")
+		log.Printf(`    db.%s.dropIndex("%s"); db.%s.createIndex(%s, {name:"%s", unique:%t})`,
+			spec.collection, spec.name, spec.collection, formatIndexKeys(spec.keys), spec.name, spec.unique)
+	case errors.As(err, &cmdErr) && cmdErr.Code == mongoErrDuplicateKey:
+		log.Printf("❌ Index %s.%s sur la base %s : des doublons violent l'unicité.",
+			spec.collection, spec.name, label)
+		log.Printf("    Lancer d'abord la migration : ArboreBackend/scripts/dedupe-users.js")
+	default:
+		log.Printf("⚠️  Index %s.%s (%s) non créé sur la base %s: %v",
+			spec.collection, spec.name, spec.reason, label, err)
 	}
 }
 

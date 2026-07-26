@@ -88,8 +88,17 @@ func ensureIndexes(ctx context.Context, databases map[string]*mongo.Database) {
 // messages distincts : l'un se corrige par une commande d'exploitation, l'autre
 // signale que des données violent la contrainte.
 const (
-	mongoErrIndexOptionsConflict = 85 // même nom/clé, options différentes
-	mongoErrDuplicateKey         = 11000
+	// MongoDB renvoie DEUX codes distincts pour « un index de ce nom existe déjà
+	// avec d'autres caractéristiques », et lequel dépend de ce qui diffère :
+	//   85 — les *options* divergent (unique, partialFilterExpression…)
+	//   86 — les *specs de clé* divergent
+	//
+	// Observé en production : ajouter `unique: true` à un index existant renvoie
+	// 86, pas 85. Ne traiter que 85 faisait tomber le cas réel dans la branche
+	// par défaut, donc afficher l'erreur brute au lieu de la commande à exécuter.
+	mongoErrIndexOptionsConflict  = 85
+	mongoErrIndexKeySpecsConflict = 86
+	mongoErrDuplicateKey          = 11000
 )
 
 // formatIndexKeys rend une clé d'index sous la forme attendue par mongosh, pour
@@ -114,9 +123,12 @@ func formatIndexKeys(keys bson.D) string {
 // requête authentifiée — exactement le problème que le constat 7 a corrigé.
 func logIndexFailure(label string, spec indexSpec, err error) {
 	var cmdErr mongo.CommandError
+	isConflict := errors.As(err, &cmdErr) &&
+		(cmdErr.Code == mongoErrIndexOptionsConflict || cmdErr.Code == mongoErrIndexKeySpecsConflict)
+
 	switch {
-	case errors.As(err, &cmdErr) && cmdErr.Code == mongoErrIndexOptionsConflict:
-		log.Printf("⚠️  Index %s.%s sur la base %s : options divergentes (unique attendu = %t).",
+	case isConflict:
+		log.Printf("⚠️  Index %s.%s sur la base %s : un index de même nom existe avec d'autres caractéristiques (unique attendu = %t).",
 			spec.collection, spec.name, label, spec.unique)
 		log.Printf("    Remplacement manuel requis, collection vide de doublons au préalable :")
 		log.Printf(`    db.%s.dropIndex("%s"); db.%s.createIndex(%s, {name:"%s", unique:%t})`,

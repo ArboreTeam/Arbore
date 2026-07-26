@@ -494,7 +494,17 @@ func createUser(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	user.UID = tokenUID.(string)
+	// `uid` est extrait dans sa propre variable, et c'est la seule valeur utilisée
+	// pour interroger Mongo. `user` vient de `ShouldBindJSON`, donc son champ
+	// `UID` porte initialement ce que le client a envoyé ; l'écraser ne suffit
+	// pas à rendre l'intention évidente, et un réordonnancement ultérieur du code
+	// pourrait laisser la valeur cliente atteindre la requête. Partir d'une
+	// variable issue du token vérifié supprime cette dépendance à l'ordre — c'est
+	// aussi ce que signalait CodeQL (`go/sql-injection`, teinte propagée depuis
+	// le binding JSON).
+	uid := tokenUID.(string)
+	user.UID = uid
+
 	tokenEmail := strings.TrimSpace(c.GetString("email"))
 	if tokenEmail == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Authenticated email is missing"})
@@ -527,7 +537,7 @@ func createUser(c *gin.Context) {
 	collection := getDatabaseForRequest(c).Collection("users")
 	if _, err := collection.UpdateOne(
 		context.Background(),
-		bson.M{"uid": user.UID},
+		bson.M{"uid": uid},
 		buildCreateUserUpdate(tokenEmail, user.Name, isTestDB, time.Now().UTC()),
 		options.Update().SetUpsert(true),
 	); err != nil {
@@ -540,8 +550,8 @@ func createUser(c *gin.Context) {
 	// construit ici : sur un compte existant, la réponse doit refléter la photo
 	// et la date de création conservées, pas des valeurs vides.
 	var stored User
-	if err := collection.FindOne(context.Background(), bson.M{"uid": user.UID}).Decode(&stored); err != nil {
-		log.Printf("⚠️  utilisateur enregistré mais relecture impossible (%s): %v", user.UID, err)
+	if err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&stored); err != nil {
+		log.Printf("⚠️  utilisateur enregistré mais relecture impossible (%s): %v", uid, err)
 		c.JSON(http.StatusOK, gin.H{"message": "Utilisateur enregistré avec succès", "user": user})
 		return
 	}

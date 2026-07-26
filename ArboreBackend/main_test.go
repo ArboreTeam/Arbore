@@ -1108,6 +1108,51 @@ func TestValidateReleaseSecurityConfigFailsClosed(t *testing.T) {
 	}
 }
 
+// MARK: - Client IP hardening (audit #338, constat 2)
+
+func TestHardenClientIPResolution(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, test := range []struct {
+		name    string
+		headers map[string]string
+		want    string
+	}{
+		{
+			name:    "X-Forwarded-For forge est ignore",
+			headers: map[string]string{"X-Forwarded-For": "203.0.113.9"},
+			want:    "172.18.0.1", // IP de la socket (gateway Docker)
+		},
+		{
+			name:    "X-Real-IP pose par nginx fait autorite",
+			headers: map[string]string{"X-Real-IP": "198.51.100.7", "X-Forwarded-For": "203.0.113.9"},
+			want:    "198.51.100.7",
+		},
+		{
+			name:    "sans en-tete, IP de la socket",
+			headers: nil,
+			want:    "172.18.0.1",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			router := gin.New()
+			hardenClientIPResolution(router)
+
+			var got string
+			router.GET("/", func(c *gin.Context) { got = c.ClientIP() })
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.RemoteAddr = "172.18.0.1:5555"
+			for name, value := range test.headers {
+				req.Header.Set(name, value)
+			}
+			router.ServeHTTP(httptest.NewRecorder(), req)
+
+			assert.Equal(t, test.want, got)
+		})
+	}
+}
+
 // MARK: - Benchmark Tests
 
 func BenchmarkModelsEndpoint_ValidRequest(b *testing.B) {

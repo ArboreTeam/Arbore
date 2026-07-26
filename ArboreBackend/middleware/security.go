@@ -2,13 +2,66 @@ package middleware
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
+
+// Headers portant l'IP client réelle, par ordre de confiance décroissante.
+//
+// `CF-Connecting-IP` est écrasé par Cloudflare à chaque requête ; `X-Real-IP`
+// est posé par nginx (`proxy_set_header X-Real-IP $http_cf_connecting_ip`),
+// donc un client ne peut pas l'imposer. Les deux ne sont dignes de confiance
+// que parce que l'origine est pare-feutée sur les plages Cloudflare : nginx est
+// le seul chemin d'entrée.
+//
+// `X-Forwarded-For` est délibérément ABSENT de cette liste : nginx le construit
+// avec `$proxy_add_x_forwarded_for`, qui *ajoute* à la valeur envoyée par le
+// client au lieu de l'écraser — ses entrées de gauche sont donc contrôlées par
+// l'attaquant, et gin les prend pour l'IP client (cf. audit #338, constat 2).
+var trustedClientIPHeaders = []string{"CF-Connecting-IP", "X-Real-IP"}
+
+// TrustedClientIP renvoie l'IP client la moins falsifiable disponible, ou une
+// chaîne vide si aucune n'est exploitable. Seules des IP valides sont
+// retournées : une valeur d'en-tête arbitraire ne doit jamais devenir une clé
+// de compteur.
+func TrustedClientIP(c *gin.Context) string {
+	for _, header := range trustedClientIPHeaders {
+		candidate := strings.TrimSpace(c.GetHeader(header))
+		if candidate == "" {
+			continue
+		}
+		if net.ParseIP(candidate) != nil {
+			return candidate
+		}
+	}
+	// Dernier recours : l'IP de la socket. En production c'est la gateway Docker
+	// (identique pour tout le monde), donc volontairement le dernier choix — mais
+	// c'est le bon comportement en local et dans les tests.
+	if remote := c.RemoteIP(); net.ParseIP(remote) != nil {
+		return remote
+	}
+	return ""
+}
+
+// rateLimitKey détermine le compteur auquel imputer la requête : l'utilisateur
+// authentifié en priorité, sinon son IP réelle. Les requêtes dont on ne peut
+// identifier ni l'un ni l'autre partagent un compteur unique plutôt que de
+// passer sans limite.
+func rateLimitKey(c *gin.Context) string {
+	if uid := c.GetString("uid"); uid != "" {
+		return "uid:" + uid
+	}
+	if ip := TrustedClientIP(c); ip != "" {
+		return "ip:" + ip
+	}
+	return "unknown"
+}
 
 type windowEntry struct {
 	started time.Time
@@ -44,12 +97,7 @@ func NewWindowLimiter(limit int, window time.Duration) *WindowLimiter {
 func (l *WindowLimiter) Middleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		now := time.Now()
-		key := c.GetString("uid")
-		if key == "" {
-			key = c.ClientIP()
-		}
-
-		allowed, remaining, retryAfter := l.allow(key, now)
+		allowed, remaining, retryAfter := l.allow(rateLimitKey(c), now)
 		c.Header("X-RateLimit-Limit", strconv.Itoa(l.limit))
 		c.Header("X-RateLimit-Remaining", strconv.Itoa(remaining))
 		if !allowed {

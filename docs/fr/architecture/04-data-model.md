@@ -268,21 +268,24 @@ Trace d'audit append-only. Une entrée est créée à chaque action (accept/decl
 | `version` | string | Version du document de consentement présenté. |
 | `granted` | bool | `true` si accepté, `false` si refusé/retiré. |
 | `timestamp` | date | Auto-set à `time.Now()` si absent. |
-| `ipAddress` | string | Auto-set à `c.ClientIP()` si absent. |
+| `ipAddress` | string | **Toujours vidé** par `recordConsent` : l'IP n'est pas nécessaire pour prouver le consentement et ajouterait une donnée personnelle en base. Le champ reste dans le schéma pour les documents historiques. |
 | `userAgent` | string | Auto-set au User-Agent si absent. |
 
-## Index recommandés
+## Index
 
-Aucun index custom n'est défini à ce jour ; Mongo crée automatiquement l'index sur `_id`. Les filtres les plus fréquents :
+Déclarés dans `indexes.go` (`requiredIndexes`) et créés au démarrage par `ensureIndexesAtStartup()`, sur la base prod **et** sur `arbore_test`. L'opération est idempotente, et un échec est journalisé sans bloquer le démarrage (sans index l'API reste fonctionnelle, seulement plus lente).
 
-| Collection | Filtre fréquent | Index suggéré |
+| Collection | Index | Sert à |
 |---|---|---|
-| `users` | `bson.M{"uid": uid}` | `{uid: 1}` unique |
-| `gardens` | `bson.M{"uid": uid}` (tri `updatedAt`) | `{uid: 1, updatedAt: -1}` |
-| `gardens` | `bson.M{"_id": id, "uid": uid}` | `{uid: 1, _id: 1}` |
-| `consents` | `bson.M{"uid": uid}` (tri `timestamp`) | `{uid: 1, timestamp: -1}` |
+| `users` | `{uid: 1}` | Vérification de ban à **chaque requête authentifiée** (`checkUserBannedFromDB`) + lectures/écritures de profil |
+| `gardens` | `{uid: 1, updatedAt: -1}` | `listGardens` (filtre `uid` + tri `updatedAt`) ; sert aussi de préfixe aux requêtes sur `uid` seul |
+| `consents` | `{uid: 1, timestamp: -1}` | `getUserConsents` / `getLatestUserConsents` (filtre `uid` + tri `timestamp`) |
 
-À évaluer une fois le volume réel connu en production.
+Avant ces index, la seule collection indexée l'était sur `_id` : chaque requête authentifiée déclenchait un **balayage complet** de `users` (audit #338, constat 7).
+
+> ⚠️ `users.uid` **n'est pas encore unique**, alors que ce serait la bonne contrainte. La base de production contient des documents dupliqués (`createUser` fait un `InsertOne` inconditionnel — audit #338, constat 1) et une création d'index unique échouerait avec `E11000`. L'unicité doit être ajoutée **avec** la migration de dédoublonnage, pas avant.
+
+`plants` n'est pas indexée : sa seule recherche par nom (`generateAndInsertPlant`) est une regex insensible à la casse, qu'un index classique ne peut pas exploiter efficacement. Si ce chemin devient chaud, la bonne réponse est un champ `nameNormalized` indexé.
 
 ## Relations entre collections
 

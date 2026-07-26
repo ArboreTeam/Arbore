@@ -268,21 +268,24 @@ Append-only audit trail. An entry is created on every action (accept/decline), n
 | `version` | string | Version of the consent document presented. |
 | `granted` | bool | `true` if accepted, `false` if declined/withdrawn. |
 | `timestamp` | date | Auto-set to `time.Now()` if absent. |
-| `ipAddress` | string | Auto-set to `c.ClientIP()` if absent. |
+| `ipAddress` | string | **Always cleared** by `recordConsent`: the IP is not needed to prove consent and would add personal data to the database. The field remains in the schema for historical documents. |
 | `userAgent` | string | Auto-set to the User-Agent if absent. |
 
-## Recommended indexes
+## Indexes
 
-No custom index is defined to date; Mongo automatically creates the index on `_id`. The most frequent filters:
+Declared in `indexes.go` (`requiredIndexes`) and created at startup by `ensureIndexesAtStartup()`, on the production database **and** on `arbore_test`. The operation is idempotent, and a failure is logged without blocking startup (without indexes the API still works, only slower).
 
-| Collection | Frequent filter | Suggested index |
+| Collection | Index | Used for |
 |---|---|---|
-| `users` | `bson.M{"uid": uid}` | `{uid: 1}` unique |
-| `gardens` | `bson.M{"uid": uid}` (sort `updatedAt`) | `{uid: 1, updatedAt: -1}` |
-| `gardens` | `bson.M{"_id": id, "uid": uid}` | `{uid: 1, _id: 1}` |
-| `consents` | `bson.M{"uid": uid}` (sort `timestamp`) | `{uid: 1, timestamp: -1}` |
+| `users` | `{uid: 1}` | Ban check on **every authenticated request** (`checkUserBannedFromDB`) + profile reads/writes |
+| `gardens` | `{uid: 1, updatedAt: -1}` | `listGardens` (filter `uid` + sort `updatedAt`); also acts as a prefix for queries on `uid` alone |
+| `consents` | `{uid: 1, timestamp: -1}` | `getUserConsents` / `getLatestUserConsents` (filter `uid` + sort `timestamp`) |
 
-To be evaluated once the real volume is known in production.
+Before these indexes, the only indexed collection was indexed on `_id`: every authenticated request triggered a **full collection scan** of `users` (audit #338, finding 7).
+
+> ⚠️ `users.uid` is **not unique yet**, even though that would be the correct constraint. The production database contains duplicate documents (`createUser` performs an unconditional `InsertOne` — audit #338, finding 1) and creating a unique index would fail with `E11000`. Uniqueness must be added **together with** the de-duplication migration, not before.
+
+`plants` is not indexed: its only lookup by name (`generateAndInsertPlant`) is a case-insensitive regex, which a classic index cannot use efficiently. If that path becomes hot, the right answer is an indexed `nameNormalized` field.
 
 ## Relations between collections
 

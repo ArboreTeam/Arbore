@@ -33,11 +33,11 @@ Le workflow `.github/workflows/ci.yml` orchestre les tests, avec des jobs **filt
 
 | Job | Périmètre | Contenu |
 |---|---|---|
-| `backend` | `ArboreBackend/**`, `.golangci.yml` | `go vet`, `go test -race -coverprofile`, upload Codecov, `golangci-lint`, cross-build linux/amd64 + darwin/arm64. |
+| `backend` | `ArboreBackend/**`, `.golangci.yml` | `go vet`, `go test -race -coverprofile`, upload Codecov, `golangci-lint`, **`govulncheck` (bloquant)**, cross-build linux/amd64 + darwin/arm64. |
 | `ios_ui` | `ArboreUi/**` | Build + `xcodebuild test` (simulateur iPhone 16 Pro / iOS 18.2), parsing `.xcresult` (CLI/txt/html/JUnit). |
 | `ios_ar` | `ArboreARkit/**` | Build + tests du projet AR (`continue-on-error`). |
 | `ai_generator` | `AiGenerator/**` | `black` / `flake8` / `mypy` + `pytest`. |
-| `security` | PR / main | Scan Trivy (système de fichiers). |
+| `security` | PR / main | Trivy (système de fichiers), en deux passes : un **rapport SARIF complet** vers l'onglet Security (non bloquant, pour la visibilité) puis un **gate bloquant en CRITICAL** (`--ignore-unfixed`). |
 | `build_summary` | toujours | Agrège les résultats et échoue si un job requis a échoué. |
 
 Le workflow `.github/workflows/docs.yml` valide en plus la documentation (syntaxe Mermaid, liens internes, drift des chemins de code) — voir [`../README.md`](../README.md).
@@ -46,7 +46,8 @@ Le workflow `.github/workflows/docs.yml` valide en plus la documentation (syntax
 
 - La couverture backend est **publiée sur Codecov** mais **aucun seuil bloquant** n'est imposé à ce jour.
 - Les tests **web (Vitest) ne tournent pas encore en CI** — ils s'exécutent localement. `npm run test:coverage` nécessite l'installation d'un provider de couverture (`@vitest/coverage-v8`) ; aucun seuil n'est configuré.
-- La version Go déclarée dans `ArboreBackend/go.mod` (`go 1.24.1`) et la variable `GO_VERSION` du CI doivent être maintenues alignées.
+- La version Go déclarée dans `ArboreBackend/go.mod` (`go 1.25.12`) et la variable `GO_VERSION` du CI doivent être maintenues alignées. Elles ont divergé (`GO_VERSION: "1.22"` face à `go 1.25.12`) : le mécanisme de toolchain téléchargeait donc 1.25.12 à chaque run sans cache, et la version affichée n'était pas celle utilisée (audit #338 constat 6).
+- **Seuil des scans de sécurité** : le gate Trivy bloque en **CRITICAL** seulement. Il existe aujourd'hui des vulnérabilités **HIGH** dans les `package-lock.json` (`brace-expansion`, `sharp`/libvips) — bloquer en HIGH casserait la CI. Dependabot surveille désormais npm (`web/`, `Plant3DGenerator/`) et Docker en plus de Go, Python et les actions ; le seuil doit être resserré sur HIGH une fois ces PR passées.
 - Les tests d'intégration iOS dépendent du backend de test (DB `arbore_test`, routée par `ARBORE_API_KEY_TEST`) ; ils sont **skippés** automatiquement si `/health` ne répond pas.
 
 Ces points sont des axes d'amélioration suivis côté CI, listés ici pour transparence.

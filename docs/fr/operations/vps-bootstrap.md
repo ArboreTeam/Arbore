@@ -178,7 +178,8 @@ attendues (sources de vérité indiquées) :
 | `ARBORE_API_KEY` | GitHub Settings → Secrets → `ARBORE_API_KEY` | Clé applicative trafic prod |
 | `ARBORE_API_KEY_TEST` | GitHub Settings → Secrets → `ARBORE_API_KEY_TEST` | Clé qui route vers `arbore_test` |
 | `FIREBASE_SERVICE_ACCOUNT_HOST_PATH` | Chemin absolu du JSON Firebase | Voir étape 7 ; monté en lecture seule |
-| `MASTER_ENCRYPTION_KEY` | Secret opérateur | Clé 32 octets encodée en base64, utilisée pour les jetons Apple |
+| `MASTER_ENCRYPTION_KEY` | Secret opérateur | Clé 32 octets **encodée en hexadécimal** (64 caractères), pour les jetons Apple. Générer avec `openssl rand -hex 32`. ⚠️ Pas du base64 : `parseMasterEncryptionKey` fait un `hex.DecodeString`. Préférer le fichier, cf. `MASTER_ENCRYPTION_KEY_PATH` |
+| `MASTER_ENCRYPTION_KEY_PATH` / `..._HOST_PATH` | Secret opérateur | **Source recommandée** de la clé maître : un fichier plutôt qu'une variable, cf. plus bas |
 | `APPLE_TEAM_ID` / `APPLE_KEY_ID` | Apple Developer → Keys | Identifiants de la clé Sign in with Apple |
 | `APPLE_SIWA_CLIENT_ID` | Bundle ID | `com.arboreteam.arbore` pour le flux iOS natif |
 | `APPLE_SIWA_KEY_HOST_PATH` | Chemin absolu du `.p8` Apple | Fichier `0600`, hors Git |
@@ -208,7 +209,10 @@ ARBORE_ADMIN_UIDS=uid_firebase_admin
 
 # Secrets et données persistantes (chemins hôte absolus)
 FIREBASE_SERVICE_ACCOUNT_HOST_PATH=/home/fedora/arbore-data/secrets/firebase-adminsdk.json
-MASTER_ENCRYPTION_KEY=base64_32_octets
+# Clé maître : le fichier est préféré à la variable (cf. encadré ci-dessous).
+MASTER_ENCRYPTION_KEY=
+MASTER_ENCRYPTION_KEY_PATH=/run/secrets/master-encryption.key
+MASTER_ENCRYPTION_KEY_HOST_PATH=/home/fedora/arbore-data/secrets/master-encryption.key
 APPLE_TEAM_ID=XXXXXXXXXX
 APPLE_KEY_ID=XXXXXXXXXX
 APPLE_SIWA_CLIENT_ID=com.arboreteam.arbore
@@ -216,6 +220,9 @@ APPLE_SIWA_KEY_HOST_PATH=/home/fedora/arbore-data/secrets/AuthKey_XXXXXXXXXX.p8
 MODELS_HOST_PATH=/home/fedora/arbore-data/models
 THUMBNAILS_HOST_PATH=/home/fedora/arbore-data/models/thumbnails
 LEGACY_COMMUNITY_UPLOADS_HOST_PATH=/home/fedora/arbore-data/uploads/community
+# Origines navigateur autorisées. Vide = CORS désactivé, le bon réglage ici :
+# le web appelle l'API via son proxy Next.js côté serveur (#338 constat 5).
+CORS_ALLOWED_ORIGINS=
 
 # AI providers
 AI_PROVIDER=openai
@@ -231,6 +238,30 @@ PORT=8080
 EOF
 chmod 600 /home/fedora/Arbore/.env
 ```
+
+### Clé maître en fichier plutôt qu'en variable
+
+Une variable d'environnement est lisible par `docker inspect` et dans
+`/proc/<pid>/environ`. Le projet refuse déjà pour cette raison de charger la clé
+Apple `.p8` depuis l'environnement — or `MASTER_ENCRYPTION_KEY` **déchiffre
+justement** les refresh tokens Apple : elle était moins protégée que ce qu'elle
+protège (#338 constat 4). D'où la source fichier :
+
+```bash
+mkdir -p /home/fedora/arbore-data/secrets
+# Depuis une clé EXISTANTE, reprendre sa valeur telle quelle (ne PAS en générer
+# une nouvelle : les tokens déjà chiffrés deviendraient indéchiffrables).
+printf '%s' "$MASTER_ENCRYPTION_KEY" > /home/fedora/arbore-data/secrets/master-encryption.key
+# Première installation uniquement :
+#   openssl rand -hex 32 > /home/fedora/arbore-data/secrets/master-encryption.key
+chmod 600 /home/fedora/arbore-data/secrets/master-encryption.key
+```
+
+Puis renseigner `MASTER_ENCRYPTION_KEY_PATH` et `MASTER_ENCRYPTION_KEY_HOST_PATH`
+dans le `.env`, et vider `MASTER_ENCRYPTION_KEY`. La bascule est réversible :
+tant que `MASTER_ENCRYPTION_KEY_PATH` est vide, le backend lit la variable. Un
+chemin défini mais **illisible est une erreur** et non un repli silencieux — en
+`GIN_MODE=release`, `validateReleaseSecurityConfig` refuse alors le démarrage.
 
 ---
 

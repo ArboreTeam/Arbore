@@ -941,13 +941,9 @@ func getPlantByID(c *gin.Context) {
 func generateAndInsertPlant(ctx context.Context, name string, dbSelector string) (Plant, bool, error) {
 	collection := getDatabaseByName(dbSelector).Collection("plants")
 
-	// Vérifie si la plante existe déjà (insensible à la casse)
-	filter := bson.M{
-		"name": bson.M{"$regex": primitive.Regex{Pattern: "^" + name + "$", Options: "i"}},
-	}
-
+	// Vérifie si la plante existe déjà (insensible à la casse).
 	var existing Plant
-	err := collection.FindOne(ctx, filter).Decode(&existing)
+	err := collection.FindOne(ctx, plantNameFilter(name)).Decode(&existing)
 	if err == nil {
 		// Elle existe déjà
 		return Plant{}, true, nil
@@ -1965,13 +1961,7 @@ func main() {
 	generationDailyQuota := middleware.NewWindowLimiter(50, 24*time.Hour)
 	uploadMinuteLimiter := middleware.NewWindowLimiter(10, time.Minute)
 
-	// CORS pour autoriser les requêtes depuis le frontend web
-	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Authorization", "Content-Type", "X-API-Key"},
-		AllowCredentials: true,
-	}))
+	configureCORS(router)
 
 	// Multipart parsing stays bounded; route-specific hard limits below also
 	// cover streamed/chunked requests.
@@ -2143,6 +2133,72 @@ func main() {
 	}
 }
 
+// plantNameFilter construit le filtre Mongo de déduplication par nom, insensible
+// à la casse.
+//
+// `name` est échappé avec regexp.QuoteMeta. Interpolé brut, il permettait
+// d'injecter un motif arbitraire dans le moteur regex de MongoDB — or Mongo
+// utilise PCRE, avec backtracking, contrairement au RE2 de Go qui est linéaire.
+// Un motif du genre `(a+)+!`, dans la limite des 120 caractères autorisés,
+// suffisait donc à saturer le CPU du serveur Mongo, partagé avec la production
+// (audit #338 constat 3).
+//
+// À terme, une collation insensible à la casse sur un champ indexé serait
+// préférable à une regex : elle est exacte et exploitable par un index.
+func plantNameFilter(name string) bson.M {
+	return bson.M{
+		"name": bson.M{"$regex": primitive.Regex{
+			Pattern: "^" + regexp.QuoteMeta(name) + "$",
+			Options: "i",
+		}},
+	}
+}
+
+// parseAllowedOrigins découpe une liste d'origines séparées par des virgules,
+// en ignorant les entrées vides.
+func parseAllowedOrigins(raw string) []string {
+	origins := make([]string, 0, 4)
+	for _, candidate := range strings.Split(raw, ",") {
+		if trimmed := strings.TrimSpace(candidate); trimmed != "" {
+			origins = append(origins, trimmed)
+		}
+	}
+	return origins
+}
+
+// configureCORS n'installe le middleware CORS que si des origines sont
+// explicitement autorisées via `CORS_ALLOWED_ORIGINS` (liste séparée par des
+// virgules).
+//
+// Par défaut : aucune origine, donc pas de middleware. Le navigateur bloque
+// alors toute requête cross-origin, ce qui est le comportement voulu — l'app web
+// n'appelle pas l'API depuis le navigateur mais via son propre proxy Next.js
+// côté serveur (`web/app/api/backend/[...path]/route.ts`), où CORS ne
+// s'applique pas.
+//
+// L'ancienne configuration autorisait `http://localhost:3000` avec
+// `AllowCredentials: true`, y compris en production : une page malveillante
+// servie sur le localhost:3000 d'une victime obtenait un accès cross-origin
+// authentifié (audit #338 constat 5).
+//
+// On ne peut pas passer une liste vide à cors.New : la lib rejette la config
+// (« all origins disabled ») et panique. D'où l'absence d'enregistrement plutôt
+// qu'un middleware neutre.
+func configureCORS(router *gin.Engine) {
+	origins := parseAllowedOrigins(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	if len(origins) == 0 {
+		log.Println("ℹ️  CORS désactivé (CORS_ALLOWED_ORIGINS vide) — aucune requête cross-origin autorisée")
+		return
+	}
+	log.Printf("🌐 CORS activé pour : %s", strings.Join(origins, ", "))
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     origins,
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Authorization", "Content-Type", "X-API-Key"},
+		AllowCredentials: true,
+	}))
+}
+
 // healthHandler répond à GET /health. Route publique, non authentifiée : elle ne
 // renvoie que de quoi vérifier que le service tourne et savoir QUELLE version
 // tourne — jamais d'information exploitable sur la configuration.
@@ -2191,7 +2247,10 @@ func validateReleaseSecurityConfig() error {
 	if _, err := loadAppleSIWAConfig(); err != nil {
 		return fmt.Errorf("sign in with Apple: %w", err)
 	}
-	if _, err := parseMasterEncryptionKey(os.Getenv("MASTER_ENCRYPTION_KEY")); err != nil {
+	// resolveMasterEncryptionKey (et non os.Getenv) : la clé peut venir d'un
+	// fichier monté via MASTER_ENCRYPTION_KEY_PATH. Lire la variable en dur ici
+	// ferait refuser le démarrage en release dès qu'on bascule sur le fichier.
+	if _, err := resolveMasterEncryptionKey(); err != nil {
 		return fmt.Errorf("apple token encryption: %w", err)
 	}
 	return nil

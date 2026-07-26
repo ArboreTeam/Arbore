@@ -1914,6 +1914,10 @@ func main() {
 	}
 	defer disconnectMongoDatabases(context.Background())
 
+	// Index sur les champs `uid` : sans eux, chaque requête authentifiée déclenche
+	// un balayage complet de `users` (cf. indexes.go).
+	ensureIndexesAtStartup()
+
 	// Initialiser Firebase Admin SDK.
 	// En release mode, toute erreur est fatale : le backend refuse de démarrer
 	// sans authentification pour éviter d'exposer les endpoints sans token.
@@ -1934,6 +1938,8 @@ func main() {
 	middleware.CheckUserBannedFunc = checkUserBannedFromDB
 
 	router := gin.Default()
+	hardenClientIPResolution(router)
+
 	publicLimiter := middleware.NewWindowLimiter(300, time.Minute)
 	apiLimiter := middleware.NewWindowLimiter(120, time.Minute)
 	chatMinuteLimiter := middleware.NewWindowLimiter(20, time.Minute)
@@ -2126,6 +2132,36 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal("❌ Erreur lors du démarrage du serveur :", err) // nolint:misspell
 	}
+}
+
+// hardenClientIPResolution empêche gin de déduire l'IP client de
+// `X-Forwarded-For` (audit #338, constat 2).
+//
+// nginx construit cet en-tête avec `$proxy_add_x_forwarded_for`, qui *ajoute* à
+// la valeur envoyée par le client : sa partie gauche est donc contrôlée par
+// l'attaquant. Or gin fait confiance à TOUS les proxies par défaut et lit cet
+// en-tête, ce qui rendait `ClientIP()` — et le rate limiting par IP qui en
+// dépendait — falsifiable.
+//
+//   - `SetTrustedProxies(nil)` coupe la lecture de X-Forwarded-For : `ClientIP()`
+//     retombe sur l'IP de la socket.
+//   - `TrustedPlatform` fait lire `X-Real-IP`, qu'aucun client ne peut imposer :
+//     nginx l'écrase systématiquement (`proxy_set_header X-Real-IP
+//     $http_cf_connecting_ip`, et `$remote_addr` sur le vhost par défaut), et
+//     l'origine n'accepte que les plages Cloudflare (cf-http-firewall.service).
+//
+// `gin.PlatformCloudflare` (CF-Connecting-IP) conviendrait aussi sur le fond,
+// mais supposerait que nginx relaie cet en-tête sans le toucher. `X-Real-IP` est
+// garanti par la configuration nginx : on préfère la garantie à l'hypothèse.
+// En local (hors nginx) l'en-tête est absent et gin retombe sur l'IP de socket.
+//
+// L'erreur est fatale : une configuration de proxy erronée est un problème de
+// sécurité, pas un détail à journaliser.
+func hardenClientIPResolution(router *gin.Engine) {
+	if err := router.SetTrustedProxies(nil); err != nil {
+		log.Fatalf("❌ Trusted proxy configuration invalid: %v", err)
+	}
+	router.TrustedPlatform = "X-Real-IP"
 }
 
 func validateReleaseSecurityConfig() error {

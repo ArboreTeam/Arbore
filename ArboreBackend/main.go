@@ -494,7 +494,17 @@ func createUser(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
 		return
 	}
-	user.UID = tokenUID.(string)
+	// `uid` est extrait dans sa propre variable, et c'est la seule valeur utilisée
+	// pour interroger Mongo. `user` vient de `ShouldBindJSON`, donc son champ
+	// `UID` porte initialement ce que le client a envoyé ; l'écraser ne suffit
+	// pas à rendre l'intention évidente, et un réordonnancement ultérieur du code
+	// pourrait laisser la valeur cliente atteindre la requête. Partir d'une
+	// variable issue du token vérifié supprime cette dépendance à l'ordre — c'est
+	// aussi ce que signalait CodeQL (`go/sql-injection`, teinte propagée depuis
+	// le binding JSON).
+	uid := tokenUID.(string)
+	user.UID = uid
+
 	tokenEmail := strings.TrimSpace(c.GetString("email"))
 	if tokenEmail == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Authenticated email is missing"})
@@ -506,20 +516,46 @@ func createUser(c *gin.Context) {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Name is too long (max 100 characters)"})
 		return
 	}
-	user.CreatedAt = time.Now().UTC().Format(time.RFC3339)
-	user.Banned = false
-	user.PhotoData = ""
-	user.PhotoContentType = ""
-	user.AppleRefreshTokenEncrypted = nil
+	// Upsert et non InsertOne : un `InsertOne` inconditionnel créait un document
+	// de plus à chaque appel. La production comptait 30 documents pour 7 uid, et
+	// `deleteUser` n'en supprimant qu'un, l'effacement de compte laissait des
+	// données personnelles derrière lui — violation de l'Art. 17 (audit #338
+	// constat 1).
+	//
+	// Les champs sont séparés en deux groupes, et c'est le point sensible :
+	//   - `$set`         : ce que le token d'authentification fait autorité à
+	//                      rafraîchir (email, et le nom s'il est fourni).
+	//   - `$setOnInsert` : ce qui n'a de sens qu'à la création.
+	//
+	// `photoData`, `photoContentType` et `appleRefreshTokenEncrypted` ne sont
+	// dans AUCUN des deux : un second appel à POST /users ne doit pas effacer la
+	// photo de profil ni le refresh token Apple d'un compte existant. L'ancien
+	// code les remettait à zéro, ce qui était sans effet tant qu'il insérait un
+	// document neuf, mais deviendrait destructeur avec un upsert.
+	isTestDB := c.GetString(middleware.DBSelectorKey) == middleware.DBSelectorTest
 
 	collection := getDatabaseForRequest(c).Collection("users")
-	_, err := collection.InsertOne(context.Background(), maybeLabelTestDoc(c.GetString(middleware.DBSelectorKey), user))
-	if err != nil {
-		log.Println("❌ Erreur lors de l'insertion dans MongoDB :", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de l'insertion dans MongoDB"})
+	if _, err := collection.UpdateOne(
+		context.Background(),
+		bson.M{"uid": uid},
+		buildCreateUserUpdate(tokenEmail, user.Name, isTestDB, time.Now().UTC()),
+		options.Update().SetUpsert(true),
+	); err != nil {
+		log.Println("❌ Erreur lors de l'enregistrement de l'utilisateur :", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de l'enregistrement de l'utilisateur"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Utilisateur enregistré avec succès", "user": user})
+
+	// On relit le document réellement stocké plutôt que de renvoyer l'objet
+	// construit ici : sur un compte existant, la réponse doit refléter la photo
+	// et la date de création conservées, pas des valeurs vides.
+	var stored User
+	if err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&stored); err != nil {
+		log.Printf("⚠️  utilisateur enregistré mais relecture impossible (%s): %v", uid, err)
+		c.JSON(http.StatusOK, gin.H{"message": "Utilisateur enregistré avec succès", "user": user})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Utilisateur enregistré avec succès", "user": stored})
 }
 
 // updateUserSelf met à jour le profil de l'utilisateur authentifié (PATCH /users/me).
@@ -596,8 +632,18 @@ func deleteUser(c *gin.Context) {
 
 	// Read the Apple token before erasing the profile. Revocation is best-effort
 	// and never prevents the user from deleting their Arbore account.
+	//
+	// Le filtre cible explicitement un document PORTANT un token. Avec un
+	// `FindOne` sur le seul `uid`, un compte ayant plusieurs documents (cf. audit
+	// #338 constat 1) pouvait retourner une copie sans token et sauter la
+	// révocation en silence — constaté en production sur 2 des 7 comptes
+	// dupliqués, où seule la copie la plus ancienne portait le token.
 	var userDoc User
-	if err := usersCollection.FindOne(ctx, bson.M{"uid": uid}).Decode(&userDoc); err == nil && len(userDoc.AppleRefreshTokenEncrypted) > 0 {
+	appleTokenFilter := bson.M{
+		"uid":                        uid,
+		"appleRefreshTokenEncrypted": bson.M{"$exists": true, "$ne": nil},
+	}
+	if err := usersCollection.FindOne(ctx, appleTokenFilter).Decode(&userDoc); err == nil && len(userDoc.AppleRefreshTokenEncrypted) > 0 {
 		revokeAppleBestEffort(ctx, userDoc.AppleRefreshTokenEncrypted)
 	}
 
@@ -629,7 +675,12 @@ func deleteUser(c *gin.Context) {
 	}
 
 	// 3. Supprimer l'utilisateur
-	userResult, err := usersCollection.DeleteOne(ctx, bson.M{"uid": uid})
+	// DeleteMany et non DeleteOne : tant que des comptes ont plusieurs documents,
+	// `DeleteOne` en laissait derrière lui — avec email, nom et photo — alors que
+	// l'identité Firebase, elle, était bien supprimée. L'utilisateur n'avait donc
+	// plus aucun moyen de déclencher l'effacement du reliquat (Art. 17, audit
+	// #338 constat 1). Reste correct une fois l'unicité de `users.uid` rétablie.
+	userResult, err := usersCollection.DeleteMany(ctx, bson.M{"uid": uid})
 	if err != nil {
 		log.Println("❌ Erreur lors de la suppression de l'utilisateur:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la suppression de l'utilisateur"})
@@ -2134,6 +2185,41 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal("❌ Erreur lors du démarrage du serveur :", err) // nolint:misspell
 	}
+}
+
+// buildCreateUserUpdate construit le document d'update de `POST /users`, utilisé
+// en upsert.
+//
+// La propriété importante — celle que verrouille `TestBuildCreateUserUpdate...`
+// — est ce qui NE figure dans aucun des deux opérateurs : `photoData`,
+// `photoContentType` et `appleRefreshTokenEncrypted`. Un second appel à
+// `POST /users` ne doit pas effacer la photo de profil ni le refresh token Apple
+// d'un compte existant. L'ancien code les remettait explicitement à zéro, ce qui
+// était sans effet tant qu'il insérait un document neuf, mais deviendrait
+// destructeur avec un upsert.
+//
+//   - `$set`         : ce sur quoi le token d'authentification fait autorité.
+//     Le nom n'y entre que s'il est renseigné, pour qu'un client qui l'omet
+//     n'efface pas celui déjà stocké.
+//   - `$setOnInsert` : ce qui n'a de sens qu'à la création du document.
+func buildCreateUserUpdate(email, name string, isTestDB bool, now time.Time) bson.M {
+	setFields := bson.M{"email": email}
+	if name != "" {
+		setFields["name"] = name
+	}
+
+	insertFields := bson.M{
+		"createdAt": now.Format(time.RFC3339),
+		"banned":    false,
+	}
+	// Équivalent de maybeLabelTestDoc, qui ne s'applique qu'à une insertion
+	// directe et ne sait pas décrire un upsert.
+	if isTestDB {
+		insertFields["_test"] = true
+		insertFields["_createdAtUTC"] = now
+	}
+
+	return bson.M{"$set": setFields, "$setOnInsert": insertFields}
 }
 
 // respondInvalidBody répond 400 sans exposer le détail de l'erreur de binding.

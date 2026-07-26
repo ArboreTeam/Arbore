@@ -283,7 +283,13 @@ Déclarés dans `indexes.go` (`requiredIndexes`) et créés au démarrage par `e
 
 Avant ces index, la seule collection indexée l'était sur `_id` : chaque requête authentifiée déclenchait un **balayage complet** de `users` (audit #338, constat 7).
 
-> ⚠️ `users.uid` **n'est pas encore unique**, alors que ce serait la bonne contrainte. La base de production contient des documents dupliqués (`createUser` fait un `InsertOne` inconditionnel — audit #338, constat 1) et une création d'index unique échouerait avec `E11000`. L'unicité doit être ajoutée **avec** la migration de dédoublonnage, pas avant.
+> ⚠️ `users.uid` **n'est pas encore unique**. La cause a été corrigée — `createUser` fait désormais un **upsert** au lieu d'un `InsertOne` inconditionnel, et `deleteUser` un `DeleteMany` (audit #338, constat 1) — mais les doublons **déjà en base** doivent d'abord être fusionnés, sinon la création de l'index échoue avec `E11000`.
+>
+> Migration : `ArboreBackend/scripts/dedupe-users.js`, en **dry-run par défaut**. L'unicité sera activée dans un second temps, une fois la migration passée.
+>
+> **Règle de fusion** : champ absent/vide → la valeur non vide gagne ; deux valeurs non vides qui diffèrent → la plus récente gagne ; `createdAt` → la plus ancienne ; `banned` → `true` si n'importe quelle copie l'est. Le survivant est le document au `_id` le plus ancien.
+>
+> Cette règle n'est pas « garder la copie la plus récente », et ce n'est pas un détail : mesuré en production, **2 des 7 comptes dupliqués ne portaient leur `appleRefreshTokenEncrypted` que sur leur copie la plus ancienne**. Les perdre aurait rendu la révocation du compte Apple impossible à la suppression (Guideline 5.1.1(v), cf. #210).
 
 `plants` n'est pas indexée : sa seule recherche par nom (`generateAndInsertPlant`) est une regex insensible à la casse, qu'un index classique ne peut pas exploiter efficacement. Si ce chemin devient chaud, la bonne réponse est un champ `nameNormalized` indexé.
 

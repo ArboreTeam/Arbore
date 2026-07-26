@@ -265,16 +265,42 @@ End-to-end health check:
 
 ```bash
 curl -fsS http://localhost:8080/health
-# → {"status":"ok","service":"arbore-backend","version":"..."}
+# → {"status":"ok","service":"arbore-backend","commit":"<sha>"}
 curl -fsS http://localhost:3000/   # web (Next.js)
 curl -fsS http://<VPS_IP>/health   # via nginx
 ```
 
+The `commit` field is the git SHA actually deployed. It is the only way to know
+whether production follows `main`:
+
+```bash
+curl -s https://api.arbore.app/health | jq -r .commit   # what is running
+git rev-parse origin/main                               # what should be running
+```
+
 From now on, subsequent deployments go through
-`./deploy.sh` (which takes a Mongo snapshot before each rebuild). The checkout
-must be clean. USDZ files, thumbnails, legacy uploads, and secrets remain under
+`./deploy.sh` (which takes a Mongo snapshot before each rebuild).
+
+**Checkout guard.** `deploy.sh` refuses to deploy when a git-**tracked** file is
+modified — that is uncommitted code, hence a silent divergence. It does
+however **tolerate** two things: untracked files (they cannot break a
+fast-forward) and changes under `ArboreBackend/models/`, declared as
+out-of-band data in `OUT_OF_BAND_PATHS`. Those 3D models are regenerated and
+cleaned directly on the server; requiring them to be clean made `deploy.sh`
+unusable, and deployments bypassed it — skipping the pre-deploy Mongo
+snapshot, the only safety net since Atlas M0 has no automatic backups
+(see #341).
+
+USDZ files, thumbnails, legacy uploads, and secrets are meant to live under
 `/home/fedora/arbore-data` through absolute `.env` paths, so a fresh release
 checkout cannot overwrite or delete them.
+
+> ⚠️ **Actual state as of 2026-07-26**: `/home/fedora/arbore-data/models` exists
+> and does contain the 124 models, but **no `MODELS_HOST_PATH` is set in the VPS
+> `.env`**. `docker-compose.yml` therefore falls back to its
+> `./ArboreBackend/models` default, and production serves the models **from the
+> git checkout**. This switch is still pending (#341); until then, any git
+> operation on those files changes what the app downloads.
 
 ---
 

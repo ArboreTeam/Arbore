@@ -1,4 +1,16 @@
-name: 🚀 Deploy
+name: 📦 Build & Publish images
+
+# ⚠️ Ce workflow NE DÉPLOIE PAS. Il builde et pousse des images sur ghcr, que
+# rien ne consomme aujourd'hui : le VPS builde ses propres images localement via
+# `deploy.sh` + `docker compose build`.
+#
+# Il s'appelait « 🚀 Deploy », ce qui a laissé croire pendant des semaines que la
+# production suivait `main`. Elle avait en réalité 15 commits de retard, dont un
+# correctif de sécurité, sans que rien ne le signale (#341). Le déploiement réel
+# se lance à la main : `ssh` puis `./deploy.sh` à la racine du dépôt sur le VPS.
+#
+# Pour vérifier ce qui tourne réellement en production :
+#   curl -s https://api.arbore.app/health | jq -r .commit
 
 on:
   push:

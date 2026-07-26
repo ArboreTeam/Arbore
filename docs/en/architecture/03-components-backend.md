@@ -69,7 +69,7 @@ The `middleware/` subfolder exposes two chained middlewares, in this order for t
 
 | Endpoint | Handler | Notes |
 |---|---|---|
-| `GET /health` | inline | Docker healthcheck. Returns `{status, service, version}`. |
+| `GET /health` | `healthHandler` | Docker healthcheck. Returns `{status, service, commit}`. `commit` is the git SHA injected at build time (`-ldflags -X main.buildCommit`), and is `unknown` for a hand-built binary. This is how you check what actually runs in production: `curl -s https://api.arbore.app/health \| jq -r .commit`. Replaces a hardcoded `version` that was never updated (see #341). |
 | `GET /models/thumbnails/:filename` | inline (**public**) | Serves catalog PNGs from `THUMBNAILS_DIR`. Rejects `..` / `/`, requires `.png`. |
 
 ### API-key-only group (`APIKeyMiddleware` only)

@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"log"
+	"strings"
 	"testing"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -105,6 +108,70 @@ func TestFormatIndexKeysPreservesOrder(t *testing.T) {
 				t.Errorf("got %q, want %q", got, test.want)
 			}
 		})
+	}
+}
+
+// Les deux codes de conflit doivent produire le message actionnable.
+//
+// Test écrit après coup : `logIndexFailure` ne traitait que le code 85
+// (IndexOptionsConflict), or MongoDB renvoie **86** (IndexKeySpecsConflict)
+// quand on ajoute `unique: true` à un index existant. Constaté en production sur
+// `arbore_test` : le cas réel tombait dans la branche par défaut, donc affichait
+// l'erreur brute au lieu de la commande à exécuter.
+func TestLogIndexFailureHandlesBothConflictCodes(t *testing.T) {
+	spec := indexSpec{
+		collection: "users",
+		keys:       bson.D{{Key: "uid", Value: 1}},
+		name:       "uid_1",
+		unique:     true,
+		reason:     "test",
+	}
+
+	var buffer bytes.Buffer
+	original := log.Writer()
+	log.SetOutput(&buffer)
+	t.Cleanup(func() { log.SetOutput(original) })
+
+	for _, test := range []struct {
+		name string
+		code int32
+	}{
+		{name: "IndexOptionsConflict", code: mongoErrIndexOptionsConflict},
+		{name: "IndexKeySpecsConflict", code: mongoErrIndexKeySpecsConflict},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			buffer.Reset()
+			logIndexFailure("arbore", spec, mongo.CommandError{Code: test.code, Message: "conflit"})
+
+			output := buffer.String()
+			// Le message doit contenir la commande de remplacement, copiable.
+			if !strings.Contains(output, `dropIndex("uid_1")`) {
+				t.Errorf("code %d : la commande dropIndex manque.\n%s", test.code, output)
+			}
+			if !strings.Contains(output, "unique:true") {
+				t.Errorf("code %d : la commande createIndex doit préciser unique:true.\n%s", test.code, output)
+			}
+		})
+	}
+}
+
+// Un doublon doit renvoyer vers la migration, pas vers un remplacement d'index.
+func TestLogIndexFailurePointsToMigrationOnDuplicateKey(t *testing.T) {
+	spec := indexSpec{collection: "users", keys: bson.D{{Key: "uid", Value: 1}}, name: "uid_1", unique: true}
+
+	var buffer bytes.Buffer
+	original := log.Writer()
+	log.SetOutput(&buffer)
+	t.Cleanup(func() { log.SetOutput(original) })
+
+	logIndexFailure("arbore", spec, mongo.CommandError{Code: mongoErrDuplicateKey, Message: "E11000"})
+
+	output := buffer.String()
+	if !strings.Contains(output, "dedupe-users.js") {
+		t.Errorf("un E11000 doit renvoyer vers la migration.\n%s", output)
+	}
+	if strings.Contains(output, "dropIndex") {
+		t.Errorf("un E11000 ne doit PAS suggérer de remplacer l'index : les données violent la contrainte.\n%s", output)
 	}
 }
 

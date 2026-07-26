@@ -291,7 +291,7 @@ Before these indexes, the only indexed collection was indexed on `_id`: every au
 >
 > This rule is deliberately not "keep the most recent copy", and that is not a detail: measured in production, **2 of the 7 duplicated accounts carried their `appleRefreshTokenEncrypted` only on their oldest copy**. Losing it would have made Apple account revocation impossible on deletion (Guideline 5.1.1(v), see #210).
 >
-> ⚠️ **Changing the options of an existing index is not possible in place.** MongoDB returns `IndexOptionsConflict` (code 85). `ensureIndexes` therefore does **not** attempt to replace the index automatically: a `drop` followed by a failing `create` would leave the collection with no index at all, hence a full scan on every authenticated request. The log prints the `dropIndex`/`createIndex` command to run instead, once duplicates are gone.
+> ⚠️ **Changing the characteristics of an existing index is not possible in place.** MongoDB returns either `IndexOptionsConflict` (**85**, options differ) or `IndexKeySpecsConflict` (**86**, key specs differ). Adding `unique: true` to an existing index returns **86** — verified in production. `ensureIndexes` therefore does **not** attempt to replace the index automatically: a `drop` followed by a failing `create` would leave the collection with no index at all, hence a full scan on every authenticated request. The log prints the `dropIndex`/`createIndex` command to run instead, once duplicates are gone.
 
 `plants` is not indexed: its only lookup by name (`generateAndInsertPlant`) is a case-insensitive regex, which a classic index cannot use efficiently. If that path becomes hot, the right answer is an indexed `nameNormalized` field.
 

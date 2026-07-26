@@ -138,6 +138,13 @@ ArboreBackend/backend
 ArboreBackend/testapp
 ArboreBackend/uploads/
 
+# Aides locales de développeur (raccourcis de reprise de session, notes perso).
+.continue-claude
+
+# Clé maître en fichier, si elle est placée dans le checkout plutôt que dans
+# /home/fedora/arbore-data/secrets (cf. MASTER_ENCRYPTION_KEY_HOST_PATH).
+master-encryption.key
+
 # Docker
 .dockerignore
 # Backend runtime assets are mounted by Compose and must stay out of build contexts.

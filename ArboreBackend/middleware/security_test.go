@@ -197,6 +197,91 @@ func TestTrustedClientIP(t *testing.T) {
 	}
 }
 
+// MARK: - Bornes mémoire du limiter (audit #338 constat 10)
+
+// Avec une fenêtre longue, la purge ne doit pas attendre la fenêtre entière :
+// l'implémentation d'origine gardait une entrée expirée jusqu'à 2× la fenêtre.
+func TestWindowLimiterPurgesOnItsOwnCadence(t *testing.T) {
+	limiter := NewWindowLimiter(5, 24*time.Hour)
+	if limiter.cleanupInterval != limiterCleanupInterval {
+		t.Fatalf("cadence de purge = %v, attendu %v", limiter.cleanupInterval, limiterCleanupInterval)
+	}
+
+	start := time.Now()
+	limiter.allow("ancien", start)
+	if len(limiter.entries) != 1 {
+		t.Fatalf("entrée non enregistrée")
+	}
+
+	// Une requête d'une AUTRE clé, après expiration de la première mais bien
+	// avant la fin d'une seconde fenêtre de 24 h.
+	later := start.Add(24*time.Hour + time.Minute)
+	limiter.allow("nouveau", later)
+
+	if _, stillThere := limiter.entries["ancien"]; stillThere {
+		t.Error("l'entrée expirée n'a pas été purgée")
+	}
+	if _, ok := limiter.entries["nouveau"]; !ok {
+		t.Error("la nouvelle entrée devrait être présente")
+	}
+}
+
+// Une fenêtre plus courte que la cadence de purge ne doit pas purger plus
+// souvent que nécessaire : rien n'expire avant la fin de la fenêtre.
+func TestWindowLimiterCleanupIntervalNeverExceedsWindow(t *testing.T) {
+	limiter := NewWindowLimiter(5, 10*time.Second)
+	if limiter.cleanupInterval != 10*time.Second {
+		t.Fatalf("cadence = %v, attendu la fenêtre (10s)", limiter.cleanupInterval)
+	}
+}
+
+// Un flot de clés distinctes ne doit pas faire croître la mémoire sans borne.
+func TestWindowLimiterEnforcesEntryCap(t *testing.T) {
+	limiter := NewWindowLimiter(5, 24*time.Hour)
+	limiter.maxEntries = 100 // plafond réduit pour garder le test rapide
+
+	now := time.Now()
+	for i := 0; i < 500; i++ {
+		// Toutes dans la même fenêtre : aucune n'expire, seule l'éviction peut
+		// borner la taille.
+		limiter.allow(fmt.Sprintf("cle-%d", i), now.Add(time.Duration(i)*time.Millisecond))
+	}
+
+	if len(limiter.entries) > limiter.maxEntries {
+		t.Fatalf("plafond dépassé : %d entrées pour un maximum de %d", len(limiter.entries), limiter.maxEntries)
+	}
+	// L'éviction cible 90 % du plafond, donc on doit rester bien garni.
+	if len(limiter.entries) == 0 {
+		t.Fatal("toutes les entrées ont été évincées")
+	}
+	// Les clés les plus RÉCENTES doivent survivre : ce sont les plus utiles.
+	if _, ok := limiter.entries["cle-499"]; !ok {
+		t.Error("la clé la plus récente devrait avoir survécu à l'éviction")
+	}
+}
+
+// L'éviction ne doit pas casser le comptage des clés conservées.
+func TestWindowLimiterStillCountsAfterEviction(t *testing.T) {
+	limiter := NewWindowLimiter(2, 24*time.Hour)
+	limiter.maxEntries = 10
+
+	now := time.Now()
+	for i := 0; i < 50; i++ {
+		limiter.allow(fmt.Sprintf("bruit-%d", i), now)
+	}
+
+	// Une clé fraîche doit voir son quota appliqué normalement.
+	allowed1, _, _ := limiter.allow("reel", now)
+	allowed2, _, _ := limiter.allow("reel", now)
+	allowed3, _, _ := limiter.allow("reel", now)
+	if !allowed1 || !allowed2 {
+		t.Fatal("les deux premières requêtes devaient passer")
+	}
+	if allowed3 {
+		t.Fatal("la troisième requête devait être bloquée (limite 2)")
+	}
+}
+
 func TestMaxBodyBytes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()

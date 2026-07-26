@@ -485,7 +485,7 @@ func exportUserData(c *gin.Context) {
 func createUser(c *gin.Context) {
 	var user User
 	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondInvalidBody(c, err)
 		return
 	}
 
@@ -537,7 +537,7 @@ func updateUserSelf(c *gin.Context) {
 		Name *string `json:"name"`
 	}
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondInvalidBody(c, err)
 		return
 	}
 
@@ -737,7 +737,7 @@ func recordConsent(c *gin.Context) {
 
 	var consent ConsentRecord
 	if err := c.ShouldBindJSON(&consent); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondInvalidBody(c, err)
 		return
 	}
 
@@ -866,7 +866,7 @@ func createPlant(c *gin.Context) {
 	var plant Plant
 
 	if err := c.ShouldBindJSON(&plant); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondInvalidBody(c, err)
 		return
 	}
 
@@ -1081,7 +1081,7 @@ func resolveModelFilename(plantName string) string {
 func generatePlantWithAI(c *gin.Context) {
 	var req AIRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondInvalidBody(c, err)
 		return
 	}
 
@@ -1339,7 +1339,7 @@ func uploadPlantThumbnail(c *gin.Context) {
 func createGarden(c *gin.Context) {
 	var garden Garden
 	if err := c.ShouldBindJSON(&garden); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondInvalidBody(c, err)
 		return
 	}
 
@@ -1449,7 +1449,7 @@ func updateGarden(c *gin.Context) {
 		Measurements *GardenMeasurements `json:"measurements"`
 	}
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondInvalidBody(c, err)
 		return
 	}
 
@@ -1608,7 +1608,7 @@ func stripMarkdown(text string) string {
 func handleGeminiChat(c *gin.Context) {
 	var req ChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondInvalidBody(c, err)
 		return
 	}
 	if err := validateAIImage(req.ImageData); err != nil {
@@ -1693,7 +1693,7 @@ func handleGeminiChat(c *gin.Context) {
 func handleGeminiDiagnose(c *gin.Context) {
 	var req DiagnoseRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		respondInvalidBody(c, err)
 		return
 	}
 	if strings.TrimSpace(req.ImageData) == "" {
@@ -2039,7 +2039,10 @@ func main() {
 					c.JSON(http.StatusNotFound, gin.H{"message": "Utilisateur non trouvé"})
 					return
 				}
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				// Jamais l'erreur Mongo brute : elle peut contenir le nom de la
+				// base, de la collection, l'hôte du cluster (audit #338 constat 8).
+				log.Printf("❌ lecture utilisateur %s échouée: %v", uidParam, err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la lecture de l'utilisateur"})
 				return
 			}
 
@@ -2131,6 +2134,24 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal("❌ Erreur lors du démarrage du serveur :", err) // nolint:misspell
 	}
+}
+
+// respondInvalidBody répond 400 sans exposer le détail de l'erreur de binding.
+//
+// Les messages de `ShouldBindJSON` contiennent des internes Go — noms de champs
+// de structure, types attendus — qui n'apprennent rien d'utile au client mais
+// renseignent un attaquant sur la forme exacte du modèle (audit #338 constat 8).
+// Le détail part dans les logs serveur, où il reste exploitable pour déboguer.
+//
+// À ne PAS utiliser pour les erreurs de validation métier : celles-ci portent nos
+// propres messages, sûrs et utiles (« image is too large (max 6 MB) »…), et l'app
+// iOS les affiche telles quelles à l'utilisateur.
+func respondInvalidBody(c *gin.Context, err error) {
+	log.Printf("⚠️  corps de requête invalide sur %s %s: %v", c.Request.Method, c.FullPath(), err)
+	c.JSON(http.StatusBadRequest, gin.H{
+		"error": "Requête invalide.",
+		"code":  "INVALID_REQUEST_BODY",
+	})
 }
 
 // plantNameFilter construit le filtre Mongo de déduplication par nom, insensible

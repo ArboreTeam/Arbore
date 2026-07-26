@@ -32,7 +32,11 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.22"
+  # Doit rester aligné sur la directive `go` de ArboreBackend/go.mod. Elle
+  # indiquait "1.22" alors que go.mod exige 1.25.12 : le mécanisme de toolchain
+  # téléchargeait donc silencieusement 1.25.12 à chaque run, sans cache, et la
+  # version réellement utilisée n'était pas celle affichée (audit #338 constat 6).
+  GO_VERSION: "1.25.12"
   PYTHON_VERSION: "3.11"
   # latest-stable : chaque runner prend son Xcode le plus récent.
   # ios_ui tourne sur macos-15 → Xcode 26 (SDK iOS 26 requis pour Liquid Glass,
@@ -121,6 +125,16 @@ jobs:
           working-directory: ArboreBackend
           version: v2.11.3
           args: --timeout=5m
+
+      # Vulnérabilités connues de la stdlib Go et des modules (audit #338
+      # constat 6). BLOQUANT, et volontairement : govulncheck ne signale que les
+      # vulnérabilités que le code APPELLE réellement, donc quasi zéro faux
+      # positif. Vérifié avant activation : 0 vulnérabilité appelée avec le
+      # toolchain épinglé (go 1.25.12, dernier patch de sa branche).
+      - name: 🛡️ Check known vulnerabilities (govulncheck)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
 
       - name: 🏗️ Build binary (Linux)
         run: |
@@ -211,13 +225,23 @@ jobs:
           docker build -t arbore-ai-generator:${{ github.sha }} .
           docker tag arbore-ai-generator:${{ github.sha }} arbore-ai-generator:latest
           
+      # BLOQUANT en CRITICAL uniquement (audit #338 constat 6). Avant, le
+      # `|| echo` avalait le code de sortie : le scan ne pouvait rien empêcher.
+      # Les HIGH restent affichés dans le log mais ne bloquent pas — il en existe
+      # aujourd'hui dans les dépendances npm, et Dependabot doit les résorber
+      # avant qu'on resserre le seuil (cf. .github/dependabot.yml).
       - name: 🔍 Scan Docker image for vulnerabilities
-        continue-on-error: true
         run: |
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy:latest image \
-            --severity HIGH,CRITICAL \
-            arbore-ai-generator:latest || echo "Vulnerability scan completed"
+            --severity HIGH,CRITICAL --ignore-unfixed --no-progress \
+            arbore-ai-generator:latest
+          echo "::group::Gate bloquant (CRITICAL)"
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest image \
+            --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
+            arbore-ai-generator:latest
+          echo "::endgroup::"
 
   # iOS UI - Build (nécessite macOS)
   ios_ui:
@@ -583,7 +607,9 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@v6
         
-      - name: 🔒 Run Trivy vulnerability scanner
+      # Rapport complet vers l'onglet Security : non bloquant par nature, il sert
+      # à la visibilité et à l'historique.
+      - name: 🔒 Trivy — rapport complet (SARIF)
         uses: aquasecurity/trivy-action@master
         continue-on-error: true
         with:
@@ -591,12 +617,30 @@ jobs:
           scan-ref: '.'
           format: 'sarif'
           output: 'trivy-results.sarif'
-          
+
       - name: 📤 Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         continue-on-error: true
         with:
           sarif_file: 'trivy-results.sarif'
+
+      # Gate BLOQUANT, en CRITICAL uniquement (audit #338 constat 6). Avant, le
+      # seul scan présent était en `continue-on-error: true` : rien ne pouvait
+      # jamais faire échouer un build, donc la sécurité était purement indicative.
+      #
+      # Seuil choisi après mesure sur l'arbre réellement checkouté par la CI :
+      # CRITICAL = 0, mais HIGH ≠ 0 (brace-expansion, sharp/libvips dans les
+      # package-lock npm). Bloquer en HIGH aurait cassé la CI de toute l'équipe
+      # dès ce commit. À resserrer sur HIGH une fois ces dépendances à jour.
+      - name: 🚧 Trivy — gate bloquant (CRITICAL)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL'
+          ignore-unfixed: true
+          exit-code: '1'
+          format: 'table'
 
   # Job de résumé final
   build_summary:

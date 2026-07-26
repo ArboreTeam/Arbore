@@ -66,7 +66,14 @@ services:
       - ARBORE_API_KEY=${ARBORE_API_KEY}
       - ARBORE_API_KEY_TEST=${ARBORE_API_KEY_TEST:-}
       - FIREBASE_SERVICE_ACCOUNT_PATH=/run/secrets/firebase-adminsdk.json
+      # Clé maître : le FICHIER est préféré (cf. le montage plus bas). Tant que
+      # MASTER_ENCRYPTION_KEY_PATH est vide, c'est la variable qui sert — ce qui
+      # rend la bascule progressive et réversible.
       - MASTER_ENCRYPTION_KEY=${MASTER_ENCRYPTION_KEY:-}
+      - MASTER_ENCRYPTION_KEY_PATH=${MASTER_ENCRYPTION_KEY_PATH:-}
+      # Origines navigateur autorisées. Vide = CORS désactivé (audit #338
+      # constat 5) : le web passe par son proxy Next.js côté serveur.
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-}
       - APPLE_TEAM_ID=${APPLE_TEAM_ID:-}
       - APPLE_KEY_ID=${APPLE_KEY_ID:-}
       - APPLE_SIWA_CLIENT_ID=${APPLE_SIWA_CLIENT_ID:-}
@@ -96,6 +103,12 @@ services:
       - ${FIREBASE_SERVICE_ACCOUNT_HOST_PATH:-./arbore-firebase-adminsdk.json}:/run/secrets/firebase-adminsdk.json:ro
       # Clé privée Apple : fichier hôte hors Git, lecture seule dans le conteneur.
       - ${APPLE_SIWA_KEY_HOST_PATH:-./AuthKey_A4X35PAX94.p8}:/run/secrets/apple-siwa.p8:ro
+      # Clé maître AES : préférable à une variable d'environnement, lisible par
+      # `docker inspect` (audit #338 constat 4). Défaut /dev/null — toujours
+      # présent, donc aucun répertoire fantôme n'est créé quand le fichier n'est
+      # pas fourni ; le backend ne le lit que si MASTER_ENCRYPTION_KEY_PATH est
+      # défini, sinon il retombe sur la variable d'environnement.
+      - ${MASTER_ENCRYPTION_KEY_HOST_PATH:-/dev/null}:/run/secrets/master-encryption.key:ro
       # Anciennes images communautaires, accessibles uniquement pour effacement RGPD.
       - ${LEGACY_COMMUNITY_UPLOADS_HOST_PATH:-./ArboreBackend/uploads/community}:/app/uploads/community
     depends_on:

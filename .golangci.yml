@@ -53,6 +53,9 @@ linters:
         - pointeur
         - normalis
         - concret
+        - journalis
+        - sence
+        - correspondants
 
     revive:
       confidence: 0.8

@@ -1,40 +1,119 @@
 # Configuration Dependabot pour les mises à jour automatiques
+#
+# Révisé pour l'audit #338 constat 6. Trois manques corrigés :
+#
+#   1. **npm absent** — ni `web/` ni `Plant3DGenerator/` n'étaient surveillés.
+#      C'est précisément là que Trivy relève des vulnérabilités HIGH
+#      (brace-expansion, sharp/libvips) que rien ne résorbait. Le gate CI bloque
+#      en CRITICAL ; l'objectif est de le resserrer sur HIGH une fois ces PR
+#      passées.
+#   2. **`target-branch` absent** — les PR visaient la branche par défaut, donc
+#      `main`, alors que `main` est réservée à ce qui part en production. Elles
+#      ciblent désormais `dev`.
+#   3. **Libellés inexistants** — `dependencies`, `go`, `python`, `ai`,
+#      `github-actions` ne sont pas définis dans le dépôt ; Dependabot ne peut
+#      pas les appliquer. Remplacés par les libellés réels.
 version: 2
 updates:
   # GitHub Actions
+  # Plusieurs workflows épinglent `@master` (trivy-action) : une action non
+  # épinglée est un risque de chaîne d'approvisionnement, à resserrer avec ces PR.
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "github-actions"
+      - "🐳 DevOps"
     commit-message:
       prefix: "ci"
 
   # Go modules (Backend)
   - package-ecosystem: "gomod"
     directory: "/ArboreBackend"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
     labels:
-      - "dependencies"
-      - "go"
-      - "backend"
+      - "⚙️ backend"
+      - "🔒 security"
     commit-message:
       prefix: "deps(backend)"
 
   # Python pip (AI Generator)
   - package-ecosystem: "pip"
     directory: "/AiGenerator"
+    target-branch: "dev"
     schedule:
       interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
     labels:
-      - "dependencies"
-      - "python"
-      - "ai"
+      - "⚙️ backend"
+      - "🔒 security"
     commit-message:
       prefix: "deps(ai)"
+
+  # npm — app web Next.js
+  - package-ecosystem: "npm"
+    directory: "/web"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "🎨 frontend"
+      - "🔒 security"
+    commit-message:
+      prefix: "deps(web)"
+    groups:
+      # Mineures et patchs groupées pour limiter le bruit ; les majeures restent
+      # isolées, elles demandent une relecture.
+      minor-et-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # npm — outillage 3D (scripts Node)
+  - package-ecosystem: "npm"
+    directory: "/Plant3DGenerator"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels:
+      - "🥽 AR/3D"
+      - "🔒 security"
+    commit-message:
+      prefix: "deps(3d)"
+    groups:
+      minor-et-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Images de base Docker
+  - package-ecosystem: "docker"
+    directories:
+      - "/ArboreBackend"
+      - "/AiGenerator"
+      - "/web"
+    target-branch: "dev"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 3
+    labels:
+      - "🐳 DevOps"
+      - "🔒 security"
+    commit-message:
+      prefix: "deps(docker)"
 
   # Note: CocoaPods n'est pas supporté par Dependabot
   # Les dépendances iOS doivent être mises à jour manuellement

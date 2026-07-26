@@ -13,3 +13,18 @@ testapp
 coverage.*
 models/
 uploads/
+
+# Secrets — jamais dans le contexte de build (audit #338 constat 9).
+#
+# Le Dockerfile fait `COPY . .` dans l'étage *builder*. L'image finale ne copie
+# que le binaire, donc elle restait propre — mais la clé privée du service
+# account Firebase se retrouvait bien dans un layer intermédiaire, exposé par un
+# `docker build --target builder` ou par la publication de l'étage de build.
+#
+# Aucun de ces fichiers n'est nécessaire à la compilation : ils sont montés au
+# runtime par docker-compose (cf. /run/secrets/*).
+arbore-firebase-adminsdk.json
+master-encryption.key
+*.p8
+*.pem
+*.key

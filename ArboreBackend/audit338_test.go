@@ -75,6 +75,40 @@ func TestPlantNameFilterKeepsOrdinaryNamesUsable(t *testing.T) {
 	assert.False(t, compiled.MatchString("Acer Palmatum Nain"))
 }
 
+// MARK: - Constat 8 — pas de détail interne dans les réponses d'erreur
+
+func TestRespondInvalidBodyHidesInternalDetail(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	router.POST("/x", func(c *gin.Context) {
+		var payload struct {
+			Name string `json:"name"`
+		}
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			respondInvalidBody(c, err)
+			return
+		}
+		c.Status(http.StatusOK)
+	})
+
+	// Corps qui provoque une erreur de binding mentionnant le type Go attendu.
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/x", strings.NewReader(`{"name": 42}`))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	body := w.Body.String()
+
+	// Le client reçoit un message stable et un code exploitable...
+	assert.Contains(t, body, "INVALID_REQUEST_BODY")
+	// ...et RIEN des internes Go que produisait `err.Error()`.
+	for _, leak := range []string{"json:", "cannot unmarshal", "Go struct field", "of type"} {
+		assert.NotContains(t, body, leak, "la réponse ne doit pas exposer le détail du binding")
+	}
+}
+
 // MARK: - Constat 4 — clé maître lisible depuis un fichier monté
 
 // Construite à l'exécution plutôt qu'écrite en littéral : une chaîne de 64

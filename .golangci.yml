@@ -58,6 +58,7 @@ linters:
         - correspondants
         - existant
         - origines
+        - compteurs
 
     revive:
       confidence: 0.8

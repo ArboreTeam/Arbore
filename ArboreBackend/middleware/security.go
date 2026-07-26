@@ -2,8 +2,10 @@ package middleware
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -68,15 +70,35 @@ type windowEntry struct {
 	count   int
 }
 
+const (
+	// Cadence de purge, indépendante de la fenêtre. L'implémentation d'origine
+	// purgeait « une fois par fenêtre » : avec une fenêtre de 24 h (quotas
+	// journaliers), une entrée expirée pouvait rester en mémoire jusqu'à 48 h
+	// (audit #338 constat 10).
+	limiterCleanupInterval = time.Minute
+
+	// Plafond du nombre de compteurs suivis simultanément. Au-delà, les entrées
+	// les plus anciennes sont évincées.
+	//
+	// Compromis assumé : évincer une entrée rend son quota à zéro, donc offre du
+	// crédit gratuit. On préfère cela à une croissance mémoire non bornée — un
+	// flot de clés distinctes ne doit pas pouvoir faire enfler le processus. Le
+	// plafond est large : à l'échelle actuelle (quelques dizaines d'utilisateurs)
+	// il ne se déclenche jamais, et son franchissement est journalisé.
+	limiterMaxEntries = 50_000
+)
+
 // WindowLimiter is a small per-instance limiter suitable for Arbore's current
 // single backend instance. Create a distinct instance for each cost class
 // (ordinary API, chat, diagnosis, generation) so their budgets stay isolated.
 type WindowLimiter struct {
-	mu          sync.Mutex
-	limit       int
-	window      time.Duration
-	entries     map[string]windowEntry
-	lastCleanup time.Time
+	mu              sync.Mutex
+	limit           int
+	window          time.Duration
+	entries         map[string]windowEntry
+	lastCleanup     time.Time
+	cleanupInterval time.Duration
+	maxEntries      int
 }
 
 func NewWindowLimiter(limit int, window time.Duration) *WindowLimiter {
@@ -86,11 +108,18 @@ func NewWindowLimiter(limit int, window time.Duration) *WindowLimiter {
 	if window <= 0 {
 		panic("rate-limit window must be positive")
 	}
+	// Purger plus souvent que la fenêtre n'a pas de sens : rien n'expire avant.
+	cleanupInterval := limiterCleanupInterval
+	if window < cleanupInterval {
+		cleanupInterval = window
+	}
 	return &WindowLimiter{
-		limit:       limit,
-		window:      window,
-		entries:     make(map[string]windowEntry),
-		lastCleanup: time.Now(),
+		limit:           limit,
+		window:          window,
+		entries:         make(map[string]windowEntry),
+		lastCleanup:     time.Now(),
+		cleanupInterval: cleanupInterval,
+		maxEntries:      limiterMaxEntries,
 	}
 }
 
@@ -121,17 +150,16 @@ func (l *WindowLimiter) allow(key string, now time.Time) (bool, int, time.Durati
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if now.Sub(l.lastCleanup) >= l.window {
-		for entryKey, entry := range l.entries {
-			if now.Sub(entry.started) >= l.window {
-				delete(l.entries, entryKey)
-			}
-		}
+	if now.Sub(l.lastCleanup) >= l.cleanupInterval {
+		l.purgeExpired(now)
 		l.lastCleanup = now
 	}
 
 	entry, exists := l.entries[key]
 	if !exists || now.Sub(entry.started) >= l.window {
+		if !exists {
+			l.makeRoomFor(now)
+		}
 		l.entries[key] = windowEntry{started: now, count: 1}
 		return true, l.limit - 1, 0
 	}
@@ -141,6 +169,54 @@ func (l *WindowLimiter) allow(key string, now time.Time) (bool, int, time.Durati
 	entry.count++
 	l.entries[key] = entry
 	return true, l.limit - entry.count, 0
+}
+
+// purgeExpired supprime les compteurs dont la fenêtre est écoulée.
+// L'appelant détient déjà le verrou.
+func (l *WindowLimiter) purgeExpired(now time.Time) {
+	for key, entry := range l.entries {
+		if now.Sub(entry.started) >= l.window {
+			delete(l.entries, key)
+		}
+	}
+}
+
+// makeRoomFor garantit qu'une nouvelle clé peut être insérée sans dépasser le
+// plafond. On tente d'abord une purge des entrées expirées ; si cela ne suffit
+// pas, les compteurs les plus anciens sont évincés jusqu'à 90 % du plafond —
+// viser en dessous du plafond évite de recommencer à chaque requête suivante.
+// L'appelant détient déjà le verrou.
+func (l *WindowLimiter) makeRoomFor(now time.Time) {
+	if len(l.entries) < l.maxEntries {
+		return
+	}
+	l.purgeExpired(now)
+	l.lastCleanup = now
+	if len(l.entries) < l.maxEntries {
+		return
+	}
+
+	target := l.maxEntries * 9 / 10
+	keys := make([]string, 0, len(l.entries))
+	for key := range l.entries {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		return l.entries[keys[i]].started.Before(l.entries[keys[j]].started)
+	})
+
+	evicted := 0
+	for _, key := range keys {
+		if len(l.entries) <= target {
+			break
+		}
+		delete(l.entries, key)
+		evicted++
+	}
+	// Journalisé car ce n'est pas censé arriver à l'échelle actuelle : si ça
+	// arrive, c'est soit une croissance réelle, soit un flot de clés distinctes.
+	log.Printf("⚠️  rate limiter: plafond de %d compteurs atteint, %d entrée(s) la/les plus ancienne(s) évincée(s)",
+		l.maxEntries, evicted)
 }
 
 // MaxBodyBytes rejects declared oversized requests and also wraps streaming or

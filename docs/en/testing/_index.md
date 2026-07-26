@@ -33,11 +33,11 @@ The `.github/workflows/ci.yml` workflow orchestrates the tests, with **path-filt
 
 | Job | Scope | Content |
 |---|---|---|
-| `backend` | `ArboreBackend/**`, `.golangci.yml` | `go vet`, `go test -race -coverprofile`, Codecov upload, `golangci-lint`, cross-build linux/amd64 + darwin/arm64. |
+| `backend` | `ArboreBackend/**`, `.golangci.yml` | `go vet`, `go test -race -coverprofile`, Codecov upload, `golangci-lint`, **`govulncheck` (blocking)**, cross-build linux/amd64 + darwin/arm64. |
 | `ios_ui` | `ArboreUi/**` | Build + `xcodebuild test` (iPhone 16 Pro / iOS 18.2 simulator), `.xcresult` parsing (CLI/txt/html/JUnit). |
 | `ios_ar` | `ArboreARkit/**` | Build + AR project tests (`continue-on-error`). |
 | `ai_generator` | `AiGenerator/**` | `black` / `flake8` / `mypy` + `pytest`. |
-| `security` | PR / main | Trivy scan (filesystem). |
+| `security` | PR / main | Trivy (filesystem), in two passes: a **full SARIF report** to the Security tab (non-blocking, for visibility) then a **blocking gate on CRITICAL** (`--ignore-unfixed`). |
 | `build_summary` | always | Aggregates results and fails if a required job failed. |
 
 The `.github/workflows/docs.yml` workflow additionally validates the documentation (Mermaid syntax, internal links, code-path drift) — see [`../README.md`](../README.md).
@@ -46,7 +46,8 @@ The `.github/workflows/docs.yml` workflow additionally validates the documentati
 
 - Backend coverage is **published to Codecov** but **no blocking threshold** is enforced to date.
 - The **web tests (Vitest) do not run in CI yet** — they run locally. `npm run test:coverage` requires installing a coverage provider (`@vitest/coverage-v8`); no threshold is configured.
-- The Go version declared in `ArboreBackend/go.mod` (`go 1.24.1`) and the CI's `GO_VERSION` variable must be kept aligned.
+- The Go version declared in `ArboreBackend/go.mod` (`go 1.25.12`) and the CI's `GO_VERSION` variable must be kept aligned. They had diverged (`GO_VERSION: "1.22"` against `go 1.25.12`): the toolchain mechanism therefore downloaded 1.25.12 on every run without caching, and the displayed version was not the one used (audit #338 finding 6).
+- **Security scan threshold**: the Trivy gate blocks on **CRITICAL** only. **HIGH** vulnerabilities currently exist in the `package-lock.json` files (`brace-expansion`, `sharp`/libvips) — blocking on HIGH would break CI. Dependabot now watches npm (`web/`, `Plant3DGenerator/`) and Docker in addition to Go, Python and actions; the threshold should be tightened to HIGH once those PRs have landed.
 - The iOS integration tests depend on the test backend (`arbore_test` DB, routed by `ARBORE_API_KEY_TEST`); they are **skipped** automatically if `/health` does not respond.
 
 These points are improvement areas tracked on the CI side, listed here for transparency.

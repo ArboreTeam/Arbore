@@ -35,7 +35,12 @@ cd "$SCRIPT_DIR"
 
 SNAPSHOT_DIR="$SCRIPT_DIR/backups/daily"
 SNAPSHOT_RETENTION_DAYS=14
-DOCKER_COMPOSE=( sudo docker compose )
+# Préfixe de privilège isolé du reste de la commande : il faut pouvoir insérer
+# une assignation de variable APRÈS `sudo`, car sudo réinitialise
+# l'environnement — un préfixe `VAR=val sudo …` est silencieusement perdu
+# (vérifié sur le VPS). Vider ce tableau suffit si docker tourne sans sudo.
+DOCKER_PRIVILEGE=( sudo )
+DOCKER_COMPOSE=( "${DOCKER_PRIVILEGE[@]}" docker compose )
 
 step() { printf '%b[%s/6]%b %s\n' "$YELLOW" "$1" "$NC" "$2"; }
 ok()   { printf '%b✅ %s%b\n' "$GREEN" "$1" "$NC"; }
@@ -68,15 +73,81 @@ require_prereqs() {
 }
 
 # ───── [1/6] Git pull ─────────────────────────────────────────────
+#
+# Données hors bande : fichiers que git suit encore (ils ont été committés avant
+# que la règle `.gitignore` n'existe) mais qui sont en réalité gérés directement
+# sur le serveur — les modèles 3D sont regénérés et nettoyés en place.
+#
+# Historiquement le garde-fou refusait tout checkout non vierge. Comme ces
+# fichiers sont modifiés en permanence, `deploy.sh` était inutilisable en
+# pratique : les déploiements le contournaient à la main, et sautaient donc le
+# `mongodump` pre-deploy — le seul filet de sécurité, Atlas M0 n'ayant aucun
+# backup automatique. Le garde-fou distingue maintenant les modifications de
+# code (bloquantes) des données hors bande (attendues). Cf. #341.
+OUT_OF_BAND_PATHS=( "ArboreBackend/models/" )
+
+# is_out_of_band <chemin> — vrai si le chemin est sous un préfixe hors bande.
+is_out_of_band() {
+    local path="$1" prefix
+    for prefix in "${OUT_OF_BAND_PATHS[@]}"; do
+        case "$path" in "$prefix"*) return 0 ;; esac
+    done
+    return 1
+}
+
 do_git_pull() {
     step 1 "Git pull..."
-    if [ -n "$(git status --porcelain)" ]; then
-        fail "Le checkout contient des changements locaux — déploiement refusé"
-        fail "Utiliser un checkout de release propre et les chemins *_HOST_PATH pour les données persistantes"
+
+    # Trois catégories, traitées différemment :
+    #   - fichier SUIVI modifié hors données hors bande  → bloquant (du code)
+    #   - fichier SUIVI modifié sous un chemin hors bande → toléré, signalé
+    #   - fichier NON SUIVI                              → toléré, signalé
+    #     (un fichier non suivi ne peut pas faire échouer un fast-forward)
+    local blocking=() out_of_band=0 untracked=0
+    local line entry_status entry_path
+    while IFS= read -r line; do
+        [ -z "$line" ] && continue
+        entry_status="${line:0:2}"
+        entry_path="${line:3}"
+        # Un renommage s'écrit « ancien -> nouveau » : seule la destination compte.
+        # À faire AVANT de retirer les guillemets, sinon celui qui ouvre la
+        # destination survit et le préfixe hors bande n'est plus reconnu.
+        case "$entry_status" in R*) entry_path="${entry_path##* -> }" ;; esac
+        # git entoure de guillemets les chemins contenant des espaces.
+        entry_path="${entry_path%\"}"
+        entry_path="${entry_path#\"}"
+
+        if [ "$entry_status" = "??" ]; then
+            untracked=$((untracked + 1))
+        elif is_out_of_band "$entry_path"; then
+            out_of_band=$((out_of_band + 1))
+        else
+            blocking+=("$entry_status $entry_path")
+        fi
+    done < <(git status --porcelain)
+
+    if [ "${#blocking[@]}" -gt 0 ]; then
+        fail "Le checkout contient des modifications de fichiers suivis — déploiement refusé"
+        printf '     %s\n' "${blocking[@]}" >&2
+        fail "Committer ou annuler ces changements avant de déployer"
         exit 1
     fi
+
+    # `if` explicite plutôt que `[ ... ] && warn ...` : sous `set -e`, un test
+    # faux en fin de fonction ferait sortir le script.
+    if [ "$out_of_band" -gt 0 ]; then
+        warn "$out_of_band fichier(s) de données hors bande modifiés (${OUT_OF_BAND_PATHS[*]}) — ignorés, gérés hors git"
+    fi
+    if [ "$untracked" -gt 0 ]; then
+        warn "$untracked fichier(s) non suivis présents — ignorés (sans effet sur un fast-forward)"
+    fi
+
     if ! git pull --ff-only; then
         fail "Erreur lors du git pull"
+        if [ "$out_of_band" -gt 0 ]; then
+            fail "Si un commit entrant touche ${OUT_OF_BAND_PATHS[*]}, git refuse d'écraser les"
+            fail "modifications locales : sauvegarder ces fichiers puis les restaurer après le pull"
+        fi
         exit 1
     fi
     ok "Git pull réussi"
@@ -144,7 +215,10 @@ do_docker_build() {
     local git_sha
     git_sha="$(git rev-parse HEAD)"
     step 3 "Docker compose build (commit ${git_sha:0:7})..."
-    if ! "${DOCKER_COMPOSE[@]}" build backend ai-generator web; then
+    # GIT_COMMIT est injecté dans le binaire backend puis renvoyé par GET /health :
+    # c'est ce qui rend une dérive prod ↔ main détectable d'un simple curl (#341).
+    # L'assignation vient après DOCKER_PRIVILEGE, cf. le commentaire à sa définition.
+    if ! "${DOCKER_PRIVILEGE[@]}" GIT_COMMIT="$git_sha" docker compose build backend ai-generator web; then
         fail "docker compose build a échoué"
         exit 1
     fi

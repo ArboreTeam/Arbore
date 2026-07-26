@@ -12,8 +12,14 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Commit déployé, injecté dans le binaire pour que GET /health puisse le
+# rapporter (détection de dérive prod ↔ main, cf. #341). Vaut "unknown" si le
+# build arg n'est pas fourni — un binaire anonyme ne prétend rien.
+ARG GIT_COMMIT=unknown
+
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" -o main .
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
+    -ldflags="-w -s -X main.buildCommit=${GIT_COMMIT}" -o main .
 
 # Final stage
 FROM alpine:3.23

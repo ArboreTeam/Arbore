@@ -122,11 +122,21 @@ yarn-error.log*
 .env
 .env.local
 .env.*.local
+# Sauvegardes de .env prises à la main sur le serveur avant une opération
+# sensible. Elles contiennent les mêmes secrets que le .env : jamais dans git.
+.env.bak*
+.env.backup*
 # Exception : config web PUBLIQUE committée (DSN Sentry, etc. — aucun secret).
 !web/.env
 *.key
 *.pem
 secrets/
+
+# Artefacts opérationnels du VPS — présents dans le checkout de production, ils
+# le rendaient « sale » et faisaient refuser le déploiement par deploy.sh (#341).
+ArboreBackend/backend
+ArboreBackend/testapp
+ArboreBackend/uploads/
 
 # Docker
 .dockerignore

@@ -43,6 +43,10 @@ services:
     build:
       context: ./ArboreBackend
       dockerfile: Dockerfile
+      args:
+        # Commit déployé, remonté par GET /health (cf. #341). deploy.sh
+        # l'exporte ; un build manuel sans cette variable donne "unknown".
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
     container_name: arbore-backend
     restart: unless-stopped
     init: true

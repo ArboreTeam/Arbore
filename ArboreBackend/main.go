@@ -98,6 +98,21 @@ func maybeLabelTestDoc(dbSelector string, doc interface{}) interface{} {
 
 var thumbnailPlantIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
+// buildCommit est le commit git à partir duquel ce binaire a été construit. Il
+// est injecté à la compilation :
+//
+//	go build -ldflags "-X main.buildCommit=$(git rev-parse HEAD)"
+//
+// `GET /health` le renvoie, ce qui permet de vérifier d'un `curl` si la
+// production est à jour avec `main`. Sans cette information, le backend de prod
+// avait dérivé de 15 commits — dont un correctif de sécurité — sans que rien ne
+// le signale (cf. #341). Remplace le `"version": "1.0.0"` codé en dur, qui
+// n'avait jamais été mis à jour et ne renseignait donc rien (#338 constat 11).
+//
+// La valeur reste "unknown" si elle n'est pas injectée : un binaire construit à
+// la main ne doit pas prétendre connaître sa provenance.
+var buildCommit = "unknown"
+
 type User struct {
 	UID              string `json:"uid" bson:"uid"`
 	Email            string `json:"email" bson:"email"`
@@ -1963,13 +1978,7 @@ func main() {
 	router.MaxMultipartMemory = 8 << 20
 
 	// === ROUTE PUBLIQUE (Health Check) ===
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"status":  "ok",
-			"service": "arbore-backend",
-			"version": "1.0.0",
-		})
-	})
+	router.GET("/health", healthHandler)
 
 	router.GET("/models/thumbnails/:filename", publicLimiter.Middleware(), func(c *gin.Context) {
 		filename := c.Param("filename")
@@ -2132,6 +2141,17 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal("❌ Erreur lors du démarrage du serveur :", err) // nolint:misspell
 	}
+}
+
+// healthHandler répond à GET /health. Route publique, non authentifiée : elle ne
+// renvoie que de quoi vérifier que le service tourne et savoir QUELLE version
+// tourne — jamais d'information exploitable sur la configuration.
+func healthHandler(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"service": "arbore-backend",
+		"commit":  buildCommit,
+	})
 }
 
 // hardenClientIPResolution empêche gin de déduire l'IP client de

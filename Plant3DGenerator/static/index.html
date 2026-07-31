@@ -11,20 +11,70 @@
   <header>
     <h1>🌱 Plant3DGenerator</h1>
     <div id="toolbar">
-      <button id="generate-all">▶ Generate All</button>
-      <button id="reload-input">↻ Reload input.txt</button>
+      <button id="reload-input">↻ Reload input/pots</button>
     </div>
   </header>
 
-  <section id="available">
-    <h2>Plantes disponibles (depuis input.txt)</h2>
+  <!-- Tabs : changer d'onglet n'arrête PAS les jobs en cours, l'UI bascule
+       juste en CSS. La SSE et les jobs côté serveur sont indépendants du
+       tab actif. La section #pipeline (en bas) reste toujours visible et
+       affiche les jobs de toutes les sections. -->
+  <nav id="tabs" role="tablist">
+    <button class="tab active" data-tab="plants" role="tab">🌿 Plantes</button>
+    <button class="tab" data-tab="pots"   role="tab">🪴 Pots</button>
+    <button class="tab" data-tab="combo"  role="tab">🌿+🪴 Plante + Pot</button>
+  </nav>
+
+  <!-- TAB : Plantes -->
+  <section class="tab-panel active" data-tab-panel="plants">
+    <div class="panel-header">
+      <h2>Plantes disponibles (depuis input.txt)</h2>
+      <button id="generate-all-plants">▶ Generate All plants</button>
+    </div>
     <div id="plant-list"></div>
   </section>
 
+  <!-- TAB : Pots -->
+  <section class="tab-panel" data-tab-panel="pots">
+    <div class="panel-header">
+      <h2>Pots disponibles (depuis pots.txt)</h2>
+      <button id="generate-all-pots">▶ Generate All pots</button>
+    </div>
+    <div id="pot-list"></div>
+  </section>
+
+  <!-- TAB : Composer (Plante + Pot) -->
+  <section class="tab-panel" data-tab-panel="combo">
+    <div class="panel-header">
+      <h2>Composer plante + pot</h2>
+      <small>Pot posé au sol, plante alignée sur la rim — three.js inline. Reflet de ce que iOS rendra.</small>
+    </div>
+    <div id="composer">
+      <div class="composer-controls">
+        <label>Plante
+          <select id="composer-plant"><option value="">— sélectionner —</option></select>
+        </label>
+        <label>Pot
+          <select id="composer-pot"><option value="">— sélectionner —</option></select>
+        </label>
+        <button id="composer-reset" type="button">↻ Recadrer caméra</button>
+      </div>
+      <div id="composer-viewer"></div>
+      <div id="composer-status"></div>
+      <p class="composer-note">
+        ⚠️ Approximation : la plante est posée à <code>Y = pot.bbox.max.y</code> (rim Y),
+        donc valide la convention « ligne de terre ». La logique iOS finale ajoutera le
+        scaling habit-aware (cf issue #185 solution C) — non simulé ici.
+      </p>
+    </div>
+  </section>
+
+  <!-- Pipeline : toujours visible quel que soit le tab. Les job-cards
+       restent dans le DOM même si on change d'onglet. -->
   <section id="pipeline">
-    <h2>Pipeline</h2>
+    <h2>Pipeline (jobs en cours / récents)</h2>
     <div id="jobs">
-      <p class="empty">Aucun job lancé. Clique sur une plante ci-dessus pour démarrer.</p>
+      <p class="empty">Aucun job lancé.</p>
     </div>
   </section>
 
@@ -71,6 +121,22 @@
     </div>
   </template>
 
-  <script src="/static/app.js"></script>
+  <!-- Cache-buster : à incrémenter chaque fois qu'app.js change pour
+       éviter qu'un browser caché ne charge un vieux JS et plante sur
+       des IDs qui n'existent plus (cf 3-tab refactor du 2026-05-16). -->
+  <script src="/static/app.js?v=20260516-6"></script>
+
+  <!-- Composer 3D (tab "Plante + Pot") — three.js inline pour empiler
+       pot + plante dans la même scène, alignement à `Y = pot.rimY`.
+       Un module séparé pour ne pas convertir tout app.js en ESM. -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script src="/static/composer.js?v=20260516-3" type="module"></script>
 </body>
 </html>

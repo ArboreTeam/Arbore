@@ -1,7 +1,7 @@
 fastapi==0.139.2
 uvicorn[standard]==0.32.0
 pydantic==2.9.2
-openai==1.51.0
+openai==2.48.0
 mistralai==1.2.5
 python-multipart==0.0.32
 # httpx 0.28+ a supprimé le paramètre 'proxies' utilisé par openai<=1.56

@@ -33,10 +33,11 @@ concurrency:
 
 env:
   # Doit rester aligné sur la directive `go` de ArboreBackend/go.mod. Elle
-  # indiquait "1.22" alors que go.mod exige 1.25.12 : le mécanisme de toolchain
-  # téléchargeait donc silencieusement 1.25.12 à chaque run, sans cache, et la
+  # indiquait "1.22" alors que go.mod exige 1.25.14 : le mécanisme de toolchain
+  # téléchargeait donc silencieusement la bonne version à chaque run, sans cache,
+  # et la
   # version réellement utilisée n'était pas celle affichée (audit #338 constat 6).
-  GO_VERSION: "1.25.12"
+  GO_VERSION: "1.25.14"
   PYTHON_VERSION: "3.11"
   # latest-stable : chaque runner prend son Xcode le plus récent.
   # ios_ui tourne sur macos-15 → Xcode 26 (SDK iOS 26 requis pour Liquid Glass,
@@ -130,7 +131,7 @@ jobs:
       # constat 6). BLOQUANT, et volontairement : govulncheck ne signale que les
       # vulnérabilités que le code APPELLE réellement, donc quasi zéro faux
       # positif. Vérifié avant activation : 0 vulnérabilité appelée avec le
-      # toolchain épinglé (go 1.25.12, dernier patch de sa branche).
+      # toolchain épinglé (go 1.25.14, dernier patch de sa branche).
       - name: 🛡️ Check known vulnerabilities (govulncheck)
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest

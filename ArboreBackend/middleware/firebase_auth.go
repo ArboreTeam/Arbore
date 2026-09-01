@@ -18,10 +18,11 @@ var firebaseAuth *auth.Client
 
 const adminContextKey = "arboreIsAdmin"
 
-// CheckUserBannedFunc is a function to check if a user is banned in the database.
-// It receives the gin.Context so the implementation can read DBSelectorKey
-// and route to the appropriate database (prod vs test).
-var CheckUserBannedFunc func(c *gin.Context, uid string) (bool, error)
+// signInProviderAnonymous est la valeur de `firebase.sign_in_provider` pour une
+// session Firebase Anonymous Auth. C'est la seule source de vérité du rôle
+// `guest` : elle est signée par Firebase dans le token, contrairement à un champ
+// Mongo qui serait modifiable par le porteur du compte.
+const signInProviderAnonymous = "anonymous"
 
 // isReleaseMode reports whether the server runs in production.
 // In release mode Firebase auth is REQUIRED — any missing credential must fail fast.
@@ -126,6 +127,7 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 			}
 			log.Println("⚠️  Firebase non initialisé — token non vérifié, auth désactivée (dev only)")
 			c.Set("uid", "unauthenticated")
+			setAccessProfile(c, AccessProfile{Role: RoleMember, Tier: TierFree})
 			c.Set(adminContextKey, isAdminUID("unauthenticated"))
 			c.Next()
 			return
@@ -144,25 +146,54 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 
 		uid := token.UID
 
-		if CheckUserBannedFunc != nil {
-			banned, err := CheckUserBannedFunc(c, uid)
-			if err != nil {
-				log.Printf("❌ Error checking ban status: %v", err)
-				c.JSON(500, gin.H{
-					"error": "Internal server error",
-					"code":  "DATABASE_ERROR",
-				})
-				c.Abort()
-				return
-			}
+		// Le rôle `guest` se déduit du fournisseur de connexion, jamais d'un
+		// champ en base (cf. #377). Une session anonyme n'a pas de document
+		// utilisateur : il n'y a rien à lire et rien à bannir, on évite donc
+		// aussi un FindOne par requête.
+		isGuest := token.Firebase.SignInProvider == signInProviderAnonymous
 
-			if banned {
-				c.JSON(403, gin.H{
-					"error": "Account banned",
-					"code":  "ACCOUNT_BANNED",
-				})
-				c.Abort()
-				return
+		profile := AccessProfile{Role: RoleGuest, Tier: TierFree}
+		if !isGuest {
+			profile = AccessProfile{Role: RoleMember, Tier: TierFree}
+			if LoadAccessProfileFunc != nil {
+				loaded, err := LoadAccessProfileFunc(c, uid)
+				if err != nil {
+					log.Printf("❌ Error loading access profile: %v", err)
+					c.JSON(500, gin.H{
+						"error": "Internal server error",
+						"code":  "DATABASE_ERROR",
+					})
+					c.Abort()
+					return
+				}
+				profile = loaded
+			}
+		}
+
+		if profile.Banned {
+			c.JSON(403, gin.H{
+				"error": "Account banned",
+				"code":  "ACCOUNT_BANNED",
+			})
+			c.Abort()
+			return
+		}
+
+		// Le rôle administrateur a deux sources d'autorité : le document Mongo
+		// et le custom claim Firebase. Le claim est signé par Firebase, donc il
+		// survit à une compromission de la base — c'est de la défense en
+		// profondeur, pas une redondance. `ARBORE_ADMIN_UIDS` reste le mécanisme
+		// d'amorçage pour désigner les premiers administrateurs.
+		//
+		// Une session anonyme n'est jamais privilégiée, quoi que porte le token :
+		// promouvoir un compte sans identité vérifiée n'aurait aucun sens.
+		isAdmin := false
+		if !isGuest {
+			isAdmin = IsPrivilegedRole(profile.Role) ||
+				tokenHasAdminRole(token.Claims) ||
+				isAdminUID(uid)
+			if isAdmin && !IsPrivilegedRole(profile.Role) {
+				profile.Role = RoleAdmin
 			}
 		}
 
@@ -171,7 +202,10 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 		// après le signup, avant que l'utilisateur clique le lien de vérif.
 		// Google / Apple renvoient email_verified=true ; seuls les comptes
 		// email/mot de passe non vérifiés sont bloqués.
-		if requiresVerifiedEmail(c.Request.Method, c.FullPath()) {
+		//
+		// Les invités sont hors de ce contrôle : un compte anonyme n'a pas
+		// d'email du tout, le gate le bloquerait sur toutes les routes (#377).
+		if !isGuest && requiresVerifiedEmail(c.Request.Method, c.FullPath()) {
 			verified, _ := token.Claims["email_verified"].(bool)
 			if !verified {
 				c.JSON(403, gin.H{
@@ -184,7 +218,8 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 		}
 
 		c.Set("uid", uid)
-		c.Set(adminContextKey, tokenHasAdminRole(token.Claims) || isAdminUID(uid))
+		setAccessProfile(c, profile)
+		c.Set(adminContextKey, isAdmin)
 
 		if email, ok := token.Claims["email"].(string); ok {
 			c.Set("email", email)

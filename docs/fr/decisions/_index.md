@@ -41,6 +41,7 @@ Cette règle s'applique également si l'on découvre une erreur factuelle dans u
 | [0004](0004-firebase-auth.md) | Firebase Auth comme provider d'authentification | Accepted (2026-01-20) | Authentification |
 | [0005](0005-self-authz-pattern.md) | Self-authz via token uid (pas d'uid dans l'URL) | Accepted (2026-05-10) | Sécurité backend |
 | [0006](0006-ar-quality-adaptive.md) | Stratégie adaptative de qualité AR (`environmentTexturing` + thermal observer) | Accepted (2026-05-12) | AR / perf / thermal |
+| [0007](0007-roles-and-entitlements.md) | Rôles (RBAC) séparés des niveaux d'abonnement (entitlements) | Accepted (2026-09-01) | Sécurité backend / autorisation |
 
 ## Pourquoi des ADRs
 

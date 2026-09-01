@@ -63,7 +63,7 @@ func getDatabaseForRequest(c *gin.Context) *mongo.Database {
 
 // getDatabaseByName retourne la *mongo.Database par nom logique
 // (`prod` ou `test`). Utilisé par les helpers qui ne reçoivent pas
-// directement un *gin.Context (par exemple checkUserBannedFromDB
+// directement un *gin.Context (par exemple loadAccessProfileFromDB
 // appelé par le middleware Firebase).
 func getDatabaseByName(name string) *mongo.Database {
 	if name == middleware.DBSelectorTest && testClient != nil {
@@ -121,6 +121,23 @@ type User struct {
 	PhotoData        string `json:"photoData,omitempty" bson:"photoData,omitempty"`
 	PhotoContentType string `json:"photoContentType,omitempty" bson:"photoContentType,omitempty"`
 	Banned           bool   `json:"banned" bson:"banned"` // Ban status for user moderation
+
+	// Autorisation (issue #377). Deux axes distincts :
+	//   Role — ce que l'utilisateur a le droit de faire (guest/member/admin)
+	//   Tier — ce qu'il a payé (free/premium)
+	//
+	// ATTENTION : ces champs ne doivent JAMAIS être alimentés depuis un binding
+	// client. `createUser` lie un payload restreint au seul `name` précisément
+	// pour cela, et `buildCreateUserUpdate` n'écrit qu'une liste blanche. Les
+	// exposer en écriture offrirait une escalade de privilège par simple POST.
+	//
+	// Un champ vide est normal : tous les documents antérieurs à #377 en sont
+	// dépourvus. La normalisation à la lecture (NormalizeRole / NormalizeTier)
+	// leur donne member/free, ce qui rend tout backfill inutile.
+	Role          string     `json:"role,omitempty" bson:"role,omitempty"`
+	Tier          string     `json:"tier,omitempty" bson:"tier,omitempty"`
+	TierSource    string     `json:"tierSource,omitempty" bson:"tierSource,omitempty"`
+	TierExpiresAt *time.Time `json:"tierExpiresAt,omitempty" bson:"tierExpiresAt,omitempty"`
 	// Refresh_token Apple chiffré (AES-GCM), pour révoquer le compte SIWA à la
 	// suppression (Guideline 5.1.1(v), issue #210). `json:"-"` : ne sort jamais
 	// vers le client. Nil si l'utilisateur ne s'est pas connecté via Apple.
@@ -371,10 +388,18 @@ type Garden struct {
 
 // ---------- HELPER FUNCTIONS ----------
 
-// checkUserBannedFromDB vérifie si l'utilisateur est banni dans MongoDB.
-// Reçoit le contexte Gin pour router vers la bonne DB (prod ou test) selon
-// le sélecteur posé par APIKeyMiddleware.
-func checkUserBannedFromDB(c *gin.Context, uid string) (bool, error) {
+// loadAccessProfileFromDB lit en une seule requête l'état de modération et le
+// profil d'autorisation de l'utilisateur (issue #377).
+//
+// Remplace l'ancien `checkUserBannedFromDB` : le middleware effectuait déjà ce
+// FindOne pour le seul champ `banned`, donc récupérer `role` et `tier` dans le
+// même document ne coûte aucune requête supplémentaire. C'est aussi ce qui
+// permet de se passer des custom claims pour le rôle courant, et donc d'éviter
+// leur délai de propagation d'une heure.
+//
+// Reçoit le contexte Gin pour router vers la bonne DB (prod ou test) selon le
+// sélecteur posé par APIKeyMiddleware.
+func loadAccessProfileFromDB(c *gin.Context, uid string) (middleware.AccessProfile, error) {
 	collection := getDatabaseForRequest(c).Collection("users")
 
 	var user User
@@ -382,13 +407,22 @@ func checkUserBannedFromDB(c *gin.Context, uid string) (bool, error) {
 
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			// Utilisateur n'existe pas → pas banni
-			return false, nil
+			// Le document n'existe pas encore : c'est le cas nominal de
+			// `POST /users`, qui s'exécute forcément avant sa propre création.
+			// Profil par défaut, non banni.
+			return middleware.AccessProfile{
+				Role: middleware.RoleMember,
+				Tier: middleware.TierFree,
+			}, nil
 		}
-		return false, err
+		return middleware.AccessProfile{}, err
 	}
 
-	return user.Banned, nil
+	return middleware.AccessProfile{
+		Role:   middleware.NormalizeRole(user.Role),
+		Tier:   middleware.NormalizeTier(user.Tier, user.TierExpiresAt, time.Now()),
+		Banned: user.Banned,
+	}, nil
 }
 
 // ---------- USERS ----------
@@ -483,11 +517,28 @@ func exportUserData(c *gin.Context) {
 }
 
 func createUser(c *gin.Context) {
-	var user User
-	if err := c.ShouldBindJSON(&user); err != nil {
+	// Binding volontairement restreint au seul champ que le client a autorité à
+	// fournir (issue #377).
+	//
+	// L'ancien code liait la structure `User` entière. C'était sans conséquence
+	// tant que `buildCreateUserUpdate` n'écrivait qu'une liste blanche, mais
+	// l'ajout de `role` et `tier` à `User` rendait la construction dangereuse :
+	// il aurait suffi qu'un futur correctif branche ces champs dans l'update
+	// pour que n'importe quel utilisateur se promeuve admin ou premium par un
+	// simple POST. Restreindre le binding supprime la classe de bug entière
+	// plutôt que de dépendre de la vigilance sur l'update.
+	//
+	// Les champs supplémentaires envoyés par les clients existants (`email`,
+	// `createdAt`, `banned`) sont silencieusement ignorés : le décodeur JSON de
+	// Gin n'est pas en mode strict, aucune régression côté iOS ou web.
+	var payload struct {
+		Name string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&payload); err != nil {
 		respondInvalidBody(c, err)
 		return
 	}
+	user := User{Name: payload.Name}
 
 	tokenUID, exists := c.Get("uid")
 	if !exists {
@@ -495,13 +546,12 @@ func createUser(c *gin.Context) {
 		return
 	}
 	// `uid` est extrait dans sa propre variable, et c'est la seule valeur utilisée
-	// pour interroger Mongo. `user` vient de `ShouldBindJSON`, donc son champ
-	// `UID` porte initialement ce que le client a envoyé ; l'écraser ne suffit
-	// pas à rendre l'intention évidente, et un réordonnancement ultérieur du code
-	// pourrait laisser la valeur cliente atteindre la requête. Partir d'une
-	// variable issue du token vérifié supprime cette dépendance à l'ordre — c'est
-	// aussi ce que signalait CodeQL (`go/sql-injection`, teinte propagée depuis
-	// le binding JSON).
+	// pour interroger Mongo. Depuis #377 le binding client ne porte plus que le
+	// nom, donc `user.UID` part déjà vide ; conserver une variable issue du token
+	// vérifié reste néanmoins la formulation qui rend l'intention explicite et
+	// supprime toute dépendance à l'ordre des affectations — c'est aussi ce que
+	// signalait CodeQL (`go/sql-injection`, teinte propagée depuis le binding
+	// JSON).
 	uid := tokenUID.(string)
 	user.UID = uid
 
@@ -1997,7 +2047,7 @@ func main() {
 	log.Printf("🤖 Fournisseur d'IA actif : %s", providerName())
 
 	// Configurer la fonction de vérification ban pour le middleware
-	middleware.CheckUserBannedFunc = checkUserBannedFromDB
+	middleware.LoadAccessProfileFunc = loadAccessProfileFromDB
 
 	router := gin.Default()
 	hardenClientIPResolution(router)
@@ -2005,9 +2055,14 @@ func main() {
 	publicLimiter := middleware.NewWindowLimiter(300, time.Minute)
 	apiLimiter := middleware.NewWindowLimiter(120, time.Minute)
 	chatMinuteLimiter := middleware.NewWindowLimiter(20, time.Minute)
-	chatDailyQuota := middleware.NewWindowLimiter(100, 24*time.Hour)
+	// Quotas journaliers modulés par profil (#377) : guest / free / premium.
+	// Les valeurs free reprennent exactement les plafonds d'avant l'issue, donc
+	// aucun compte existant ne voit son quota changer. `membership.enforced`
+	// restant à false dans /config, la voie premium n'est encore empruntée par
+	// personne — elle est en place, pas active.
+	chatDailyQuota := middleware.NewTieredWindowLimiter(10, 100, 500, 24*time.Hour)
 	diagnosisMinuteLimiter := middleware.NewWindowLimiter(6, time.Minute)
-	diagnosisDailyQuota := middleware.NewWindowLimiter(20, 24*time.Hour)
+	diagnosisDailyQuota := middleware.NewTieredWindowLimiter(3, 20, 100, 24*time.Hour)
 	generationMinuteLimiter := middleware.NewWindowLimiter(5, time.Minute)
 	generationDailyQuota := middleware.NewWindowLimiter(50, 24*time.Hour)
 	uploadMinuteLimiter := middleware.NewWindowLimiter(10, time.Minute)
@@ -2071,10 +2126,20 @@ func main() {
 	protected.Use(middleware.FirebaseAuthMiddleware())
 	protected.Use(apiLimiter.Middleware())
 	protected.Use(middleware.MaxBodyBytes(maxJSONBodyBytes))
+
+	// Sous-groupe fermé aux invités (#377). Y vit tout ce qui suppose un compte
+	// durable et synchronisable entre appareils : profil, jardins, consentements,
+	// export RGPD. Une session anonyme est liée à un seul appareil et n'a pas de
+	// document utilisateur — ces routes n'auraient aucun sens pour elle.
+	//
+	// Ce qui reste sur `protected` est au contraire consultable en invité :
+	// catalogue, modèles 3D, et les deux proxys Gemini (avec un quota réduit).
+	account := protected.Group("")
+	account.Use(middleware.RequireAccount())
 	{
 		// Users
-		protected.POST("/users", createUser)
-		protected.GET("/users/:uid", func(c *gin.Context) {
+		account.POST("/users", createUser)
+		account.GET("/users/:uid", func(c *gin.Context) {
 			uidParam := c.Param("uid")
 			tokenUID, exists := c.Get("uid")
 			if !exists || tokenUID.(string) != uidParam {
@@ -2100,34 +2165,39 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"user": user})
 		})
 
-		protected.POST("/users/:uid/photo", middleware.MaxBodyBytes(maxProfilePhotoBytes+(1<<20)), uploadMinuteLimiter.Middleware(), uploadUserPhoto)
-		protected.GET("/users/:uid/photo", getUserPhoto)
-		protected.GET("/users/export", exportUserData)
-		protected.PATCH("/users/me", updateUserSelf)
-		protected.POST("/users/me/apple-link", linkAppleAccount)
-		protected.DELETE("/users", deleteUser)
+		account.POST("/users/:uid/photo", middleware.MaxBodyBytes(maxProfilePhotoBytes+(1<<20)), uploadMinuteLimiter.Middleware(), uploadUserPhoto)
+		account.GET("/users/:uid/photo", getUserPhoto)
+		account.GET("/users/export", exportUserData)
+		account.PATCH("/users/me", updateUserSelf)
+		account.POST("/users/me/apple-link", linkAppleAccount)
+		account.DELETE("/users", deleteUser)
 
 		// Plants
 		protected.GET("/plants", getPlants)
 		protected.GET("/plants/:id", getPlantByID)
 
 		// Gardens
-		protected.POST("/gardens", createGarden)
-		protected.GET("/gardens", listGardens)
-		protected.GET("/gardens/:id", getGardenByID)
-		protected.PUT("/gardens/:id", updateGarden)
-		protected.DELETE("/gardens/:id", deleteGarden)
+		account.POST("/gardens", createGarden)
+		account.GET("/gardens", listGardens)
+		account.GET("/gardens/:id", getGardenByID)
+		account.PUT("/gardens/:id", updateGarden)
+		account.DELETE("/gardens/:id", deleteGarden)
 
 		// Gemini Chat & Scanner Proxies — rate limité par uid (quota minute + jour)
 		// pour borner le coût Gemini. Le cap de corps est appliqué globalement sur
 		// le groupe protégé (middleware.MaxBodyBytes), les timeouts par newServer.
+		//
+		// Le quota JOURNALIER est modulé par profil (#377) : c'est lui qui borne
+		// la dépense réelle, et c'est donc là que `tier` a le plus de sens. Le
+		// quota MINUTE reste uniforme — il protège le service contre les rafales,
+		// un abonné n'a aucune raison d'avoir le droit de le saturer plus vite.
 		protected.POST("/chat", chatMinuteLimiter.Middleware(), chatDailyQuota.Middleware(), handleGeminiChat)
 		protected.POST("/diagnose", diagnosisMinuteLimiter.Middleware(), diagnosisDailyQuota.Middleware(), handleGeminiDiagnose)
 
 		// Consents (RGPD)
-		protected.POST("/consents", recordConsent)
-		protected.GET("/consents", getUserConsents)
-		protected.GET("/consents/latest", getLatestUserConsents)
+		account.POST("/consents", recordConsent)
+		account.GET("/consents", getUserConsents)
+		account.GET("/consents/latest", getLatestUserConsents)
 
 		// Models 3D (USDZ files) - Protected endpoint
 		protected.GET("/models/:filename", func(c *gin.Context) {
@@ -2211,6 +2281,13 @@ func buildCreateUserUpdate(email, name string, isTestDB bool, now time.Time) bso
 	insertFields := bson.M{
 		"createdAt": now.Format(time.RFC3339),
 		"banned":    false,
+		// Défauts d'autorisation (#377). Ils sont posés à la création et
+		// n'apparaissent volontairement PAS dans `$set` : un second appel à
+		// `POST /users` ne doit jamais pouvoir rétrograder un administrateur ni
+		// réinitialiser l'abonnement d'un compte existant. Ces deux champs ne
+		// sont écrits ensuite que par un chemin d'administration dédié.
+		"role": middleware.RoleMember,
+		"tier": middleware.TierFree,
 	}
 	// Équivalent de maybeLabelTestDoc, qui ne s'applique qu'à une insertion
 	// directe et ne sait pas décrire un upsert.

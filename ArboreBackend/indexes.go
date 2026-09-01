@@ -4,8 +4,9 @@
 //
 // Avant ce fichier, la seule collection indexée l'était sur `_id` : toute requête
 // filtrant sur `uid` provoquait un balayage complet de la collection. Le cas le
-// plus coûteux est `checkUserBannedFromDB`, appelé par le middleware Firebase à
-// CHAQUE requête authentifiée — soit un scan de `users` par requête d'API.
+// plus coûteux est `loadAccessProfileFromDB` (anciennement `checkUserBannedFromDB`),
+// appelé par le middleware Firebase à CHAQUE requête authentifiée — soit un scan
+// de `users` par requête d'API.
 package main
 
 import (

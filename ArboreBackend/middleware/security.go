@@ -238,3 +238,52 @@ func MaxBodyBytes(limit int64) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// TieredWindowLimiter applique un budget distinct selon le profil d'accès de
+// l'appelant (issue #377).
+//
+// Motivation : les routes qui appellent Gemini coûtent de l'argent à chaque
+// requête. Moduler leur quota selon le niveau d'abonnement est l'usage le plus
+// direct de `tier` — bien plus que le verrouillage de styles de jardin.
+//
+// Chaque classe possède son propre WindowLimiter, donc son propre compteur.
+// Conséquence assumée : un utilisateur qui passe de free à premium au milieu
+// d'une fenêtre repart d'un budget premium neuf. Le sens de l'erreur est
+// favorable au client qui vient de payer, et le cas est rare par nature.
+type TieredWindowLimiter struct {
+	guest   *WindowLimiter
+	free    *WindowLimiter
+	premium *WindowLimiter
+}
+
+// NewTieredWindowLimiter construit les trois budgets d'une même fenêtre.
+// Les limites doivent être croissantes (guest <= free <= premium) ; ce n'est pas
+// imposé, mais l'inverse n'aurait pas de sens métier.
+func NewTieredWindowLimiter(guestLimit, freeLimit, premiumLimit int, window time.Duration) *TieredWindowLimiter {
+	return &TieredWindowLimiter{
+		guest:   NewWindowLimiter(guestLimit, window),
+		free:    NewWindowLimiter(freeLimit, window),
+		premium: NewWindowLimiter(premiumLimit, window),
+	}
+}
+
+// limiterFor choisit le budget applicable à la requête.
+//
+// Le rôle prime sur le tier : un invité n'a pas de document utilisateur, donc
+// pas de tier réel, et ne doit jamais bénéficier d'un budget de compte payant.
+func (t *TieredWindowLimiter) limiterFor(c *gin.Context) *WindowLimiter {
+	if RoleFromContext(c) == RoleGuest {
+		return t.guest
+	}
+	if TierFromContext(c) == TierPremium {
+		return t.premium
+	}
+	return t.free
+}
+
+// Middleware applique le budget correspondant au profil de l'appelant.
+func (t *TieredWindowLimiter) Middleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		t.limiterFor(c).Middleware()(c)
+	}
+}

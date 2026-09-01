@@ -61,6 +61,8 @@ linters:
         - compteurs
         - portait
         - conflit
+        - appareil
+        - correspondant
 
     revive:
       confidence: 0.8

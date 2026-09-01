@@ -516,25 +516,36 @@ func exportUserData(c *gin.Context) {
 	c.JSON(http.StatusOK, exportData)
 }
 
+// createUserPayload est la SEULE surface d'écriture que `POST /users` offre au
+// client (issue #377).
+//
+// L'ancien code liait la structure `User` entière. C'était sans conséquence
+// tant que `buildCreateUserUpdate` n'écrivait qu'une liste blanche, mais
+// l'ajout de `role` et `tier` à `User` rendait la construction dangereuse : il
+// aurait suffi qu'un futur correctif branche ces champs dans l'update pour que
+// n'importe quel utilisateur se promeuve admin ou premium par un simple POST.
+// Un type dédié supprime la classe de bug entière plutôt que de dépendre de la
+// vigilance sur l'update.
+//
+// Les champs supplémentaires envoyés par les clients existants (`email`,
+// `createdAt`, `banned`) sont silencieusement ignorés : le décodeur JSON de Gin
+// n'est pas en mode strict, aucune régression côté iOS ou web.
+type createUserPayload struct {
+	Name string `json:"name"`
+}
+
+// bindCreateUserPayload est extrait de `createUser` pour être testable sans
+// MongoDB : c'est ici que se joue l'invariant anti-escalade, il doit pouvoir
+// être vérifié directement plutôt que via une réplique du type dans un test.
+func bindCreateUserPayload(c *gin.Context) (createUserPayload, error) {
+	var payload createUserPayload
+	err := c.ShouldBindJSON(&payload)
+	return payload, err
+}
+
 func createUser(c *gin.Context) {
-	// Binding volontairement restreint au seul champ que le client a autorité à
-	// fournir (issue #377).
-	//
-	// L'ancien code liait la structure `User` entière. C'était sans conséquence
-	// tant que `buildCreateUserUpdate` n'écrivait qu'une liste blanche, mais
-	// l'ajout de `role` et `tier` à `User` rendait la construction dangereuse :
-	// il aurait suffi qu'un futur correctif branche ces champs dans l'update
-	// pour que n'importe quel utilisateur se promeuve admin ou premium par un
-	// simple POST. Restreindre le binding supprime la classe de bug entière
-	// plutôt que de dépendre de la vigilance sur l'update.
-	//
-	// Les champs supplémentaires envoyés par les clients existants (`email`,
-	// `createdAt`, `banned`) sont silencieusement ignorés : le décodeur JSON de
-	// Gin n'est pas en mode strict, aucune régression côté iOS ou web.
-	var payload struct {
-		Name string `json:"name"`
-	}
-	if err := c.ShouldBindJSON(&payload); err != nil {
+	payload, err := bindCreateUserPayload(c)
+	if err != nil {
 		respondInvalidBody(c, err)
 		return
 	}

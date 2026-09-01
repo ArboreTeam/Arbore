@@ -2,11 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	"ArboreBackend/middleware"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,33 +42,46 @@ func TestBuildCreateUserUpdateSeedsDefaultRoleAndTierOnInsertOnly(t *testing.T) 
 	assert.NotContains(t, set, "tierExpiresAt")
 }
 
-// Le binding de createUser ne doit accepter que `name`. Ce test décode le même
-// payload que le handler pour figer la surface d'écriture offerte au client :
-// si quelqu'un réintroduit un bind sur la structure `User` entière, il casse.
-func TestCreateUserPayloadBindingRejectsPrivilegeFields(t *testing.T) {
-	// Ce qu'un attaquant enverrait pour tenter de se promouvoir.
-	hostile := []byte(`{
-		"name": "Mallory",
-		"uid": "someone-elses-uid",
-		"email": "attacker@example.com",
-		"role": "admin",
-		"tier": "premium",
-		"tierSource": "grant",
-		"banned": false
-	}`)
+// hostileCreateUserBody est ce qu'un attaquant enverrait à POST /users pour
+// tenter de se promouvoir administrateur ou abonné.
+const hostileCreateUserBody = `{
+	"name": "Mallory",
+	"uid": "someone-elses-uid",
+	"email": "attacker@example.com",
+	"role": "admin",
+	"tier": "premium",
+	"tierSource": "grant",
+	"banned": false
+}`
 
-	// Structure identique à celle liée par createUser.
-	var payload struct {
-		Name string `json:"name"`
-	}
-	assert.NoError(t, json.Unmarshal(hostile, &payload),
+// Ce test appelle la fonction de binding RÉELLEMENT utilisée par createUser, et
+// non une réplique de son type : si quelqu'un réintroduit un bind sur la
+// structure `User` entière, ce test échoue au lieu de rester vert.
+func TestBindCreateUserPayloadIgnoresPrivilegeFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/users",
+		strings.NewReader(hostileCreateUserBody))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	payload, err := bindCreateUserPayload(c)
+
+	assert.NoError(t, err,
 		"les champs inconnus doivent être ignorés, pas rejetés : les clients iOS et web envoient email/createdAt/banned")
 	assert.Equal(t, "Mallory", payload.Name)
 
-	// La preuve par l'absurde : lier la structure User entière laisserait
-	// entrer les champs d'autorisation.
+	// La surface d'écriture est exactement d'un champ. Ajouter un champ à ce
+	// type sans y réfléchir fera échouer cette assertion.
+	assert.Equal(t, 1, reflect.TypeOf(payload).NumField(),
+		"createUserPayload ne doit exposer que `name` : tout champ supplémentaire est une surface d'écriture offerte au client")
+}
+
+// La preuve par l'absurde, qui justifie l'existence du type dédié : lier la
+// structure User entière laisserait entrer les champs d'autorisation.
+func TestBindingFullUserStructWouldAllowEscalation(t *testing.T) {
 	var full User
-	assert.NoError(t, json.Unmarshal(hostile, &full))
+	assert.NoError(t, json.Unmarshal([]byte(hostileCreateUserBody), &full))
+
 	assert.Equal(t, "admin", full.Role)
 	assert.Equal(t, "premium", full.Tier)
 	assert.Equal(t, "someone-elses-uid", full.UID,

@@ -174,3 +174,36 @@ func TestTieredWindowLimiterIgnoresTierForGuests(t *testing.T) {
 
 	assert.Same(t, limiter.guest, limiter.limiterFor(c))
 }
+
+// Le chemin de repli dev (Firebase non initialisé) traverse le VRAI middleware.
+// Il doit déposer un profil member/free : sans profil dans le contexte, une
+// route protégée par RequireAccount se comporterait comme si le rôle était
+// inconnu, et le développeur local verrait un 403 incompréhensible.
+func TestMiddleware_NilFirebaseAuth_DevMode_SetsMemberProfile(t *testing.T) {
+	t.Setenv("GIN_MODE", "debug")
+	firebaseAuth = nil
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(FirebaseAuthMiddleware())
+	// RequireAccount est monté juste après, comme en production : le test
+	// couvre donc bien l'enchaînement des deux middlewares, pas seulement l'un.
+	router.Use(RequireAccount())
+
+	var seenRole, seenTier string
+	router.GET("/gardens", func(c *gin.Context) {
+		seenRole = RoleFromContext(c)
+		seenTier = TierFromContext(c)
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/gardens", nil)
+	req.Header.Set("Authorization", "Bearer fake-token")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code,
+		"le repli dev ne doit pas être bloqué par RequireAccount")
+	assert.Equal(t, RoleMember, seenRole)
+	assert.Equal(t, TierFree, seenTier)
+}

@@ -27,6 +27,10 @@ erDiagram
         string photoData "base64 optional"
         string photoContentType
         bool   banned
+        string role "guest | member | admin"
+        string tier "free | premium"
+        string tierSource "none | appstore | grant"
+        date   tierExpiresAt "end of the paid period"
         bytes  appleRefreshTokenEncrypted "AES-GCM, never serialized"
     }
 
@@ -129,6 +133,10 @@ Document representing an authenticated user. The functional key is `uid` (Fireba
 | `photoData` | string (optional) | Profile photo as base64. Source of truth. |
 | `photoContentType` | string (optional) | Associated MIME type. |
 | `banned` | bool | Moderation flag checked by the Firebase middleware on every request. |
+| `role` | string (optional) | `guest` \| `member` \| `admin` (`owner` and `support` reserved, not implemented). **Defaults to `member`**: a missing field — every document predating #377 — normalizes at read time, so no backfill is needed. It is **never** populated from a client binding (#377). |
+| `tier` | string (optional) | `free` \| `premium`. Defaults to `free`. A **separate** axis from the role: merging them would produce a cartesian product as soon as an administrator is also a subscriber. |
+| `tierSource` | string (optional) | `none` \| `appstore` \| `grant` — where the subscription came from, kept for audit: a `premium` must always be explainable. |
+| `tierExpiresAt` | date (optional) | End of the paid period. Checked **at read time** (`NormalizeTier`): otherwise an expired subscription would stay `premium` until an external job ran. |
 | `appleRefreshTokenEncrypted` | bytes (optional) | Apple refresh token encrypted with **AES-256-GCM**. `json:"-"` — **never** serialized to clients; `nil` if the user has never used Sign in with Apple. Written by `linkAppleAccount`, read by `deleteUser` for revocation (#210). |
 
 ### `plants`
@@ -277,7 +285,7 @@ Declared in `indexes.go` (`requiredIndexes`) and created at startup by `ensureIn
 
 | Collection | Index | Used for |
 |---|---|---|
-| `users` | `{uid: 1}` **unique** | Ban check on **every authenticated request** (`checkUserBannedFromDB`) + profile reads/writes, and the **structural guarantee of account uniqueness** |
+| `users` | `{uid: 1}` **unique** | Access profile read on **every authenticated request** (`loadAccessProfileFromDB`: ban status, role and subscription tier in a single query) + profile reads/writes, and the **structural guarantee of account uniqueness** |
 | `gardens` | `{uid: 1, updatedAt: -1}` | `listGardens` (filter `uid` + sort `updatedAt`); also acts as a prefix for queries on `uid` alone |
 | `consents` | `{uid: 1, timestamp: -1}` | `getUserConsents` / `getLatestUserConsents` (filter `uid` + sort `timestamp`) |
 

@@ -58,6 +58,10 @@ enum GuestSession {
     /// Les jardins déjà créés restent sur l'appareil : ce sont des fichiers
     /// locaux (`scene_*.json`, WorldMap), indépendants de la session.
     static func exitToAuthentication() {
+        // Même raison qu'à la déconnexion ordinaire (#394) : les bascules
+        // `privacy_*` sont locales et survivraient à la session, faisant
+        // hériter au compte suivant des choix d'un invité.
+        LocalDataOwnership.clearConsentStateOnLogout()
         try? Auth.auth().signOut()
         UserDefaults.standard.set(false, forKey: "isLoggedIn")
     }

@@ -4163,6 +4163,9 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     )
                     let jsonData = try JSONEncoder().encode(sceneData)
                     try jsonData.write(to: GardenLocalStore.sceneURL(for: id))
+                    // #394 — enregistre le propriétaire dès l'écriture, pour
+                    // qu'aucune autre session ne voie ce jardin.
+                    LocalDataOwnership.claim(id)
                     AppLog.gardenSave.notice("scene JSON written id=\(id, privacy: .public) boundary=\(boundaryPointsArray.count, privacy: .public)")
                 } catch {
                     AppLog.gardenSave.error("scene JSON write failed error=\(String(describing: error), privacy: .public)")

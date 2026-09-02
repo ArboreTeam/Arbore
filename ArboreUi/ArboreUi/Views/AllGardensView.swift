@@ -185,6 +185,7 @@ private extension AllGardensView {
         try? fileManager.removeItem(at: GardenLocalStore.sceneURL(for: id))
         try? fileManager.removeItem(at: GardenLocalStore.worldMapURL(for: id))
         GardenLocalStore.removeWizard(for: id)
+        LocalDataOwnership.forget(id)
     }
 }
 

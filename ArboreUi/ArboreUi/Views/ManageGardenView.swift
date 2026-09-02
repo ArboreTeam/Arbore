@@ -127,7 +127,16 @@ class GardenLocalStorageService: ObservableObject {
         do {
             let fileURLs = try fileManager.contentsOfDirectory(at: documentsURL, includingPropertiesForKeys: [.contentModificationDateKey])
             let gardenFiles = fileURLs.filter { url in
-                url.lastPathComponent.hasPrefix("scene_") && url.pathExtension == "json"
+                guard url.lastPathComponent.hasPrefix("scene_"), url.pathExtension == "json" else {
+                    return false
+                }
+                // #394 — un fichier de scène ne porte pas d'identité : il est
+                // nommé d'après le jardin, jamais d'après son propriétaire.
+                // Sans ce filtre, toute session voyait les jardins de la
+                // précédente — y compris une session invité.
+                let gardenId = url.deletingPathExtension().lastPathComponent
+                    .replacingOccurrences(of: "scene_", with: "")
+                return LocalDataOwnership.isVisibleInCurrentSession(gardenId)
             }
             
             let loadedProjects = gardenFiles.compactMap { url -> GardenModel? in

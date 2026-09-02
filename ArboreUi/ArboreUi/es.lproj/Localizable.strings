@@ -1165,6 +1165,13 @@
 "AUTH_FORGOT_PASSWORD" = "¿Olvidaste la contraseña?";
 "AUTH_SIGN_IN" = "Iniciar sesión";
 "AUTH_SIGN_UP" = "Registrarse";
+"AUTH_CONTINUE_AS_GUEST" = "Continuar sin cuenta";
+"AUTH_CONTINUE_AS_GUEST_SUBTITLE" = "Explora el catálogo y las plantas. Tus jardines no se guardarán.";
+"GUEST_ACCOUNT_REQUIRED_TITLE" = "Se necesita una cuenta";
+"GUEST_ACCOUNT_REQUIRED_MESSAGE" = "Esta función guarda tus datos en nuestros servidores. Crea una cuenta gratuita para encontrar tus jardines en todos tus dispositivos.";
+"GUEST_ACCOUNT_REQUIRED_CTA" = "Crear una cuenta";
+"DATA_EXPORT_ERROR_GENERIC" = "La exportación ha fallado. Inténtalo de nuevo en un momento.";
+"CLOSE_ACCOUNT_ERROR_GENERIC" = "La eliminación ha fallado. Inténtalo de nuevo en un momento.";
 "AUTH_OR" = "o";
 "AUTH_CONTINUE_GOOGLE" = "Continuar con Google";
 "AUTH_NO_ACCOUNT" = "¿No tienes cuenta?";

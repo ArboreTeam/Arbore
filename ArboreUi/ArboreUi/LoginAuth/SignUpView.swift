@@ -254,6 +254,14 @@ struct SignUpView: View {
                     .font(.footnote)
                     .padding(.top, 8)
 
+                    // Accès invité (#391), en bas de l'inscription comme sur
+                    // l'écran de connexion.
+                    ContinueAsGuestButton {
+                        isLoggedIn = true
+                        dismiss()
+                    }
+                    .padding(.top, 4)
+
                     Spacer(minLength: 20)
                 }
                 .padding(.top, 40)

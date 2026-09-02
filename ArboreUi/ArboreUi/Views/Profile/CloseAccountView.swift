@@ -146,8 +146,10 @@ struct CloseAccountView: View {
             }
 
             if httpResponse.statusCode != 200 {
-                let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-                deletionError = "Backend deletion failed: \(errorMessage)"
+                deletionError = BackendErrorMessage.humanReadable(
+                    from: data,
+                    fallback: L10n.t("CLOSE_ACCOUNT_ERROR_GENERIC")
+                )
                 return
             }
 

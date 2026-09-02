@@ -138,6 +138,11 @@ private extension AllGardensView {
             let list = try await GardenAPI.shared.listGardens()
             await MainActor.run { self.gardens = list }
         } catch {
+            // #391 — /gardens est fermé aux invités : liste vide, pas une panne.
+            if error.isAccountRequired {
+                await MainActor.run { self.gardens = [] }
+                return
+            }
             print("❌ fetchGardens failed:", error)
         }
     }

@@ -311,6 +311,9 @@ struct ManageGardenView: View {
             await MainActor.run {
                 isResolvingInitialGarden = false
             }
+            // #391 — /gardens est fermé aux invités. Ce n'est pas une panne :
+            // l'écran reste sur son état vide, sans message d'erreur trompeur.
+            if error.isAccountRequired { return }
             print("❌ resolveInitialGarden failed:", error)
         }
     }

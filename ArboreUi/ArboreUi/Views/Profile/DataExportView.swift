@@ -130,8 +130,10 @@ struct DataExportView: View {
                 exportSuccess = true
                 exportError = nil
             } else {
-                let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
-                exportError = "Export failed: \(errorMessage)"
+                exportError = BackendErrorMessage.humanReadable(
+                    from: data,
+                    fallback: L10n.t("DATA_EXPORT_ERROR_GENERIC")
+                )
             }
         } catch {
             exportError = "Network error: \(error.localizedDescription)"

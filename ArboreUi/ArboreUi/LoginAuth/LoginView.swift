@@ -236,6 +236,12 @@ struct LoginView: View {
                             .font(.footnote)
                             .padding(.top, 8)
 
+                            // Accès invité (#391). En dernière position et en
+                            // traitement fantôme : c'est une action tertiaire,
+                            // sous les trois fournisseurs de connexion.
+                            ContinueAsGuestButton { isLoggedIn = true }
+                                .padding(.top, 4)
+
                             Spacer(minLength: 30)
                         }
                         .padding(.top, 40)

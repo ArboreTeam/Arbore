@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -133,6 +134,12 @@ func AccessProfileFromContext(c *gin.Context) (AccessProfile, bool) {
 }
 
 // RoleFromContext retourne le rôle de la requête, ou `RoleMember` par défaut.
+//
+// Ce défaut est un confort de LECTURE, réservé aux appelants pour qui une
+// absence de profil n'a pas de conséquence de sécurité (choix d'un budget de
+// quota, journalisation). Les gardes d'autorisation ne doivent PAS l'utiliser :
+// ils lisent `AccessProfileFromContext` et refusent quand le profil manque
+// (#381).
 func RoleFromContext(c *gin.Context) string {
 	if profile, ok := AccessProfileFromContext(c); ok {
 		return profile.Role
@@ -141,11 +148,32 @@ func RoleFromContext(c *gin.Context) string {
 }
 
 // TierFromContext retourne le niveau d'abonnement de la requête, ou `TierFree`.
+//
+// Même réserve que RoleFromContext : défaut de confort en lecture, jamais une
+// base de décision d'autorisation.
 func TierFromContext(c *gin.Context) string {
 	if profile, ok := AccessProfileFromContext(c); ok {
 		return profile.Tier
 	}
 	return TierFree
+}
+
+// denyMissingProfile refuse une requête dont le contexte ne porte pas de profil
+// d'accès, et signale la cause réelle : le garde a été monté sur un groupe où
+// `FirebaseAuthMiddleware` n'a pas tourné.
+//
+// C'est une erreur de câblage serveur, pas une faute du client — d'où un 500 et
+// non un 403. Le point important est le fail-CLOSED : la version initiale
+// passait par `RoleFromContext`, dont le repli `member` faisait silencieusement
+// AUTORISER la requête dans ce cas.
+func denyMissingProfile(c *gin.Context) {
+	log.Printf("❌ Garde d'autorisation monté sans FirebaseAuthMiddleware sur %s %s",
+		c.Request.Method, c.FullPath())
+	c.JSON(http.StatusInternalServerError, gin.H{
+		"error": "Authorization context unavailable",
+		"code":  "AUTHZ_CONTEXT_MISSING",
+	})
+	c.Abort()
 }
 
 // RequireAccount ferme la route aux invités.
@@ -160,7 +188,12 @@ func TierFromContext(c *gin.Context) string {
 // appareil, ces routes n'auraient pas de sens pour lui.
 func RequireAccount() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if RoleFromContext(c) == RoleGuest {
+		profile, ok := AccessProfileFromContext(c)
+		if !ok {
+			denyMissingProfile(c)
+			return
+		}
+		if profile.Role == RoleGuest {
 			c.JSON(http.StatusForbidden, gin.H{
 				"error": "This action requires a registered account",
 				"code":  "ACCOUNT_REQUIRED",
@@ -182,8 +215,12 @@ func RequireRole(allowed ...string) gin.HandlerFunc {
 	}
 
 	return func(c *gin.Context) {
-		role := RoleFromContext(c)
-		if _, ok := permitted[role]; !ok {
+		profile, ok := AccessProfileFromContext(c)
+		if !ok {
+			denyMissingProfile(c)
+			return
+		}
+		if _, allowed := permitted[profile.Role]; !allowed {
 			c.JSON(http.StatusForbidden, gin.H{
 				"error": "This action requires a registered account",
 				"code":  "ACCOUNT_REQUIRED",
@@ -193,4 +230,20 @@ func RequireRole(allowed ...string) gin.HandlerFunc {
 		}
 		c.Next()
 	}
+}
+
+// applyGuestOverride impose le rôle invité au profil lu en base.
+//
+// N'écrase QUE `Role` et `Tier`. `Banned` est délibérément préservé : c'est ce
+// qui rend la modération opposable à une session anonyme (#381). La version
+// initiale sautait purement et simplement la lecture en base pour les invités,
+// ce qui figeait `Banned` à false pour toute cette population.
+//
+// Le rôle vient du token (`sign_in_provider`, signé par Firebase) et non du
+// document Mongo, modifiable par le porteur du compte : un invité ne peut donc
+// pas se hisser en `member` en écrivant dans sa propre fiche.
+func applyGuestOverride(profile AccessProfile) AccessProfile {
+	profile.Role = RoleGuest
+	profile.Tier = TierFree
+	return profile
 }

@@ -264,6 +264,7 @@
 "PRIVACY_SECTION_DATA_ITEM4" = "Consentements : type, version, date serveur et informations techniques limitées de l’application.";
 "PRIVACY_SECTION_DATA_ITEM5" = "Restent sur ton appareil : images brutes de la caméra et du LiDAR, mouvement et cartes spatiales ARKit. Une photo n’est envoyée que si tu l’ajoutes au chatbot ou au diagnostic.";
 "PRIVACY_SECTION_DATA_ITEM6" = "Diagnostic santé & assistant : les photos que tu envoies pour un diagnostic, ainsi que tes messages, sont transmis à nos serveurs puis à Google (Gemini) pour être analysés, y compris hors de l'Union européenne.";
+"PRIVACY_SECTION_DATA_ITEM7" = "Journaux techniques : ton adresse IP est traitée pour limiter les abus et sécuriser le service. Elle n’est jamais enregistrée en base, et n’apparaît dans les journaux serveur que tronquée (par exemple 92.184.105.x).";
 
 // Pourquoi nous les utilisons
 "PRIVACY_SECTION_USAGE_TITLE" = "Pourquoi nous utilisons ces données";
@@ -284,6 +285,7 @@
 "PRIVACY_SECTION_RETENTION_TITLE" = "Conservation";
 "PRIVACY_SECTION_RETENTION_ITEM1" = "Ton compte, ton profil et tes jardins sont conservés tant que ton compte existe.";
 "PRIVACY_SECTION_RETENTION_ITEM2" = "La suppression depuis l’app efface le compte Firebase, le profil, les jardins, les consentements, l’historique local du chatbot et tout ancien contenu partagé associé.";
+"PRIVACY_SECTION_RETENTION_ITEM3" = "Les journaux techniques du serveur, qui ne contiennent que des adresses IP tronquées, font l’objet d’une rotation automatique : les plus anciens sont écrasés et rien n’est archivé.";
 
 // Partage
 "PRIVACY_SECTION_SHARING_TITLE" = "Partage & destinataires";

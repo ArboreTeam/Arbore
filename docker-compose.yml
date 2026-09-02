@@ -8,6 +8,17 @@ services:
       dockerfile: Dockerfile
     container_name: arbore-ai-generator
     restart: unless-stopped
+    # Rotation des journaux (#385). Sans elle, le driver json-file croît sans
+    # limite : les journaux d'accès contiennent des adresses IP (tronquées
+    # depuis #385, mais des données personnelles tout de même) et seraient
+    # conservés indéfiniment, faute de politique de conservation — contraire au
+    # principe de limitation de la conservation (RGPD art. 5(1)(e)).
+    # 3 fichiers de 10 Mo = fenêtre glissante bornée, les plus anciens écrasés.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     init: true
     read_only: true
     mem_limit: 1g
@@ -49,6 +60,17 @@ services:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
     container_name: arbore-backend
     restart: unless-stopped
+    # Rotation des journaux (#385). Sans elle, le driver json-file croît sans
+    # limite : les journaux d'accès contiennent des adresses IP (tronquées
+    # depuis #385, mais des données personnelles tout de même) et seraient
+    # conservés indéfiniment, faute de politique de conservation — contraire au
+    # principe de limitation de la conservation (RGPD art. 5(1)(e)).
+    # 3 fichiers de 10 Mo = fenêtre glissante bornée, les plus anciens écrasés.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     init: true
     read_only: true
     mem_limit: 1g
@@ -132,6 +154,17 @@ services:
       dockerfile: Dockerfile
     container_name: arbore-web
     restart: unless-stopped
+    # Rotation des journaux (#385). Sans elle, le driver json-file croît sans
+    # limite : les journaux d'accès contiennent des adresses IP (tronquées
+    # depuis #385, mais des données personnelles tout de même) et seraient
+    # conservés indéfiniment, faute de politique de conservation — contraire au
+    # principe de limitation de la conservation (RGPD art. 5(1)(e)).
+    # 3 fichiers de 10 Mo = fenêtre glissante bornée, les plus anciens écrasés.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     init: true
     read_only: true
     mem_limit: 768m

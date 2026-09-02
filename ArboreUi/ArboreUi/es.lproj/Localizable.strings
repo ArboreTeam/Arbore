@@ -245,6 +245,7 @@
 "PRIVACY_SECTION_DATA_ITEM4" = "Consentimientos: tipo, versión, fecha del servidor e información técnica limitada de la app.";
 "PRIVACY_SECTION_DATA_ITEM5" = "Permanecen en tu dispositivo: imágenes brutas de cámara y LiDAR, movimiento y mapas ARKit. Solo se envía una foto si la añades al chat o al diagnóstico.";
 "PRIVACY_SECTION_DATA_ITEM6" = "Diagnóstico de salud y asistente: las fotos que envías para un diagnóstico, así como tus mensajes, se transmiten a nuestros servidores y luego a Google (Gemini) para su análisis, incluso fuera de la Unión Europea.";
+"PRIVACY_SECTION_DATA_ITEM7" = "Registros técnicos: tu dirección IP se trata para limitar los abusos y proteger el servicio. Nunca se guarda en la base de datos y solo aparece truncada en los registros del servidor (por ejemplo 92.184.105.x).";
 
 // Por qué los usamos
 "PRIVACY_SECTION_USAGE_TITLE" = "Por qué usamos estos datos";
@@ -265,6 +266,7 @@
 "PRIVACY_SECTION_RETENTION_TITLE" = "Conservación";
 "PRIVACY_SECTION_RETENTION_ITEM1" = "Tu cuenta, tu perfil y tus jardines se conservan mientras exista tu cuenta.";
 "PRIVACY_SECTION_RETENTION_ITEM2" = "Eliminar desde la app borra la cuenta Firebase, el perfil, los jardines, los consentimientos, el chat local y cualquier contenido compartido antiguo asociado.";
+"PRIVACY_SECTION_RETENTION_ITEM3" = "Los registros técnicos del servidor, que solo contienen direcciones IP truncadas, se rotan automáticamente: los más antiguos se sobrescriben y no se archiva nada.";
 
 // Compartición
 "PRIVACY_SECTION_SHARING_TITLE" = "Comparticion y destinatarios";

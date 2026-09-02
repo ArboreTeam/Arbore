@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -402,14 +403,38 @@ type Garden struct {
 func loadAccessProfileFromDB(c *gin.Context, uid string) (middleware.AccessProfile, error) {
 	collection := getDatabaseForRequest(c).Collection("users")
 
-	var user User
-	err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
+	find := func(uid string) (User, error) {
+		var user User
+		err := collection.FindOne(context.Background(), bson.M{"uid": uid}).Decode(&user)
+		return user, err
+	}
 
+	return resolveAccessProfile(find, uid, time.Now())
+}
+
+// userFinder abstrait la lecture d'un utilisateur pour rendre
+// `resolveAccessProfile` testable sans MongoDB (#381). Le contrat est celui du
+// driver Mongo : `mongo.ErrNoDocuments` quand l'utilisateur n'existe pas.
+type userFinder func(uid string) (User, error)
+
+// resolveAccessProfile applique les règles d'autorisation au document lu.
+//
+// Extrait de `loadAccessProfileFromDB` parce que cette fonction est sur le
+// chemin de CHAQUE requête authentifiée : une erreur de mapping y donnerait un
+// rôle faux à tous les utilisateurs, et elle n'était couverte par aucun test
+// tant qu'elle était soudée à l'appel Mongo.
+//
+// Trois comportements y sont verrouillés :
+//   - utilisateur absent → profil par défaut member/free, SANS erreur. C'est le
+//     cas nominal de `POST /users`, qui s'exécute avant sa propre création.
+//   - toute autre erreur de lecture → remontée telle quelle, le middleware
+//     répond 500 (fail-closed : jamais de profil par défaut sur panne DB).
+//   - document présent → normalisation de `role` et `tier`, `banned` transmis
+//     tel quel.
+func resolveAccessProfile(find userFinder, uid string, now time.Time) (middleware.AccessProfile, error) {
+	user, err := find(uid)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			// Le document n'existe pas encore : c'est le cas nominal de
-			// `POST /users`, qui s'exécute forcément avant sa propre création.
-			// Profil par défaut, non banni.
+		if errors.Is(err, mongo.ErrNoDocuments) {
 			return middleware.AccessProfile{
 				Role: middleware.RoleMember,
 				Tier: middleware.TierFree,
@@ -420,7 +445,7 @@ func loadAccessProfileFromDB(c *gin.Context, uid string) (middleware.AccessProfi
 
 	return middleware.AccessProfile{
 		Role:   middleware.NormalizeRole(user.Role),
-		Tier:   middleware.NormalizeTier(user.Tier, user.TierExpiresAt, time.Now()),
+		Tier:   middleware.NormalizeTier(user.Tier, user.TierExpiresAt, now),
 		Banned: user.Banned,
 	}, nil
 }
@@ -2029,37 +2054,21 @@ func disconnectMongoDatabases(ctx context.Context) {
 	fmt.Println("🔌 Déconnecté de MongoDB.")
 }
 
-func main() {
-	loadDotEnv(".env")
-
-	if err := connectMongoDatabases(context.Background()); err != nil {
-		log.Fatalf("❌ MongoDB initialization failed: %v", err)
-	}
-	defer disconnectMongoDatabases(context.Background())
-
-	// Index sur les champs `uid` : sans eux, chaque requête authentifiée déclenche
-	// un balayage complet de `users` (cf. indexes.go).
-	ensureIndexesAtStartup()
-
-	// Initialiser Firebase Admin SDK.
-	// En release mode, toute erreur est fatale : le backend refuse de démarrer
-	// sans authentification pour éviter d'exposer les endpoints sans token.
-	if err := middleware.InitFirebase(); err != nil {
-		log.Fatalf("❌ Firebase init failed: %v", err)
-	}
-	if err := validateReleaseSecurityConfig(); err != nil {
-		log.Fatalf("❌ Production security configuration invalid: %v", err)
-	}
-
-	// Sélection du fournisseur d'IA/LLM (Gemini par défaut, cf. AI_PROVIDER).
-	if err := initLLMProvider(); err != nil {
-		log.Fatalf("❌ LLM provider init failed: %v", err)
-	}
-	log.Printf("🤖 Fournisseur d'IA actif : %s", providerName())
-
-	// Configurer la fonction de vérification ban pour le middleware
-	middleware.LoadAccessProfileFunc = loadAccessProfileFromDB
-
+// buildRouter construit le routeur complet : durcissement de l'IP client,
+// limiteurs de débit, CORS, et enregistrement de toutes les routes avec leurs
+// gardes.
+//
+// Extrait de `main()` pour être atteignable depuis les tests (#381). Le câblage
+// du groupe `account` est la seule chose qui affirme « un invité ne peut pas
+// lire les jardins », et il n'était vérifiable par aucun test tant que le
+// routeur ne se construisait qu'au démarrage du serveur. Rien ne garantissait
+// non plus qu'une route ajoutée plus tard atterrisse sur `account` plutôt que
+// sur `protected`.
+//
+// Les dépendances externes (Mongo, Firebase, fournisseur LLM) sont initialisées
+// par `main()` avant l'appel : un test qui n'exerce que le routage et les gardes
+// n'a pas besoin qu'elles soient prêtes, les handlers n'étant jamais atteints.
+func buildRouter() *gin.Engine {
 	router := gin.Default()
 	hardenClientIPResolution(router)
 
@@ -2256,6 +2265,42 @@ func main() {
 		admin.POST("/plants/generate-multiple", generationMinuteLimiter.Middleware(), generationDailyQuota.Middleware(), generateMultiplePlantsHandler)
 		admin.POST("/models/thumbnails/:plantId", middleware.MaxBodyBytes(maxThumbnailBytes+(1<<20)), uploadMinuteLimiter.Middleware(), uploadPlantThumbnail)
 	}
+
+	return router
+}
+
+func main() {
+	loadDotEnv(".env")
+
+	if err := connectMongoDatabases(context.Background()); err != nil {
+		log.Fatalf("❌ MongoDB initialization failed: %v", err)
+	}
+	defer disconnectMongoDatabases(context.Background())
+
+	// Index sur les champs `uid` : sans eux, chaque requête authentifiée déclenche
+	// un balayage complet de `users` (cf. indexes.go).
+	ensureIndexesAtStartup()
+
+	// Initialiser Firebase Admin SDK.
+	// En release mode, toute erreur est fatale : le backend refuse de démarrer
+	// sans authentification pour éviter d'exposer les endpoints sans token.
+	if err := middleware.InitFirebase(); err != nil {
+		log.Fatalf("❌ Firebase init failed: %v", err)
+	}
+	if err := validateReleaseSecurityConfig(); err != nil {
+		log.Fatalf("❌ Production security configuration invalid: %v", err)
+	}
+
+	// Sélection du fournisseur d'IA/LLM (Gemini par défaut, cf. AI_PROVIDER).
+	if err := initLLMProvider(); err != nil {
+		log.Fatalf("❌ LLM provider init failed: %v", err)
+	}
+	log.Printf("🤖 Fournisseur d'IA actif : %s", providerName())
+
+	// Configurer la fonction de vérification ban pour le middleware
+	middleware.LoadAccessProfileFunc = loadAccessProfileFromDB
+
+	router := buildRouter()
 
 	port := strings.TrimSpace(os.Getenv("PORT"))
 	if port == "" {

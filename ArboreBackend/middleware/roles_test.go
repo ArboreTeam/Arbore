@@ -207,3 +207,78 @@ func TestMiddleware_NilFirebaseAuth_DevMode_SetsMemberProfile(t *testing.T) {
 	assert.Equal(t, RoleMember, seenRole)
 	assert.Equal(t, TierFree, seenTier)
 }
+
+// ─── #381 — bannissement opposable aux invités ──────────────────────────────
+
+// L'invariant central du correctif : imposer le rôle invité ne doit PAS effacer
+// le bannissement lu en base. Sans cela, `banned` — seul levier de modération du
+// backend — devient inapplicable à toute session anonyme.
+func TestApplyGuestOverridePreservesBanned(t *testing.T) {
+	banned := applyGuestOverride(AccessProfile{
+		Role:   RoleMember,
+		Tier:   TierPremium,
+		Banned: true,
+	})
+
+	assert.Equal(t, RoleGuest, banned.Role, "le rôle du token fait autorité")
+	assert.Equal(t, TierFree, banned.Tier, "un invité n'a pas d'abonnement")
+	assert.True(t, banned.Banned,
+		"le bannissement doit survivre à l'imposition du rôle invité, sinon la modération ne s'applique pas aux invités")
+}
+
+// Un invité non banni reste évidemment autorisé.
+func TestApplyGuestOverrideLeavesUnbannedAlone(t *testing.T) {
+	clean := applyGuestOverride(AccessProfile{Role: RoleMember, Tier: TierFree})
+	assert.Equal(t, AccessProfile{Role: RoleGuest, Tier: TierFree, Banned: false}, clean)
+}
+
+// Un document Mongo portant `role: admin` ne doit jamais promouvoir une session
+// anonyme : le fournisseur de connexion, signé par Firebase, prime sur la base.
+func TestApplyGuestOverrideCannotBeEscalatedByDatabase(t *testing.T) {
+	forged := applyGuestOverride(AccessProfile{Role: RoleAdmin, Tier: TierPremium})
+
+	assert.Equal(t, RoleGuest, forged.Role,
+		"un document en base ne doit pas pouvoir hisser un invité au-dessus de son rôle")
+	assert.False(t, IsPrivilegedRole(forged.Role))
+}
+
+// ─── #381 — les gardes échouent en fermeture ────────────────────────────────
+
+// Le point de régression : monter un garde sans FirebaseAuthMiddleware laissait
+// passer la requête, parce que `RoleFromContext` repliait sur `member`.
+func TestGuardsFailClosedWithoutAccessProfile(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	guards := map[string]gin.HandlerFunc{
+		"RequireAccount": RequireAccount(),
+		"RequireRole":    RequireRole(RoleMember, RoleAdmin),
+	}
+
+	for name, guard := range guards {
+		router := gin.New()
+		// Volontairement AUCUN middleware d'authentification en amont.
+		router.Use(guard)
+		reached := false
+		router.GET("/gardens", func(c *gin.Context) {
+			reached = true
+			c.Status(http.StatusOK)
+		})
+
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/gardens", nil))
+
+		assert.False(t, reached, "%s ne doit jamais atteindre le handler sans profil", name)
+		assert.Equal(t, http.StatusInternalServerError, w.Code, "%s doit refuser", name)
+		assert.Contains(t, w.Body.String(), "AUTHZ_CONTEXT_MISSING", "%s", name)
+	}
+}
+
+// Les accesseurs de confort, eux, gardent leur repli : ils ne servent qu'à des
+// décisions sans portée de sécurité (choix d'un budget de quota).
+func TestReadAccessorsKeepTheirDefaults(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+
+	assert.Equal(t, RoleMember, RoleFromContext(c))
+	assert.Equal(t, TierFree, TierFromContext(c))
+}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -13,6 +14,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // roles_test.go — issue #377.
@@ -112,5 +115,238 @@ func TestBannedIsIndependentOfRole(t *testing.T) {
 		profile := middleware.AccessProfile{Role: role, Tier: middleware.TierFree, Banned: true}
 		assert.True(t, profile.Banned,
 			"le bannissement de %s ne doit pas être effacé par son rôle", role)
+	}
+}
+
+// ─── #381 — resolveAccessProfile ────────────────────────────────────────────
+//
+// Cette fonction est sur le chemin de CHAQUE requête authentifiée. Elle était
+// jusqu'ici soudée à l'appel Mongo, donc non couverte.
+
+// Cas nominal de POST /users : le document n'existe pas encore, ce n'est pas une
+// erreur et le profil par défaut doit être member/free non banni.
+func TestResolveAccessProfileMissingUserIsNotAnError(t *testing.T) {
+	profile, err := resolveAccessProfile(
+		func(string) (User, error) { return User{}, mongo.ErrNoDocuments },
+		"inconnu", time.Now(),
+	)
+
+	assert.NoError(t, err, "un utilisateur absent est le cas nominal de POST /users")
+	assert.Equal(t, middleware.RoleMember, profile.Role)
+	assert.Equal(t, middleware.TierFree, profile.Tier)
+	assert.False(t, profile.Banned)
+}
+
+// Fail-closed : toute autre erreur de lecture remonte, pour que le middleware
+// réponde 500 au lieu d'accorder un profil par défaut sur panne de base.
+func TestResolveAccessProfilePropagatesReadErrors(t *testing.T) {
+	boom := errors.New("connexion mongo perdue")
+
+	profile, err := resolveAccessProfile(
+		func(string) (User, error) { return User{}, boom },
+		"uid", time.Now(),
+	)
+
+	assert.ErrorIs(t, err, boom, "une panne de base ne doit jamais donner un profil par défaut")
+	assert.Equal(t, middleware.AccessProfile{}, profile)
+}
+
+func TestResolveAccessProfileNormalizesAndCarriesBan(t *testing.T) {
+	now := time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC)
+	expired := now.Add(-time.Hour)
+	valid := now.Add(time.Hour)
+
+	cases := []struct {
+		name       string
+		user       User
+		wantRole   string
+		wantTier   string
+		wantBanned bool
+	}{
+		{
+			name:     "document legacy sans role ni tier",
+			user:     User{UID: "u"},
+			wantRole: middleware.RoleMember, wantTier: middleware.TierFree,
+		},
+		{
+			name:     "role inconnu replie sur member, jamais admin",
+			user:     User{Role: "superuser"},
+			wantRole: middleware.RoleMember, wantTier: middleware.TierFree,
+		},
+		{
+			name:     "admin reconnu",
+			user:     User{Role: "admin"},
+			wantRole: middleware.RoleAdmin, wantTier: middleware.TierFree,
+		},
+		{
+			name:     "premium encore valide",
+			user:     User{Tier: "premium", TierExpiresAt: &valid},
+			wantRole: middleware.RoleMember, wantTier: middleware.TierPremium,
+		},
+		{
+			name:     "premium expiré retombe en free a la lecture",
+			user:     User{Tier: "premium", TierExpiresAt: &expired},
+			wantRole: middleware.RoleMember, wantTier: middleware.TierFree,
+		},
+		{
+			name:     "banni, quel que soit le role",
+			user:     User{Role: "admin", Banned: true},
+			wantRole: middleware.RoleAdmin, wantTier: middleware.TierFree, wantBanned: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			user := tc.user
+			profile, err := resolveAccessProfile(
+				func(string) (User, error) { return user, nil },
+				"uid", now,
+			)
+			assert.NoError(t, err)
+			assert.Equal(t, tc.wantRole, profile.Role)
+			assert.Equal(t, tc.wantTier, profile.Tier)
+			assert.Equal(t, tc.wantBanned, profile.Banned)
+		})
+	}
+}
+
+// Les tags bson doivent correspondre aux noms de champs réellement stockés.
+// Un tag erroné ne casserait aucune compilation : le champ décoderait
+// silencieusement à vide, donc tout le monde retomberait en member/free.
+func TestUserAuthorizationFieldsSurviveBSONRoundTrip(t *testing.T) {
+	expires := time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC)
+	original := User{
+		UID: "uid-1", Email: "a@b.c", Banned: true,
+		Role: "admin", Tier: "premium",
+		TierSource: "appstore", TierExpiresAt: &expires,
+	}
+
+	raw, err := bson.Marshal(original)
+	assert.NoError(t, err)
+
+	var asMap bson.M
+	assert.NoError(t, bson.Unmarshal(raw, &asMap))
+	for _, field := range []string{"role", "tier", "tierSource", "tierExpiresAt", "banned"} {
+		assert.Contains(t, asMap, field, "le champ %s doit être stocké sous ce nom exact", field)
+	}
+
+	var decoded User
+	assert.NoError(t, bson.Unmarshal(raw, &decoded))
+	assert.Equal(t, "admin", decoded.Role)
+	assert.Equal(t, "premium", decoded.Tier)
+	assert.Equal(t, "appstore", decoded.TierSource)
+	assert.True(t, decoded.Banned)
+	if assert.NotNil(t, decoded.TierExpiresAt) {
+		assert.True(t, expires.Equal(*decoded.TierExpiresAt))
+	}
+}
+
+// ─── #381 — inventaire des routes et leur classement ────────────────────────
+
+// Les trois classes d'accès, telles que `buildRouter` est censé les câbler.
+//
+// Ce que ce test protège : rien ne garantissait qu'une route ajoutée plus tard
+// atterrisse sur le groupe `account` plutôt que sur `protected`. Toute nouvelle
+// route fait désormais échouer ce test, ce qui force son auteur à la classer
+// explicitement ici plutôt qu'à l'ouvrir aux invités par inadvertance.
+//
+// Limite assumée : Gin n'expose pas la chaîne de handlers d'une route, donc ce
+// test vérifie l'INVENTAIRE et son classement déclaré, pas l'attachement effectif
+// du garde. Ce dernier est couvert séparément par les tests de `RequireAccount`
+// et `RequireAdmin` côté middleware. Une vérification bout en bout demanderait
+// un double de token Firebase (hors périmètre de #381).
+var (
+	// Ouvertes sans compte : catalogue, modèles 3D, config, santé, et les deux
+	// proxys Gemini (sur un budget de quota réduit).
+	guestReachableRoutes = []string{
+		"GET /health",
+		"GET /config",
+		"GET /models/:filename",
+		"GET /models/thumbnails/:filename",
+		"GET /plants",
+		"GET /plants/:id",
+		"POST /chat",
+		"POST /diagnose",
+	}
+
+	// Fermées aux invités : tout ce qui suppose un compte durable.
+	accountBoundRoutes = []string{
+		"POST /users",
+		"GET /users/:uid",
+		"POST /users/:uid/photo",
+		"GET /users/:uid/photo",
+		"GET /users/export",
+		"PATCH /users/me",
+		"POST /users/me/apple-link",
+		"DELETE /users",
+		"POST /gardens",
+		"GET /gardens",
+		"GET /gardens/:id",
+		"PUT /gardens/:id",
+		"DELETE /gardens/:id",
+		"POST /consents",
+		"GET /consents",
+		"GET /consents/latest",
+	}
+
+	// Réservées aux administrateurs : écriture catalogue et génération IA.
+	adminOnlyRoutes = []string{
+		"POST /plants",
+		"POST /plants/generate",
+		"POST /plants/generate-multiple",
+		"POST /models/thumbnails/:plantId",
+	}
+)
+
+func TestRouterExposesExactlyTheClassifiedRoutes(t *testing.T) {
+	t.Setenv("ARBORE_API_KEY", "clef-de-test")
+
+	registered := map[string]bool{}
+	for _, r := range buildRouter().Routes() {
+		registered[r.Method+" "+r.Path] = true
+	}
+
+	classified := map[string]bool{}
+	for _, group := range [][]string{guestReachableRoutes, accountBoundRoutes, adminOnlyRoutes} {
+		for _, route := range group {
+			assert.False(t, classified[route], "route classée deux fois : %s", route)
+			classified[route] = true
+		}
+	}
+
+	for route := range classified {
+		assert.True(t, registered[route],
+			"route classée mais absente du routeur : %s (renommée ou supprimée ?)", route)
+	}
+	for route := range registered {
+		assert.True(t, classified[route],
+			"route enregistrée mais non classée : %s — la ranger dans guestReachableRoutes, accountBoundRoutes ou adminOnlyRoutes", route)
+	}
+
+	assert.Equal(t, len(classified), len(registered), "inventaire et classement doivent coïncider")
+}
+
+// Les jardins sont le cas d'usage qui a motivé le groupe `account` : un invité
+// est lié à un seul appareil, la synchronisation n'a pas de sens pour lui.
+func TestGardenAndAccountRoutesAreNeverGuestReachable(t *testing.T) {
+	guestSet := map[string]bool{}
+	for _, route := range guestReachableRoutes {
+		guestSet[route] = true
+	}
+
+	for _, route := range accountBoundRoutes {
+		assert.False(t, guestSet[route],
+			"%s ne doit jamais figurer parmi les routes ouvertes aux invités", route)
+	}
+	for _, route := range adminOnlyRoutes {
+		assert.False(t, guestSet[route],
+			"%s est une route d'administration, jamais ouverte aux invités", route)
+	}
+
+	for _, prefix := range []string{"/gardens", "/consents", "/users"} {
+		for _, route := range guestReachableRoutes {
+			assert.NotContains(t, route, prefix,
+				"aucune route sous %s ne doit être ouverte aux invités", prefix)
+		}
 	}
 }

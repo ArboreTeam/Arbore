@@ -27,9 +27,13 @@ ADRs are numbered starting from `0001` and named in `kebab-case`:
 
 ## Immutability
 
-Once it reaches the `Accepted` status, **an ADR is never modified**. If a decision evolves, a new ADR is created that explicitly **supersedes** the old one (the old one's status becomes `Superseded by 0XXX`). This discipline ensures the historical traceability of choices.
+Immutability covers the **decision**, not its wording.
 
-This rule also applies when a factual error is discovered in an existing ADR: a new corrective ADR is created rather than editing the old one.
+**The reasoning is frozen.** Once it reaches the `Accepted` status, an ADR's context, decision, consequences and rejected alternatives are never rewritten. If a decision evolves, a new ADR is created that explicitly **supersedes** the old one (whose status becomes `Superseded by 0XXX`). If an ADR contains a flawed argument or a false premise, a corrective ADR is created rather than rewriting the old one. This discipline ensures the historical traceability of choices.
+
+**Code references may be refreshed.** A function, file or symbol name quoted in an ADR may be updated when a later rename makes it impossible to find, under three conditions: the decision itself is unchanged, the original name is kept alongside, and the update is justified in the commit message.
+
+The reason for this nuance: an ADR is only useful if it stays **navigable**. A reader who searches the codebase for `CheckUserBannedFunc` and finds it nowhere learns nothing about the project's history — they lose time, then start doubting the rest of the document. Creating a whole ADR to record a rename would also be disproportionate, and would dilute the index with entries that carry no architectural weight.
 
 ## Index
 

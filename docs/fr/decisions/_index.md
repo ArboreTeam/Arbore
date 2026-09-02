@@ -27,9 +27,13 @@ Les ADRs sont numérotés à partir de `0001` et nommés en `kebab-case` :
 
 ## Immutabilité
 
-Une fois passé en statut `Accepted`, **un ADR n'est jamais modifié**. Si une décision évolue, un nouvel ADR est créé et il **supersede** explicitement l'ancien (le statut de l'ancien devient `Superseded by 0XXX`). Cette discipline garantit la traçabilité historique des choix.
+L'immuabilité porte sur la **décision**, pas sur sa mise en forme.
 
-Cette règle s'applique également si l'on découvre une erreur factuelle dans un ADR existant : on crée un nouvel ADR de correction plutôt que d'éditer l'ancien.
+**Le raisonnement est figé.** Une fois passé en statut `Accepted`, le contexte, la décision, ses conséquences et les alternatives écartées d'un ADR ne sont jamais réécrits. Si une décision évolue, un nouvel ADR est créé et **supersede** explicitement l'ancien (dont le statut devient `Superseded by 0XXX`). Si un ADR contient une erreur de raisonnement ou un constat faux, on crée un ADR de correction plutôt que de réécrire l'ancien. Cette discipline garantit la traçabilité historique des choix.
+
+**Les références au code peuvent être rafraîchies.** Un nom de fonction, de fichier ou de symbole cité dans un ADR peut être mis à jour lorsqu'un renommage ultérieur le rend introuvable, à trois conditions : la décision reste inchangée, la mention du nom d'origine est conservée, et la mise à jour est justifiée dans le message de commit.
+
+La raison de cette nuance : un ADR n'est utile que s'il reste **navigable**. Un lecteur qui cherche `CheckUserBannedFunc` dans le code et ne le trouve nulle part n'apprend rien de l'histoire du projet — il perd du temps, puis se met à douter du reste du document. Créer un ADR entier pour acter un renommage serait par ailleurs disproportionné, et diluerait l'index sous des entrées sans portée architecturale.
 
 ## Index
 

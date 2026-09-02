@@ -271,22 +271,17 @@ class NetworkManager {
     ///   reste parfaitement valide, seule cette route lui est fermée. L'appelant
     ///   présente une invitation à créer un compte.
     /// - le reste : compte banni ou permissions insuffisantes.
-    private func forbiddenError(from data: Data) -> NetworkError {
-        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let code = obj["code"] as? String else {
-            return .forbidden
-        }
-
-        switch code {
-        case "EMAIL_NOT_VERIFIED":
+    func forbiddenError(from data: Data) -> NetworkError {
+        switch ForbiddenReason(responseBody: data) {
+        case .emailNotVerified:
             DispatchQueue.main.async {
                 try? Auth.auth().signOut()
                 UserDefaults.standard.set(false, forKey: "isLoggedIn")
             }
             return .emailNotVerified
-        case "ACCOUNT_REQUIRED":
+        case .accountRequired:
             return .accountRequired
-        default:
+        case .other:
             return .forbidden
         }
     }
@@ -447,3 +442,43 @@ class NetworkManager {
 // MARK: - Helper Models
 
 struct EmptyResponse: Codable {}
+
+
+/// Classification d'un 403 à partir du corps de la réponse.
+///
+/// Séparée de `NetworkManager.forbiddenError(from:)` pour être **pure** : la
+/// décision se teste sans `URLSession`, sans Firebase et sans effet de bord,
+/// alors que la fonction appelante déconnecte la session dans un cas.
+enum ForbiddenReason: Equatable {
+    /// Token valide, email non vérifié (#110). La session doit être coupée.
+    case emailNotVerified
+    /// Session invité sur une route qui suppose un compte durable (#391).
+    /// La session reste valide : seule cette route lui est fermée.
+    case accountRequired
+    /// Compte banni, ou permissions insuffisantes.
+    case other
+
+    /// Codes attendus dans le champ `code` du corps de réponse.
+    ///
+    /// Ces chaînes sont un **contrat avec le backend** : elles sont produites
+    /// par `middleware/firebase_auth.go` et `middleware/roles.go`. Les changer
+    /// d'un côté sans l'autre casserait silencieusement la classification — le
+    /// 403 retomberait en `.other` et l'utilisateur verrait « accès interdit »
+    /// au lieu de l'invitation à créer un compte.
+    static let emailNotVerifiedCode = "EMAIL_NOT_VERIFIED"
+    static let accountRequiredCode = "ACCOUNT_REQUIRED"
+
+    init(responseBody data: Data) {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let code = obj["code"] as? String else {
+            self = .other
+            return
+        }
+
+        switch code {
+        case Self.emailNotVerifiedCode: self = .emailNotVerified
+        case Self.accountRequiredCode: self = .accountRequired
+        default: self = .other
+        }
+    }
+}

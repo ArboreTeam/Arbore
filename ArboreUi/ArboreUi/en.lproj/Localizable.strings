@@ -264,6 +264,7 @@
 "PRIVACY_SECTION_DATA_ITEM4" = "Consent records: type, version, server date and limited technical app information.";
 "PRIVACY_SECTION_DATA_ITEM5" = "Kept on your device: raw camera and LiDAR images, motion data and ARKit world maps. A photo is uploaded only when you add it to chat or plant diagnosis.";
 "PRIVACY_SECTION_DATA_ITEM6" = "Health diagnosis & assistant: photos you submit for a diagnosis, and your messages, are sent to our servers and then to Google (Gemini) for analysis, including outside the European Union.";
+"PRIVACY_SECTION_DATA_ITEM7" = "Technical logs: your IP address is processed to limit abuse and keep the service secure. It is never stored in the database, and only appears in server logs in truncated form (for example 92.184.105.x).";
 
 // Why we use it
 "PRIVACY_SECTION_USAGE_TITLE" = "Why we use this data";
@@ -284,6 +285,7 @@
 "PRIVACY_SECTION_RETENTION_TITLE" = "Retention";
 "PRIVACY_SECTION_RETENTION_ITEM1" = "Your account, profile and gardens are kept while your account exists.";
 "PRIVACY_SECTION_RETENTION_ITEM2" = "Deleting from the app erases the Firebase account, profile, gardens, consents, local chat history and any associated legacy shared content.";
+"PRIVACY_SECTION_RETENTION_ITEM3" = "Server technical logs, which contain only truncated IP addresses, are rotated automatically: the oldest are overwritten and nothing is archived.";
 
 // Sharing
 "PRIVACY_SECTION_SHARING_TITLE" = "Sharing & recipients";

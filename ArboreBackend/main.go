@@ -2069,7 +2069,8 @@ func disconnectMongoDatabases(ctx context.Context) {
 // par `main()` avant l'appel : un test qui n'exerce que le routage et les gardes
 // n'a pas besoin qu'elles soient prêtes, les handlers n'étant jamais atteints.
 func buildRouter() *gin.Engine {
-	router := gin.Default()
+	// Logger à IP tronquée plutôt que gin.Default() (#385).
+	router := newRouterEngine()
 	hardenClientIPResolution(router)
 
 	publicLimiter := middleware.NewWindowLimiter(300, time.Minute)

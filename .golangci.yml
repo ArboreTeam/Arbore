@@ -63,6 +63,7 @@ linters:
         - conflit
         - appareil
         - correspondant
+        - continuent
 
     revive:
       confidence: 0.8

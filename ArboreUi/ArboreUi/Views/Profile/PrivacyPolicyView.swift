@@ -21,7 +21,8 @@ struct PrivacyPolicyView: View {
                     NSLocalizedString("PRIVACY_SECTION_DATA_ITEM3", comment: ""),
                     NSLocalizedString("PRIVACY_SECTION_DATA_ITEM4", comment: ""),
                     NSLocalizedString("PRIVACY_SECTION_DATA_ITEM5", comment: ""),
-                    NSLocalizedString("PRIVACY_SECTION_DATA_ITEM6", comment: "")
+                    NSLocalizedString("PRIVACY_SECTION_DATA_ITEM6", comment: ""),
+                    NSLocalizedString("PRIVACY_SECTION_DATA_ITEM7", comment: "")
                 ],
                 themeManager: themeManager
             )
@@ -56,7 +57,8 @@ struct PrivacyPolicyView: View {
                 icon: "archivebox",
                 items: [
                     NSLocalizedString("PRIVACY_SECTION_RETENTION_ITEM1", comment: ""),
-                    NSLocalizedString("PRIVACY_SECTION_RETENTION_ITEM2", comment: "")
+                    NSLocalizedString("PRIVACY_SECTION_RETENTION_ITEM2", comment: ""),
+                    NSLocalizedString("PRIVACY_SECTION_RETENTION_ITEM3", comment: "")
                 ],
                 themeManager: themeManager
             )

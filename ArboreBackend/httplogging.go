@@ -66,6 +66,20 @@ func privacyPreservingLogFormatter(p gin.LogFormatterParams) string {
 	)
 }
 
+// accessLogSkippedPaths liste les routes exclues du journal d'accès (issue #388).
+//
+// Mesuré en production le 2026-09-02 : `/health` représentait 233 des 244
+// lignes du journal, soit 95 %. Le healthcheck Docker interroge la route en
+// continu, ce qui noie le trafic réel — les 429 du rate limiter, les 5xx — dans
+// un bruit sans valeur d'analyse.
+//
+// À taille de fenêtre de rotation égale, cette exclusion multiplie par ~20 la
+// profondeur d'historique réellement exploitable.
+//
+// Seul le journal d'ACCÈS est concerné : `Recovery()` et les erreurs
+// applicatives continuent d'écrire sur stdout quelle que soit la route.
+var accessLogSkippedPaths = []string{"/health"}
+
 // newRouterEngine remplace `gin.Default()`.
 //
 // `gin.Default()` = `gin.New()` + `Logger()` + `Recovery()`. On reconstruit la
@@ -74,7 +88,10 @@ func privacyPreservingLogFormatter(p gin.LogFormatterParams) string {
 // panic de handler en connexion coupée sans réponse.
 func newRouterEngine() *gin.Engine {
 	engine := gin.New()
-	engine.Use(gin.LoggerWithFormatter(privacyPreservingLogFormatter))
+	engine.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		Formatter: privacyPreservingLogFormatter,
+		SkipPaths: accessLogSkippedPaths,
+	}))
 	engine.Use(gin.Recovery())
 	return engine
 }

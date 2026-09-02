@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -70,4 +72,37 @@ func ginLogParams(clientIP, path string) gin.LogFormatterParams {
 		Method:     http.MethodGet,
 		Path:       path,
 	}
+}
+
+// ─── #388 — /health exclu du journal d'accès ────────────────────────────────
+
+// Mesuré en prod : 95 % des lignes du journal étaient des healthchecks. Les
+// exclure préserve la profondeur d'historique pour le trafic qui a une valeur
+// d'analyse.
+func TestAccessLogSkipsHealthButNothingElse(t *testing.T) {
+	assert.Contains(t, accessLogSkippedPaths, "/health")
+	assert.Len(t, accessLogSkippedPaths, 1,
+		"n'exclure que le healthcheck : toute autre route exclue serait un angle mort d'analyse")
+}
+
+// Vérifie le comportement réel du routeur, pas seulement la constante : une
+// requête sur /health ne doit produire aucune ligne, une requête ordinaire si.
+func TestRouterEngineOmitsHealthFromAccessLog(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	var logged bytes.Buffer
+	previous := gin.DefaultWriter
+	gin.DefaultWriter = &logged
+	defer func() { gin.DefaultWriter = previous }()
+
+	engine := newRouterEngine()
+	engine.GET("/health", func(c *gin.Context) { c.Status(http.StatusOK) })
+	engine.GET("/plants", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	engine.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/health", nil))
+	assert.Empty(t, logged.String(), "/health ne doit produire aucune ligne de journal d'accès")
+
+	engine.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/plants", nil))
+	assert.Contains(t, logged.String(), "/plants",
+		"le trafic ordinaire doit rester journalisé")
 }

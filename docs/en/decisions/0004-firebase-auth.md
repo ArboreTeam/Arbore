@@ -48,7 +48,7 @@ The password is **never transmitted to the backend** — Firebase Auth fully han
 ### Neutral
 
 - The decoupling between `Firebase uid` ↔ Mongo document (`users.uid`) requires application-level discipline to avoid orphan accounts (Firebase OK but Mongo missing, or vice versa). This discipline is carried by `saveUserToBackendThrowing` on the iOS side, which rolls back Firebase if `POST /users` fails (see issue #137 and ADR 0005).
-- **User banning** is handled at the application level (a `banned: true` flag in Mongo, checked by the Firebase middleware via `CheckUserBannedFunc`). This approach avoids disabling the account on the Firebase side, which would prevent the user from retrieving their data via the GDPR flow.
+- **User banning** is handled at the application level (a `banned: true` flag in Mongo, checked by the Firebase middleware via `LoadAccessProfileFunc`, named `CheckUserBannedFunc` at the time of this ADR and renamed by [#377](https://github.com/ArboreTeam/Arbore/issues/377) when it also started reading the role and subscription tier). This approach avoids disabling the account on the Firebase side, which would prevent the user from retrieving their data via the GDPR flow.
 
 ## Alternatives considered
 

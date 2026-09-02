@@ -146,28 +146,45 @@ func FirebaseAuthMiddleware() gin.HandlerFunc {
 
 		uid := token.UID
 
-		// Le rôle `guest` se déduit du fournisseur de connexion, jamais d'un
-		// champ en base (cf. #377). Une session anonyme n'a pas de document
-		// utilisateur : il n'y a rien à lire et rien à bannir, on évite donc
-		// aussi un FindOne par requête.
 		isGuest := token.Firebase.SignInProvider == signInProviderAnonymous
 
-		profile := AccessProfile{Role: RoleGuest, Tier: TierFree}
-		if !isGuest {
-			profile = AccessProfile{Role: RoleMember, Tier: TierFree}
-			if LoadAccessProfileFunc != nil {
-				loaded, err := LoadAccessProfileFunc(c, uid)
-				if err != nil {
-					log.Printf("❌ Error loading access profile: %v", err)
-					c.JSON(500, gin.H{
-						"error": "Internal server error",
-						"code":  "DATABASE_ERROR",
-					})
-					c.Abort()
-					return
-				}
-				profile = loaded
+		// La lecture du profil est faite pour TOUTE identité, invités compris
+		// (#381). La version initiale la sautait pour les sessions anonymes, au
+		// motif qu'un invité n'a pas de document utilisateur — vrai dans le cas
+		// nominal, mais cela rendait `banned` structurellement inopposable à un
+		// invité : le seul levier de modération du backend devenait inapplicable
+		// à toute une population, et le deviendrait aussi aux comptes anonymes
+		// liés ensuite à une identité permanente, qui conservent leur uid.
+		//
+		// Bannir un invité consiste donc à créer un document `users` portant son
+		// uid et `banned: true`, exactement comme pour un membre. Le coût est
+		// d'une requête indexée sur `uid` — l'index existe (cf. indexes.go), et
+		// c'est le prix d'un contrôle de modération qui s'applique à tous.
+		profile := AccessProfile{Role: RoleMember, Tier: TierFree}
+		if LoadAccessProfileFunc != nil {
+			loaded, err := LoadAccessProfileFunc(c, uid)
+			if err != nil {
+				log.Printf("❌ Error loading access profile: %v", err)
+				c.JSON(500, gin.H{
+					"error": "Internal server error",
+					"code":  "DATABASE_ERROR",
+				})
+				c.Abort()
+				return
 			}
+			profile = loaded
+		}
+
+		// Le rôle `guest` est imposé APRÈS la lecture, et écrase ce que porte le
+		// document. Deux raisons :
+		//
+		//   - `sign_in_provider` est signé par Firebase ; un document Mongo est
+		//     modifiable par le porteur du compte via les autres endpoints. Le
+		//     token fait donc autorité sur le rôle.
+		//   - L'écrasement ne concerne que `Role` et `Tier` : `Banned`, lu juste
+		//     au-dessus, survit et reste opposable.
+		if isGuest {
+			profile = applyGuestOverride(profile)
 		}
 
 		if profile.Banned {

@@ -43,9 +43,24 @@ if ! command -v docker > /dev/null 2>&1; then
     exit 2
 fi
 
+# Préfixe de privilège, sur le motif de deploy.sh : sur le VPS l'utilisateur
+# `fedora` n'est pas dans le groupe `docker`, et le cron tourne sous cet
+# utilisateur. Sans ce préfixe le job échouerait chaque semaine sur un
+# « permission denied » du socket. Détecté plutôt que codé en dur, pour rester
+# utilisable sur une machine où docker tourne sans privilège.
+DOCKER_PRIVILEGE=()
+if ! docker info > /dev/null 2>&1; then
+    if sudo -n docker info > /dev/null 2>&1; then
+        DOCKER_PRIVILEGE=( sudo )
+    else
+        echo "[reconcile-guests] socket docker inaccessible, y compris via sudo" >&2
+        exit 5
+    fi
+fi
+
 # Le conteneur doit tourner : `docker exec` sur un conteneur arrêté échouerait
 # avec un message peu lisible dans un journal de cron.
-if [[ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER" 2> /dev/null)" != "true" ]]; then
+if [[ "$("${DOCKER_PRIVILEGE[@]}" docker inspect -f '{{.State.Running}}' "$CONTAINER" 2> /dev/null)" != "true" ]]; then
     echo "[reconcile-guests] conteneur '$CONTAINER' absent ou arrêté" >&2
     exit 3
 fi
@@ -59,6 +74,6 @@ printf '[reconcile-guests] %s UTC — démarrage (%s)\n' \
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$MODE"
 
 # Pas de -t : sortie non interactive, adaptée à la redirection cron.
-docker exec -i "$CONTAINER" /app/main -reconcile-guests ${APPLY:+"$APPLY"}
+"${DOCKER_PRIVILEGE[@]}" docker exec -i "$CONTAINER" /app/main -reconcile-guests ${APPLY:+"$APPLY"}
 
 printf '[reconcile-guests] %s UTC — terminé\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"

@@ -464,17 +464,24 @@ func exportUserData(c *gin.Context) {
 	uid := authenticatedUID.(string)
 	ctx := context.Background()
 
-	// 1. Récupérer les données utilisateur
+	// 1. Récupérer les données utilisateur.
+	//
+	// L'absence de document `users` n'est PAS une erreur : une session invité
+	// (#391) n'en crée aucun, et peut néanmoins détenir des jardins et des
+	// consentements. Répondre 404 priverait son titulaire de son droit d'accès
+	// (RGPD Art. 15) sur des données qui existent bel et bien — l'export ne
+	// serait vide que du profil, pas du reste.
 	var user User
+	hasProfile := true
 	userCollection := getDatabaseForRequest(c).Collection("users")
 	err := userCollection.FindOne(ctx, bson.M{"uid": uid}).Decode(&user)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Utilisateur non trouvé"})
+		if !errors.Is(err, mongo.ErrNoDocuments) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération de l'utilisateur"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération de l'utilisateur"})
-		return
+		hasProfile = false
+		user = User{UID: uid}
 	}
 
 	// 2. Récupérer tous les gardens
@@ -534,8 +541,11 @@ func exportUserData(c *gin.Context) {
 		"metadata": gin.H{
 			"totalGardens":  len(gardens),
 			"totalConsents": len(consents),
-			"format":        "JSON",
-			"version":       "1.0",
+			// false pour une session invité : le reste de l'export reste valide,
+			// seul le profil est absent.
+			"hasProfile": hasProfile,
+			"format":     "JSON",
+			"version":    "1.0",
 		},
 	}
 
@@ -2133,13 +2143,20 @@ func buildRouter() *gin.Engine {
 	protected.Use(apiLimiter.Middleware())
 	protected.Use(middleware.MaxBodyBytes(maxJSONBodyBytes))
 
-	// Sous-groupe fermé aux invités (#377). Y vit tout ce qui suppose un compte
-	// durable et synchronisable entre appareils : profil, jardins, consentements,
-	// export RGPD. Une session anonyme est liée à un seul appareil et n'a pas de
-	// document utilisateur — ces routes n'auraient aucun sens pour elle.
+	// Sous-groupe fermé aux invités (#377). Y vit ce qui suppose un compte
+	// durable : profil, consentements, liaison Apple.
 	//
-	// Ce qui reste sur `protected` est au contraire consultable en invité :
-	// catalogue, modèles 3D, et les deux proxys Gemini (avec un quota réduit).
+	// Les jardins en sont SORTIS (#393). Ils y figuraient parce qu'aucun
+	// mécanisme ne garantissait le sort de leurs données quand Firebase supprime
+	// un compte anonyme inactif au bout de 30 jours ; le job de réconciliation
+	// apporte cette garantie, ce qui lève l'objection.
+	//
+	// Sont sorties avec eux les deux routes sans lesquelles ce stockage serait
+	// illégal : l'export (Art. 15) et la suppression (Art. 17). Un invité ne
+	// peut exercer ces droits que depuis sa session courante — il n'a aucune
+	// identité à prouver ensuite. Leur laisser `RequireAccount` reviendrait à
+	// détenir ses données sans lui donner les moyens d'y accéder ni de les
+	// effacer.
 	account := protected.Group("")
 	account.Use(middleware.RequireAccount())
 	{
@@ -2173,21 +2190,21 @@ func buildRouter() *gin.Engine {
 
 		account.POST("/users/:uid/photo", middleware.MaxBodyBytes(maxProfilePhotoBytes+(1<<20)), uploadMinuteLimiter.Middleware(), uploadUserPhoto)
 		account.GET("/users/:uid/photo", getUserPhoto)
-		account.GET("/users/export", exportUserData)
+		protected.GET("/users/export", exportUserData)
 		account.PATCH("/users/me", updateUserSelf)
 		account.POST("/users/me/apple-link", linkAppleAccount)
-		account.DELETE("/users", deleteUser)
+		protected.DELETE("/users", deleteUser)
 
 		// Plants
 		protected.GET("/plants", getPlants)
 		protected.GET("/plants/:id", getPlantByID)
 
 		// Gardens
-		account.POST("/gardens", createGarden)
-		account.GET("/gardens", listGardens)
-		account.GET("/gardens/:id", getGardenByID)
-		account.PUT("/gardens/:id", updateGarden)
-		account.DELETE("/gardens/:id", deleteGarden)
+		protected.POST("/gardens", createGarden)
+		protected.GET("/gardens", listGardens)
+		protected.GET("/gardens/:id", getGardenByID)
+		protected.PUT("/gardens/:id", updateGarden)
+		protected.DELETE("/gardens/:id", deleteGarden)
 
 		// Gemini Chat & Scanner Proxies — rate limité par uid (quota minute + jour)
 		// pour borner le coût Gemini. Le cap de corps est appliqué globalement sur

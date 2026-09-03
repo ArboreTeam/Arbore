@@ -256,8 +256,21 @@ func TestUserAuthorizationFieldsSurviveBSONRoundTrip(t *testing.T) {
 // et `RequireAdmin` côté middleware. Une vérification bout en bout demanderait
 // un double de token Firebase (hors périmètre de #381).
 var (
-	// Ouvertes sans compte : catalogue, modèles 3D, config, santé, et les deux
-	// proxys Gemini (sur un budget de quota réduit).
+	// Atteignables sans compte durable : catalogue, modèles 3D, config, santé,
+	// les deux proxys Gemini (sur un budget de quota réduit) — et depuis #393,
+	// les jardins.
+	//
+	// « Sans compte » ne veut pas dire « sans authentification » : hormis
+	// /health, /config et les modèles, ces routes restent derrière l'API key et
+	// le middleware Firebase. Ce que la classe dit, c'est qu'une session
+	// ANONYME y est admise.
+	//
+	// Les jardins y sont entrés avec le job de réconciliation, qui garantit le
+	// sort de leurs données quand Firebase supprime un compte anonyme inactif.
+	// L'export et la suppression les accompagnent nécessairement : sans eux,
+	// l'invité aurait des données sur le serveur sans pouvoir y accéder
+	// (Art. 15) ni les effacer (Art. 17), et sa session courante est le seul
+	// moment où il peut le faire — après, plus rien ne prouve son identité.
 	guestReachableRoutes = []string{
 		"GET /health",
 		"GET /config",
@@ -267,23 +280,24 @@ var (
 		"GET /plants/:id",
 		"POST /chat",
 		"POST /diagnose",
-	}
-
-	// Fermées aux invités : tout ce qui suppose un compte durable.
-	accountBoundRoutes = []string{
-		"POST /users",
-		"GET /users/:uid",
-		"POST /users/:uid/photo",
-		"GET /users/:uid/photo",
 		"GET /users/export",
-		"PATCH /users/me",
-		"POST /users/me/apple-link",
 		"DELETE /users",
 		"POST /gardens",
 		"GET /gardens",
 		"GET /gardens/:id",
 		"PUT /gardens/:id",
 		"DELETE /gardens/:id",
+	}
+
+	// Fermées aux invités : tout ce qui suppose un document utilisateur, donc
+	// un compte durable et synchronisable entre appareils.
+	accountBoundRoutes = []string{
+		"POST /users",
+		"GET /users/:uid",
+		"POST /users/:uid/photo",
+		"GET /users/:uid/photo",
+		"PATCH /users/me",
+		"POST /users/me/apple-link",
 		"POST /consents",
 		"GET /consents",
 		"GET /consents/latest",
@@ -326,9 +340,14 @@ func TestRouterExposesExactlyTheClassifiedRoutes(t *testing.T) {
 	assert.Equal(t, len(classified), len(registered), "inventaire et classement doivent coïncider")
 }
 
-// Les jardins sont le cas d'usage qui a motivé le groupe `account` : un invité
-// est lié à un seul appareil, la synchronisation n'a pas de sens pour lui.
-func TestGardenAndAccountRoutesAreNeverGuestReachable(t *testing.T) {
+// Les jardins ont motivé la création du groupe `account`, puis l'ont quitté
+// avec #393 : le job de réconciliation garantit le sort de leurs données quand
+// Firebase supprime un compte anonyme inactif, ce qui levait l'objection.
+//
+// Le garde reste néanmoins nécessaire sur `/users` et `/consents`, avec une
+// liste d'exceptions COURTE et motivée. Sans elle, il aurait suffi de retirer
+// le test pour ouvrir n'importe quelle route de profil aux invités.
+func TestSensitiveRoutesAreNeverGuestReachable(t *testing.T) {
 	guestSet := map[string]bool{}
 	for _, route := range guestReachableRoutes {
 		guestSet[route] = true
@@ -343,10 +362,23 @@ func TestGardenAndAccountRoutesAreNeverGuestReachable(t *testing.T) {
 			"%s est une route d'administration, jamais ouverte aux invités", route)
 	}
 
-	for _, prefix := range []string{"/gardens", "/consents", "/users"} {
+	// Les deux seules routes sous un préfixe sensible qu'un invité peut
+	// atteindre, et pourquoi. Toute autre addition fera échouer ce test.
+	allowedUnderSensitivePrefix := map[string]string{
+		"GET /users/export": "droit d'accès (Art. 15) : un invité détenant des jardins doit pouvoir les exporter, " +
+			"et sa session courante est le seul moment où il peut le demander",
+		"DELETE /users": "droit à l'effacement (Art. 17), même raison — après la session, " +
+			"plus aucune identité à prouver",
+	}
+
+	for _, prefix := range []string{"/consents", "/users"} {
 		for _, route := range guestReachableRoutes {
-			assert.NotContains(t, route, prefix,
-				"aucune route sous %s ne doit être ouverte aux invités", prefix)
+			if !strings.Contains(route, prefix) {
+				continue
+			}
+			assert.Contains(t, allowedUnderSensitivePrefix, route,
+				"%s est ouverte aux invités sans justification enregistrée : "+
+					"l'ajouter à allowedUnderSensitivePrefix avec sa raison, ou la fermer", route)
 		}
 	}
 }

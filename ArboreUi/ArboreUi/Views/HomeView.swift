@@ -5,8 +5,6 @@ struct HomeView: View {
     @State private var gardens: [GardenDTO] = []
     @State private var goToQuestionnaire = false
     @State private var goToAllGardens = false
-    /// #391 — invitation à créer un compte, pour les actions fermées aux invités.
-    @State private var showAccountRequired = false
     @State private var showChat = false
     @EnvironmentObject var themeManager: ThemeManager
 
@@ -47,9 +45,6 @@ struct HomeView: View {
             .navigationBarHidden(true)
             .onAppear {
                 Task { await fetchGardens() }
-            }
-            .accountRequiredAlert(isPresented: $showAccountRequired) {
-                GuestSession.exitToAuthentication()
             }
             .fullScreenCover(item: $gardenToOpen) { g in
                 GardenARPlacementView(
@@ -178,15 +173,17 @@ private extension HomeView {
             }
 
             Button {
-                // #391 — gate EN AMONT plutôt qu'un 403 en fin de parcours.
-                // Le wizard pré-crée le jardin en base à l'étape scan : pour un
-                // invité, l'échec arriverait après le questionnaire ET le tracé
-                // AR du périmètre, soit plusieurs minutes de travail perdues.
-                if GuestSession.isGuest {
-                    showAccountRequired = true
-                } else {
-                    goToQuestionnaire = true
-                }
+                // #393 — le gate invité est levé. Il existait parce que le
+                // wizard pré-crée le jardin en base à l'étape scan et que
+                // `POST /gardens` répondait alors 403 à un invité : l'échec
+                // serait tombé après le questionnaire ET le tracé AR du
+                // périmètre, soit plusieurs minutes perdues.
+                //
+                // La route est désormais ouverte aux sessions anonymes, le
+                // parcours aboutit donc. Un invité qui crée ensuite un compte
+                // repart en revanche de zéro, `linkWithCredential` n'existant
+                // pas encore (#391, section 4).
+                goToQuestionnaire = true
             } label: {
                 HStack(spacing: 10) {
                     Text(L10n.t("COMMON_START"))

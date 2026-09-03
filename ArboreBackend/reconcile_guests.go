@@ -126,7 +126,7 @@ func hasRecentData(ctx context.Context, db *mongo.Database, uid string, cutoff t
 //
 // `firebaseUIDs` est passé en paramètre plutôt que récupéré ici : la logique
 // reste testable sans Firebase, et l'appelant porte la responsabilité d'avoir
-// obtenu un ensemble COMPLET — un ensemble partiel provoquerait des
+// obtenu un ensemble COMPLET — un ensemble incomplet provoquerait des
 // suppressions massives.
 func reconcileGuests(
 	ctx context.Context,

@@ -325,7 +325,7 @@ func DeleteFirebaseUser(ctx context.Context, uid string) error {
 // Deux propriétés sont indispensables à la sûreté de l'appelant :
 //
 //   - **Fail-closed.** Toute erreur — réseau, quota, credentials — renvoie une
-//     erreur et AUCUN ensemble partiel. Un appelant qui recevrait une liste
+//     erreur et AUCUN ensemble incomplet. Un appelant qui recevrait une liste
 //     tronquée conclurait à l'absence des uid manquants et les effacerait. La
 //     seule réponse acceptable à « je ne sais pas » est de ne rien supprimer.
 //   - **Énumération complète et paginée**, plutôt qu'un GetUser par uid : un

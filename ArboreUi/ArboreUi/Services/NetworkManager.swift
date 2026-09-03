@@ -20,6 +20,7 @@ enum NetworkError: Error {
     case unauthorized
     case forbidden
     case emailNotVerified
+    case accountRequired
     case notFound
     case decodingError(Error)
 }
@@ -41,6 +42,8 @@ extension NetworkError: LocalizedError {
             return "Accès interdit - Compte banni ou permissions insuffisantes"
         case .emailNotVerified:
             return "Email non vérifié - vérifie ta boîte mail pour activer ton compte"
+        case .accountRequired:
+            return L10n.t("GUEST_ACCOUNT_REQUIRED_MESSAGE")
         case .notFound:
             return "Ressource introuvable"
         case .decodingError(let error):
@@ -256,20 +259,31 @@ class NetworkManager {
         let _: EmptyResponse = try await request(endpoint: endpoint, method: method, body: body)
     }
 
-    /// #110 : un 403 du backend peut signifier `EMAIL_NOT_VERIFIED` (le token
-    /// Firebase est valide mais l'email n'est pas vérifié). Dans ce cas, on coupe
-    /// la session (le compte ne devrait pas être connecté tant qu'il n'est pas
-    /// vérifié) et on remonte une erreur dédiée. Sinon, c'est un vrai forbidden.
-    private func forbiddenError(from data: Data) -> NetworkError {
-        if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           (obj["code"] as? String) == "EMAIL_NOT_VERIFIED" {
+    /// Un 403 du backend recouvre trois situations distinctes, que le code de
+    /// réponse permet de séparer. Les confondre en un unique `.forbidden`
+    /// obligerait chaque appelant à parser le corps lui-même.
+    ///
+    /// - `EMAIL_NOT_VERIFIED` (#110) : le token Firebase est valide mais l'email
+    ///   n'est pas vérifié. On coupe la session — le compte ne devrait pas être
+    ///   connecté tant qu'il ne l'est pas.
+    /// - `ACCOUNT_REQUIRED` (#391) : session invité sur une route qui suppose un
+    ///   compte durable. **Surtout pas de déconnexion** : la session anonyme
+    ///   reste parfaitement valide, seule cette route lui est fermée. L'appelant
+    ///   présente une invitation à créer un compte.
+    /// - le reste : compte banni ou permissions insuffisantes.
+    func forbiddenError(from data: Data) -> NetworkError {
+        switch ForbiddenReason(responseBody: data) {
+        case .emailNotVerified:
             DispatchQueue.main.async {
                 try? Auth.auth().signOut()
                 UserDefaults.standard.set(false, forKey: "isLoggedIn")
             }
             return .emailNotVerified
+        case .accountRequired:
+            return .accountRequired
+        case .other:
+            return .forbidden
         }
-        return .forbidden
     }
 
     func requestDictionary(
@@ -401,7 +415,10 @@ class NetworkManager {
 
         case 403:
             print("❌ 403 Forbidden - Accès refusé")
-            throw NetworkError.forbidden
+            // Même distinction que les autres chemins : ce site renvoyait un
+            // `.forbidden` générique, ce qui empêchait l'appelant de distinguer
+            // un compte banni d'une session invité (#391).
+            throw forbiddenError(from: data)
 
         default:
             if let errorData = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -425,3 +442,43 @@ class NetworkManager {
 // MARK: - Helper Models
 
 struct EmptyResponse: Codable {}
+
+
+/// Classification d'un 403 à partir du corps de la réponse.
+///
+/// Séparée de `NetworkManager.forbiddenError(from:)` pour être **pure** : la
+/// décision se teste sans `URLSession`, sans Firebase et sans effet de bord,
+/// alors que la fonction appelante déconnecte la session dans un cas.
+enum ForbiddenReason: Equatable {
+    /// Token valide, email non vérifié (#110). La session doit être coupée.
+    case emailNotVerified
+    /// Session invité sur une route qui suppose un compte durable (#391).
+    /// La session reste valide : seule cette route lui est fermée.
+    case accountRequired
+    /// Compte banni, ou permissions insuffisantes.
+    case other
+
+    /// Codes attendus dans le champ `code` du corps de réponse.
+    ///
+    /// Ces chaînes sont un **contrat avec le backend** : elles sont produites
+    /// par `middleware/firebase_auth.go` et `middleware/roles.go`. Les changer
+    /// d'un côté sans l'autre casserait silencieusement la classification — le
+    /// 403 retomberait en `.other` et l'utilisateur verrait « accès interdit »
+    /// au lieu de l'invitation à créer un compte.
+    static let emailNotVerifiedCode = "EMAIL_NOT_VERIFIED"
+    static let accountRequiredCode = "ACCOUNT_REQUIRED"
+
+    init(responseBody data: Data) {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let code = obj["code"] as? String else {
+            self = .other
+            return
+        }
+
+        switch code {
+        case Self.emailNotVerifiedCode: self = .emailNotVerified
+        case Self.accountRequiredCode: self = .accountRequired
+        default: self = .other
+        }
+    }
+}

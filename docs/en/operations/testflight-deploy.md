@@ -97,7 +97,14 @@ Open `ArboreUi.xcworkspace` in Xcode:
 - **Automatically manage signing** enabled
 - Team: `ArboreTeam (582QH9652J)` (enforced by `.githooks/pre-commit`)
 
-If "Automatically manage signing" is disabled, fastlane will fail at the `build_app` step for lack of an up-to-date provisioning profile.
+The lane passes `-allowProvisioningUpdates` to `build_app`: with automatic
+signing enabled, Xcode **creates or renews the profile itself during the
+archive**. Without that flag, a stale profile made the lane fail on a signing
+error after roughly ten minutes of building — at the most expensive moment,
+compilation being already done.
+
+If "Automatically manage signing" is disabled, however, Xcode has nothing to
+renew and `build_app` will fail for lack of a valid profile.
 
 ### 6. Fill in the App Review info (for `upload_metadata` / `sync_beta_info`)
 

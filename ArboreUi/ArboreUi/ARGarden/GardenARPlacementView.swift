@@ -126,6 +126,10 @@ struct GardenARPlacementView: View {
     let measurementWorldMapId: String?  // 🆕 ID pour charger la WorldMap de mesure
     
     let onValidated: () -> Void
+    /// Appelé quand la sauvegarde est refusée faute de compte (#391). Séparé de
+    /// `onValidated` pour que l'appelant ne puisse pas confondre les deux : le
+    /// jardin reste en local, mais rien n'est parti sur le serveur.
+    var onAccountRequired: () -> Void = {}
 
     // Temporary kill-switch: suggested-garden plants should no longer be
     // auto-placed when entering AR. Flip back to true to restore the old flow.
@@ -174,6 +178,8 @@ struct GardenARPlacementView: View {
     // way to relocalize or morph without them. We surface a clear message
     // instead of letting the user spin on the scanning overlay forever.
     @State private var gardenUnavailable: Bool = false
+    /// #391 — sauvegarde refusée faute de compte (session invité).
+    @State private var showAccountRequired: Bool = false
 
     // Debug overlays — four independent toggles surfaced via the
     // bottom-sheet that opens on tap of the `cube.transparent` button.
@@ -244,6 +250,12 @@ struct GardenARPlacementView: View {
                     debugPanelSheet
                         .presentationDetents([.height(380)])
                         .presentationDragIndicator(.visible)
+                }
+                .accountRequiredAlert(isPresented: $showAccountRequired) {
+                    // Le jardin reste sur l'appareil : ce sont des fichiers
+                    // locaux, indépendants de la session (#391, section 4).
+                    GuestSession.exitToAuthentication()
+                    dismiss()
                 }
         }
     }
@@ -365,7 +377,11 @@ struct GardenARPlacementView: View {
                 onValidated: {
                     dismiss()
                     onValidated()
-                }
+                },
+                // La session invité reste sur place : le jardin est en local,
+                // seule la synchronisation serveur a été refusée. Fermer la vue
+                // donnerait l'impression d'une perte (#391).
+                onAccountRequired: { showAccountRequired = true }
             )
             .ignoresSafeArea()
 
@@ -1723,6 +1739,10 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
     let measurementWorldMapId: String?  // 🆕 ID pour charger la WorldMap de mesure
     
     let onValidated: () -> Void
+    /// Appelé quand la sauvegarde est refusée faute de compte (#391). Séparé de
+    /// `onValidated` pour que l'appelant ne puisse pas confondre les deux : le
+    /// jardin reste en local, mais rien n'est parti sur le serveur.
+    var onAccountRequired: () -> Void = {}
 
     func makeUIView(context: Context) -> ARSCNView {
         let isCreate = self.mode == .create
@@ -4035,6 +4055,22 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                 }
                             } catch {
                                 AppLog.gardenSave.error("api save failed — keeping local tempID error=\(String(describing: error), privacy: .public)")
+
+                                // #391 — une session invité n'a pas accès à
+                                // /gardens. Le reste du `catch` conservait
+                                // l'enregistrement local et poursuivait jusqu'à
+                                // `onValidated()`, ce qui annonçait un succès
+                                // alors que rien n'était parti sur le serveur.
+                                // Pour un invité ce n'est pas une panne mais une
+                                // limite connue : on l'annonce au lieu de la
+                                // masquer.
+                                if error.isAccountRequired {
+                                    await MainActor.run {
+                                        props.isSaving = false
+                                        props.onAccountRequired()
+                                    }
+                                    return
+                                }
                             }
                             
                             // 3. SYNCHRONISATION FICHIERS
@@ -4127,6 +4163,9 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     )
                     let jsonData = try JSONEncoder().encode(sceneData)
                     try jsonData.write(to: GardenLocalStore.sceneURL(for: id))
+                    // #394 — enregistre le propriétaire dès l'écriture, pour
+                    // qu'aucune autre session ne voie ce jardin.
+                    LocalDataOwnership.claim(id)
                     AppLog.gardenSave.notice("scene JSON written id=\(id, privacy: .public) boundary=\(boundaryPointsArray.count, privacy: .public)")
                 } catch {
                     AppLog.gardenSave.error("scene JSON write failed error=\(String(describing: error), privacy: .public)")

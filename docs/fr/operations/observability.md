@@ -65,8 +65,41 @@ Créer le token sur `sentry.io → Settings → Auth Tokens` (scopes `project:re
 
 `web/instrumentation.ts` charge les configs serveur/edge selon `NEXT_RUNTIME`. `tracesSampleRate = 0.1`. Les frontières d'erreur `web/app/error.tsx` et `web/app/global-error.tsx` appellent `Sentry.captureException`. L'upload des source maps est opt-in via `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` (non committés) ; absent, le build n'échoue pas.
 
+## Backend (Go)
+
+> ⚠️ **Le backend Go n'a pas de Sentry** (point 2 de [#388](https://github.com/ArboreTeam/Arbore/issues/388)). Les panics interceptés par `gin.Recovery()` et les réponses 5xx partent sur stdout et **nulle part ailleurs** : pas d'agrégation, pas de déduplication, pas d'alerte. Aujourd'hui, `docker logs arbore-backend` est le seul endroit où chercher.
+
+### Journal d'accès
+
+Le routeur est construit par `newRouterEngine()` (`ArboreBackend/httplogging.go`) et **non** par `gin.Default()`. Même composition — `Logger` + `Recovery` — avec deux différences :
+
+| | Comportement | Raison |
+|---|---|---|
+| **IP tronquée** | `/24` en IPv4 (`92.184.105.x`), `/48` en IPv6 (`2a01:e0a:1b2:x`), `-` si non parsable | `TrustedPlatform = "X-Real-IP"` fait résoudre l'IP réelle de l'utilisateur final : c'est une donnée personnelle (CJUE *Breyer*, C-582/14). Cf. [#385](https://github.com/ArboreTeam/Arbore/issues/385) |
+| **`/health` exclu** | aucune ligne produite | Le healthcheck Docker représentait **95 %** du journal (233 lignes sur 244, mesuré le 2026-09-02) et noyait le trafic exploitable. Cf. [#388](https://github.com/ArboreTeam/Arbore/issues/388) |
+
+L'IP **complète** reste utilisée par le rate limiter, mais uniquement **en mémoire**, dans un compteur purgé à l'expiration de la fenêtre (`WindowLimiter.purgeExpired`) : rien n'en est persisté. C'est le rate limiter qui constitue la défense active, pas le journal.
+
+Pour une enquête nécessitant l'IP complète, la source est **Cloudflare**, qui la conserve en bordure.
+
+### Rotation
+
+`docker-compose.yml` fixe `max-size: 10m` / `max-file: 3` sur les trois services. Sans cette configuration, le driver `json-file` croît sans limite : les journaux ne disparaissaient qu'à la recréation d'un conteneur, ce qui n'est pas une politique de conservation (RGPD art. 5(1)(e)).
+
+Au débit observé (~500 Ko/jour côté backend), 30 Mo représentent environ **deux mois** — et depuis l'exclusion de `/health`, ces 30 Mo ne contiennent plus que du trafic ayant une valeur d'analyse.
+
+### Où chercher quoi
+
+| Besoin | Aujourd'hui |
+|---|---|
+| Crash / panic | `sudo docker logs arbore-backend` — **fenêtre de rotation uniquement** |
+| Erreur 5xx | idem |
+| Trafic, 429 du rate limiter | journal d'accès, IP tronquée |
+| Commit déployé | `curl localhost:8080/health` → champ `commit` ([#341](https://github.com/ArboreTeam/Arbore/issues/341)) |
+| IP complète d'un incident | journaux Cloudflare |
+
 ## Notes / suites
 
 - Le pont breadcrumbs depuis l'`AppLog` de l'app iOS (nav / session AR / sauvegarde jardin) est un nice-to-have pas encore câblé.
-- Backend (`sentry-go` + `sentrygin`) et AiGenerator (`sentry-python`) sont en **Phase 2** ; le projet Sentry `arbore-backend` existe déjà.
+- Backend (`sentry-go` + `sentrygin`) et AiGenerator (`sentry-python`) sont en **Phase 2** ; le projet Sentry `arbore-backend` existe déjà. Suivi dans [#388](https://github.com/ArboreTeam/Arbore/issues/388) — tant que ce n'est pas fait, les erreurs backend ne survivent pas à la rotation des journaux Docker.
 - Session Replay est une fonctionnalité payante — non utilisée.

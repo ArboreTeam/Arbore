@@ -48,7 +48,7 @@ Le mot de passe n'est **jamais transmis au backend** — Firebase Auth se charge
 ### Neutres
 
 - Le découplage `uid Firebase` ↔ document Mongo (`users.uid`) impose une discipline applicative pour éviter les comptes orphelins (Firebase OK mais Mongo manquant ou inversement). Cette discipline est portée par `saveUserToBackendThrowing` côté iOS qui rollback Firebase si `POST /users` échoue (cf. issue #137 et l'ADR 0005).
-- Le **ban d'utilisateur** est géré applicativement (flag `banned: true` dans Mongo, vérifié par le middleware Firebase via `CheckUserBannedFunc`). Cette approche évite de désactiver le compte côté Firebase ce qui empêcherait l'utilisateur de récupérer ses données via le flow RGPD.
+- Le **ban d'utilisateur** est géré applicativement (flag `banned: true` dans Mongo, vérifié par le middleware Firebase via `LoadAccessProfileFunc`, nommé `CheckUserBannedFunc` à la date de cet ADR et renommé par [#377](https://github.com/ArboreTeam/Arbore/issues/377) lorsqu'il s'est mis à lire aussi le rôle et le niveau d'abonnement). Cette approche évite de désactiver le compte côté Firebase ce qui empêcherait l'utilisateur de récupérer ses données via le flow RGPD.
 
 ## Alternatives considérées
 

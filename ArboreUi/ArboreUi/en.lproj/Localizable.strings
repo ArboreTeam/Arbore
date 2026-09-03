@@ -1185,6 +1185,13 @@
 "AUTH_FORGOT_PASSWORD" = "Forgot password?";
 "AUTH_SIGN_IN" = "Sign in";
 "AUTH_SIGN_UP" = "Sign up";
+"AUTH_CONTINUE_AS_GUEST" = "Continue without an account";
+"AUTH_CONTINUE_AS_GUEST_SUBTITLE" = "Browse the catalogue and plants. Your gardens won't be saved.";
+"GUEST_ACCOUNT_REQUIRED_TITLE" = "An account is required";
+"GUEST_ACCOUNT_REQUIRED_MESSAGE" = "This feature saves your data on our servers. Create a free account to find your gardens on all your devices.";
+"GUEST_ACCOUNT_REQUIRED_CTA" = "Create an account";
+"DATA_EXPORT_ERROR_GENERIC" = "The export failed. Please try again in a moment.";
+"CLOSE_ACCOUNT_ERROR_GENERIC" = "Deletion failed. Please try again in a moment.";
 "AUTH_OR" = "or";
 "AUTH_CONTINUE_GOOGLE" = "Continue with Google";
 "AUTH_NO_ACCOUNT" = "Don’t have an account?";

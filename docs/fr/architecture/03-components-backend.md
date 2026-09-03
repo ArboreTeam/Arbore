@@ -1,6 +1,6 @@
 # C4 — Niveau 3 : Composants Backend
 
-Cette vue ouvre le container **Backend API** (Go 1.24 + Gin) et expose ses modules principaux. Le code est organisé autour d'un fichier `main.go` (~2 140 lignes) regroupant déclarations de types, handlers et bootstrap, complété par un sous-dossier `middleware/` pour l'authentification et quelques fichiers spécialisés (`config.go`, `crypto.go`, `apple_revocation.go`, `unsplash.go`, `setdefault.go`), ainsi que les fichiers dédiés aux **proxies IA** (`llmprovider.go`, `gemini_provider.go`, `httphardening.go`, `promptsafety.go`, `diagnose_normalize.go`).
+Cette vue ouvre le container **Backend API** (Go 1.24 + Gin) et expose ses modules principaux. Le code est organisé autour d'un fichier `main.go` (~2 500 lignes) regroupant déclarations de types, handlers et bootstrap, complété par un sous-dossier `middleware/` pour l'authentification et l'autorisation (`api_key.go`, `firebase_auth.go`, `roles.go`, `security.go`) et quelques fichiers spécialisés (`config.go`, `crypto.go`, `apple_revocation.go`, `unsplash.go`, `setdefault.go`, `indexes.go`, `httplogging.go`), ainsi que les fichiers dédiés aux **proxies IA** (`llmprovider.go`, `gemini_provider.go`, `httphardening.go`, `promptsafety.go`, `diagnose_normalize.go`).
 
 Pour la vue d'ensemble des containers, consulter [`02-containers.md`](02-containers.md). Pour les composants côté iOS et web, consulter [`03-components-ios.md`](03-components-ios.md) et [`03-components-web.md`](03-components-web.md).
 
@@ -48,7 +48,9 @@ flowchart TB
     class mongo,firebase_admin,unsplash,apple,gemini ext
 ```
 
-Le backend expose **trois niveaux d'accès** distincts, définis dans `main()` : des routes **publiques** (aucun middleware), un groupe **API-key-only** et un groupe **protégé** (clé API *puis* token Firebase). Cette discipline est imposée par la composition des `router.Group(...)` dans `main.go`.
+Le backend expose **cinq niveaux d'accès** distincts, définis dans `buildRouter()` : des routes **publiques** (aucun middleware), un groupe **API-key-only**, un groupe **protégé** (clé API *puis* token Firebase), un sous-groupe **`account`** fermé aux invités, et un sous-groupe **`admin`**. Cette discipline est imposée par la composition des `router.Group(...)`.
+
+`buildRouter()` est extrait de `main()` précisément pour être atteignable depuis les tests : le classement de chaque route entre ces groupes est verrouillé par un test d'inventaire (#381), qui échoue tant qu'une route ajoutée n'est pas explicitement rangée.
 
 ## Middleware
 
@@ -58,8 +60,10 @@ Le sous-dossier `middleware/` expose deux middlewares chaînés, dans cet ordre 
 |---|---|---|
 | `middleware/api_key.go` | `APIKeyMiddleware()` | Lit l'en-tête `X-API-Key` et le compare en **temps constant** (`crypto/subtle.ConstantTimeCompare`) à `ARBORE_API_KEY`. En-tête absent → `401 MISSING_API_KEY` ; clé invalide → `401 INVALID_API_KEY`. Si la clé correspond à `ARBORE_API_KEY_TEST`, le **sélecteur de base** (`DBSelectorKey`) est posé sur `test`, sinon `prod` — c'est le mécanisme de routage prod/test (#159). |
 | `middleware/firebase_auth.go` | `InitFirebase()` | Initialise le SDK Admin Firebase au démarrage à partir de `FIREBASE_SERVICE_ACCOUNT_PATH`. En `GIN_MODE=release`, tout credential manquant/illisible est **fatal** ; en dev, l'auth est désactivée (fail-open). |
-| `middleware/firebase_auth.go` | `FirebaseAuthMiddleware()` | Exige `Authorization: Bearer <token>` (`401 MISSING_AUTH_HEADER` / `INVALID_AUTH_FORMAT`), vérifie le token (`401 INVALID_TOKEN`), applique le **contrôle de bannissement** (`403 ACCOUNT_BANNED`) et la **vérification d'email** (`403 EMAIL_NOT_VERIFIED` pour toutes les routes sauf `POST /users`, #110), puis pose `uid` et `email` dans le contexte Gin. SDK indisponible → `503 AUTH_UNAVAILABLE` en release (fail-closed). |
-| `middleware/firebase_auth.go` | `CheckUserBannedFunc` | Hook configurable injecté depuis `main.go` (`checkUserBannedFromDB`) ; interroge Mongo pour rejeter les UID `banned: true`. |
+| `middleware/firebase_auth.go` | `FirebaseAuthMiddleware()` | Exige `Authorization: Bearer <token>` (`401 MISSING_AUTH_HEADER` / `INVALID_AUTH_FORMAT`), vérifie le token (`401 INVALID_TOKEN`), charge le **profil d'accès** (rôle + niveau d'abonnement + bannissement), applique le **contrôle de bannissement** (`403 ACCOUNT_BANNED`) et la **vérification d'email** (`403 EMAIL_NOT_VERIFIED` pour toutes les routes sauf `POST /users`, #110 — **et sauf les invités**, qui n'ont pas d'email), puis pose `uid`, `email` et le profil d'accès dans le contexte Gin. Le rôle `guest` est déduit de `sign_in_provider == "anonymous"` et imposé **après** la lecture en base, de sorte que `banned` reste opposable à une session anonyme (#381). SDK indisponible → `503 AUTH_UNAVAILABLE` en release (fail-closed). |
+| `middleware/firebase_auth.go` | `LoadAccessProfileFunc` | Hook configurable injecté depuis `main.go` (`loadAccessProfileFromDB`) ; lit en **une seule requête** le bannissement, le rôle et le niveau d'abonnement. Un utilisateur absent de la base n'est pas une erreur : profil par défaut `member`/`free` — c'est le cas nominal de `POST /users`, qui s'exécute avant sa propre création. |
+| `middleware/roles.go` | `RequireAccount()` / `RequireRole()` | Gardes d'autorisation. `RequireAccount` ferme la route aux invités (`403 ACCOUNT_REQUIRED`) ; formulé en « tout sauf `guest` » pour qu'un rôle ajouté plus tard ne soit pas exclu par oubli. Les deux **échouent en fermeture** (`500 AUTHZ_CONTEXT_MISSING`) si le profil d'accès est absent du contexte, c'est-à-dire si le garde a été monté sans `FirebaseAuthMiddleware` en amont. |
+| `middleware/roles.go` | `NormalizeRole()` / `NormalizeTier()` | Normalisation à la lecture. Toute valeur vide ou inconnue replie sur `member`/`free` — **jamais** `guest` ni `admin` — ce qui rend tout backfill inutile et évite qu'une lecture dégradée n'ouvre ou ne ferme un accès par accident. `NormalizeTier` applique aussi l'expiration d'abonnement, sans dépendre d'un job externe. |
 
 **Ordre critique** : `APIKeyMiddleware` précède `FirebaseAuthMiddleware` — inutile de consommer une vérification Firebase pour une requête sans clé applicative valide.
 
@@ -82,6 +86,18 @@ Le sous-dossier `middleware/` expose deux middlewares chaînés, dans cet ordre 
 
 Tous ces handlers reçoivent l'`uid` via `c.Get("uid")` après passage des deux middlewares.
 
+Le sous-groupe `account` (`RequireAccount`) ne contient plus que ce qui suppose
+un **document utilisateur** : profil, consentements, liaison Apple. Les jardins
+en sont sortis avec #393 — ils y figuraient parce que rien ne garantissait le
+sort de leurs données quand Firebase supprime un compte anonyme inactif au bout
+de 30 jours, et le job de réconciliation apporte cette garantie.
+
+Sont sorties avec eux `GET /users/export` et `DELETE /users`, sans lesquelles le
+stockage serait indéfendable : un invité aurait des données sur le serveur sans
+pouvoir y accéder (art. 15) ni les effacer (art. 17). Sa session courante est le
+seul moment où il peut exercer ces droits — après, il n'a plus aucune identité à
+prouver.
+
 #### Domaine Users (`/users`)
 
 | Endpoint | Handler | Authz |
@@ -90,10 +106,10 @@ Tous ces handlers reçoivent l'`uid` via `c.Get("uid")` après passage des deux 
 | `GET /users/:uid` | inline | self-only : `tokenUID == :uid` sinon `403`. |
 | `POST /users/:uid/photo` | `uploadUserPhoto` | self-only ; multipart `photo`, stockée en base64 dans Mongo. |
 | `GET /users/:uid/photo` | `getUserPhoto` | self-only ; renvoie les octets bruts ou `204`. |
-| `GET /users/export` | `exportUserData` | RGPD art. 20 — user + gardens + consents au format JSON. |
+| `GET /users/export` | `exportUserData` | RGPD art. 15 et 20 — user + gardens + consents au format JSON. **Atteignable en session invité** : l'absence de document `users` n'est pas une erreur, le profil est renvoyé vide et `metadata.hasProfile` passe à `false`. |
 | `PATCH /users/me` | `updateUserSelf` | self ; seul `name` éditable, trimé, max 100 runes (#138). |
 | `POST /users/me/apple-link` | `linkAppleAccount` | self ; échange l'`authorizationCode` Apple contre un refresh token, **chiffré** puis stocké (#210). |
-| `DELETE /users` | `deleteUser` | self ; cascade gardens + consents, révocation Apple best-effort, puis user. |
+| `DELETE /users` | `deleteUser` | self ; cascade gardens + consents, révocation Apple best-effort, puis user. **Atteignable en session invité** (art. 17). La cascade Mongo est `purgeUserData`, partagée avec le job de réconciliation pour que les deux chemins ne divergent pas. |
 
 #### Domaine Plants (`/plants`)
 
@@ -105,7 +121,7 @@ Tous ces handlers reçoivent l'`uid` via `c.Get("uid")` après passage des deux 
 | `POST /plants/generate` | `generatePlantWithAI` | Génère une fiche multilingue via l'AI Generator ; `409` si la plante existe déjà. |
 | `POST /plants/generate-multiple` | `generateMultiplePlantsHandler` | Variante batch ; retourne created/skipped. |
 
-#### Domaine Gardens (`/gardens`)
+#### Domaine Gardens (`/gardens`) — ouvert aux invités depuis #393
 
 | Endpoint | Handler | Authz |
 |---|---|---|
@@ -151,7 +167,7 @@ Les proxies `/chat` et `/diagnose` sont découplés du fournisseur concret via `
 |---|---|
 | `llmprovider.go` — `LLMProvider` | **Abstraction du fournisseur** : interface + types neutres (`LLMRequest`/`LLMResult`) + sélection via `AI_PROVIDER` (défaut `gemini`). Les handlers ignorent le fournisseur concret (couplage faible). |
 | `gemini_provider.go` — `GeminiProvider` | Implémentation Gemini : traduction du payload (`systemInstruction`/`contents`/`inlineData`), appel HTTP (`x-goog-api-key`, retries), extraction des candidats. |
-| `middleware/security.go` — `WindowLimiter` | **Rate limiting par `uid`** (fenêtre fixe, quotas minute + jour) : `/chat` 20/min + 100/j, `/diagnose` 6/min + 20/j (couvre aussi generate/uploads/thumbnails). Dépassement → `429` + en-têtes `X-RateLimit-*`. Clé du compteur via `rateLimitKey` : `uid` authentifié en priorité, sinon l'IP réelle rendue par `TrustedClientIP` (`CF-Connecting-IP` puis `X-Real-IP`, validées comme IP). **`X-Forwarded-For` n'est jamais lu** — nginx le construit avec `$proxy_add_x_forwarded_for`, donc sa partie gauche vient du client et rendait le quota contournable (audit #338, constat 2). Mémoire bornée (constat 10) : purge des entrées expirées toutes les minutes indépendamment de la fenêtre (avant, une fenêtre de 24 h gardait une entrée expirée jusqu'à 48 h), et plafond de `limiterMaxEntries` compteurs — au-delà, les plus anciens sont évincés et l'événement est journalisé. Compromis assumé : évincer rend du quota gratuit, ce qui reste préférable à une croissance mémoire non bornée. |
+| `middleware/security.go` — `WindowLimiter` | **Rate limiting par `uid`** (fenêtre fixe, quotas minute + jour) : `/chat` 20/min, `/diagnose` 6/min (couvre aussi generate/uploads/thumbnails). Les quotas **journaliers** sont modulés par profil via `TieredWindowLimiter` — `/chat` 10 (invité) / 100 (free) / 500 (premium), `/diagnose` 3 / 20 / 100 : c'est le quota journalier qui borne la dépense Gemini, donc l'endroit où le niveau d'abonnement a du sens. Le quota minute reste uniforme, il protège le service contre les rafales. Dépassement → `429` + en-têtes `X-RateLimit-*`. Clé du compteur via `rateLimitKey` : `uid` authentifié en priorité, sinon l'IP réelle rendue par `TrustedClientIP` (`CF-Connecting-IP` puis `X-Real-IP`, validées comme IP). **`X-Forwarded-For` n'est jamais lu** — nginx le construit avec `$proxy_add_x_forwarded_for`, donc sa partie gauche vient du client et rendait le quota contournable (audit #338, constat 2). Mémoire bornée (constat 10) : purge des entrées expirées toutes les minutes indépendamment de la fenêtre (avant, une fenêtre de 24 h gardait une entrée expirée jusqu'à 48 h), et plafond de `limiterMaxEntries` compteurs — au-delà, les plus anciens sont évincés et l'événement est journalisé. Compromis assumé : évincer rend du quota gratuit, ce qui reste préférable à une croissance mémoire non bornée. |
 | `middleware/security.go` — `MaxBodyBytes` | **Cap du corps** (10 Mo) global sur le groupe protégé : `413` anticipé sur `Content-Length` + `http.MaxBytesReader` (gère le chunked). |
 | `httphardening.go` — `newServer` | **Timeouts serveur explicites** (`ReadHeaderTimeout` 15 s anti-Slowloris, `ReadTimeout` 60 s, `WriteTimeout` 300 s, `IdleTimeout` 120 s) au lieu de `router.Run`. |
 | `httphardening.go` — `backoffOrCancel` | Backoff des retries **interruptible** par le `context` (pas d'attente ni de rappel Gemini pour une requête abandonnée). |
@@ -164,6 +180,7 @@ Les proxies `/chat` et `/diagnose` sont découplés du fournisseur concret via `
 
 | Fichier / fonction | Rôle |
 |---|---|
+| `reconcile_guests.go` — `reconcileGuests` | **Job hors serveur** (#393), invoqué par `./main -reconcile-guests` : supprime les données Mongo dont l'`uid` a disparu de Firebase Auth, le nettoyage automatique des comptes anonymes inactifs les effaçant au bout de 30 jours. Quatre gardes, chacune sortant en erreur **sans rien supprimer** — fail-closed sur toute erreur Firebase, refus d'une énumération vide, grâce de 7 jours lue dans l'horodatage de l'`ObjectId`, simulation par défaut (`-apply` pour supprimer). La purge est `purgeUserData`, partagée avec `deleteUser`. Runbook : [`operations/vps-bootstrap.md`](../operations/vps-bootstrap.md). |
 | `config.go` — `getConfig` | Données de référence du wizard et de l'entretien servies à `GET /config` (miroir du `GardenSuggestionEngine` iOS). |
 | `crypto.go` — `encrypt` / `decrypt` | Chiffrement **AES-256-GCM** au repos. Clé maître 32 octets (64 hex) résolue par `resolveMasterEncryptionKey` : **fichier `MASTER_ENCRYPTION_KEY_PATH` en priorité**, sinon repli sur la variable `MASTER_ENCRYPTION_KEY`. Le fichier est préféré parce qu'une variable est lisible par `docker inspect` et `/proc/<pid>/environ` — or cette clé déchiffre les refresh tokens Apple, elle était donc moins protégée que ce qu'elle protège (#338 constat 4). Un chemin défini mais illisible est une **erreur**, jamais un repli silencieux. Mise en cache via `sync.Once`, format `nonce \|\| ciphertext`. Seul appelant : le refresh token Apple (#210). |
 | `apple_revocation.go` | Révocation **Sign in with Apple** (Guideline 5.1.1(v)) : `generateClientSecret()` (JWT ES256), `exchangeAuthorizationCode()` → refresh token, `revokeRefreshToken()` à la suppression de compte. `revokeAppleBestEffort` n'échoue jamais la suppression. |

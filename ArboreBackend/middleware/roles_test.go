@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -97,9 +98,32 @@ func TestRequireAccountRejectsGuests(t *testing.T) {
 
 		assert.Equal(t, tc.expected, w.Code, "rôle %s", tc.role)
 		if tc.expected == http.StatusForbidden {
-			assert.Contains(t, w.Body.String(), "ACCOUNT_REQUIRED")
+			assertAccountRequiredPayload(t, w.Body.Bytes())
 		}
 	}
+}
+
+// assertAccountRequiredPayload verrouille la FORME de la réponse, pas seulement
+// sa présence dans le corps.
+//
+// Le client iOS classe les 403 sur le champ `code` (`ForbiddenReason` dans
+// `Services/NetworkManager.swift`) pour distinguer une session invité d'un
+// compte banni. Changer cette chaîne ici sans toucher au client ferait
+// retomber le 403 dans le cas générique : l'invité verrait « accès interdit »
+// au lieu de l'invitation à créer un compte, sans qu'aucun test ne bronche.
+//
+// Un test jumeau existe côté Swift (`testWireCodesMatchTheBackendContract`).
+func assertAccountRequiredPayload(t *testing.T, body []byte) {
+	t.Helper()
+
+	var payload struct {
+		Code  string `json:"code"`
+		Error string `json:"error"`
+	}
+	assert.NoError(t, json.Unmarshal(body, &payload), "la réponse doit être du JSON")
+	assert.Equal(t, "ACCOUNT_REQUIRED", payload.Code,
+		"contrat avec le client iOS : le code exact est lu par ForbiddenReason")
+	assert.NotEmpty(t, payload.Error, "un message lisible doit accompagner le code")
 }
 
 // En l'absence de middleware d'authentification, le contexte ne porte aucun

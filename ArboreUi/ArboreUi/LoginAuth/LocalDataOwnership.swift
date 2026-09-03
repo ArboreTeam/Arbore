@@ -75,9 +75,26 @@ enum LocalDataOwnership {
 
     /// Attribue un identifiant à la session courante.
     ///
-    /// Sans effet en session anonyme : voir `currentSessionIsAnonymous`.
+    /// **Les invités sont admis ici, contrairement à la migration.** La
+    /// distinction est essentielle et vaut d'être explicitée :
+    ///
+    ///   - `claim` est appelée à la **création** du contenu. L'invité en est
+    ///     l'auteur, il n'y a personne à qui le cacher. Le lui refuser le
+    ///     rendrait invisible à ses propres yeux dès le rafraîchissement
+    ///     suivant, puisque `isVisibleInCurrentSession` masque tout contenu
+    ///     sans propriétaire en session anonyme.
+    ///   - La migration, elle, attribue un contenu **préexistant** dont
+    ///     l'auteur est inconnu. Un invité ne doit jamais se l'approprier :
+    ///     l'uid anonyme est purgé par Firebase au bout de 30 jours, ce qui
+    ///     rendrait le jardin définitivement invisible à son véritable auteur.
+    ///     C'est `isVisibleInCurrentSession` qui l'interdit, en sortant avant
+    ///     d'appeler `claim`.
+    ///
+    /// Conséquence assumée : le jardin d'un invité disparaît avec son compte
+    /// anonyme. C'est cohérent avec le fait qu'un invité qui crée un compte
+    /// repart de zéro tant que `linkWithCredential` n'existe pas (#391).
     static func claim(_ identifier: String) {
-        guard let uid = currentUID, !currentSessionIsAnonymous else { return }
+        guard let uid = currentUID else { return }
         var table = load()
         guard table[identifier] != uid else { return }
         table[identifier] = uid

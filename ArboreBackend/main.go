@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -733,45 +734,29 @@ func deleteUser(c *gin.Context) {
 		revokeAppleBestEffort(ctx, userDoc.AppleRefreshTokenEncrypted)
 	}
 
-	// 1. Supprimer tous les gardens de l'utilisateur
-	gardensCollection := db.Collection("gardens")
-	gardensResult, err := gardensCollection.DeleteMany(ctx, bson.M{"uid": uid})
+	// Purge Mongo partagée avec le job de réconciliation (#393) : une seule
+	// définition de « effacer l'empreinte d'un uid », pour que les deux chemins
+	// ne divergent pas le jour où une collection s'ajoute. Cf. account_cleanup.go.
+	counts, err := purgeUserData(ctx, db, uid)
 	if err != nil {
-		log.Println("❌ Erreur lors de la suppression des gardens:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la suppression des gardens"})
+		// Message par collection conservé : il fait partie du contrat de l'API.
+		messages := map[string]string{
+			"gardens":      "Erreur lors de la suppression des gardens",
+			"consents":     "Erreur lors de la suppression des consentements",
+			"legacy_posts": "Erreur lors de la suppression des anciennes données communautaires",
+			"users":        "Erreur lors de la suppression de l'utilisateur",
+		}
+		step := "users"
+		var stepErr *purgeStepError
+		if errors.As(err, &stepErr) {
+			step = stepErr.Step
+		}
+		log.Printf("❌ %s: %v", messages[step], err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": messages[step]})
 		return
 	}
-	log.Printf("✅ %d garden(s) supprimé(s)", gardensResult.DeletedCount)
-
-	// 2. Supprimer tous les consentements de l'utilisateur
-	consentsCollection := db.Collection("consents")
-	consentsResult, err := consentsCollection.DeleteMany(ctx, bson.M{"uid": uid})
-	if err != nil {
-		log.Println("❌ Erreur lors de la suppression des consents:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la suppression des consentements"})
-		return
-	}
-	log.Printf("✅ %d consentement(s) supprimé(s)", consentsResult.DeletedCount)
-
-	legacyPostsDeleted, err := deleteLegacyCommunityData(ctx, db, uid)
-	if err != nil {
-		log.Println("❌ Erreur lors de la suppression des anciennes données communautaires:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la suppression des anciennes données communautaires"})
-		return
-	}
-
-	// 3. Supprimer l'utilisateur
-	// DeleteMany et non DeleteOne : tant que des comptes ont plusieurs documents,
-	// `DeleteOne` en laissait derrière lui — avec email, nom et photo — alors que
-	// l'identité Firebase, elle, était bien supprimée. L'utilisateur n'avait donc
-	// plus aucun moyen de déclencher l'effacement du reliquat (Art. 17, audit
-	// #338 constat 1). Reste correct une fois l'unicité de `users.uid` rétablie.
-	userResult, err := usersCollection.DeleteMany(ctx, bson.M{"uid": uid})
-	if err != nil {
-		log.Println("❌ Erreur lors de la suppression de l'utilisateur:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la suppression de l'utilisateur"})
-		return
-	}
+	log.Printf("✅ %d garden(s) supprimé(s)", counts.Gardens)
+	log.Printf("✅ %d consentement(s) supprimé(s)", counts.Consents)
 
 	// 4. Supprimer aussi l'identité Firebase. Cette opération reste rejouable :
 	// les suppressions Mongo ci-dessus sont idempotentes, donc une erreur
@@ -787,13 +772,13 @@ func deleteUser(c *gin.Context) {
 
 	// 5. Logger uniquement les totaux, sans conserver d'autres données.
 	log.Printf("✅ Utilisateur supprimé complètement - Gardens: %d, Consents: %d, LegacyPosts: %d, User: %d, Firebase: 1",
-		gardensResult.DeletedCount, consentsResult.DeletedCount, legacyPostsDeleted, userResult.DeletedCount)
+		counts.Gardens, counts.Consents, counts.LegacyPosts, counts.Users)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":               "Utilisateur supprimé avec succès",
-		"gardensDeleted":        gardensResult.DeletedCount,
-		"consentsDeleted":       consentsResult.DeletedCount,
-		"legacyPostsDeleted":    legacyPostsDeleted,
+		"gardensDeleted":        counts.Gardens,
+		"consentsDeleted":       counts.Consents,
+		"legacyPostsDeleted":    counts.LegacyPosts,
 		"authenticationDeleted": true,
 	})
 }
@@ -2271,6 +2256,21 @@ func buildRouter() *gin.Engine {
 }
 
 func main() {
+	// Job de réconciliation Firebase ↔ Mongo (#393). Porté par le binaire du
+	// serveur plutôt que par une commande séparée : Firebase, Mongo et le
+	// chargement du .env sont déjà en place ici, et surtout la purge est la
+	// MÊME fonction que celle de la suppression de compte (purgeUserData).
+	// Deux binaires auraient signifié deux définitions de « effacer un compte ».
+	//
+	// Sans -apply, le job simule : il compte et journalise sans rien supprimer.
+	// Une réconciliation destructive ne doit jamais être le comportement par
+	// défaut d'une commande lancée à la main.
+	reconcileGuestsMode := flag.Bool("reconcile-guests", false,
+		"exécute la réconciliation Firebase ↔ Mongo puis quitte, sans démarrer le serveur")
+	applyDeletions := flag.Bool("apply", false,
+		"avec -reconcile-guests : supprime réellement (par défaut, simulation seule)")
+	flag.Parse()
+
 	loadDotEnv(".env")
 
 	if err := connectMongoDatabases(context.Background()); err != nil {
@@ -2290,6 +2290,15 @@ func main() {
 	}
 	if err := validateReleaseSecurityConfig(); err != nil {
 		log.Fatalf("❌ Production security configuration invalid: %v", err)
+	}
+
+	// Le job tourne une fois Mongo et Firebase prêts, et quitte sans monter le
+	// routeur ni écouter sur un port.
+	if *reconcileGuestsMode {
+		if err := runReconcileGuests(*applyDeletions); err != nil {
+			log.Fatalf("❌ Réconciliation interrompue (aucune suppression n'en découle): %v", err)
+		}
+		return
 	}
 
 	// Sélection du fournisseur d'IA/LLM (Gemini par défaut, cf. AI_PROVIDER).

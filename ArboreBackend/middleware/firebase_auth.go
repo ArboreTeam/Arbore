@@ -11,10 +11,14 @@ import (
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"github.com/gin-gonic/gin"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
 var firebaseAuth *auth.Client
+
+// Taille de page de l'énumération Firebase (maximum autorisé par l'API).
+const firebaseListPageSize = 1000
 
 const adminContextKey = "arboreIsAdmin"
 
@@ -309,4 +313,44 @@ func DeleteFirebaseUser(ctx context.Context, uid string) error {
 		return nil
 	}
 	return err
+}
+
+// ListAllUIDs énumère tous les uid existants dans Firebase Auth.
+//
+// Support du job de réconciliation Firebase ↔ Mongo (#393), qui supprime les
+// données Mongo dont l'uid n'existe plus côté Firebase — le nettoyage
+// automatique des comptes anonymes inactifs (activé le 2026-09-02) les fait
+// disparaître au bout de 30 jours.
+//
+// Deux propriétés sont indispensables à la sûreté de l'appelant :
+//
+//   - **Fail-closed.** Toute erreur — réseau, quota, credentials — renvoie une
+//     erreur et AUCUN ensemble partiel. Un appelant qui recevrait une liste
+//     tronquée conclurait à l'absence des uid manquants et les effacerait. La
+//     seule réponse acceptable à « je ne sais pas » est de ne rien supprimer.
+//   - **Énumération complète et paginée**, plutôt qu'un GetUser par uid : un
+//     échec isolé ne peut pas être confondu avec une absence, et le nombre
+//     d'appels API ne croît pas avec la taille de la base.
+func ListAllUIDs(ctx context.Context) (map[string]struct{}, error) {
+	if firebaseAuth == nil {
+		return nil, fmt.Errorf("firebase auth non initialisée : impossible d'énumérer les comptes")
+	}
+
+	uids := make(map[string]struct{})
+	pager := iterator.NewPager(firebaseAuth.Users(ctx, ""), firebaseListPageSize, "")
+	for {
+		var page []*auth.ExportedUserRecord
+		nextPageToken, err := pager.NextPage(&page)
+		if err != nil {
+			return nil, fmt.Errorf("énumération Firebase interrompue (aucune suppression ne doit en découler): %w", err)
+		}
+		for _, user := range page {
+			if user != nil && user.UID != "" {
+				uids[user.UID] = struct{}{}
+			}
+		}
+		if nextPageToken == "" {
+			return uids, nil
+		}
+	}
 }

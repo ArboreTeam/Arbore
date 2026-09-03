@@ -98,7 +98,14 @@ Ouvrir `ArboreUi.xcworkspace` dans Xcode :
 - **Automatically manage signing** activé
 - Team : `ArboreTeam (582QH9652J)` (enforced par `.githooks/pre-commit`)
 
-Si « Automatically manage signing » est désactivé, fastlane échouera sur l'étape `build_app` faute de provisioning profile à jour.
+La lane passe `-allowProvisioningUpdates` à `build_app` : avec la signature
+automatique activée, Xcode **crée ou renouvelle lui-même le profil pendant
+l'archive**. Sans ce drapeau, un profil périmé faisait échouer la lane sur une
+erreur de signature après une dizaine de minutes de build — au moment le plus
+coûteux, la compilation étant déjà terminée.
+
+Si « Automatically manage signing » est désactivé, en revanche, Xcode n'a rien à
+renouveler et `build_app` échouera faute de profil valide.
 
 ### 6. Renseigner les infos App Review (pour `upload_metadata` / `sync_beta_info`)
 

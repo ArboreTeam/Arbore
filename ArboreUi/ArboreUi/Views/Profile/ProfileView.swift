@@ -335,6 +335,15 @@ struct ProfileView: View {
 
     private func logout() {
         do {
+            // #394 — les consentements sont les SEULES données locales liées au
+            // compte qu'on peut effacer sans perte : le serveur en détient la
+            // preuve et PrivacySettingsView la relit à la connexion suivante.
+            // Sans cela, le compte suivant hérite des choix du précédent — dont
+            // privacy_shareData, qui gouverne l'activation de Sentry.
+            //
+            // Rien d'autre n'est supprimé : scènes AR, chat et routines
+            // n'existent que sur l'appareil et sont masqués, pas effacés.
+            LocalDataOwnership.clearConsentStateOnLogout()
             try Auth.auth().signOut()
             isLoggedIn = false
         } catch {

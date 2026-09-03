@@ -86,6 +86,18 @@ Le sous-dossier `middleware/` expose deux middlewares chaînés, dans cet ordre 
 
 Tous ces handlers reçoivent l'`uid` via `c.Get("uid")` après passage des deux middlewares.
 
+Le sous-groupe `account` (`RequireAccount`) ne contient plus que ce qui suppose
+un **document utilisateur** : profil, consentements, liaison Apple. Les jardins
+en sont sortis avec #393 — ils y figuraient parce que rien ne garantissait le
+sort de leurs données quand Firebase supprime un compte anonyme inactif au bout
+de 30 jours, et le job de réconciliation apporte cette garantie.
+
+Sont sorties avec eux `GET /users/export` et `DELETE /users`, sans lesquelles le
+stockage serait indéfendable : un invité aurait des données sur le serveur sans
+pouvoir y accéder (art. 15) ni les effacer (art. 17). Sa session courante est le
+seul moment où il peut exercer ces droits — après, il n'a plus aucune identité à
+prouver.
+
 #### Domaine Users (`/users`)
 
 | Endpoint | Handler | Authz |
@@ -94,10 +106,10 @@ Tous ces handlers reçoivent l'`uid` via `c.Get("uid")` après passage des deux 
 | `GET /users/:uid` | inline | self-only : `tokenUID == :uid` sinon `403`. |
 | `POST /users/:uid/photo` | `uploadUserPhoto` | self-only ; multipart `photo`, stockée en base64 dans Mongo. |
 | `GET /users/:uid/photo` | `getUserPhoto` | self-only ; renvoie les octets bruts ou `204`. |
-| `GET /users/export` | `exportUserData` | RGPD art. 20 — user + gardens + consents au format JSON. |
+| `GET /users/export` | `exportUserData` | RGPD art. 15 et 20 — user + gardens + consents au format JSON. **Atteignable en session invité** : l'absence de document `users` n'est pas une erreur, le profil est renvoyé vide et `metadata.hasProfile` passe à `false`. |
 | `PATCH /users/me` | `updateUserSelf` | self ; seul `name` éditable, trimé, max 100 runes (#138). |
 | `POST /users/me/apple-link` | `linkAppleAccount` | self ; échange l'`authorizationCode` Apple contre un refresh token, **chiffré** puis stocké (#210). |
-| `DELETE /users` | `deleteUser` | self ; cascade gardens + consents, révocation Apple best-effort, puis user. |
+| `DELETE /users` | `deleteUser` | self ; cascade gardens + consents, révocation Apple best-effort, puis user. **Atteignable en session invité** (art. 17). La cascade Mongo est `purgeUserData`, partagée avec le job de réconciliation pour que les deux chemins ne divergent pas. |
 
 #### Domaine Plants (`/plants`)
 
@@ -109,7 +121,7 @@ Tous ces handlers reçoivent l'`uid` via `c.Get("uid")` après passage des deux 
 | `POST /plants/generate` | `generatePlantWithAI` | Génère une fiche multilingue via l'AI Generator ; `409` si la plante existe déjà. |
 | `POST /plants/generate-multiple` | `generateMultiplePlantsHandler` | Variante batch ; retourne created/skipped. |
 
-#### Domaine Gardens (`/gardens`)
+#### Domaine Gardens (`/gardens`) — ouvert aux invités depuis #393
 
 | Endpoint | Handler | Authz |
 |---|---|---|
@@ -168,6 +180,7 @@ Les proxies `/chat` et `/diagnose` sont découplés du fournisseur concret via `
 
 | Fichier / fonction | Rôle |
 |---|---|
+| `reconcile_guests.go` — `reconcileGuests` | **Job hors serveur** (#393), invoqué par `./main -reconcile-guests` : supprime les données Mongo dont l'`uid` a disparu de Firebase Auth, le nettoyage automatique des comptes anonymes inactifs les effaçant au bout de 30 jours. Quatre gardes, chacune sortant en erreur **sans rien supprimer** — fail-closed sur toute erreur Firebase, refus d'une énumération vide, grâce de 7 jours lue dans l'horodatage de l'`ObjectId`, simulation par défaut (`-apply` pour supprimer). La purge est `purgeUserData`, partagée avec `deleteUser`. Runbook : [`operations/vps-bootstrap.md`](../operations/vps-bootstrap.md). |
 | `config.go` — `getConfig` | Données de référence du wizard et de l'entretien servies à `GET /config` (miroir du `GardenSuggestionEngine` iOS). |
 | `crypto.go` — `encrypt` / `decrypt` | Chiffrement **AES-256-GCM** au repos. Clé maître 32 octets (64 hex) résolue par `resolveMasterEncryptionKey` : **fichier `MASTER_ENCRYPTION_KEY_PATH` en priorité**, sinon repli sur la variable `MASTER_ENCRYPTION_KEY`. Le fichier est préféré parce qu'une variable est lisible par `docker inspect` et `/proc/<pid>/environ` — or cette clé déchiffre les refresh tokens Apple, elle était donc moins protégée que ce qu'elle protège (#338 constat 4). Un chemin défini mais illisible est une **erreur**, jamais un repli silencieux. Mise en cache via `sync.Once`, format `nonce \|\| ciphertext`. Seul appelant : le refresh token Apple (#210). |
 | `apple_revocation.go` | Révocation **Sign in with Apple** (Guideline 5.1.1(v)) : `generateClientSecret()` (JWT ES256), `exchangeAuthorizationCode()` → refresh token, `revokeRefreshToken()` à la suppression de compte. `revokeAppleBestEffort` n'échoue jamais la suppression. |

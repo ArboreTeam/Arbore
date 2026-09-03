@@ -88,7 +88,11 @@ platform :ios do
       output_directory: "./fastlane/builds",
       output_name: "Arbore.ipa",
       include_symbols: true,
-      include_bitcode: false
+      include_bitcode: false,
+      # Laisse Xcode créer/rafraîchir le profil de provisioning pendant
+      # l'archive (signature automatique). Sans ce flag, un profil périmé
+      # fait échouer la lane après ~10 min de build.
+      xcargs: "-allowProvisioningUpdates"
     )
 
     # Internal-only deploy : on ne soumet PAS pour Beta App Review et on

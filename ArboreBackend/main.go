@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -463,17 +464,24 @@ func exportUserData(c *gin.Context) {
 	uid := authenticatedUID.(string)
 	ctx := context.Background()
 
-	// 1. Récupérer les données utilisateur
+	// 1. Récupérer les données utilisateur.
+	//
+	// L'absence de document `users` n'est PAS une erreur : une session invité
+	// (#391) n'en crée aucun, et peut néanmoins détenir des jardins et des
+	// consentements. Répondre 404 priverait son titulaire de son droit d'accès
+	// (RGPD Art. 15) sur des données qui existent bel et bien — l'export ne
+	// serait vide que du profil, pas du reste.
 	var user User
+	hasProfile := true
 	userCollection := getDatabaseForRequest(c).Collection("users")
 	err := userCollection.FindOne(ctx, bson.M{"uid": uid}).Decode(&user)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Utilisateur non trouvé"})
+		if !errors.Is(err, mongo.ErrNoDocuments) {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération de l'utilisateur"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération de l'utilisateur"})
-		return
+		hasProfile = false
+		user = User{UID: uid}
 	}
 
 	// 2. Récupérer tous les gardens
@@ -533,8 +541,11 @@ func exportUserData(c *gin.Context) {
 		"metadata": gin.H{
 			"totalGardens":  len(gardens),
 			"totalConsents": len(consents),
-			"format":        "JSON",
-			"version":       "1.0",
+			// false pour une session invité : le reste de l'export reste valide,
+			// seul le profil est absent.
+			"hasProfile": hasProfile,
+			"format":     "JSON",
+			"version":    "1.0",
 		},
 	}
 
@@ -733,45 +744,29 @@ func deleteUser(c *gin.Context) {
 		revokeAppleBestEffort(ctx, userDoc.AppleRefreshTokenEncrypted)
 	}
 
-	// 1. Supprimer tous les gardens de l'utilisateur
-	gardensCollection := db.Collection("gardens")
-	gardensResult, err := gardensCollection.DeleteMany(ctx, bson.M{"uid": uid})
+	// Purge Mongo partagée avec le job de réconciliation (#393) : une seule
+	// définition de « effacer l'empreinte d'un uid », pour que les deux chemins
+	// ne divergent pas le jour où une collection s'ajoute. Cf. account_cleanup.go.
+	counts, err := purgeUserData(ctx, db, uid)
 	if err != nil {
-		log.Println("❌ Erreur lors de la suppression des gardens:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la suppression des gardens"})
+		// Message par collection conservé : il fait partie du contrat de l'API.
+		messages := map[string]string{
+			"gardens":      "Erreur lors de la suppression des gardens",
+			"consents":     "Erreur lors de la suppression des consentements",
+			"legacy_posts": "Erreur lors de la suppression des anciennes données communautaires",
+			"users":        "Erreur lors de la suppression de l'utilisateur",
+		}
+		step := "users"
+		var stepErr *purgeStepError
+		if errors.As(err, &stepErr) {
+			step = stepErr.Step
+		}
+		log.Printf("❌ %s: %v", messages[step], err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": messages[step]})
 		return
 	}
-	log.Printf("✅ %d garden(s) supprimé(s)", gardensResult.DeletedCount)
-
-	// 2. Supprimer tous les consentements de l'utilisateur
-	consentsCollection := db.Collection("consents")
-	consentsResult, err := consentsCollection.DeleteMany(ctx, bson.M{"uid": uid})
-	if err != nil {
-		log.Println("❌ Erreur lors de la suppression des consents:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la suppression des consentements"})
-		return
-	}
-	log.Printf("✅ %d consentement(s) supprimé(s)", consentsResult.DeletedCount)
-
-	legacyPostsDeleted, err := deleteLegacyCommunityData(ctx, db, uid)
-	if err != nil {
-		log.Println("❌ Erreur lors de la suppression des anciennes données communautaires:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la suppression des anciennes données communautaires"})
-		return
-	}
-
-	// 3. Supprimer l'utilisateur
-	// DeleteMany et non DeleteOne : tant que des comptes ont plusieurs documents,
-	// `DeleteOne` en laissait derrière lui — avec email, nom et photo — alors que
-	// l'identité Firebase, elle, était bien supprimée. L'utilisateur n'avait donc
-	// plus aucun moyen de déclencher l'effacement du reliquat (Art. 17, audit
-	// #338 constat 1). Reste correct une fois l'unicité de `users.uid` rétablie.
-	userResult, err := usersCollection.DeleteMany(ctx, bson.M{"uid": uid})
-	if err != nil {
-		log.Println("❌ Erreur lors de la suppression de l'utilisateur:", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la suppression de l'utilisateur"})
-		return
-	}
+	log.Printf("✅ %d garden(s) supprimé(s)", counts.Gardens)
+	log.Printf("✅ %d consentement(s) supprimé(s)", counts.Consents)
 
 	// 4. Supprimer aussi l'identité Firebase. Cette opération reste rejouable :
 	// les suppressions Mongo ci-dessus sont idempotentes, donc une erreur
@@ -787,13 +782,13 @@ func deleteUser(c *gin.Context) {
 
 	// 5. Logger uniquement les totaux, sans conserver d'autres données.
 	log.Printf("✅ Utilisateur supprimé complètement - Gardens: %d, Consents: %d, LegacyPosts: %d, User: %d, Firebase: 1",
-		gardensResult.DeletedCount, consentsResult.DeletedCount, legacyPostsDeleted, userResult.DeletedCount)
+		counts.Gardens, counts.Consents, counts.LegacyPosts, counts.Users)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":               "Utilisateur supprimé avec succès",
-		"gardensDeleted":        gardensResult.DeletedCount,
-		"consentsDeleted":       consentsResult.DeletedCount,
-		"legacyPostsDeleted":    legacyPostsDeleted,
+		"gardensDeleted":        counts.Gardens,
+		"consentsDeleted":       counts.Consents,
+		"legacyPostsDeleted":    counts.LegacyPosts,
 		"authenticationDeleted": true,
 	})
 }
@@ -2148,13 +2143,20 @@ func buildRouter() *gin.Engine {
 	protected.Use(apiLimiter.Middleware())
 	protected.Use(middleware.MaxBodyBytes(maxJSONBodyBytes))
 
-	// Sous-groupe fermé aux invités (#377). Y vit tout ce qui suppose un compte
-	// durable et synchronisable entre appareils : profil, jardins, consentements,
-	// export RGPD. Une session anonyme est liée à un seul appareil et n'a pas de
-	// document utilisateur — ces routes n'auraient aucun sens pour elle.
+	// Sous-groupe fermé aux invités (#377). Y vit ce qui suppose un compte
+	// durable : profil, consentements, liaison Apple.
 	//
-	// Ce qui reste sur `protected` est au contraire consultable en invité :
-	// catalogue, modèles 3D, et les deux proxys Gemini (avec un quota réduit).
+	// Les jardins en sont SORTIS (#393). Ils y figuraient parce qu'aucun
+	// mécanisme ne garantissait le sort de leurs données quand Firebase supprime
+	// un compte anonyme inactif au bout de 30 jours ; le job de réconciliation
+	// apporte cette garantie, ce qui lève l'objection.
+	//
+	// Sont sorties avec eux les deux routes sans lesquelles ce stockage serait
+	// illégal : l'export (Art. 15) et la suppression (Art. 17). Un invité ne
+	// peut exercer ces droits que depuis sa session courante — il n'a aucune
+	// identité à prouver ensuite. Leur laisser `RequireAccount` reviendrait à
+	// détenir ses données sans lui donner les moyens d'y accéder ni de les
+	// effacer.
 	account := protected.Group("")
 	account.Use(middleware.RequireAccount())
 	{
@@ -2188,21 +2190,21 @@ func buildRouter() *gin.Engine {
 
 		account.POST("/users/:uid/photo", middleware.MaxBodyBytes(maxProfilePhotoBytes+(1<<20)), uploadMinuteLimiter.Middleware(), uploadUserPhoto)
 		account.GET("/users/:uid/photo", getUserPhoto)
-		account.GET("/users/export", exportUserData)
+		protected.GET("/users/export", exportUserData)
 		account.PATCH("/users/me", updateUserSelf)
 		account.POST("/users/me/apple-link", linkAppleAccount)
-		account.DELETE("/users", deleteUser)
+		protected.DELETE("/users", deleteUser)
 
 		// Plants
 		protected.GET("/plants", getPlants)
 		protected.GET("/plants/:id", getPlantByID)
 
 		// Gardens
-		account.POST("/gardens", createGarden)
-		account.GET("/gardens", listGardens)
-		account.GET("/gardens/:id", getGardenByID)
-		account.PUT("/gardens/:id", updateGarden)
-		account.DELETE("/gardens/:id", deleteGarden)
+		protected.POST("/gardens", createGarden)
+		protected.GET("/gardens", listGardens)
+		protected.GET("/gardens/:id", getGardenByID)
+		protected.PUT("/gardens/:id", updateGarden)
+		protected.DELETE("/gardens/:id", deleteGarden)
 
 		// Gemini Chat & Scanner Proxies — rate limité par uid (quota minute + jour)
 		// pour borner le coût Gemini. Le cap de corps est appliqué globalement sur
@@ -2271,6 +2273,21 @@ func buildRouter() *gin.Engine {
 }
 
 func main() {
+	// Job de réconciliation Firebase ↔ Mongo (#393). Porté par le binaire du
+	// serveur plutôt que par une commande séparée : Firebase, Mongo et le
+	// chargement du .env sont déjà en place ici, et surtout la purge est la
+	// MÊME fonction que celle de la suppression de compte (purgeUserData).
+	// Deux binaires auraient signifié deux définitions de « effacer un compte ».
+	//
+	// Sans -apply, le job simule : il compte et journalise sans rien supprimer.
+	// Une réconciliation destructive ne doit jamais être le comportement par
+	// défaut d'une commande lancée à la main.
+	reconcileGuestsMode := flag.Bool("reconcile-guests", false,
+		"exécute la réconciliation Firebase ↔ Mongo puis quitte, sans démarrer le serveur")
+	applyDeletions := flag.Bool("apply", false,
+		"avec -reconcile-guests : supprime réellement (par défaut, simulation seule)")
+	flag.Parse()
+
 	loadDotEnv(".env")
 
 	if err := connectMongoDatabases(context.Background()); err != nil {
@@ -2290,6 +2307,15 @@ func main() {
 	}
 	if err := validateReleaseSecurityConfig(); err != nil {
 		log.Fatalf("❌ Production security configuration invalid: %v", err)
+	}
+
+	// Le job tourne une fois Mongo et Firebase prêts, et quitte sans monter le
+	// routeur ni écouter sur un port.
+	if *reconcileGuestsMode {
+		if err := runReconcileGuests(*applyDeletions); err != nil {
+			log.Fatalf("❌ Réconciliation interrompue (aucune suppression n'en découle): %v", err)
+		}
+		return
 	}
 
 	// Sélection du fournisseur d'IA/LLM (Gemini par défaut, cf. AI_PROVIDER).

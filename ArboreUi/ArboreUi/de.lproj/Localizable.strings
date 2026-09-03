@@ -1169,6 +1169,13 @@
 "AUTH_FORGOT_PASSWORD" = "Passwort vergessen?";
 "AUTH_SIGN_IN" = "Anmelden";
 "AUTH_SIGN_UP" = "Registrieren";
+"AUTH_CONTINUE_AS_GUEST" = "Ohne Konto fortfahren";
+"AUTH_CONTINUE_AS_GUEST_SUBTITLE" = "Entdecke den Katalog und die Pflanzen. Deine Gärten werden nicht gespeichert.";
+"GUEST_ACCOUNT_REQUIRED_TITLE" = "Ein Konto ist erforderlich";
+"GUEST_ACCOUNT_REQUIRED_MESSAGE" = "Diese Funktion speichert deine Daten auf unseren Servern. Erstelle ein kostenloses Konto, um deine Gärten auf allen Geräten wiederzufinden.";
+"GUEST_ACCOUNT_REQUIRED_CTA" = "Konto erstellen";
+"DATA_EXPORT_ERROR_GENERIC" = "Der Export ist fehlgeschlagen. Bitte versuche es gleich noch einmal.";
+"CLOSE_ACCOUNT_ERROR_GENERIC" = "Das Löschen ist fehlgeschlagen. Bitte versuche es gleich noch einmal.";
 "AUTH_OR" = "oder";
 "AUTH_CONTINUE_GOOGLE" = "Mit Google fortfahren";
 "AUTH_NO_ACCOUNT" = "Noch kein Konto?";

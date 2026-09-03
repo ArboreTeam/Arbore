@@ -1212,6 +1212,13 @@
 "AUTH_FORGOT_PASSWORD" = "Mot de passe oublié ?";
 "AUTH_SIGN_IN" = "Se connecter";
 "AUTH_SIGN_UP" = "S'inscrire";
+"AUTH_CONTINUE_AS_GUEST" = "Continuer sans compte";
+"AUTH_CONTINUE_AS_GUEST_SUBTITLE" = "Découvre le catalogue et les plantes. Tes jardins ne seront pas sauvegardés.";
+"GUEST_ACCOUNT_REQUIRED_TITLE" = "Un compte est nécessaire";
+"GUEST_ACCOUNT_REQUIRED_MESSAGE" = "Cette fonctionnalité sauvegarde tes données sur nos serveurs. Crée un compte gratuit pour retrouver tes jardins sur tous tes appareils.";
+"GUEST_ACCOUNT_REQUIRED_CTA" = "Créer un compte";
+"DATA_EXPORT_ERROR_GENERIC" = "L'export a échoué. Réessaie dans un instant.";
+"CLOSE_ACCOUNT_ERROR_GENERIC" = "La suppression a échoué. Réessaie dans un instant.";
 "AUTH_OR" = "ou";
 "AUTH_CONTINUE_GOOGLE" = "Continuer avec Google";
 "AUTH_NO_ACCOUNT" = "Pas de compte ?";

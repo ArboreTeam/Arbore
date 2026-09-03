@@ -408,13 +408,18 @@ jobs:
             echo "⚠️  Mode PROD : tests polluent arbore DB (ajouter ARBORE_API_KEY_TEST secret)"
           fi
 
+          # Pas de -parallel-testing-enabled ici : ce flag surcharge le
+          # réglage par cible du scheme. Sans lui, ArboreUiTests reste
+          # parallélisé et ArboreUiUITests ne l'est pas (ArboreUi.xcscheme).
+          # Deux clones exécutant simultanément testLaunch et
+          # test_launchPerformance saturaient le simulateur et faisaient
+          # expirer la capture d'écran — faux rouge (cf. run 33640578003).
           xcodebuild test \
             -workspace ArboreUi.xcworkspace \
             -scheme ArboreUi \
             -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -derivedDataPath build/ \
             -resultBundlePath build/TestResults.xcresult \
-            -parallel-testing-enabled YES \
             -maximum-concurrent-test-simulator-destinations 4 \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_ALLOWED=YES \

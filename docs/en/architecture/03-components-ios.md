@@ -146,7 +146,7 @@ flowchart TB
 - **`NetworkManager` is the single entry point** for HTTP calls. Every outgoing request goes through this singleton to guarantee credential injection and network retry.
 - **`saveAuthDB.swift` is the only caller** to implement a business-level retry with exponential backoff and a Firebase Auth rollback. This logic is dedicated to signup (issue #137).
 - **`DatabaseFireBaseStore/` is being deprecated** in favor of the Go backend for all business operations outside of authentication.
-- **`GardenLocalStore` is local-only**: no data is shared between devices, which motivates issue #114 (cross-install recovery).
+- **`GardenLocalStore` is local-only**: no data is shared between devices, which motivates issue #114 (cross-install recovery). Since #394 the files stay on the device but are **partitioned per account**: `LocalDataOwnership` records the owner and filters on read. Nothing is deleted on logout — AR scenes exist only here, so a purge would destroy the only copy.
 
 ## Apple frameworks used
 

@@ -335,7 +335,11 @@ nouveau checkout de release ne puisse ni les écraser ni les supprimer.
 
 ---
 
-## 9. Cron de cleanup de la DB de test
+## 9. Tâches planifiées (cron)
+
+Trois entrées, toutes journalisées sous `logs/`.
+
+### 9.1 Cleanup de la DB de test — quotidien
 
 ```bash
 mkdir -p /home/fedora/Arbore/logs
@@ -355,6 +359,63 @@ Validation manuelle (peut afficher "skip" si une CI tourne, c'est OK) :
 Le script vérifie qu'aucune CI GitHub Actions n'est en cours avant de
 droper la DB. Il utilise `gh` si authentifié, sinon `curl` sans token (le
 dépôt étant public, l'API Actions est lisible sans auth).
+
+### 9.2 Cleanup des comptes de test — hebdomadaire
+
+Purge les utilisateurs `@arbore.test` accumulés par la CI (#160).
+
+```bash
+touch /home/fedora/Arbore/logs/cleanup-test-users.log
+chmod +x /home/fedora/Arbore/ArboreBackend/scripts/cleanup-test-users.sh
+
+(crontab -l 2>/dev/null; echo "0 4 * * 0 /home/fedora/Arbore/ArboreBackend/scripts/cleanup-test-users.sh >> /home/fedora/Arbore/logs/cleanup-test-users.log 2>&1") | crontab -
+```
+
+### 9.3 Réconciliation Firebase ↔ Mongo — hebdomadaire
+
+Supprime les données Mongo dont l'`uid` n'existe plus dans Firebase Auth.
+Le nettoyage automatique des comptes anonymes inactifs, activé le
+2026-09-02, supprime un compte invité après 30 jours ; sans ce job, ses
+jardins et consentements resteraient en base sans propriétaire
+identifiable, donc sans personne pour en demander l'effacement et sans
+durée de conservation (#393).
+
+Le job s'exécute **dans le conteneur backend déjà déployé** : il y trouve
+`MONGODB_URI`, le service account Firebase monté en `/run/secrets`, et la
+même fonction de purge que la suppression de compte RGPD. Rien à builder
+côté hôte.
+
+> **Faire un premier passage en simulation avant d'installer le cron.**
+> Sans `--apply`, le script compte et journalise sans rien supprimer.
+
+```bash
+chmod +x /home/fedora/Arbore/ArboreBackend/scripts/reconcile-guests.sh
+
+# 1. Simulation : ne supprime rien, affiche les totaux.
+/home/fedora/Arbore/ArboreBackend/scripts/reconcile-guests.sh
+
+# 2. Si les chiffres sont sains, suppression réelle.
+/home/fedora/Arbore/ArboreBackend/scripts/reconcile-guests.sh --apply
+
+# 3. Puis seulement, le cron.
+touch /home/fedora/Arbore/logs/reconcile-guests.log
+(crontab -l 2>/dev/null; echo "0 5 * * 0 /home/fedora/Arbore/ArboreBackend/scripts/reconcile-guests.sh --apply >> /home/fedora/Arbore/logs/reconcile-guests.log 2>&1") | crontab -
+```
+
+Le job est un effaceur de production piloté par un système externe. Quatre
+gardes le rendent acceptable, et il **sort en erreur sans rien supprimer**
+si l'une d'elles n'est pas satisfaite :
+
+| Garde | Ce qu'elle empêche |
+|---|---|
+| Fail-closed sur toute erreur Firebase | Interpréter « je ne sais pas » comme « supprime » |
+| Refus d'une énumération Firebase vide | Vider la base si le service account est mauvais |
+| Période de grâce de 7 jours | Supprimer un compte créé après le snapshot Firebase |
+| Simulation par défaut | Une suppression déclenchée par inadvertance |
+
+Les journaux ne contiennent que des totaux, jamais d'`uid` : un `uid` est
+une donnée personnelle, et le journal a sa propre durée de conservation
+(#385).
 
 ---
 
@@ -389,7 +450,7 @@ Cocher ces points avant de considérer le VPS opérationnel :
 - [ ] `curl -fsS http://localhost:3000/` → 200 OK (web)
 - [ ] `curl -fsS http://<VPS_IP>/health` → 200 OK (via nginx)
 - [ ] `mongosh "$MONGODB_URI" --quiet --eval 'db.users.countDocuments()'` → entier > 0
-- [ ] `crontab -l` contient l'entrée `cleanup-test-db.sh`
+- [ ] `crontab -l` contient les trois entrées : `cleanup-test-db.sh`, `cleanup-test-users.sh`, `reconcile-guests.sh`
 - [ ] `/home/fedora/Arbore/scripts/cleanup-test-db.sh` finit en exit 0
 - [ ] `ls /home/fedora/Arbore/backups/daily/` ne plante pas (le dossier est créé au 1er `deploy.sh`)
 - [ ] Une PR de test sur GitHub déclenche la CI ; les tests passent en

@@ -5,6 +5,8 @@ struct HomeView: View {
     @State private var gardens: [GardenDTO] = []
     @State private var goToQuestionnaire = false
     @State private var goToAllGardens = false
+    /// #391 — invitation à créer un compte, pour les actions fermées aux invités.
+    @State private var showAccountRequired = false
     @State private var showChat = false
     @EnvironmentObject var themeManager: ThemeManager
 
@@ -46,6 +48,9 @@ struct HomeView: View {
             .onAppear {
                 Task { await fetchGardens() }
             }
+            .accountRequiredAlert(isPresented: $showAccountRequired) {
+                GuestSession.exitToAuthentication()
+            }
             .fullScreenCover(item: $gardenToOpen) { g in
                 GardenARPlacementView(
                     selectedPlants: [],
@@ -82,6 +87,13 @@ private extension HomeView {
                 self.gardens = list
             }
         } catch {
+            // #391 — un invité n'a pas accès à /gardens. Sans ce cas, la liste
+            // restait simplement vide : l'utilisateur lisait « aucun jardin »
+            // là où la vraie raison était l'absence de compte.
+            if error.isAccountRequired {
+                await MainActor.run { self.gardens = [] }
+                return
+            }
             print("❌ fetchGardens failed:", error)
         }
     }
@@ -166,7 +178,15 @@ private extension HomeView {
             }
 
             Button {
-                goToQuestionnaire = true
+                // #391 — gate EN AMONT plutôt qu'un 403 en fin de parcours.
+                // Le wizard pré-crée le jardin en base à l'étape scan : pour un
+                // invité, l'échec arriverait après le questionnaire ET le tracé
+                // AR du périmètre, soit plusieurs minutes de travail perdues.
+                if GuestSession.isGuest {
+                    showAccountRequired = true
+                } else {
+                    goToQuestionnaire = true
+                }
             } label: {
                 HStack(spacing: 10) {
                     Text(L10n.t("COMMON_START"))

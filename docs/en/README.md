@@ -33,6 +33,7 @@ The documentation is split into complementary views. Depending on what you are l
 | Backend tests (Go) | [`testing/backend.md`](testing/backend.md) |
 | Web tests (Vitest) | [`testing/web.md`](testing/web.md) |
 | Observability (Sentry iOS + web) | [`operations/observability.md`](operations/observability.md) |
+| Botanical data audit | [`operations/botanical-data-audit.md`](operations/botanical-data-audit.md) |
 | TestFlight deployment (fastlane) | [`operations/testflight-deploy.md`](operations/testflight-deploy.md) |
 | VPS provisioning (Docker · nginx · Mongo) | [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md) |
 | Architecture Decision Records (ADR) index | [`decisions/_index.md`](decisions/_index.md) |

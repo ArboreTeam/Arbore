@@ -287,6 +287,7 @@ var (
 		"GET /gardens/:id",
 		"PUT /gardens/:id",
 		"DELETE /gardens/:id",
+		"POST /climate/profile",
 	}
 
 	// Fermées aux invités : tout ce qui suppose un document utilisateur, donc

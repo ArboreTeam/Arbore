@@ -335,15 +335,23 @@ struct AISuggestionStepView: View {
         isGenerating = true
 
         // Build the wizard DTO from current state
-        let dto = GardenWizardDTO(
+        let dto = GardenSiteProfileResolver.wizardByPersistingResolvedProfile(GardenWizardDTO(
             style: state.style?.rawValue ?? "",
             spaceType: state.spaceType?.rawValue ?? "",
             exposure: state.exposure?.rawValue,
             maintenance: state.maintenance?.rawValue,
-            safety: state.safetySelections.map { $0.rawValue },
+            safety: state.safetySelections.isEmpty
+                ? nil
+                : state.safetySelections.map(\.rawValue).sorted(),
             soil: state.soil?.rawValue,
-            scanMethod: state.scanMethod?.rawValue
-        )
+            scanMethod: state.scanMethod?.rawValue,
+            location: state.location,
+            lightExposure: state.lightExposure,
+            siteProfile: state.siteProfile,
+            conditionalAnswers: state.conditionalAnswers.isEmpty
+                ? nil
+                : state.conditionalAnswers
+        ))
 
         // Simulate a brief "AI thinking" delay for UX delight,
         // actual computation is < 50ms

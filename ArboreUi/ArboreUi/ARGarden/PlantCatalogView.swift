@@ -592,7 +592,6 @@ private struct PlantSuitabilityBadge: View {
 
     private var title: String {
         switch level {
-        case .verySuitable: return L10n.t("AR_CATALOG_SUITABILITY_VERY_GOOD")
         case .suitable: return L10n.t("AR_CATALOG_SUITABILITY_GOOD")
         case .needsReview: return L10n.t("AR_CATALOG_SUITABILITY_REVIEW")
         case .unsuitable: return L10n.t("AR_CATALOG_SUITABILITY_UNSUITABLE")
@@ -601,7 +600,6 @@ private struct PlantSuitabilityBadge: View {
 
     private var icon: String {
         switch level {
-        case .verySuitable: return "leaf.fill"
         case .suitable: return "checkmark"
         case .needsReview: return "questionmark"
         case .unsuitable: return "exclamationmark"
@@ -610,7 +608,7 @@ private struct PlantSuitabilityBadge: View {
 
     private var color: Color {
         switch level {
-        case .verySuitable, .suitable: return themeManager.brandPrimary
+        case .suitable: return themeManager.brandPrimary
         case .needsReview: return .orange
         case .unsuitable: return .red
         }
@@ -673,7 +671,14 @@ private struct PlantSuitabilityDetailSheet: View {
                             )
                         }
 
-                        if suitability.positiveReasonKeys.isEmpty && suitability.warningReasonKeys.isEmpty {
+                        if !suitability.missingDataKeys.isEmpty {
+                            reasonSection(
+                                titleKey: "AR_CATALOG_MISSING_DATA_TITLE",
+                                keys: suitability.missingDataKeys,
+                                icon: "questionmark.circle.fill",
+                                color: .orange
+                            )
+                        } else if suitability.positiveReasonKeys.isEmpty && suitability.warningReasonKeys.isEmpty {
                             Text(L10n.t("AR_CATALOG_REASON_NOT_ENOUGH_DATA"))
                                 .font(.system(size: 14, design: .rounded))
                                 .foregroundColor(themeManager.secondaryTextColor)

@@ -936,31 +936,36 @@ func setupPatchUserTestRouter(t *testing.T) *gin.Engine {
 			uid := authenticatedUID.(string)
 
 			var payload struct {
-				Name *string `json:"name"`
+				Name            *string                 `json:"name"`
+				HouseholdSafety *HouseholdSafetyProfile `json:"householdSafety"`
 			}
 			if err := c.ShouldBindJSON(&payload); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
-			if payload.Name == nil {
+			if payload.Name == nil && payload.HouseholdSafety == nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Aucun champ à mettre à jour"})
 				return
 			}
-			cleaned := strings.TrimSpace(*payload.Name)
-			if cleaned == "" {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Le nom ne peut pas être vide"})
-				return
+			user := gin.H{"uid": uid}
+			if payload.Name != nil {
+				cleaned := strings.TrimSpace(*payload.Name)
+				if cleaned == "" {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Le nom ne peut pas être vide"})
+					return
+				}
+				if len([]rune(cleaned)) > 100 {
+					c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Le nom est trop long (max 100 caractères)"})
+					return
+				}
+				user["name"] = cleaned
 			}
-			if len([]rune(cleaned)) > 100 {
-				c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Le nom est trop long (max 100 caractères)"})
-				return
+			if payload.HouseholdSafety != nil {
+				user["householdSafety"] = payload.HouseholdSafety
 			}
 			c.JSON(http.StatusOK, gin.H{
 				"message": "Profil mis à jour",
-				"user": gin.H{
-					"uid":  uid,
-					"name": cleaned,
-				},
+				"user":    user,
 			})
 		})
 	}
@@ -1005,6 +1010,33 @@ func TestPatchUserMe_TrimsName(t *testing.T) {
 	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
 	user, _ := response["user"].(map[string]interface{})
 	assert.Equal(t, "Trimmed", user["name"], "Whitespace should be trimmed before persisting")
+}
+
+func TestPatchUserMe_HouseholdSafetyOnly_ShouldReturn200(t *testing.T) {
+	router := setupPatchUserTestRouter(t)
+	body, _ := json.Marshal(map[string]interface{}{
+		"householdSafety": map[string]bool{
+			"avoidPetToxicity":   true,
+			"avoidChildToxicity": false,
+		},
+	})
+	req, _ := http.NewRequest("PATCH", "/users/me", bytes.NewBuffer(body))
+	req.Header.Set("X-API-Key", testAPIKey)
+	req.Header.Set("Authorization", "Bearer "+validFirebaseToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	var response struct {
+		User struct {
+			HouseholdSafety HouseholdSafetyProfile `json:"householdSafety"`
+		} `json:"user"`
+	}
+	assert.NoError(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.True(t, response.User.HouseholdSafety.AvoidPetToxicity)
+	assert.False(t, response.User.HouseholdSafety.AvoidChildToxicity)
 }
 
 func TestPatchUserMe_WithoutAuth_ShouldReturn401(t *testing.T) {

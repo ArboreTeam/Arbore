@@ -1508,7 +1508,9 @@ struct GardenDetailsPage: View {
         let gardenPlantIds = Set(cachedPurchaseGroups.map { $0.plant.plantID })
         let gardenPlantNames = Set(cachedPurchaseGroups.map { normalizedPlantName($0.plant.plantName) })
         let query = purchaseSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let wizardFilter = gardenDetails.map { WizardPlantFilter(wizard: $0.wizard) }
+        let suitabilityEvaluator = gardenDetails.map {
+            PlantSuitabilityEvaluator(wizard: $0.wizard)
+        }
 
         var plants = cataloguePlants.filter { plant in
             !gardenPlantIds.contains(plant.id) && !gardenPlantNames.contains(normalizedPlantName(plant.name))
@@ -1522,11 +1524,10 @@ struct GardenDetailsPage: View {
             }
         }
 
-        // Fix perf : on évalue le matching wizard UNE seule fois par plante
-        // (O(N)) au lieu de l'appeler deux fois par comparaison dans le tri
-        // (O(N·log N) appels lourds). Le comparateur se réduit à un lookup O(1).
-        let matchedIDs: Set<String> = wizardFilter.map { filter in
-            Set(plants.filter { filter.matches(plant: $0, locale: "fr") }.map { $0.id })
+        // Le catalogue d'achat éventuel suit le même verdict environnemental
+        // que l'AR. L'évaluation reste indexée une seule fois par plante.
+        let matchedIDs: Set<String> = suitabilityEvaluator.map { evaluator in
+            Set(plants.filter { evaluator.evaluate($0).isRecommended }.map(\.id))
         } ?? []
 
         plants = plants.sorted { lhs, rhs in

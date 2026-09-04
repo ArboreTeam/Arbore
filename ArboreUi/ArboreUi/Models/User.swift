@@ -1,5 +1,10 @@
 import Foundation
 
+struct HouseholdSafetyProfile: Codable, Equatable {
+    var avoidPetToxicity: Bool
+    var avoidChildToxicity: Bool
+}
+
 struct User: Codable {
     let uid: String
     let email: String
@@ -8,4 +13,5 @@ struct User: Codable {
     let photoData: String?
     let photoContentType: String?
     let banned: Bool?
+    let householdSafety: HouseholdSafetyProfile?
 }

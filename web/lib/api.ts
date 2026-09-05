@@ -74,6 +74,7 @@ export interface Plant {
   source?: string; // libellé de provenance optionnel (catalogue curé) ; sinon legacy/beta
   sourceUrl?: string; // URL d'origine optionnelle (conservée pour mise à jour)
   flags?: PlantFlags; // drapeaux structurés pour la reco wizard
+  botanicalProfile?: PlantBotanicalProfile;
   hasHeavy?: boolean; // true = version 3D haute définition disponible (LOD)
   [key: string]: unknown;
 }
@@ -91,6 +92,44 @@ export interface PlantFlags {
   trailing?: boolean;
   compact?: boolean;
   airPurifying?: boolean;
+}
+
+export interface PlantDataEvidence {
+  sourceName?: string;
+  sourceURL?: string;
+  reviewedAt?: string;
+  reliability?: "high" | "medium" | "low" | string;
+}
+
+export interface PlantFact<T> {
+  value: T;
+  evidence?: PlantDataEvidence;
+}
+
+export interface PlantRangeFact {
+  minimum?: number;
+  maximum?: number;
+  unit?: string;
+  evidence?: PlantDataEvidence;
+}
+
+export interface PlantBotanicalProfile {
+  environments?: PlantFact<string[]>;
+  minimumTemperatureC?: PlantFact<number>;
+  directSunHours?: PlantRangeFact;
+  indoorHumidityPercent?: PlantRangeFact;
+  wateringIntervalDays?: PlantRangeFact;
+  drainage?: PlantFact<string>;
+  matureHeightCm?: PlantRangeFact;
+  matureWidthCm?: PlantRangeFact;
+  minimumPotVolumeLiters?: PlantFact<number>;
+  minimumPotDepthCm?: PlantFact<number>;
+  windTolerance?: PlantFact<string>;
+  droughtTolerance?: PlantFact<string>;
+  saltTolerance?: PlantFact<string>;
+  petToxicity?: PlantFact<string>;
+  childToxicity?: PlantFact<string>;
+  schemaVersion?: number;
 }
 
 export interface Garden {

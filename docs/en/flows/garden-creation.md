@@ -6,7 +6,7 @@ This document describes the **flow for creating a new garden** by the user, from
 
 The wizard is made up of a variable number of steps (between 8 and 9 depending on user choices), implemented as a non-pageable SwiftUI `TabView` whose selection is governed by the `GardenWizardStep` enum. The list of steps actually displayed is computed by the `visibleSteps` computed property.
 
-The **garden scan** happens at the `scanMethod` step (before the AI suggestion): tapping the primary CTA directly opens the AR tracing view, which calls `POST /gardens` at the end of the trace to create the garden in the database along with its boundary. The wizard then takes over again and presents the `aiSuggestion` step (which can now consume the real `state.measuredArea` / `state.measuredPerimeter` measurements for its ranking). The final CTA of the `aiSuggestion` step opens `GardenARPlacementView` on the brand-new garden in `.create` mode and triggers auto-placement of the selected plants.
+The **garden scan** happens at the `scanMethod` step (before the AI suggestion): tapping the primary CTA directly opens the AR tracing view, which calls `POST /gardens` at the end of the trace to create the garden in the database along with its boundary. After the scan, the camera closes and the user can provide a location for this specific garden; when available, that location triggers backend-side climate enrichment. The wizard then takes over again and presents the `aiSuggestion` step, which can consume the real `state.measuredArea` / `state.measuredPerimeter` measurements and the climate profile for its ranking. The final CTA of the `aiSuggestion` step opens `GardenARPlacementView` on the brand-new garden in `.create` mode and triggers auto-placement of the selected plants.
 
 ## Diagram
 
@@ -25,7 +25,9 @@ flowchart TB
 
     trace_ar["fullScreenCover AR<br/>ARViewContainerMesure or LiDARScanWizardView<br/>user traces + validates"]
     post_garden["POST /gardens<br/>boundary + wizard + plants: []"]
-
+    location["Garden location<br/>approximate position, city, or skip"]
+    climate["POST /climate/profile<br/>regional climate + frost + coast"]
+    update_garden["PUT /gardens/:id<br/>wizard.location + wizard.siteProfile"]
     ai["Step 9 — AI Suggestion<br/>plant selection (area-aware)"]
     placement["fullScreenCover<br/>GardenARPlacementView (.create + existingGardenId)"]
     auto_place["AI auto-placement<br/>+ manual adjustment"]
@@ -42,7 +44,10 @@ flowchart TB
 
     scan -->|tap Start scan| trace_ar
     trace_ar --> post_garden
-    post_garden -->|back to wizard| ai
+    post_garden --> location
+    location --> climate
+    climate --> update_garden
+    update_garden -->|back to wizard| ai
     ai -->|tap Place my plants in AR| placement
     placement --> auto_place
     auto_place -->|tap Validate and save| put_garden
@@ -52,8 +57,8 @@ flowchart TB
     classDef cond  fill:#2E7D32,stroke:#1B5E20,color:#fff
     classDef ar    fill:#6A1B9A,stroke:#4A148C,color:#fff
     classDef io    fill:#999,stroke:#666,color:#fff
-    class intro,style_step,spaceType,exposure,maintenance,safety,soil,scan,ai step
-    class post_garden,put_garden cond
+    class intro,style_step,spaceType,exposure,maintenance,safety,soil,scan,location,ai step
+    class post_garden,climate,update_garden,put_garden cond
     class trace_ar,placement,auto_place ar
     class start_node,home io
 ```
@@ -125,15 +130,19 @@ Sets `state.scanMethod`. The primary CTA **"Start scan"** directly opens the cor
 
 When the user lands in `ARViewContainerMesure`:
 
-1. The ARSession starts, the user taps the ground to add boundary corners.
-2. The surface in m² is displayed live (Shoelace).
-3. On tapping **CONTINUE**:
-   1. The current ARKit WorldMap is saved to disk under `tempGardenId`.
-   2. A `scene_{tempGardenId}.json` file is written with `plants: []`, the boundary, the area, and the perimeter.
-   3. `POST /gardens` is called with `name`, `wizard`, `plants: []`, `thumbnailKey`.
-   4. If the server returns an `id` different from `tempGardenId`, both local files are migrated (renamed) to the new id.
-   5. `state.createdGardenId`, `state.measuredBoundaryPoints`, `state.measuredArea`, `state.measuredPerimeter` are set by the `onTraceValidated` callback.
-   6. The fullScreenCover closes and the wizard calls `goToNext()` → `aiSuggestion` step.
+1. The ARSession starts and a centered reticle shows whether a horizontal floor is available.
+2. The user aims at each edge of the space and taps **Add a point**. The point is placed with a raycast at the center of the screen; duplicate placements within 12 cm are rejected.
+3. Points and segments are visible directly in the camera. From three vertices onward, their cyclic order is recalculated and crossing edges are removed automatically, including when rectangle corners were placed in diagonal order.
+4. The panel shows the live point count, area, and perimeter. **Undo** removes the point that was actually placed last, **Start over** clears the outline, and **Plan** opens the top view.
+5. On tapping **Confirm boundary**:
+   1. For a room, balcony, or terrace, tracing controls disappear while the camera stays open. The user aims at the main window, outside, or the most open side, then taps **Set this exposure**. Arbore records the horizontal direction in the AR frame, the available magnetic heading, and the instantaneous ambient light.
+   2. For a garden, this capture is skipped: exposure can later be estimated from its location and geometry.
+   3. The current ARKit WorldMap is saved to disk under `tempGardenId`.
+   4. A `scene_{tempGardenId}.json` file is written with `plants: []`, the boundary, the area, and the perimeter.
+   5. `POST /gardens` is called with `name`, `wizard` (including `lightExposure` when available), `plants: []`, and `thumbnailKey`.
+   6. If the server returns an `id` different from `tempGardenId`, both local files are migrated to the new id.
+   7. The camera closes. `GardenLocationCaptureView` requests a new approximate position, a manually entered city, or allows skipping. The result is copied to `state.location`, sent to `POST /climate/profile` when available, then persisted with `wizard.siteProfile` through `PUT /gardens/:id`.
+   8. The wizard calls `goToNext()` → `aiSuggestion` step.
 
 #### Sub-flow LiDAR scan (roomScan)
 
@@ -158,6 +167,17 @@ The primary CTA **"Place X plants in AR"**:
 3. The AR view loads the WorldMap from disk, starts a session, and auto-places the plants the moment tracking becomes stable.
 4. On final validation, **`PUT /gardens/:id`** updates the existing garden with the plant positions (`POST` is avoided because the garden already exists).
 
+### Space profile in the 2D plan
+
+The recap is not a blocking wizard step. It lives permanently below the plan in `GardenSpaceProfileView` and always identifies the source (`measured`, `inferred`, `declared`, `regional estimate`) and confidence.
+
+- Space type, area, perimeter, orientation, sunlight, soil type, location, wind, height, and plantable zones are shown.
+- For a room, balcony, or terrace, the captured magnetic orientation becomes a measured value with medium confidence. When usable coordinates exist, Arbore may infer a broad sunlight range from orientation and hemisphere; it remains labelled as inferred with low confidence. A duration declared for a room replaces this estimate. Instantaneous ARKit light intensity is never converted into daily sunlight hours.
+- Missing data stays “Measurement unavailable”; no default is presented as real data.
+- Area and perimeter are corrected with “Measure the space again.” The scan replaces the local outline and persists `measurements.boundaryPoints`, `area`, and `perimeter` through `PUT /gardens/:id` so the plan stays consistent.
+- Other values are corrected in a sheet persisted through `PUT /gardens/:id`.
+- Plantable zones are polygons in the outline's coordinate frame. They can be drawn, renamed, excluded, or deleted and are overlaid on the 2D plan.
+
 ## Creating the garden in the database — recap
 
 The historical `POST /gardens` happened **at the very end** of placement (in `GardenARPlacementView.handleValidateNotif`). The new flow triggers it **at the end of the trace** (`scanMethod` step), with `plants: []`. Consequences:
@@ -170,7 +190,9 @@ The historical `POST /gardens` happened **at the very end** of placement (in `Ga
 
 `GardenWizardState` is a `@StateObject` that lives for the entire wizard session. **No disk persistence** of the preference fields (style, spaceType, etc.) until the trace is validated. If the user dismisses before the trace, the choices are lost.
 
-**Starting from the validated trace** (`scanMethod` step completed), the garden exists in the database. The preference choices are copied into `garden.wizard` and persisted via `POST /gardens`.
+**Starting from the validated trace**, the garden exists in the database. Preference choices, dimensions, and optional exposure are persisted through `POST /gardens`. After the camera closes, the location specific to this creation is added to the same `garden.wizard` through `PUT /gardens/:id`. When a city or approximate position is available, the client also calls `POST /climate/profile`: the backend performs coarse commune geocoding, uses a configured Météo-France station when possible, then returns a regional profile with historical temperatures, frost risk, wind, and coastal exposure. These writes are serialized so an older snapshot cannot finish last and erase the location or climate. Before each send, Arbore also materializes measured or inferred orientation, sunlight, and climate enrichment in `wizard.siteProfile`. The same resolved wizard is stored locally as a per-garden JSON snapshot by `ArboreUi/ArboreUi/Views/GardenLocalStore.swift`. The 2D plan restores only captured data missing from the server, displays it immediately, then repairs the remote document without overwriting an existing correction. The final placement update sends the complete wizard again and waits for intermediate writes to finish.
+
+After creation, corrections made in the 2D profile are persisted in `wizard.siteProfile` through `PUT /gardens/:id`.
 
 ## Error cases
 
@@ -180,6 +202,9 @@ The historical `POST /gardens` happened **at the very end** of placement (in `Ga
 | LiDAR selected on a device without LiDAR | Should not happen — the LiDAR card is grayed out. If a corrupted state nonetheless lets it through, `LiDARScanWizardView` shows a "3D scan unavailable" alert and stays on the screen. |
 | Network connection dropped when tapping CONTINUE at the `scanMethod` step | The `POST /gardens` fails, inline message, retry possible. |
 | Camera permission denied | Branching into AR is impossible. An iOS system modal appears when the AR view is opened. |
+| Location denied or unavailable | The screen offers manual city entry or continuing without location. No previous location is reused. |
+| Climate enrichment unavailable | The flow continues without blocking. The catalog engine keeps missing data as “to confirm.” |
+| Location `PUT /gardens/:id` fails | The flow continues with the value kept in `GardenWizardState`; the final placement `PUT` retries persisting the complete wizard. |
 | User dismisses after the trace but before placement | Orphan garden in the database with `plants: []`. Visible and deletable from the Home. |
 | `PUT /gardens/:id` fails at the end of placement | Local files kept under the tempID. Error message. To retry. |
 

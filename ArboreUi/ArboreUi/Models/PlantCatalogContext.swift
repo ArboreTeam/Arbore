@@ -4,7 +4,6 @@ enum PlantSuitabilityLevel: Int, Comparable {
     case unsuitable = 0
     case needsReview = 1
     case suitable = 2
-    case verySuitable = 3
 
     static func < (lhs: PlantSuitabilityLevel, rhs: PlantSuitabilityLevel) -> Bool {
         lhs.rawValue < rhs.rawValue
@@ -17,16 +16,18 @@ struct PlantSuitability: Equatable {
     let positiveReasonKeys: [String]
     let warningReasonKeys: [String]
     let evaluatedCriteriaCount: Int
+    var missingDataKeys: [String] = []
 
     var isRecommended: Bool {
-        level == .verySuitable || level == .suitable
+        level == .suitable
+            || (level == .needsReview && evaluatedCriteriaCount > 0 && (score ?? 0) >= 0.55)
     }
 }
 
 /// Évalue une plante uniquement à partir des informations effectivement
 /// disponibles dans le jardin. Un axe inconnu est ignoré au lieu d'être
 /// transformé en compatibilité supposée.
-struct PlantSuitabilityEvaluator {
+private struct LegacyPlantSuitabilityEvaluator {
     let wizard: GardenWizardDTO
 
     private struct Criterion {
@@ -99,8 +100,6 @@ struct PlantSuitabilityEvaluator {
 
         if hasCriticalConflict || average < 0.40 {
             level = .unsuitable
-        } else if average >= 0.82 {
-            level = .verySuitable
         } else if average >= 0.64 {
             level = .suitable
         } else {
@@ -346,6 +345,562 @@ struct PlantSuitabilityEvaluator {
         case shade
         case partial
         case fullSun
+    }
+}
+
+/// Canonical compatibility evaluator. Critical constraints are checked before
+/// ranking, sourced botanical facts take precedence, and every missing fact is
+/// surfaced instead of receiving a neutral score.
+struct PlantSuitabilityEvaluator {
+    let wizard: GardenWizardDTO
+
+    private struct Criterion {
+        let score: Double
+        let positiveReasonKey: String?
+        let warningReasonKey: String?
+        let isCriticalConflict: Bool
+
+        static func positive(_ score: Double, _ key: String) -> Self {
+            Criterion(score: score, positiveReasonKey: key, warningReasonKey: nil, isCriticalConflict: false)
+        }
+
+        static func positive(_ key: String) -> Self {
+            positive(1, key)
+        }
+
+        static func warning(_ score: Double, _ key: String) -> Self {
+            Criterion(score: score, positiveReasonKey: nil, warningReasonKey: key, isCriticalConflict: false)
+        }
+
+        static func critical(_ key: String) -> Self {
+            Criterion(score: 0, positiveReasonKey: nil, warningReasonKey: key, isCriticalConflict: true)
+        }
+    }
+
+    func evaluate(_ plant: Plant) -> PlantSuitability {
+        evaluate(plant, traits: PlantCatalogTraits.snapshot(for: plant))
+    }
+
+    func evaluate(_ plant: Plant, traits: PlantCatalogTraitsSnapshot) -> PlantSuitability {
+        var criteria: [Criterion] = []
+        var missing: [String] = []
+
+        if plant.botanicalProfile == nil {
+            missing.append("AR_CATALOG_MISSING_BOTANICAL_PROFILE")
+        }
+
+        appendSpaceCriterion(plant: plant, traits: traits, criteria: &criteria, missing: &missing)
+        appendSunlightCriterion(plant: plant, traits: traits, criteria: &criteria, missing: &missing)
+        appendTemperatureCriterion(plant: plant, criteria: &criteria, missing: &missing)
+        appendSafetyCriteria(plant: plant, criteria: &criteria, missing: &missing)
+        appendContainerCriterion(plant: plant, criteria: &criteria, missing: &missing)
+        appendDrainageCriterion(plant: plant, criteria: &criteria, missing: &missing)
+        appendWateringCriterion(plant: plant, criteria: &criteria, missing: &missing)
+        appendWindCriterion(plant: plant, criteria: &criteria, missing: &missing)
+        appendCoastalCriterion(plant: plant, criteria: &criteria, missing: &missing)
+        appendHumidityCriterion(plant: plant, criteria: &criteria, missing: &missing)
+        appendHeatCriterion(plant: plant, criteria: &criteria, missing: &missing)
+        appendDimensionsCriteria(plant: plant, criteria: &criteria, missing: &missing)
+
+        let uniqueMissing = unique(missing)
+        guard !criteria.isEmpty else {
+            return PlantSuitability(
+                level: .needsReview,
+                score: nil,
+                positiveReasonKeys: [],
+                warningReasonKeys: ["AR_CATALOG_REASON_NOT_ENOUGH_DATA"],
+                evaluatedCriteriaCount: 0,
+                missingDataKeys: uniqueMissing
+            )
+        }
+
+        let average = criteria.map(\.score).reduce(0, +) / Double(criteria.count)
+        let criticalConflict = criteria.contains(where: \.isCriticalConflict)
+        let hasWarnings = criteria.contains { $0.warningReasonKey != nil }
+
+        let level: PlantSuitabilityLevel
+        if criticalConflict || average < 0.35 {
+            level = .unsuitable
+        } else if !uniqueMissing.isEmpty || hasWarnings || average < 0.75 {
+            level = .needsReview
+        } else {
+            level = .suitable
+        }
+
+        return PlantSuitability(
+            level: level,
+            score: average,
+            positiveReasonKeys: unique(criteria.compactMap(\.positiveReasonKey)),
+            warningReasonKeys: unique(criteria.compactMap(\.warningReasonKey)),
+            evaluatedCriteriaCount: criteria.count,
+            missingDataKeys: uniqueMissing
+        )
+    }
+
+    private func appendSpaceCriterion(
+        plant: Plant,
+        traits: PlantCatalogTraitsSnapshot,
+        criteria: inout [Criterion],
+        missing: inout [String]
+    ) {
+        guard let space = GardenSpaceType(rawValue: wizard.spaceType) else {
+            missing.append("AR_CATALOG_MISSING_SPACE_CONTEXT")
+            return
+        }
+
+        let expected = space == .interior ? "indoor" : "outdoor"
+        if let fact = plant.botanicalProfile?.environments {
+            markEvidence(fact.evidence, missing: &missing)
+            let values = Set(fact.value.map(normalized))
+            if values.contains(expected) || values.contains("both") {
+                criteria.append(.positive("AR_CATALOG_REASON_SPACE_MATCH"))
+            } else {
+                criteria.append(.critical("AR_CATALOG_REASON_SPACE_CONFLICT"))
+            }
+            return
+        }
+
+        let text = traits.searchableText
+        let indoor = containsAny(text, ["plante d'interieur", "indoor plant", "houseplant", "zimmerpflanze", "planta de interior"])
+        let outdoor = containsAny(text, ["plante d'exterieur", "outdoor plant", "garden plant", "gartenpflanze", "planta de exterior"])
+        missing.append("AR_CATALOG_MISSING_ENVIRONMENT")
+
+        if (expected == "indoor" && indoor) || (expected == "outdoor" && outdoor) {
+            criteria.append(.positive(0.72, "AR_CATALOG_REASON_SPACE_MATCH"))
+        } else if (expected == "indoor" && outdoor) || (expected == "outdoor" && indoor) {
+            criteria.append(.warning(0.20, "AR_CATALOG_REASON_SPACE_CONFLICT"))
+        }
+    }
+
+    private func appendSunlightCriterion(
+        plant: Plant,
+        traits: PlantCatalogTraitsSnapshot,
+        criteria: inout [Criterion],
+        missing: inout [String]
+    ) {
+        let gardenRange: ClosedRange<Double>?
+        if let declared = wizard.conditionalAnswers?.directSunDuration {
+            gardenRange = declared.estimatedRange
+        } else if let sunlight = wizard.siteProfile?.sunlight {
+            gardenRange = sunlight.minimumHours...sunlight.maximumHours
+            if sunlight.metadata.confidence == .low {
+                missing.append("AR_CATALOG_MISSING_RELIABLE_SUNLIGHT")
+            }
+        } else {
+            gardenRange = nil
+        }
+
+        guard let gardenRange else {
+            missing.append("AR_CATALOG_MISSING_SUNLIGHT_CONTEXT")
+            return
+        }
+
+        if let fact = plant.botanicalProfile?.directSunHours, fact.hasValue {
+            markEvidence(fact.evidence, missing: &missing)
+            let plantMinimum = fact.minimum ?? 0
+            let plantMaximum = fact.maximum ?? 24
+            let overlaps = plantMaximum >= gardenRange.lowerBound && plantMinimum <= gardenRange.upperBound
+            if overlaps {
+                criteria.append(.positive("AR_CATALOG_REASON_LIGHT_MATCH"))
+            } else if gardenRange.upperBound < plantMinimum {
+                criteria.append(.critical("AR_CATALOG_REASON_SHADE_CONFLICT"))
+            } else {
+                criteria.append(.critical("AR_CATALOG_REASON_SUN_CONFLICT"))
+            }
+            return
+        }
+
+        missing.append("AR_CATALOG_MISSING_LIGHT_REQUIREMENT")
+        let tolerances = traits.sunlightTolerances
+        guard tolerances.hasKnownValue else { return }
+
+        if gardenRange.upperBound <= 3 {
+            criteria.append(
+                tolerances.shade
+                    ? .positive(0.70, "AR_CATALOG_REASON_LIGHT_MATCH")
+                    : .warning(0.20, "AR_CATALOG_REASON_SHADE_CONFLICT")
+            )
+        } else if gardenRange.lowerBound >= 6 {
+            criteria.append(
+                tolerances.fullSun
+                    ? .positive(0.70, "AR_CATALOG_REASON_LIGHT_MATCH")
+                    : .warning(0.20, "AR_CATALOG_REASON_SUN_CONFLICT")
+            )
+        } else if tolerances.shade || tolerances.fullSun {
+            criteria.append(.positive(0.65, "AR_CATALOG_REASON_LIGHT_MATCH"))
+        }
+    }
+
+    private func appendTemperatureCriterion(
+        plant: Plant,
+        criteria: inout [Criterion],
+        missing: inout [String]
+    ) {
+        guard let space = GardenSpaceType(rawValue: wizard.spaceType), space != .interior else { return }
+
+        guard let gardenMinimum = wizard.siteProfile?.climate?.historicalMinimumTemperature else {
+            missing.append("AR_CATALOG_MISSING_MINIMUM_TEMPERATURE_CONTEXT")
+            return
+        }
+        if gardenMinimum.metadata.confidence == .low {
+            missing.append("AR_CATALOG_MISSING_CLIMATE_CONFIDENCE")
+        }
+
+        guard let fact = plant.botanicalProfile?.minimumTemperatureC else {
+            missing.append("AR_CATALOG_MISSING_MINIMUM_TEMPERATURE")
+            return
+        }
+        markEvidence(fact.evidence, missing: &missing)
+
+        if gardenMinimum.celsius + 0.5 < fact.value {
+            criteria.append(.critical("AR_CATALOG_REASON_TEMPERATURE_CONFLICT"))
+        } else {
+            criteria.append(.positive("AR_CATALOG_REASON_TEMPERATURE_MATCH"))
+        }
+    }
+
+    private func appendSafetyCriteria(
+        plant: Plant,
+        criteria: inout [Criterion],
+        missing: inout [String]
+    ) {
+        let safety = wizard.safety?.map(normalized) ?? []
+        let requiresPetSafety = safety.contains { $0.contains("animaux") || $0.contains("pets") }
+        let requiresChildSafety = safety.contains { $0.contains("enfants") || $0.contains("children") }
+
+        if requiresPetSafety {
+            appendToxicityCriterion(
+                fact: plant.botanicalProfile?.petToxicity,
+                legacyToxic: plant.flags?.toxicToPets,
+                safeReason: "AR_CATALOG_REASON_PET_SAFE",
+                conflictReason: "AR_CATALOG_REASON_PET_CONFLICT",
+                missingKey: "AR_CATALOG_MISSING_PET_TOXICITY",
+                criteria: &criteria,
+                missing: &missing
+            )
+        }
+
+        if requiresChildSafety {
+            appendToxicityCriterion(
+                fact: plant.botanicalProfile?.childToxicity,
+                legacyToxic: plant.flags?.toxicToChildren,
+                safeReason: "AR_CATALOG_REASON_CHILD_SAFE",
+                conflictReason: "AR_CATALOG_REASON_CHILD_CONFLICT",
+                missingKey: "AR_CATALOG_MISSING_CHILD_TOXICITY",
+                criteria: &criteria,
+                missing: &missing
+            )
+        }
+    }
+
+    private func appendToxicityCriterion(
+        fact: PlantFact<String>?,
+        legacyToxic: Bool?,
+        safeReason: String,
+        conflictReason: String,
+        missingKey: String,
+        criteria: inout [Criterion],
+        missing: inout [String]
+    ) {
+        if let fact {
+            markEvidence(fact.evidence, missing: &missing)
+            let value = normalized(fact.value)
+            if containsAny(value, ["safe", "non toxic", "non-toxic", "not toxic"]) {
+                criteria.append(.positive(safeReason))
+            } else if containsAny(value, ["toxic", "irritant", "danger", "poison"]) {
+                criteria.append(.critical(conflictReason))
+            } else {
+                missing.append(missingKey)
+            }
+        } else if legacyToxic == true {
+            criteria.append(.critical(conflictReason))
+            missing.append(missingKey)
+        } else {
+            // `false` in legacy flags meant both “safe” and “not researched”.
+            missing.append(missingKey)
+        }
+    }
+
+    private func appendContainerCriterion(
+        plant: Plant,
+        criteria: inout [Criterion],
+        missing: inout [String]
+    ) {
+        let space = GardenSpaceType(rawValue: wizard.spaceType)
+        let requiresContainer = space == .balcony
+            || space == .terrace
+            || wizard.conditionalAnswers?.plantingMode == .containers
+
+        guard requiresContainer else { return }
+        guard let acceptedSize = wizard.conditionalAnswers?.maximumContainerSize else {
+            missing.append("AR_CATALOG_MISSING_CONTAINER_CONTEXT")
+            return
+        }
+        guard let fact = plant.botanicalProfile?.minimumPotVolumeLiters else {
+            missing.append("AR_CATALOG_MISSING_POT_REQUIREMENT")
+            return
+        }
+        markEvidence(fact.evidence, missing: &missing)
+
+        guard let maximumVolume = acceptedSize.maximumVolumeLiters else {
+            criteria.append(.positive(0.90, "AR_CATALOG_REASON_CONTAINER_MATCH"))
+            return
+        }
+        if fact.value > maximumVolume {
+            criteria.append(.critical("AR_CATALOG_REASON_POT_SIZE_CONFLICT"))
+        } else {
+            criteria.append(.positive("AR_CATALOG_REASON_CONTAINER_MATCH"))
+        }
+    }
+
+    private func appendDrainageCriterion(
+        plant: Plant,
+        criteria: inout [Criterion],
+        missing: inout [String]
+    ) {
+        guard let gardenDrainage = wizard.conditionalAnswers?.drainage else { return }
+        guard let fact = plant.botanicalProfile?.drainage else {
+            missing.append("AR_CATALOG_MISSING_DRAINAGE_REQUIREMENT")
+            return
+        }
+        markEvidence(fact.evidence, missing: &missing)
+
+        let plantDrainage = normalized(fact.value)
+        if plantDrainage == "any" || plantDrainage == gardenDrainage.rawValue {
+            criteria.append(.positive("AR_CATALOG_REASON_DRAINAGE_MATCH"))
+        } else if (gardenDrainage == .fast && plantDrainage == "slow")
+                    || (gardenDrainage == .slow && plantDrainage == "fast") {
+            criteria.append(.warning(0.25, "AR_CATALOG_REASON_DRAINAGE_CONFLICT"))
+        } else {
+            criteria.append(.warning(0.60, "AR_CATALOG_REASON_DRAINAGE_CONFLICT"))
+        }
+    }
+
+    private func appendWateringCriterion(
+        plant: Plant,
+        criteria: inout [Criterion],
+        missing: inout [String]
+    ) {
+        guard let capacity = wizard.conditionalAnswers?.wateringCapacity else { return }
+        guard let fact = plant.botanicalProfile?.wateringIntervalDays, fact.hasValue else {
+            missing.append("AR_CATALOG_MISSING_WATERING_REQUIREMENT")
+            return
+        }
+        markEvidence(fact.evidence, missing: &missing)
+
+        let longestInterval = fact.maximum ?? fact.minimum ?? 0
+        switch capacity {
+        case .low:
+            if longestInterval >= 7 {
+                criteria.append(.positive("AR_CATALOG_REASON_WATERING_MATCH"))
+            } else {
+                criteria.append(.warning(0.25, "AR_CATALOG_REASON_WATERING_CONFLICT"))
+            }
+        case .regular:
+            if longestInterval >= 3 {
+                criteria.append(.positive("AR_CATALOG_REASON_WATERING_MATCH"))
+            } else {
+                criteria.append(.warning(0.50, "AR_CATALOG_REASON_WATERING_CONFLICT"))
+            }
+        case .frequent:
+            criteria.append(.positive(0.90, "AR_CATALOG_REASON_WATERING_MATCH"))
+        }
+    }
+
+    private func appendWindCriterion(
+        plant: Plant,
+        criteria: inout [Criterion],
+        missing: inout [String]
+    ) {
+        let exposure: GardenWindExposureDTO?
+        if let declared = wizard.conditionalAnswers?.windExposure {
+            exposure = declared
+        } else {
+            switch wizard.siteProfile?.wind?.level {
+            case .strong: exposure = .veryExposed
+            case .moderate, .light: exposure = .sometimesWindy
+            case .sheltered: exposure = .sheltered
+            case .none: exposure = nil
+            }
+        }
+        guard let exposure, exposure != .sheltered else { return }
+        guard let fact = plant.botanicalProfile?.windTolerance else {
+            missing.append("AR_CATALOG_MISSING_WIND_TOLERANCE")
+            return
+        }
+        markEvidence(fact.evidence, missing: &missing)
+
+        let tolerance = normalized(fact.value)
+        if exposure == .veryExposed {
+            if tolerance == "high" {
+                criteria.append(.positive("AR_CATALOG_REASON_WIND_MATCH"))
+            } else if tolerance == "low" {
+                criteria.append(.warning(0.15, "AR_CATALOG_REASON_WIND_CONFLICT"))
+            } else {
+                criteria.append(.warning(0.60, "AR_CATALOG_REASON_WIND_CONFLICT"))
+            }
+        } else if tolerance == "low" {
+            criteria.append(.warning(0.55, "AR_CATALOG_REASON_WIND_CONFLICT"))
+        } else {
+            criteria.append(.positive(0.90, "AR_CATALOG_REASON_WIND_MATCH"))
+        }
+    }
+
+    private func appendCoastalCriterion(
+        plant: Plant,
+        criteria: inout [Criterion],
+        missing: inout [String]
+    ) {
+        guard let space = GardenSpaceType(rawValue: wizard.spaceType), space != .interior else { return }
+        guard wizard.siteProfile?.climate?.coastalExposure?.isCoastal == true else { return }
+
+        guard let fact = plant.botanicalProfile?.saltTolerance else {
+            missing.append("AR_CATALOG_MISSING_SALT_TOLERANCE")
+            return
+        }
+        markEvidence(fact.evidence, missing: &missing)
+
+        switch normalized(fact.value) {
+        case "high":
+            criteria.append(.positive("AR_CATALOG_REASON_COASTAL_MATCH"))
+        case "moderate", "medium":
+            criteria.append(.positive(0.85, "AR_CATALOG_REASON_COASTAL_MATCH"))
+        case "low":
+            criteria.append(.warning(0.45, "AR_CATALOG_REASON_COASTAL_CONFLICT"))
+        default:
+            missing.append("AR_CATALOG_MISSING_SALT_TOLERANCE")
+        }
+    }
+
+    private func appendHumidityCriterion(
+        plant: Plant,
+        criteria: inout [Criterion],
+        missing: inout [String]
+    ) {
+        guard let humidity = wizard.conditionalAnswers?.indoorHumidity else { return }
+        guard let fact = plant.botanicalProfile?.indoorHumidityPercent, fact.hasValue else {
+            missing.append("AR_CATALOG_MISSING_HUMIDITY_REQUIREMENT")
+            return
+        }
+        markEvidence(fact.evidence, missing: &missing)
+
+        let target: ClosedRange<Double>
+        switch humidity {
+        case .dry: target = 20...40
+        case .normal: target = 35...60
+        case .humid: target = 55...80
+        }
+        let plantMinimum = fact.minimum ?? 0
+        let plantMaximum = fact.maximum ?? 100
+        if plantMaximum >= target.lowerBound && plantMinimum <= target.upperBound {
+            criteria.append(.positive("AR_CATALOG_REASON_HUMIDITY_MATCH"))
+        } else {
+            criteria.append(.warning(0.25, "AR_CATALOG_REASON_HUMIDITY_CONFLICT"))
+        }
+    }
+
+    private func appendHeatCriterion(
+        plant: Plant,
+        criteria: inout [Criterion],
+        missing: inout [String]
+    ) {
+        guard let heat = wizard.conditionalAnswers?.nearbyHeat, heat != .none else { return }
+        guard let fact = plant.botanicalProfile?.droughtTolerance else {
+            missing.append("AR_CATALOG_MISSING_DROUGHT_TOLERANCE")
+            return
+        }
+        markEvidence(fact.evidence, missing: &missing)
+        let tolerance = normalized(fact.value)
+        if tolerance == "high" {
+            criteria.append(.positive(0.85, "AR_CATALOG_REASON_HEAT_MATCH"))
+        } else if tolerance == "low" {
+            criteria.append(.warning(0.30, "AR_CATALOG_REASON_HEAT_CONFLICT"))
+        } else {
+            criteria.append(.warning(0.60, "AR_CATALOG_REASON_HEAT_CONFLICT"))
+        }
+    }
+
+    private func appendDimensionsCriteria(
+        plant: Plant,
+        criteria: inout [Criterion],
+        missing: inout [String]
+    ) {
+        if let availableHeight = wizard.siteProfile?.availableHeight?.meters {
+            if let fact = plant.botanicalProfile?.matureHeightCm, fact.hasValue {
+                markEvidence(fact.evidence, missing: &missing)
+                let minimumHeight = fact.minimum ?? fact.maximum ?? 0
+                let maximumHeight = fact.maximum ?? minimumHeight
+                if minimumHeight > availableHeight * 100 {
+                    criteria.append(.critical("AR_CATALOG_REASON_HEIGHT_CONFLICT"))
+                } else if maximumHeight > availableHeight * 100 {
+                    criteria.append(.warning(0.55, "AR_CATALOG_REASON_HEIGHT_CONFLICT"))
+                } else {
+                    criteria.append(.positive("AR_CATALOG_REASON_HEIGHT_MATCH"))
+                }
+            } else {
+                missing.append("AR_CATALOG_MISSING_MATURE_HEIGHT")
+            }
+        }
+
+        guard let availableWidth = maximumPlantingZoneWidthMeters() else {
+            if GardenSpaceType(rawValue: wizard.spaceType) != .garden {
+                missing.append("AR_CATALOG_MISSING_AVAILABLE_WIDTH")
+            }
+            return
+        }
+        guard let fact = plant.botanicalProfile?.matureWidthCm, fact.hasValue else {
+            missing.append("AR_CATALOG_MISSING_MATURE_WIDTH")
+            return
+        }
+        markEvidence(fact.evidence, missing: &missing)
+        let minimumWidth = fact.minimum ?? fact.maximum ?? 0
+        if minimumWidth > availableWidth * 100 {
+            criteria.append(.critical("AR_CATALOG_REASON_WIDTH_CONFLICT"))
+        } else {
+            criteria.append(.positive("AR_CATALOG_REASON_WIDTH_MATCH"))
+        }
+    }
+
+    private func maximumPlantingZoneWidthMeters() -> Double? {
+        wizard.siteProfile?.plantingZones
+            .filter { !$0.isExcluded }
+            .compactMap { zone -> Double? in
+                let points = zone.points.filter { $0.count >= 3 }
+                guard let first = points.first else { return nil }
+                let xs = points.map { Double($0[0]) }
+                let zs = points.map { Double($0[2]) }
+                let width = (xs.max() ?? Double(first[0])) - (xs.min() ?? Double(first[0]))
+                let depth = (zs.max() ?? Double(first[2])) - (zs.min() ?? Double(first[2]))
+                return max(width, depth)
+            }
+            .max()
+    }
+
+    private func markEvidence(_ evidence: PlantDataEvidence?, missing: inout [String]) {
+        guard let evidence,
+              !(evidence.sourceName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+                || !(evidence.sourceURL?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true),
+              !(evidence.reviewedAt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true),
+              normalized(evidence.reliability ?? "") == "high" else {
+            missing.append("AR_CATALOG_MISSING_VERIFIED_SOURCE")
+            return
+        }
+    }
+
+    private func unique(_ keys: [String]) -> [String] {
+        var seen = Set<String>()
+        return keys.filter { seen.insert($0).inserted }
+    }
+
+    private func containsAny(_ text: String, _ candidates: [String]) -> Bool {
+        candidates.contains { text.contains($0) }
+    }
+
+    private func normalized(_ value: String) -> String {
+        value
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .lowercased()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

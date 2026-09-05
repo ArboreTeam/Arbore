@@ -93,6 +93,10 @@ enum GardenDataConfidenceDTO: String, Codable {
 struct GardenValueMetadataDTO: Codable, Equatable {
     var source: GardenDataSourceDTO
     var confidence: GardenDataConfidenceDTO
+    /// Dataset, service or user action that produced the value.
+    var sourceReference: String? = nil
+    /// ISO-8601 timestamp. Optional for backwards compatibility.
+    var observedAt: String? = nil
 }
 
 struct GardenOrientationDTO: Codable, Equatable {
@@ -124,6 +128,57 @@ struct GardenAvailableHeightDTO: Codable, Equatable {
     var metadata: GardenValueMetadataDTO
 }
 
+struct GardenTemperatureDTO: Codable, Equatable {
+    var celsius: Double
+    var metadata: GardenValueMetadataDTO
+}
+
+struct GardenAltitudeDTO: Codable, Equatable {
+    var meters: Double
+    var metadata: GardenValueMetadataDTO
+}
+
+enum GardenFrostRiskLevelDTO: String, Codable {
+    case none
+    case occasional
+    case regular
+    case severe
+}
+
+struct GardenFrostRiskDTO: Codable, Equatable {
+    var level: GardenFrostRiskLevelDTO
+    var metadata: GardenValueMetadataDTO
+}
+
+struct GardenCoastalExposureDTO: Codable, Equatable {
+    var isCoastal: Bool
+    var metadata: GardenValueMetadataDTO
+}
+
+/// Climate facts enriched from the garden's approximate location. No address
+/// is needed, and every value keeps its source and confidence.
+struct GardenClimateDTO: Codable, Equatable {
+    var historicalMinimumTemperature: GardenTemperatureDTO?
+    var historicalMaximumTemperature: GardenTemperatureDTO?
+    var frostRisk: GardenFrostRiskDTO?
+    var altitude: GardenAltitudeDTO?
+    var coastalExposure: GardenCoastalExposureDTO?
+
+    init(
+        historicalMinimumTemperature: GardenTemperatureDTO? = nil,
+        historicalMaximumTemperature: GardenTemperatureDTO? = nil,
+        frostRisk: GardenFrostRiskDTO? = nil,
+        altitude: GardenAltitudeDTO? = nil,
+        coastalExposure: GardenCoastalExposureDTO? = nil
+    ) {
+        self.historicalMinimumTemperature = historicalMinimumTemperature
+        self.historicalMaximumTemperature = historicalMaximumTemperature
+        self.frostRisk = frostRisk
+        self.altitude = altitude
+        self.coastalExposure = coastalExposure
+    }
+}
+
 struct GardenPlantingZoneDTO: Codable, Equatable, Identifiable {
     var id: String
     var name: String
@@ -140,6 +195,7 @@ struct GardenSiteProfileDTO: Codable, Equatable {
     var sunlight: GardenSunlightDTO?
     var wind: GardenWindDTO?
     var availableHeight: GardenAvailableHeightDTO?
+    var climate: GardenClimateDTO?
     var plantingZones: [GardenPlantingZoneDTO]
 
     init(
@@ -147,12 +203,14 @@ struct GardenSiteProfileDTO: Codable, Equatable {
         sunlight: GardenSunlightDTO? = nil,
         wind: GardenWindDTO? = nil,
         availableHeight: GardenAvailableHeightDTO? = nil,
+        climate: GardenClimateDTO? = nil,
         plantingZones: [GardenPlantingZoneDTO] = []
     ) {
         self.orientation = orientation
         self.sunlight = sunlight
         self.wind = wind
         self.availableHeight = availableHeight
+        self.climate = climate
         self.plantingZones = plantingZones
     }
 }
@@ -164,7 +222,11 @@ struct GardenConditionalAnswersDTO: Codable, Equatable {
     var plantingMode: GardenPlantingModeDTO?
     var drainage: GardenDrainageDTO?
     var windExposure: GardenWindExposureDTO?
+    /// Legacy field retained to decode gardens created by earlier builds.
     var containerProject: GardenContainerProjectDTO?
+    var maximumContainerSize: GardenContainerSizeDTO?
+    var wateringCapacity: GardenWateringCapacityDTO?
+    var directSunDuration: GardenDirectSunDurationDTO?
     var indoorHumidity: GardenIndoorHumidityDTO?
     var nearbyHeat: GardenNearbyHeatDTO?
 
@@ -173,6 +235,9 @@ struct GardenConditionalAnswersDTO: Codable, Equatable {
         drainage: GardenDrainageDTO? = nil,
         windExposure: GardenWindExposureDTO? = nil,
         containerProject: GardenContainerProjectDTO? = nil,
+        maximumContainerSize: GardenContainerSizeDTO? = nil,
+        wateringCapacity: GardenWateringCapacityDTO? = nil,
+        directSunDuration: GardenDirectSunDurationDTO? = nil,
         indoorHumidity: GardenIndoorHumidityDTO? = nil,
         nearbyHeat: GardenNearbyHeatDTO? = nil
     ) {
@@ -180,6 +245,9 @@ struct GardenConditionalAnswersDTO: Codable, Equatable {
         self.drainage = drainage
         self.windExposure = windExposure
         self.containerProject = containerProject
+        self.maximumContainerSize = maximumContainerSize
+        self.wateringCapacity = wateringCapacity
+        self.directSunDuration = directSunDuration
         self.indoorHumidity = indoorHumidity
         self.nearbyHeat = nearbyHeat
     }
@@ -189,6 +257,9 @@ struct GardenConditionalAnswersDTO: Codable, Equatable {
             && drainage == nil
             && windExposure == nil
             && containerProject == nil
+            && maximumContainerSize == nil
+            && wateringCapacity == nil
+            && directSunDuration == nil
             && indoorHumidity == nil
             && nearbyHeat == nil
     }
@@ -218,6 +289,44 @@ enum GardenContainerProjectDTO: String, Codable {
     case both
 }
 
+enum GardenContainerSizeDTO: String, Codable {
+    case small
+    case medium
+    case large
+
+    /// Maximum volume explicitly accepted by the user. `nil` means the user
+    /// accepts large containers and no honest upper bound is known.
+    var maximumVolumeLiters: Double? {
+        switch self {
+        case .small: return 10
+        case .medium: return 30
+        case .large: return nil
+        }
+    }
+}
+
+enum GardenWateringCapacityDTO: String, Codable {
+    case low
+    case regular
+    case frequent
+}
+
+enum GardenDirectSunDurationDTO: String, Codable {
+    case none
+    case oneToThreeHours
+    case fourToSixHours
+    case moreThanSixHours
+
+    var estimatedRange: ClosedRange<Double> {
+        switch self {
+        case .none: return 0...0
+        case .oneToThreeHours: return 1...3
+        case .fourToSixHours: return 4...6
+        case .moreThanSixHours: return 6...12
+        }
+    }
+}
+
 enum GardenIndoorHumidityDTO: String, Codable {
     case dry
     case normal
@@ -228,6 +337,8 @@ enum GardenNearbyHeatDTO: String, Codable {
     case none
     case radiator
     case underfloorHeating
+    case airConditioning
+    case heatingAndAirConditioning
 }
 
 struct GardenWizardDTO: Codable, Equatable {
@@ -273,6 +384,9 @@ extension GardenWizardDTO {
             }
             if merged.siteProfile?.availableHeight == nil {
                 merged.siteProfile?.availableHeight = fallbackProfile.availableHeight
+            }
+            if merged.siteProfile?.climate == nil {
+                merged.siteProfile?.climate = fallbackProfile.climate
             }
             if merged.siteProfile?.plantingZones.isEmpty == true,
                !fallbackProfile.plantingZones.isEmpty {

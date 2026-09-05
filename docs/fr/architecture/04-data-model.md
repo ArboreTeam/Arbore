@@ -31,6 +31,7 @@ erDiagram
         string tier "free | premium"
         string tierSource "none | appstore | grant"
         date   tierExpiresAt "fin de période payée"
+        object householdSafety "préférences foyer optionnelles"
         bytes  appleRefreshTokenEncrypted "AES-GCM, jamais sérialisé"
     }
 
@@ -137,6 +138,7 @@ Document représentant un utilisateur authentifié. La clé fonctionnelle est `u
 | `tier` | string (optionnel) | `free` \| `premium`. Défaut `free`. Axe **distinct** du rôle : les fusionner produirait un produit cartésien dès qu'un administrateur est aussi abonné. |
 | `tierSource` | string (optionnel) | `none` \| `appstore` \| `grant` — provenance de l'abonnement, conservée pour l'audit : un `premium` doit toujours être explicable. |
 | `tierExpiresAt` | date (optionnel) | Fin de période payée. Vérifiée **à la lecture** (`NormalizeTier`) : sans cela un abonnement échu resterait `premium` jusqu'au passage d'un job externe. |
+| `householdSafety` | object (optionnel) | Préférences durables `avoidPetToxicity` et `avoidChildToxicity`, modifiables avec le nom via `PATCH /users/me`. Elles sont appliquées automatiquement aux nouveaux jardins. |
 | `appleRefreshTokenEncrypted` | bytes (optionnel) | Refresh token Apple chiffré **AES-256-GCM**. `json:"-"` — **jamais** sérialisé vers les clients ; `nil` si l'utilisateur n'a jamais utilisé Sign in with Apple. Écrit par `linkAppleAccount`, lu par `deleteUser` pour la révocation (#210). |
 
 ### `plants`
@@ -155,7 +157,8 @@ Document du catalogue de plantes. Chaque plante embarque ses traductions multili
 | `generated` | bool (optionnel) | `true` si le modèle 3D est généré par IA (badge BETA, #84). |
 | `upAxis` | string (optionnel) | `"Y"` ou `"Z"` — rotation appliquée au chargement (#89). |
 | `hasHeavy` | bool (optionnel) | `true` si une variante USDZ **haute définition** existe (servie via `?lod=heavy`). Pilote le swap LOD en AR — cf. [`../3d-lod-architecture.md`](../3d-lod-architecture.md). |
-| `flags` | `PlantFlags` (optionnel) | Drapeaux structurés de recommandation (voir ci-dessous). `nil` sur les plantes legacy. |
+| `flags` | `PlantFlags` (optionnel) | Drapeaux legacy encore utilisés pour les filtres visuels et comme indice faible. Ils ne certifient plus seuls une compatibilité. |
+| `botanicalProfile` | `PlantBotanicalProfile` (optionnel) | Contraintes horticoles canoniques, structurées et sourcées champ par champ. Son absence force le verdict « Probablement compatible » ou « Non adaptée », jamais « Adaptée ». |
 | `source` | string (optionnel) | Libellé de provenance optionnel (catalogue curé vs entrées legacy/beta). |
 | `sourceUrl` | string (optionnel) | URL d'origine optionnelle, conservée pour mise à jour ultérieure. |
 
@@ -173,9 +176,17 @@ LanguageData {
 }
 ```
 
-#### Sous-document `PlantFlags`
+#### Sous-document `PlantBotanicalProfile`
 
-Douze booléens qui pilotent la **recommandation du wizard** (filtrage + scoring). C'est ici que vit la donnée de **toxicité** : il n'existe pas de champ « toxicité » séparé, elle est représentée par `toxicToPets` et `toxicToChildren`. L'objet `flags` est optionnel (`nil` sur les plantes legacy ; le client retombe alors sur des heuristiques par mots-clés).
+Le moteur environnemental utilise en priorité ce sous-document. Il contient : environnements intérieur/extérieur, température minimale, heures de soleil direct, humidité intérieure, intervalle d'arrosage, drainage, hauteur et largeur adultes, volume et profondeur minimaux du pot, tolérance au vent, à la sécheresse et aux embruns, toxicité animaux/enfants et version du schéma.
+
+Chaque valeur est un `PlantFact<T>` (`value` + `evidence`) ou un `PlantRangeFact` (`minimum`, `maximum`, `unit`, `evidence`). `evidence` conserve `sourceName`, `sourceURL`, `reviewedAt` et `reliability`. Pour permettre le verdict **Adaptée**, la donnée utilisée doit posséder une source, une date de revue et une fiabilité `high`. Une valeur absente ou insuffisamment sourcée reste explicitement à confirmer.
+
+Les contraintes critiques — intérieur/extérieur, rusticité, lumière directement incompatible, toxicité demandée, volume du pot et dimensions disponibles — sont évaluées avant le classement esthétique. Un conflit connu produit **Non adaptée**. Sans conflit mais avec une donnée critique inconnue, le verdict maximal est **Probablement compatible**.
+
+#### Sous-document legacy `PlantFlags`
+
+Douze booléens historiques. Ils restent utiles pour la recherche et les filtres d'apparence. Une toxicité `true` peut encore déclencher une exclusion de précaution, mais une valeur `false` ne prouve pas que la plante est sûre car l'ancien schéma confondait « faux » et « non recherché ».
 
 | Drapeau | Signification |
 |---|---|
@@ -236,11 +247,13 @@ Sous-document optionnel `wizard.conditionalAnswers` (`GardenConditionalAnswersDa
 | `plantingMode` | `inGround`, `containers`, `both` | Jardin. |
 | `drainage` | `fast`, `normal`, `slow` | Jardin, comportement de l'eau après une forte pluie. |
 | `windExposure` | `sheltered`, `sometimesWindy`, `veryExposed` | Balcon ou terrasse. |
-| `containerProject` | `existingPots`, `newComposition`, `both` | Balcon ou terrasse. |
+| `maximumContainerSize` | `small`, `medium`, `large` | Balcon ou terrasse, soit jusqu'à 10 L, jusqu'à 30 L, ou 30 L et plus. |
+| `wateringCapacity` | `low`, `regular`, `frequent` | Jardin, balcon ou terrasse. |
+| `directSunDuration` | `none`, `oneToThreeHours`, `fourToSixHours`, `moreThanSixHours` | Pièce ; remplace toute déduction depuis un lux instantané. |
 | `indoorHumidity` | `dry`, `normal`, `humid` | Pièce. |
-| `nearbyHeat` | `none`, `radiator`, `underfloorHeating` | Pièce. |
+| `nearbyHeat` | `none`, `radiator`, `underfloorHeating`, `airConditioning`, `heatingAndAirConditioning` | Pièce. |
 
-Les animaux et jeunes enfants restent dans le champ historique `wizard.safety` afin de conserver le filtrage de toxicité existant. Une question ignorée ou « Je ne sais pas » n'est jamais encodée : le sous-document entier reste absent si aucune réponse n'est connue.
+`containerProject` reste décodable uniquement pour les anciens jardins. La sécurité reste lisible dans `wizard.safety`, mais n'est plus redemandée pour chaque jardin : les préférences persistantes `users.householdSafety` sont chargées au démarrage du wizard et copiées dans le snapshot du nouveau jardin pour permettre les exclusions de toxicité. Une question ignorée ou « Je ne sais pas » n'est jamais encodée.
 
 Sous-document optionnel `wizard.siteProfile` (`GardenSiteProfileData`), édité depuis le plan 2D :
 
@@ -250,9 +263,10 @@ Sous-document optionnel `wizard.siteProfile` (`GardenSiteProfileData`), édité 
 | `sunlight` | `GardenSunlightData` (optionnel) | Fourchette `minimumHours` / `maximumHours`. |
 | `wind` | `GardenWindData` (optionnel) | `sheltered`, `light`, `moderate` ou `strong`. |
 | `availableHeight` | `GardenAvailableHeightData` (optionnel) | Hauteur en mètres, déclarée tant qu'elle n'est pas mesurée. |
+| `climate` | `GardenClimateData` (optionnel) | Températures historiques min/max, risque de gel, altitude et exposition littorale, avec provenance. Alimenté automatiquement par `POST /climate/profile` après la localisation quand une ville ou position approximative est disponible. |
 | `plantingZones` | array<`GardenPlantingZoneData`> | Polygones X/Y/Z dans le repère du contour, nommables et excluables. |
 
-Chaque valeur possède un `metadata` avec `source` (`measured`, `inferred`, `declared`, `regionalEstimate`) et `confidence` (`high`, `medium`, `low`). Les champs restent absents tant qu'aucune donnée réelle n'est disponible ; l'interface ne fabrique pas de valeur de remplacement.
+Chaque valeur possède un `metadata` avec `source` (`measured`, `inferred`, `declared`, `regionalEstimate`), `confidence` (`high`, `medium`, `low`), ainsi que `sourceReference` et `observedAt` optionnels. Les champs restent absents tant qu'aucune donnée réelle n'est disponible ; l'interface ne fabrique pas de valeur de remplacement. L'enrichissement climat côté backend peut utiliser Météo-France Données Publiques lorsqu'une clé serveur est configurée, sinon il renvoie une estimation régionale Arbore avec une confiance plus faible.
 
 Sous-document `PlacedPlant` :
 

@@ -31,6 +31,7 @@ erDiagram
         string tier "free | premium"
         string tierSource "none | appstore | grant"
         date   tierExpiresAt "end of the paid period"
+        object householdSafety "optional household preferences"
         bytes  appleRefreshTokenEncrypted "AES-GCM, never serialized"
     }
 
@@ -137,6 +138,7 @@ Document representing an authenticated user. The functional key is `uid` (Fireba
 | `tier` | string (optional) | `free` \| `premium`. Defaults to `free`. A **separate** axis from the role: merging them would produce a cartesian product as soon as an administrator is also a subscriber. |
 | `tierSource` | string (optional) | `none` \| `appstore` \| `grant` — where the subscription came from, kept for audit: a `premium` must always be explainable. |
 | `tierExpiresAt` | date (optional) | End of the paid period. Checked **at read time** (`NormalizeTier`): otherwise an expired subscription would stay `premium` until an external job ran. |
+| `householdSafety` | object (optional) | Persistent `avoidPetToxicity` and `avoidChildToxicity` preferences, editable with the name through `PATCH /users/me`. They are automatically applied to new gardens. |
 | `appleRefreshTokenEncrypted` | bytes (optional) | Apple refresh token encrypted with **AES-256-GCM**. `json:"-"` — **never** serialized to clients; `nil` if the user has never used Sign in with Apple. Written by `linkAppleAccount`, read by `deleteUser` for revocation (#210). |
 
 ### `plants`
@@ -155,7 +157,8 @@ Plant catalog document. Each plant embeds its multilingual translations so that 
 | `generated` | bool (optional) | `true` if the 3D model is AI-generated (BETA badge, #84). |
 | `upAxis` | string (optional) | `"Y"` or `"Z"` — rotation applied at load time (#89). |
 | `hasHeavy` | bool (optional) | `true` if a **high-definition** USDZ variant exists (served via `?lod=heavy`). Drives the LOD swap in AR — see [`../3d-lod-architecture.md`](../3d-lod-architecture.md). |
-| `flags` | `PlantFlags` (optional) | Structured recommendation flags (see below). `nil` on legacy plants. |
+| `flags` | `PlantFlags` (optional) | Legacy flags still used by visual filters and as weak evidence. They can no longer certify suitability on their own. |
+| `botanicalProfile` | `PlantBotanicalProfile` (optional) | Canonical horticultural constraints, structured and sourced per field. When absent, the verdict can only be “Probably compatible” or “Not suitable,” never “Suitable.” |
 | `source` | string (optional) | Optional provenance label (curated catalog vs legacy/beta entries). |
 | `sourceUrl` | string (optional) | Optional origin URL, kept for later updates. |
 
@@ -173,9 +176,17 @@ LanguageData {
 }
 ```
 
-#### `PlantFlags` sub-document
+#### `PlantBotanicalProfile` sub-document
 
-Twelve booleans that drive the **wizard recommendation** (filtering + scoring). This is where the **toxicity** data lives: there is no separate "toxicity" field, it is represented by `toxicToPets` and `toxicToChildren`. The `flags` object is optional (`nil` on legacy plants; the client then falls back on keyword heuristics).
+The environmental engine reads this sub-document first. It includes indoor/outdoor environments, minimum temperature, direct-sun hours, indoor humidity, watering interval, drainage, mature height and width, minimum pot volume and depth, wind/drought/salt tolerance, pet/child toxicity, and a schema version.
+
+Each value is either a `PlantFact<T>` (`value` plus `evidence`) or a `PlantRangeFact` (`minimum`, `maximum`, `unit`, `evidence`). `evidence` stores `sourceName`, `sourceURL`, `reviewedAt`, and `reliability`. To allow a **Suitable** verdict, a value being used must have a source, a review date, and `high` reliability. Missing or insufficiently sourced values remain explicitly unconfirmed.
+
+Critical constraints — indoor/outdoor, hardiness, directly incompatible light, requested toxicity safety, pot volume, and available dimensions — run before aesthetic ranking. A known conflict produces **Not suitable**. With no conflict but an unknown critical value, the strongest possible verdict is **Probably compatible**.
+
+#### Legacy `PlantFlags` sub-document
+
+Twelve historical booleans. They remain useful for search and appearance filters. A `true` toxicity flag may still trigger a precautionary exclusion, but `false` does not prove safety because the old schema conflated “false” and “not researched.”
 
 | Flag | Meaning |
 |---|---|
@@ -236,11 +247,13 @@ Optional `wizard.conditionalAnswers` sub-document (`GardenConditionalAnswersData
 | `plantingMode` | `inGround`, `containers`, `both` | Garden. |
 | `drainage` | `fast`, `normal`, `slow` | Garden, water behaviour after heavy rain. |
 | `windExposure` | `sheltered`, `sometimesWindy`, `veryExposed` | Balcony or terrace. |
-| `containerProject` | `existingPots`, `newComposition`, `both` | Balcony or terrace. |
+| `maximumContainerSize` | `small`, `medium`, `large` | Balcony or terrace: up to 10 L, up to 30 L, or 30 L and above. |
+| `wateringCapacity` | `low`, `regular`, `frequent` | Garden, balcony, or terrace. |
+| `directSunDuration` | `none`, `oneToThreeHours`, `fourToSixHours`, `moreThanSixHours` | Room; replaces any inference from a single lux reading. |
 | `indoorHumidity` | `dry`, `normal`, `humid` | Room. |
-| `nearbyHeat` | `none`, `radiator`, `underfloorHeating` | Room. |
+| `nearbyHeat` | `none`, `radiator`, `underfloorHeating`, `airConditioning`, `heatingAndAirConditioning` | Room. |
 
-Pets and young children remain in the historical `wizard.safety` field to preserve existing toxicity filtering. A skipped question or “I don't know” is never encoded; the complete sub-document stays absent when no answer is known.
+`containerProject` remains decodable only for legacy gardens. Safety is still readable from `wizard.safety`, but it is no longer asked for every garden: persistent `users.householdSafety` preferences are loaded when the wizard starts and copied into the new garden snapshot so toxicity exclusions can run. A skipped question or “I don't know” is never encoded.
 
 Optional `wizard.siteProfile` sub-document (`GardenSiteProfileData`), edited from the 2D plan:
 
@@ -250,9 +263,10 @@ Optional `wizard.siteProfile` sub-document (`GardenSiteProfileData`), edited fro
 | `sunlight` | `GardenSunlightData` (optional) | `minimumHours` / `maximumHours` range. |
 | `wind` | `GardenWindData` (optional) | `sheltered`, `light`, `moderate`, or `strong`. |
 | `availableHeight` | `GardenAvailableHeightData` (optional) | Height in metres, declared until it can be measured. |
+| `climate` | `GardenClimateData` (optional) | Historical min/max temperatures, frost risk, altitude, and coastal exposure, with provenance. Filled automatically by `POST /climate/profile` after location when a city or approximate position is available. |
 | `plantingZones` | array<`GardenPlantingZoneData`> | Named and excludable X/Y/Z polygons in the outline's coordinate frame. |
 
-Every value has `metadata` with a `source` (`measured`, `inferred`, `declared`, `regionalEstimate`) and `confidence` (`high`, `medium`, `low`). Fields remain absent until real data is available; the interface does not fabricate replacement values.
+Every value has `metadata` with a `source` (`measured`, `inferred`, `declared`, `regionalEstimate`), `confidence` (`high`, `medium`, `low`), and optional `sourceReference` and `observedAt`. Fields remain absent until real data is available; the interface does not fabricate replacement values. Backend climate enrichment can use Météo-France Données Publiques when a server key is configured; otherwise it returns a lower-confidence Arbore regional estimate.
 
 `PlacedPlant` sub-document:
 

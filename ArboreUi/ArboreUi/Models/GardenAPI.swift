@@ -9,6 +9,15 @@ enum APIError: Error {
 final class GardenAPI {
     static let shared = GardenAPI()
 
+    struct ClimateProfileResponse: Codable {
+        let siteProfile: GardenSiteProfileDTO
+        let attribution: String?
+    }
+
+    private struct ClimateProfileRequest: Codable {
+        let location: GardenLocationDTO
+    }
+
     // MARK: - Create
     func createGarden(_ garden: GardenCreateDTO) async throws -> GardenDTO {
         // Convert DTO to dictionary for NetworkManager
@@ -72,6 +81,21 @@ final class GardenAPI {
         try await NetworkManager.shared.requestNoResponse(
             endpoint: "/gardens/\(id)",
             method: .DELETE
+        )
+    }
+
+    // MARK: - Climate enrichment
+    func fetchClimateProfile(for location: GardenLocationDTO) async throws -> ClimateProfileResponse {
+        let request = ClimateProfileRequest(location: location)
+        let jsonData = try JSONEncoder().encode(request)
+        guard let bodyDict = try JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
+            throw APIError.invalidURL
+        }
+
+        return try await NetworkManager.shared.request(
+            endpoint: "/climate/profile",
+            method: .POST,
+            body: bodyDict
         )
     }
 }

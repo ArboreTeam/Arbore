@@ -107,6 +107,20 @@ struct GardenSpaceProfileCard: View {
                     action: onEdit
                 )
 
+                if profile.climate != nil {
+                    Divider().overlay(ArboreDesign.Colors.border)
+
+                    GardenProfileRow(
+                        icon: "cloud.sun.fill",
+                        title: L10n.t("GARDEN_PROFILE_CLIMATE"),
+                        value: GardenSiteProfileResolver.climateText(
+                            profile.climate,
+                            location: wizard.location
+                        ),
+                        metadata: GardenSiteProfileResolver.climateMetadata(profile.climate)
+                    )
+                }
+
                 Divider().overlay(ArboreDesign.Colors.border)
 
                 GardenProfileRow(
@@ -870,15 +884,27 @@ enum GardenSiteProfileResolver {
             }
         }
 
+        // Une durée directement déclarée est plus fiable que l'estimation
+        // géométrique. Elle remplace donc une ancienne valeur déduite, mais ne
+        // remplace jamais une correction manuelle déjà enregistrée.
+        if let directSun = wizard.conditionalAnswers?.directSunDuration,
+           profile.sunlight == nil || profile.sunlight?.metadata.source == .inferred {
+            let range = directSun.estimatedRange
+            profile.sunlight = GardenSunlightDTO(
+                minimumHours: range.lowerBound,
+                maximumHours: range.upperBound,
+                metadata: .declaredHigh
+            )
+        }
+
         // Le nouveau parcours ne demande plus une durée d'ensoleillement.
         // Il mesure la direction de la source principale et la luminosité
         // instantanée. On en déduit donc une plage volontairement large et
         // explicitement marquée comme peu fiable, au lieu de la présenter
         // comme une mesure quotidienne exacte.
         if profile.sunlight == nil,
-           let lightExposure = wizard.lightExposure {
+           wizard.lightExposure != nil {
             profile.sunlight = inferredSunlight(
-                from: lightExposure,
                 orientation: profile.orientation,
                 location: wizard.location
             )
@@ -916,7 +942,6 @@ enum GardenSiteProfileResolver {
     }
 
     private static func inferredSunlight(
-        from exposure: GardenLightExposureDTO,
         orientation: GardenOrientationDTO?,
         location: GardenLocationDTO?
     ) -> GardenSunlightDTO? {
@@ -943,19 +968,11 @@ enum GardenSiteProfileResolver {
             return GardenSunlightDTO(minimumHours: 0, maximumHours: 3, metadata: metadata)
         }
 
-        // Sans coordonnées exploitables (ville saisie manuellement, par
-        // exemple), l'estimation lumineuse ARKit fournit seulement un indice
-        // de secours. Elle reste signalée avec une confiance faible.
-        guard let intensity = exposure.ambientIntensity, intensity.isFinite, intensity > 0 else {
-            return nil
-        }
-        if intensity >= 900 {
-            return GardenSunlightDTO(minimumHours: 6, maximumHours: 12, metadata: metadata)
-        }
-        if intensity >= 450 {
-            return GardenSunlightDTO(minimumHours: 3, maximumHours: 6, metadata: metadata)
-        }
-        return GardenSunlightDTO(minimumHours: 0, maximumHours: 3, metadata: metadata)
+        // `ambientIntensity` décrit seulement l'image courante. Une mesure à
+        // un instant T ne permet pas de déduire un nombre d'heures de soleil
+        // quotidiennes ; sans orientation et latitude exploitables, la valeur
+        // reste donc inconnue.
+        return nil
     }
 
     static func normalizedDegrees(_ degrees: Double) -> Double {
@@ -1013,6 +1030,44 @@ enum GardenSiteProfileResolver {
             return GardenValueMetadataDTO(source: .measured, confidence: .medium)
         case .manualCity:
             return .declaredHigh
+        }
+    }
+
+    static func climateText(_ climate: GardenClimateDTO?, location: GardenLocationDTO?) -> String? {
+        guard let climate else { return nil }
+        var components: [String] = []
+
+        if let locationText = locationText(location) {
+            components.append(locationText)
+        }
+        if climate.coastalExposure?.isCoastal == true {
+            components.append(L10n.t("GARDEN_PROFILE_CLIMATE_COASTAL"))
+        }
+        if let frostRisk = climate.frostRisk {
+            components.append(frostRiskText(frostRisk.level))
+        }
+        if let minimum = climate.historicalMinimumTemperature {
+            components.append(L10n.f("GARDEN_PROFILE_CLIMATE_MIN_TEMP_FORMAT", minimum.celsius))
+        }
+
+        return components.isEmpty ? nil : components.joined(separator: " · ")
+    }
+
+    static func climateMetadata(_ climate: GardenClimateDTO?) -> GardenValueMetadataDTO? {
+        guard let climate else { return nil }
+        return climate.historicalMinimumTemperature?.metadata
+            ?? climate.frostRisk?.metadata
+            ?? climate.coastalExposure?.metadata
+            ?? climate.historicalMaximumTemperature?.metadata
+            ?? climate.altitude?.metadata
+    }
+
+    static func frostRiskText(_ frostRisk: GardenFrostRiskLevelDTO) -> String {
+        switch frostRisk {
+        case .none: return L10n.t("GARDEN_PROFILE_FROST_NONE")
+        case .occasional: return L10n.t("GARDEN_PROFILE_FROST_OCCASIONAL")
+        case .regular: return L10n.t("GARDEN_PROFILE_FROST_REGULAR")
+        case .severe: return L10n.t("GARDEN_PROFILE_FROST_SEVERE")
         }
     }
 

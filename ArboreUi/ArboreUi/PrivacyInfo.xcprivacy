@@ -109,8 +109,9 @@
             </array>
         </dict>
 
-        <!-- Garden data : plantes sélectionnées, positions/disposition 3D,
-             réponses au questionnaire. Stocké dans Mongo /gardens.
+        <!-- Contenu utilisateur : plantes sélectionnées, positions/disposition
+             3D, réponses au questionnaire et contraintes de sécurité du foyer
+             (animaux / jeunes enfants). Stocké dans Mongo /gardens et /users.
              NB : les ARKit WorldMaps restent en LOCAL sur l'appareil
              (GardenLocalStore, fichier archivé), jamais uploadées — donc
              ni "collected" au sens d'Apple ni "Environment Scanning".

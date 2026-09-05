@@ -8,8 +8,15 @@ struct PersonalDetailsView: View {
     @State private var fullName: String = ""
     @State private var email: String = ""
     @State private var initialName: String = ""
+    @State private var avoidPetToxicity = false
+    @State private var avoidChildToxicity = false
+    @State private var initialHouseholdSafety = HouseholdSafetyProfile(
+        avoidPetToxicity: false,
+        avoidChildToxicity: false
+    )
 
     @State private var isSaving: Bool = false
+    @State private var isLoadingProfile: Bool = false
     @State private var errorMessage: String? = nil
     @State private var didSave: Bool = false
 
@@ -18,7 +25,14 @@ struct PersonalDetailsView: View {
     }
 
     private var canSave: Bool {
-        !isSaving && !trimmedName.isEmpty && trimmedName != initialName
+        !isSaving
+            && !isLoadingProfile
+            && !trimmedName.isEmpty
+            && (
+                trimmedName != initialName
+                    || avoidPetToxicity != initialHouseholdSafety.avoidPetToxicity
+                    || avoidChildToxicity != initialHouseholdSafety.avoidChildToxicity
+            )
     }
 
     var body: some View {
@@ -43,6 +57,31 @@ struct PersonalDetailsView: View {
                     )
                 }
             }
+
+            SettingsSectionCard(
+                title: NSLocalizedString("PERSONAL_DETAILS_SAFETY_TITLE", comment: ""),
+                systemImage: "checkmark.shield"
+            ) {
+                Text(NSLocalizedString("PERSONAL_DETAILS_SAFETY_SUBTITLE", comment: ""))
+                    .font(ArboreDesign.Typography.bodySmall)
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                safetyToggleRow(
+                    title: NSLocalizedString("PERSONAL_DETAILS_SAFETY_PETS", comment: ""),
+                    systemImage: "pawprint",
+                    isOn: $avoidPetToxicity
+                )
+
+                Divider()
+
+                safetyToggleRow(
+                    title: NSLocalizedString("PERSONAL_DETAILS_SAFETY_CHILDREN", comment: ""),
+                    systemImage: "figure.and.child.holdinghands",
+                    isOn: $avoidChildToxicity
+                )
+            }
+            .disabled(isSaving || isLoadingProfile)
 
             if let errorMessage = errorMessage {
                 Text(errorMessage)
@@ -82,6 +121,9 @@ struct PersonalDetailsView: View {
                 initialName = fullName
             }
         }
+        .task {
+            await loadProfile()
+        }
     }
 
     // MARK: - Save action
@@ -97,12 +139,22 @@ struct PersonalDetailsView: View {
                 let _: UserResponse = try await NetworkManager.shared.request(
                     endpoint: "/users/me",
                     method: .PATCH,
-                    body: ["name": payload]
+                    body: [
+                        "name": payload,
+                        "householdSafety": [
+                            "avoidPetToxicity": avoidPetToxicity,
+                            "avoidChildToxicity": avoidChildToxicity
+                        ]
+                    ]
                 )
                 await updateFirebaseDisplayName(payload)
 
                 await MainActor.run {
                     self.initialName = payload
+                    self.initialHouseholdSafety = HouseholdSafetyProfile(
+                        avoidPetToxicity: avoidPetToxicity,
+                        avoidChildToxicity: avoidChildToxicity
+                    )
                     self.didSave = true
                     self.isSaving = false
                 }
@@ -114,6 +166,38 @@ struct PersonalDetailsView: View {
                     self.errorMessage = (error as? LocalizedError)?.errorDescription
                         ?? NSLocalizedString("PERSONAL_DETAILS_SAVE_ERROR", comment: "")
                 }
+            }
+        }
+    }
+
+    private func loadProfile() async {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        await MainActor.run {
+            isLoadingProfile = true
+        }
+        do {
+            let response: UserResponse = try await NetworkManager.shared.request(
+                endpoint: "/users/\(uid)",
+                method: .GET
+            )
+            await MainActor.run {
+                if let user = response.user {
+                    fullName = user.name
+                    initialName = user.name
+                    let safety = user.householdSafety ?? HouseholdSafetyProfile(
+                        avoidPetToxicity: false,
+                        avoidChildToxicity: false
+                    )
+                    avoidPetToxicity = safety.avoidPetToxicity
+                    avoidChildToxicity = safety.avoidChildToxicity
+                    initialHouseholdSafety = safety
+                }
+                isLoadingProfile = false
+            }
+        } catch {
+            await MainActor.run {
+                isLoadingProfile = false
+                errorMessage = NSLocalizedString("PERSONAL_DETAILS_LOAD_ERROR", comment: "")
             }
         }
     }
@@ -164,6 +248,25 @@ struct PersonalDetailsView: View {
             .padding()
             .background(ArboreDesign.Colors.card.opacity(0.5))
             .cornerRadius(ArboreDesign.Radius.medium)
+        }
+    }
+
+    private func safetyToggleRow(
+        title: String,
+        systemImage: String,
+        isOn: Binding<Bool>
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                .frame(width: 24)
+            Text(title)
+                .font(ArboreDesign.Typography.body)
+                .foregroundColor(ArboreDesign.Colors.textPrimary)
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(ArboreDesign.Colors.primaryGreen)
         }
     }
 }

@@ -266,6 +266,12 @@ final class GardenWizardState: ObservableObject {
     @Published var safetySelections: Set<SafetyOption> = []
     @Published var soil: SoilType?
     @Published var scanMethod: ScanMethod?
+    @Published var location: GardenLocationDTO?
+    @Published var lightExposure: GardenLightExposureDTO?
+    @Published var siteProfile: GardenSiteProfileDTO?
+    @Published var isClimateEnrichmentPending = false
+    @Published var climateEnrichmentFailed = false
+    @Published var conditionalAnswers = GardenConditionalAnswersDTO()
 
     /// ID Mongo du jardin créé au step `scanMethod` une fois le tracé validé.
     /// Le tracé entraîne un `POST /gardens` avec `plants: []` ; cet identifiant
@@ -312,6 +318,7 @@ struct GardenWizardView: View {
     // automatiquement vers `aiSuggestion`.
     @State private var showPerimeterFlow = false
     @State private var showLiDARFlow = false
+    @State private var showLocationFlow = false
 
     // Step `aiSuggestion` est désormais le dernier step du wizard. Au tap
     // sur « Placer mes plantes en AR », on ouvre `GardenARPlacementView`
@@ -329,6 +336,12 @@ struct GardenWizardView: View {
     @State private var allCataloguePlants: [Plant] = []
     @State private var aiSelectedPlants: [Plant] = []
     @State private var finalPlacementPlants: [Plant] = []
+
+    /// Les mises à jour intermédiaires du wizard sont sérialisées. Sans cela,
+    /// le PUT de localisation et celui des questions pouvaient terminer dans
+    /// l'ordre inverse et réécrire un snapshot plus ancien sur le backend.
+    @State private var pendingWizardPersistence: Task<Void, Never>?
+    @State private var pendingClimateEnrichment: Task<Void, Never>?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -388,15 +401,143 @@ struct GardenWizardView: View {
         }
     }
 
-    /// Déclenché par le CTA primaire du dernier step `aiSuggestion`. Ouvre
-    /// `GardenARPlacementView` sur le jardin déjà créé au step précédent
-    /// (`state.createdGardenId` non nil). L'AR placement view chargera la
-    /// WorldMap depuis disque et auto-placera les plantes sélectionnées.
+    /// Reçoit le jardin créé par la vue de scan, conserve les mesures et
+    /// ouvre la capture de localisation avant la suggestion IA.
+    private func handleCompletedScan(
+        gardenId: String,
+        boundary: [SIMD3<Float>],
+        area: Float,
+        perimeter: Float,
+        lightExposure: GardenLightExposureDTO?,
+        dismissScan: @escaping () -> Void
+    ) {
+        state.createdGardenId = gardenId
+        state.measuredBoundaryPoints = boundary
+        state.measuredArea = area
+        state.measuredPerimeter = perimeter
+        state.lightExposure = lightExposure
+        dismissScan()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            showLocationFlow = true
+        }
+    }
+
+    private func completeLocationStep(with location: GardenLocationDTO?) {
+        let shouldAdvanceToSuggestion = currentStep == .scanMethod
+        state.location = location
+        showLocationFlow = false
+        if let location {
+            enqueueClimateEnrichment(for: location)
+        } else {
+            pendingClimateEnrichment?.cancel()
+            pendingClimateEnrichment = nil
+            state.isClimateEnrichmentPending = false
+            state.climateEnrichmentFailed = false
+        }
+
+        // Le jardin existe déjà depuis la fin du scan : on enrichit son
+        // wizard avec l'exposition, le profil déduit et la localisation
+        // fraîche. La file garantit que le prochain snapshot ne pourra pas
+        // être écrasé par celui-ci s'il termine plus tard.
+        queueWizardPersistence(wizardDTO)
+
+        if shouldAdvanceToSuggestion {
+            Task {
+                if pendingClimateEnrichment != nil {
+                    try? await Task.sleep(nanoseconds: 800_000_000)
+                }
+                await MainActor.run {
+                    goToNext()
+                }
+            }
+        }
+    }
+
+    private func enqueueClimateEnrichment(for location: GardenLocationDTO) {
+        pendingClimateEnrichment?.cancel()
+        state.isClimateEnrichmentPending = true
+        state.climateEnrichmentFailed = false
+        pendingClimateEnrichment = Task {
+            do {
+                let response = try await GardenAPI.shared.fetchClimateProfile(for: location)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard state.location == location else { return }
+                    mergeClimateProfile(response.siteProfile)
+                    queueWizardPersistence(wizardDTO)
+                    state.isClimateEnrichmentPending = false
+                    state.climateEnrichmentFailed = false
+                    pendingClimateEnrichment = nil
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                AppLog.gardenSave.warning(
+                    "Profil climat indisponible: \(error.localizedDescription, privacy: .public)"
+                )
+                await MainActor.run {
+                    guard state.location == location else { return }
+                    state.isClimateEnrichmentPending = false
+                    state.climateEnrichmentFailed = true
+                    pendingClimateEnrichment = nil
+                }
+            }
+        }
+    }
+
+    private func mergeClimateProfile(_ profile: GardenSiteProfileDTO) {
+        var merged = state.siteProfile ?? GardenSiteProfileDTO()
+        if let climate = profile.climate {
+            merged.climate = climate
+        }
+        if merged.wind == nil {
+            merged.wind = profile.wind
+        }
+        if merged.availableHeight == nil {
+            merged.availableHeight = profile.availableHeight
+        }
+        if merged.plantingZones.isEmpty {
+            merged.plantingZones = profile.plantingZones
+        }
+        state.siteProfile = merged
+    }
+
+    private func queueWizardPersistence(_ wizard: GardenWizardDTO) {
+        guard let gardenId = state.createdGardenId else { return }
+        let previousPersistence = pendingWizardPersistence
+
+        do {
+            try GardenLocalStore.saveWizard(wizard, for: gardenId)
+        } catch {
+            AppLog.gardenSave.warning(
+                "Snapshot wizard local non sauvegardé: \(error.localizedDescription, privacy: .public)"
+            )
+        }
+
+        pendingWizardPersistence = Task {
+            await previousPersistence?.value
+            do {
+                try await GardenAPI.shared.updateGarden(
+                    id: gardenId,
+                    patch: GardenAPI.GardenPatch(wizard: wizard)
+                )
+            } catch {
+                AppLog.gardenSave.warning(
+                    "Mise à jour intermédiaire du wizard différée: \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+    }
+
+    /// Ouvre directement `GardenARPlacementView` après la dernière question.
+    /// La vue AR charge la WorldMap du jardin déjà créé pendant le scan.
     private func startFinalPlacement(with plants: [Plant]) {
         guard let gardenId = state.createdGardenId else { return }
         finalPlacementPlants = plants
         aiSelectedPlants = plants
+        let pendingPersistence = pendingWizardPersistence
         Task {
+            await pendingPersistence?.value
             await prewarmSelectedPlantModels(plants)
             await MainActor.run {
                 finalPlacementData = FinalPlacementData(gardenId: gardenId, plants: plants)
@@ -406,21 +547,53 @@ struct GardenWizardView: View {
 
     // ✅ state -> DTO pour AR + backend
     private var wizardDTO: GardenWizardDTO {
-        GardenWizardDTO(
+        let wizard = GardenWizardDTO(
             style: state.style?.rawValue ?? "",
             spaceType: state.spaceType?.rawValue ?? "",
             exposure: state.exposure?.rawValue,
             maintenance: state.maintenance?.rawValue,
-            safety: state.safetySelections.map { $0.rawValue },
+            safety: state.safetySelections.isEmpty
+                ? nil
+                : state.safetySelections.map(\.rawValue).sorted(),
             soil: state.soil?.rawValue,
-            scanMethod: state.scanMethod?.rawValue
+            scanMethod: state.scanMethod?.rawValue,
+            location: state.location,
+            lightExposure: state.lightExposure,
+            siteProfile: state.siteProfile,
+            conditionalAnswers: state.conditionalAnswers.isEmpty
+                ? nil
+                : state.conditionalAnswers
         )
+        return GardenSiteProfileResolver.wizardByPersistingResolvedProfile(wizard)
     }
 
     private var gardenName: String { L10n.t("MY_GARDEN_TITLE") }
 
     /// Si tu veux une clé d’image cohérente: utilise imageName
     private var thumbnailKey: String? { state.style?.imageName }
+
+    /// Charge une seule fois les contraintes durables du foyer. Elles sont
+    /// copiées dans le snapshot du jardin afin que le moteur puisse appliquer
+    /// les exclusions de toxicité sans ajouter une question au parcours.
+    private func loadHouseholdSafetyProfile() async {
+        do {
+            let response: UserResponse = try await NetworkManager.shared.request(
+                endpoint: "/users/\(uid)",
+                method: .GET
+            )
+            guard let safety = response.user?.householdSafety else { return }
+            await MainActor.run {
+                var selections: Set<SafetyOption> = []
+                if safety.avoidPetToxicity { selections.insert(.pets) }
+                if safety.avoidChildToxicity { selections.insert(.children) }
+                state.safetySelections = selections
+            }
+        } catch {
+            AppLog.gardenSave.warning(
+                "Préférences de sécurité du profil indisponibles: \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -437,7 +610,6 @@ struct GardenWizardView: View {
                 }
 
                 TabView(selection: $currentStep) {
-
                     IntroStepView(onNext: goToNext)
                         .tag(GardenWizardStep.intro)
 
@@ -511,16 +683,16 @@ struct GardenWizardView: View {
                 thumbnailKey: thumbnailKey,
                 existingGardenId: nil,
                 measurementOnly: false,
-                onTraceValidated: { gardenId, boundary, area, perimeter, _ in
-                    // 5e param (GardenLightExposureDTO) ignoré (ancien wizard).
-                    state.createdGardenId = gardenId
-                    state.measuredBoundaryPoints = boundary
-                    state.measuredArea = area
-                    state.measuredPerimeter = perimeter
-                    showPerimeterFlow = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        goToNext()
-                    }
+                exposureSpaceType: state.spaceType,
+                onTraceValidated: { gardenId, boundary, area, perimeter, lightExposure in
+                    handleCompletedScan(
+                        gardenId: gardenId,
+                        boundary: boundary,
+                        area: area,
+                        perimeter: perimeter,
+                        lightExposure: lightExposure,
+                        dismissScan: { showPerimeterFlow = false }
+                    )
                 },
                 onCancel: {
                     showPerimeterFlow = false
@@ -537,20 +709,29 @@ struct GardenWizardView: View {
                 wizard: wizardDTO,
                 gardenName: gardenName,
                 thumbnailKey: thumbnailKey,
-                onTraceValidated: { gardenId, boundary, area, perimeter, _ in
-                    // 5e param (GardenLightExposureDTO) ignoré : l'ancien wizard
-                    // n'exploite pas la capture d'exposition du nouveau LiDAR.
-                    state.createdGardenId = gardenId
-                    state.measuredBoundaryPoints = boundary
-                    state.measuredArea = area
-                    state.measuredPerimeter = perimeter
-                    showLiDARFlow = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                        goToNext()
-                    }
+                exposureSpaceType: state.spaceType,
+                onTraceValidated: { gardenId, boundary, area, perimeter, lightExposure in
+                    handleCompletedScan(
+                        gardenId: gardenId,
+                        boundary: boundary,
+                        area: area,
+                        perimeter: perimeter,
+                        lightExposure: lightExposure,
+                        dismissScan: { showLiDARFlow = false }
+                    )
                 },
                 onCancel: {
                     showLiDARFlow = false
+                }
+            )
+        }
+        .fullScreenCover(isPresented: $showLocationFlow) {
+            GardenLocationCaptureView(
+                onReady: { location in
+                    completeLocationStep(with: location)
+                },
+                onSkip: {
+                    completeLocationStep(with: nil)
                 }
             )
         }
@@ -592,19 +773,39 @@ struct GardenWizardView: View {
             // du second jardin créé dans la même session app, l'AR placement
             // chargerait la WorldMap du jardin précédent).
             state.createdGardenId = nil
+            state.style = nil
             state.measuredBoundaryPoints = []
             state.measuredArea = 0
             state.measuredPerimeter = 0
+            state.location = nil
+            state.lightExposure = nil
+            state.siteProfile = nil
+            state.isClimateEnrichmentPending = false
+            state.climateEnrichmentFailed = false
+            state.conditionalAnswers = GardenConditionalAnswersDTO()
             finalPlacementPlants = []
             aiSelectedPlants = []
+            pendingClimateEnrichment?.cancel()
+            pendingClimateEnrichment = nil
 
             // 🤖 Fetch all catalogue plants for AI suggestion
             fetchCataloguePlants()
+            Task {
+                await loadHouseholdSafetyProfile()
+            }
         }
         .onChange(of: state.spaceType) { _, newValue in
             if newValue != .garden {
                 state.soil = nil
             }
+            state.location = nil
+            state.lightExposure = nil
+            state.siteProfile = nil
+            state.isClimateEnrichmentPending = false
+            state.climateEnrichmentFailed = false
+            state.conditionalAnswers = GardenConditionalAnswersDTO()
+            pendingClimateEnrichment?.cancel()
+            pendingClimateEnrichment = nil
 
             if !visibleSteps.contains(currentStep) {
                 currentStep = visibleSteps.last ?? .aiSuggestion

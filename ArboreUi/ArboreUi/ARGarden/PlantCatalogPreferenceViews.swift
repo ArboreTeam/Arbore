@@ -250,8 +250,10 @@ struct PlantCatalogPreferenceSheet: View {
         if wizard.siteProfile?.sunlight != nil { count += 1 }
         if wizard.siteProfile?.wind != nil || wizard.conditionalAnswers?.windExposure != nil { count += 1 }
         if wizard.siteProfile?.availableHeight != nil { count += 1 }
-        if wizard.conditionalAnswers?.plantingMode != nil || wizard.conditionalAnswers?.containerProject != nil { count += 1 }
+        if wizard.conditionalAnswers?.plantingMode != nil || wizard.conditionalAnswers?.maximumContainerSize != nil { count += 1 }
         if wizard.conditionalAnswers?.drainage != nil || wizard.conditionalAnswers?.indoorHumidity != nil { count += 1 }
+        if wizard.conditionalAnswers?.wateringCapacity != nil { count += 1 }
+        if wizard.conditionalAnswers?.directSunDuration != nil { count += 1 }
         if wizard.safety?.isEmpty == false { count += 1 }
         return max(count, 1)
     }

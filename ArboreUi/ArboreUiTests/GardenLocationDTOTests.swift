@@ -74,6 +74,9 @@ final class GardenLocationDTOTests: XCTestCase {
             drainage: .slow,
             windExposure: nil,
             containerProject: nil,
+            maximumContainerSize: .medium,
+            wateringCapacity: .regular,
+            directSunDuration: nil,
             indoorHumidity: nil,
             nearbyHeat: nil
         )
@@ -94,6 +97,8 @@ final class GardenLocationDTOTests: XCTestCase {
         XCTAssertEqual(decoded.conditionalAnswers, answers)
         XCTAssertEqual(decoded.conditionalAnswers?.plantingMode, .containers)
         XCTAssertEqual(decoded.conditionalAnswers?.drainage, .slow)
+        XCTAssertEqual(decoded.conditionalAnswers?.maximumContainerSize, .medium)
+        XCTAssertEqual(decoded.conditionalAnswers?.wateringCapacity, .regular)
         XCTAssertNil(decoded.conditionalAnswers?.windExposure)
     }
 
@@ -129,7 +134,7 @@ final class GardenLocationDTOTests: XCTestCase {
         XCTAssertEqual(profile.sunlight?.metadata.confidence, .low)
     }
 
-    func testResolvedProfileFallsBackToInstantLightWhenCoordinatesAreUnavailable() {
+    func testResolvedProfileDoesNotTurnInstantLightIntoDailySunHours() {
         let wizard = GardenWizardDTO(
             style: "",
             spaceType: GardenSpaceType.interior.rawValue,
@@ -148,9 +153,41 @@ final class GardenLocationDTOTests: XCTestCase {
 
         let profile = GardenSiteProfileResolver.resolvedProfile(for: wizard)
 
-        XCTAssertEqual(profile.sunlight?.minimumHours, 3)
-        XCTAssertEqual(profile.sunlight?.maximumHours, 6)
-        XCTAssertEqual(profile.sunlight?.metadata.confidence, .low)
+        XCTAssertNil(profile.sunlight)
+        XCTAssertNotNil(profile.orientation)
+    }
+
+    func testDeclaredIndoorSunDurationOverridesAFormerLowConfidenceEstimate() {
+        let wizard = GardenWizardDTO(
+            style: "",
+            spaceType: GardenSpaceType.interior.rawValue,
+            exposure: nil,
+            maintenance: nil,
+            safety: nil,
+            soil: nil,
+            scanMethod: ScanMethod.gardenPerimeter.rawValue,
+            location: .deviceApproximate(latitude: 48.86, longitude: 2.35, city: "Paris"),
+            lightExposure: .capture(
+                direction: SIMD3<Float>(0, 0, -1),
+                magneticYawRadians: .pi,
+                ambientIntensity: 1_200
+            ),
+            siteProfile: GardenSiteProfileDTO(
+                sunlight: GardenSunlightDTO(
+                    minimumHours: 6,
+                    maximumHours: 12,
+                    metadata: GardenValueMetadataDTO(source: .inferred, confidence: .low)
+                )
+            ),
+            conditionalAnswers: GardenConditionalAnswersDTO(directSunDuration: .oneToThreeHours)
+        )
+
+        let profile = GardenSiteProfileResolver.resolvedProfile(for: wizard)
+
+        XCTAssertEqual(profile.sunlight?.minimumHours, 1)
+        XCTAssertEqual(profile.sunlight?.maximumHours, 3)
+        XCTAssertEqual(profile.sunlight?.metadata.source, .declared)
+        XCTAssertEqual(profile.sunlight?.metadata.confidence, .high)
     }
 
     func testPersistedResolvedProfileKeepsLocationAndMaterializesComputedValues() {

@@ -247,6 +247,11 @@
 "PERSONAL_DETAILS_SAVE_BUTTON" = "Enregistrer les modifications";
 "PERSONAL_DETAILS_SAVE_SUCCESS" = "Modifications enregistrées ✓";
 "PERSONAL_DETAILS_SAVE_ERROR" = "Impossible d’enregistrer. Réessaie dans un instant.";
+"PERSONAL_DETAILS_LOAD_ERROR" = "Impossible de charger toutes les informations du profil.";
+"PERSONAL_DETAILS_SAFETY_TITLE" = "Sécurité du foyer";
+"PERSONAL_DETAILS_SAFETY_SUBTITLE" = "Définis ces contraintes une seule fois. Arbore les appliquera automatiquement aux nouveaux jardins.";
+"PERSONAL_DETAILS_SAFETY_PETS" = "Éviter les plantes toxiques pour les animaux";
+"PERSONAL_DETAILS_SAFETY_CHILDREN" = "Éviter les plantes dangereuses pour les jeunes enfants";
 
 
 // Politique de confidentialité
@@ -254,7 +259,8 @@
 
 "PRIVACY_HEADER_TITLE" = "%@ respecte ta vie privée.";
 "PRIVACY_HEADER_SUBTITLE" = "Cette politique explique quelles données personnelles nous traitons, pourquoi, avec qui, combien de temps, et les droits dont tu disposes au titre du RGPD.";
-"PRIVACY_LAST_UPDATED" = "Dernière mise à jour : %@";
+"PRIVACY_LAST_UPDATED" = "Dernière mise à jour : %@ — version %@";
+"PRIVACY_LAST_UPDATED_DATE" = "23 juillet 2026";
 
 // Données collectées
 "PRIVACY_SECTION_DATA_TITLE" = "Données que nous traitons";
@@ -308,8 +314,8 @@
 
 // Enfants
 "PRIVACY_SECTION_CHILDREN_TITLE" = "Enfants";
-"PRIVACY_SECTION_CHILDREN_ITEM1" = "%@ ne s’adresse pas aux enfants de moins de 15 ans (13 ans dans certains pays).";
-"PRIVACY_SECTION_CHILDREN_ITEM2" = "Si une collecte inappropriée nous est signalée, nous supprimerons les données concernées.";
+"PRIVACY_SECTION_CHILDREN_ITEM1" = "%@ n’est pas conçue spécifiquement pour les enfants. Si tu n’as pas atteint l’âge auquel tu peux consentir seul au traitement de tes données dans ton pays, demande l’autorisation d’un parent ou représentant légal avant de créer un compte et d’utiliser l’app.";
+"PRIVACY_SECTION_CHILDREN_ITEM2" = "Si nous apprenons qu’un mineur a fourni des données sans l’autorisation requise, nous prendrons les mesures nécessaires, notamment leur suppression.";
 
 // Transferts internationaux
 "PRIVACY_SECTION_TRANSFERS_TITLE" = "Transferts internationaux";
@@ -360,6 +366,7 @@
 "TERMS_HEADER_TITLE" = "Conditions d’utilisation";
 "TERMS_HEADER_INTRO" = "Merci d’utiliser %@. Merci de lire attentivement ces Conditions : elles encadrent ton accès à l’app et son utilisation.";
 "TERMS_LAST_UPDATED" = "Dernière mise à jour : %@";
+"TERMS_LAST_UPDATED_DATE" = "23 juillet 2026";
 
 // Acceptation des conditions
 "TERMS_SECTION_ACCEPT_TITLE" = "Acceptation des conditions";
@@ -373,7 +380,7 @@
 
 // Comptes & sécurité
 "TERMS_SECTION_ACCOUNT_TITLE" = "Comptes & sécurité";
-"TERMS_SECTION_ACCOUNT_ITEM1" = "Tu dois avoir au moins 15 ans (ou l’âge du consentement numérique applicable), et tu es responsable de l’exactitude des informations de ton compte et de la confidentialité de tes identifiants.";
+"TERMS_SECTION_ACCOUNT_ITEM1" = "Si tu n’as pas atteint l’âge auquel tu peux consentir seul au traitement de tes données dans ton pays, tu dois obtenir l’autorisation d’un parent ou représentant légal avant de créer un compte et d’utiliser Arbore. Tu es responsable de l’exactitude des informations de ton compte et de la confidentialité de tes identifiants.";
 "TERMS_SECTION_ACCOUNT_ITEM2" = "Préviens-nous immédiatement en cas d’usage non autorisé de ton compte.";
 
 // Abonnements & facturation
@@ -1425,8 +1432,8 @@
 "AR_CATALOG_NO_FILTER_RESULTS" = "Aucune plante ne correspond à cette recherche ou à ces filtres.";
 "AR_CATALOG_SUITABILITY_VERY_GOOD" = "Idéale";
 "AR_CATALOG_SUITABILITY_GOOD" = "Adaptée";
-"AR_CATALOG_SUITABILITY_REVIEW" = "À vérifier";
-"AR_CATALOG_SUITABILITY_UNSUITABLE" = "Peu adaptée";
+"AR_CATALOG_SUITABILITY_REVIEW" = "Probablement compatible";
+"AR_CATALOG_SUITABILITY_UNSUITABLE" = "Non adaptée";
 "AR_CATALOG_FILTER_SECTION_APPEARANCE" = "Apparence et taille";
 "AR_CATALOG_FILTER_SECTION_CARE" = "Entretien";
 "AR_CATALOG_FILTER_SECTION_SHAPE" = "Forme et usage";
@@ -1837,6 +1844,11 @@
 "GARDEN_LOCATION_DENIED" = "L’accès à la position est désactivé. Ouvrez les Réglages ou saisissez la ville.";
 "GARDEN_LOCATION_ERROR" = "La position n’a pas pu être obtenue. Vous pouvez saisir la ville à la place.";
 "GARDEN_LOCATION_SKIP" = "Continuer sans localisation";
+"CLIMATE_STATUS_ANALYZING_TITLE" = "Analyse du climat local…";
+"CLIMATE_STATUS_ANALYZING_DETAIL" = "Arbore adapte les futures recommandations.";
+"CLIMATE_STATUS_READY_TITLE" = "Climat local analysé";
+"CLIMATE_STATUS_UNAVAILABLE_TITLE" = "Climat indisponible";
+"CLIMATE_STATUS_UNAVAILABLE_DETAIL" = "Le jardin continuera sans météo pour l’instant.";
 
 /* Fiche de l'espace — plan 2D */
 "GARDEN_PROFILE_TITLE" = "Ce qu’Arbore a compris";
@@ -1849,6 +1861,13 @@
 "GARDEN_PROFILE_SUNLIGHT" = "Ensoleillement";
 "GARDEN_PROFILE_SOIL" = "Type de sol";
 "GARDEN_PROFILE_LOCATION" = "Localisation";
+"GARDEN_PROFILE_CLIMATE" = "Climat local";
+"GARDEN_PROFILE_CLIMATE_COASTAL" = "côtier";
+"GARDEN_PROFILE_CLIMATE_MIN_TEMP_FORMAT" = "%.0f °C min.";
+"GARDEN_PROFILE_FROST_NONE" = "gel rare";
+"GARDEN_PROFILE_FROST_OCCASIONAL" = "gel occasionnel";
+"GARDEN_PROFILE_FROST_REGULAR" = "gel régulier";
+"GARDEN_PROFILE_FROST_SEVERE" = "gel sévère";
 "GARDEN_PROFILE_WIND" = "Exposition au vent";
 "GARDEN_PROFILE_HEIGHT" = "Hauteur disponible";
 "GARDEN_PROFILE_ZONES" = "Zones végétalisables";
@@ -1935,3 +1954,51 @@
 "ESSENTIAL_SAFETY_PETS" = "Animaux";
 "ESSENTIAL_SAFETY_CHILDREN" = "Jeunes enfants";
 "ESSENTIAL_SAFETY_NONE" = "Aucun";
+"ESSENTIAL_BALCONY_POT_SIZE_QUESTION" = "Quelle taille de pot vous convient ?";
+"ESSENTIAL_POT_SIZE_SMALL" = "Petit · jusqu’à 10 L";
+"ESSENTIAL_POT_SIZE_MEDIUM" = "Moyen · jusqu’à 30 L";
+"ESSENTIAL_POT_SIZE_LARGE" = "Grand · 30 L et plus";
+"ESSENTIAL_WATERING_CAPACITY_QUESTION" = "À quelle fréquence pouvez-vous arroser ?";
+"ESSENTIAL_WATERING_LOW" = "Une fois par semaine";
+"ESSENTIAL_WATERING_REGULAR" = "Tous les 3 à 4 jours";
+"ESSENTIAL_WATERING_FREQUENT" = "Aussi souvent que nécessaire";
+"ESSENTIAL_INTERIOR_DIRECT_SUN_QUESTION" = "Combien d’heures de soleil direct reçoit la plante ?";
+"ESSENTIAL_DIRECT_SUN_NONE" = "Aucun soleil direct";
+"ESSENTIAL_DIRECT_SUN_1_3" = "1 à 3 heures";
+"ESSENTIAL_DIRECT_SUN_4_6" = "4 à 6 heures";
+"ESSENTIAL_DIRECT_SUN_6_PLUS" = "Plus de 6 heures";
+"ESSENTIAL_HEAT_AIR_CONDITIONING" = "Climatisation proche";
+"ESSENTIAL_HEAT_BOTH" = "Chauffage et climatisation";
+"AR_CATALOG_MISSING_DATA_TITLE" = "Informations à confirmer";
+"AR_CATALOG_MISSING_BOTANICAL_PROFILE" = "La fiche botanique structurée de cette plante n’a pas encore été auditée.";
+"AR_CATALOG_MISSING_SPACE_CONTEXT" = "Le type d’espace n’est pas disponible.";
+"AR_CATALOG_MISSING_ENVIRONMENT" = "L’usage intérieur ou extérieur doit être confirmé.";
+"AR_CATALOG_MISSING_RELIABLE_SUNLIGHT" = "La durée de soleil est une estimation peu fiable.";
+"AR_CATALOG_MISSING_SUNLIGHT_CONTEXT" = "La durée de soleil de l’espace est inconnue.";
+"AR_CATALOG_MISSING_LIGHT_REQUIREMENT" = "La plage de soleil direct requise par la plante est inconnue.";
+"AR_CATALOG_MISSING_MINIMUM_TEMPERATURE_CONTEXT" = "La température minimale historique locale n’est pas encore disponible.";
+"AR_CATALOG_MISSING_CLIMATE_CONFIDENCE" = "La donnée climatique disponible demande confirmation.";
+"AR_CATALOG_MISSING_MINIMUM_TEMPERATURE" = "La température minimale tolérée par la plante est inconnue.";
+"AR_CATALOG_MISSING_PET_TOXICITY" = "La toxicité pour les animaux n’est pas certifiée.";
+"AR_CATALOG_MISSING_CHILD_TOXICITY" = "La toxicité pour les enfants n’est pas certifiée.";
+"AR_CATALOG_MISSING_CONTAINER_CONTEXT" = "La taille de pot acceptable n’a pas été indiquée.";
+"AR_CATALOG_MISSING_POT_REQUIREMENT" = "Le volume minimal du pot est inconnu.";
+"AR_CATALOG_MISSING_DRAINAGE_REQUIREMENT" = "Le besoin de drainage de la plante est inconnu.";
+"AR_CATALOG_MISSING_WATERING_REQUIREMENT" = "La fréquence d’arrosage nécessaire est inconnue.";
+"AR_CATALOG_MISSING_WIND_TOLERANCE" = "La tolérance au vent est inconnue.";
+"AR_CATALOG_MISSING_SALT_TOLERANCE" = "La tolérance aux embruns et au sel est inconnue.";
+"AR_CATALOG_MISSING_HUMIDITY_REQUIREMENT" = "La plage d’humidité recommandée est inconnue.";
+"AR_CATALOG_MISSING_MATURE_HEIGHT" = "La hauteur adulte est inconnue.";
+"AR_CATALOG_MISSING_AVAILABLE_WIDTH" = "La largeur réellement disponible n’est pas encore définie.";
+"AR_CATALOG_MISSING_MATURE_WIDTH" = "La largeur adulte est inconnue.";
+"AR_CATALOG_MISSING_VERIFIED_SOURCE" = "Au moins une donnée utilisée n’a pas encore de source récente et fiable.";
+"AR_CATALOG_REASON_TEMPERATURE_MATCH" = "Sa rusticité convient aux températures minimales connues.";
+"AR_CATALOG_REASON_TEMPERATURE_CONFLICT" = "Les températures minimales locales sont trop basses pour cette plante.";
+"AR_CATALOG_REASON_POT_SIZE_CONFLICT" = "Cette plante demande un pot plus grand que la taille acceptée.";
+"AR_CATALOG_REASON_DRAINAGE_MATCH" = "Son besoin de drainage correspond au sol déclaré.";
+"AR_CATALOG_REASON_WATERING_MATCH" = "Sa fréquence d’arrosage correspond à votre disponibilité.";
+"AR_CATALOG_REASON_WATERING_CONFLICT" = "Elle devrait être arrosée plus souvent que vous ne le souhaitez.";
+"AR_CATALOG_REASON_COASTAL_MATCH" = "Elle supporte bien les conditions de bord de mer.";
+"AR_CATALOG_REASON_COASTAL_CONFLICT" = "Elle risque de mal supporter les embruns ou le sel.";
+"AR_CATALOG_REASON_WIDTH_MATCH" = "Son développement adulte tient dans la largeur disponible.";
+"AR_CATALOG_REASON_WIDTH_CONFLICT" = "Sa largeur adulte dépasse l’espace disponible.";

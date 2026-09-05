@@ -1,0 +1,22 @@
+# Configuration SOPS — chiffrement des secrets versionnés (#401 §6 bis).
+#
+# SOPS chiffre les VALEURS et laisse les CLÉS en clair. L'inventaire des
+# secrets est donc versionné et lisible en revue de PR ; les valeurs ne le
+# sont pas. C'est cette propriété qui rend tenable le critère de #401 : une
+# machine neuve sait QUOI lui fournir, sans que le dépôt révèle les valeurs.
+#
+# Une clé age par environnement. La clé PRIVÉE ne vit jamais dans le dépôt —
+# c'est le seul secret restant à poser à la main sur une machine neuve.
+#
+# Les destinataires ci-dessous sont des clés PUBLIQUES : les publier est sans
+# risque, c'est leur raison d'être.
+
+creation_rules:
+  # Remplacer `age1...` par la clé publique produite par `age-keygen`.
+  # Tant que ces valeurs sont des marqueurs, aucun chiffrement n'est possible —
+  # c'est voulu : mieux vaut échouer que chiffrer vers une clé fantôme.
+  - path_regex: ^ops/secrets/prod\.enc\.(env|json|p8|key)$
+    age: "REMPLACER_PAR_LA_CLE_PUBLIQUE_AGE_PROD"
+
+  - path_regex: ^ops/secrets/dev\.enc\.(env|json|p8|key)$
+    age: "REMPLACER_PAR_LA_CLE_PUBLIQUE_AGE_DEV"

@@ -335,85 +335,61 @@ checkout cannot overwrite or delete them.
 
 ---
 
-## 9. Scheduled jobs (cron)
+## 9. Scheduled jobs and system configuration
 
-Three entries, all logged under `logs/`.
+> **Nothing to install by hand.** `deploy.sh` applies `ops/` on every deploy
+> (step 2/7): cron entries, systemd units, privileged scripts. A change made
+> directly on the machine is **overwritten** on the next deploy — the repository
+> is authoritative.
+>
+> To change a scheduled job: edit `ops/crontab`, then deploy.
 
-### 9.1 Test DB cleanup — daily
+Applied contents, detailed in [`ops/README.md`](../../../ops/README.md):
+
+| Job | Frequency |
+|---|---|
+| `cleanup-test-db.sh` | daily, 04:00 UTC |
+| `cleanup-test-users.sh` (#160) | Sunday 04:00 UTC |
+| `reconcile-guests.sh --apply` (#393) | Sunday 05:00 UTC |
+| `cf-http-firewall.service` | at boot |
+| `cf-update-ranges.timer` | Sunday 04:00 UTC |
+
+The previous crontab is saved to `logs/crontab.bak.<timestamp>` before any
+overwrite.
+
+### Verify after a deploy
 
 ```bash
-mkdir -p /home/fedora/Arbore/logs
-touch /home/fedora/Arbore/logs/cleanup-test-db.log
-chmod +x /home/fedora/Arbore/scripts/cleanup-test-db.sh
-
-(crontab -l 2>/dev/null; echo "0 4 * * * /home/fedora/Arbore/scripts/cleanup-test-db.sh >> /home/fedora/Arbore/logs/cleanup-test-db.log 2>&1") | crontab -
 crontab -l
+systemctl is-enabled cf-http-firewall.service cf-update-ranges.timer
 ```
 
-Manual validation (may print "skip" if a CI run is in progress, that's OK):
+### Firebase ↔ Mongo reconciliation — first run
+
+The job deletes production data on the word of an external system. **Run it in
+simulation mode before trusting the cron**, which passes `--apply`:
 
 ```bash
-/home/fedora/Arbore/scripts/cleanup-test-db.sh
-```
-
-The script checks that no GitHub Actions CI run is in progress before
-dropping the DB. It uses `gh` if authenticated, otherwise `curl` without a token (since
-the repo is public, the Actions API is readable without auth).
-
-### 9.2 Test account cleanup — weekly
-
-Purges the `@arbore.test` users accumulated by CI (#160).
-
-```bash
-touch /home/fedora/Arbore/logs/cleanup-test-users.log
-chmod +x /home/fedora/Arbore/ArboreBackend/scripts/cleanup-test-users.sh
-
-(crontab -l 2>/dev/null; echo "0 4 * * 0 /home/fedora/Arbore/ArboreBackend/scripts/cleanup-test-users.sh >> /home/fedora/Arbore/logs/cleanup-test-users.log 2>&1") | crontab -
-```
-
-### 9.3 Firebase ↔ Mongo reconciliation — weekly
-
-Deletes Mongo data whose `uid` no longer exists in Firebase Auth.
-Automatic cleanup of inactive anonymous accounts, enabled on 2026-09-02,
-removes a guest account after 30 days; without this job its gardens and
-consents would remain in the database with no identifiable owner — nobody
-to request their erasure, and no retention period (#393).
-
-The job runs **inside the already-deployed backend container**: there it
-finds `MONGODB_URI`, the Firebase service account mounted at
-`/run/secrets`, and the same purge function as GDPR account deletion.
-Nothing to build on the host.
-
-> **Run it in simulation mode once before installing the cron.**
-> Without `--apply`, the script counts and logs without deleting anything.
-
-```bash
-chmod +x /home/fedora/Arbore/ArboreBackend/scripts/reconcile-guests.sh
-
-# 1. Simulation: deletes nothing, prints the totals.
+# Deletes nothing: counts and logs.
 /home/fedora/Arbore/ArboreBackend/scripts/reconcile-guests.sh
-
-# 2. If the numbers look sound, real deletion.
-/home/fedora/Arbore/ArboreBackend/scripts/reconcile-guests.sh --apply
-
-# 3. Only then, the cron.
-touch /home/fedora/Arbore/logs/reconcile-guests.log
-(crontab -l 2>/dev/null; echo "0 5 * * 0 /home/fedora/Arbore/ArboreBackend/scripts/reconcile-guests.sh --apply >> /home/fedora/Arbore/logs/reconcile-guests.log 2>&1") | crontab -
 ```
 
-The job is a production eraser driven by an external system. Four guards
-make that acceptable, and it **exits with an error without deleting
-anything** if any one of them is not satisfied:
+Four guards protect it, and it **exits with an error without deleting anything**
+if any one of them is not satisfied:
 
 | Guard | What it prevents |
 |---|---|
-| Fail-closed on any Firebase error | Reading "I don't know" as "delete" |
-| Refusing an empty Firebase enumeration | Wiping the database on a bad service account |
-| 7-day grace period | Deleting an account created after the Firebase snapshot |
-| Simulation by default | A deletion triggered by accident |
+| Fail-closed on any Firebase error | reading "I don't know" as "delete" |
+| Refusing an empty Firebase enumeration | wiping the database on a bad service account |
+| 7-day grace period | deleting an account created after the Firebase snapshot |
+| Simulation by default | a deletion triggered by accident |
 
-Logs contain totals only, never a `uid`: a `uid` is personal data, and the
-log has its own retention period (#385).
+Logs contain totals only, never a `uid`: a `uid` is personal data, and the log
+has its own retention period (#385).
+
+⚠️ **No guard protects against pointing at the wrong Firebase project.** On any
+environment other than production, check `FIREBASE_SERVICE_ACCOUNT_PATH` and
+`MONGODB_URI` before any `--apply`.
 
 ---
 
@@ -448,7 +424,8 @@ Check off these items before considering the VPS operational:
 - [ ] `curl -fsS http://localhost:3000/` → 200 OK (web)
 - [ ] `curl -fsS http://<VPS_IP>/health` → 200 OK (via nginx)
 - [ ] `mongosh "$MONGODB_URI" --quiet --eval 'db.users.countDocuments()'` → integer > 0
-- [ ] `crontab -l` contains all three entries: `cleanup-test-db.sh`, `cleanup-test-users.sh`, `reconcile-guests.sh`
+- [ ] `crontab -l` contains all three entries, installed by `deploy.sh` from `ops/crontab` — never by hand
+- [ ] `systemctl is-enabled cf-http-firewall.service cf-update-ranges.timer` → `enabled`
 - [ ] `/home/fedora/Arbore/scripts/cleanup-test-db.sh` finishes with exit 0
 - [ ] `ls /home/fedora/Arbore/backups/daily/` does not crash (the folder is created on the first `deploy.sh`)
 - [ ] A test PR on GitHub triggers the CI; the tests pass while

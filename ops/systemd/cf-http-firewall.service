@@ -1,0 +1,12 @@
+[Unit]
+Description=Restrict nginx :80 (origin) to Cloudflare IPs
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cf-http-firewall.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,19 @@
+# Tâches planifiées Arbore — source de vérité.
+#
+# Ce fichier est INSTALLÉ par deploy.sh à chaque déploiement. Ne pas éditer le
+# crontab de la machine à la main : la modification serait écrasée au
+# déploiement suivant, sans avertissement.
+#
+# `__ARBORE_ROOT__` est remplacé par la racine du dépôt au moment de
+# l'installation, pour que le fichier reste valable quel que soit
+# l'emplacement du checkout.
+
+# Cleanup de la DB de test, chaque nuit à 04:00 UTC (saute si une CI tourne).
+0 4 * * * __ARBORE_ROOT__/scripts/cleanup-test-db.sh >> __ARBORE_ROOT__/logs/cleanup-test-db.log 2>&1
+
+# Cleanup des comptes @arbore.test accumulés par la CI (#160), dimanche 04:00 UTC.
+0 4 * * 0 __ARBORE_ROOT__/ArboreBackend/scripts/cleanup-test-users.sh >> __ARBORE_ROOT__/logs/cleanup-test-users.log 2>&1
+
+# Réconciliation Firebase <-> Mongo (#393), dimanche 05:00 UTC.
+# ATTENTION : --apply supprime réellement. Sans ce drapeau, le job simule.
+0 5 * * 0 __ARBORE_ROOT__/ArboreBackend/scripts/reconcile-guests.sh --apply >> __ARBORE_ROOT__/logs/reconcile-guests.log 2>&1

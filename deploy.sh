@@ -42,7 +42,7 @@ SNAPSHOT_RETENTION_DAYS=14
 DOCKER_PRIVILEGE=( sudo )
 DOCKER_COMPOSE=( "${DOCKER_PRIVILEGE[@]}" docker compose )
 
-step() { printf '%b[%s/6]%b %s\n' "$YELLOW" "$1" "$NC" "$2"; }
+step() { printf '%b[%s/7]%b %s\n' "$YELLOW" "$1" "$NC" "$2"; }
 ok()   { printf '%b✅ %s%b\n' "$GREEN" "$1" "$NC"; }
 fail() { printf '%b❌ %s%b\n' "$RED" "$1" "$NC" >&2; }
 warn() { printf '%b⚠️  %s%b\n' "$YELLOW" "$1" "$NC"; }
@@ -72,7 +72,7 @@ require_prereqs() {
     [ "$missing" -eq 0 ] || exit 3
 }
 
-# ───── [1/6] Git pull ─────────────────────────────────────────────
+# ───── [1/7] Git pull ─────────────────────────────────────────────
 #
 # Données hors bande : fichiers que git suit encore (ils ont été committés avant
 # que la règle `.gitignore` n'existe) mais qui sont en réalité gérés directement
@@ -154,7 +154,96 @@ do_git_pull() {
     echo
 }
 
-# ───── [2/6] Pre-deploy DB snapshot ───────────────────────────────
+# ───── [2/7] Configuration système déclarative ────────────────────
+#
+# `ops/` est la source de vérité de tout ce qui vit hors des conteneurs :
+# entrées cron, unités systemd, scripts privilégiés. Cette étape les
+# applique à CHAQUE déploiement, de façon idempotente.
+#
+# Pourquoi : ces éléments étaient auparavant posés à la main en suivant un
+# runbook, donc invisibles au dépôt et impossibles à vérifier. La doc a
+# dérivé sans que personne ne le voie — elle a décrit un seul cron pendant
+# des mois alors que la machine en avait deux (#393, #400, #401).
+#
+# Conséquence assumée : une modification faite à la main sur la machine est
+# ÉCRASÉE au déploiement suivant. C'est le comportement voulu — le dépôt
+# fait autorité.
+do_apply_ops() {
+    step 2 "Configuration système (ops/)..."
+
+    if [ ! -d "$SCRIPT_DIR/ops" ]; then
+        warn "ops/ absent — étape ignorée (checkout antérieur à #401 ?)"
+        echo
+        return 0
+    fi
+
+    # --- Crontab ---
+    # `__ARBORE_ROOT__` rend le fichier indépendant de l'emplacement du
+    # checkout, condition pour qu'un second environnement puisse l'utiliser.
+    if [ -f "$SCRIPT_DIR/ops/crontab" ]; then
+        local rendered previous
+        rendered="$(mktemp)"
+        sed "s|__ARBORE_ROOT__|$SCRIPT_DIR|g" "$SCRIPT_DIR/ops/crontab" > "$rendered"
+
+        previous="$(crontab -l 2>/dev/null || true)"
+        if [ "$previous" = "$(cat "$rendered")" ]; then
+            ok "Crontab déjà conforme"
+        else
+            # Sauvegarde avant écrasement : une entrée posée à la main serait
+            # perdue autrement, et on veut pouvoir la retrouver.
+            if [ -n "$previous" ]; then
+                printf '%s\n' "$previous" > "$SCRIPT_DIR/logs/crontab.bak.$(date -u +%Y%m%dT%H%M%SZ)"
+            fi
+            crontab "$rendered"
+            ok "Crontab installé ($(grep -cE '^[^#]' "$rendered" | tr -d ' ') entrées)"
+        fi
+        rm -f "$rendered"
+    fi
+
+    # --- Scripts privilégiés + unités systemd ---
+    # Non bloquant : sans sudo, le déploiement applicatif doit continuer.
+    if ! sudo -n true 2>/dev/null; then
+        warn "sudo indisponible — systemd et /usr/local/sbin non appliqués"
+        echo
+        return 0
+    fi
+
+    local changed=0
+    for src in "$SCRIPT_DIR"/ops/sbin/*.sh; do
+        [ -e "$src" ] || continue
+        local dst="/usr/local/sbin/$(basename "$src")"
+        if ! sudo cmp -s "$src" "$dst" 2>/dev/null; then
+            sudo install -m 0755 "$src" "$dst"
+            changed=1
+        fi
+    done
+
+    local units_changed=0
+    for src in "$SCRIPT_DIR"/ops/systemd/*; do
+        [ -e "$src" ] || continue
+        local dst="/etc/systemd/system/$(basename "$src")"
+        if ! sudo cmp -s "$src" "$dst" 2>/dev/null; then
+            sudo install -m 0644 "$src" "$dst"
+            units_changed=1
+        fi
+    done
+
+    if [ "$units_changed" -eq 1 ]; then
+        sudo systemctl daemon-reload
+        for src in "$SCRIPT_DIR"/ops/systemd/*.service "$SCRIPT_DIR"/ops/systemd/*.timer; do
+            [ -e "$src" ] || continue
+            sudo systemctl enable "$(basename "$src")" > /dev/null 2>&1 || true
+        done
+        ok "Unités systemd mises à jour et activées"
+    elif [ "$changed" -eq 1 ]; then
+        ok "Scripts /usr/local/sbin mis à jour"
+    else
+        ok "systemd et scripts déjà conformes"
+    fi
+    echo
+}
+
+# ───── [3/7] Pre-deploy DB snapshot ───────────────────────────────
 #
 # Mongo Atlas M0 (tier gratuit) n'a pas de backup automatique. Ce
 # mongodump local sert de filet de sécurité juste avant tout redémarrage
@@ -164,7 +253,7 @@ do_git_pull() {
 # est déplacé dans backups/daily/. Si l'une des étapes échoue, on abort
 # pour ne pas déployer une nouvelle version sans filet.
 do_db_snapshot() {
-    step 2 "Pre-deploy DB snapshot..."
+    step 3 "Pre-deploy DB snapshot..."
 
     local mongo_uri
     mongo_uri="$(grep '^MONGODB_URI=' "$SCRIPT_DIR/.env" | sed 's/^MONGODB_URI=//' || true)"
@@ -210,11 +299,11 @@ do_db_snapshot() {
     echo
 }
 
-# ───── [3/6] Docker compose build ─────────────────────────────────
+# ───── [4/7] Docker compose build ─────────────────────────────────
 do_docker_build() {
     local git_sha
     git_sha="$(git rev-parse HEAD)"
-    step 3 "Docker compose build (commit ${git_sha:0:7})..."
+    step 4 "Docker compose build (commit ${git_sha:0:7})..."
     # GIT_COMMIT est injecté dans le binaire backend puis renvoyé par GET /health :
     # c'est ce qui rend une dérive prod ↔ main détectable d'un simple curl (#341).
     # L'assignation vient après DOCKER_PRIVILEGE, cf. le commentaire à sa définition.
@@ -226,9 +315,9 @@ do_docker_build() {
     echo
 }
 
-# ───── [4/6] Docker compose up ────────────────────────────────────
+# ───── [5/7] Docker compose up ────────────────────────────────────
 do_docker_up() {
-    step 4 "Redémarrage des containers..."
+    step 5 "Redémarrage des containers..."
     if ! "${DOCKER_COMPOSE[@]}" up -d backend ai-generator web; then
         fail "docker compose up a échoué"
         exit 1
@@ -237,15 +326,15 @@ do_docker_up() {
     echo
 }
 
-# ───── [5/6] Logs de démarrage ────────────────────────────────────
+# ───── [6/7] Logs de démarrage ────────────────────────────────────
 do_show_logs() {
-    step 5 "Logs de démarrage (10 dernières lignes)..."
+    step 6 "Logs de démarrage (10 dernières lignes)..."
     sleep 5
     "${DOCKER_COMPOSE[@]}" logs --tail 10 backend 2>&1 || true
     echo
 }
 
-# ───── [6/6] Health check ─────────────────────────────────────────
+# ───── [7/7] Health check ─────────────────────────────────────────
 #
 # Le backend expose /health en HTTP plain sur :8080 à ce stade
 # (cf. issue #121 pour la migration HTTPS). Le check est bloquant :
@@ -279,7 +368,7 @@ check_web() {
 }
 
 do_health_check() {
-    step 6 "Health check..."
+    step 7 "Health check..."
     local attempts=0
     local max_attempts=10
     local http_code=""
@@ -314,6 +403,7 @@ main() {
     banner
     require_prereqs
     do_git_pull
+    do_apply_ops
     do_db_snapshot
     do_docker_build
     do_docker_up

@@ -106,6 +106,23 @@ is_out_of_band() {
 do_git_pull() {
     step 1 "Git pull..."
 
+    # Garde-fou de branche (#384). `git pull --ff-only` suit la branche COURANTE
+    # du checkout : si quelqu'un en laisse une autre en place sur la machine, le
+    # script la déploierait sans rien signaler. La dérive ne serait visible qu'en
+    # aval, par le commit exposé dans /health.
+    #
+    # Paramétrable plutôt que codé en dur : #401 vise plusieurs environnements,
+    # et une machine de staging déploierait légitimement `dev`. La production ne
+    # définit pas la variable et refuse donc tout sauf `main`.
+    local expected_branch="${ARBORE_DEPLOY_BRANCH:-main}"
+    local current_branch
+    current_branch="$(git rev-parse --abbrev-ref HEAD)"
+    if [ "$current_branch" != "$expected_branch" ]; then
+        fail "Checkout sur '$current_branch', attendu '$expected_branch' — déploiement refusé"
+        fail "Pour déployer une autre branche : ARBORE_DEPLOY_BRANCH=<branche> ./deploy.sh"
+        exit 1
+    fi
+
     # Trois catégories, traitées différemment :
     #   - fichier SUIVI modifié hors données hors bande  → bloquant (du code)
     #   - fichier SUIVI modifié sous un chemin hors bande → toléré, signalé

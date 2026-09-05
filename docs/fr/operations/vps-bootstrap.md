@@ -326,12 +326,15 @@ Les USDZ, miniatures, anciens uploads et secrets sont censés vivre dans
 `/home/fedora/arbore-data` grâce aux chemins absolus du `.env`, pour qu'un
 nouveau checkout de release ne puisse ni les écraser ni les supprimer.
 
-> ⚠️ **État réel au 26/07/2026** : `/home/fedora/arbore-data/models` existe et
-> contient bien les 124 modèles, mais **aucun `MODELS_HOST_PATH` n'est défini
-> dans le `.env` du VPS**. `docker-compose.yml` retombe donc sur son défaut
-> `./ArboreBackend/models`, et la production sert les modèles **depuis le
-> checkout git**. Cette bascule reste à faire (#341) ; d'ici là, toute opération
-> git sur ces fichiers change ce que l'app télécharge.
+> ✅ **Bascule effectuée le 05/09/2026** (#341 cause 3, #401 étape 2).
+> `MODELS_HOST_PATH=/home/fedora/arbore-data/models` est défini dans le `.env`
+> du VPS, et le conteneur monte bien ce chemin — vérifié par `docker inspect`
+> et par comparaison d'empreintes entre le conteneur et un manifeste de
+> référence.
+>
+> Les 38 `.usdz` qui restaient suivis par git ont été retirés du suivi. **Une
+> opération git ne peut donc plus modifier ce que l'app télécharge**, ce qui
+> était l'objet de #341.
 
 ---
 

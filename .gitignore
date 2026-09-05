@@ -240,9 +240,12 @@ backups/
 # ─── 3D plant assets — large binaries deployed to the VPS out-of-band (rsync) ──
 # The light/heavy USDZ models and the PNG thumbnails are NOT versioned; they are
 # served from the VPS filesystem (see docs/fr/3d-lod-architecture.md). Keep
-# ArboreBackend/models/README.md tracked. NOTE: ~40 .usdz were committed before
-# this rule existed and remain tracked; run `git rm --cached` if you want models/
-# fully out of git history.
+# ArboreBackend/models/README.md tracked.
+#
+# The 38 .usdz committed before this rule existed were untracked on 2026-09-05
+# (#341 cause 3, #401 step 2). Production now serves them from MODELS_HOST_PATH,
+# outside the checkout, so git operations can no longer alter what the app
+# downloads. They remain in git HISTORY — untracking does not rewrite it.
 ArboreBackend/models/*.usdz
 ArboreBackend/models/heavy/
 ArboreBackend/models/thumbnails/

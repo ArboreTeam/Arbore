@@ -6,7 +6,9 @@ struct TermsConditionsView: View {
 
     private let brandName = "Arbore"
     private let contactEmail = "support@arbore.app"
-    private let lastUpdated = "31 May 2026"
+    private var lastUpdated: String {
+        NSLocalizedString("TERMS_LAST_UPDATED_DATE", comment: "")
+    }
 
     var body: some View {
         SettingsPage(title: NSLocalizedString("TERMS_TITLE", comment: "")) {

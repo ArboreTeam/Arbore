@@ -140,10 +140,19 @@ type User struct {
 	Tier          string     `json:"tier,omitempty" bson:"tier,omitempty"`
 	TierSource    string     `json:"tierSource,omitempty" bson:"tierSource,omitempty"`
 	TierExpiresAt *time.Time `json:"tierExpiresAt,omitempty" bson:"tierExpiresAt,omitempty"`
+
+	// Préférence durable utilisée comme exclusion de sécurité dans tous les
+	// nouveaux jardins, plutôt que de redemander ces questions à chaque fois.
+	HouseholdSafety *HouseholdSafetyProfile `json:"householdSafety,omitempty" bson:"householdSafety,omitempty"`
 	// Refresh_token Apple chiffré (AES-GCM), pour révoquer le compte SIWA à la
 	// suppression (Guideline 5.1.1(v), issue #210). `json:"-"` : ne sort jamais
 	// vers le client. Nil si l'utilisateur ne s'est pas connecté via Apple.
 	AppleRefreshTokenEncrypted []byte `json:"-" bson:"appleRefreshTokenEncrypted,omitempty"`
+}
+
+type HouseholdSafetyProfile struct {
+	AvoidPetToxicity   bool `json:"avoidPetToxicity" bson:"avoidPetToxicity"`
+	AvoidChildToxicity bool `json:"avoidChildToxicity" bson:"avoidChildToxicity"`
 }
 
 // ---------- CONSENT STRUCTS (RGPD) ----------
@@ -223,19 +232,20 @@ type LanguageData struct {
 }
 
 type Plant struct {
-	ID           primitive.ObjectID      `bson:"_id,omitempty" json:"id"`
-	Name         string                  `json:"name" bson:"name"`
-	Type         string                  `json:"type" bson:"type"`
-	ImageURLs    []string                `json:"imageURLs" bson:"imageURLs"`
-	Description  string                  `json:"description" bson:"description"`
-	ModelURL     string                  `json:"modelURL" bson:"modelURL"`
-	Translations map[string]LanguageData `json:"translations" bson:"translations"`
-	Generated    *bool                   `json:"generated,omitempty" bson:"generated,omitempty"`
-	UpAxis       *string                 `json:"upAxis,omitempty" bson:"upAxis,omitempty"`
-	Source       *string                 `json:"source,omitempty" bson:"source,omitempty"`       // libellé de provenance optionnel (catalogue curé) ; nil/"" = legacy/beta
-	SourceURL    *string                 `json:"sourceUrl,omitempty" bson:"sourceUrl,omitempty"` // URL d'origine optionnelle (conservée pour mise à jour ultérieure)
-	Flags        *PlantFlags             `json:"flags,omitempty" bson:"flags,omitempty"`         // drapeaux structurés pour la reco wizard (fiables, vs matching mots-clés)
-	HasHeavy     *bool                   `json:"hasHeavy,omitempty" bson:"hasHeavy,omitempty"`   // true = une version haute définition existe (servie via /models/<file>?lod=heavy)
+	ID               primitive.ObjectID      `bson:"_id,omitempty" json:"id"`
+	Name             string                  `json:"name" bson:"name"`
+	Type             string                  `json:"type" bson:"type"`
+	ImageURLs        []string                `json:"imageURLs" bson:"imageURLs"`
+	Description      string                  `json:"description" bson:"description"`
+	ModelURL         string                  `json:"modelURL" bson:"modelURL"`
+	Translations     map[string]LanguageData `json:"translations" bson:"translations"`
+	Generated        *bool                   `json:"generated,omitempty" bson:"generated,omitempty"`
+	UpAxis           *string                 `json:"upAxis,omitempty" bson:"upAxis,omitempty"`
+	Source           *string                 `json:"source,omitempty" bson:"source,omitempty"`                     // libellé de provenance optionnel (catalogue curé) ; nil/"" = legacy/beta
+	SourceURL        *string                 `json:"sourceUrl,omitempty" bson:"sourceUrl,omitempty"`               // URL d'origine optionnelle (conservée pour mise à jour ultérieure)
+	Flags            *PlantFlags             `json:"flags,omitempty" bson:"flags,omitempty"`                       // drapeaux structurés pour la reco wizard (fiables, vs matching mots-clés)
+	BotanicalProfile *PlantBotanicalProfile  `json:"botanicalProfile,omitempty" bson:"botanicalProfile,omitempty"` // contraintes horticoles sourcées ; nil = fiche non auditée
+	HasHeavy         *bool                   `json:"hasHeavy,omitempty" bson:"hasHeavy,omitempty"`                 // true = une version haute définition existe (servie via /models/<file>?lod=heavy)
 }
 
 // PlantFlags : drapeaux booléens structurés alimentant la reco du
@@ -254,6 +264,60 @@ type PlantFlags struct {
 	Trailing        bool `json:"trailing" bson:"trailing"`               // retombante (suspension)
 	Compact         bool `json:"compact" bson:"compact"`                 // compacte / petits espaces
 	AirPurifying    bool `json:"airPurifying" bson:"airPurifying"`       // dépolluante (liste NASA)
+}
+
+// PlantDataEvidence conserve la provenance d'une valeur individuelle.
+// Une fiche n'est donc pas considérée comme entièrement vérifiée parce qu'un
+// seul de ses champs possède une source.
+type PlantDataEvidence struct {
+	SourceName  string `json:"sourceName,omitempty" bson:"sourceName,omitempty"`
+	SourceURL   string `json:"sourceURL,omitempty" bson:"sourceURL,omitempty"`
+	ReviewedAt  string `json:"reviewedAt,omitempty" bson:"reviewedAt,omitempty"`
+	Reliability string `json:"reliability,omitempty" bson:"reliability,omitempty"`
+}
+
+type PlantStringFact struct {
+	Value    string             `json:"value" bson:"value"`
+	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`
+}
+
+type PlantStringListFact struct {
+	Value    []string           `json:"value" bson:"value"`
+	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`
+}
+
+type PlantNumberFact struct {
+	Value    float64            `json:"value" bson:"value"`
+	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`
+}
+
+type PlantRangeFact struct {
+	Minimum  *float64           `json:"minimum,omitempty" bson:"minimum,omitempty"`
+	Maximum  *float64           `json:"maximum,omitempty" bson:"maximum,omitempty"`
+	Unit     string             `json:"unit,omitempty" bson:"unit,omitempty"`
+	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`
+}
+
+// PlantBotanicalProfile est le contrat canonique du moteur de compatibilité.
+// Tous les champs restent optionnels pour migrer le catalogue progressivement ;
+// un champ absent est rendu "à confirmer" par le client.
+type PlantBotanicalProfile struct {
+	Environments           *PlantStringListFact `json:"environments,omitempty" bson:"environments,omitempty"`
+	MinimumTemperatureC    *PlantNumberFact     `json:"minimumTemperatureC,omitempty" bson:"minimumTemperatureC,omitempty"`
+	DirectSunHours         *PlantRangeFact      `json:"directSunHours,omitempty" bson:"directSunHours,omitempty"`
+	IndoorHumidityPercent  *PlantRangeFact      `json:"indoorHumidityPercent,omitempty" bson:"indoorHumidityPercent,omitempty"`
+	WateringIntervalDays   *PlantRangeFact      `json:"wateringIntervalDays,omitempty" bson:"wateringIntervalDays,omitempty"`
+	Drainage               *PlantStringFact     `json:"drainage,omitempty" bson:"drainage,omitempty"`
+	MatureHeightCm         *PlantRangeFact      `json:"matureHeightCm,omitempty" bson:"matureHeightCm,omitempty"`
+	MatureWidthCm          *PlantRangeFact      `json:"matureWidthCm,omitempty" bson:"matureWidthCm,omitempty"`
+	MinimumPotVolumeLiters *PlantNumberFact     `json:"minimumPotVolumeLiters,omitempty" bson:"minimumPotVolumeLiters,omitempty"`
+	MinimumPotDepthCm      *PlantNumberFact     `json:"minimumPotDepthCm,omitempty" bson:"minimumPotDepthCm,omitempty"`
+	WindTolerance          *PlantStringFact     `json:"windTolerance,omitempty" bson:"windTolerance,omitempty"`
+	DroughtTolerance       *PlantStringFact     `json:"droughtTolerance,omitempty" bson:"droughtTolerance,omitempty"`
+	SaltTolerance          *PlantStringFact     `json:"saltTolerance,omitempty" bson:"saltTolerance,omitempty"`
+	PetToxicity            *PlantStringFact     `json:"petToxicity,omitempty" bson:"petToxicity,omitempty"`
+	ChildToxicity          *PlantStringFact     `json:"childToxicity,omitempty" bson:"childToxicity,omitempty"`
+	SchemaVersion          *int                 `json:"schemaVersion,omitempty" bson:"schemaVersion,omitempty"`
 }
 
 type AIRequest struct {
@@ -287,12 +351,15 @@ type GardenWizardData struct {
 // l'utilisateur connaît. Une question ignorée ou « Je ne sais pas » reste
 // absente du document MongoDB.
 type GardenConditionalAnswersData struct {
-	PlantingMode     string `json:"plantingMode,omitempty" bson:"plantingMode,omitempty"`
-	Drainage         string `json:"drainage,omitempty" bson:"drainage,omitempty"`
-	WindExposure     string `json:"windExposure,omitempty" bson:"windExposure,omitempty"`
-	ContainerProject string `json:"containerProject,omitempty" bson:"containerProject,omitempty"`
-	IndoorHumidity   string `json:"indoorHumidity,omitempty" bson:"indoorHumidity,omitempty"`
-	NearbyHeat       string `json:"nearbyHeat,omitempty" bson:"nearbyHeat,omitempty"`
+	PlantingMode         string `json:"plantingMode,omitempty" bson:"plantingMode,omitempty"`
+	Drainage             string `json:"drainage,omitempty" bson:"drainage,omitempty"`
+	WindExposure         string `json:"windExposure,omitempty" bson:"windExposure,omitempty"`
+	ContainerProject     string `json:"containerProject,omitempty" bson:"containerProject,omitempty"`
+	MaximumContainerSize string `json:"maximumContainerSize,omitempty" bson:"maximumContainerSize,omitempty"`
+	WateringCapacity     string `json:"wateringCapacity,omitempty" bson:"wateringCapacity,omitempty"`
+	DirectSunDuration    string `json:"directSunDuration,omitempty" bson:"directSunDuration,omitempty"`
+	IndoorHumidity       string `json:"indoorHumidity,omitempty" bson:"indoorHumidity,omitempty"`
+	NearbyHeat           string `json:"nearbyHeat,omitempty" bson:"nearbyHeat,omitempty"`
 }
 
 // GardenLocationData ne contient volontairement aucune adresse. Le client
@@ -313,8 +380,10 @@ type GardenLightExposureData struct {
 }
 
 type GardenValueMetadataData struct {
-	Source     string `json:"source" bson:"source"`
-	Confidence string `json:"confidence" bson:"confidence"`
+	Source          string `json:"source" bson:"source"`
+	Confidence      string `json:"confidence" bson:"confidence"`
+	SourceReference string `json:"sourceReference,omitempty" bson:"sourceReference,omitempty"`
+	ObservedAt      string `json:"observedAt,omitempty" bson:"observedAt,omitempty"`
 }
 
 type GardenOrientationData struct {
@@ -338,6 +407,34 @@ type GardenAvailableHeightData struct {
 	Metadata GardenValueMetadataData `json:"metadata" bson:"metadata"`
 }
 
+type GardenTemperatureData struct {
+	Celsius  float64                 `json:"celsius" bson:"celsius"`
+	Metadata GardenValueMetadataData `json:"metadata" bson:"metadata"`
+}
+
+type GardenAltitudeData struct {
+	Meters   float64                 `json:"meters" bson:"meters"`
+	Metadata GardenValueMetadataData `json:"metadata" bson:"metadata"`
+}
+
+type GardenFrostRiskData struct {
+	Level    string                  `json:"level" bson:"level"`
+	Metadata GardenValueMetadataData `json:"metadata" bson:"metadata"`
+}
+
+type GardenCoastalExposureData struct {
+	IsCoastal bool                    `json:"isCoastal" bson:"isCoastal"`
+	Metadata  GardenValueMetadataData `json:"metadata" bson:"metadata"`
+}
+
+type GardenClimateData struct {
+	HistoricalMinimumTemperature *GardenTemperatureData     `json:"historicalMinimumTemperature,omitempty" bson:"historicalMinimumTemperature,omitempty"`
+	HistoricalMaximumTemperature *GardenTemperatureData     `json:"historicalMaximumTemperature,omitempty" bson:"historicalMaximumTemperature,omitempty"`
+	FrostRisk                    *GardenFrostRiskData       `json:"frostRisk,omitempty" bson:"frostRisk,omitempty"`
+	Altitude                     *GardenAltitudeData        `json:"altitude,omitempty" bson:"altitude,omitempty"`
+	CoastalExposure              *GardenCoastalExposureData `json:"coastalExposure,omitempty" bson:"coastalExposure,omitempty"`
+}
+
 type GardenPlantingZoneData struct {
 	ID         string                  `json:"id" bson:"id"`
 	Name       string                  `json:"name" bson:"name"`
@@ -351,6 +448,7 @@ type GardenSiteProfileData struct {
 	Sunlight        *GardenSunlightData        `json:"sunlight,omitempty" bson:"sunlight,omitempty"`
 	Wind            *GardenWindData            `json:"wind,omitempty" bson:"wind,omitempty"`
 	AvailableHeight *GardenAvailableHeightData `json:"availableHeight,omitempty" bson:"availableHeight,omitempty"`
+	Climate         *GardenClimateData         `json:"climate,omitempty" bson:"climate,omitempty"`
 	PlantingZones   []GardenPlantingZoneData   `json:"plantingZones" bson:"plantingZones"`
 }
 
@@ -535,6 +633,7 @@ func exportUserData(c *gin.Context) {
 			// AppleRefreshTokenEncrypted reste volontairement exclu (secret d'auth).
 			"photoData":        user.PhotoData,
 			"photoContentType": user.PhotoContentType,
+			"householdSafety":  user.HouseholdSafety,
 		},
 		"gardens":  gardens,
 		"consents": consents,
@@ -656,7 +755,8 @@ func createUser(c *gin.Context) {
 }
 
 // updateUserSelf met à jour le profil de l'utilisateur authentifié (PATCH /users/me).
-// Seul le nom est éditable côté JSON ; la photo passe par POST /users/:uid/photo.
+// Le nom et les contraintes de sécurité du foyer sont éditables côté JSON ;
+// la photo passe par POST /users/:uid/photo.
 // L'identité vient toujours du token Firebase — pas de :uid dans l'URL.
 func updateUserSelf(c *gin.Context) {
 	authenticatedUID, exists := c.Get("uid")
@@ -667,34 +767,42 @@ func updateUserSelf(c *gin.Context) {
 	uid := authenticatedUID.(string)
 
 	var payload struct {
-		Name *string `json:"name"`
+		Name            *string                 `json:"name"`
+		HouseholdSafety *HouseholdSafetyProfile `json:"householdSafety"`
 	}
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		respondInvalidBody(c, err)
 		return
 	}
 
-	if payload.Name == nil {
+	if payload.Name == nil && payload.HouseholdSafety == nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Aucun champ à mettre à jour"})
 		return
 	}
 
-	trimmed := strings.TrimSpace(*payload.Name)
-	if trimmed == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Le nom ne peut pas être vide"})
-		return
+	updates := bson.M{}
+	if payload.Name != nil {
+		trimmed := strings.TrimSpace(*payload.Name)
+		if trimmed == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Le nom ne peut pas être vide"})
+			return
+		}
+		// Garde-fou raisonnable : un nom humain dépasse rarement 100 chars.
+		if len([]rune(trimmed)) > 100 {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Le nom est trop long (max 100 caractères)"})
+			return
+		}
+		updates["name"] = trimmed
 	}
-	// Garde-fou raisonnable : un nom humain dépasse rarement 100 chars.
-	if len([]rune(trimmed)) > 100 {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Le nom est trop long (max 100 caractères)"})
-		return
+	if payload.HouseholdSafety != nil {
+		updates["householdSafety"] = payload.HouseholdSafety
 	}
 
 	collection := getDatabaseForRequest(c).Collection("users")
 	res, err := collection.UpdateOne(
 		context.Background(),
 		bson.M{"uid": uid},
-		bson.M{"$set": bson.M{"name": trimmed}},
+		bson.M{"$set": updates},
 	)
 	if err != nil {
 		log.Println("❌ Erreur lors de la mise à jour du profil :", err)
@@ -2205,6 +2313,7 @@ func buildRouter() *gin.Engine {
 		protected.GET("/gardens/:id", getGardenByID)
 		protected.PUT("/gardens/:id", updateGarden)
 		protected.DELETE("/gardens/:id", deleteGarden)
+		protected.POST("/climate/profile", climateProfile)
 
 		// Gemini Chat & Scanner Proxies — rate limité par uid (quota minute + jour)
 		// pour borner le coût Gemini. Le cap de corps est appliqué globalement sur

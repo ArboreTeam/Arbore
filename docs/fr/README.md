@@ -33,6 +33,7 @@ La documentation est découpée en vues complémentaires. Selon l'information re
 | Tests Backend (Go) | [`testing/backend.md`](testing/backend.md) |
 | Tests Web (Vitest) | [`testing/web.md`](testing/web.md) |
 | Observabilité (Sentry iOS + web) | [`operations/observability.md`](operations/observability.md) |
+| Audit des données botaniques | [`operations/botanical-data-audit.md`](operations/botanical-data-audit.md) |
 | Déploiement TestFlight (fastlane) | [`operations/testflight-deploy.md`](operations/testflight-deploy.md) |
 | Provisionnement VPS (Docker · nginx · Mongo) | [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md) |
 | Index des décisions d'architecture (ADR) | [`decisions/_index.md`](decisions/_index.md) |

@@ -127,6 +127,149 @@ final class PlantCatalogContextTests: XCTestCase {
         XCTAssertTrue(PlantCatalogFilters().matches(plant))
     }
 
+    func testSourcedOutdoorProfileCanBeCertifiedSuitable() throws {
+        var wizard = makeWizard(
+            sunlight: GardenSunlightDTO(
+                minimumHours: 6,
+                maximumHours: 8,
+                metadata: GardenValueMetadataDTO(source: .declared, confidence: .high)
+            )
+        )
+        wizard.spaceType = GardenSpaceType.garden.rawValue
+        wizard.siteProfile?.climate = GardenClimateDTO(
+            historicalMinimumTemperature: GardenTemperatureDTO(
+                celsius: -5,
+                metadata: GardenValueMetadataDTO(
+                    source: .regionalEstimate,
+                    confidence: .high,
+                    sourceReference: "Climate normals",
+                    observedAt: "2026-07-23"
+                )
+            )
+        )
+        let plant = try makePlant(
+            includeFlags: false,
+            botanicalProfile: botanicalProfile(
+                environments: ["outdoor"],
+                minimumTemperatureC: -12,
+                directSunMinimum: 5,
+                directSunMaximum: 10
+            )
+        )
+
+        let result = PlantSuitabilityEvaluator(wizard: wizard).evaluate(plant)
+
+        XCTAssertEqual(result.level, .suitable)
+        XCTAssertTrue(result.missingDataKeys.isEmpty)
+    }
+
+    func testTemperatureConflictIsHardExclusionBeforeRanking() throws {
+        var wizard = makeWizard(
+            sunlight: GardenSunlightDTO(
+                minimumHours: 4,
+                maximumHours: 7,
+                metadata: GardenValueMetadataDTO(source: .declared, confidence: .high)
+            )
+        )
+        wizard.spaceType = GardenSpaceType.garden.rawValue
+        wizard.siteProfile?.climate = GardenClimateDTO(
+            historicalMinimumTemperature: GardenTemperatureDTO(
+                celsius: -8,
+                metadata: GardenValueMetadataDTO(source: .regionalEstimate, confidence: .high)
+            )
+        )
+        let plant = try makePlant(
+            includeFlags: false,
+            botanicalProfile: botanicalProfile(
+                environments: ["outdoor"],
+                minimumTemperatureC: 5,
+                directSunMinimum: 3,
+                directSunMaximum: 8
+            )
+        )
+
+        let result = PlantSuitabilityEvaluator(wizard: wizard).evaluate(plant)
+
+        XCTAssertEqual(result.level, .unsuitable)
+        XCTAssertTrue(result.warningReasonKeys.contains("AR_CATALOG_REASON_TEMPERATURE_CONFLICT"))
+    }
+
+    func testCoastalGardenRewardsSaltTolerantPlant() throws {
+        var wizard = makeWizard(
+            sunlight: GardenSunlightDTO(
+                minimumHours: 6,
+                maximumHours: 8,
+                metadata: GardenValueMetadataDTO(source: .declared, confidence: .high)
+            )
+        )
+        wizard.spaceType = GardenSpaceType.garden.rawValue
+        wizard.siteProfile?.climate = coastalClimate()
+
+        var profile = botanicalProfile(
+            environments: ["outdoor"],
+            minimumTemperatureC: -8,
+            directSunMinimum: 4,
+            directSunMaximum: 10
+        )
+        profile["saltTolerance"] = sourcedFact("high")
+        let plant = try makePlant(includeFlags: false, botanicalProfile: profile)
+
+        let result = PlantSuitabilityEvaluator(wizard: wizard).evaluate(plant)
+
+        XCTAssertEqual(result.level, .suitable)
+        XCTAssertTrue(result.positiveReasonKeys.contains("AR_CATALOG_REASON_COASTAL_MATCH"))
+    }
+
+    func testCoastalGardenWarnsWhenSaltToleranceIsLow() throws {
+        var wizard = makeWizard(
+            sunlight: GardenSunlightDTO(
+                minimumHours: 6,
+                maximumHours: 8,
+                metadata: GardenValueMetadataDTO(source: .declared, confidence: .high)
+            )
+        )
+        wizard.spaceType = GardenSpaceType.garden.rawValue
+        wizard.siteProfile?.climate = coastalClimate()
+
+        var profile = botanicalProfile(
+            environments: ["outdoor"],
+            minimumTemperatureC: -8,
+            directSunMinimum: 4,
+            directSunMaximum: 10
+        )
+        profile["saltTolerance"] = sourcedFact("low")
+        let plant = try makePlant(includeFlags: false, botanicalProfile: profile)
+
+        let result = PlantSuitabilityEvaluator(wizard: wizard).evaluate(plant)
+
+        XCTAssertEqual(result.level, .needsReview)
+        XCTAssertTrue(result.warningReasonKeys.contains("AR_CATALOG_REASON_COASTAL_CONFLICT"))
+    }
+
+    func testPotRequirementCanHardExcludeBalconyPlant() throws {
+        var wizard = makeWizard(
+            sunlight: GardenSunlightDTO(
+                minimumHours: 4,
+                maximumHours: 6,
+                metadata: GardenValueMetadataDTO(source: .declared, confidence: .high)
+            )
+        )
+        wizard.conditionalAnswers = GardenConditionalAnswersDTO(maximumContainerSize: .small)
+        var profile = botanicalProfile(
+            environments: ["outdoor"],
+            minimumTemperatureC: -10,
+            directSunMinimum: 3,
+            directSunMaximum: 8
+        )
+        profile["minimumPotVolumeLiters"] = sourcedFact(25)
+        let plant = try makePlant(includeFlags: false, botanicalProfile: profile)
+
+        let result = PlantSuitabilityEvaluator(wizard: wizard).evaluate(plant)
+
+        XCTAssertEqual(result.level, .unsuitable)
+        XCTAssertTrue(result.warningReasonKeys.contains("AR_CATALOG_REASON_POT_SIZE_CONFLICT"))
+    }
+
     private func makeWizard(sunlight: GardenSunlightDTO) -> GardenWizardDTO {
         GardenWizardDTO(
             style: "",
@@ -154,7 +297,8 @@ final class PlantCatalogContextTests: XCTestCase {
         climbing: Bool = false,
         trailing: Bool = false,
         compact: Bool = false,
-        airPurifying: Bool = false
+        airPurifying: Bool = false,
+        botanicalProfile: [String: Any]? = nil
     ) throws -> Plant {
         var json: [String: Any] = [
             "id": id,
@@ -181,8 +325,63 @@ final class PlantCatalogContextTests: XCTestCase {
                 "airPurifying": airPurifying
             ]
         }
+        if let botanicalProfile {
+            json["botanicalProfile"] = botanicalProfile
+        }
 
         let data = try JSONSerialization.data(withJSONObject: json)
         return try JSONDecoder().decode(Plant.self, from: data)
+    }
+
+    private func botanicalProfile(
+        environments: [String],
+        minimumTemperatureC: Double,
+        directSunMinimum: Double,
+        directSunMaximum: Double
+    ) -> [String: Any] {
+        [
+            "schemaVersion": 1,
+            "environments": sourcedFact(environments),
+            "minimumTemperatureC": sourcedFact(minimumTemperatureC),
+            "directSunHours": sourcedRange(minimum: directSunMinimum, maximum: directSunMaximum, unit: "hours/day")
+        ]
+    }
+
+    private func sourcedFact(_ value: Any) -> [String: Any] {
+        [
+            "value": value,
+            "evidence": evidence()
+        ]
+    }
+
+    private func sourcedRange(minimum: Double, maximum: Double, unit: String) -> [String: Any] {
+        [
+            "minimum": minimum,
+            "maximum": maximum,
+            "unit": unit,
+            "evidence": evidence()
+        ]
+    }
+
+    private func evidence() -> [String: Any] {
+        [
+            "sourceName": "Test horticultural source",
+            "sourceURL": "https://example.test/plant",
+            "reviewedAt": "2026-07-23",
+            "reliability": "high"
+        ]
+    }
+
+    private func coastalClimate() -> GardenClimateDTO {
+        let metadata = GardenValueMetadataDTO(
+            source: .regionalEstimate,
+            confidence: .high,
+            sourceReference: "Météo-France Données Publiques",
+            observedAt: "2026-07-23"
+        )
+        return GardenClimateDTO(
+            historicalMinimumTemperature: GardenTemperatureDTO(celsius: -5, metadata: metadata),
+            coastalExposure: GardenCoastalExposureDTO(isCoastal: true, metadata: metadata)
+        )
     }
 }

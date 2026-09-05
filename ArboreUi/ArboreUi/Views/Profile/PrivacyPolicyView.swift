@@ -6,7 +6,10 @@ struct PrivacyPolicyView: View {
 
     private let brandName = "Arbore"
     private let contactEmail = "support@arbore.app"
-    private let lastUpdated = "31 May 2026"
+    private let lastUpdated = NSLocalizedString(
+        "PRIVACY_LAST_UPDATED_DATE",
+        comment: "Localized privacy policy update date"
+    )
 
     var body: some View {
         SettingsPage(title: NSLocalizedString("PRIVACY_TITLE", comment: "Privacy policy title")) {
@@ -144,7 +147,8 @@ struct PrivacyPolicyView: View {
             Text(
                 String(
                     format: NSLocalizedString("PRIVACY_LAST_UPDATED", comment: ""),
-                    lastUpdated
+                    lastUpdated,
+                    AppConfig.privacyPolicyVersion
                 )
             )
             .font(.system(size: 12, weight: .semibold))

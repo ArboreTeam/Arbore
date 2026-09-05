@@ -16,11 +16,15 @@ struct Plant: Identifiable, Codable {
     let source: String?    // libellé de provenance optionnel (catalogue curé) ; nil = legacy/beta
     let sourceUrl: String? // URL d'origine optionnelle (conservée pour mise à jour)
     let flags: PlantFlags? // drapeaux structurés pour la reco wizard ; nil = legacy (fallback mots-clés)
+    /// Données horticoles vérifiables utilisées par le moteur de compatibilité.
+    /// Les champs sont volontairement optionnels : une donnée absente reste
+    /// inconnue et ne doit jamais devenir une compatibilité supposée.
+    let botanicalProfile: PlantBotanicalProfile?
     let hasHeavy: Bool?    // true = une version 3D haute définition existe (LOD : swap depuis le léger en AR)
 
     enum CodingKeys: String, CodingKey {
         case id
-        case name, type, imageURLs, description, modelURL, translations, generated, upAxis, source, sourceUrl, flags, hasHeavy
+        case name, type, imageURLs, description, modelURL, translations, generated, upAxis, source, sourceUrl, flags, botanicalProfile, hasHeavy
     }
 
     // Décode avec fallback safe
@@ -49,6 +53,7 @@ struct Plant: Identifiable, Codable {
         self.source = try container.decodeIfPresent(String.self, forKey: .source)
         self.sourceUrl = try container.decodeIfPresent(String.self, forKey: .sourceUrl)
         self.flags = try container.decodeIfPresent(PlantFlags.self, forKey: .flags)
+        self.botanicalProfile = try container.decodeIfPresent(PlantBotanicalProfile.self, forKey: .botanicalProfile)
         self.hasHeavy = try container.decodeIfPresent(Bool.self, forKey: .hasHeavy)
     }
 
@@ -105,6 +110,63 @@ struct PlantFlags: Codable {
         compact = f(.compact)
         airPurifying = f(.airPurifying)
     }
+}
+
+// MARK: - Verified botanical compatibility data
+
+/// Provenance attached to an individual botanical value. Keeping provenance
+/// per field avoids presenting a partly sourced plant sheet as fully verified.
+struct PlantDataEvidence: Codable, Equatable {
+    let sourceName: String?
+    let sourceURL: String?
+    /// ISO-8601 date (`YYYY-MM-DD` or a full timestamp).
+    let reviewedAt: String?
+    /// Expected values: `high`, `medium`, `low`.
+    let reliability: String?
+}
+
+/// A sourced scalar value. Generic facts keep the JSON schema consistent
+/// across strings, booleans and numbers.
+struct PlantFact<Value: Codable & Equatable>: Codable, Equatable {
+    let value: Value
+    let evidence: PlantDataEvidence?
+}
+
+struct PlantRangeFact: Codable, Equatable {
+    let minimum: Double?
+    let maximum: Double?
+    let unit: String?
+    let evidence: PlantDataEvidence?
+
+    var hasValue: Bool {
+        minimum != nil || maximum != nil
+    }
+}
+
+/// Canonical compatibility profile. Free-form prose remains useful for the
+/// detail sheet, but only these sourced fields may certify a plant as adapted.
+struct PlantBotanicalProfile: Codable, Equatable {
+    /// `indoor`, `outdoor`, or both.
+    let environments: PlantFact<[String]>?
+    let minimumTemperatureC: PlantFact<Double>?
+    let directSunHours: PlantRangeFact?
+    let indoorHumidityPercent: PlantRangeFact?
+    let wateringIntervalDays: PlantRangeFact?
+    /// Expected values: `fast`, `normal`, `slow`, `any`.
+    let drainage: PlantFact<String>?
+    let matureHeightCm: PlantRangeFact?
+    let matureWidthCm: PlantRangeFact?
+    let minimumPotVolumeLiters: PlantFact<Double>?
+    let minimumPotDepthCm: PlantFact<Double>?
+    /// Expected values: `low`, `moderate`, `high`.
+    let windTolerance: PlantFact<String>?
+    let droughtTolerance: PlantFact<String>?
+    let saltTolerance: PlantFact<String>?
+    /// Expected values: `safe`, `toxic`, `irritant`, `unknown`.
+    let petToxicity: PlantFact<String>?
+    let childToxicity: PlantFact<String>?
+    /// Incremented when the canonical schema changes.
+    let schemaVersion: Int?
 }
 
 // MARK: - Translations & sub-objects

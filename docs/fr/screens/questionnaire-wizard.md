@@ -84,6 +84,8 @@ Au lancement du scan/tracé, la vue AR correspondante s'ouvre ; à la fin du tra
 
 Affiche les plantes recommandées par `GardenSuggestionEngine` selon le profil. Bouton primaire **« Placer mes plantes en AR »** → ouvre `GardenARPlacementView` (placement, `PUT /gardens/:id`).
 
+Après le scan, le wizard peut ajouter la localisation approximative et appeler `POST /climate/profile`. Le snapshot résolu du wizard (localisation, exposition, orientation et climat local lorsqu'il est disponible) est écrit dans le JSON local du jardin via `ArboreUi/ArboreUi/Views/GardenLocalStore.swift`, puis persisté côté backend. L'intensité lumineuse instantanée fournie par ARKit n'est jamais convertie en heures de soleil quotidiennes.
+
 ## Edge cases
 
 | Situation | Comportement |

@@ -64,15 +64,15 @@ struct AppConfig {
     // MARK: - RGPD Configuration
 
     /// Version actuelle de la politique de confidentialité.
-    /// Bumpée à 2.2 (22 juillet 2026) : localisation approximative, services IA
-    /// dont Google Gemini, diagnostics optionnels et suppression complète du
-    /// compte documentés. Ce changement matériel doit être re-consenti.
+    /// Bumpée à 2.3 (23 juillet 2026) : la section relative aux mineurs précise
+    /// l'autorisation parentale requise sous l'âge local de consentement
+    /// numérique. Ce changement matériel doit être re-consenti.
     /// https://arbore.app/privacy et https://arbore.app/terms. Les nouveaux
     /// consentements sont horodatés avec cette version.
-    static let privacyPolicyVersion = "2.2"
+    static let privacyPolicyVersion = "2.3"
 
     /// Date de dernière mise à jour de la politique
-    static let privacyPolicyLastUpdate = "22 July 2026"
+    static let privacyPolicyLastUpdate = "23 July 2026"
 
     /// URL publique de la politique de confidentialité (FR/EN).
     /// Champ obligatoire App Store Connect + liens in-app.

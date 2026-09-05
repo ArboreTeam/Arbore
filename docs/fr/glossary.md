@@ -64,7 +64,7 @@ Voir [**ObjectCapture**](#objectcapture).
 
 ## Plant
 
-Entrée du catalogue MongoDB : nom, type, image URLs, traductions multilingues, URL du modèle USDZ, drapeaux de recommandation (`flags`/`PlantFlags`, dont la toxicité), indicateur `generated` (modèle 3D généré par IA ou non), `hasHeavy` (variante haute définition disponible) et `upAxis` (Y- ou Z-up). La structure complète est documentée dans [`architecture/04-data-model.md`](architecture/04-data-model.md).
+Entrée du catalogue MongoDB : nom, type, image URLs, traductions multilingues, URL du modèle USDZ, profil botanique structuré et sourcé (`botanicalProfile`), indicateur `generated` (modèle 3D généré par IA ou non), `hasHeavy` (variante haute définition disponible) et `upAxis` (Y- ou Z-up). Les anciens drapeaux `flags`/`PlantFlags` restent lisibles pour compatibilité, mais ne peuvent pas certifier seuls qu'une plante est adaptée. La structure complète est documentée dans [`architecture/04-data-model.md`](architecture/04-data-model.md).
 
 ## RelocationPhase
 

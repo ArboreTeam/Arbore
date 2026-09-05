@@ -201,17 +201,22 @@ func resolveGeoGouvLocation(ctx context.Context, location GardenLocationData) (r
 		return resolvedClimateLocation{}, errors.New("missing location")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/communes?"+values.Encode(), nil)
+	// nolint:gosec // G704 faux positif : `baseURL` vient d'une variable
+	// d'environnement du serveur, avec une constante publique par défaut — jamais
+	// d'une entrée utilisateur. Qui peut définir cette variable contrôle déjà la
+	// machine. Seuls les paramètres de requête sont dérivés de données client, et
+	// ils passent par `values.Encode()`, qui les échappe.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/communes?"+values.Encode(), nil) //nolint:gosec
 	if err != nil {
 		return resolvedClimateLocation{}, err
 	}
 	req.Header.Set("Accept", "application/json")
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := http.DefaultClient.Do(req) //nolint:gosec // même raison que ci-dessus
 	if err != nil {
 		return resolvedClimateLocation{}, err
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return resolvedClimateLocation{}, errors.New("geo api status " + strconv.Itoa(res.StatusCode))
@@ -263,7 +268,12 @@ func nearestMeteoFranceStation(ctx context.Context, location resolvedClimateLoca
 
 	values := url.Values{}
 	values.Set("id-departement", location.DepartmentCode)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/liste-stations/quotidienne?"+values.Encode(), nil)
+	// nolint:gosec // G704 faux positif : `baseURL` vient d'une variable
+	// d'environnement du serveur, avec une constante publique par défaut — jamais
+	// d'une entrée utilisateur. Qui peut définir cette variable contrôle déjà la
+	// machine. Seuls les paramètres de requête sont dérivés de données client, et
+	// ils passent par `values.Encode()`, qui les échappe.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseURL+"/liste-stations/quotidienne?"+values.Encode(), nil) //nolint:gosec
 	if err != nil {
 		return nil, err
 	}
@@ -271,11 +281,11 @@ func nearestMeteoFranceStation(ctx context.Context, location resolvedClimateLoca
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("apikey", token)
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := http.DefaultClient.Do(req) //nolint:gosec // même raison que ci-dessus
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return nil, errors.New("meteo france status " + strconv.Itoa(res.StatusCode))

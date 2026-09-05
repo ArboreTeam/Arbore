@@ -33,6 +33,14 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Empreinte du script avant tout pull, pour détecter qu'il s'est mis à jour
+# lui-même (cf. do_git_pull).
+SELF_SHA_BEFORE_PULL="$(sha256sum "$0" 2>/dev/null | cut -d" " -f1 || echo unknown)"
+
+# Arguments du script capturés au niveau global : `do_git_pull` est appelée
+# sans paramètres, donc `$@` y serait vide et la ré-exécution les perdrait.
+SCRIPT_ARGS=("$@")
+
 SNAPSHOT_DIR="$SCRIPT_DIR/backups/daily"
 SNAPSHOT_RETENTION_DAYS=14
 # Préfixe de privilège isolé du reste de la commande : il faut pouvoir insérer
@@ -151,6 +159,28 @@ do_git_pull() {
         exit 1
     fi
     ok "Git pull réussi"
+
+    # Le script vient peut-être de se remplacer lui-même. bash lit le fichier
+    # au fil de l'exécution : sans ré-exécution, on continuerait avec l'ANCIENNE
+    # version, et toute modification de deploy.sh ne prendrait effet qu'au
+    # déploiement SUIVANT. Constaté en production le 2026-09-05 — l'étape
+    # `ops/` nouvellement ajoutée n'avait pas tourné, et rien ne le signalait
+    # hormis les libellés « [2/6] » au lieu de « [2/7] ».
+    #
+    # ARBORE_DEPLOY_REEXECED garde contre une boucle : après ré-exécution, le
+    # script ne se relance pas une seconde fois.
+    if [ -z "${ARBORE_DEPLOY_REEXECED:-}" ]; then
+        local after
+        after="$(sha256sum "$0" 2>/dev/null | cut -d" " -f1 || true)"
+        if [ -n "$after" ] && [ "$after" != "$SELF_SHA_BEFORE_PULL" ]; then
+            warn "deploy.sh a été mis à jour par le pull — ré-exécution avec la nouvelle version"
+            echo
+            export ARBORE_DEPLOY_REEXECED=1
+            # Forme `${x[@]+...}` : sans elle, un tableau vide déclencherait
+            # « unbound variable » sous `set -u`.
+            exec "$0" ${SCRIPT_ARGS[@]+"${SCRIPT_ARGS[@]}"}
+        fi
+    fi
     echo
 }
 

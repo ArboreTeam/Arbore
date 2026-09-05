@@ -4,9 +4,10 @@
 # crontab de la machine à la main : la modification serait écrasée au
 # déploiement suivant, sans avertissement.
 #
-# `__ARBORE_ROOT__` est remplacé par la racine du dépôt au moment de
-# l'installation, pour que le fichier reste valable quel que soit
-# l'emplacement du checkout.
+# Les chemins absolus ci-dessous sont écrits à l'installation à partir de la
+# racine réelle du checkout : le fichier versionné reste donc valable quel que
+# soit l'emplacement du dépôt. (Le jeton substitué n'est pas cité ici — il le
+# serait aussi, et ce commentaire n'aurait plus de sens.)
 
 # Cleanup de la DB de test, chaque nuit à 04:00 UTC (saute si une CI tourne).
 0 4 * * * __ARBORE_ROOT__/scripts/cleanup-test-db.sh >> __ARBORE_ROOT__/logs/cleanup-test-db.log 2>&1

@@ -16,6 +16,7 @@ The documentation is split into complementary views. Depending on what you are l
 | Internal modules — Go backend | [`architecture/03-components-backend.md`](architecture/03-components-backend.md) |
 | Internal modules — Next.js web | [`architecture/03-components-web.md`](architecture/03-components-web.md) |
 | MongoDB data model | [`architecture/04-data-model.md`](architecture/04-data-model.md) |
+| **Infrastructure and operations** (layers, pipeline, environments, secrets) | [`architecture/05-infrastructure.md`](architecture/05-infrastructure.md) |
 | 3D model LOD architecture | [`3d-lod-architecture.md`](3d-lod-architecture.md) |
 | Signup flow with Firebase rollback | [`flows/auth-signup.md`](flows/auth-signup.md) |
 | Garden creation flow (wizard) | [`flows/garden-creation.md`](flows/garden-creation.md) |

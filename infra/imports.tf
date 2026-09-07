@@ -65,5 +65,7 @@ import {
 # ── Bucket R2 ─────────────────────────────────────────────────────────────
 import {
   to = cloudflare_r2_bucket.assets
-  id = "${var.cloudflare_account_id}/${var.r2_bucket_name}"
+  # Le provider attend trois segments : compte / bucket / juridiction.
+  # Omettre la juridiction donne « invalid ID », pas un message parlant.
+  id = "${var.cloudflare_account_id}/${var.r2_bucket_name}/${var.r2_jurisdiction}"
 }

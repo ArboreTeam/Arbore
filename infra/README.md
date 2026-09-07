@@ -18,11 +18,22 @@ l'était du dépôt.
 
 | Ressource | État |
 |---|---|
-| DNS `api.arbore.app`, `web.arbore.app` | déclaré, **à adopter par import** |
-| Bucket R2 `arbore-assets` | déclaré, **à adopter par import** |
+| DNS `api.arbore.app`, `web.arbore.app` | déclaré (par environnement) |
+| DNS apex, `www`, MX × 2, SPF, apple-domain, DKIM | déclaré (zone, production seule) |
+| Bucket R2 `arbore-assets` | déclaré |
 | Atlas (cluster, users, IP allowlist) | pas encore — déclarer l'allowlist *est* la façon de répondre à la question restée ouverte |
 | Règles de pare-feu Cloudflare, TLS Full strict | pas encore |
 | VPS Epitech | hors de portée : non provisionnable par API, et retiré fin février |
+
+Les neuf enregistrements de la zone sont déclarés, pas seulement les deux du
+service. En laisser sept dehors aurait fait de ce répertoire une demi-mesure :
+la messagerie iCloud et le site vitrine sont exactement le genre de
+configuration que personne ne documente et qui casse en silence.
+
+**Séparation** — `dns.tf` porte ce qui varie par environnement, `dns_zone.tf`
+ce qui appartient au domaine. Un environnement de dev ne redéclare pas la
+messagerie : `manage_zone_records` vaut `false` par défaut, `true` en production
+seulement.
 
 ## Démarrage
 
@@ -42,12 +53,18 @@ Une « Global API Key » donnerait à la CI le droit de supprimer la zone.
 
 ## Avant le premier `apply`
 
-**Renseigner les blocs d'import de `imports.tf`.** Les ressources existent et
-servent la production. Sans import, le premier `apply` échoue sur le bucket
-(nom déjà pris) et, pour le DNS, propose un remplacement — donc une coupure.
+Les blocs d'import de `imports.tf` sont **renseignés** (identifiants relevés le
+2026-09-07). Le premier `plan` doit annoncer **zéro changement** — c'est le test
+qui prouve que la déclaration décrit fidèlement l'existant.
 
-Un plan qui annonce `destroy` ou `replace` sur ces trois ressources ne doit
-jamais être appliqué.
+> Un plan qui annonce `destroy` ou `replace` ne doit jamais être appliqué.
+> Sur les enregistrements de messagerie en particulier : une erreur n'y produit
+> aucune erreur visible, le courrier cesse simplement d'arriver.
+
+Les commentaires Cloudflare sont **volontairement absents** des ressources : les
+enregistrements existants n'en ont pas, et en ajouter ferait sortir le plan à
+non-zéro, ce qui priverait ce test de son sens. Les ajouter est un changement
+délibéré, à faire séparément une fois la fidélité prouvée.
 
 ## Règles de tenue
 

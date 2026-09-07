@@ -60,3 +60,14 @@ variable "r2_jurisdiction" {
   type        = string
   default     = "eu"
 }
+
+variable "manage_zone_records" {
+  description = <<-EOT
+    Gérer les enregistrements de zone (apex, messagerie, site vitrine) ?
+    Vrai en production seulement : ils appartiennent au domaine, pas à un
+    environnement. Un environnement de dev qui les redéclarerait entrerait en
+    conflit avec ceux de la production.
+  EOT
+  type        = bool
+  default     = false
+}

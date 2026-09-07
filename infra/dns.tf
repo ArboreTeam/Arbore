@@ -1,10 +1,15 @@
-# Les deux enregistrements existent déjà et sont servis en production. Ils sont
-# ADOPTÉS par les blocs `import` de imports.tf, jamais recréés : un plan qui
-# proposerait de les détruire coupe le service.
+# Enregistrements PROPRES À UN ENVIRONNEMENT (#401 §3 : « Domaine, TLS, DNS »
+# varie). Chaque environnement a ses propres noms d'hôte pointant vers sa
+# machine ; les enregistrements de zone, eux, sont dans dns_zone.tf.
+#
+# Ils existent déjà et servent la production : imports.tf les fait ADOPTER.
+# Un plan qui proposerait de les détruire coupe le service.
 #
 # `proxied = true` n'est pas un réglage de confort. Le pare-feu d'origine
-# (#401 §2, ops/systemd/cf-http-firewall.service) verrouille :80 sur les seules
-# plages Cloudflare. Dé-proxifier rend l'origine injoignable.
+# (ops/systemd/cf-http-firewall.service) verrouille :80 sur les seules plages
+# Cloudflare. Dé-proxifier rend l'origine injoignable.
+#
+# `ttl = 1` signifie « automatique », obligatoire quand proxied vaut true.
 
 resource "cloudflare_dns_record" "api" {
   zone_id = var.cloudflare_zone_id
@@ -12,9 +17,7 @@ resource "cloudflare_dns_record" "api" {
   type    = "A"
   content = var.origin_ip
   proxied = true
-  # 1 = automatique. Obligatoire quand proxied vaut true.
   ttl     = 1
-  comment = "Backend Go — géré par Terraform (infra/dns.tf), env ${var.environment}"
 }
 
 resource "cloudflare_dns_record" "web" {
@@ -24,5 +27,4 @@ resource "cloudflare_dns_record" "web" {
   content = var.origin_ip
   proxied = true
   ttl     = 1
-  comment = "App Next.js — géré par Terraform (infra/dns.tf), env ${var.environment}"
 }

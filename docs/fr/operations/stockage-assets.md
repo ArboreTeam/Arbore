@@ -118,7 +118,7 @@ au-delà de seuils configurés. Un emballement sur disque n'est pas gratuit non
 plus : il sature les entrées-sorties et masque le défaut qui le provoque.
 
 ```
-STORAGE_MAX_OPS_PER_MINUTE   défaut 600 ; 0 = illimité
+STORAGE_MAX_OPS_PER_MINUTE   défaut 200 ; 0 = illimité
 STORAGE_MAX_OBJECT_BYTES     défaut 200 Mio
 ```
 
@@ -129,9 +129,25 @@ silence.
 
 Sur un MinIO local, relever largement : l'opération n'y coûte rien.
 
-> La garde protège d'un emballement **aigu**, pas d'une surconsommation modérée
-> mais soutenue. Le compteur est en mémoire, par processus, remis à zéro au
-> redémarrage. Une alerte de facturation côté fournisseur reste utile.
+La garde décompte **les lectures directes comme les URL signées** : chacune
+produit exactement une opération facturée. Une première version épargnait les
+signatures, ce qui la rendait inerte — avec un support qui sait signer, c'est la
+seule voie empruntée.
+
+Le défaut de 200 par minute vient d'un calcul :
+
+```
+200 × 60 × 24 × 30 = 8 640 000 opérations/mois
+palier gratuit R2  = 10 000 000
+```
+
+**Soutenu un mois entier au plafond, le coût reste nul.** C'est une propriété
+plus forte que « ça devrait aller ». Le pic réaliste d'une beta se compte en
+dizaines d'opérations par minute, pas en centaines.
+
+> Le compteur est en mémoire, par processus, remis à zéro au redémarrage.
+> Plusieurs redémarrages rapprochés relâcheraient donc la borne mensuelle. Une
+> alerte de facturation côté fournisseur reste utile.
 
 ## Références
 

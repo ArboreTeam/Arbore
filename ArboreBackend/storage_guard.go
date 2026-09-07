@@ -30,10 +30,12 @@ import (
 //
 // Ce que la garde protège, et ce qu'elle ne protège PAS
 // ------------------------------------------------------
-// Elle borne ce que le BACKEND demande au stockage. Elle ne borne pas les
-// téléchargements que les clients font directement via URL signée — ceux-là
-// sont bornés en amont, chaque URL exigeant une requête authentifiée au
-// backend, elle-même limitée par `apiLimiter`.
+// Elle borne les opérations FACTURÉES : les lectures directes comme les URL
+// signées, chacune produisant exactement une lecture chez le fournisseur.
+//
+// Elle ne borne pas ce qu'un client fait d'une URL déjà obtenue — mais une URL
+// expire en quinze minutes et n'autorise qu'un objet, donc la fenêtre d'abus
+// reste étroite.
 //
 // Le compteur est en mémoire, donc par processus et remis à zéro au
 // redémarrage. C'est un filet contre l'emballement, pas une comptabilité.
@@ -121,10 +123,22 @@ func (g *guardedStorage) Put(ctx context.Context, obj StorageObject, data []byte
 }
 
 func (g *guardedStorage) PresignedURL(ctx context.Context, obj StorageObject, ttl time.Duration) (string, error) {
-	// Une URL signée ne coûte AUCUNE opération au stockage : elle est calculée
-	// localement, sans appel réseau. Elle n'est donc pas décomptée — la borner
-	// reviendrait à limiter ce qui ne coûte rien, et pousserait le handler vers
-	// le service direct, lui bien plus coûteux.
+	// DÉCOMPTÉE, contrairement à ce qu'une première version supposait.
+	//
+	// Générer la signature ne coûte rien : elle est calculée localement, sans
+	// appel réseau. Mais elle AUTORISE un téléchargement, et ce téléchargement
+	// est une opération facturée par le stockage.
+	//
+	// Ne pas la décompter rendait la garde inerte en production : avec un
+	// support qui sait signer, `serveStorageObject` emprunte cette voie et
+	// n'appelle jamais `Open` — le seul chemin qui était compté. La garde
+	// n'aurait alors protégé que le cas où elle était inutile.
+	//
+	// Une signature vaut donc exactement une opération, comme une lecture
+	// directe : les deux produisent une lecture facturée.
+	if err := g.allow(); err != nil {
+		return "", err
+	}
 	return g.inner.PresignedURL(ctx, obj, ttl)
 }
 
@@ -164,13 +178,24 @@ func envInt64(name string, fallback int64) int64 {
 
 // storageGuardFromEnv lit la configuration des gardes.
 //
-// Les défauts sont dimensionnés sur l'usage réel : 124 modèles, un catalogue
-// stable, une beta interne. Ils laissent une marge large tout en
-// arrêtant un emballement — une boucle qui demanderait mille fichiers par
-// minute serait coupée.
+// Le défaut de 200 opérations par minute vient d'un calcul, pas d'une intuition.
+// Soutenu un mois entier, il plafonne à ~8,6 millions d'opérations :
+//
+//	200 × 60 × 24 × 30 = 8 640 000
+//
+// soit sous le palier gratuit de 10 millions de lectures mensuelles de
+// Cloudflare R2. Le pire cas est donc borné à une facture nulle, ce qui est
+// une propriété plus forte que « ça devrait aller ».
+//
+// La marge reste large : le pic réaliste d'une beta — quelques dizaines
+// d'utilisateurs chargeant chacun quelques dizaines de modèles — se compte en
+// dizaines d'opérations par minute, pas en centaines.
+//
+// Sur un MinIO local, où l'opération ne coûte rien, relever franchement : ce
+// calcul n'y a aucun sens.
 func storageGuardFromEnv() storageGuardConfig {
 	return storageGuardConfig{
-		MaxOpsPerWindow: envInt("STORAGE_MAX_OPS_PER_MINUTE", 600),
+		MaxOpsPerWindow: envInt("STORAGE_MAX_OPS_PER_MINUTE", 200),
 		Window:          time.Minute,
 		MaxObjectBytes:  envInt64("STORAGE_MAX_OBJECT_BYTES", 200<<20), // 200 Mio
 	}

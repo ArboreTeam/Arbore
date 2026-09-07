@@ -282,6 +282,69 @@ apply_secrets() {
     fi
 }
 
+# apply_nginx — installe la configuration du reverse-proxy.
+#
+# Validée par `nginx -t` AVANT rechargement : une configuration fautive
+# interrompt le déploiement sans toucher au service en cours. Sans cette
+# vérification, un rechargement sur une syntaxe invalide couperait le site.
+#
+# Sans effet si nginx n'est pas installé — une machine qui n'en a pas se
+# déploie comme avant.
+apply_nginx() {
+    local src_dir="$SCRIPT_DIR/ops/nginx"
+    [ -d "$src_dir" ] || return 0
+
+    if ! command -v nginx > /dev/null 2>&1; then
+        warn "nginx absent — configuration non appliquée"
+        return 0
+    fi
+    if ! sudo -n true 2>/dev/null; then
+        warn "sudo indisponible — configuration nginx non appliquée"
+        return 0
+    fi
+
+    local changed=0 src name dst backup_dir
+    backup_dir="$SCRIPT_DIR/logs/nginx.bak.$(date -u +%Y%m%dT%H%M%SZ)"
+
+    for src in "$src_dir"/*.conf; do
+        [ -e "$src" ] || continue
+        name="$(basename "$src")"
+        dst="/etc/nginx/conf.d/$name"
+        if sudo cmp -s "$src" "$dst" 2>/dev/null; then
+            continue
+        fi
+        # Sauvegarde avant écrasement : un réglage posé à la main reste
+        # récupérable.
+        if [ -f "$dst" ]; then
+            mkdir -p "$backup_dir"
+            sudo cp -a "$dst" "$backup_dir/$name" 2>/dev/null || true
+        fi
+        sudo install -m 0644 "$src" "$dst"
+        changed=1
+    done
+
+    if [ "$changed" -eq 0 ]; then
+        ok "nginx déjà conforme"
+        return 0
+    fi
+
+    # Validation APRÈS installation mais AVANT rechargement : nginx ne sait
+    # tester qu'une arborescence en place. En cas d'échec, on restaure.
+    if ! sudo nginx -t > /dev/null 2>&1; then
+        fail "Configuration nginx invalide — restauration"
+        if [ -d "$backup_dir" ]; then
+            for name in "$backup_dir"/*; do
+                [ -e "$name" ] && sudo install -m 0644 "$name" "/etc/nginx/conf.d/$(basename "$name")"
+            done
+        fi
+        sudo nginx -t > /dev/null 2>&1 && fail "État précédent restauré" || fail "ATTENTION : nginx reste invalide"
+        return 1
+    fi
+
+    sudo systemctl reload nginx
+    ok "nginx mis à jour et rechargé"
+}
+
 # ───── [2/7] Configuration système déclarative ────────────────────
 #
 # `ops/` est la source de vérité de tout ce qui vit hors des conteneurs :
@@ -357,6 +420,7 @@ do_apply_ops() {
     done
 
     apply_secrets
+    apply_nginx
 
     if [ "$units_changed" -eq 1 ]; then
         sudo systemctl daemon-reload

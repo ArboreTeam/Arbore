@@ -185,21 +185,37 @@ var storage StorageProvider = newFilesystemStorage()
 // qu'aucun stockage objet n'est configuré, le comportement reste celui d'avant
 // cette abstraction.
 func initStorageProvider() error {
+	var provider StorageProvider
+
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("STORAGE_PROVIDER"))) {
 	case "", "filesystem", "fs":
-		storage = newFilesystemStorage()
+		provider = newFilesystemStorage()
 	case "s3", "r2", "minio":
 		// Un seul support pour les trois : ils parlent le même protocole. Le
 		// choix du fournisseur est une affaire de configuration.
-		provider, err := newS3Storage()
+		s3, err := newS3Storage()
 		if err != nil {
 			return err
 		}
-		storage = provider
+		provider = s3
 	default:
 		return fmt.Errorf("STORAGE_PROVIDER inconnu: %q (valeurs acceptées: filesystem, s3, r2, minio)",
 			os.Getenv("STORAGE_PROVIDER"))
 	}
+
+	// La garde s'applique à TOUS les supports, pas seulement à ceux qui sont
+	// facturés. Un emballement sur le disque local n'est pas gratuit non plus :
+	// il sature les entrées-sorties et masque le défaut qui le provoque. Un
+	// comportement uniforme est par ailleurs plus simple à raisonner qu'une
+	// garde qui n'existerait que dans certaines configurations.
+	//
+	// Les seuils se règlent par environnement : plus élevés sur un MinIO local,
+	// où l'opération ne coûte rien, que sur R2 en production.
+	guard := storageGuardFromEnv()
+	storage = newGuardedStorage(provider, guard)
+	log.Printf("🛡️  Garde stockage (%s) : %d op/min, objet max %d Mio",
+		provider.Name(), guard.MaxOpsPerWindow, guard.MaxObjectBytes>>20)
+
 	return nil
 }
 
@@ -230,6 +246,17 @@ func serveStorageObject(c *gin.Context, obj StorageObject, contentType string, n
 	if err != nil {
 		if errors.Is(err, ErrObjectNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": notFoundMsg})
+			return
+		}
+		// La garde a mordu : le fichier existe, c'est nous qui refusons. Un 404
+		// laisserait croire à une absence et enverrait chercher au mauvais
+		// endroit ; un 503 dit qu'il faut réessayer.
+		if errors.Is(err, ErrStorageQuotaExceeded) {
+			c.Header("Retry-After", "60")
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error": "Storage temporarily rate-limited",
+				"code":  "STORAGE_RATE_LIMITED",
+			})
 			return
 		}
 		log.Printf("❌ stockage (%s) indisponible pour %s/%s : %v", storage.Name(), obj.Bucket, obj.Name, err)

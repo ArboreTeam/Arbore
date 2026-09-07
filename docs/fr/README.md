@@ -36,6 +36,7 @@ La documentation est découpée en vues complémentaires. Selon l'information re
 | Audit des données botaniques | [`operations/botanical-data-audit.md`](operations/botanical-data-audit.md) |
 | Déploiement TestFlight (fastlane) | [`operations/testflight-deploy.md`](operations/testflight-deploy.md) |
 | Provisionnement VPS (Docker · nginx · Mongo) | [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md) |
+| Stockage des assets 3D (R2 · S3 · MinIO) | [`operations/stockage-assets.md`](operations/stockage-assets.md) |
 | Index des décisions d'architecture (ADR) | [`decisions/_index.md`](decisions/_index.md) |
 | Listing App Store (multilingue) | [`../appstore-listing.md`](../appstore-listing.md) |
 | Définition d'un terme métier ou technique | [`glossary.md`](glossary.md) |

@@ -23,6 +23,7 @@ flowchart TB
         openai["[System Ext] OpenAI / Mistral<br/>LLM plant sheets"]
         unsplash["[System Ext] Unsplash<br/>Catalog photos"]
         apple_id["[System Ext] Apple ID<br/>Sign in with Apple"]
+        r2[("[System Ext] Cloudflare R2<br/>3D models + thumbnails")]
     end
 
     %% External systems — operate-time
@@ -41,6 +42,7 @@ flowchart TB
     arbore    -- "Persistence via backend"             --> mongo
     arbore    -- "Sheet generation (via AI Gen)"       --> openai
     arbore    -- "Plant photos"                        --> unsplash
+    arbore    -- "3D models (presigned URL)"           --> r2
     arbore    -- "Telemetry (opt-in)"                  --> sentry
 
     team      -- "Push + CI monitoring"                --> github

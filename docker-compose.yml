@@ -6,6 +6,11 @@ services:
     build:
       context: ./AiGenerator
       dockerfile: Dockerfile
+    # Image publiée par .github/workflows/deploy.yml. `deploy.sh` la tire par
+    # SHA (ARBORE_IMAGE_TAG=sha-<commit>) au lieu de builder sur le VPS, qui
+    # n'a ni le CPU ni le disque pour trois builds (#425). Le bloc `build:`
+    # reste pour le dev local et pour le repli si le tirage échoue.
+    image: ${ARBORE_IMAGE_PREFIX:-ghcr.io/arboreteam/arbore}-ai:${ARBORE_IMAGE_TAG:-latest}
     container_name: arbore-ai-generator
     restart: unless-stopped
     # Rotation des journaux (#385). Sans elle, le driver json-file croît sans
@@ -58,6 +63,11 @@ services:
         # Commit déployé, remonté par GET /health (cf. #341). deploy.sh
         # l'exporte ; un build manuel sans cette variable donne "unknown".
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    # Image publiée par .github/workflows/deploy.yml. `deploy.sh` la tire par
+    # SHA (ARBORE_IMAGE_TAG=sha-<commit>) au lieu de builder sur le VPS, qui
+    # n'a ni le CPU ni le disque pour trois builds (#425). Le bloc `build:`
+    # reste pour le dev local et pour le repli si le tirage échoue.
+    image: ${ARBORE_IMAGE_PREFIX:-ghcr.io/arboreteam/arbore}-backend:${ARBORE_IMAGE_TAG:-latest}
     container_name: arbore-backend
     restart: unless-stopped
     # Rotation des journaux (#385). Sans elle, le driver json-file croît sans
@@ -167,6 +177,11 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
+    # Image publiée par .github/workflows/deploy.yml. `deploy.sh` la tire par
+    # SHA (ARBORE_IMAGE_TAG=sha-<commit>) au lieu de builder sur le VPS, qui
+    # n'a ni le CPU ni le disque pour trois builds (#425). Le bloc `build:`
+    # reste pour le dev local et pour le repli si le tirage échoue.
+    image: ${ARBORE_IMAGE_PREFIX:-ghcr.io/arboreteam/arbore}-web:${ARBORE_IMAGE_TAG:-latest}
     container_name: arbore-web
     restart: unless-stopped
     # Rotation des journaux (#385). Sans elle, le driver json-file croît sans

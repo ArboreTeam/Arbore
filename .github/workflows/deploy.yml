@@ -1,13 +1,17 @@
 name: 📦 Build & Publish images
 
 # ⚠️ Ce workflow NE DÉPLOIE PAS. Il builde et pousse des images sur ghcr, que
-# rien ne consomme aujourd'hui : le VPS builde ses propres images localement via
-# `deploy.sh` + `docker compose build`.
+# `deploy.sh` tire ensuite sur le VPS (#425).
 #
 # Il s'appelait « 🚀 Deploy », ce qui a laissé croire pendant des semaines que la
 # production suivait `main`. Elle avait en réalité 15 commits de retard, dont un
 # correctif de sécurité, sans que rien ne le signale (#341). Le déploiement réel
 # se lance à la main : `ssh` puis `./deploy.sh` à la racine du dépôt sur le VPS.
+#
+# Chaque image porte deux étiquettes : `sha-<commit court>`, immuable, et
+# `latest`, mouvante. `deploy.sh` tire par SHA — `latest` ne sert qu'au dépannage
+# manuel. Sans étiquette immuable, un `docker pull` ne dit pas ce qu'il ramène et
+# un retour arrière n'a rien à désigner.
 #
 # Pour vérifier ce qui tourne réellement en production :
 #   curl -s https://api.arbore.app/health | jq -r .commit
@@ -22,13 +26,28 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  # Build et déploiement des services
-  deploy:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    
+
+    strategy:
+      # Une image cassée ne doit pas empêcher les autres d'être publiées : le
+      # VPS peut alors tirer ce qui existe et ne rebâtir localement que le reste.
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+            context: ./ArboreBackend
+            suffix: backend
+          - service: ai-generator
+            context: ./AiGenerator
+            suffix: ai
+          - service: web
+            context: ./web
+            suffix: web
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -43,78 +62,36 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Backend Docker Build & Push
-      - name: 🏗️ Build & Push Backend
+      # ghcr refuse les majuscules dans un nom de dépôt, or le nôtre en contient
+      # (ArboreTeam/Arbore).
+      - name: Compute image name
+        id: image
         run: |
-          # Convertir le nom du repo en minuscules pour Docker Registry
-          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          
-          if [ -f "ArboreBackend/Dockerfile" ]; then
-            cd ArboreBackend
-            docker build -t ${{ env.REGISTRY }}/${REPO_LOWER}-backend:latest .
-            docker push ${{ env.REGISTRY }}/${REPO_LOWER}-backend:latest
-            echo "Backend déployé"
-          else
-            echo "Dockerfile backend non trouvé, création..."
-            cat > ArboreBackend/Dockerfile << 'EOF'
-          FROM golang:1.24-alpine AS builder
-          WORKDIR /app
-          COPY go.mod go.sum ./
-          RUN go mod download
-          COPY . .
-          RUN CGO_ENABLED=0 GOOS=linux go build -o main .
-          
-          FROM alpine:latest
-          RUN apk --no-cache add ca-certificates
-          WORKDIR /root/
-          COPY --from=builder /app/main .
-          EXPOSE 8080
-          CMD ["./main"]
-          EOF
-            cd ArboreBackend
-            docker build -t ${{ env.REGISTRY }}/${REPO_LOWER}-backend:latest .
-            docker push ${{ env.REGISTRY }}/${REPO_LOWER}-backend:latest
-            echo "Backend déployé avec Dockerfile généré"
-          fi
+          repo_lower=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "name=${{ env.REGISTRY }}/${repo_lower}-${{ matrix.suffix }}" >> "$GITHUB_OUTPUT"
 
-      # AI Generator Docker Build & Push  
-      - name: Build & Push AI Generator
-        run: |
-          # Convertir le nom du repo en minuscules pour Docker Registry
-          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          
-          if [ -f "AiGenerator/Dockerfile" ]; then
-            cd AiGenerator
-            docker build -t ${{ env.REGISTRY }}/${REPO_LOWER}-ai:latest .
-            docker push ${{ env.REGISTRY }}/${REPO_LOWER}-ai:latest
-            echo "AI Generator déployé"
-          else
-            echo "Dockerfile AI non trouvé, création..."
-            cat > AiGenerator/Dockerfile << 'EOF'
-          FROM python:3.11-slim
-          WORKDIR /app
-          COPY requirements.txt* ./
-          RUN pip install fastapi uvicorn openai || pip install fastapi uvicorn
-          COPY . .
-          EXPOSE 8000
-          CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-          EOF
-            cd AiGenerator
-            docker build -t ${{ env.REGISTRY }}/${REPO_LOWER}-ai:latest .
-            docker push ${{ env.REGISTRY }}/${REPO_LOWER}-ai:latest
-            echo "AI Generator déployé avec Dockerfile généré"
-          fi
+      - name: Build & Push ${{ matrix.service }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.context }}/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
+          # Remonté par GET /health (#341). Seul le backend le lit, mais le
+          # passer partout évite d'avoir à se souvenir lequel le consomme.
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
-      # Notification de succès
-      - name: Deployment Complete
+      - name: Summary
         run: |
-          # Convertir le nom du repo en minuscules pour l'affichage
-          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "Déploiement Arbore terminé avec succès !"
-          echo "Images disponibles :"
-          echo "  - Backend: ${{ env.REGISTRY }}/${REPO_LOWER}-backend:latest"
-          echo "  - AI Generator: ${{ env.REGISTRY }}/${REPO_LOWER}-ai:latest"
-          echo ""
-          echo "Pour utiliser ces images :"
-          echo "  docker pull ${{ env.REGISTRY }}/${REPO_LOWER}-backend:latest"
-          echo "  docker pull ${{ env.REGISTRY }}/${REPO_LOWER}-ai:latest"
+          {
+            echo "### ${{ matrix.service }}"
+            echo ""
+            echo '```'
+            echo "${{ steps.image.outputs.name }}:sha-${{ github.sha }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

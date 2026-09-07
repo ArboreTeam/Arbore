@@ -6,7 +6,7 @@
 #   1. git pull --ff-only
 #   2. mongodump pre-deploy → backups/daily/arbore-predeploy-<ISO>.tar.gz
 #   3. rotation des snapshots > 14 jours
-#   4. docker compose build  (backend + ai-generator + web)
+#   4. tirage des images ghcr (repli : build local)
 #   5. docker compose up -d  (backend + ai-generator + web)
 #   6. health check backend (localhost:8080/health) + web (localhost:3000/)
 #
@@ -493,26 +493,77 @@ do_db_snapshot() {
     echo
 }
 
-# ───── [4/7] Docker compose build ─────────────────────────────────
-do_docker_build() {
+# ───── [4/7] Images (tirage ghcr, repli build local) ──────────────
+#
+# Le VPS buildait les trois images à chaque déploiement : ~10 min de CPU et
+# plusieurs Go de couches intermédiaires sur un disque déjà tendu, pour
+# reproduire un build que la CI vient de faire sur `main` (#425).
+#
+# On tire donc l'image publiée pour le commit courant. Le repli sur un build
+# local est délibéré : un déploiement ne doit pas dépendre de la disponibilité
+# de ghcr, et une image peut manquer (workflow en cours, `fail-fast: false` qui
+# a laissé passer un service). Le repli est bruyant, jamais silencieux — c'est
+# exactement le mode d'échec de #341, où la prod a dérivé sans que rien ne le
+# signale.
+IMAGE_TAG="latest"
+
+ghcr_login() {
+    local token user
+    token="$(grep '^GHCR_TOKEN=' "$SCRIPT_DIR/.env" | sed 's/^GHCR_TOKEN=//' || true)"
+    user="$(grep '^GHCR_USER=' "$SCRIPT_DIR/.env" | sed 's/^GHCR_USER=//' || true)"
+    if [ -z "$token" ] || [ -z "$user" ]; then
+        return 1
+    fi
+    # --password-stdin : le jeton ne passe ni par argv (visible dans ps) ni par
+    # l'environnement.
+    if ! printf '%s' "$token" \
+        | "${DOCKER_PRIVILEGE[@]}" docker login ghcr.io -u "$user" --password-stdin >/dev/null 2>&1; then
+        return 1
+    fi
+    return 0
+}
+
+do_docker_images() {
     local git_sha
     git_sha="$(git rev-parse HEAD)"
-    step 4 "Docker compose build (commit ${git_sha:0:7})..."
+    step 4 "Images pour le commit ${git_sha:0:7}..."
+
+    local wanted="sha-$git_sha"
+
+    if ghcr_login; then
+        # ARBORE_IMAGE_TAG est consommée par docker-compose.yml. L'assignation
+        # vient après DOCKER_PRIVILEGE, cf. le commentaire à sa définition.
+        if "${DOCKER_PRIVILEGE[@]}" ARBORE_IMAGE_TAG="$wanted" \
+            docker compose pull backend ai-generator web; then
+            IMAGE_TAG="$wanted"
+            ok "Images tirées depuis ghcr ($wanted)"
+            echo
+            return 0
+        fi
+        warn "Tirage ghcr échoué pour $wanted — repli sur un build local"
+    else
+        warn "Pas d'identifiants ghcr utilisables dans .env (GHCR_USER/GHCR_TOKEN) — build local"
+    fi
+
+    # Repli. On étiquette avec le même nom que l'image attendue : `up` retrouve
+    # alors l'image en local et ne retente pas de la tirer.
     # GIT_COMMIT est injecté dans le binaire backend puis renvoyé par GET /health :
     # c'est ce qui rend une dérive prod ↔ main détectable d'un simple curl (#341).
-    # L'assignation vient après DOCKER_PRIVILEGE, cf. le commentaire à sa définition.
-    if ! "${DOCKER_PRIVILEGE[@]}" GIT_COMMIT="$git_sha" docker compose build backend ai-generator web; then
+    if ! "${DOCKER_PRIVILEGE[@]}" GIT_COMMIT="$git_sha" ARBORE_IMAGE_TAG="$wanted" \
+        docker compose build backend ai-generator web; then
         fail "docker compose build a échoué"
         exit 1
     fi
-    ok "Build réussi"
+    IMAGE_TAG="$wanted"
+    ok "Build local réussi"
     echo
 }
 
 # ───── [5/7] Docker compose up ────────────────────────────────────
 do_docker_up() {
     step 5 "Redémarrage des containers..."
-    if ! "${DOCKER_COMPOSE[@]}" up -d backend ai-generator web; then
+    if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_IMAGE_TAG="$IMAGE_TAG" \
+        docker compose up -d backend ai-generator web; then
         fail "docker compose up a échoué"
         exit 1
     fi
@@ -599,7 +650,7 @@ main() {
     do_git_pull
     do_apply_ops
     do_db_snapshot
-    do_docker_build
+    do_docker_images
     do_docker_up
     do_show_logs
     do_health_check

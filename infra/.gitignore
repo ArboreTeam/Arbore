@@ -6,6 +6,13 @@
 .terraform/
 .terraform.tfstate.lock.info
 
+# Plans figés (`terraform plan -out`). Ils embarquent les VALEURS des
+# variables, jeton Cloudflare compris : un plan commité est une fuite de
+# secret, au même titre qu'un state.
+*.tfplan
+tfplan*
+plan.out
+
 # Valeurs réelles. Les modèles (.example) sont versionnés, pas les valeurs.
 *.auto.tfvars
 envs/*.tfvars

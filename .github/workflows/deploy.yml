@@ -83,6 +83,14 @@ jobs:
           # passer partout évite d'avoir à se souvenir lequel le consomme.
           build-args: |
             GIT_COMMIT=${{ github.sha }}
+          # Rattache explicitement le package au dépôt. GitHub le fait
+          # d'ordinaire seul pour une image poussée depuis Actions, mais la
+          # permission `Packages` d'une GitHub App est accordée AU NIVEAU DU
+          # DÉPÔT : sans rattachement, l'App ne voit pas le package et le
+          # tirage échoue pour une raison sans rapport avec l'authentification.
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 

@@ -36,6 +36,7 @@ The documentation is split into complementary views. Depending on what you are l
 | Botanical data audit | [`operations/botanical-data-audit.md`](operations/botanical-data-audit.md) |
 | TestFlight deployment (fastlane) | [`operations/testflight-deploy.md`](operations/testflight-deploy.md) |
 | VPS provisioning (Docker · nginx · Mongo) | [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md) |
+| 3D asset storage (R2 · S3 · MinIO) | [`operations/asset-storage.md`](operations/asset-storage.md) |
 | Architecture Decision Records (ADR) index | [`decisions/_index.md`](decisions/_index.md) |
 | App Store listing (multilingual) | [`../appstore-listing.md`](../appstore-listing.md) |
 | Definition of a domain or technical term | [`glossary.md`](glossary.md) |

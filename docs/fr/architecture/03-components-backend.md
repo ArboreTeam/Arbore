@@ -17,10 +17,12 @@ flowchart TB
         protected["Groupe protégé<br/>(APIKeyMiddleware + FirebaseAuthMiddleware)"]
         handlers["Handlers HTTP<br/>users · plants · gardens · consents · models · assistant IA"]
         access["Accès données + clients externes<br/>(driver MongoDB · crypto · unsplash · apple)"]
+        storage["StorageProvider + garde<br/>(filesystem · R2 / S3 / MinIO)"]
 
         apikey --> handlers
         protected --> handlers
         handlers --> access
+        handlers --> storage
     end
 
     mongo[("[System Ext]<br/>MongoDB Atlas")]
@@ -29,6 +31,7 @@ flowchart TB
     unsplash["[System Ext]<br/>Unsplash API"]
     apple["[System Ext]<br/>Apple ID (SIWA)"]
     gemini["[System Ext]<br/>Google Gemini API"]
+    storage_ext[("[System Ext]<br/>Cloudflare R2 (S3)")]
 
     client --> public
     client --> apikey
@@ -39,13 +42,15 @@ flowchart TB
     access --> unsplash
     access --> apple
     handlers --> gemini
+    storage --> storage_ext
+    client -. "URL signée 15 min" .-> storage_ext
 
     classDef ext   fill:#999,stroke:#666,color:#fff
     classDef layer fill:#1168BD,stroke:#0B4884,color:#fff
     classDef cont  fill:#2E7D32,stroke:#1B5E20,color:#fff
-    class public,apikey,protected,handlers,access layer
+    class public,apikey,protected,handlers,access,storage layer
     class client,ai_gen cont
-    class mongo,firebase_admin,unsplash,apple,gemini ext
+    class mongo,firebase_admin,unsplash,apple,gemini,storage_ext ext
 ```
 
 Le backend expose **cinq niveaux d'accès** distincts, définis dans `buildRouter()` : des routes **publiques** (aucun middleware), un groupe **API-key-only**, un groupe **protégé** (clé API *puis* token Firebase), un sous-groupe **`account`** fermé aux invités, et un sous-groupe **`admin`**. Cette discipline est imposée par la composition des `router.Group(...)`.

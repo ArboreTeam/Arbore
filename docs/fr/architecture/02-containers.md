@@ -31,6 +31,7 @@ flowchart TB
         apple["[System Ext] Apple ID<br/>Sign in with Apple / révocation"]
         llm["[System Ext] OpenAI / Mistral<br/>LLM fiches plantes"]
         unsplash["[System Ext] Unsplash API<br/>Photos catalogue"]
+        r2[("[System Ext] Cloudflare R2<br/>Assets 3D — 372 objets")]
     end
 
     user -- "Native UI"  --> ios
@@ -45,6 +46,8 @@ flowchart TB
     backend -- "Révocation token (suppression compte)"         --> apple
     backend -- "HTTP interne Docker"                           --> ai
     backend -- "HTTPS"                                         --> unsplash
+    backend -- "Lecture / écriture objets (S3)"                --> r2
+    ios     -. "Téléchargement direct (URL signée 15 min)" .-> r2
     ai      -- "Prompt LLM (HTTPS)"                            --> llm
 
     classDef person   fill:#08427B,stroke:#073B6F,color:#fff
@@ -52,7 +55,7 @@ flowchart TB
     classDef ext_node fill:#999,stroke:#666,color:#fff
     class user person
     class ios,web,backend,ai cont
-    class firebase_auth,firebase_admin,mongo,apple,llm,unsplash ext_node
+    class firebase_auth,firebase_admin,mongo,apple,llm,unsplash,r2 ext_node
 ```
 
 ## Points clés

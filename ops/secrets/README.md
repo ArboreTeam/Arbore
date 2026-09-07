@@ -41,32 +41,47 @@ age-keygen -o ~/.config/sops/age/arbore-prod.txt
 
 La sortie affiche la clé **publique** (`age1...`). La clé **privée** est dans le fichier — elle ne doit jamais entrer dans le dépôt, ni dans un message, ni dans un presse-papier partagé.
 
-### 3. Renseigner `.sops.yaml`
+### 3. `.sops.yaml` — déjà renseigné
 
-Remplacer les marqueurs `REMPLACER_PAR_LA_CLE_PUBLIQUE_AGE_*` par les clés publiques produites.
+Les clés publiques de `prod` et `dev` y sont inscrites depuis le 2026-09-07. Rien à faire, sauf à régénérer une paire.
 
-> Tant que les marqueurs sont en place, tout chiffrement échoue. C'est voulu : mieux vaut une erreur qu'un fichier chiffré vers une clé fantôme, indéchiffrable.
+> Les clés **publiques** dans le dépôt sont sans risque : c'est leur raison d'être. Les **privées** vivent dans `~/.config/sops/age/` et n'y entrent jamais.
 
 ### 4. Chiffrer les valeurs réelles
 
-**Depuis le VPS, sans que les valeurs transitent ailleurs :**
+**Depuis le VPS, sans que les valeurs transitent ailleurs.**
+
+⚠️ La copie de travail doit être **dans `ops/secrets/`**, pas dans `/tmp` :
+SOPS applique ses `creation_rules` au fichier **qu'on lui donne à lire**, pas à
+la redirection de sortie. Un fichier hors de ce répertoire ne correspond à
+aucune règle et le chiffrement échoue avec `no matching creation rules found`.
+
+Les fichiers en clair y sont gitignorés — le garde-fou du `.gitignore` les
+exclut nommément.
 
 ```bash
 cd /home/fedora/Arbore
-cp .env /tmp/prod.env                       # copie de travail
-sops --encrypt /tmp/prod.env > ops/secrets/prod.enc.env
-shred -u /tmp/prod.env                      # effacement de la copie claire
+export SOPS_AGE_KEY_FILE=~/.config/sops/age/arbore-prod.txt
+
+cp .env ops/secrets/prod.env                          # copie de travail, ignorée par git
+sops --encrypt ops/secrets/prod.env > ops/secrets/prod.enc.env
+shred -u ops/secrets/prod.env                         # effacement de la copie claire
 ```
 
-Puis les trois fichiers secrets :
+Puis les trois fichiers secrets, selon le même principe :
 
 ```bash
-sops --encrypt /home/fedora/arbore-data/secrets/firebase-adminsdk.json \
-  > ops/secrets/prod.enc.json
-sops --encrypt /home/fedora/arbore-data/secrets/apple-siwa.p8 \
-  > ops/secrets/prod.enc.p8
-sops --encrypt /home/fedora/arbore-data/secrets/master-encryption.key \
-  > ops/secrets/prod.enc.key
+cp /home/fedora/arbore-data/secrets/firebase-adminsdk.json ops/secrets/prod.json
+sops --encrypt ops/secrets/prod.json > ops/secrets/prod.enc.json
+shred -u ops/secrets/prod.json
+
+cp /home/fedora/arbore-data/secrets/apple-siwa.p8 ops/secrets/prod.p8
+sops --encrypt ops/secrets/prod.p8 > ops/secrets/prod.enc.p8
+shred -u ops/secrets/prod.p8
+
+cp /home/fedora/arbore-data/secrets/master-encryption.key ops/secrets/prod.key
+sops --encrypt ops/secrets/prod.key > ops/secrets/prod.enc.key
+shred -u ops/secrets/prod.key
 ```
 
 ### 5. Vérifier avant de commiter
@@ -97,9 +112,21 @@ Mais on passe de **24 valeurs à poser à la main à une seule**. C'est le minim
 
 **Un projet Firebase par environnement.** Le job de réconciliation (#393) tourne chaque dimanche avec `--apply` et compare les uid Firebase à une base Mongo. Pointé vers le mauvais couple, **il vide la mauvaise base**. Aucune de ses quatre gardes ne couvre ce cas.
 
-## État
+## État au 2026-09-07
 
-Le **mécanisme** est en place ; **aucune valeur réelle n'est encore chiffrée**. Les étapes 1 à 5 restent à exécuter, et l'intégration à `deploy.sh` viendra ensuite — elle ne peut pas être écrite ni testée avant qu'un fichier chiffré existe.
+**Le mécanisme est éprouvé de bout en bout** sur des données factices :
+
+```
+chiffrement        ✅
+clés lisibles      MONGODB_URI  GEMINI_API_KEY  GIN_MODE
+valeurs en clair   aucune
+aller-retour       fidèle
+clé dev sur prod   refusée
+```
+
+Les paires de clés `prod` et `dev` sont générées, `.sops.yaml` est renseigné.
+
+**Aucune valeur réelle n'est encore chiffrée** : l'étape 4 reste à faire depuis le VPS. L'intégration à `deploy.sh` viendra après — elle ne peut être ni écrite ni testée avant qu'un fichier chiffré existe.
 
 ## Références
 

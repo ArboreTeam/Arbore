@@ -12,11 +12,14 @@
 # risque, c'est leur raison d'être.
 
 creation_rules:
-  # Remplacer `age1...` par la clé publique produite par `age-keygen`.
-  # Tant que ces valeurs sont des marqueurs, aucun chiffrement n'est possible —
-  # c'est voulu : mieux vaut échouer que chiffrer vers une clé fantôme.
-  - path_regex: ^ops/secrets/prod\.enc\.(env|json|p8|key)$
-    age: "REMPLACER_PAR_LA_CLE_PUBLIQUE_AGE_PROD"
+  # Clés PUBLIQUES, générées le 2026-09-07. Les publier est sans risque.
+  # Les clés PRIVÉES correspondantes vivent dans ~/.config/sops/age/ et ne
+  # doivent jamais entrer dans le dépôt.
+  # Le motif couvre l'entrée EN CLAIR (`prod.env`, temporaire et gitignorée)
+  # comme la sortie chiffrée (`prod.enc.env`) : SOPS applique la règle au
+  # fichier qu'on lui donne à lire, pas à la redirection de sortie.
+  - path_regex: ^ops/secrets/prod(\.enc)?\.(env|json|p8|key)$
+    age: "age1lla37cnve4lv3fh583jt9ex0zyh69c4ww03dh5tcjdxccpapn98qepc7tp"
 
-  - path_regex: ^ops/secrets/dev\.enc\.(env|json|p8|key)$
-    age: "REMPLACER_PAR_LA_CLE_PUBLIQUE_AGE_DEV"
+  - path_regex: ^ops/secrets/dev(\.enc)?\.(env|json|p8|key)$
+    age: "age1kz62ge9c0c4t6waz3wlrwke2mtr70hgff0c5xmdg5pagpm6mpuyqnrdzwt"

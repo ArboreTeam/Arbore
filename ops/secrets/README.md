@@ -33,6 +33,27 @@ sudo dnf install -y age && \
   -o /usr/local/bin/sops && sudo chmod +x /usr/local/bin/sops   # Fedora / VPS
 ```
 
+### ⚠️ Sauvegarder la clé : une SEULE ligne, pas le fichier
+
+L'app **Mots de passe** de macOS **aplatit les retours à la ligne**. Y coller le fichier entier produit une sauvegarde **inutilisable** — constaté le 2026-09-07 : le fichier restauré tenait sur une ligne, et SOPS a refusé les quatre fichiers.
+
+Un fichier de clé age n'a besoin que de la ligne `AGE-SECRET-KEY-…` ; les commentaires sont ignorés. Ne sauvegarder que celle-là :
+
+```bash
+grep '^AGE-SECRET-KEY' ~/.config/sops/age/arbore-prod.txt | pbcopy
+# coller dans le trousseau, puis :
+pbcopy < /dev/null
+```
+
+Restauration :
+
+```bash
+pbpaste > ~/.config/sops/age/arbore-prod.txt
+chmod 600 ~/.config/sops/age/arbore-prod.txt
+```
+
+**Éprouver la sauvegarde avant d'en dépendre.** Écarter la clé locale, vérifier que le déchiffrement échoue, restaurer, vérifier qu'il remarche. Une sauvegarde jamais testée n'en est pas une.
+
 ### 2. Générer une paire de clés par environnement
 
 ```bash
@@ -146,6 +167,8 @@ clé dev sur prod   refusée
 ```
 
 Les paires de clés `prod` et `dev` sont générées, `.sops.yaml` est renseigné.
+
+> La clé `prod` a été **renouvelée** le 2026-09-07 : la précédente avait été exposée dans une sortie de commande et devait être tenue pour compromise. Rotation par `sops updatekeys`, qui rechiffre la clé de données sans jamais écrire les secrets en clair. Vérifié : la nouvelle clé déchiffre les 4 fichiers, l'ancienne est refusée.
 
 **Aucune valeur réelle n'est encore chiffrée** : l'étape 4 reste à faire depuis le VPS. L'intégration à `deploy.sh` viendra après — elle ne peut être ni écrite ni testée avant qu'un fichier chiffré existe.
 

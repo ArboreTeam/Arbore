@@ -103,6 +103,11 @@ services:
     environment:
       - MONGODB_URI=${MONGODB_URI}
       - MONGODB_URI_TEST=${MONGODB_URI_TEST:-}
+      # L'URI choisit le CLUSTER, pas la base. Sans ces deux variables, le nom
+      # de base était codé en dur et un second environnement pointant le même
+      # cluster ouvrait `arbore` — la production (#434).
+      - MONGODB_DB=${MONGODB_DB:-arbore}
+      - MONGODB_DB_TEST=${MONGODB_DB_TEST:-arbore_test}
       - ARBORE_API_KEY=${ARBORE_API_KEY}
       - ARBORE_API_KEY_TEST=${ARBORE_API_KEY_TEST:-}
       - FIREBASE_SERVICE_ACCOUNT_PATH=/run/secrets/firebase-adminsdk.json

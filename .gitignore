@@ -122,6 +122,12 @@ yarn-error.log*
 .env
 .env.local
 .env.*.local
+# Fichiers d'environnement par déploiement, générés par apply_secrets à la
+# racine (`.env.dev`, `.env.preprod`…). Même contenu qu'un `.env` : jamais
+# dans git. Ancré à la racine pour ne pas toucher `web/.env*`, qui est de la
+# configuration publique versionnée.
+/.env.*
+!/.env.example
 # Sauvegardes de .env prises à la main sur le serveur avant une opération
 # sensible. Elles contiennent les mêmes secrets que le .env : jamais dans git.
 .env.bak*

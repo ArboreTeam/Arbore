@@ -281,6 +281,7 @@ ops/secrets/*
 !ops/secrets/*.enc.json
 !ops/secrets/*.enc.p8
 !ops/secrets/*.enc.key
+!ops/secrets/*.enc.pem
 # Clés privées age, où qu'elles traînent.
 *.agekey
 age-key*.txt

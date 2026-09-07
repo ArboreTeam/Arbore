@@ -222,9 +222,56 @@ services:
 
 
 
+  # ─────────────────────────────────────────────
+  # 🪣  MinIO — simulateur S3 local, DÉVELOPPEMENT UNIQUEMENT
+  # ─────────────────────────────────────────────
+  #
+  # Sous le profil `dev` : ce service ne démarre JAMAIS en production, où
+  # `docker compose up` est lancé sans profil. La production utilise
+  # Cloudflare R2 (#401 étape 5).
+  #
+  #   docker compose --profile dev up -d minio
+  #
+  # Le même `StorageProvider` sert les deux : MinIO et R2 parlent le protocole
+  # S3. Seules deux valeurs changent — l'endpoint et `USE_SSL=false`.
+  #
+  # Les identifiants ci-dessous sont des valeurs de développement, volontairement
+  # en clair : elles ne donnent accès qu'à un conteneur local sans données
+  # réelles. Les surcharger via l'environnement si besoin.
+  minio:
+    image: minio/minio:latest
+    container_name: arbore-minio
+    profiles: ["dev"]
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-arbore-dev}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-arbore-dev-secret}
+    ports:
+      - "9000:9000"   # API S3
+      - "9001:9001"   # console web
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - arbore-net
+
 # ─────────────────────────────────────────────
 # 🔌  Réseau interne
 # ─────────────────────────────────────────────
 networks:
   arbore-net:
     driver: bridge
+
+# ─────────────────────────────────────────────
+# 💾  Volumes
+# ─────────────────────────────────────────────
+volumes:
+  # Données MinIO du poste de développement. Jamais créé en production : le
+  # service qui l'utilise est sous le profil `dev`.
+  minio-data:

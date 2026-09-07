@@ -147,7 +147,42 @@ tens of operations per minute, not hundreds.
 > would therefore loosen the monthly bound. A billing alert on the provider side
 > remains useful.
 
+## The development environment — local MinIO
+
+MinIO is an S3-compatible server you run yourself. In development it replaces R2
+with no account, no outbound network and no cost — the same `StorageProvider`
+serves both.
+
+```bash
+docker compose --profile dev up -d minio
+```
+
+The service sits under the **`dev` profile**: it never starts in production,
+where `docker compose up` runs without a profile. Verifiable:
+
+```bash
+docker compose config --services                # ai-generator backend web
+docker compose --profile dev config --services  # + minio
+```
+
+Web console on `:9001`, S3 API on `:9000`. Create the `arbore-assets` bucket on
+first use.
+
+Configuration lives in `ops/secrets/dev.enc.env`, encrypted to the **`dev`** age
+key — distinct from production's, so a leak of one does not compromise the
+other. Only two values differ from R2:
+
+```
+STORAGE_S3_ENDPOINT=minio:9000
+STORAGE_S3_USE_SSL=false
+```
+
+The guard ceiling is raised to 5000 operations per minute: the calculation
+justifying 200 in production comes from R2's free tier and is meaningless on a
+local service.
+
 ## References
+
 
 #401 step 5 (abstraction and quotas) · #341 (assets outside the git checkout) ·
 [`ops/secrets/README.md`](../../../ops/secrets/README.md) (SOPS procedure)

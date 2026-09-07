@@ -97,9 +97,26 @@ require_prereqs() {
         fail "docker introuvable"
         missing=1
     fi
+    # Le fichier d'environnement peut légitimement ne pas exister encore :
+    # c'est `apply_secrets`, à l'étape 2, qui le produit en déchiffrant
+    # `ops/secrets/<env>.enc.env`. Exiger sa présence ici rendait impossible
+    # l'AMORÇAGE d'un environnement — le script refusait de démarrer sur la
+    # chose qu'il allait créer, ce qui contredisait le critère de #401 §1
+    # (« git clone, fournir les secrets, déployer »).
+    #
+    # On accepte donc l'une OU l'autre des deux sources. Si aucune n'est là,
+    # rien ne pourra produire la configuration et l'échec est justifié.
+    local enc_source="$SCRIPT_DIR/ops/secrets/$ARBORE_ENV.enc.env"
+    local age_key="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/arbore-$ARBORE_ENV.txt}"
     if [ ! -f "$ENV_FILE" ]; then
-        fail "$(basename "$ENV_FILE") manquant à la racine du dépôt"
-        missing=1
+        if [ -f "$enc_source" ] && [ -f "$age_key" ]; then
+            warn "$(basename "$ENV_FILE") absent — sera produit par apply_secrets depuis $(basename "$enc_source")"
+        else
+            fail "$(basename "$ENV_FILE") manquant, et rien pour le produire"
+            [ -f "$enc_source" ] || fail "  → $(basename "$enc_source") introuvable"
+            [ -f "$age_key" ] || fail "  → clé age introuvable ($age_key)"
+            missing=1
+        fi
     fi
     [ "$missing" -eq 0 ] || exit 3
 }

@@ -230,7 +230,12 @@ apply_secrets() {
     # une fraction de seconde.
     umask 077
 
-    local secrets_dir="/home/fedora/arbore-data/secrets"
+    # Dérivé, jamais en dur : `arbore-data/` est le frère du checkout. Un chemin
+    # contenant « fedora » enfermait le script sur une machine dont l'utilisateur
+    # porte ce nom — or le dépôt doit produire un déploiement sur N machines
+    # (#401), et celles d'après février n'auront pas cet utilisateur.
+    local data_dir="${ARBORE_DATA_DIR:-$(dirname "$SCRIPT_DIR")/arbore-data}"
+    local secrets_dir="$data_dir/secrets"
     # source_chiffrée:destination
     local mappings=(
         "$enc_dir/$env_name.enc.env:$SCRIPT_DIR/.env"

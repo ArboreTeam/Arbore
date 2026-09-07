@@ -108,21 +108,51 @@ func TestGuardRejectsOversizedBeforeCountingIt(t *testing.T) {
 	}
 }
 
-// TestGuardDoesNotThrottlePresign : une URL signée est calculée localement,
-// sans appel réseau ni facturation. La décompter pousserait le handler vers le
-// service direct, lui bien plus coûteux — l'inverse du but recherché.
-func TestGuardDoesNotThrottlePresign(t *testing.T) {
+// TestGuardThrottlesPresign verrouille la correction d'un défaut de conception.
+//
+// Une première version ne décomptait PAS les signatures, au motif qu'elles sont
+// calculées localement. C'était confondre le coût de fabriquer la clé avec
+// celui d'ouvrir la porte : une URL signée AUTORISE un téléchargement, et ce
+// téléchargement est facturé.
+//
+// Pire, la garde en devenait inerte : avec un support qui sait signer,
+// `serveStorageObject` emprunte cette voie et n'appelle jamais `Open` — le seul
+// chemin alors compté. Elle n'aurait protégé que le cas où elle était inutile.
+func TestGuardThrottlesPresign(t *testing.T) {
 	inner := &countingStorage{}
-	g := newGuardedStorage(inner, storageGuardConfig{MaxOpsPerWindow: 1, Window: time.Minute})
+	g := newGuardedStorage(inner, storageGuardConfig{MaxOpsPerWindow: 3, Window: time.Minute})
 	obj := StorageObject{Bucket: BucketModelsHeavy, Name: "gros.usdz"}
 
-	for i := range 20 {
+	for i := range 3 {
 		if _, err := g.PresignedURL(context.Background(), obj, 0); err != nil {
-			t.Fatalf("signature %d refusée: %v", i+1, err)
+			t.Fatalf("signature %d devrait passer: %v", i+1, err)
 		}
 	}
-	if inner.presigns != 20 {
-		t.Errorf("presigns = %d, attendu 20", inner.presigns)
+	if _, err := g.PresignedURL(context.Background(), obj, 0); !errors.Is(err, ErrStorageQuotaExceeded) {
+		t.Fatalf("la 4e signature devrait être refusée, obtenu %v", err)
+	}
+	if inner.presigns != 3 {
+		t.Errorf("le support a signé %d fois, attendu 3 — la garde laisse passer", inner.presigns)
+	}
+}
+
+// TestGuardCountsPresignAndOpenTogether : les deux voies produisent chacune une
+// lecture facturée, elles doivent donc puiser au MÊME budget. Les compter
+// séparément doublerait l'exposition réelle.
+func TestGuardCountsPresignAndOpenTogether(t *testing.T) {
+	inner := &countingStorage{}
+	g := newGuardedStorage(inner, storageGuardConfig{MaxOpsPerWindow: 2, Window: time.Minute})
+	obj := StorageObject{Bucket: BucketModelsLight, Name: "m.usdz"}
+
+	if _, err := g.PresignedURL(context.Background(), obj, 0); err != nil {
+		t.Fatalf("signature: %v", err)
+	}
+	if _, _, err := g.Open(context.Background(), obj); err != nil {
+		t.Fatalf("lecture: %v", err)
+	}
+	// Budget épuisé : les deux voies partagent le compteur.
+	if _, err := g.PresignedURL(context.Background(), obj, 0); !errors.Is(err, ErrStorageQuotaExceeded) {
+		t.Fatal("signature + lecture doivent puiser au même budget")
 	}
 }
 
@@ -147,11 +177,11 @@ func TestGuardConfigFromEnv(t *testing.T) {
 	// Une valeur absurde doit retomber sur le défaut plutôt que de désactiver
 	// la garde : une faute de frappe ne doit pas ouvrir les vannes.
 	t.Setenv("STORAGE_MAX_OPS_PER_MINUTE", "abc")
-	if got := storageGuardFromEnv().MaxOpsPerWindow; got != 600 {
-		t.Errorf("valeur illisible → défaut attendu 600, obtenu %d", got)
+	if got := storageGuardFromEnv().MaxOpsPerWindow; got != 200 {
+		t.Errorf("valeur illisible → défaut attendu 200, obtenu %d", got)
 	}
 	t.Setenv("STORAGE_MAX_OPS_PER_MINUTE", "-5")
-	if got := storageGuardFromEnv().MaxOpsPerWindow; got != 600 {
-		t.Errorf("valeur négative → défaut attendu 600, obtenu %d", got)
+	if got := storageGuardFromEnv().MaxOpsPerWindow; got != 200 {
+		t.Errorf("valeur négative → défaut attendu 200, obtenu %d", got)
 	}
 }

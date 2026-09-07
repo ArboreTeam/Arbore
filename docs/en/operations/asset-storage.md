@@ -118,7 +118,7 @@ beyond configured thresholds. A runaway on local disk is not free either: it
 saturates I/O and masks the defect causing it.
 
 ```
-STORAGE_MAX_OPS_PER_MINUTE   default 600; 0 = unlimited
+STORAGE_MAX_OPS_PER_MINUTE   default 200; 0 = unlimited
 STORAGE_MAX_OBJECT_BYTES     default 200 MiB
 ```
 
@@ -128,9 +128,24 @@ variable to raise — a threshold set too low will not degrade service silently.
 
 On a local MinIO, raise it generously: operations cost nothing there.
 
-> The guard protects against an **acute** runaway, not against moderate but
-> sustained overuse. The counter is in memory, per process, reset on restart. A
-> billing alert on the provider side remains useful.
+The guard counts **direct reads and presigned URLs alike**: each produces
+exactly one billable operation. An earlier version exempted presigning, which
+made the guard inert — with a store that can sign, that is the only path taken.
+
+The default of 200 per minute comes from a calculation:
+
+```
+200 × 60 × 24 × 30 = 8,640,000 operations/month
+R2 free tier       = 10,000,000
+```
+
+**Sustained at the ceiling for a whole month, the cost stays zero.** That is a
+stronger property than "it should be fine". A realistic beta peak is measured in
+tens of operations per minute, not hundreds.
+
+> The counter is in memory, per process, reset on restart. Repeated restarts
+> would therefore loosen the monthly bound. A billing alert on the provider side
+> remains useful.
 
 ## References
 

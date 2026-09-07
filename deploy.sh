@@ -630,8 +630,34 @@ do_docker_images() {
 }
 
 # ───── [5/7] Docker compose up ────────────────────────────────────
+# Conteneurs de l'ancienne pile, antérieure au nommage par projet (#434).
+#
+# Renommer le projet compose ORPHELINE l'ancienne pile au lieu de la remplacer :
+# compose ne la connaît plus, donc ne l'arrête pas, et ses conteneurs retiennent
+# les ports. Le `up` échoue alors sur « port is already allocated », en laissant
+# l'ancienne pile debout — le service continue, mais le déploiement ne passe
+# jamais.
+#
+# Idempotent : sans effet dès que la migration a eu lieu une fois.
+LEGACY_CONTAINERS=( arbore-backend arbore-web arbore-ai-generator arbore-minio )
+
+drop_legacy_containers() {
+    local name found=0
+    for name in "${LEGACY_CONTAINERS[@]}"; do
+        if "${DOCKER_PRIVILEGE[@]}" docker ps -a --format '{{.Names}}' 2>/dev/null \
+            | grep -qx "$name"; then
+            "${DOCKER_PRIVILEGE[@]}" docker rm -f "$name" > /dev/null 2>&1 || true
+            found=$((found + 1))
+        fi
+    done
+    if [ "$found" -gt 0 ]; then
+        warn "Ancienne pile retirée ($found conteneur(s) sans nom de projet) — migration #434"
+    fi
+}
+
 do_docker_up() {
     step 5 "Redémarrage des containers..."
+    drop_legacy_containers
     if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" ARBORE_IMAGE_TAG="$IMAGE_TAG" \
         docker compose -p "$COMPOSE_PROJECT" up -d backend ai-generator web; then
         fail "docker compose up a échoué"

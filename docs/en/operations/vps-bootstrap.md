@@ -312,6 +312,20 @@ git rev-parse origin/main                               # what should be running
 From now on, subsequent deployments go through
 `./deploy.sh` (which takes a Mongo snapshot before each rebuild).
 
+**Branch guard.** `deploy.sh` refuses to deploy when the checkout is not on the
+expected branch (#384). `git pull --ff-only` follows the **current** branch: a
+working branch left in place on the machine would be deployed with nothing
+signalling it, and the drift would only surface downstream, in the commit exposed
+by `/health`.
+
+The expected branch defaults to `main` and is changed with
+`ARBORE_DEPLOY_BRANCH` — parameterised rather than hard-coded, so a staging
+environment can deploy `dev` without editing the script (#401):
+
+```bash
+ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
+```
+
 **Checkout guard.** `deploy.sh` refuses to deploy when a git-**tracked** file is
 modified — that is uncommitted code, hence a silent divergence. It does
 however **tolerate** two things: untracked files (they cannot break a

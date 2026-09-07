@@ -266,3 +266,21 @@ fastlane/README.md
 # Local working notes (not part of the project).
 /state.md
 /jury-greenlight.md
+
+# ─── Secrets : seuls les fichiers CHIFFRÉS sont versionnés (#401) ─────────────
+# Filet contre un `git add` malheureux : tout ce qui ressemble à un secret en
+# clair sous ops/secrets/ est ignoré. Les `*.enc.*` sont explicitement réadmis.
+# La règle `secrets/` (plus haut) exclut le RÉPERTOIRE : git ne peut alors pas
+# réintégrer les fichiers qu'il contient. Il faut donc le réadmettre d'abord,
+# puis exclure son contenu, puis réadmettre ce qui doit être versionné.
+!ops/secrets/
+ops/secrets/*
+!ops/secrets/README.md
+!ops/secrets/env.template
+!ops/secrets/*.enc.env
+!ops/secrets/*.enc.json
+!ops/secrets/*.enc.p8
+!ops/secrets/*.enc.key
+# Clés privées age, où qu'elles traînent.
+*.agekey
+age-key*.txt

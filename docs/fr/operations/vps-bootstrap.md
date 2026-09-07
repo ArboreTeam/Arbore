@@ -312,6 +312,20 @@ git rev-parse origin/main                               # ce qui devrait tourner
 À partir de maintenant, les déploiements suivants passent par
 `./deploy.sh` (qui prend un snapshot Mongo avant chaque rebuild).
 
+**Garde-fou de branche.** `deploy.sh` refuse de déployer si le checkout n'est pas
+sur la branche attendue (#384). `git pull --ff-only` suit la branche **courante** :
+une branche de travail laissée en place sur la machine serait déployée sans que
+rien ne le signale, et la dérive n'apparaîtrait qu'en aval, dans le commit exposé
+par `/health`.
+
+La branche attendue est `main` par défaut, et se change par
+`ARBORE_DEPLOY_BRANCH` — paramétrable plutôt que codée en dur, pour qu'un
+environnement de staging puisse déployer `dev` sans modifier le script (#401) :
+
+```bash
+ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
+```
+
 **Garde-fou du checkout.** `deploy.sh` refuse de déployer si un fichier **suivi**
 par git est modifié — c'est du code non committé, donc une divergence
 silencieuse. En revanche il **tolère** deux choses : les fichiers non suivis (ils

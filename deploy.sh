@@ -406,6 +406,18 @@ apply_nginx() {
 # ÉCRASÉE au déploiement suivant. C'est le comportement voulu — le dépôt
 # fait autorité.
 do_apply_ops() {
+    # Crontab, unités systemd et nginx sont GLOBAUX à la machine, pas propres à
+    # un environnement. Le crontab en particulier est rendu avec `$SCRIPT_DIR` :
+    # appliqué depuis un checkout secondaire, il ferait pointer les tâches de la
+    # PRODUCTION vers ce checkout — le job de réconciliation compris.
+    #
+    # Seul l'environnement primaire les applique. Les autres déploient leur pile
+    # et laissent la configuration hôte tranquille (#434).
+    local apply_host_config=1
+    if [ "$ARBORE_ENV" != "${ARBORE_PRIMARY_ENV:-prod}" ]; then
+        apply_host_config=0
+    fi
+
     step 2 "Configuration système (ops/)..."
 
     if [ ! -d "$SCRIPT_DIR/ops" ]; then
@@ -417,7 +429,7 @@ do_apply_ops() {
     # --- Crontab ---
     # `__ARBORE_ROOT__` rend le fichier indépendant de l'emplacement du
     # checkout, condition pour qu'un second environnement puisse l'utiliser.
-    if [ -f "$SCRIPT_DIR/ops/crontab" ]; then
+    if [ "$apply_host_config" -eq 1 ] && [ -f "$SCRIPT_DIR/ops/crontab" ]; then
         local rendered previous
         rendered="$(mktemp)"
         sed "s|__ARBORE_ROOT__|$SCRIPT_DIR|g" "$SCRIPT_DIR/ops/crontab" > "$rendered"
@@ -429,6 +441,9 @@ do_apply_ops() {
             # Sauvegarde avant écrasement : une entrée posée à la main serait
             # perdue autrement, et on veut pouvoir la retrouver.
             if [ -n "$previous" ]; then
+                # `logs/` n'existe pas dans un clone frais : sans ce mkdir, la
+                # redirection échoue et `set -e` tue le déploiement à l'étape 2.
+                mkdir -p "$SCRIPT_DIR/logs"
                 printf '%s\n' "$previous" > "$SCRIPT_DIR/logs/crontab.bak.$(date -u +%Y%m%dT%H%M%SZ)"
             fi
             crontab "$rendered"
@@ -439,6 +454,13 @@ do_apply_ops() {
 
     # --- Scripts privilégiés + unités systemd ---
     # Non bloquant : sans sudo, le déploiement applicatif doit continuer.
+    if [ "$apply_host_config" -eq 0 ]; then
+        ok "Configuration hôte inchangée (environnement $ARBORE_ENV, non primaire)"
+        apply_secrets
+        echo
+        return 0
+    fi
+
     if ! sudo -n true 2>/dev/null; then
         warn "sudo indisponible — systemd et /usr/local/sbin non appliqués"
         echo

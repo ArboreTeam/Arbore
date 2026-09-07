@@ -517,6 +517,52 @@ externe direct est bloqué par le firewall ci-dessus.
 
 ---
 
+## Releases — déployer une cible figée plutôt qu'une branche
+
+`main` est une cible **mouvante** : « déployer main » ne désigne pas la même
+chose selon l'heure. Une release nomme un artefact précis, ce qui rend le retour
+arrière évident — on redéploie `v1.2.0`, on ne cherche pas un SHA dans un
+journal.
+
+### Publier une release
+
+```bash
+git checkout main && git pull
+git tag -a v1.2.0 -m "Accès invité, tirage d'images"
+git push origin v1.2.0
+```
+
+Deux workflows réagissent : `deploy.yml` publie les images étiquetées `1.2.0`,
+`1.2` et `sha-<commit>` ; `release.yml` crée la release GitHub avec ses notes.
+
+### Déployer une release
+
+```bash
+cd /home/fedora/Arbore
+ARBORE_DEPLOY_TAG=v1.2.0 ./deploy.sh
+```
+
+Le checkout passe en HEAD détachée sur l'étiquette. Pas de `git pull` : il n'a
+pas de sens hors d'une branche, et une release ne doit pas bouger.
+
+### Revenir en arrière
+
+```bash
+ARBORE_DEPLOY_TAG=v1.1.0 ./deploy.sh
+```
+
+C'est tout. L'image de `v1.1.0` existe encore : la rétention conserve
+**indéfiniment** les versions portant une étiquette `v*`, et ne purge que les
+`sha-` de branche au-delà des dix plus récentes (#442).
+
+### Revenir au suivi de branche
+
+```bash
+git checkout main && ./deploy.sh
+```
+
+Le mode branche est le défaut ; il suffit de ne pas définir `ARBORE_DEPLOY_TAG`.
+
 ## Environnement de dev — seconde pile sur la même machine
 
 Depuis #434, la machine porte deux piles indépendantes. Elles partagent le

@@ -312,6 +312,20 @@ git rev-parse origin/main                               # what should be running
 From now on, subsequent deployments go through
 `./deploy.sh` (which takes a Mongo snapshot before each rebuild).
 
+**nginx configuration.** Versioned in `ops/nginx/` and applied by `deploy.sh`,
+validated with `nginx -t` **before** reloading — a faulty configuration aborts
+the deploy without cutting the running service.
+
+⚠️ The **certificates** `/etc/ssl/cloudflare/origin.{pem,key}` stay out of the
+repository: they are secrets. A fresh machine must receive them before the
+`listen 443` blocks work, otherwise nginx will refuse to start.
+
+⚠️ **MongoDB Atlas IP allowlist.** A test from an outside machine suggests the
+cluster is not IP-restricted. **Confirm in the Atlas dashboard** (*Network
+Access*) before any migration: if a restriction exists, a fresh machine would be
+refused and the backend would fail at startup on the Mongo connection — a
+symptom that does not point to its cause.
+
 **Branch guard.** `deploy.sh` refuses to deploy when the checkout is not on the
 expected branch (#384). `git pull --ff-only` follows the **current** branch: a
 working branch left in place on the machine would be deployed with nothing

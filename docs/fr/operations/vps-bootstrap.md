@@ -312,6 +312,20 @@ git rev-parse origin/main                               # ce qui devrait tourner
 À partir de maintenant, les déploiements suivants passent par
 `./deploy.sh` (qui prend un snapshot Mongo avant chaque rebuild).
 
+**Configuration nginx.** Versionnée dans `ops/nginx/` et appliquée par
+`deploy.sh`, validée par `nginx -t` **avant** rechargement — une configuration
+fautive interrompt le déploiement sans couper le service en cours.
+
+⚠️ Les **certificats** `/etc/ssl/cloudflare/origin.{pem,key}` restent hors dépôt :
+ce sont des secrets. Une machine neuve doit les recevoir avant que les blocs
+`listen 443` ne fonctionnent, faute de quoi nginx refusera de démarrer.
+
+⚠️ **Liste blanche MongoDB Atlas.** Un test depuis une machine extérieure indique
+que le cluster n'est pas restreint par IP. **À confirmer dans le tableau de bord
+Atlas** (*Network Access*) avant toute migration : si une restriction existe, une
+machine neuve serait refusée et le backend échouerait au démarrage sur la
+connexion Mongo — un symptôme qui n'oriente pas vers sa cause.
+
 **Garde-fou de branche.** `deploy.sh` refuse de déployer si le checkout n'est pas
 sur la branche attendue (#384). `git pull --ff-only` suit la branche **courante** :
 une branche de travail laissée en place sur la machine serait déployée sans que

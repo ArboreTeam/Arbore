@@ -8,10 +8,11 @@ name: 📦 Build & Publish images
 # correctif de sécurité, sans que rien ne le signale (#341). Le déploiement réel
 # se lance à la main : `ssh` puis `./deploy.sh` à la racine du dépôt sur le VPS.
 #
-# Chaque image porte deux étiquettes : `sha-<commit court>`, immuable, et
-# `latest`, mouvante. `deploy.sh` tire par SHA — `latest` ne sert qu'au dépannage
-# manuel. Sans étiquette immuable, un `docker pull` ne dit pas ce qu'il ramène et
-# un retour arrière n'a rien à désigner.
+# Ce workflow est né de la fusion de deux publieurs concurrents qui produisaient
+# les mêmes images sous deux nommages, doublant le temps de CI et un tiers des
+# versions du registre (#429). L'ancien `docker-publish.yml` a été retiré ; ses
+# deux apports — build sur PR sans publication, et `metadata-action` — sont
+# repris ici.
 #
 # Pour vérifier ce qui tourne réellement en production :
 #   curl -s https://api.arbore.app/health | jq -r .commit
@@ -20,6 +21,11 @@ on:
   push:
     branches: [ "main" ]
     tags: [ "v*" ]
+  # Les PR sont BUILDÉES sans être publiées : une image cassée est détectée
+  # avant le merge, pas après. C'est l'apport principal de l'ancien workflow, et
+  # ça ne coûte rien au registre puisque rien n'est poussé.
+  pull_request:
+    branches: [ "main", "dev" ]
   workflow_dispatch:
 
 env:
@@ -56,6 +62,8 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Login to Container Registry
+        # Inutile sur une PR : rien n'y est poussé.
+        if: github.event_name != 'pull_request'
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -70,36 +78,54 @@ jobs:
           repo_lower=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "name=${{ env.REGISTRY }}/${repo_lower}-${{ matrix.suffix }}" >> "$GITHUB_OUTPUT"
 
+      # Deux réglages non évidents dans la liste ci-dessous :
+      #
+      #   `type=sha,format=long` — SHA COMPLET, pas le format court par défaut.
+      #   `deploy.sh` tire `sha-$(git rev-parse HEAD)` ; un SHA court ne
+      #   correspondrait à rien et le déploiement retomberait silencieusement
+      #   sur un build local.
+      #
+      #   `enable={{is_default_branch}}` sur `latest` — sans cette garde, une
+      #   publication depuis une autre branche déplacerait l'étiquette, et le
+      #   repli manuel `docker pull …:latest` servirait autre chose que la
+      #   production.
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
       - name: Build & Push ${{ matrix.service }}
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.context }}/Dockerfile
-          push: true
-          tags: |
-            ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
-            ${{ steps.image.outputs.name }}:latest
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           # Remonté par GET /health (#341). Seul le backend le lit, mais le
           # passer partout évite d'avoir à se souvenir lequel le consomme.
           build-args: |
             GIT_COMMIT=${{ github.sha }}
-          # Rattache explicitement le package au dépôt. GitHub le fait
-          # d'ordinaire seul pour une image poussée depuis Actions, mais la
-          # permission `Packages` d'une GitHub App est accordée AU NIVEAU DU
-          # DÉPÔT : sans rattachement, l'App ne voit pas le package et le
-          # tirage échoue pour une raison sans rapport avec l'authentification.
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
       - name: Summary
+        if: github.event_name != 'pull_request'
         run: |
           {
             echo "### ${{ matrix.service }}"
             echo ""
             echo '```'
-            echo "${{ steps.image.outputs.name }}:sha-${{ github.sha }}"
+            echo "${{ steps.meta.outputs.tags }}"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

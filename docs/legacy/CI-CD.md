@@ -38,7 +38,17 @@ Analyse de sécurité automatique du code.
 
 **Fréquence :** Tous les lundis + sur chaque push/PR vers main
 
-### 3. **Docker Publish** (`.github/workflows/docker-publish.yml`)
+### 3. **Docker Publish** — supprimé en septembre 2026
+
+> ⚠️ Ce workflow n'existe plus. Il publiait `arbore/backend` et
+> `arbore/ai-generator` **en parallèle** d'un second publieur qui produisait les
+> mêmes images sous un autre nommage : chaque push construisait le backend deux
+> fois, et l'ancien nommage représentait 801 des 2 488 versions du registre,
+> tirées par personne (#429).
+>
+> Les deux ont fusionné dans `.github/workflows/deploy.yml`, qui a repris ce que
+> celui-ci faisait de mieux — build sur PR sans publication, et
+> `docker/metadata-action` pour les étiquettes et les labels OCI.
 
 Build et publication des images Docker.
 

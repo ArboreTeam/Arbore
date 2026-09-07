@@ -112,6 +112,27 @@ Mais on passe de **24 valeurs à poser à la main à une seule**. C'est le minim
 
 **Un projet Firebase par environnement.** Le job de réconciliation (#393) tourne chaque dimanche avec `--apply` et compare les uid Firebase à une base Mongo. Pointé vers le mauvais couple, **il vide la mauvaise base**. Aucune de ses quatre gardes ne couvre ce cas.
 
+## Déploiement
+
+`deploy.sh` déchiffre ces fichiers vers leurs emplacements à l'étape 2/7 :
+
+| Source | Destination |
+|---|---|
+| `<env>.enc.env` | `.env` à la racine du dépôt |
+| `<env>.enc.json` | `arbore-data/secrets/firebase-adminsdk.json` |
+| `<env>.enc.p8` | `arbore-data/secrets/apple-siwa.p8` |
+| `<env>.enc.key` | `arbore-data/secrets/master-encryption.key` |
+
+`ARBORE_ENV` choisit le jeu (`prod` par défaut).
+
+**Sans clé privée sur la machine, l'étape est sautée** avec un avertissement, et la configuration en place est conservée. Une machine sans clé se déploie donc exactement comme avant.
+
+Trois garanties, vérifiées en bac à sable :
+
+- le déchiffrement est **contrôlé avant écriture** — un fichier corrompu interrompt le déploiement sans toucher la destination ;
+- les fichiers sont écrits en **0600**, sous `umask 077` ;
+- l'écriture n'a lieu que si le contenu **diffère** ; la version précédente est sauvegardée dans `logs/`.
+
 ## État au 2026-09-07
 
 **Le mécanisme est éprouvé de bout en bout** sur des données factices :

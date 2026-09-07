@@ -201,6 +201,87 @@ do_git_pull() {
     echo
 }
 
+# apply_secrets — déchiffre les secrets versionnés vers leurs emplacements.
+#
+# SANS EFFET si la clé privée age est absente : le `.env` en place est alors
+# conservé tel quel, et le déploiement continue. C'est la propriété la plus
+# importante de cette fonction — une machine sans clé doit se déployer comme
+# avant, pas échouer ni se retrouver sans configuration.
+#
+# `ARBORE_ENV` choisit le jeu de secrets (`prod` par défaut), ce qui prépare
+# les environnements multiples visés par #401.
+apply_secrets() {
+    local env_name="${ARBORE_ENV:-prod}"
+    local enc_dir="$SCRIPT_DIR/ops/secrets"
+    local key_file="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/arbore-$env_name.txt}"
+
+    [ -d "$enc_dir" ] || return 0
+
+    if ! command -v sops > /dev/null 2>&1; then
+        warn "sops absent — secrets non déchiffrés, configuration en place conservée"
+        return 0
+    fi
+    if [ ! -f "$key_file" ]; then
+        warn "Clé age introuvable ($key_file) — secrets non déchiffrés, configuration en place conservée"
+        return 0
+    fi
+
+    # Les fichiers en clair ne doivent jamais être lisibles par autrui, même
+    # une fraction de seconde.
+    umask 077
+
+    local secrets_dir="/home/fedora/arbore-data/secrets"
+    # source_chiffrée:destination
+    local mappings=(
+        "$enc_dir/$env_name.enc.env:$SCRIPT_DIR/.env"
+        "$enc_dir/$env_name.enc.json:$secrets_dir/firebase-adminsdk.json"
+        "$enc_dir/$env_name.enc.p8:$secrets_dir/apple-siwa.p8"
+        "$enc_dir/$env_name.enc.key:$secrets_dir/master-encryption.key"
+    )
+
+    local applied=0 unchanged=0 entry src dst tmp
+    for entry in "${mappings[@]}"; do
+        src="${entry%%:*}"
+        dst="${entry#*:}"
+        [ -f "$src" ] || continue
+
+        tmp="$(mktemp)"
+        # Déchiffrement vérifié AVANT toute écriture sur la destination : un
+        # échec ne doit jamais laisser un fichier tronqué ou vide en place.
+        if ! SOPS_AGE_KEY_FILE="$key_file" sops --decrypt "$src" > "$tmp" 2> /dev/null; then
+            rm -f "$tmp"
+            fail "Déchiffrement de $(basename "$src") échoué — destination inchangée"
+            return 1
+        fi
+        if [ ! -s "$tmp" ]; then
+            rm -f "$tmp"
+            fail "$(basename "$src") déchiffré vide — destination inchangée"
+            return 1
+        fi
+
+        if [ -f "$dst" ] && cmp -s "$tmp" "$dst"; then
+            unchanged=$((unchanged + 1))
+            rm -f "$tmp"
+            continue
+        fi
+
+        # Sauvegarde avant remplacement : une valeur posée à la main sur la
+        # machine resterait ainsi récupérable.
+        if [ -f "$dst" ]; then
+            cp -a "$dst" "$SCRIPT_DIR/logs/$(basename "$dst").bak.$(date -u +%Y%m%dT%H%M%SZ)" 2> /dev/null || true
+        fi
+        install -m 0600 "$tmp" "$dst" 2> /dev/null || sudo install -m 0600 "$tmp" "$dst"
+        rm -f "$tmp"
+        applied=$((applied + 1))
+    done
+
+    if [ "$applied" -gt 0 ]; then
+        ok "Secrets déchiffrés ($env_name) : $applied appliqué(s), $unchanged inchangé(s)"
+    else
+        ok "Secrets déjà conformes ($env_name)"
+    fi
+}
+
 # ───── [2/7] Configuration système déclarative ────────────────────
 #
 # `ops/` est la source de vérité de tout ce qui vit hors des conteneurs :
@@ -274,6 +355,8 @@ do_apply_ops() {
             units_changed=1
         fi
     done
+
+    apply_secrets
 
     if [ "$units_changed" -eq 1 ]; then
         sudo systemctl daemon-reload

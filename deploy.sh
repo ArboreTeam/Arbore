@@ -3,7 +3,7 @@
 # deploy.sh — Déploiement automatisé d'Arbore (backend + ai-generator + web) sur le VPS.
 #
 # Enchaîne :
-#   1. git pull --ff-only
+#   1. git pull --ff-only, ou checkout d'une release (ARBORE_DEPLOY_TAG)
 #   2. mongodump pre-deploy → backups/daily/arbore-predeploy-<ISO>.tar.gz
 #   3. rotation des snapshots > 14 jours
 #   4. tirage des images ghcr (repli : build local)
@@ -155,13 +155,30 @@ do_git_pull() {
     # Paramétrable plutôt que codé en dur : #401 vise plusieurs environnements,
     # et une machine de staging déploierait légitimement `dev`. La production ne
     # définit pas la variable et refuse donc tout sauf `main`.
-    local expected_branch="${ARBORE_DEPLOY_BRANCH:-main}"
-    local current_branch
-    current_branch="$(git rev-parse --abbrev-ref HEAD)"
-    if [ "$current_branch" != "$expected_branch" ]; then
-        fail "Checkout sur '$current_branch', attendu '$expected_branch' — déploiement refusé"
-        fail "Pour déployer une autre branche : ARBORE_DEPLOY_BRANCH=<branche> ./deploy.sh"
-        exit 1
+    # Deux modes de déploiement, exclusifs.
+    #
+    #   BRANCHE  (défaut)  suit la tête de `main` — le flux quotidien
+    #   RELEASE  ARBORE_DEPLOY_TAG=v1.2.0 — déploie une étiquette figée
+    #
+    # Le mode release existe parce qu'une branche est une cible MOUVANTE :
+    # « déployer main » ne désigne pas la même chose selon l'heure. Une release
+    # nomme un artefact précis, ce qui rend le retour arrière évident — on
+    # redéploie `v1.2.0`, on ne cherche pas un SHA dans un journal.
+    local deploy_tag="${ARBORE_DEPLOY_TAG:-}"
+
+    if [ -z "$deploy_tag" ]; then
+        # Garde-fou de branche (#384). `git pull --ff-only` suit la branche
+        # COURANTE du checkout : si quelqu'un en laisse une autre en place, le
+        # script la déploierait sans rien signaler.
+        local expected_branch="${ARBORE_DEPLOY_BRANCH:-main}"
+        local current_branch
+        current_branch="$(git rev-parse --abbrev-ref HEAD)"
+        if [ "$current_branch" != "$expected_branch" ]; then
+            fail "Checkout sur '$current_branch', attendu '$expected_branch' — déploiement refusé"
+            fail "Pour déployer une autre branche : ARBORE_DEPLOY_BRANCH=<branche> ./deploy.sh"
+            fail "Pour déployer une release       : ARBORE_DEPLOY_TAG=v1.2.0 ./deploy.sh"
+            exit 1
+        fi
     fi
 
     # Trois catégories, traitées différemment :
@@ -208,7 +225,25 @@ do_git_pull() {
         warn "$untracked fichier(s) non suivis présents — ignorés (sans effet sur un fast-forward)"
     fi
 
-    if ! git pull --ff-only; then
+    if [ -n "$deploy_tag" ]; then
+        # Mode release : on récupère les étiquettes puis on se place dessus en
+        # HEAD détachée. Pas de `git pull` — il n'a pas de sens hors d'une
+        # branche, et une release ne doit surtout pas bouger.
+        if ! git fetch --tags --force --quiet origin; then
+            fail "Impossible de récupérer les étiquettes"
+            exit 1
+        fi
+        if ! git rev-parse -q --verify "refs/tags/$deploy_tag" > /dev/null; then
+            fail "Release '$deploy_tag' introuvable"
+            fail "Étiquettes disponibles : $(git tag --list 'v*' --sort=-version:refname | head -5 | tr '\n' ' ')"
+            exit 1
+        fi
+        if ! git checkout --quiet --detach "refs/tags/$deploy_tag"; then
+            fail "Impossible de se placer sur '$deploy_tag'"
+            exit 1
+        fi
+        ok "Release $deploy_tag ($(git rev-parse --short HEAD))"
+    elif ! git pull --ff-only; then
         fail "Erreur lors du git pull"
         if [ "$out_of_band" -gt 0 ]; then
             fail "Si un commit entrant touche ${OUT_OF_BAND_PATHS[*]}, git refuse d'écraser les"
@@ -216,7 +251,9 @@ do_git_pull() {
         fi
         exit 1
     fi
-    ok "Git pull réussi"
+    if [ -z "$deploy_tag" ]; then
+        ok "Git pull réussi"
+    fi
 
     # Le script vient peut-être de se remplacer lui-même. bash lit le fichier
     # au fil de l'exécution : sans ré-exécution, on continuerait avec l'ANCIENNE

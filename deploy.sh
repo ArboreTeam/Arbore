@@ -439,6 +439,32 @@ do_apply_ops() {
     else
         ok "systemd et scripts déjà conformes"
     fi
+
+    # Rejouer les services `oneshot` quand leur script ou leur unité a changé.
+    #
+    # Sans ceci, installer un script ne l'exécute jamais : le fichier change sur
+    # disque, le comportement pas. Un correctif de pare-feu resterait sans effet
+    # jusqu'au prochain redémarrage de la machine — et rien ne le signalerait.
+    # C'est le mode d'échec de #341 appliqué à ops/ (#434).
+    #
+    # Restreint aux `oneshot` : rejouer un service au long cours couperait le
+    # service qu'il rend. Ceux-ci sont idempotents par conception, et
+    # cf-http-firewall.sh porte sa propre liste de repli, donc il ne dépend pas
+    # d'un rafraîchissement préalable des plages.
+    if [ "$changed" -eq 1 ] || [ "$units_changed" -eq 1 ]; then
+        local unit name replayed=0
+        for unit in "$SCRIPT_DIR"/ops/systemd/*.service; do
+            [ -e "$unit" ] || continue
+            grep -q '^Type=oneshot' "$unit" || continue
+            name="$(basename "$unit")"
+            if sudo systemctl restart "$name" 2>/dev/null; then
+                replayed=$((replayed + 1))
+            else
+                warn "$name n'a pas pu être rejoué — voir journalctl -u $name"
+            fi
+        done
+        [ "$replayed" -gt 0 ] && ok "Services oneshot rejoués : $replayed"
+    fi
     echo
 }
 

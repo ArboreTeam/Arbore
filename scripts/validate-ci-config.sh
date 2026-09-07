@@ -61,10 +61,16 @@ else
     warn "codeql.yml n'existe pas"
 fi
 
-if [ -f ".github/workflows/docker-publish.yml" ]; then
-    check "docker-publish.yml existe"
+# deploy.yml a absorbé docker-publish.yml (#429) : un seul publieur d'images,
+# pour ne plus construire les mêmes images sous deux nommages.
+if [ -f ".github/workflows/deploy.yml" ]; then
+    check "deploy.yml existe (publication d'images)"
 else
-    warn "docker-publish.yml n'existe pas"
+    warn "deploy.yml n'existe pas"
+fi
+
+if [ -f ".github/workflows/docker-publish.yml" ]; then
+    warn "docker-publish.yml est revenu — il a été supprimé en #429, deux publieurs concurrents"
 fi
 
 echo ""

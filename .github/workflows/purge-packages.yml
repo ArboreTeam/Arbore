@@ -18,6 +18,10 @@ on:
         description: "Supprimer réellement (sinon simulation)"
         type: boolean
         default: false
+      keep_sha:
+        description: "Versions `sha-` de branche à conserver par package"
+        type: string
+        default: "10"
 
 permissions:
   contents: read
@@ -38,5 +42,5 @@ jobs:
         run: |
           python3 scripts/purge-package-versions.py \
             --packages arbore-backend arbore-ai arbore-web \
-                       arbore/backend arbore/ai-generator \
+            --keep-sha "${{ inputs.keep_sha || '10' }}" \
             ${{ inputs.apply && '--apply' || '' }}

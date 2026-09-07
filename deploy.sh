@@ -55,12 +55,24 @@ DOCKER_PRIVILEGE=( sudo )
 ARBORE_ENV="${ARBORE_ENV:-prod}"
 COMPOSE_PROJECT="arbore-$ARBORE_ENV"
 
+# Un fichier d'environnement PAR déploiement. Les deux piles partagent le
+# répertoire, donc le `.env` unique d'avant : un déploiement dev y aurait écrit
+# ses valeurs, et la production les aurait reprises à son redémarrage suivant.
+#
+# La production garde `.env` tel quel — pas de migration, pas de risque sur
+# l'existant. Les autres environnements prennent `.env.<nom>`.
+if [ "$ARBORE_ENV" = "prod" ]; then
+    ENV_FILE="$SCRIPT_DIR/.env"
+else
+    ENV_FILE="$SCRIPT_DIR/.env.$ARBORE_ENV"
+fi
+
 # ARBORE_ENV est passée en ARGUMENT de sudo, pas exportée : sudo efface
 # l'environnement. Un simple `export` n'atteindrait jamais compose, et
 # `container_name` résoudrait toujours vers `arbore-prod-…` — déployer dev
 # recyclerait donc les conteneurs de PRODUCTION, sans qu'aucune commande
 # n'échoue. Même raison que pour GIT_COMMIT et ARBORE_IMAGE_TAG.
-DOCKER_COMPOSE=( "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" docker compose -p "$COMPOSE_PROJECT" )
+DOCKER_COMPOSE=( "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" )
 
 step() { printf '%b[%s/7]%b %s\n' "$YELLOW" "$1" "$NC" "$2"; }
 ok()   { printf '%b✅ %s%b\n' "$GREEN" "$1" "$NC"; }
@@ -85,8 +97,8 @@ require_prereqs() {
         fail "docker introuvable"
         missing=1
     fi
-    if [ ! -f "$SCRIPT_DIR/.env" ]; then
-        fail ".env manquant à la racine du dépôt"
+    if [ ! -f "$ENV_FILE" ]; then
+        fail "$(basename "$ENV_FILE") manquant à la racine du dépôt"
         missing=1
     fi
     [ "$missing" -eq 0 ] || exit 3
@@ -250,7 +262,7 @@ apply_secrets() {
     local secrets_dir="$data_dir/secrets"
     # source_chiffrée:destination
     local mappings=(
-        "$enc_dir/$env_name.enc.env:$SCRIPT_DIR/.env"
+        "$enc_dir/$env_name.enc.env:$ENV_FILE"
         "$enc_dir/$env_name.enc.json:$secrets_dir/firebase-adminsdk.json"
         "$enc_dir/$env_name.enc.p8:$secrets_dir/apple-siwa.p8"
         "$enc_dir/$env_name.enc.key:$secrets_dir/master-encryption.key"
@@ -493,7 +505,7 @@ do_db_snapshot() {
     step 3 "Pre-deploy DB snapshot..."
 
     local mongo_uri
-    mongo_uri="$(grep '^MONGODB_URI=' "$SCRIPT_DIR/.env" | sed 's/^MONGODB_URI=//' || true)"
+    mongo_uri="$(grep '^MONGODB_URI=' "$ENV_FILE" | sed 's/^MONGODB_URI=//' || true)"
     if [ -z "$mongo_uri" ]; then
         fail "MONGODB_URI absente du .env — snapshot impossible"
         exit 3
@@ -570,8 +582,8 @@ IMAGE_TAG="latest"
 # ne doit pas dépendre d'un compte individuel qui part avec son propriétaire.
 ghcr_login() {
     local token user
-    token="$(grep '^GHCR_TOKEN=' "$SCRIPT_DIR/.env" | sed 's/^GHCR_TOKEN=//' || true)"
-    user="$(grep '^GHCR_USER=' "$SCRIPT_DIR/.env" | sed 's/^GHCR_USER=//' || true)"
+    token="$(grep '^GHCR_TOKEN=' "$ENV_FILE" | sed 's/^GHCR_TOKEN=//' || true)"
+    user="$(grep '^GHCR_USER=' "$ENV_FILE" | sed 's/^GHCR_USER=//' || true)"
 
     if [ -z "$token" ] || [ -z "$user" ]; then
         return 1
@@ -606,7 +618,7 @@ do_docker_images() {
     # ARBORE_IMAGE_TAG est consommée par docker-compose.yml. L'assignation vient
     # après DOCKER_PRIVILEGE, cf. le commentaire à sa définition.
     if "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" ARBORE_IMAGE_TAG="$wanted" \
-        docker compose -p "$COMPOSE_PROJECT" pull backend ai-generator web; then
+        docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" pull backend ai-generator web; then
         IMAGE_TAG="$wanted"
         ok "Images tirées depuis ghcr ($wanted)"
         echo
@@ -620,7 +632,7 @@ do_docker_images() {
     # GIT_COMMIT est injecté dans le binaire backend puis renvoyé par GET /health :
     # c'est ce qui rend une dérive prod ↔ main détectable d'un simple curl (#341).
     if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" GIT_COMMIT="$git_sha" ARBORE_IMAGE_TAG="$wanted" \
-        docker compose -p "$COMPOSE_PROJECT" build backend ai-generator web; then
+        docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" build backend ai-generator web; then
         fail "docker compose build a échoué"
         exit 1
     fi
@@ -659,7 +671,7 @@ do_docker_up() {
     step 5 "Redémarrage des containers..."
     drop_legacy_containers
     if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" ARBORE_IMAGE_TAG="$IMAGE_TAG" \
-        docker compose -p "$COMPOSE_PROJECT" up -d backend ai-generator web; then
+        docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" up -d backend ai-generator web; then
         fail "docker compose up a échoué"
         exit 1
     fi

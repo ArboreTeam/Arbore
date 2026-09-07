@@ -19,6 +19,16 @@ Ce script descend d'abord dans chaque manifeste ÉTIQUETÉ pour construire
 l'ensemble des digests protégés, puis ne supprime que ce qui n'en fait pas
 partie.
 
+Deux règles de suppression, cumulatives :
+
+  ORPHELINES  versions sans étiquette et non référencées par un index étiqueté
+  RÉTENTION   au-delà des N plus récentes, les versions `sha-` de branche —
+              jamais une release `v*`, jamais `latest`, jamais le commit servi
+
+La distinction release / commit de branche est ce qui donne à la rétention une
+règle simple : les releases sont peu nombreuses et se gardent indéfiniment, les
+`sha-` de branche sont nombreux et jetables une fois dépassés.
+
 Quatre gardes, reprises du job de réconciliation (#393) :
 
  1. Simulation par défaut. La suppression exige --apply.
@@ -97,14 +107,15 @@ def registry_token(org, package, pat):
         raise Fatal("jeton de registre refusé pour %s: %s" % (package, exc)) from exc
 
 
-def protected_digests(org, package, versions, rtoken):
+def protected_digests(org, package, versions, rtoken, exclude=frozenset()):
     """Digests référencés par au moins une version étiquetée.
 
     C'est le cœur de la correction : on descend dans chaque index étiqueté pour
     récupérer ses enfants, qui n'ont pas d'étiquette propre.
     """
     protected = set()
-    tagged = [v for v in versions if v["metadata"]["container"]["tags"]]
+    tagged = [v for v in versions
+              if v["metadata"]["container"]["tags"] and v["name"] not in exclude]
     if not tagged:
         raise Fatal(
             "aucune version étiquetée sur %s : refus de considérer toutes les "
@@ -119,6 +130,55 @@ def protected_digests(org, package, versions, rtoken):
         for child in (manifest or {}).get("manifests", []):
             protected.add(child["digest"])
     return protected
+
+
+SEMVER_PREFIX = "v"
+
+
+def tag_kind(tag):
+    """Classe une étiquette, ce qui détermine sa durée de vie.
+
+    `release`  — v1.2.3, v1.2 : conservée indéfiniment. Elles sont peu
+                 nombreuses et désignent ce qu'on peut vouloir redéployer des
+                 mois plus tard.
+    `moving`   — latest, main, dev, pr-42 : conservée, elle bouge d'elle-même.
+    `commit`   — sha-<40 hex> : sujette à rétention. C'est le gros du volume.
+    """
+    if tag.startswith(SEMVER_PREFIX) and len(tag) > 1 and tag[1].isdigit():
+        return "release"
+    if tag.startswith("sha-") and len(tag) == 44:
+        return "commit"
+    return "moving"
+
+
+def retention_victims(versions, protected, keep, deployed_sha):
+    """Versions `sha-` de branche au-delà des `keep` plus récentes.
+
+    Les enfants d'un index supprimé sont marqués avec lui : sans cela ils
+    deviendraient orphelins et attendraient l'exécution suivante, laissant du
+    déchet entre deux passages.
+    """
+    if keep <= 0:
+        return [], set()
+
+    commits = []
+    for version in versions:
+        tags = version["metadata"]["container"]["tags"]
+        if not tags:
+            continue
+        kinds = {tag_kind(t) for t in tags}
+        # Une version qui porte AUSSI une release ou une étiquette mouvante est
+        # conservée : `sha-abc` et `v1.2.0` peuvent désigner le même digest.
+        if kinds != {"commit"}:
+            continue
+        if deployed_sha and any(t == "sha-" + deployed_sha for t in tags):
+            continue
+        commits.append(version)
+
+    commits.sort(key=lambda v: v["updated_at"], reverse=True)
+    victims = commits[keep:]
+    doomed_children = set()
+    return victims, doomed_children
 
 
 def deployed_commit(health_url):
@@ -142,6 +202,11 @@ def main():
     parser.add_argument("--org", default="ArboreTeam")
     parser.add_argument("--packages", nargs="+", required=True)
     parser.add_argument("--health-url", default="https://api.arbore.app/health")
+    parser.add_argument("--keep-sha", type=int, default=10,
+                        help="versions `sha-` de branche à conserver par package "
+                             "(0 = rétention désactivée). Les releases `v*`, les "
+                             "étiquettes mouvantes et le commit servi ne sont "
+                             "jamais concernés.")
     parser.add_argument("--apply", action="store_true",
                         help="supprime réellement (par défaut : simulation)")
     args = parser.parse_args()
@@ -153,6 +218,7 @@ def main():
 
     mode = "SUPPRESSION RÉELLE" if args.apply else "SIMULATION (aucune suppression)"
     print("🧹 Purge des versions d'images — %s" % mode)
+    print("   rétention : %d version(s) `sha-` de branche par package" % args.keep_sha)
 
     commit = deployed_commit(args.health_url)
     if commit:
@@ -162,36 +228,44 @@ def main():
     for package in args.packages:
         versions = list_versions(args.org, package, pat)
         rtoken = registry_token(args.org, package, pat)
-        protected = protected_digests(args.org, package, versions, rtoken)
+        # ORDRE IMPORTANT. La rétention est calculée d'abord, puis l'ensemble
+        # protégé est construit à partir des versions étiquetées qui SURVIVENT.
+        #
+        # L'inverse — ce que faisait la première version — plaçait les enfants
+        # des victimes dans l'ensemble protégé, puisqu'il était bâti sur toutes
+        # les versions étiquetées. Les enfants survivaient alors à leur index et
+        # devenaient orphelins, ramassés au passage suivant : du déchet entre
+        # deux exécutions, et un compte annoncé qui ne correspondait pas.
+        victims, _ = retention_victims(versions, set(), args.keep_sha, commit)
+        doomed = {v["name"] for v in victims}
 
-        orphans = []
-        for version in versions:
-            tags = version["metadata"]["container"]["tags"]
-            if tags:
-                continue
-            if version["name"] in protected:
-                continue
-            orphans.append(version)
+        protected = protected_digests(args.org, package, versions, rtoken, exclude=doomed)
 
-        # Garde supplémentaire : ne jamais supprimer une version dont une
-        # étiquette porte le commit déployé.
+        # Le commit servi est protégé quoi qu'il arrive.
         if commit:
             for version in versions:
                 if any(t == "sha-" + commit for t in version["metadata"]["container"]["tags"]):
                     protected.add(version["name"])
 
-        kept = len(versions) - len(orphans)
-        print("   %-24s %4d versions | %4d orphelines | %4d conservées"
-              % (package, len(versions), len(orphans), kept))
-        total_orphans += len(orphans)
+        # 1. Orphelines — sans étiquette et non référencées par un survivant.
+        orphans = [v for v in versions
+                   if not v["metadata"]["container"]["tags"] and v["name"] not in protected]
+
+        # Les enfants des victimes tombent naturellement dans `orphans` : ils
+        # sont sans étiquette et plus référencés par aucun survivant.
+        to_delete = orphans + victims
+        kept = len(versions) - len(to_delete)
+        print("   %-24s %4d versions | %4d sans référence | %4d rétention | %4d conservées"
+              % (package, len(versions), len(orphans), len(victims), kept))
+        total_orphans += len(to_delete)
 
         if args.apply:
-            for version in orphans:
+            for version in to_delete:
                 _request("%s/orgs/%s/packages/container/%s/versions/%d"
                          % (API, args.org, package.replace("/", "%2F"), version["id"]),
                          pat, "application/vnd.github+json", method="DELETE")
 
-    print("   TOTAL orphelines : %d" % total_orphans)
+    print("   TOTAL à supprimer : %d" % total_orphans)
     if not args.apply:
         print("   Relancer avec --apply pour supprimer.")
     return 0

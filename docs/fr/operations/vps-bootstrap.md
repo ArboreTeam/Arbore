@@ -290,10 +290,20 @@ push sur `main` et publiées sur ghcr, étiquetées `sha-<commit>`. Le VPS les t
 au lieu de les rebâtir : trois builds coûtaient ~10 min de CPU et plusieurs Go
 de couches intermédiaires sur un disque déjà tendu (#425).
 
-Le tirage suppose un `docker login ghcr.io`, que `deploy.sh` fait seul à partir
-de `GHCR_USER` / `GHCR_TOKEN` (PAT de portée `read:packages`, cf.
-`ops/secrets/README.md`). Ces variables absentes, le déploiement ne
-casse pas : il bascule sur un build local **en le signalant**.
+L'authentification se fait par **GitHub App**, jamais par PAT. Le VPS ne
+détient aucun jeton de registre longue durée : il détient la clé privée de
+l'App (`github-app.pem`) et forge à la demande, via un JWT RS256, un jeton
+d'installation valable une heure. Un PAT — personnel ou de compte machine —
+resterait valable des mois et porterait une identité ; c'est ce que la politique
+de l'org écarte en désactivant les deploy keys au profit des GitHub Apps.
+
+Trois éléments, tous distribués par `apply_secrets` : `GITHUB_APP_ID` et
+`GITHUB_APP_INSTALLATION_ID` dans le `.env`, et la clé privée dans
+`arbore-data/secrets/github-app.pem` (cf. `ops/secrets/README.md`).
+
+Absents, le déploiement ne casse pas : le tirage est tenté en anonyme — un
+package public se tire sans identifiants — puis bascule sur un build local **en
+le signalant**.
 
 ```bash
 cd /home/fedora/Arbore

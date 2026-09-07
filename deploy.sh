@@ -237,6 +237,7 @@ apply_secrets() {
         "$enc_dir/$env_name.enc.json:$secrets_dir/firebase-adminsdk.json"
         "$enc_dir/$env_name.enc.p8:$secrets_dir/apple-siwa.p8"
         "$enc_dir/$env_name.enc.key:$secrets_dir/master-encryption.key"
+        "$enc_dir/$env_name.enc.pem:$secrets_dir/github-app.pem"
     )
 
     local applied=0 unchanged=0 entry src dst tmp
@@ -507,17 +508,75 @@ do_db_snapshot() {
 # signale.
 IMAGE_TAG="latest"
 
-ghcr_login() {
-    local token user
-    token="$(grep '^GHCR_TOKEN=' "$SCRIPT_DIR/.env" | sed 's/^GHCR_TOKEN=//' || true)"
-    user="$(grep '^GHCR_USER=' "$SCRIPT_DIR/.env" | sed 's/^GHCR_USER=//' || true)"
-    if [ -z "$token" ] || [ -z "$user" ]; then
+# Authentification ghcr par GitHub App.
+#
+# Le VPS ne détient AUCUN jeton de registre longue durée : il détient la clé
+# privée d'une App et forge à la demande un jeton d'installation qui expire en
+# une heure. Un PAT, personnel ou de compte machine, resterait valable des mois
+# et porterait une identité — c'est ce que la politique de l'org ArboreTeam
+# écarte en désactivant les deploy keys au profit des GitHub Apps.
+#
+# Trois éléments, tous distribués par apply_secrets :
+#   GITHUB_APP_ID               (.env)      identifiant de l'App
+#   GITHUB_APP_INSTALLATION_ID  (.env)      installation sur ArboreTeam/Arbore
+#   github-app.pem              (fichier)   clé privée RS256
+b64url() {
+    # base64url sans remplissage, tel que l'exige JWT (RFC 7515 §2).
+    openssl base64 -A | tr '+/' '-_' | tr -d '='
+}
+
+github_app_token() {
+    local app_id="$1" key_file="$2" install_id="$3"
+    local now iat exp header payload unsigned sig jwt response
+
+    now="$(date +%s)"
+    # GitHub rejette un `iat` dans le futur : 60 s de marge absorbent une
+    # horloge serveur légèrement en avance.
+    iat=$((now - 60))
+    # 9 minutes, sous le maximum de 10 imposé par GitHub.
+    exp=$((now + 540))
+
+    header='{"alg":"RS256","typ":"JWT"}'
+    payload="{\"iat\":$iat,\"exp\":$exp,\"iss\":\"$app_id\"}"
+    unsigned="$(printf '%s' "$header" | b64url).$(printf '%s' "$payload" | b64url)"
+    sig="$(printf '%s' "$unsigned" | openssl dgst -sha256 -sign "$key_file" -binary | b64url)" || return 1
+    jwt="$unsigned.$sig"
+
+    response="$(curl -sS -X POST \
+        -H "Authorization: Bearer $jwt" \
+        -H "Accept: application/vnd.github+json" \
+        -H "X-GitHub-Api-Version: 2022-11-28" \
+        "https://api.github.com/app/installations/$install_id/access_tokens" 2>/dev/null)" || return 1
+
+    # Pas de dépendance à jq : il n'est pas garanti présent sur le VPS.
+    printf '%s' "$response" | tr -d '\n' \
+        | sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
+}
+
+# Best effort : une authentification impossible n'est pas fatale. Un package
+# public se tire sans identifiants, et le repli couvre le reste.
+ghcr_authenticate() {
+    local app_id install_id key_file token
+    app_id="$(grep '^GITHUB_APP_ID=' "$SCRIPT_DIR/.env" | sed 's/^GITHUB_APP_ID=//' || true)"
+    install_id="$(grep '^GITHUB_APP_INSTALLATION_ID=' "$SCRIPT_DIR/.env" | sed 's/^GITHUB_APP_INSTALLATION_ID=//' || true)"
+    key_file="/home/fedora/arbore-data/secrets/github-app.pem"
+
+    if [ -z "$app_id" ] || [ -z "$install_id" ] || [ ! -f "$key_file" ]; then
         return 1
     fi
+
+    token="$(github_app_token "$app_id" "$key_file" "$install_id")"
+    if [ -z "$token" ]; then
+        warn "Jeton d'installation GitHub App non obtenu"
+        return 1
+    fi
+
     # --password-stdin : le jeton ne passe ni par argv (visible dans ps) ni par
-    # l'environnement.
+    # l'environnement. Le nom d'utilisateur est ignoré pour un jeton, mais ghcr
+    # en exige un.
     if ! printf '%s' "$token" \
-        | "${DOCKER_PRIVILEGE[@]}" docker login ghcr.io -u "$user" --password-stdin >/dev/null 2>&1; then
+        | "${DOCKER_PRIVILEGE[@]}" docker login ghcr.io -u x-access-token --password-stdin >/dev/null 2>&1; then
+        warn "docker login ghcr refusé malgré un jeton obtenu"
         return 1
     fi
     return 0
@@ -530,20 +589,26 @@ do_docker_images() {
 
     local wanted="sha-$git_sha"
 
-    if ghcr_login; then
-        # ARBORE_IMAGE_TAG est consommée par docker-compose.yml. L'assignation
-        # vient après DOCKER_PRIVILEGE, cf. le commentaire à sa définition.
-        if "${DOCKER_PRIVILEGE[@]}" ARBORE_IMAGE_TAG="$wanted" \
-            docker compose pull backend ai-generator web; then
-            IMAGE_TAG="$wanted"
-            ok "Images tirées depuis ghcr ($wanted)"
-            echo
-            return 0
-        fi
-        warn "Tirage ghcr échoué pour $wanted — repli sur un build local"
+    # L'authentification est tentée mais n'est PAS une condition du tirage : un
+    # package public se tire sans identifiants. Conditionner le pull au login
+    # ferait rebâtir en local à chaque déploiement, sans que rien ne le dise.
+    if ghcr_authenticate; then
+        ok "Authentifié sur ghcr (jeton d'installation, 1 h)"
     else
-        warn "Pas d'identifiants ghcr utilisables dans .env (GHCR_USER/GHCR_TOKEN) — build local"
+        warn "Pas d'authentification ghcr — tirage tenté en anonyme"
     fi
+
+    # ARBORE_IMAGE_TAG est consommée par docker-compose.yml. L'assignation vient
+    # après DOCKER_PRIVILEGE, cf. le commentaire à sa définition.
+    if "${DOCKER_PRIVILEGE[@]}" ARBORE_IMAGE_TAG="$wanted" \
+        docker compose pull backend ai-generator web; then
+        IMAGE_TAG="$wanted"
+        ok "Images tirées depuis ghcr ($wanted)"
+        echo
+        return 0
+    fi
+
+    warn "Tirage ghcr échoué pour $wanted — repli sur un build local"
 
     # Repli. On étiquette avec le même nom que l'image attendue : `up` retrouve
     # alors l'image en local et ne retente pas de la tirer.

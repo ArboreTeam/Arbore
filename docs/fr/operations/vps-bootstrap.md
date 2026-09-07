@@ -285,11 +285,45 @@ Le bind mount dans `docker-compose.yml` monte ce fichier en lecture seule dans
 
 ## 8. Premier déploiement
 
+Les images sont construites par la CI (`.github/workflows/deploy.yml`) à chaque
+push sur `main` et publiées sur ghcr, étiquetées `sha-<commit>`. Le VPS les tire
+au lieu de les rebâtir : trois builds coûtaient ~10 min de CPU et plusieurs Go
+de couches intermédiaires sur un disque déjà tendu (#425).
+
+L'authentification se fait par **PAT classique appartenant à un compte
+machine**, jamais par une App ni par un compte personnel.
+
+Une GitHub App ne fonctionne pas ici : ghcr n'accepte pas les jetons
+d'installation d'App et `packages: read` ne donne pas le droit de tirer. C'est
+une limitation de plateforme reconnue par GitHub
+([discussion #171423](https://github.com/orgs/community/discussions/171423)),
+éprouvée sur ce projet le 2026-09-07 — `docker login` réussit, la lecture du
+manifeste renvoie 403.
+
+`deploy.sh` lit `GHCR_USER` / `GHCR_TOKEN` dans le `.env` (portée
+`read:packages` uniquement, cf. `ops/secrets/README.md`). Absents, le
+déploiement ne casse pas : le tirage est tenté en anonyme, puis bascule sur un
+build local **en le signalant**.
+
 ```bash
 cd /home/fedora/Arbore
-sudo docker compose build
-sudo docker compose up -d
+./deploy.sh                   # tire les images, ou builde en repli
 sudo docker compose ps        # backend + ai-generator + web → Up (healthy)
+```
+
+Pour un premier démarrage à la main, avant que `deploy.sh` ne soit en place :
+
+```bash
+export ARBORE_IMAGE_TAG="sha-$(git rev-parse HEAD)"
+sudo docker compose pull backend ai-generator web
+sudo -E docker compose up -d
+```
+
+Le commit servi est vérifiable sans accès au serveur — c'est ce qui rend une
+dérive prod ↔ `main` détectable (#341) :
+
+```bash
+curl -s https://api.arbore.app/health | jq -r .commit
 ```
 
 Health check end-to-end :
@@ -311,6 +345,20 @@ git rev-parse origin/main                               # ce qui devrait tourner
 
 À partir de maintenant, les déploiements suivants passent par
 `./deploy.sh` (qui prend un snapshot Mongo avant chaque rebuild).
+
+**Configuration nginx.** Versionnée dans `ops/nginx/` et appliquée par
+`deploy.sh`, validée par `nginx -t` **avant** rechargement — une configuration
+fautive interrompt le déploiement sans couper le service en cours.
+
+⚠️ Les **certificats** `/etc/ssl/cloudflare/origin.{pem,key}` restent hors dépôt :
+ce sont des secrets. Une machine neuve doit les recevoir avant que les blocs
+`listen 443` ne fonctionnent, faute de quoi nginx refusera de démarrer.
+
+⚠️ **Liste blanche MongoDB Atlas.** Un test depuis une machine extérieure indique
+que le cluster n'est pas restreint par IP. **À confirmer dans le tableau de bord
+Atlas** (*Network Access*) avant toute migration : si une restriction existe, une
+machine neuve serait refusée et le backend échouerait au démarrage sur la
+connexion Mongo — un symptôme qui n'oriente pas vers sa cause.
 
 **Garde-fou de branche.** `deploy.sh` refuse de déployer si le checkout n'est pas
 sur la branche attendue (#384). `git pull --ff-only` suit la branche **courante** :

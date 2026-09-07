@@ -188,8 +188,16 @@ func initStorageProvider() error {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("STORAGE_PROVIDER"))) {
 	case "", "filesystem", "fs":
 		storage = newFilesystemStorage()
+	case "s3", "r2", "minio":
+		// Un seul support pour les trois : ils parlent le même protocole. Le
+		// choix du fournisseur est une affaire de configuration.
+		provider, err := newS3Storage()
+		if err != nil {
+			return err
+		}
+		storage = provider
 	default:
-		return fmt.Errorf("STORAGE_PROVIDER inconnu: %q (valeurs acceptées: filesystem)",
+		return fmt.Errorf("STORAGE_PROVIDER inconnu: %q (valeurs acceptées: filesystem, s3, r2, minio)",
 			os.Getenv("STORAGE_PROVIDER"))
 	}
 	return nil

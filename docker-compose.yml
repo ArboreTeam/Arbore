@@ -97,6 +97,21 @@ services:
       # constat 5) : le web passe par son proxy Next.js côté serveur.
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-}
       - APPLE_TEAM_ID=${APPLE_TEAM_ID:-}
+      # Stockage des assets 3D (#401 étape 5). `docker compose` ne transmet au
+      # conteneur QUE les variables listées ici : le `.env` sert à la
+      # substitution ${VAR} dans ce fichier, pas à peupler l'environnement du
+      # conteneur. Sans ces lignes, le backend retombe silencieusement sur
+      # `filesystem` — ce qui masque l'absence de configuration au lieu de la
+      # signaler.
+      - STORAGE_PROVIDER=${STORAGE_PROVIDER:-}
+      - STORAGE_S3_ENDPOINT=${STORAGE_S3_ENDPOINT:-}
+      - STORAGE_S3_BUCKET=${STORAGE_S3_BUCKET:-}
+      - STORAGE_S3_REGION=${STORAGE_S3_REGION:-}
+      - STORAGE_S3_ACCESS_KEY=${STORAGE_S3_ACCESS_KEY:-}
+      - STORAGE_S3_SECRET_KEY=${STORAGE_S3_SECRET_KEY:-}
+      - STORAGE_S3_USE_SSL=${STORAGE_S3_USE_SSL:-}
+      - STORAGE_MAX_OPS_PER_MINUTE=${STORAGE_MAX_OPS_PER_MINUTE:-}
+      - STORAGE_MAX_OBJECT_BYTES=${STORAGE_MAX_OBJECT_BYTES:-}
       - APPLE_KEY_ID=${APPLE_KEY_ID:-}
       - APPLE_SIWA_CLIENT_ID=${APPLE_SIWA_CLIENT_ID:-}
       - APPLE_SIWA_KEY_PATH=/run/secrets/apple-siwa.p8

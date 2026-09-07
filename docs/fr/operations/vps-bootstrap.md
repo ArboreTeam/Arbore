@@ -517,6 +517,48 @@ externe direct est bloqué par le firewall ci-dessus.
 
 ---
 
+## Environnement de dev — seconde pile sur la même machine
+
+Depuis #434, la machine porte deux piles indépendantes. Elles partagent le
+noyau, le disque et le projet Firebase ; elles ne partagent **ni la version
+déployée, ni les ports, ni le fichier d'environnement**.
+
+| | production | dev |
+|---|---|---|
+| Checkout | `/home/fedora/Arbore` | `/home/fedora/Arbore-dev` |
+| Branche | `main` | `dev` |
+| Projet compose | `arbore-prod` | `arbore-dev` |
+| Conteneurs | `arbore-prod-*` | `arbore-dev-*` |
+| Ports | 8080 / 3000 / 8000 | 8081 / 3001 / 8001 |
+| Fichier d'environnement | `.env` | `.env.dev` |
+| Base Mongo | `arbore` | `arbore_test` |
+| Clé age | `arbore-prod.txt` | `arbore-dev.txt` |
+
+**Un checkout par environnement est nécessaire, pas confortable** :
+`deploy.sh` calcule l'étiquette d'image depuis `git rev-parse HEAD`. Un checkout
+partagé ferait déployer le même commit des deux côtés, ce qui annulerait
+l'intérêt d'avoir deux environnements.
+
+Déployer dev :
+
+```bash
+cd /home/fedora/Arbore-dev
+ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
+```
+
+Vérifier que les deux servent bien des commits distincts :
+
+```bash
+curl -s http://localhost:8080/health | jq -r .commit   # prod
+curl -s http://localhost:8081/health | jq -r .commit   # dev
+```
+
+**Un environnement non primaire ne touche pas à la configuration hôte** —
+crontab, unités systemd, nginx. Le crontab est rendu avec le chemin du checkout
+courant : appliqué depuis `Arbore-dev`, il ferait pointer les tâches de la
+production vers ce répertoire, job de réconciliation compris. Seul
+`ARBORE_PRIMARY_ENV` (défaut `prod`) les applique.
+
 ## Annexe — Rotation des secrets
 
 En cas de fuite (cf. historique des issues #117, #119) :

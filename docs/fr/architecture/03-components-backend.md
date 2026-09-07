@@ -17,10 +17,12 @@ flowchart TB
         protected["Groupe protégé<br/>(APIKeyMiddleware + FirebaseAuthMiddleware)"]
         handlers["Handlers HTTP<br/>users · plants · gardens · consents · models · assistant IA"]
         access["Accès données + clients externes<br/>(driver MongoDB · crypto · unsplash · apple)"]
+        storage["StorageProvider + garde<br/>(filesystem · R2 / S3 / MinIO)"]
 
         apikey --> handlers
         protected --> handlers
         handlers --> access
+        handlers --> storage
     end
 
     mongo[("[System Ext]<br/>MongoDB Atlas")]
@@ -29,6 +31,7 @@ flowchart TB
     unsplash["[System Ext]<br/>Unsplash API"]
     apple["[System Ext]<br/>Apple ID (SIWA)"]
     gemini["[System Ext]<br/>Google Gemini API"]
+    storage_ext[("[System Ext]<br/>Cloudflare R2 (S3)")]
 
     client --> public
     client --> apikey
@@ -39,13 +42,15 @@ flowchart TB
     access --> unsplash
     access --> apple
     handlers --> gemini
+    storage --> storage_ext
+    client -. "URL signée 15 min" .-> storage_ext
 
     classDef ext   fill:#999,stroke:#666,color:#fff
     classDef layer fill:#1168BD,stroke:#0B4884,color:#fff
     classDef cont  fill:#2E7D32,stroke:#1B5E20,color:#fff
-    class public,apikey,protected,handlers,access layer
+    class public,apikey,protected,handlers,access,storage layer
     class client,ai_gen cont
-    class mongo,firebase_admin,unsplash,apple,gemini ext
+    class mongo,firebase_admin,unsplash,apple,gemini,storage_ext ext
 ```
 
 Le backend expose **cinq niveaux d'accès** distincts, définis dans `buildRouter()` : des routes **publiques** (aucun middleware), un groupe **API-key-only**, un groupe **protégé** (clé API *puis* token Firebase), un sous-groupe **`account`** fermé aux invités, et un sous-groupe **`admin`**. Cette discipline est imposée par la composition des `router.Group(...)`.
@@ -181,6 +186,7 @@ Les proxies `/chat` et `/diagnose` sont découplés du fournisseur concret via `
 | Fichier / fonction | Rôle |
 |---|---|
 | `reconcile_guests.go` — `reconcileGuests` | **Job hors serveur** (#393), invoqué par `./main -reconcile-guests` : supprime les données Mongo dont l'`uid` a disparu de Firebase Auth, le nettoyage automatique des comptes anonymes inactifs les effaçant au bout de 30 jours. Quatre gardes, chacune sortant en erreur **sans rien supprimer** — fail-closed sur toute erreur Firebase, refus d'une énumération vide, grâce de 7 jours lue dans l'horodatage de l'`ObjectId`, simulation par défaut (`-apply` pour supprimer). La purge est `purgeUserData`, partagée avec `deleteUser`. Runbook : [`operations/vps-bootstrap.md`](../operations/vps-bootstrap.md). |
+| `storageprovider.go` — `StorageProvider` | Abstraction du stockage des assets 3D (#401 étape 5), sur le modèle de `llmprovider.go` : les handlers manipulent des types neutres (`StorageObject`, `ObjectInfo`) et ignorent le support concret. `STORAGE_PROVIDER` choisit l'implémentation, `filesystem` par défaut — sans configuration, le comportement est celui d'avant l'abstraction. Deux propriétés ont guidé la forme de l'interface : `Open` rend un `io.ReadSeekCloser` pour que `http.ServeContent` honore les en-têtes `Range` (un modèle `heavy` atteint 121 Mo, un téléchargement interrompu doit pouvoir reprendre), et `PresignedURL` permet à un stockage objet de servir ses fichiers lui-même plutôt que de les relayer par le backend. `ErrObjectNotFound` distingue l'absence (404) de la panne du support (500) — les confondre masquerait une indisponibilité derrière un « modèle introuvable ». |
 | `config.go` — `getConfig` | Données de référence du wizard et de l'entretien servies à `GET /config` (miroir du `GardenSuggestionEngine` iOS). |
 | `crypto.go` — `encrypt` / `decrypt` | Chiffrement **AES-256-GCM** au repos. Clé maître 32 octets (64 hex) résolue par `resolveMasterEncryptionKey` : **fichier `MASTER_ENCRYPTION_KEY_PATH` en priorité**, sinon repli sur la variable `MASTER_ENCRYPTION_KEY`. Le fichier est préféré parce qu'une variable est lisible par `docker inspect` et `/proc/<pid>/environ` — or cette clé déchiffre les refresh tokens Apple, elle était donc moins protégée que ce qu'elle protège (#338 constat 4). Un chemin défini mais illisible est une **erreur**, jamais un repli silencieux. Mise en cache via `sync.Once`, format `nonce \|\| ciphertext`. Seul appelant : le refresh token Apple (#210). |
 | `apple_revocation.go` | Révocation **Sign in with Apple** (Guideline 5.1.1(v)) : `generateClientSecret()` (JWT ES256), `exchangeAuthorizationCode()` → refresh token, `revokeRefreshToken()` à la suppression de compte. `revokeAppleBestEffort` n'échoue jamais la suppression. |

@@ -17,10 +17,12 @@ flowchart TB
         protected["Protected group<br/>(APIKeyMiddleware + FirebaseAuthMiddleware)"]
         handlers["HTTP handlers<br/>users · plants · gardens · consents · models · AI assistant"]
         access["Data access + external clients<br/>(MongoDB driver · crypto · unsplash · apple)"]
+        storage["StorageProvider + guard<br/>(filesystem · R2 / S3 / MinIO)"]
 
         apikey --> handlers
         protected --> handlers
         handlers --> access
+        handlers --> storage
     end
 
     mongo[("[System Ext]<br/>MongoDB Atlas")]
@@ -29,6 +31,7 @@ flowchart TB
     unsplash["[System Ext]<br/>Unsplash API"]
     apple["[System Ext]<br/>Apple ID (SIWA)"]
     gemini["[System Ext]<br/>Google Gemini API"]
+    storage_ext[("[System Ext]<br/>Cloudflare R2 (S3)")]
 
     client --> public
     client --> apikey
@@ -39,13 +42,15 @@ flowchart TB
     access --> unsplash
     access --> apple
     handlers --> gemini
+    storage --> storage_ext
+    client -. "15 min presigned URL" .-> storage_ext
 
     classDef ext   fill:#999,stroke:#666,color:#fff
     classDef layer fill:#1168BD,stroke:#0B4884,color:#fff
     classDef cont  fill:#2E7D32,stroke:#1B5E20,color:#fff
-    class public,apikey,protected,handlers,access layer
+    class public,apikey,protected,handlers,access,storage layer
     class client,ai_gen cont
-    class mongo,firebase_admin,unsplash,apple,gemini ext
+    class mongo,firebase_admin,unsplash,apple,gemini,storage_ext ext
 ```
 
 The backend exposes **five distinct access levels**, defined in `buildRouter()`: **public** routes (no middleware), an **API-key-only** group, a **protected** group (API key *then* Firebase token), an **`account`** subgroup closed to guests, and an **`admin`** subgroup. This discipline is enforced by how the `router.Group(...)` calls are composed.
@@ -181,6 +186,7 @@ The `/chat` and `/diagnose` proxies are decoupled from the concrete provider via
 | File / function | Role |
 |---|---|
 | `reconcile_guests.go` — `reconcileGuests` | **Out-of-server job** (#393), invoked with `./main -reconcile-guests`: deletes Mongo data whose `uid` has disappeared from Firebase Auth, since automatic cleanup of inactive anonymous accounts erases them after 30 days. Four guards, each exiting with an error **without deleting anything** — fail-closed on any Firebase error, refusal of an empty enumeration, 7-day grace read from the `ObjectId` timestamp, simulation by default (`-apply` to delete). The purge is `purgeUserData`, shared with `deleteUser`. Runbook: [`operations/vps-bootstrap.md`](../operations/vps-bootstrap.md). |
+| `storageprovider.go` — `StorageProvider` | Abstraction over 3D asset storage (#401 step 5), modelled on `llmprovider.go`: handlers manipulate neutral types (`StorageObject`, `ObjectInfo`) and know nothing of the concrete backing store. `STORAGE_PROVIDER` selects the implementation, `filesystem` by default — with no configuration, behaviour is exactly what it was before the abstraction. Two properties shaped the interface: `Open` returns an `io.ReadSeekCloser` so `http.ServeContent` honours `Range` headers (a `heavy` model reaches 121 MB; an interrupted download must be resumable), and `PresignedURL` lets an object store serve its own files rather than having the backend relay them. `ErrObjectNotFound` separates absence (404) from backing-store failure (500) — conflating them would hide an outage behind a "model not found". |
 | `config.go` — `getConfig` | Wizard and care reference data served at `GET /config` (mirror of the iOS `GardenSuggestionEngine`). |
 | `crypto.go` — `encrypt` / `decrypt` | **AES-256-GCM** encryption at rest. 32-byte master key (64 hex) resolved by `resolveMasterEncryptionKey`: **file `MASTER_ENCRYPTION_KEY_PATH` first**, otherwise falling back to the `MASTER_ENCRYPTION_KEY` variable. The file is preferred because a variable is readable through `docker inspect` and `/proc/<pid>/environ` — yet this key decrypts the Apple refresh tokens, so it was less protected than what it protects (#338 finding 4). A path that is set but unreadable is an **error**, never a silent fallback. Cached via `sync.Once`, format `nonce \|\| ciphertext`. Only caller: the Apple refresh token (#210). |
 | `apple_revocation.go` | **Sign in with Apple** revocation (Guideline 5.1.1(v)): `generateClientSecret()` (JWT ES256), `exchangeAuthorizationCode()` → refresh token, `revokeRefreshToken()` on account deletion. `revokeAppleBestEffort` never fails the deletion. |

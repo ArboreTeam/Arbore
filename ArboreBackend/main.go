@@ -1544,33 +1544,26 @@ func uploadPlantThumbnail(c *gin.Context) {
 		return
 	}
 
-	thumbnailsDir := strings.TrimSpace(os.Getenv("THUMBNAILS_DIR"))
-	if thumbnailsDir == "" {
-		thumbnailsDir = "./models/thumbnails"
-	}
-
-	// nolint:gosec // thumbnailsDir comes from trusted THUMBNAILS_DIR environment variable
-	if err := os.MkdirAll(thumbnailsDir, 0o750); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot create thumbnails directory"})
-		return
-	}
-
 	// Sanitize plantID to prevent path traversal
 	if strings.Contains(plantID, "..") || strings.ContainsAny(plantID, "/\\") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid plantID"})
 		return
 	}
-	targetPath := filepath.Join(thumbnailsDir, plantID+".png")
-	// nolint:gosec // plantID is sanitized above, thumbnailsDir is from trusted env
-	if err := os.WriteFile(targetPath, imageBytes, 0o600); err != nil {
+
+	if err := storage.Put(c.Request.Context(),
+		StorageObject{Bucket: BucketThumbnails, Name: plantID + ".png"},
+		imageBytes); err != nil {
+		log.Printf("❌ écriture vignette (%s) échouée : %v", storage.Name(), err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "cannot save thumbnail"})
 		return
 	}
 
+	// URL publique plutôt que chemin disque : le client en a l'usage, et
+	// l'emplacement réel n'a plus de sens une fois le stockage abstrait.
 	c.JSON(http.StatusOK, gin.H{
-		"message":  "Thumbnail uploaded",
-		"plantId":  plantID,
-		"filePath": targetPath,
+		"message": "Thumbnail uploaded",
+		"plantId": plantID,
+		"url":     "/models/thumbnails/" + plantID + ".png",
 	})
 }
 
@@ -2213,26 +2206,10 @@ func buildRouter() *gin.Engine {
 			return
 		}
 
-		thumbnailsBaseDir := strings.TrimSpace(os.Getenv("THUMBNAILS_DIR"))
-		if thumbnailsBaseDir == "" {
-			thumbnailsBaseDir = "./models/thumbnails"
-		}
-		filePath := filepath.Join(thumbnailsBaseDir, filename)
-
-		fmt.Println("📂 Looking for:", filePath)
-
-		// nolint:gosec // filename is sanitized above (no .. no / and must end with .png)
-		info, err := os.Stat(filePath)
-		if err != nil {
-			fmt.Println("❌ stat error:", err)
-			c.JSON(http.StatusNotFound, gin.H{"error": "Thumbnail not found"})
-			return
-		}
-
-		fmt.Println("✅ found file, size:", info.Size())
-
-		c.Header("Content-Type", "image/png")
-		c.File(filePath)
+		serveStorageObject(c,
+			StorageObject{Bucket: BucketThumbnails, Name: filename},
+			"image/png",
+			"Thumbnail not found")
 	})
 	// === ROUTES API KEY UNIQUEMENT (sans session Firebase) ===
 	// Config de référence (wizard + règles de soin, cf. #236) : non sensible,
@@ -2347,23 +2324,18 @@ func buildRouter() *gin.Engine {
 				return
 			}
 
-			// LOD: ?lod=heavy sert le modèle haute définition depuis ./models/heavy/.
+			// LOD: ?lod=heavy sert le modèle haute définition.
 			// (Une seule route : un sous-chemin /models/heavy/:filename ferait paniquer
 			// httprouter — collision wildcard ':filename' vs segment statique 'heavy'.)
-			baseDir := "./models"
+			bucket := BucketModelsLight
 			if c.Query("lod") == "heavy" {
-				baseDir = "./models/heavy"
-			}
-			filePath := fmt.Sprintf("%s/%s", baseDir, filename)
-
-			// Vérifier si le fichier existe
-			if _, err := os.Stat(filePath); os.IsNotExist(err) {
-				c.JSON(http.StatusNotFound, gin.H{"error": "Model not found"})
-				return
+				bucket = BucketModelsHeavy
 			}
 
-			c.Header("Content-Type", "model/vnd.usdz+zip")
-			c.File(filePath)
+			serveStorageObject(c,
+				StorageObject{Bucket: bucket, Name: filename},
+				"model/vnd.usdz+zip",
+				"Model not found")
 		})
 	}
 
@@ -2431,6 +2403,14 @@ func main() {
 	if err := initLLMProvider(); err != nil {
 		log.Fatalf("❌ LLM provider init failed: %v", err)
 	}
+
+	// Sélection du support de stockage des assets 3D (#401 étape 5).
+	// `filesystem` par défaut : sans configuration, le comportement est celui
+	// d'avant l'abstraction.
+	if err := initStorageProvider(); err != nil {
+		log.Fatalf("❌ Storage provider init failed: %v", err)
+	}
+	log.Printf("📦 Stockage des assets : %s", storage.Name())
 	log.Printf("🤖 Fournisseur d'IA actif : %s", providerName())
 
 	// Configurer la fonction de vérification ban pour le middleware

@@ -38,10 +38,33 @@ var (
 	testClient *mongo.Client
 )
 
-const (
-	prodDBName = "arbore"
-	testDBName = "arbore_test"
+// Noms de bases, PARAMÉTRABLES et non plus constants (#434).
+//
+// L'URI Mongo choisit le CLUSTER, pas la base : le nom était codé en dur ici.
+// Un second environnement pointant le même cluster ouvrait donc `arbore` —
+// c'est-à-dire les données de PRODUCTION — quelle que soit son URI. Constaté sur
+// l'environnement de dev, qui a démarré sur la base de production sans qu'aucun
+// réglage ne le laisse deviner.
+//
+// Le défaut reste `arbore` : une machine qui ne définit rien se comporte
+// exactement comme avant.
+var (
+	prodDBName = envOrDefault("MONGODB_DB", "arbore")
+	testDBName = envOrDefault("MONGODB_DB_TEST", "arbore_test")
+)
 
+// envOrDefault lit une variable d'environnement, ou retourne la valeur par
+// défaut si elle est absente ou vide. Une variable définie mais vide est
+// traitée comme absente : c'est le cas d'un `.env` qui déclare la clé sans la
+// renseigner, fréquent dans nos modèles.
+func envOrDefault(key, fallback string) string {
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		return v
+	}
+	return fallback
+}
+
+const (
 	maxJSONBodyBytes     = int64(10 << 20) // base64 diagnosis image included
 	maxProfilePhotoBytes = int64(5 << 20)
 	maxThumbnailBytes    = int64(8 << 20)

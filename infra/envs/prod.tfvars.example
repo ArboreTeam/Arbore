@@ -1,0 +1,23 @@
+# Copier en `prod.tfvars` et renseigner. Les valeurs réelles ne sont PAS
+# versionnées (cf. infra/.gitignore) ; seul ce modèle l'est, sur le principe
+# déjà retenu pour ops/secrets/env.template : l'inventaire dans git, les valeurs
+# dehors.
+#
+# Le jeton n'est PAS ici : il passe par TF_VAR_cloudflare_api_token, pour ne
+# jamais transiter par un fichier ni par la ligne de commande.
+
+environment = "prod"
+domain      = "arbore.app"
+
+api_hostname = "api.arbore.app"
+web_hostname = "web.arbore.app"
+
+# IPv4 de l'origine. Doit rester derrière le proxy Cloudflare : le pare-feu
+# d'origine n'accepte que les plages Cloudflare sur :80.
+origin_ip = ""
+
+cloudflare_account_id = ""
+cloudflare_zone_id    = ""
+
+r2_bucket_name  = "arbore-assets"
+r2_jurisdiction = "eu"

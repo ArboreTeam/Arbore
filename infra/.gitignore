@@ -1,0 +1,19 @@
+# Le state contient les secrets EN CLAIR (clés R2, identifiants Atlas). Il vit
+# dans R2 via le backend S3, jamais ici — mais un `terraform init` mal
+# configuré peut en produire un local, et il ne doit pas atteindre git.
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.tfstate.lock.info
+
+# Valeurs réelles. Les modèles (.example) sont versionnés, pas les valeurs.
+*.auto.tfvars
+envs/*.tfvars
+!envs/*.tfvars.example
+envs/*.backend.hcl
+!envs/*.backend.hcl.example
+
+# EXCEPTION VOLONTAIRE : .terraform.lock.hcl DOIT être commité.
+# C'est l'équivalent de go.sum. Sans lui, deux exécutions résolvent des
+# versions de provider différentes et produisent des plans différents — la
+# même erreur que l'étiquette `latest` corrigée en #426.

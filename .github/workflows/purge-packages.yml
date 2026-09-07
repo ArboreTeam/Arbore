@@ -1,0 +1,42 @@
+name: 🧹 Purge des versions d'images
+
+# Ne supprime RIEN par défaut. La suppression exige un déclenchement manuel avec
+# `apply: true` — même principe que le job de réconciliation (#393) : un
+# effaceur planifié sans mode sec est un incident en attente.
+#
+# La marche hebdomadaire sert à SIGNALER l'accumulation, pas à la corriger dans
+# le dos de l'équipe.
+
+on:
+  schedule:
+    # Lundi 06:00 UTC — le lendemain de la réconciliation, pour ne pas mêler
+    # deux journaux d'effaceurs le même jour.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Supprimer réellement (sinon simulation)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Purge
+        env:
+          # GITHUB_TOKEN suffit : il porte `packages: write` sur ce dépôt, et
+          # ghcr l'accepte — contrairement aux jetons d'installation d'App
+          # (cf. #425).
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/purge-package-versions.py \
+            --packages arbore-backend arbore-ai arbore-web \
+                       arbore/backend arbore/ai-generator \
+            ${{ inputs.apply && '--apply' || '' }}

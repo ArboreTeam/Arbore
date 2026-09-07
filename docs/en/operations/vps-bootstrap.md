@@ -516,6 +516,51 @@ external access is blocked by the firewall above.
 
 ---
 
+## Releases — deploying a fixed target rather than a branch
+
+`main` is a **moving** target: "deploy main" does not mean the same thing at
+different times. A release names a precise artefact, which makes rollback
+obvious — you redeploy `v1.2.0`, you do not hunt for a SHA in a log.
+
+### Cutting a release
+
+```bash
+git checkout main && git pull
+git tag -a v1.2.0 -m "Guest access, image pulling"
+git push origin v1.2.0
+```
+
+Two workflows react: `deploy.yml` publishes images tagged `1.2.0`, `1.2` and
+`sha-<commit>`; `release.yml` creates the GitHub release with its notes.
+
+### Deploying a release
+
+```bash
+cd /home/fedora/Arbore
+ARBORE_DEPLOY_TAG=v1.2.0 ./deploy.sh
+```
+
+The checkout moves to a detached HEAD on the tag. No `git pull`: it is
+meaningless outside a branch, and a release must not move.
+
+### Rolling back
+
+```bash
+ARBORE_DEPLOY_TAG=v1.1.0 ./deploy.sh
+```
+
+That is all. The `v1.1.0` image still exists: retention keeps versions carrying
+a `v*` tag **indefinitely**, and only purges branch `sha-` versions beyond the
+ten most recent (#442).
+
+### Returning to branch tracking
+
+```bash
+git checkout main && ./deploy.sh
+```
+
+Branch mode is the default; simply leave `ARBORE_DEPLOY_TAG` unset.
+
 ## Dev environment — a second stack on the same machine
 
 Since #434 the machine runs two independent stacks. They share the kernel, the

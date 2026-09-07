@@ -21,8 +21,8 @@ creation_rules:
   # Le motif couvre l'entrée EN CLAIR (`prod.env`, temporaire et gitignorée)
   # comme la sortie chiffrée (`prod.enc.env`) : SOPS applique la règle au
   # fichier qu'on lui donne à lire, pas à la redirection de sortie.
-  - path_regex: ^ops/secrets/prod(\.enc)?\.(env|json|p8|key)$
+  - path_regex: ^ops/secrets/prod(\.enc)?\.(env|json|p8|key|pem)$
     age: "age13g4e3n5hn3yexpvxkjr07qflzevr8qyr3try07hrr3gxa45dn40srxr2cq"
 
-  - path_regex: ^ops/secrets/dev(\.enc)?\.(env|json|p8|key)$
+  - path_regex: ^ops/secrets/dev(\.enc)?\.(env|json|p8|key|pem)$
     age: "age1kz62ge9c0c4t6waz3wlrwke2mtr70hgff0c5xmdg5pagpm6mpuyqnrdzwt"

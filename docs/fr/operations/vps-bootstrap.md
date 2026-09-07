@@ -285,11 +285,45 @@ Le bind mount dans `docker-compose.yml` monte ce fichier en lecture seule dans
 
 ## 8. Premier déploiement
 
+Les images sont construites par la CI (`.github/workflows/deploy.yml`) à chaque
+push sur `main` et publiées sur ghcr, étiquetées `sha-<commit>`. Le VPS les tire
+au lieu de les rebâtir : trois builds coûtaient ~10 min de CPU et plusieurs Go
+de couches intermédiaires sur un disque déjà tendu (#425).
+
+L'authentification se fait par **PAT classique appartenant à un compte
+machine**, jamais par une App ni par un compte personnel.
+
+Une GitHub App ne fonctionne pas ici : ghcr n'accepte pas les jetons
+d'installation d'App et `packages: read` ne donne pas le droit de tirer. C'est
+une limitation de plateforme reconnue par GitHub
+([discussion #171423](https://github.com/orgs/community/discussions/171423)),
+éprouvée sur ce projet le 2026-09-07 — `docker login` réussit, la lecture du
+manifeste renvoie 403.
+
+`deploy.sh` lit `GHCR_USER` / `GHCR_TOKEN` dans le `.env` (portée
+`read:packages` uniquement, cf. `ops/secrets/README.md`). Absents, le
+déploiement ne casse pas : le tirage est tenté en anonyme, puis bascule sur un
+build local **en le signalant**.
+
 ```bash
 cd /home/fedora/Arbore
-sudo docker compose build
-sudo docker compose up -d
+./deploy.sh                   # tire les images, ou builde en repli
 sudo docker compose ps        # backend + ai-generator + web → Up (healthy)
+```
+
+Pour un premier démarrage à la main, avant que `deploy.sh` ne soit en place :
+
+```bash
+export ARBORE_IMAGE_TAG="sha-$(git rev-parse HEAD)"
+sudo docker compose pull backend ai-generator web
+sudo -E docker compose up -d
+```
+
+Le commit servi est vérifiable sans accès au serveur — c'est ce qui rend une
+dérive prod ↔ `main` détectable (#341) :
+
+```bash
+curl -s https://api.arbore.app/health | jq -r .commit
 ```
 
 Health check end-to-end :

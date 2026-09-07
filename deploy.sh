@@ -6,7 +6,7 @@
 #   1. git pull --ff-only
 #   2. mongodump pre-deploy → backups/daily/arbore-predeploy-<ISO>.tar.gz
 #   3. rotation des snapshots > 14 jours
-#   4. docker compose build  (backend + ai-generator + web)
+#   4. tirage des images ghcr (repli : build local)
 #   5. docker compose up -d  (backend + ai-generator + web)
 #   6. health check backend (localhost:8080/health) + web (localhost:3000/)
 #
@@ -230,7 +230,12 @@ apply_secrets() {
     # une fraction de seconde.
     umask 077
 
-    local secrets_dir="/home/fedora/arbore-data/secrets"
+    # Dérivé, jamais en dur : `arbore-data/` est le frère du checkout. Un chemin
+    # contenant « fedora » enfermait le script sur une machine dont l'utilisateur
+    # porte ce nom — or le dépôt doit produire un déploiement sur N machines
+    # (#401), et celles d'après février n'auront pas cet utilisateur.
+    local data_dir="${ARBORE_DATA_DIR:-$(dirname "$SCRIPT_DIR")/arbore-data}"
+    local secrets_dir="$data_dir/secrets"
     # source_chiffrée:destination
     local mappings=(
         "$enc_dir/$env_name.enc.env:$SCRIPT_DIR/.env"
@@ -493,26 +498,104 @@ do_db_snapshot() {
     echo
 }
 
-# ───── [4/7] Docker compose build ─────────────────────────────────
-do_docker_build() {
+# ───── [4/7] Images (tirage ghcr, repli build local) ──────────────
+#
+# Le VPS buildait les trois images à chaque déploiement : ~10 min de CPU et
+# plusieurs Go de couches intermédiaires sur un disque déjà tendu, pour
+# reproduire un build que la CI vient de faire sur `main` (#425).
+#
+# On tire donc l'image publiée pour le commit courant. Le repli sur un build
+# local est délibéré : un déploiement ne doit pas dépendre de la disponibilité
+# de ghcr, et une image peut manquer (workflow en cours, `fail-fast: false` qui
+# a laissé passer un service). Le repli est bruyant, jamais silencieux — c'est
+# exactement le mode d'échec de #341, où la prod a dérivé sans que rien ne le
+# signale.
+IMAGE_TAG="latest"
+
+# Authentification ghcr.
+#
+# ⚠️ Une GitHub App NE FONCTIONNE PAS ici, et ce n'est pas une erreur de
+# configuration. La permission `packages: read` d'une App ne donne pas le droit
+# de tirer depuis ghcr, et ghcr n'accepte pas les jetons d'installation d'App.
+# C'est une limitation de plateforme reconnue par GitHub :
+#   https://github.com/orgs/community/discussions/171423
+#
+# Éprouvé ici le 2026-09-07 avec l'App `arbore-vps-deploy` (permissions
+# `metadata: read`, `packages: read`, package correctement rattaché au dépôt) :
+# `docker login` réussit, puis la lecture du manifeste renvoie 403 et l'API REST
+# 404. L'authentification passe, l'autorisation non.
+#
+# Les seuls modes acceptés pour un package PRIVÉ sont le PAT classique et le
+# `GITHUB_TOKEN` interne à Actions — indisponible hors runner. D'où le PAT.
+#
+# Il DOIT appartenir à un compte machine, pas à une personne : une production
+# ne doit pas dépendre d'un compte individuel qui part avec son propriétaire.
+ghcr_login() {
+    local token user
+    token="$(grep '^GHCR_TOKEN=' "$SCRIPT_DIR/.env" | sed 's/^GHCR_TOKEN=//' || true)"
+    user="$(grep '^GHCR_USER=' "$SCRIPT_DIR/.env" | sed 's/^GHCR_USER=//' || true)"
+
+    if [ -z "$token" ] || [ -z "$user" ]; then
+        return 1
+    fi
+
+    # --password-stdin : le jeton ne passe ni par argv (visible dans ps) ni par
+    # l'environnement.
+    if ! printf '%s' "$token" \
+        | "${DOCKER_PRIVILEGE[@]}" docker login ghcr.io -u "$user" --password-stdin >/dev/null 2>&1; then
+        warn "docker login ghcr refusé — jeton expiré ou révoqué ?"
+        return 1
+    fi
+    return 0
+}
+
+do_docker_images() {
     local git_sha
     git_sha="$(git rev-parse HEAD)"
-    step 4 "Docker compose build (commit ${git_sha:0:7})..."
+    step 4 "Images pour le commit ${git_sha:0:7}..."
+
+    local wanted="sha-$git_sha"
+
+    # L'authentification est tentée mais n'est PAS une condition du tirage : un
+    # package public se tire sans identifiants. Conditionner le pull au login
+    # ferait rebâtir en local à chaque déploiement, sans que rien ne le dise.
+    if ghcr_login; then
+        ok "Authentifié sur ghcr"
+    else
+        warn "Pas d'authentification ghcr — tirage tenté en anonyme"
+    fi
+
+    # ARBORE_IMAGE_TAG est consommée par docker-compose.yml. L'assignation vient
+    # après DOCKER_PRIVILEGE, cf. le commentaire à sa définition.
+    if "${DOCKER_PRIVILEGE[@]}" ARBORE_IMAGE_TAG="$wanted" \
+        docker compose pull backend ai-generator web; then
+        IMAGE_TAG="$wanted"
+        ok "Images tirées depuis ghcr ($wanted)"
+        echo
+        return 0
+    fi
+
+    warn "Tirage ghcr échoué pour $wanted — repli sur un build local"
+
+    # Repli. On étiquette avec le même nom que l'image attendue : `up` retrouve
+    # alors l'image en local et ne retente pas de la tirer.
     # GIT_COMMIT est injecté dans le binaire backend puis renvoyé par GET /health :
     # c'est ce qui rend une dérive prod ↔ main détectable d'un simple curl (#341).
-    # L'assignation vient après DOCKER_PRIVILEGE, cf. le commentaire à sa définition.
-    if ! "${DOCKER_PRIVILEGE[@]}" GIT_COMMIT="$git_sha" docker compose build backend ai-generator web; then
+    if ! "${DOCKER_PRIVILEGE[@]}" GIT_COMMIT="$git_sha" ARBORE_IMAGE_TAG="$wanted" \
+        docker compose build backend ai-generator web; then
         fail "docker compose build a échoué"
         exit 1
     fi
-    ok "Build réussi"
+    IMAGE_TAG="$wanted"
+    ok "Build local réussi"
     echo
 }
 
 # ───── [5/7] Docker compose up ────────────────────────────────────
 do_docker_up() {
     step 5 "Redémarrage des containers..."
-    if ! "${DOCKER_COMPOSE[@]}" up -d backend ai-generator web; then
+    if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_IMAGE_TAG="$IMAGE_TAG" \
+        docker compose up -d backend ai-generator web; then
         fail "docker compose up a échoué"
         exit 1
     fi
@@ -599,7 +682,7 @@ main() {
     do_git_pull
     do_apply_ops
     do_db_snapshot
-    do_docker_build
+    do_docker_images
     do_docker_up
     do_show_logs
     do_health_check

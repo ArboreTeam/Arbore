@@ -516,6 +516,47 @@ external access is blocked by the firewall above.
 
 ---
 
+## Dev environment — a second stack on the same machine
+
+Since #434 the machine runs two independent stacks. They share the kernel, the
+disk and the Firebase project; they share **neither the deployed version, nor
+the ports, nor the environment file**.
+
+| | production | dev |
+|---|---|---|
+| Checkout | `/home/fedora/Arbore` | `/home/fedora/Arbore-dev` |
+| Branch | `main` | `dev` |
+| Compose project | `arbore-prod` | `arbore-dev` |
+| Containers | `arbore-prod-*` | `arbore-dev-*` |
+| Ports | 8080 / 3000 / 8000 | 8081 / 3001 / 8001 |
+| Environment file | `.env` | `.env.dev` |
+| Mongo database | `arbore` | `arbore_test` |
+| age key | `arbore-prod.txt` | `arbore-dev.txt` |
+
+**One checkout per environment is required, not a convenience**: `deploy.sh`
+derives the image tag from `git rev-parse HEAD`. A shared checkout would deploy
+the same commit on both sides, defeating the point of having two environments.
+
+Deploying dev:
+
+```bash
+cd /home/fedora/Arbore-dev
+ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
+```
+
+Checking that both serve distinct commits:
+
+```bash
+curl -s http://localhost:8080/health | jq -r .commit   # prod
+curl -s http://localhost:8081/health | jq -r .commit   # dev
+```
+
+**A non-primary environment does not touch host configuration** — crontab,
+systemd units, nginx. The crontab is rendered with the current checkout path:
+applied from `Arbore-dev` it would point production's jobs at that directory,
+the reconciliation job included. Only `ARBORE_PRIMARY_ENV` (default `prod`)
+applies them.
+
 ## Appendix — Secret rotation
 
 In case of a leak (see issue history #117, #119):

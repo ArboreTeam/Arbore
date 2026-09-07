@@ -149,7 +149,42 @@ dizaines d'opérations par minute, pas en centaines.
 > Plusieurs redémarrages rapprochés relâcheraient donc la borne mensuelle. Une
 > alerte de facturation côté fournisseur reste utile.
 
+## L'environnement de développement — MinIO local
+
+MinIO est un serveur compatible S3 que l'on exécute soi-même. En développement,
+il remplace R2 sans compte, sans réseau sortant et sans coût — le même
+`StorageProvider` sert les deux.
+
+```bash
+docker compose --profile dev up -d minio
+```
+
+Le service est sous le **profil `dev`** : il ne démarre jamais en production, où
+`docker compose up` est lancé sans profil. Vérifiable :
+
+```bash
+docker compose config --services                # ai-generator backend web
+docker compose --profile dev config --services  # + minio
+```
+
+Console web sur `:9001`, API S3 sur `:9000`. Créer le seau `arbore-assets` à la
+première utilisation.
+
+La configuration vit dans `ops/secrets/dev.enc.env`, chiffrée vers la clé age
+**`dev`** — distincte de celle de production, de sorte qu'une fuite de l'une ne
+compromette pas l'autre. Deux valeurs seulement la distinguent de R2 :
+
+```
+STORAGE_S3_ENDPOINT=minio:9000
+STORAGE_S3_USE_SSL=false
+```
+
+Le plafond de la garde y est relevé à 5000 opérations par minute : le calcul qui
+justifie 200 en production vient du palier gratuit de R2, et n'a aucun sens sur
+un service local.
+
 ## Références
+
 
 #401 étape 5 (abstraction et quotas) · #341 (assets hors du checkout git) ·
 [`ops/secrets/README.md`](../../../ops/secrets/README.md) (procédure SOPS)

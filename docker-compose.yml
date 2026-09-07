@@ -11,7 +11,15 @@ services:
     # n'a ni le CPU ni le disque pour trois builds (#425). Le bloc `build:`
     # reste pour le dev local et pour le repli si le tirage échoue.
     image: ${ARBORE_IMAGE_PREFIX:-ghcr.io/arboreteam/arbore}-ai:${ARBORE_IMAGE_TAG:-latest}
-    container_name: arbore-ai-generator
+    # Le nom porte l'environnement (#434). Un nom de conteneur est GLOBAL à
+    # l'hôte : figé, il empêcherait une seconde pile de démarrer, quel que
+    # soit le projet compose.
+    #
+    # Paramétré plutôt que supprimé, car des scripts hors compose résolvent
+    # le conteneur par son nom — notamment le cron de réconciliation
+    # (ArboreBackend/scripts/reconcile-guests.sh). Les laisser deviner un
+    # nom généré `<projet>-<service>-1` serait plus fragile.
+    container_name: arbore-${ARBORE_ENV:-prod}-ai-generator
     restart: unless-stopped
     # Rotation des journaux (#385). Sans elle, le driver json-file croît sans
     # limite : les journaux d'accès contiennent des adresses IP (tronquées
@@ -42,7 +50,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
     ports:
-      - "${BIND_ADDRESS:-127.0.0.1}:8000:8000"
+      - "${BIND_ADDRESS:-127.0.0.1}:${AI_PORT:-8000}:8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
       interval: 30s
@@ -68,7 +76,7 @@ services:
     # n'a ni le CPU ni le disque pour trois builds (#425). Le bloc `build:`
     # reste pour le dev local et pour le repli si le tirage échoue.
     image: ${ARBORE_IMAGE_PREFIX:-ghcr.io/arboreteam/arbore}-backend:${ARBORE_IMAGE_TAG:-latest}
-    container_name: arbore-backend
+    container_name: arbore-${ARBORE_ENV:-prod}-backend
     restart: unless-stopped
     # Rotation des journaux (#385). Sans elle, le driver json-file croît sans
     # limite : les journaux d'accès contiennent des adresses IP (tronquées
@@ -182,7 +190,7 @@ services:
     # n'a ni le CPU ni le disque pour trois builds (#425). Le bloc `build:`
     # reste pour le dev local et pour le repli si le tirage échoue.
     image: ${ARBORE_IMAGE_PREFIX:-ghcr.io/arboreteam/arbore}-web:${ARBORE_IMAGE_TAG:-latest}
-    container_name: arbore-web
+    container_name: arbore-${ARBORE_ENV:-prod}-web
     restart: unless-stopped
     # Rotation des journaux (#385). Sans elle, le driver json-file croît sans
     # limite : les journaux d'accès contiennent des adresses IP (tronquées
@@ -255,7 +263,7 @@ services:
   # réelles. Les surcharger via l'environnement si besoin.
   minio:
     image: minio/minio:latest
-    container_name: arbore-minio
+    container_name: arbore-${ARBORE_ENV:-prod}-minio
     profiles: ["dev"]
     restart: unless-stopped
     command: server /data --console-address ":9001"

@@ -48,7 +48,19 @@ SNAPSHOT_RETENTION_DAYS=14
 # l'environnement — un préfixe `VAR=val sudo …` est silencieusement perdu
 # (vérifié sur le VPS). Vider ce tableau suffit si docker tourne sans sudo.
 DOCKER_PRIVILEGE=( sudo )
-DOCKER_COMPOSE=( "${DOCKER_PRIVILEGE[@]}" docker compose )
+# Un projet compose PAR ENVIRONNEMENT (#434). Sans nom de projet, compose le
+# déduit du nom du répertoire — identique pour les deux piles, qui se
+# recycleraient mutuellement : démarrer dev arrêterait la production, sans
+# qu'aucune commande n'échoue.
+ARBORE_ENV="${ARBORE_ENV:-prod}"
+COMPOSE_PROJECT="arbore-$ARBORE_ENV"
+
+# ARBORE_ENV est passée en ARGUMENT de sudo, pas exportée : sudo efface
+# l'environnement. Un simple `export` n'atteindrait jamais compose, et
+# `container_name` résoudrait toujours vers `arbore-prod-…` — déployer dev
+# recyclerait donc les conteneurs de PRODUCTION, sans qu'aucune commande
+# n'échoue. Même raison que pour GIT_COMMIT et ARBORE_IMAGE_TAG.
+DOCKER_COMPOSE=( "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" docker compose -p "$COMPOSE_PROJECT" )
 
 step() { printf '%b[%s/7]%b %s\n' "$YELLOW" "$1" "$NC" "$2"; }
 ok()   { printf '%b✅ %s%b\n' "$GREEN" "$1" "$NC"; }
@@ -593,8 +605,8 @@ do_docker_images() {
 
     # ARBORE_IMAGE_TAG est consommée par docker-compose.yml. L'assignation vient
     # après DOCKER_PRIVILEGE, cf. le commentaire à sa définition.
-    if "${DOCKER_PRIVILEGE[@]}" ARBORE_IMAGE_TAG="$wanted" \
-        docker compose pull backend ai-generator web; then
+    if "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" ARBORE_IMAGE_TAG="$wanted" \
+        docker compose -p "$COMPOSE_PROJECT" pull backend ai-generator web; then
         IMAGE_TAG="$wanted"
         ok "Images tirées depuis ghcr ($wanted)"
         echo
@@ -607,8 +619,8 @@ do_docker_images() {
     # alors l'image en local et ne retente pas de la tirer.
     # GIT_COMMIT est injecté dans le binaire backend puis renvoyé par GET /health :
     # c'est ce qui rend une dérive prod ↔ main détectable d'un simple curl (#341).
-    if ! "${DOCKER_PRIVILEGE[@]}" GIT_COMMIT="$git_sha" ARBORE_IMAGE_TAG="$wanted" \
-        docker compose build backend ai-generator web; then
+    if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" GIT_COMMIT="$git_sha" ARBORE_IMAGE_TAG="$wanted" \
+        docker compose -p "$COMPOSE_PROJECT" build backend ai-generator web; then
         fail "docker compose build a échoué"
         exit 1
     fi
@@ -620,8 +632,8 @@ do_docker_images() {
 # ───── [5/7] Docker compose up ────────────────────────────────────
 do_docker_up() {
     step 5 "Redémarrage des containers..."
-    if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_IMAGE_TAG="$IMAGE_TAG" \
-        docker compose up -d backend ai-generator web; then
+    if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" ARBORE_IMAGE_TAG="$IMAGE_TAG" \
+        docker compose -p "$COMPOSE_PROJECT" up -d backend ai-generator web; then
         fail "docker compose up a échoué"
         exit 1
     fi
@@ -666,7 +678,7 @@ check_web() {
     if [ "$code" = "200" ]; then
         ok "Web health 200 OK"
     else
-        warn "Web: HTTP $code sur :3000 (non bloquant — voir 'sudo docker logs --tail 50 arbore-web')"
+        warn "Web: HTTP $code sur :3000 (non bloquant — voir 'sudo docker logs --tail 50 arbore-${ARBORE_ENV:-prod}-web')"
     fi
 }
 
@@ -690,7 +702,7 @@ do_health_check() {
     done
 
     fail "Health: HTTP $http_code (après ${max_attempts} essais espacés de 2s)"
-    fail "Vérifier les logs : sudo docker logs --tail 50 arbore-backend"
+    fail "Vérifier les logs : sudo docker logs --tail 50 arbore-${ARBORE_ENV:-prod}-backend"
     exit 1
 }
 

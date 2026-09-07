@@ -23,7 +23,10 @@
 
 set -euo pipefail
 
-CONTAINER="${ARBORE_BACKEND_CONTAINER:-arbore-backend}"
+# Le nom porte l'environnement depuis #434 : `arbore-prod-backend`,
+# `arbore-dev-backend`. Le défaut vise la PRODUCTION, seule base que ce job
+# traite (cf. reconcile_guests.go, codé en dur sur prodDBName).
+CONTAINER="${ARBORE_BACKEND_CONTAINER:-arbore-${ARBORE_ENV:-prod}-backend}"
 APPLY=""
 
 case "${1:-}" in

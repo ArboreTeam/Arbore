@@ -114,9 +114,9 @@ fi
 #
 # Le container est piloté par docker-compose ; un simple restart suffit.
 # Variable BACKEND_CONTAINER overridable si le nom change (default
-# arbore-backend, défini dans docker-compose.yml).
+# arbore-<env>-backend, défini dans docker-compose.yml — #434).
 
-BACKEND_CONTAINER="${BACKEND_CONTAINER:-arbore-backend}"
+BACKEND_CONTAINER="${BACKEND_CONTAINER:-arbore-${ARBORE_ENV:-prod}-backend}"
 
 if command -v docker >/dev/null 2>&1 && sudo -n docker ps >/dev/null 2>&1; then
     if sudo -n docker restart "$BACKEND_CONTAINER" >/dev/null 2>&1; then

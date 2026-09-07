@@ -45,14 +45,35 @@ grep '^AGE-SECRET-KEY' ~/.config/sops/age/arbore-prod.txt | pbcopy
 pbcopy < /dev/null
 ```
 
-Restauration :
+Restauration — **nettoyer les espaces parasites** :
 
 ```bash
-pbpaste > ~/.config/sops/age/arbore-prod.txt
+pbpaste | tr -d '[:space:]' > ~/.config/sops/age/arbore-prod.txt
+printf '\n' >> ~/.config/sops/age/arbore-prod.txt
 chmod 600 ~/.config/sops/age/arbore-prod.txt
 ```
 
+> ⚠️ **Un `pbpaste` brut ne suffit pas.** Constaté le 2026-09-07 : le collage
+> depuis l'app Mots de passe ajoute une **espace** en fin de contenu. 75 octets
+> pour une clé de 74 caractères, et `age` refuse le fichier — les quatre
+> secrets deviennent illisibles, sans message explicite sur la cause.
+>
+> Le `tr -d '[:space:]'` retire l'espace, le `printf '\n'` rétablit le saut de
+> ligne final.
+
+### Vérifier la restauration
+
+```bash
+age-keygen -y ~/.config/sops/age/arbore-prod.txt
+```
+
+Doit afficher exactement la clé publique inscrite dans `.sops.yaml`. C'est le
+contrôle décisif : il prouve qu'on a restauré **la bonne** clé, sans jamais
+afficher la privée.
+
 **Éprouver la sauvegarde avant d'en dépendre.** Écarter la clé locale, vérifier que le déchiffrement échoue, restaurer, vérifier qu'il remarche. Une sauvegarde jamais testée n'en est pas une.
+
+Fait le 2026-09-07 pour `prod` : **deux défauts trouvés et corrigés** — le fichier entier aplati par l'app Mots de passe, puis une espace parasite au collage. Les deux rendaient la sauvegarde inutilisable, et aucun n'aurait été visible avant le jour où on en aurait eu besoin.
 
 ### 2. Générer une paire de clés par environnement
 

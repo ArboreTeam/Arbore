@@ -1,0 +1,26 @@
+# Copier en `prod.backend.hcl`, puis :
+#   terraform init -backend-config=envs/prod.backend.hcl
+#
+# Chaque environnement a sa propre clé, donc son propre state : le rayon d'un
+# apply est borné à un environnement (#401 §3). Les workspaces partageraient une
+# clé et rendraient la cible implicite.
+
+bucket = "arbore-tfstate"
+key    = "prod/terraform.tfstate"
+region = "auto"
+
+endpoints = {
+  s3 = "https://<account_id>.eu.r2.cloudflarestorage.com"
+}
+
+# R2 n'est pas AWS : ces validations interrogent des services inexistants ici.
+skip_credentials_validation = true
+skip_region_validation      = true
+skip_requesting_account_id  = true
+skip_metadata_api_check     = true
+skip_s3_checksum            = true
+use_path_style              = true
+
+# Verrouillage natif du backend S3 (Terraform >= 1.10). R2 n'offre pas
+# DynamoDB : sans ceci, deux `apply` simultanés corrompent le state.
+use_lockfile = true

@@ -240,7 +240,11 @@ services:
       # 127.0.0.1 (et pas localhost) : dans le conteneur, localhost résout
       # d'abord en IPv6 [::1] où Next.js n'écoute pas (bind 0.0.0.0 IPv4) →
       # faux "unhealthy". Forcer l'IPv4 rend le check fiable.
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/"]
+      # `/health` et non `/` (#469) : la racine est aussi la vraie page
+      # d'accueil, et la sonde y représentait 99,2 % du volume tracé par
+      # Sentry. Une route distincte permet de filtrer la sonde sans rendre
+      # invisible le trafic réel de la page d'accueil.
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/health"]
       interval: 30s
       timeout: 5s
       retries: 5

@@ -101,8 +101,17 @@ Une fois tous les secrets configurés, vous devriez avoir dans vos secrets GitHu
   Le fichier vivant est **`ArboreUi/ArboreUi/GoogleService-Info.plist`** — celui
   que les groupes synchronisés du projet Xcode embarquent. Un second exemplaire
   traînait à `ArboreUi/`, portant l'ancien identifiant `com.ArboreUi` ; il a été
-  supprimé, ainsi que l'étape CI qui écrivait le secret dans ces deux chemins
-  morts.
+  supprimé.
+
+  L'étape CI qui décodait le secret a été retirée avec lui. **Correction d'une
+  affirmation initialement erronée** : elle n'écrivait pas dans deux chemins
+  morts. Le job `ios_ui` ayant `working-directory: ./ArboreUi`, sa seconde
+  redirection visait bien le fichier vivant et l'écrasait à chaque exécution.
+
+  Le retrait reste justifié — le plist est versionné, donc le secret faisait
+  double emploi et pouvait diverger sans que rien ne le signale — mais il
+  change le comportement de la CI, contrairement à ce qui avait été annoncé.
+  `ios_ui` et `ios_ar` ont été vérifiés verts après le changement.
 - ✅ Ces fichiers sont déjà dans `.gitignore`
 - ✅ Le CI les recrée automatiquement à partir des secrets
 

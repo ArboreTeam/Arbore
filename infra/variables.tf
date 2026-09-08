@@ -71,3 +71,13 @@ variable "manage_zone_records" {
   type        = bool
   default     = false
 }
+
+variable "enable_dev_hostnames" {
+  description = <<-EOT
+    Créer les noms d'hôte de l'environnement de dev (`api-dev`).
+    Ils pointent la MÊME machine que la production : les deux piles cohabitent
+    sur le VPS, nginx les distingue par `server_name`.
+  EOT
+  type        = bool
+  default     = false
+}

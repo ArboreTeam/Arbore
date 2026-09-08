@@ -21,3 +21,6 @@ cloudflare_zone_id    = ""
 
 r2_bucket_name  = "arbore-assets"
 r2_jurisdiction = "eu"
+
+# Noms d'hôte de l'environnement de dev, sur la même machine (#434).
+enable_dev_hostnames = true

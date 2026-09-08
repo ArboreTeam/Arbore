@@ -93,6 +93,45 @@ of prod, which is the normal state while a feature is in flight.
 
 ---
 
+## Deploying an environment
+
+Deployment is **manual**, by choice: nobody ships to production without knowing
+it. On the VPS, one checkout per environment.
+
+```sh
+# production
+cd /home/fedora/Arbore && ./deploy.sh
+
+# development
+cd /home/fedora/Arbore-dev && ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
+```
+
+Three traps, all hit for real:
+
+**`ARBORE_DEPLOY_BRANCH=dev` is mandatory for dev.** Without it the script
+refuses: `Checkout sur 'dev', attendu 'main' — déploiement refusé`. This guard
+(#384) exists because a checkout left on a working branch would deploy that
+branch silently. The default is `main`, so production does not set the variable.
+
+**Do not run `deploy.sh` under `sudo`.** The script handles Docker elevation
+itself. Under `sudo`, git switches to root's keys and `git pull` fails with a
+misleading `Permission denied (publickey)`.
+
+**Wait for images to be published.** `deploy.sh` pulls the image tagged
+`sha-<commit>`; if the publish workflow has not finished, the pull fails and the
+script falls back to a local build — slow, and the running image is then no
+longer the one CI produced. Check before deploying:
+
+```sh
+gh api "repos/ArboreTeam/Arbore/actions/runs?head_sha=$(git rev-parse origin/main)" \
+  --jq '.workflow_runs[] | select(.name|test("Build")) | .conclusion'
+```
+
+`gh run list --commit <sha>` sometimes returns stale results, including deleted
+workflows. The direct API call above is reliable.
+
+---
+
 ## What differs on dev
 
 **Sentry is off.** Without a DSN the SDK does not start, so test crashes do not

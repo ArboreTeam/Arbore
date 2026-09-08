@@ -6,7 +6,26 @@ Crash and performance reporting for Arbore. **iOS** and **web** are wired up; th
 - iOS SDK: [`sentry-cocoa`](https://github.com/getsentry/sentry-cocoa) via Swift Package Manager
 - Web SDK: [`@sentry/nextjs`](https://github.com/getsentry/sentry-javascript)
 - Org: `epi-apps` (sentry.io, **EU** data residency)
-- Projects: `arbore-frontend` (iOS), `arbore-backend` (Gin — Phase 2)
+- Projects: `arbore-frontend` (iOS), `frontend-web-arbore` (web), `arbore-backend` (Gin — Phase 2)
+
+---
+
+## Measured state — 2026-09-08
+
+Read from the Sentry organization, not inferred from configuration. Re-measure
+rather than trust: these figures age.
+
+| project | SDK | traffic over 90 days |
+|---|---|---|
+| `arbore-frontend` (iOS) | ✅ | **nothing at all** |
+| `frontend-web-arbore` | ✅ | 192,800 spans, 0 errors |
+| `arbore-backend` | ❌ absent from `go.mod` | empty |
+
+**Zero errors across all three projects.** That is not a sign of health, it is
+the measurement of what is not wired up — see the two sections below.
+
+A Sentry organization `arbore` also exists, **empty**. It must not be used as a
+destination by mistake: everything lives in `epi-apps`.
 
 ## iOS
 
@@ -22,6 +41,13 @@ Crash and performance reporting for Arbore. **iOS** and **web** are wired up; th
 `SentryManager` is **disabled until a DSN is configured _and_ the user has explicitly opted in** to diagnostics sharing (the `privacy_shareData` toggle in the privacy settings, **off by default** — GDPR opt-in, #226). Without secrets or consent, the app builds and runs identically (handy for contributors and CI). `start()` is a no-op until consent is given; toggling consent starts/stops the SDK at runtime via `updateConsent(granted:uid:)`. The user context is the **Firebase UID only** (no email or name) and tracks auth state through a single `addStateDidChangeListener` in `AppDelegate`.
 
 Options set: `environment` (`debug`/`beta`), `releaseName = version+build`, `dist = build`, `tracesSampleRate = 0.1`, `attachScreenshot = false` (privacy), `attachViewHierarchy = true`, `sendDefaultPii = false`, plus a `beforeSend` hook that strips IP / email / name / request body from every event (keeping only the UID pseudonym).
+
+> ⚠️ **Consequence worth knowing: iOS reports nothing.** Zero events in 90 days
+> (measured 2026-09-08). The mechanism works — it is consent that is never
+> given, because it is never offered. The whole chain, DSN and dSYM upload
+> included, is in place and has no effect. A launch crash on a tester's device
+> is today indistinguishable from a tester who does not open the app. Open
+> decision in #469.
 
 ### iOS setup (one-shot)
 
@@ -64,6 +90,36 @@ Create the token at `sentry.io → Settings → Auth Tokens` (scopes `project:re
 | `web/sentry.edge.config.ts` | edge | same as server |
 
 `web/instrumentation.ts` loads the server/edge configs based on `NEXT_RUNTIME`. `tracesSampleRate = 0.1`. The error boundaries `web/app/error.tsx` and `web/app/global-error.tsx` call `Sentry.captureException`. Source map upload is opt-in via `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` (uncommitted); when absent, the build does not fail.
+
+### Healthcheck noise
+
+The Docker healthcheck hits `web/app/health/route.ts` — a dedicated route, not
+`/`. That transaction is excluded from tracing by `ignoreTransactions:
+['GET /health']` in `sentry.server.config.ts`.
+
+Before this separation (#469), the probe targeted `/` and accounted for
+**21,880 spans out of 22,060 over 7 days — 99.2%** of traced volume, while every
+real page combined totalled 180. Tracing described not the site's usage but the
+probe watching it — #388's pattern on the backend, transposed to the web.
+
+A dedicated route rather than a filter on `GET /`: the root is also the real
+homepage, and filtering it would have hidden the traffic we actually want.
+
+`force-dynamic` on the route is required — without it Next.js would prerender
+it, and the probe would only test the ability to serve a static file.
+
+### ⚠️ Environments are not distinguished
+
+`NEXT_PUBLIC_SENTRY_ENV` is **empty** in `web/.env`, so environment falls back to
+`NODE_ENV` — which is `production` in any Next build. **Both prod and dev report
+as `production`**, into the same project.
+
+`docker-compose.yml` does set this variable at runtime. It has no effect: Next.js
+replaces `NEXT_PUBLIC_*` with their values **at build time**, on the server as
+well as the client. The compiled code no longer reads `process.env`.
+
+**Corollary: this cannot be fixed at deploy time.** It needs a build `ARG`, hence
+one image per environment. Tracked in #469.
 
 ## Backend (Go)
 

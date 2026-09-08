@@ -1,0 +1,18 @@
+// Dev.xcconfig — configuration de build « Dev » (#456)
+//
+// Même socle que Debug — symboles, optimisations désactivées — mais pointe le
+// backend de DÉVELOPPEMENT au lieu de la production.
+//
+// Pourquoi une troisième configuration plutôt que « Debug = dev » :
+// on garde la possibilité de lancer un build de débogage CONTRE LA PRODUCTION,
+// ce qui est le seul moyen de reproduire un bug remonté par un bêta-testeur.
+//
+// Inclut le xcconfig Pods de DEBUG, pas un « Pods-….dev.xcconfig » : CocoaPods
+// ne génère un fichier que pour les configurations qu'il connaît, et exiger un
+// `pod install` avant tout build casserait un clone frais.
+#include "./Pods/Target Support Files/Pods-ArboreUi/Pods-ArboreUi.debug.xcconfig"
+
+// Secrets propres à dev. Inclusion OPTIONNELLE (`#include?`) : son absence ne
+// casse pas le build, elle laisse les variables vides — et `AppConfig` retombe
+// alors sur https://api.arbore.app.
+#include? "./Secrets.dev.xcconfig"

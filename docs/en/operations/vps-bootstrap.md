@@ -534,10 +534,15 @@ reproduce an incident reported by a user.
 
 ```bash
 cp ArboreUi/Secrets.dev.xcconfig.example ArboreUi/Secrets.dev.xcconfig
-sops ops/secrets/prod.enc.env   # read ARBORE_API_KEY_TEST there
+sops ops/secrets/dev.enc.env   # read ARBORE_API_KEY there
 ```
 
 Fill `ARBORE_API_KEY` with that value. The file is gitignored.
+
+> The source is **`dev.enc.env`**, not production's `ARBORE_API_KEY_TEST`. Both
+> hold the same value today — dev was derived from it — but they are two
+> independent settings: the day one is rotated without the other, only
+> `dev.enc.env` states what the dev backend accepts.
 
 **In use:** select the **"ArboreUi Dev"** scheme in Xcode before running on the
 device. The `ArboreUi` scheme stays on production.

@@ -110,6 +110,17 @@ services:
       - MONGODB_DB_TEST=${MONGODB_DB_TEST:-arbore_test}
       - ARBORE_API_KEY=${ARBORE_API_KEY}
       - ARBORE_API_KEY_TEST=${ARBORE_API_KEY_TEST:-}
+      # Sentry (#388). Sans DSN, le SDK ne démarre pas et le backend se comporte
+      # à l'identique — parité avec iOS et web.
+      #
+      # Le nom de SOURCE est `SENTRY_DSN_BACKEND`, pas `SENTRY_DSN` : le service
+      # web lit lui aussi `SENTRY_DSN` (plus bas), et un nom partagé enverrait
+      # ses erreurs serveur dans le projet du backend. Un DSN par service, donc
+      # une variable par service.
+      - SENTRY_DSN=${SENTRY_DSN_BACKEND:-}
+      # Fourni EXPLICITEMENT, jamais déduit : le web s'en est passé et prod comme
+      # dev y remontent sous l'étiquette `production`, indistinguables (#469).
+      - SENTRY_ENVIRONMENT=${ARBORE_ENV:-prod}
       - FIREBASE_SERVICE_ACCOUNT_PATH=/run/secrets/firebase-adminsdk.json
       # Clé maître : le FICHIER est préféré (cf. le montage plus bas). Tant que
       # MASTER_ENCRYPTION_KEY_PATH est vide, c'est la variable qui sert — ce qui

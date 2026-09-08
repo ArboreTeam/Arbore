@@ -64,6 +64,7 @@ linters:
         - appareil
         - correspondant
         - continuent
+        - infiniment
 
     revive:
       confidence: 0.8

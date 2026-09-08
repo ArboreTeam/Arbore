@@ -7,8 +7,14 @@
 #    FORWARD/DOCKER-USER). Ne proteger que INPUT laisserait donc l'origine
 #    ouverte des que nginx passerait en conteneur -- sans aucune erreur, le
 #    site continuant de fonctionner (#434).
-#  - :8080 (API Go) et :8000 (AI generator) -> pas d'acces externe direct
-#    (DOCKER-USER v4+v6, scope -i eth0 ; loopback + inter-conteneurs preserves)
+#  - AUCUN port de conteneur joignable depuis eth0, hors :80/:443 Cloudflare.
+#    Liste blanche et non enumeration : enumerer les ports se perime a chaque
+#    environnement ajoute. Constate le 2026-09-08 -- les ports de dev (8081,
+#    3001, 8001) et le web de prod (3000) n'avaient AUCUNE regle. Ce qui les
+#    protegeait n'etait pas le pare-feu mais une valeur par defaut dans
+#    docker-compose.yml (BIND_ADDRESS=127.0.0.1). Un `.env` posant 0.0.0.0 pour
+#    « acceder a dev depuis son poste » aurait expose six services a Internet,
+#    sans erreur ni avertissement (#456).
 set -euo pipefail
 
 EXT_IF="eth0"
@@ -41,40 +47,54 @@ iptables -C INPUT -p tcp --dport 80 -j CF-HTTP 2>/dev/null || \
 iptables -C INPUT -p tcp --dport 443 -j CF-HTTP 2>/dev/null || \
   iptables -A INPUT -p tcp --dport 443 -j CF-HTTP
 
-# --- :80 / :443 vers un CONTENEUR : Cloudflare uniquement ---
+# --- Trafic EXTERNE vers un CONTENEUR : liste blanche ---
 #
-# Chaine distincte de CF-HTTP, et ce n'est pas une duplication : dans
-# DOCKER-USER il faut RETURN et non ACCEPT. Un ACCEPT serait terminal pour tout
-# le hook FORWARD et court-circuiterait les propres regles de Docker (suivi de
-# connexion, isolation inter-reseaux). RETURN rend la main a DOCKER-USER, qui
-# poursuit normalement.
+# Un seul saut depuis DOCKER-USER vers une chaine qu'on maitrise entierement,
+# videe et reconstruite a chaque passage. C'est ce qui rend l'ordre des regles
+# DETERMINISTE : avec des `-I` successifs, l'ordre depend de ce qui existait
+# deja, donc d'un historique qu'on ne controle pas.
 #
-# Inerte tant que nginx ecoute sur l'hote : aucun trafic :80/:443 n'est alors
-# forwarde vers un conteneur. La regle devient active le jour ou nginx bascule.
-iptables -N CF-DOCKER 2>/dev/null || true
-iptables -F CF-DOCKER
-for cidr in "${CF_RANGES[@]}"; do iptables -A CF-DOCKER -s "$cidr" -j RETURN; done
-iptables -A CF-DOCKER -j DROP
-for port in 80 443; do
-  iptables -C DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j CF-DOCKER 2>/dev/null || \
-    iptables -I DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j CF-DOCKER
+# RETURN et non ACCEPT : un ACCEPT est terminal pour tout le hook FORWARD et
+# court-circuiterait les regles propres de Docker (suivi de connexion,
+# isolation inter-reseaux). RETURN rend la main a DOCKER-USER, qui poursuit.
+#
+# Portee `-i eth0` : le trafic inter-conteneurs passe par le bridge, pas par
+# eth0, et le trafic sortant porte `-o eth0`. Ni l'un ni l'autre n'est touche.
+iptables -N ARBORE-EXT 2>/dev/null || true
+iptables -F ARBORE-EXT
+for cidr in "${CF_RANGES[@]}"; do
+  iptables -A ARBORE-EXT -p tcp -m multiport --dports 80,443 -s "$cidr" -j RETURN
 done
+iptables -A ARBORE-EXT -j DROP
 
-# IPv6 vers un conteneur sur :80/:443 : DROP sec. Les enregistrements DNS de
-# l'origine sont des A (IPv4) -- Cloudflare joint donc l'origine en v4, et il
-# n'existe aucun chemin v6 legitime. Fail-closed, coherent avec le traitement
-# de :8080 et :8000 ci-dessous.
+iptables -C DOCKER-USER -i "$EXT_IF" -j ARBORE-EXT 2>/dev/null || \
+  iptables -I DOCKER-USER -i "$EXT_IF" -j ARBORE-EXT
+
+# Les regles par port de la version precedente deviennent redondantes : la
+# liste blanche les couvre toutes. On les retire pour qu'il ne reste qu'une
+# seule source de verite -- deux mecanismes concurrents finissent par diverger.
 for port in 80 443; do
-  ip6tables -C DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j DROP 2>/dev/null || \
-    ip6tables -I DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j DROP
+  while iptables -C DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j CF-DOCKER 2>/dev/null; do
+    iptables -D DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j CF-DOCKER
+  done
 done
+for port in 8080 8000; do
+  while iptables -C DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j DROP 2>/dev/null; do
+    iptables -D DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j DROP
+  done
+done
+iptables -F CF-DOCKER 2>/dev/null || true
+iptables -X CF-DOCKER 2>/dev/null || true
 
-# --- :8080 / :8000 : pas d'acces externe direct (v4 + v6) ---
-for fw in iptables ip6tables; do
-  for port in 8080 8000; do
-    $fw -C DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j DROP 2>/dev/null || \
-      $fw -I DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j DROP
+# IPv6 : DROP sec sur tout trafic externe vers un conteneur. Les enregistrements
+# de l'origine sont des A (IPv4), Cloudflare joint donc l'origine en v4 et aucun
+# chemin v6 legitime n'existe.
+ip6tables -C DOCKER-USER -i "$EXT_IF" -j DROP 2>/dev/null || \
+  ip6tables -I DOCKER-USER -i "$EXT_IF" -j DROP
+for port in 80 443 8080 8000; do
+  while ip6tables -C DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j DROP 2>/dev/null; do
+    ip6tables -D DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j DROP
   done
 done
 
-echo "cf-http-firewall applied OK (${#CF_RANGES[@]} CF ranges, INPUT + DOCKER-USER)"
+echo "cf-http-firewall applied OK (${#CF_RANGES[@]} plages CF ; INPUT + liste blanche DOCKER-USER)"

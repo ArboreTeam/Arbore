@@ -171,10 +171,11 @@ flowchart TB
         end
         nginx["nginx (hôte)<br/>:80 / :443"]
     end
-    nginx --> p1
-    nginx --> p2
+    nginx -->|api.arbore.app| p1
+    nginx -->|web.arbore.app| p2
+    nginx -->|api-dev.arbore.app| d1
     prod -.->|arbore| mongo[("MongoDB Atlas")]
-    devenv -.->|arbore_test| mongo
+    devenv -.->|arbore_dev| mongo
 ```
 
 **Un checkout git par environnement est nécessaire, pas confortable.**
@@ -188,6 +189,8 @@ crontab est rendu avec le chemin du checkout courant : appliqué depuis
 de réconciliation compris.
 
 Détail opérationnel dans [`../operations/vps-bootstrap.md`](../operations/vps-bootstrap.md).
+Pour viser le dev depuis l'app iOS, voir
+[`../operations/environnements.md`](../operations/environnements.md).
 
 ---
 

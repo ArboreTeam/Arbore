@@ -36,6 +36,9 @@ xcuserdata/
 timeline.xctimeline
 playground.xcworkspace
 Secrets.xcconfig
+# Secrets de la configuration « Dev » (#456). Même nature que
+# Secrets.xcconfig : jamais dans git. Le modèle .example, lui, l'est.
+Secrets.dev.xcconfig
 
 # Swift Package Manager
 .build/

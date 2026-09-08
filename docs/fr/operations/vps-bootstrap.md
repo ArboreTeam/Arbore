@@ -517,6 +517,35 @@ externe direct est bloqué par le firewall ci-dessus.
 
 ---
 
+### Pointer l'app iOS vers dev
+
+Le projet Xcode porte **trois** configurations de build :
+
+| Configuration | Backend | Usage |
+|---|---|---|
+| `Debug` | `api.arbore.app` | débogage **contre la production** — reproduire un bug de bêta-testeur |
+| `Dev` | `api-dev.arbore.app` | développement courant |
+| `Release` | `api.arbore.app` | archive TestFlight |
+
+Une troisième configuration plutôt que « Debug = dev » : sans elle, on perdrait
+la possibilité de déboguer contre la production, qui est le seul moyen de
+reproduire fidèlement un incident remonté par un utilisateur.
+
+**Mise en place, une fois :**
+
+```bash
+cp ArboreUi/Secrets.dev.xcconfig.example ArboreUi/Secrets.dev.xcconfig
+sops ops/secrets/prod.enc.env   # y lire ARBORE_API_KEY_TEST
+```
+
+Renseigner `ARBORE_API_KEY` avec cette valeur. Le fichier est gitignoré.
+
+**À l'usage :** sélectionner le schéma **« ArboreUi Dev »** dans Xcode avant de
+lancer sur l'appareil. Le schéma `ArboreUi` reste sur la production.
+
+Sentry est laissé vide en dev : sans DSN il ne démarre pas, et les événements de
+test ne polluent pas les rapports de production.
+
 ## Releases — déployer une cible figée plutôt qu'une branche
 
 `main` est une cible **mouvante** : « déployer main » ne désigne pas la même

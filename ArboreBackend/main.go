@@ -2394,8 +2394,15 @@ func main() {
 
 	loadDotEnv(".env")
 
+	// Sentry AVANT tout le reste (#388) : les échecs de démarrage qui suivent — Mongo,
+	// Firebase, configuration de sécurité — sont précisément les échecs qu'on
+	// veut voir remonter. Initialisé après `loadDotEnv` seulement, puisque le
+	// DSN en vient. Sans DSN, c'est un no-op et le démarrage est inchangé.
+	initSentry()
+	defer flushSentry()
+
 	if err := connectMongoDatabases(context.Background()); err != nil {
-		log.Fatalf("❌ MongoDB initialization failed: %v", err)
+		fatalf("❌ MongoDB initialization failed: %v", err)
 	}
 	defer disconnectMongoDatabases(context.Background())
 
@@ -2407,31 +2414,31 @@ func main() {
 	// En release mode, toute erreur est fatale : le backend refuse de démarrer
 	// sans authentification pour éviter d'exposer les endpoints sans token.
 	if err := middleware.InitFirebase(); err != nil {
-		log.Fatalf("❌ Firebase init failed: %v", err)
+		fatalf("❌ Firebase init failed: %v", err)
 	}
 	if err := validateReleaseSecurityConfig(); err != nil {
-		log.Fatalf("❌ Production security configuration invalid: %v", err)
+		fatalf("❌ Production security configuration invalid: %v", err)
 	}
 
 	// Le job tourne une fois Mongo et Firebase prêts, et quitte sans monter le
 	// routeur ni écouter sur un port.
 	if *reconcileGuestsMode {
 		if err := runReconcileGuests(*applyDeletions); err != nil {
-			log.Fatalf("❌ Réconciliation interrompue (aucune suppression n'en découle): %v", err)
+			fatalf("❌ Réconciliation interrompue (aucune suppression n'en découle): %v", err)
 		}
 		return
 	}
 
 	// Sélection du fournisseur d'IA/LLM (Gemini par défaut, cf. AI_PROVIDER).
 	if err := initLLMProvider(); err != nil {
-		log.Fatalf("❌ LLM provider init failed: %v", err)
+		fatalf("❌ LLM provider init failed: %v", err)
 	}
 
 	// Sélection du support de stockage des assets 3D (#401 étape 5).
 	// `filesystem` par défaut : sans configuration, le comportement est celui
 	// d'avant l'abstraction.
 	if err := initStorageProvider(); err != nil {
-		log.Fatalf("❌ Storage provider init failed: %v", err)
+		fatalf("❌ Storage provider init failed: %v", err)
 	}
 	log.Printf("📦 Stockage des assets : %s", storage.Name())
 	log.Printf("🤖 Fournisseur d'IA actif : %s", providerName())

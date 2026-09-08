@@ -1,12 +1,13 @@
 # Observabilité (Sentry)
 
-Reporting de crashs et de performance pour Arbore. **iOS** et **web** sont câblés ; le backend Go/Gin et l'AiGenerator Python sont en **Phase 2** (issues séparées).
+Reporting de crashs et de performance pour Arbore. **iOS**, **web** et **backend Go/Gin** sont câblés ; l'AiGenerator Python reste en **Phase 2**.
 
 - Issue : #205
 - SDK iOS : [`sentry-cocoa`](https://github.com/getsentry/sentry-cocoa) via Swift Package Manager
 - SDK web : [`@sentry/nextjs`](https://github.com/getsentry/sentry-javascript)
 - Org : `epi-apps` (sentry.io, résidence des données **UE**)
-- Projets : `arbore-frontend` (iOS), `frontend-web-arbore` (web), `arbore-backend` (Gin — Phase 2)
+- Projets : `arbore-frontend` (iOS), `frontend-web-arbore` (web), `arbore-backend` (Gin)
+- SDK backend : [`sentry-go`](https://github.com/getsentry/sentry-go) + `sentrygin`
 
 ---
 
@@ -123,7 +124,25 @@ côté serveur comme côté client. Le code compilé ne lit plus `process.env`.
 
 ## Backend (Go)
 
-> ⚠️ **Le backend Go n'a pas de Sentry** (point 2 de [#388](https://github.com/ArboreTeam/Arbore/issues/388)). Les panics interceptés par `gin.Recovery()` et les réponses 5xx partent sur stdout et **nulle part ailleurs** : pas d'agrégation, pas de déduplication, pas d'alerte. Aujourd'hui, `docker logs arbore-backend` est le seul endroit où chercher.
+`sentry-go` + `sentrygin`, câblés dans `ArboreBackend/observability.go` (#388). **No-op sans DSN**, comme iOS et web : l'absence de secret n'empêche jamais le backend de démarrer.
+
+| Ce qui est capturé | Par quoi |
+|---|---|
+| Panics | `sentrygin` avec `Repanic: true` |
+| Réponses 5xx délibérées | `captureServerErrors()` |
+| Échecs de **démarrage** | `fatalf()` — voir ci-dessous |
+
+**L'ordre des middlewares n'est pas arbitraire.** `sentrygin` est monté APRÈS `gin.Recovery()`, donc Recovery est le gestionnaire extérieur : sentrygin capture le panic et le relance, Recovery le rattrape et répond 500. Monté à l'envers, Sentry avalerait le panic et le client verrait une connexion coupée.
+
+**Panics et 5xx ne se dupliquent pas**, bien que les deux mécanismes coexistent : un panic remonte la pile et fait sauter tout ce qui suit `c.Next()`. `captureServerErrors` ne s'exécute donc jamais pour un 500 issu d'un panic.
+
+**`fatalf` remplace `log.Fatalf` au démarrage.** `log.Fatalf` appelle `os.Exit`, qui n'exécute aucun `defer` : un `defer flushSentry()` ne couvre pas les échecs d'initialisation. Or un backend qui refuse de démarrer est le cas le plus grave et le plus silencieux — le conteneur boucle, aucune requête n'arrive, le middleware ne voit rien.
+
+**`SendDefaultPII` est à `false`, et doit le rester.** `true` joindrait l'adresse IP complète et les en-têtes aux événements, ce qui annulerait la troncature en `/24` introduite par [#385](https://github.com/ArboreTeam/Arbore/issues/385).
+
+**Un seul projet, étiqueté par environnement.** `SENTRY_ENVIRONMENT` vaut `prod` ou `dev` et vient de `ARBORE_ENV`. Sentry filtre nativement dessus ; deux projets doubleraient les règles d'alerte pour une séparation que l'étiquette fournit déjà.
+
+> ⚠️ La variable de source s'appelle **`SENTRY_DSN_BACKEND`**, pas `SENTRY_DSN` : le service web lit ce dernier, et un nom partagé enverrait ses erreurs serveur dans le projet du backend. Un DSN par service, donc une variable par service.
 
 ### Journal d'accès
 
@@ -157,5 +176,6 @@ Au débit observé (~500 Ko/jour côté backend), 30 Mo représentent environ **
 ## Notes / suites
 
 - Le pont breadcrumbs depuis l'`AppLog` de l'app iOS (nav / session AR / sauvegarde jardin) est un nice-to-have pas encore câblé.
-- Backend (`sentry-go` + `sentrygin`) et AiGenerator (`sentry-python`) sont en **Phase 2** ; le projet Sentry `arbore-backend` existe déjà. Suivi dans [#388](https://github.com/ArboreTeam/Arbore/issues/388) — tant que ce n'est pas fait, les erreurs backend ne survivent pas à la rotation des journaux Docker.
+- Le backend est instrumenté depuis #388. Reste l'**AiGenerator** (`sentry-python`), non câblé : ses erreurs ne survivent toujours pas à la rotation des journaux Docker.
+- Couverture partielle assumée côté 5xx : un handler qui répond 500 produit un événement synthétique (route + statut) faute d'erreur déclarée — le code compte 40 réponses 500 pour 2 appels à `c.Error(...)`. Enrichir suppose que les handlers déclarent leurs erreurs, ce qui est un chantier de fond.
 - Session Replay est une fonctionnalité payante — non utilisée.

@@ -93,5 +93,14 @@ func newRouterEngine() *gin.Engine {
 		SkipPaths: accessLogSkippedPaths,
 	}))
 	engine.Use(gin.Recovery())
+
+	// APRÈS Recovery, délibérément. sentrygin capture puis relance le panic
+	// (`Repanic: true`) ; il faut donc que Recovery, enregistré avant, soit le
+	// gestionnaire extérieur qui le rattrape et répond 500. Monté à l'envers,
+	// Sentry avalerait le panic et le client verrait une connexion coupée.
+	//
+	// No-op tant que Sentry n'a pas démarré : sans DSN, aucun coût par requête.
+	useSentryMiddleware(engine)
+
 	return engine
 }

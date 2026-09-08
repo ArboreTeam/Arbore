@@ -1,12 +1,13 @@
 # Observability (Sentry)
 
-Crash and performance reporting for Arbore. **iOS** and **web** are wired up; the Go/Gin backend and the Python AiGenerator are in **Phase 2** (separate issues).
+Crash and performance reporting for Arbore. **iOS**, **web** and the **Go/Gin backend** are wired up; the Python AiGenerator remains in **Phase 2**.
 
 - Issue: #205
 - iOS SDK: [`sentry-cocoa`](https://github.com/getsentry/sentry-cocoa) via Swift Package Manager
 - Web SDK: [`@sentry/nextjs`](https://github.com/getsentry/sentry-javascript)
 - Org: `epi-apps` (sentry.io, **EU** data residency)
-- Projects: `arbore-frontend` (iOS), `frontend-web-arbore` (web), `arbore-backend` (Gin — Phase 2)
+- Projects: `arbore-frontend` (iOS), `frontend-web-arbore` (web), `arbore-backend` (Gin)
+- Backend SDK: [`sentry-go`](https://github.com/getsentry/sentry-go) + `sentrygin`
 
 ---
 
@@ -123,7 +124,25 @@ one image per environment. Tracked in #469.
 
 ## Backend (Go)
 
-> ⚠️ **The Go backend has no Sentry** (point 2 of [#388](https://github.com/ArboreTeam/Arbore/issues/388)). Panics caught by `gin.Recovery()` and 5xx responses go to stdout and **nowhere else**: no aggregation, no deduplication, no alerting. Today, `docker logs arbore-backend` is the only place to look.
+`sentry-go` + `sentrygin`, wired in `ArboreBackend/observability.go` (#388). **No-op without a DSN**, like iOS and web: a missing secret never prevents the backend from starting.
+
+| What is captured | By what |
+|---|---|
+| Panics | `sentrygin` with `Repanic: true` |
+| Deliberate 5xx responses | `captureServerErrors()` |
+| **Startup** failures | `fatalf()` — see below |
+
+**Middleware order is not arbitrary.** `sentrygin` is mounted AFTER `gin.Recovery()`, so Recovery is the outer handler: sentrygin captures the panic and re-raises it, Recovery catches it and returns 500. Mounted the other way round, Sentry would swallow the panic and the client would see a dropped connection.
+
+**Panics and 5xx do not duplicate**, despite both mechanisms coexisting: a panic unwinds the stack and skips everything after `c.Next()`. `captureServerErrors` therefore never runs for a panic-induced 500.
+
+**`fatalf` replaces `log.Fatalf` at startup.** `log.Fatalf` calls `os.Exit`, which runs no `defer`: a `defer flushSentry()` does not cover initialisation failures. Yet a backend that refuses to start is the gravest and most silent case — the container loops, no request arrives, the middleware sees nothing.
+
+**`SendDefaultPII` is `false`, and must stay so.** `true` would attach the full IP address and headers to events, undoing the `/24` truncation introduced by [#385](https://github.com/ArboreTeam/Arbore/issues/385).
+
+**One project, tagged by environment.** `SENTRY_ENVIRONMENT` is `prod` or `dev`, derived from `ARBORE_ENV`. Sentry filters on it natively; two projects would double the alert rules for a separation the tag already provides.
+
+> ⚠️ The source variable is named **`SENTRY_DSN_BACKEND`**, not `SENTRY_DSN`: the web service reads the latter, and a shared name would send its server errors into the backend's project. One DSN per service, hence one variable per service.
 
 ### Access log
 
@@ -157,5 +176,6 @@ At the observed rate (~500 KB/day for the backend), 30 MB is roughly **two month
 ## Notes / follow-ups
 
 - The breadcrumbs bridge from the iOS app's `AppLog` (nav / AR session / garden save) is a nice-to-have, not wired up yet.
-- Backend (`sentry-go` + `sentrygin`) and AiGenerator (`sentry-python`) are in **Phase 2**; the `arbore-backend` Sentry project already exists. Tracked in [#388](https://github.com/ArboreTeam/Arbore/issues/388) — until it is done, backend errors do not survive Docker log rotation.
+- The backend has been instrumented since #388. The **AiGenerator** (`sentry-python`) remains unwired: its errors still do not survive Docker log rotation.
+- Deliberate partial coverage on 5xx: a handler returning 500 produces a synthetic event (route + status) for lack of a declared error — the code counts 40 such responses against 2 `c.Error(...)` calls. Enriching this requires handlers to declare their errors, which is a deeper change.
 - Session Replay is a paid feature — not used.

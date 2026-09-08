@@ -170,10 +170,11 @@ flowchart TB
         end
         nginx["nginx (host)<br/>:80 / :443"]
     end
-    nginx --> p1
-    nginx --> p2
+    nginx -->|api.arbore.app| p1
+    nginx -->|web.arbore.app| p2
+    nginx -->|api-dev.arbore.app| d1
     prod -.->|arbore| mongo[("MongoDB Atlas")]
-    devenv -.->|arbore_test| mongo
+    devenv -.->|arbore_dev| mongo
 ```
 
 **One git checkout per environment is required, not a convenience.**
@@ -186,6 +187,8 @@ rendered with the current checkout path: applied from `Arbore-dev`, it would
 point production's jobs at that directory, the reconciliation job included.
 
 Operational detail in [`../operations/vps-bootstrap.md`](../operations/vps-bootstrap.md).
+To target dev from the iOS app, see
+[`../operations/environments.md`](../operations/environments.md).
 
 ---
 

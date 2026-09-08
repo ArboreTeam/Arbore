@@ -12,7 +12,7 @@ Ce document explique comment configurer les secrets GitHub nécessaires pour que
 
 ```bash
 # Depuis le répertoire ArboreUi
-base64 -i GoogleService-Info.plist | pbcopy
+base64 -i ArboreUi/ArboreUi/GoogleService-Info.plist | pbcopy
 ```
 
 Cela copie le fichier encodé dans votre presse-papier.
@@ -89,7 +89,20 @@ Une fois tous les secrets configurés, vous devriez avoir dans vos secrets GitHu
 ## 🔒 Sécurité
 
 - ⚠️ **Ne partagez jamais** ces secrets publiquement
-- ⚠️ **Ne committez jamais** `GoogleService-Info.plist` ou `Secrets.xcconfig` dans Git
+- ⚠️ **Ne committez jamais** `Secrets.xcconfig` — il contient le DSN Sentry et
+  les clés applicatives.
+- ℹ️ **`GoogleService-Info.plist` EST versionné**, délibérément (#456). Son
+  contenu — `API_KEY`, `PROJECT_ID`, `BUNDLE_ID` — n'est pas secret : il
+  identifie le projet Firebase et se retrouve de toute façon dans le binaire
+  distribué. La sécurité repose sur les Security Rules et les domaines
+  autorisés, pas sur le masquage de ces valeurs. Même raisonnement que les
+  variables `NEXT_PUBLIC_*` du web.
+
+  Le fichier vivant est **`ArboreUi/ArboreUi/GoogleService-Info.plist`** — celui
+  que les groupes synchronisés du projet Xcode embarquent. Un second exemplaire
+  traînait à `ArboreUi/`, portant l'ancien identifiant `com.ArboreUi` ; il a été
+  supprimé, ainsi que l'étape CI qui écrivait le secret dans ces deux chemins
+  morts.
 - ✅ Ces fichiers sont déjà dans `.gitignore`
 - ✅ Le CI les recrée automatiquement à partir des secrets
 
@@ -99,7 +112,7 @@ Pour tester que vos secrets sont corrects:
 
 ```bash
 # Vérifier que GoogleService-Info.plist existe
-ls -la ArboreUi/GoogleService-Info.plist
+ls -la ArboreUi/ArboreUi/GoogleService-Info.plist
 
 # Vérifier que Secrets.xcconfig existe
 ls -la ArboreUi/Secrets.xcconfig

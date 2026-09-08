@@ -16,7 +16,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Vérifier que nous sommes dans le bon répertoire
-if [ ! -f "ArboreUi/GoogleService-Info.plist" ]; then
+if [ ! -f "ArboreUi/ArboreUi/GoogleService-Info.plist" ]; then
     echo "❌ Erreur: Lancez ce script depuis la racine du projet Arbore"
     exit 1
 fi
@@ -24,8 +24,8 @@ fi
 echo -e "${BLUE}📱 1. Encodage de GoogleService-Info.plist${NC}"
 echo "─────────────────────────────────────────────"
 
-if [ -f "ArboreUi/GoogleService-Info.plist" ]; then
-    GOOGLE_SERVICE=$(base64 -i ArboreUi/GoogleService-Info.plist)
+if [ -f "ArboreUi/ArboreUi/GoogleService-Info.plist" ]; then
+    GOOGLE_SERVICE=$(base64 -i ArboreUi/ArboreUi/GoogleService-Info.plist)
     echo -e "${GREEN}✅ GoogleService-Info.plist encodé${NC}"
     echo ""
     echo -e "Secret Name: ${YELLOW}GOOGLE_SERVICE_INFO_PLIST_BASE64${NC}"

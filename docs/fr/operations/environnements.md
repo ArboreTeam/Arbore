@@ -96,6 +96,46 @@ cours.
 
 ---
 
+## Déployer un environnement
+
+Le déploiement est **manuel**, par choix : personne ne pousse en production sans
+le savoir. Sur le VPS, un checkout par environnement.
+
+```sh
+# production
+cd /home/fedora/Arbore && ./deploy.sh
+
+# développement
+cd /home/fedora/Arbore-dev && ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
+```
+
+Trois pièges, tous rencontrés en vrai :
+
+**`ARBORE_DEPLOY_BRANCH=dev` est obligatoire pour le dev.** Sans lui le script
+refuse : `Checkout sur 'dev', attendu 'main' — déploiement refusé`. Ce garde-fou
+(#384) existe parce qu'un checkout laissé sur une branche de travail ferait
+déployer cette branche sans rien signaler. Le défaut est `main`, et la
+production ne définit donc pas la variable.
+
+**Ne pas lancer `deploy.sh` avec `sudo`.** Le script gère lui-même l'élévation
+pour Docker. Sous `sudo`, git bascule sur les clés de root et le `git pull`
+échoue sur un `Permission denied (publickey)` trompeur.
+
+**Attendre la publication des images.** `deploy.sh` tire l'image étiquetée
+`sha-<commit>` ; si le workflow de publication n'a pas fini, le tirage échoue et
+le script se replie sur un build local — lent, et l'image qui tourne n'est alors
+plus celle que la CI a produite. Vérifier avant de déployer :
+
+```sh
+gh api "repos/ArboreTeam/Arbore/actions/runs?head_sha=$(git rev-parse origin/main)" \
+  --jq '.workflow_runs[] | select(.name|test("Build")) | .conclusion'
+```
+
+`gh run list --commit <sha>` renvoie parfois des résultats périmés, y compris des
+workflows supprimés. L'appel direct à l'API ci-dessus est fiable.
+
+---
+
 ## Ce qui diffère en dev
 
 **Sentry est éteint.** Sans DSN, le SDK ne démarre pas : les plantages de test

@@ -6,7 +6,26 @@ Reporting de crashs et de performance pour Arbore. **iOS** et **web** sont câbl
 - SDK iOS : [`sentry-cocoa`](https://github.com/getsentry/sentry-cocoa) via Swift Package Manager
 - SDK web : [`@sentry/nextjs`](https://github.com/getsentry/sentry-javascript)
 - Org : `epi-apps` (sentry.io, résidence des données **UE**)
-- Projets : `arbore-frontend` (iOS), `arbore-backend` (Gin — Phase 2)
+- Projets : `arbore-frontend` (iOS), `frontend-web-arbore` (web), `arbore-backend` (Gin — Phase 2)
+
+---
+
+## État mesuré — 2026-09-08
+
+Relevé dans l'organisation Sentry, pas déduit de la configuration. À refaire
+plutôt qu'à croire : ces chiffres vieillissent.
+
+| projet | SDK | trafic sur 90 jours |
+|---|---|---|
+| `arbore-frontend` (iOS) | ✅ | **rien** |
+| `frontend-web-arbore` | ✅ | 192 800 spans, 0 erreur |
+| `arbore-backend` | ❌ absent de `go.mod` | vide |
+
+**Zéro erreur pour les trois projets.** Ce n'est pas un signe de bonne santé,
+c'est la mesure de ce qui n'est pas branché — voir les deux sections suivantes.
+
+Une organisation Sentry `arbore` existe aussi, **vide**. Elle ne doit pas servir
+de destination par erreur : tout vit dans `epi-apps`.
 
 ## iOS
 
@@ -22,6 +41,13 @@ Reporting de crashs et de performance pour Arbore. **iOS** et **web** sont câbl
 `SentryManager` est **désactivé tant qu'un DSN n'est pas configuré _et_ que l'utilisateur n'a pas explicitement opté** pour le partage de diagnostics (toggle `privacy_shareData` dans les réglages de confidentialité, **off par défaut** — opt-in RGPD, #226). Sans secrets ni consentement, l'app se build et tourne à l'identique (pratique pour les contributeurs et la CI). `start()` est un no-op jusqu'au consentement ; basculer le consentement démarre/arrête le SDK à chaud via `updateConsent(granted:uid:)`. Le contexte utilisateur est l'**UID Firebase uniquement** (ni email ni nom) et suit l'état d'auth via un unique `addStateDidChangeListener` dans `AppDelegate`.
 
 Options posées : `environment` (`debug`/`beta`), `releaseName = version+build`, `dist = build`, `tracesSampleRate = 0.1`, `attachScreenshot = false` (vie privée), `attachViewHierarchy = true`, `sendDefaultPii = false`, plus un hook `beforeSend` qui retire IP / email / nom / corps de requête de chaque événement (ne conserve que le pseudonyme UID).
+
+> ⚠️ **Conséquence à connaître : l'iOS ne remonte rien.** Zéro événement en
+> 90 jours (mesuré le 2026-09-08). Le mécanisme fonctionne — c'est le
+> consentement qui n'est jamais donné, faute d'être proposé. Toute la chaîne,
+> DSN et upload dSYM compris, est en place et sans effet. Un crash au lancement
+> chez un testeur est aujourd'hui indiscernable d'un testeur qui n'ouvre pas
+> l'app. Arbitrage ouvert dans #469.
 
 ### Setup iOS (one-shot)
 
@@ -64,6 +90,36 @@ Créer le token sur `sentry.io → Settings → Auth Tokens` (scopes `project:re
 | `web/sentry.edge.config.ts` | edge | idem serveur |
 
 `web/instrumentation.ts` charge les configs serveur/edge selon `NEXT_RUNTIME`. `tracesSampleRate = 0.1`. Les frontières d'erreur `web/app/error.tsx` et `web/app/global-error.tsx` appellent `Sentry.captureException`. L'upload des source maps est opt-in via `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` (non committés) ; absent, le build n'échoue pas.
+
+### Bruit du healthcheck
+
+Le healthcheck Docker interroge `web/app/health/route.ts` — une route dédiée,
+et non `/`. Cette transaction est exclue du tracing par `ignoreTransactions:
+['GET /health']` dans `sentry.server.config.ts`.
+
+Avant cette séparation (#469), la sonde visait `/` et représentait **21 880
+spans sur 22 060 en 7 jours — 99,2 %** du volume tracé, quand toutes les vraies
+pages réunies en totalisaient 180. Le tracing ne décrivait pas l'usage du site
+mais la sonde qui le surveille — le motif de #388 côté backend, transposé au web.
+
+Une route dédiée plutôt qu'un filtre sur `GET /` : la racine est aussi la vraie
+page d'accueil, la filtrer aurait masqué le trafic qu'on cherche à voir.
+
+`force-dynamic` sur la route est nécessaire — sans lui Next.js la prérendrait,
+et la sonde ne testerait plus que la capacité à servir un fichier statique.
+
+### ⚠️ Les environnements ne sont pas distingués
+
+`NEXT_PUBLIC_SENTRY_ENV` est **vide** dans `web/.env`, et l'environnement tombe
+donc sur le repli `NODE_ENV` — qui vaut `production` dans tout build Next.
+**Prod et dev remontent tous deux comme `production`**, dans le même projet.
+
+`docker-compose.yml` définit pourtant cette variable au runtime. Ça ne sert à
+rien : Next.js remplace les `NEXT_PUBLIC_*` par leur valeur **à la compilation**,
+côté serveur comme côté client. Le code compilé ne lit plus `process.env`.
+
+**Corollaire : ce réglage ne peut pas se corriger côté déploiement.** Il faut un
+`ARG` de build, donc une image par environnement. Suivi dans #469.
 
 ## Backend (Go)
 

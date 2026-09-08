@@ -62,6 +62,23 @@ iptables -C INPUT -p tcp --dport 443 -j CF-HTTP 2>/dev/null || \
 # eth0, et le trafic sortant porte `-o eth0`. Ni l'un ni l'autre n'est touche.
 iptables -N ARBORE-EXT 2>/dev/null || true
 iptables -F ARBORE-EXT
+
+# EN PREMIER, et c'est vital : le trafic de RETOUR des connexions sortantes.
+#
+# `-i eth0` matche les paquets ARRIVANT sur eth0. Un conteneur qui joint
+# MongoDB Atlas envoie en `-o eth0`, mais la reponse ARRIVE en `-i eth0` et est
+# forwardee vers lui -- elle tombait donc dans le DROP final.
+#
+# Sans cette regle, les conteneurs sont coupes d'Internet. Constate en
+# production le 2026-09-08 : le backend ne pouvait plus joindre Atlas, son
+# healthcheck echouait, et `web` -- qui depend de sa sante -- n'a jamais
+# demarre. Le service est reste indisponible jusqu'a l'insertion de cette ligne.
+#
+# La regle avait ete annoncee « inerte car tout est sur la loopback ». C'etait
+# faux : elle ne l'etait que pour le trafic ENTRANT vers un port publie, pas
+# pour le retour du trafic sortant.
+iptables -A ARBORE-EXT -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
+
 for cidr in "${CF_RANGES[@]}"; do
   iptables -A ARBORE-EXT -p tcp -m multiport --dports 80,443 -s "$cidr" -j RETURN
 done
@@ -89,8 +106,15 @@ iptables -X CF-DOCKER 2>/dev/null || true
 # IPv6 : DROP sec sur tout trafic externe vers un conteneur. Les enregistrements
 # de l'origine sont des A (IPv4), Cloudflare joint donc l'origine en v4 et aucun
 # chemin v6 legitime n'existe.
-ip6tables -C DOCKER-USER -i "$EXT_IF" -j DROP 2>/dev/null || \
-  ip6tables -I DOCKER-USER -i "$EXT_IF" -j DROP
+ip6tables -N ARBORE-EXT6 2>/dev/null || true
+ip6tables -F ARBORE-EXT6
+ip6tables -A ARBORE-EXT6 -m conntrack --ctstate RELATED,ESTABLISHED -j RETURN
+ip6tables -A ARBORE-EXT6 -j DROP
+ip6tables -C DOCKER-USER -i "$EXT_IF" -j ARBORE-EXT6 2>/dev/null || \
+  ip6tables -I DOCKER-USER -i "$EXT_IF" -j ARBORE-EXT6
+while ip6tables -C DOCKER-USER -i "$EXT_IF" -j DROP 2>/dev/null; do
+  ip6tables -D DOCKER-USER -i "$EXT_IF" -j DROP
+done
 for port in 80 443 8080 8000; do
   while ip6tables -C DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j DROP 2>/dev/null; do
     ip6tables -D DOCKER-USER -i "$EXT_IF" -p tcp --dport "$port" -j DROP

@@ -4,8 +4,15 @@ name: 🌱 Arbore CI/CD
 # `dev` est la branche d'intégration : les PR de feature la ciblent, donc la CI
 # doit y tourner (sinon une feature entre dans dev sans build/test/lint).
 on:
+  # `push` UNIQUEMENT sur main : un événement `pull_request` teste déjà le
+  # commit de MERGE (fusion de la tête dans la base), donc rejouer la CI après
+  # le merge dans `dev` retestait exactement le même code.
+  #
+  # Une modification iOS déclenchait ainsi quatre exécutions macOS pour un seul
+  # changement — PR vers dev, push dev, PR de promotion, push main. À ×10 sur le
+  # palier Actions, c'était 81 % de la consommation du dépôt.
   push:
-    branches: [ "main", "dev" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main", "dev" ]
   workflow_dispatch:
@@ -247,7 +254,11 @@ jobs:
   # iOS UI - Build (nécessite macOS)
   ios_ui:
     needs: changes
-    if: needs.changes.outputs.ios_ui == 'true' || github.event_name == 'workflow_dispatch'
+    # La promotion `dev` -> `main` porte un code déjà validé par la PR de
+    # feature : rejouer les tests macOS n'apporte rien et coûte ×10.
+    if: >-
+      (needs.changes.outputs.ios_ui == 'true' && (github.base_ref != 'main' || github.head_ref != 'dev'))
+      || github.event_name == 'workflow_dispatch'
     # macos-15 pour disposer d'Xcode 26 (SDK iOS 26, Liquid Glass).
     runs-on: macos-15
     # 55 min : marge pour build (~7 min) + Run Unit Tests (jusqu'à 35 min) sous Xcode 26.
@@ -537,7 +548,11 @@ jobs:
   # iOS AR Module - Build
   ios_ar:
     needs: changes
-    if: needs.changes.outputs.ios_ar == 'true' || github.event_name == 'workflow_dispatch'
+    # La promotion `dev` -> `main` porte un code déjà validé par la PR de
+    # feature : rejouer les tests macOS n'apporte rien et coûte ×10.
+    if: >-
+      (needs.changes.outputs.ios_ar == 'true' && (github.base_ref != 'main' || github.head_ref != 'dev'))
+      || github.event_name == 'workflow_dispatch'
     runs-on: macos-14
     timeout-minutes: 30
     defaults:

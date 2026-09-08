@@ -304,13 +304,6 @@ jobs:
           rm -rf ~/Library/Caches/CocoaPods
           rm -rf ~/.cocoapods
 
-      - name: 🔐 Setup Firebase Configuration
-        run: |
-          echo "📝 Creating GoogleService-Info.plist from secret..."
-          echo "${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}" | base64 --decode > GoogleService-Info.plist
-          echo "${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}" | base64 --decode > ArboreUi/GoogleService-Info.plist
-          echo "✅ GoogleService-Info.plist created"
-
       - name: 🔑 Setup Secrets Configuration
         run: |
           echo "📝 Creating Secrets.xcconfig..."

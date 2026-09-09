@@ -237,10 +237,23 @@ type LifeCycleInfo struct {
 }
 
 type CareInfo struct {
-	Weekly    []string `json:"weekly" bson:"weekly"`
-	Monthly   []string `json:"monthly" bson:"monthly"`
-	Yearly    []string `json:"yearly" bson:"yearly"`
-	ExtraTips []string `json:"extraTips" bson:"extraTips"`
+	// Difficulty : niveau d'entretien affiché et filtrable (« Facile »,
+	// « Intermédiaire », « Exigeant »). `omitempty` : la fiche reste valide sans.
+	//
+	// Le modèle iOS déclarait ce champ depuis l'origine, mais il était absent
+	// ICI — donc jamais sérialisé, donc toujours nil côté app. Les deux filtres
+	// qui le lisaient s'en trouvaient neutralisés, et celui du catalogue vidait
+	// même la liste : un critère absent n'excluait pas « rien », il excluait
+	// TOUT (#485).
+	//
+	// Ajouter le champ ne le peuple pas : les 124 fiches existantes le laissent
+	// vide. C'est le repli sur `flags.easyCare` côté client qui fait tenir le
+	// filtre en attendant.
+	Difficulty string   `json:"difficulty,omitempty" bson:"difficulty,omitempty"`
+	Weekly     []string `json:"weekly" bson:"weekly"`
+	Monthly    []string `json:"monthly" bson:"monthly"`
+	Yearly     []string `json:"yearly" bson:"yearly"`
+	ExtraTips  []string `json:"extraTips" bson:"extraTips"`
 }
 
 type LanguageData struct {

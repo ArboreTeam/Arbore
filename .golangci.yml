@@ -65,6 +65,7 @@ linters:
         - correspondant
         - continuent
         - infiniment
+        - existantes
 
     revive:
       confidence: 0.8

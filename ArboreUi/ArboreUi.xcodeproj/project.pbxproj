@@ -79,8 +79,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		774C3B512ED1FFB100324E07 /* scanRoom */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = scanRoom;
 			sourceTree = "<group>";
 		};
@@ -94,15 +92,11 @@
 		};
 		77DD7AF02D84270800A6F6F1 /* ArboreUiTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = ArboreUiTests;
 			sourceTree = "<group>";
 		};
 		77DD7AFA2D84270800A6F6F1 /* ArboreUiUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = ArboreUiUITests;
 			sourceTree = "<group>";
 		};

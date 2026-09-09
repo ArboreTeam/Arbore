@@ -1,0 +1,23 @@
+# Plant3DGenerator pots library — Meshy-generated, scaled at runtime côté iOS.
+# Format: pot_id | Display Name | style hint (English, Meshy-friendly) | top_diameter_cm | height_cm
+#   - pot_id (col 1) : identifiant snake_case ; servira de nom de fichier
+#     `output/pot_<id>.usdz` et de FK dans Plant.defaultPotId.
+#   - Display Name (col 2) : nom français pour l'UI.
+#   - style hint (col 3) : passé à `pipeline.build_pot_prompt(style=)`.
+#   - top_diameter_cm (col 4) : diamètre d'ouverture en cm — sert à
+#     `auto_size=True` côté Meshy + au scaling runtime côté iOS pour
+#     matcher la motte d'une plante (cf bucket horticole : ~10 / 14 / 20 / 28 cm).
+#   - height_cm (col 5) : hauteur du pot. Le ratio diameter/height détermine
+#     la silhouette (tall narrow vs wide low).
+# Convention : tous les pots sont vides (no plant, no soil clump), origin
+# au pied du mesh. Côté iOS, le pot affiche un disque de terre brun à
+# l'intérieur de sa rim ; la plante s'y inscrit à `Y = pot.rimY`.
+
+modern_white_ceramic | Modern White Ceramic | minimalist matte white ceramic pot, perfect cylinder shape, sharp flat rim, contemporary | 20 | 22
+classic_terracotta   | Classic Terracotta   | rustic orange-brown terracotta clay pot, slight outward taper, traditional thumb rim, natural patina | 18 | 18
+stone_grey           | Stone Grey           | rough textured grey stone pot, hand-carved appearance, slightly wider at top, natural finish | 22 | 24
+glossy_black_ceramic | Glossy Black         | polished black ceramic pot, sleek modern silhouette, slight concave taper | 16 | 20
+bonsai_shallow       | Bonsai Shallow       | rectangular shallow brown ceramic bonsai pot, oriental style, low wide tray, drainage feet | 24 | 8
+hanging_clay         | Hanging Clay         | round clay hanging pot with rope or chain attachment, suspended container, smooth interior | 16 | 14
+tall_narrow_ceramic  | Tall Narrow          | tall slim cylindrical white ceramic pot, narrow opening, modern minimal, twice as tall as wide | 14 | 30
+wide_low_terracotta  | Wide Low Terracotta  | broad shallow terracotta planter, wider than tall, suitable for groundcovers and trailing plants | 30 | 14

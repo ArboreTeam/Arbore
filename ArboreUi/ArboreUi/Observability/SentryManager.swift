@@ -26,25 +26,48 @@ enum SentryManager {
     /// Vrai si l'utilisateur a consenti au partage des données de diagnostic.
     static var hasConsent: Bool { UserDefaults.standard.bool(forKey: consentKey) }
 
-    /// Vrai si le crash reporting doit être actif : DSN présent ET consentement donné.
-    static var isEnabled: Bool { isConfigured && hasConsent }
+    /// Vrai si le crash reporting tourne — DSN présent suffit désormais (#469).
+    ///
+    /// L'opt-in ne conditionne plus la COLLECTE, mais l'IDENTIFICATION. Voir
+    /// `start()` pour ce que cela change concrètement.
+    static var isEnabled: Bool { isConfigured }
 
-    /// Démarre Sentry si (et seulement si) un DSN est configuré ET que
-    /// l'utilisateur a donné son consentement diagnostic. Appelée au tout début
-    /// de `AppDelegate.didFinishLaunchingWithOptions`, AVANT
-    /// `FirebaseApp.configure()`, pour capturer un éventuel crash d'init — mais
-    /// sans consentement c'est un no-op (RGPD : aucune collecte avant opt-in).
-    /// Re-déclenchée par `updateConsent(...)` quand l'utilisateur accepte.
+    /// Démarre Sentry dès qu'un DSN est configuré. Appelée au tout début de
+    /// `AppDelegate.didFinishLaunchingWithOptions`, AVANT `FirebaseApp.configure()`,
+    /// pour capturer un éventuel crash d'initialisation.
+    ///
+    /// ## Deux régimes, et ce qui les sépare
+    ///
+    /// **Sans consentement — anonyme.** Aucun identifiant ne quitte l'appareil :
+    /// ni UID Firebase, ni identifiant d'installation, ni adresse IP. Pas de
+    /// hiérarchie de vues (elle contient les textes affichés), pas de fil
+    /// d'Ariane réseau (les URL portent des identifiants de jardin), pas de
+    /// traces de performance. Il reste la pile d'appel, la version de l'app et
+    /// le modèle d'appareil — de quoi corriger un plantage, pas de quoi
+    /// reconnaître quelqu'un.
+    ///
+    /// **Avec consentement — rattaché.** L'UID Firebase est joint, ce qui permet
+    /// de relier plusieurs plantages au même compte et de répondre à un
+    /// signalement précis. La hiérarchie de vues et les traces reviennent.
+    ///
+    /// ## Pourquoi la collecte anonyme n'attend pas le consentement
+    ///
+    /// Le RGPD porte sur les données à caractère personnel (art. 4). Une donnée
+    /// véritablement anonyme — qui ne permet plus d'identifier une personne, ni
+    /// directement ni par recoupement — sort de son champ (considérant 26).
+    ///
+    /// Le régime anonyme ci-dessous vise ce seuil, et c'est pourquoi il retire
+    /// l'UID : un pseudonyme reste une donnée personnelle, si stable qu'il
+    /// permet de suivre un individu dans le temps.
+    ///
+    /// ⚠️ **Deux conditions ne dépendent pas de ce code et doivent être tenues :**
+    /// la politique de confidentialité doit décrire cette collecte, et le
+    /// réglage Sentry « Prevent Storing of IP Addresses » doit être activé côté
+    /// projet — le SDK n'envoie pas l'IP, mais l'ingest la voit passer.
     static func start() {
         guard isConfigured else {
             #if DEBUG
             print("ℹ️ Sentry désactivé (aucun DSN dans Secrets.xcconfig).")
-            #endif
-            return
-        }
-        guard hasConsent else {
-            #if DEBUG
-            print("ℹ️ Sentry en attente du consentement diagnostic (opt-in RGPD).")
             #endif
             return
         }
@@ -55,24 +78,27 @@ enum SentryManager {
             options.releaseName = AppConfig.sentryReleaseName
             options.dist = AppConfig.buildNumber
 
-            // 10% de transactions de performance : marge confortable sous le
-            // free tier (5k events/mois) pour la beta.
-            options.tracesSampleRate = 0.1
+            let consenti = hasConsent
 
-            // Vie privée : pas de capture d'écran (peut contenir des données
-            // personnelles). La hiérarchie de vues (structure, sans pixels)
-            // reste utile pour diagnostiquer les crashs d'UI.
+            // Traces de performance : seulement avec consentement. Leurs noms de
+            // transaction portent des chemins tels que `/gardens/<id>` — un
+            // identifiant de ressource, donc un fil à tirer. Sans consentement,
+            // seuls les plantages remontent.
+            options.tracesSampleRate = consenti ? 0.1 : 0.0
+
+            // Jamais de capture d'écran : elle peut montrer n'importe quoi.
             options.attachScreenshot = false
-            options.attachViewHierarchy = true
+
+            // La hiérarchie de vues contient les TEXTES affichés — noms de
+            // jardin, de plantes, saisies en cours. Utile pour diagnostiquer un
+            // crash d'UI, incompatible avec l'anonymat.
+            options.attachViewHierarchy = consenti
 
             // Minimisation RGPD : ne jamais joindre les PII collectées « par
             // défaut » par le SDK (adresse IP, etc.).
             options.sendDefaultPii = false
 
-            // Défense en profondeur : on retire explicitement de chaque event
-            // l'IP, l'identité (e-mail/nom) et le payload de requête avant
-            // envoi. On conserve volontairement `user.userId` = UID Firebase,
-            // pseudonyme nécessaire pour corréler les crashs d'un même compte.
+            // Défense en profondeur, appliquée à CHAQUE événement.
             options.beforeSend = { event in
                 event.user?.ipAddress = nil
                 event.user?.email = nil
@@ -81,7 +107,29 @@ enum SentryManager {
                 event.user?.data = nil
                 event.serverName = nil
                 event.request = nil
+
+                // Sans consentement : aucun identifiant, pas même celui que le
+                // SDK génère par installation. `user = nil` les emporte tous.
+                //
+                // C'est CE point qui fait la différence entre « pseudonymisé »
+                // et « anonyme ». Un identifiant stable, même dépourvu de nom,
+                // suit un individu dans le temps — et reste donc une donnée
+                // personnelle.
+                if !consenti {
+                    event.user = nil
+                }
                 return event
+            }
+
+            // Fil d'Ariane : sans consentement, on écarte les traces réseau. Les
+            // URL de l'app portent des identifiants (`/gardens/<id>`,
+            // `/plants/<id>`) qui rattacheraient l'événement à des ressources
+            // précises — donc, par recoupement, à leur propriétaire.
+            options.beforeBreadcrumb = { crumb in
+                if !consenti && (crumb.type == "http" || crumb.category == "http") {
+                    return nil
+                }
+                return crumb
             }
 
             #if DEBUG
@@ -90,23 +138,31 @@ enum SentryManager {
         }
     }
 
-    /// Réagit à un changement du consentement diagnostic depuis
-    /// PrivacySettingsView : démarre Sentry à l'acceptation (et réattache le
-    /// contexte user si l'utilisateur était déjà connecté), le coupe au retrait.
+    /// Réagit à un changement du consentement depuis PrivacySettingsView.
+    ///
+    /// Le retrait ne coupe PLUS la collecte : il la ramène au régime anonyme
+    /// (#469). Sentry est donc redémarré pour que les options — hiérarchie de
+    /// vues, traces, fil d'Ariane réseau — soient réévaluées, et le contexte
+    /// utilisateur est effacé.
+    ///
+    /// Redémarrer plutôt que reconfigurer : `SentrySDK` fige ses options au
+    /// démarrage, et les modifier après coup laisserait la hiérarchie de vues
+    /// active alors que l'utilisateur vient de la refuser.
     static func updateConsent(granted: Bool, uid: String?) {
         guard isConfigured else { return }
-        if granted {
-            if !SentrySDK.isEnabled { start() }
-            if let uid { setUser(uid: uid) }
-        } else {
-            SentrySDK.close()
+        SentrySDK.close()
+        start()
+        if granted, let uid {
+            setUser(uid: uid)
         }
     }
 
     /// Rattache les events au user via son UID Firebase (pseudonyme).
-    /// On n'envoie ni e-mail ni nom à Sentry : minimisation des données (RGPD).
+    ///
+    /// **Sans consentement, c'est un no-op** : le pseudonyme est précisément ce
+    /// qui distingue une donnée anonyme d'une donnée personnelle.
     static func setUser(uid: String) {
-        guard isEnabled else { return }
+        guard isEnabled, hasConsent else { return }
         let user = Sentry.User()        // Sentry.User, à ne pas confondre avec le modèle `User` de l'app
         user.userId = uid
         SentrySDK.setUser(user)

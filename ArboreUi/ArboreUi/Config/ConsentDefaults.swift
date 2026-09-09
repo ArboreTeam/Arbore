@@ -20,7 +20,15 @@ enum ConsentDefaults {
     static let profilePublic = false
     /// Activité masquée par défaut.
     static let showActivity = false
-    /// Diagnostics (Sentry) — opt-in strict (issue #226). Gate effectif : `SentryManager.hasConsent`.
+    /// Diagnostics (Sentry) — opt-in (issue #226), dont la portée a changé
+    /// avec #469 : il ne conditionne plus la COLLECTE mais l'IDENTIFICATION.
+    ///
+    /// Sans consentement, les plantages remontent en régime anonyme : aucun
+    /// identifiant, pas de hiérarchie de vues, pas de fil d'Ariane réseau. Avec,
+    /// l'UID Firebase est joint et permet de corréler plusieurs plantages.
+    ///
+    /// Reste `false` par défaut : le régime enrichi, lui, demande bien un
+    /// consentement explicite.
     static let analytics = false
     /// Marketing — opt-in strict.
     static let marketing = false

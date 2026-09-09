@@ -327,8 +327,8 @@
 "PRIVACYSETTINGS_ACTIVITY_TITLE" = "Meine Aktivität anzeigen";
 "PRIVACYSETTINGS_ACTIVITY_SUB" = "Erlaube das Anzeigen deiner letzten Gartenaktivitäten.";
 
-"PRIVACYSETTINGS_DATASHARING_TITLE" = "Daten für Analytics teilen";
-"PRIVACYSETTINGS_DATASHARING_SUB" = "Hilf uns, Funktionen und Zuverlässigkeit zu verbessern. Es werden keine persönlichen Inhalte verkauft.";
+"PRIVACYSETTINGS_DATASHARING_TITLE" = "Diagnosedaten mit meinem Konto verknüpfen";
+"PRIVACYSETTINGS_DATASHARING_SUB" = "Abstürze werden uns immer anonym gemeldet. Wenn du dies aktivierst, wird deine Konto-Kennung ergänzt, um mehrere Vorfälle zu verknüpfen und auf eine konkrete Meldung zu antworten.";
 
 // Privacy Policy link
 "PRIVACYSETTINGS_READ_POLICY" = "Unsere Datenschutzerklärung lesen";

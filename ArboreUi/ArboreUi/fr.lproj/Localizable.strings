@@ -348,8 +348,8 @@
 "PRIVACYSETTINGS_ACTIVITY_TITLE" = "Afficher mon activité";
 "PRIVACYSETTINGS_ACTIVITY_SUB" = "Permet d’afficher tes mises à jour récentes de jardin.";
 
-"PRIVACYSETTINGS_DATASHARING_TITLE" = "Partager des données pour l’analytics";
-"PRIVACYSETTINGS_DATASHARING_SUB" = "Aide-nous à améliorer les fonctionnalités et la fiabilité. Aucun contenu personnel n’est vendu.";
+"PRIVACYSETTINGS_DATASHARING_TITLE" = "Rattacher les diagnostics à mon compte";
+"PRIVACYSETTINGS_DATASHARING_SUB" = "Les plantages nous sont toujours signalés de façon anonyme. Activer ceci y ajoute ton identifiant de compte, pour relier plusieurs incidents et répondre à un signalement précis.";
 
 // Lien vers la politique
 "PRIVACYSETTINGS_READ_POLICY" = "Lire notre politique de confidentialité";

@@ -348,8 +348,8 @@
 "PRIVACYSETTINGS_ACTIVITY_TITLE" = "Show my activity";
 "PRIVACYSETTINGS_ACTIVITY_SUB" = "Allow showing your recent garden updates.";
 
-"PRIVACYSETTINGS_DATASHARING_TITLE" = "Share data for analytics";
-"PRIVACYSETTINGS_DATASHARING_SUB" = "Help us improve features and reliability. No personal content is sold.";
+"PRIVACYSETTINGS_DATASHARING_TITLE" = "Link diagnostics to my account";
+"PRIVACYSETTINGS_DATASHARING_SUB" = "Crashes are always reported anonymously. Turning this on adds your account identifier, so several incidents can be linked and a specific report answered.";
 
 // Privacy Policy link
 "PRIVACYSETTINGS_READ_POLICY" = "Read our Privacy Policy";

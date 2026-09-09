@@ -41,7 +41,7 @@ destination by mistake: everything lives in `epi-apps`.
 
 `SentryManager` is **disabled until a DSN is configured _and_ the user has explicitly opted in** to diagnostics sharing (the `privacy_shareData` toggle in the privacy settings, **off by default** — GDPR opt-in, #226). Without secrets or consent, the app builds and runs identically (handy for contributors and CI). `start()` is a no-op until consent is given; toggling consent starts/stops the SDK at runtime via `updateConsent(granted:uid:)`. The user context is the **Firebase UID only** (no email or name) and tracks auth state through a single `addStateDidChangeListener` in `AppDelegate`.
 
-Options set: `environment` (`debug`/`beta`), `releaseName = version+build`, `dist = build`, `tracesSampleRate = 0.1`, `attachScreenshot = false` (privacy), `attachViewHierarchy = true`, `sendDefaultPii = false`, plus a `beforeSend` hook that strips IP / email / name / request body from every event (keeping only the UID pseudonym).
+Options set: `environment` (`debug` / `production`, see the next section), `releaseName = version+build`, `dist = build`, `tracesSampleRate = 0.1`, `attachScreenshot = false` (privacy), `attachViewHierarchy = true`, `sendDefaultPii = false`, plus a `beforeSend` hook that strips IP / email / name / request body from every event (keeping only the UID pseudonym).
 
 > ⚠️ **Consequence worth knowing: iOS reports nothing.** Zero events in 90 days
 > (measured 2026-09-08). The mechanism works — it is consent that is never
@@ -79,6 +79,40 @@ Create the token at `sentry.io → Settings → Auth Tokens` (scopes `project:re
 2. Profile → **Debug Tools → "Send Sentry test event"** (visible in DEBUG only).
 3. The event shows up in `sentry.io → arbore-frontend → Issues` within seconds, tagged `environment: debug` and with the Firebase UID.
 4. For symbolicated **release** crashes, ship a `fastlane beta` build with the token above, then trigger a crash on the TestFlight build.
+
+## ⚠️ Environment vocabulary is not unified
+
+The three components do not tag their events the same way. This is a known
+defect, not an oversight, and it must be known before building any view or alert
+filtered by environment.
+
+| Component | Values emitted | Where they come from |
+|---|---|---|
+| Go backend | `prod` / `dev` | `SENTRY_ENVIRONMENT`, derived from `ARBORE_ENV` |
+| Web (server, edge) | `prod` / `dev` | same |
+| Web (browser) | `production` | `NODE_ENV` fallback, frozen at build |
+| iOS | `debug` / `production` | `#if DEBUG` in `AppConfig.environment` |
+
+**Two practical consequences.**
+
+A view filtering on `production` will see neither the backend nor the web server,
+both emitting `prod`. The web changed value on 2026-09-09: its earlier data sits
+under `production`, everything after under `prod`.
+
+And above all: **the iOS `Debug` and `Dev` builds report under the same label**,
+`debug`, while `Debug` targets **production** and `Dev` targets
+`api-dev.arbore.app`. Two different backends under one name.
+
+Not for lack of information. `AppConfig.baseURL` reads `ARBORE_BACKEND_HOST`
+from `Info.plist`, fed by the configuration's xcconfig: the app knows exactly
+which backend it targets. The defect is that `AppConfig.environment` does not
+look at it — it keys off `#if DEBUG`, which `Dev` inherits anyway. **Wrong
+criterion, not missing information.**
+
+No effect today, iOS reporting nothing (see above), but it is a trap armed for
+the day it does.
+
+---
 
 ## Web (Next.js)
 

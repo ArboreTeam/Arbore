@@ -22,7 +22,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo \
     -ldflags="-w -s -X main.buildCommit=${GIT_COMMIT}" -o main .
 
 # Final stage
-FROM alpine:3.23
+FROM alpine:3.24
 
 # Install ca-certificates for HTTPS requests
 RUN apk --no-cache add ca-certificates tzdata

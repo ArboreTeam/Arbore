@@ -239,6 +239,13 @@ services:
       - ARBORE_API_KEY=${ARBORE_API_KEY}
       - SENTRY_DSN=${SENTRY_DSN:-}
       - NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN:-}
+      # Lue au RUNTIME par sentry.{server,edge}.config.ts (#469) : c'est elle qui
+      # étiquette réellement les événements, et elle permet à une seule image de
+      # servir les deux environnements.
+      - SENTRY_ENVIRONMENT=${ARBORE_ENV:-prod}
+      # ⚠️ Sans effet, conservée pour mémoire. Next.js inline les `NEXT_PUBLIC_*`
+      # à la COMPILATION : le code compilé ne lit plus process.env, donc la poser
+      # ici ne change rien. C'est précisément le piège de #469.
       - NEXT_PUBLIC_SENTRY_ENV=${NEXT_PUBLIC_SENTRY_ENV:-production}
       - NEXT_PUBLIC_APP_VERSION=${NEXT_PUBLIC_APP_VERSION:-1.0.0}
       - PORT=3000

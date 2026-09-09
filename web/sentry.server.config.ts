@@ -7,7 +7,21 @@ const dsn = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN;
 Sentry.init({
   dsn,
   enabled: !!dsn,
-  environment: process.env.NEXT_PUBLIC_SENTRY_ENV || process.env.NODE_ENV,
+  // `SENTRY_ENVIRONMENT` D'ABORD, et c'est tout l'objet du correctif (#469).
+  //
+  // `NEXT_PUBLIC_SENTRY_ENV` est inliné À LA COMPILATION par Next.js : la valeur
+  // posée sur le conteneur n'a aucun effet, le code compilé ne lit plus
+  // `process.env`. `web/.env` la laissant vide, le repli tombait sur `NODE_ENV`
+  // — `production` dans tout build Next. Prod et dev remontaient donc sous la
+  // même étiquette, indistinguables.
+  //
+  // Ce fichier tourne côté serveur, au runtime : une variable NON préfixée
+  // `NEXT_PUBLIC_` y est lue à l'exécution. Une seule image sert donc les deux
+  // environnements, chacun s'étiquetant lui-même.
+  environment:
+    process.env.SENTRY_ENVIRONMENT ||
+    process.env.NEXT_PUBLIC_SENTRY_ENV ||
+    process.env.NODE_ENV,
   tracesSampleRate: 0.1,
   sendDefaultPii: false,
 

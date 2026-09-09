@@ -109,18 +109,22 @@ page d'accueil, la filtrer aurait masqué le trafic qu'on cherche à voir.
 `force-dynamic` sur la route est nécessaire — sans lui Next.js la prérendrait,
 et la sonde ne testerait plus que la capacité à servir un fichier statique.
 
-### ⚠️ Les environnements ne sont pas distingués
+### Étiquetage des environnements
 
-`NEXT_PUBLIC_SENTRY_ENV` est **vide** dans `web/.env`, et l'environnement tombe
-donc sur le repli `NODE_ENV` — qui vaut `production` dans tout build Next.
-**Prod et dev remontent tous deux comme `production`**, dans le même projet.
+`SENTRY_ENVIRONMENT` (`prod` / `dev`, dérivée d'`ARBORE_ENV`) est lue **au
+runtime** par `sentry.server.config.ts` et `sentry.edge.config.ts`. Une seule
+image sert donc les deux environnements, chacun s'étiquetant lui-même.
 
-`docker-compose.yml` définit pourtant cette variable au runtime. Ça ne sert à
-rien : Next.js remplace les `NEXT_PUBLIC_*` par leur valeur **à la compilation**,
-côté serveur comme côté client. Le code compilé ne lit plus `process.env`.
+Le piège corrigé par #469 : `NEXT_PUBLIC_SENTRY_ENV` est inlinée **à la
+compilation**. La poser sur le conteneur n'avait aucun effet, `web/.env` la
+laissait vide, et le repli `NODE_ENV` donnait `production` partout — prod et dev
+indistinguables.
 
-**Corollaire : ce réglage ne peut pas se corriger côté déploiement.** Il faut un
-`ARG` de build, donc une image par environnement. Suivi dans #469.
+> ⚠️ **Limite restante, côté navigateur uniquement.** `sentry.client.config.ts`
+> s'exécute dans le navigateur et ne peut pas lire une variable au runtime : son
+> étiquette reste figée à la compilation. Sans effet aujourd'hui — sur 90 jours
+> le projet n'a reçu **aucune** transaction de navigateur, tout le volume vient
+> du serveur. Y remédier exigerait une image par environnement.
 
 ## Backend (Go)
 

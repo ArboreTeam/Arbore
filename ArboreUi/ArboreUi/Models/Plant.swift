@@ -382,8 +382,21 @@ extension Plant {
     /// donnée comme un échec de correspondance et excluait donc la totalité du
     /// catalogue. Un filtre ne doit jamais cacher ce qu'il ne sait pas juger.
     func careDifficulty(locale: String = "fr") -> CareDifficulty? {
-        if let raw = translations[locale]?.care?.difficulty?.lowercased(),
-           !raw.isEmpty {
+        // La langue demandée d'abord, puis n'importe quelle autre.
+        //
+        // La difficulté est une CATÉGORIE, pas de la prose : la lire dans une
+        // autre langue reste juste, puisque la reconnaissance est multilingue.
+        // Sans ce repli, une fiche traduite en français seulement perdrait sa
+        // difficulté pour un utilisateur anglophone — la donnée existe, elle
+        // serait simplement ignorée.
+        let candidates = [translations[locale]] + translations
+            .filter { $0.key != locale }
+            .sorted { $0.key < $1.key }        // ordre stable, pas au hasard du dictionnaire
+            .map { $0.value }
+
+        if let raw = candidates
+            .compactMap({ $0?.care?.difficulty?.lowercased() })
+            .first(where: { !$0.isEmpty }) {
             // Mots-clés des quatre langues servies par le catalogue.
             let easy = ["facile", "easy", "simple", "einfach", "leicht", "fácil", "facil", "débutant"]
             let moderate = ["intermé", "medium", "modér", "mittel", "moderat", "intermedio"]

@@ -139,6 +139,44 @@ final class PlantCareDifficultyTests: XCTestCase {
         XCTAssertTrue(filters.matches(plant: facile, locale: "fr"))
     }
 
+    // MARK: - Les options proposées suivent les données
+
+    /// Avec les seules données d'aujourd'hui — `flags.easyCare`, binaire —
+    /// « Intermédiaire » ne doit pas être proposé.
+    ///
+    /// Ce n'est pas cosmétique : ce choix ne renverrait ni les faciles ni les
+    /// exigeantes, mais exactement les fiches SANS donnée. Un sous-ensemble
+    /// arbitraire présenté comme une réponse.
+    func testIntermediaireNEstPasProposeSansDonneeDeDifficulte() throws {
+        let catalogue = [
+            try makePlant(easyCare: true),
+            try makePlant(easyCare: false),
+            try makePlant()                     // inconnue
+        ]
+        let vue = FilterView(filters: .constant(PlantFilters()), plants: catalogue)
+
+        XCTAssertEqual(vue.difficultyOptions.count, 2,
+                       "Sans care.difficulty, seuls deux niveaux sont proposables")
+    }
+
+    /// Dès qu'une fiche porte un niveau intermédiaire, l'option réapparaît —
+    /// sans changement de code.
+    func testIntermediaireReapparaitQuandLaDonneeExiste() throws {
+        let catalogue = [
+            try makePlant(easyCare: true),
+            try makePlant(careDifficulty: "Intermédiaire")
+        ]
+        let vue = FilterView(filters: .constant(PlantFilters()), plants: catalogue)
+
+        XCTAssertEqual(vue.difficultyOptions.count, 3)
+    }
+
+    /// Un catalogue vide ne doit pas faire disparaître le filtre entier.
+    func testCatalogueVideProposeQuandMemeLesNiveauxDeBase() {
+        let vue = FilterView(filters: .constant(PlantFilters()), plants: [])
+        XCTAssertEqual(vue.difficultyOptions.count, 2)
+    }
+
     /// Sans critère sélectionné, le filtre laisse tout passer.
     func testAucunCritereNExcluRien() throws {
         let plant = try makePlant(careDifficulty: "Exigeant")

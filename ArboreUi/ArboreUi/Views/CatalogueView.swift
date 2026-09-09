@@ -39,7 +39,7 @@ struct CatalogueView: View {
             }
             .navigationBarHidden(true) // On cache la nav bar native pour utiliser la nôtre
             .sheet(isPresented: $showFilters) {
-                FilterView(filters: $filters)
+                FilterView(filters: $filters, plants: plants)
                     .environmentObject(themeManager)
             }
             .onAppear {

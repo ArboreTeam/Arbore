@@ -98,10 +98,15 @@ struct FilterView: View {
     @Binding var filters: PlantFilters
     
     @State private var tempFilters: PlantFilters
-    
-    init(filters: Binding<PlantFilters>) {
+
+    /// Catalogue affiché, pour n'offrir que les niveaux d'entretien auxquels les
+    /// données peuvent répondre (#485).
+    private let plants: [Plant]
+
+    init(filters: Binding<PlantFilters>, plants: [Plant] = []) {
         self._filters = filters
         self._tempFilters = State(initialValue: filters.wrappedValue)
+        self.plants = plants
     }
     
     let lightOptions = [
@@ -116,11 +121,31 @@ struct FilterView: View {
         L10n.t("FILTER_WATER_HIGH")
     ]
     
-    let difficultyOptions = [
-        L10n.t("FILTER_DIFFICULTY_EASY"),
-        L10n.t("FILTER_DIFFICULTY_MEDIUM"),
-        L10n.t("FILTER_DIFFICULTY_HARD")
-    ]
+    /// Niveaux d'entretien réellement proposables, mesurés sur le catalogue (#485).
+    ///
+    /// Proposer un choix auquel aucune donnée ne peut répondre est pire que ne
+    /// pas le proposer : « Intermédiaire » ne renverrait ni les faciles ni les
+    /// exigeantes, mais exactement les fiches SANS donnée — un sous-ensemble
+    /// arbitraire présenté comme une réponse.
+    ///
+    /// Aujourd'hui la seule source est `flags.easyCare`, qui est binaire : le
+    /// niveau intermédiaire disparaît donc de lui-même. Il réapparaîtra sans
+    /// changement de code le jour où des fiches porteront `care.difficulty`.
+    var difficultyOptions: [String] {
+        let niveaux = Set(plants.compactMap { $0.careDifficulty(locale: locale) })
+
+        var options = [L10n.t("FILTER_DIFFICULTY_EASY")]
+        if niveaux.contains(.moderate) {
+            options.append(L10n.t("FILTER_DIFFICULTY_MEDIUM"))
+        }
+        options.append(L10n.t("FILTER_DIFFICULTY_HARD"))
+        return options
+    }
+
+    /// Langue courante, pour lire la bonne traduction des fiches.
+    private var locale: String {
+        Locale.current.language.languageCode?.identifier ?? "fr"
+    }
 
     var body: some View {
         NavigationStack {

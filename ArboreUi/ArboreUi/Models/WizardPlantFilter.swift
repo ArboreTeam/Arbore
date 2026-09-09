@@ -21,8 +21,8 @@ struct WizardPlantFilter {
         // 2. Exposure → flags.shade/fullSun (fallback: sun.lightType)
         if !matchesExposure(plant: plant, translation: translation) { return false }
 
-        // 3. Maintenance → flags.easyCare (fallback: care.difficulty + water.frequency)
-        if !matchesMaintenance(plant: plant, translation: translation) { return false }
+        // 3. Maintenance → Plant.careDifficulty (care.difficulty, repli flags.easyCare)
+        if !matchesMaintenance(plant: plant, locale: locale) { return false }
 
         // 4. Safety → flags.toxicToPets/Children (fallback: toxic keywords)
         if !matchesSafety(plant: plant, translation: translation) { return false }
@@ -175,50 +175,27 @@ struct WizardPlantFilter {
 
     // MARK: - Maintenance Matching
 
-    private func matchesMaintenance(plant: Plant, translation: PlantTranslation) -> Bool {
+    private func matchesMaintenance(plant: Plant, locale: String) -> Bool {
         guard let maintenance = wizard.maintenance, !maintenance.isEmpty else { return true }
         let maintL = maintenance.lowercased()
 
-        // Prefer structured flags when available.
-        if let flags = plant.flags {
-            if maintL.contains("facile") || maintL == "veryeasy" || maintL == "easy" {
-                return flags.easyCare
-            }
-            // "Exigeant" / unknown → accept all.
-            return true
+        // Résolution partagée avec le filtre du catalogue (#485) : `care.difficulty`
+        // quand il existe, repli sur `flags.easyCare` sinon.
+        //
+        // `nil` = entretien inconnu. On n'exclut pas : 26 des 124 fiches n'ont
+        // ni difficulté ni flags, et les masquer sur une donnée manquante
+        // reviendrait à affirmer qu'elles ne conviennent pas.
+        guard let actual = plant.careDifficulty(locale: locale) else { return true }
+
+        // ⚠️ « Très facile » et « Facile » donnent le même résultat tant que la
+        // source est `flags.easyCare`, qui est binaire. La distinction
+        // n'apparaîtra qu'une fois `care.difficulty` peuplé (#485).
+        if maintL.contains("facile") || maintL == "veryeasy" || maintL == "easy" {
+            return actual == .easy
         }
 
-        let plantDifficulty = (translation.care?.difficulty ?? "").lowercased()
-        let plantWater = (translation.water?.frequency ?? "").lowercased()
-        let combined = plantDifficulty + " " + plantWater
-
-        let maint = maintenance.lowercased()
-
-        // "Très facile" → veryEasy
-        if maint.contains("très facile") || maint == "veryeasy" {
-            // Only accept very easy / easy plants
-            let isEasy = combined.contains("facile") || combined.contains("simple")
-                || combined.contains("easy") || combined.contains("débutant")
-                || combined.contains("minimal") || combined.contains("peu")
-                || combined.contains("résistant")
-            let isHard = combined.contains("exigeant") || combined.contains("difficile")
-                || combined.contains("expert") || combined.contains("hard")
-            return isEasy || !isHard
-        }
-
-        // "Facile" → easy
-        if maint.contains("facile") || maint == "easy" {
-            // Accept easy + moderate plants
-            let isHard = combined.contains("exigeant") || combined.contains("difficile")
-                || combined.contains("expert") || combined.contains("hard")
-            return !isHard
-        }
-
-        // "Exigeant" → demanding - show ALL plants, including demanding ones
-        if maint.contains("exigeant") || maint == "demanding" {
-            return true
-        }
-
+        // « Exigeant » n'exclut rien : quelqu'un prêt à s'investir accepte aussi
+        // les plantes faciles. Le critère est une capacité, pas une exigence.
         return true
     }
 
@@ -227,7 +204,6 @@ struct WizardPlantFilter {
     private func matchesSafety(plant: Plant, translation: PlantTranslation) -> Bool {
         guard let safety = wizard.safety, !safety.isEmpty else { return true }
 
-        // If "Aucune contrainte" is selected, no filtering needed
         if safety.contains("Aucune contrainte") || safety.contains("none") {
             return true
         }
@@ -235,43 +211,17 @@ struct WizardPlantFilter {
         let wantsPetSafe = safety.contains("Éviter les plantes toxiques pour les animaux") || safety.contains("pets")
         let wantsChildSafe = safety.contains("Éviter les plantes dangereuses pour les enfants") || safety.contains("children")
 
-        // Prefer structured flags when available — robust (the keyword fallback
-        // below false-positives on "non toxique" / "non-toxic" descriptions).
-        if let flags = plant.flags {
-            if wantsPetSafe && flags.toxicToPets { return false }
-            if wantsChildSafe && flags.toxicToChildren { return false }
-            return true
+        // L'inconnu EXCLUT, et c'est l'inverse du filtre de difficulté (#485).
+        //
+        // Le coût des deux erreurs n'est pas le même. Masquer une plante
+        // inoffensive prive d'un choix ; en proposer une toxique à quelqu'un qui
+        // a demandé le contraire rompt une promesse — et les conséquences ne
+        // sont pas les siennes, mais celles de son animal ou de son enfant.
+        if wantsPetSafe {
+            guard let verdict = plant.petToxicity(), verdict == .safe else { return false }
         }
-
-        let problems = (translation.health?.commonProblems ?? []).joined(separator: " ").lowercased()
-        let treatments = (translation.health?.treatments ?? []).joined(separator: " ").lowercased()
-        let description = translation.description.lowercased()
-        let combined = problems + " " + treatments + " " + description
-
-        let toxicKeywords = ["toxique", "toxic", "dangere", "danger", "poison",
-                             "irritant", "nocif", "vénéneux", "nocive"]
-
-        let isToxic = toxicKeywords.contains { combined.contains($0) }
-
-        if isToxic {
-            // If user wants pet-safe plants, exclude toxic ones
-            if safety.contains("Éviter les plantes toxiques pour les animaux")
-                || safety.contains("pets") {
-                let petToxic = combined.contains("animal") || combined.contains("chat")
-                    || combined.contains("chien") || combined.contains("pet")
-                    || combined.contains("cat") || combined.contains("dog")
-                    || isToxic
-                if petToxic { return false }
-            }
-
-            // If user wants child-safe plants, exclude dangerous ones
-            if safety.contains("Éviter les plantes dangereuses pour les enfants")
-                || safety.contains("children") {
-                let childDanger = combined.contains("enfant") || combined.contains("child")
-                    || combined.contains("ingestion") || combined.contains("ingér")
-                    || isToxic
-                if childDanger { return false }
-            }
+        if wantsChildSafe {
+            guard let verdict = plant.childToxicity(), verdict == .safe else { return false }
         }
 
         return true

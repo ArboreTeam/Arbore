@@ -93,6 +93,49 @@ of prod, which is the normal state while a feature is in flight.
 
 ---
 
+## Contributing: `dev` no longer accepts direct pushes
+
+Since 2026-09-08 the `dev` branch is protected. Every change goes through a
+**pull request**, administrators included.
+
+```sh
+git checkout dev && git pull
+git checkout -b feat/my-feature
+# … commits …
+git push -u origin feat/my-feature
+gh pr create --base dev
+```
+
+| Rule | Value |
+|---|---|
+| Pull request | required |
+| Required approvals | **0** — you merge your own PR |
+| Required checks | `build_summary`, `security` |
+| Direct push, force-push, deletion | refused |
+
+**Zero approvals** is deliberate: with two people on the repository, requiring a
+review would block solo work. The PR becomes mandatory, not third-party sign-off.
+
+These two checks are the only ones that can **never** be skipped:
+`build_summary` has `if: always()` and aggregates the four build jobs;
+`security` has no path condition, so it runs on every PR. The other jobs are
+conditioned on the PR's content and would be `skipped` — hence treated as
+satisfied — on a docs or iOS pull request.
+
+> **Why it applies to administrators.** The first configuration left
+> `enforce_admins: false`. A direct push then went through anyway, leaving only
+> a `remote: Bypassed rule violations` line behind. A rule that can be stepped
+> over informs; it does not protect.
+
+The next day, the `security` check blocked an unrelated PR over an
+[unauthenticated RCE in Next.js](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4)
+published in the meantime. Without this configuration the PR would have merged.
+
+`main` stays less strict: its protection mainly forbids direct pushes, and a PR
+promoted from `dev` has already passed the upstream gate.
+
+---
+
 ## Deploying an environment
 
 Deployment is **manual**, by choice: nobody ships to production without knowing

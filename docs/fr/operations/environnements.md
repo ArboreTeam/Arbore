@@ -96,6 +96,50 @@ cours.
 
 ---
 
+## Contribuer : `dev` n'accepte plus de push direct
+
+Depuis le 2026-09-08, la branche `dev` est protégée. Toute modification passe
+par une **pull request**, y compris pour les administrateurs.
+
+```sh
+git checkout dev && git pull
+git checkout -b feat/ma-feature
+# … commits …
+git push -u origin feat/ma-feature
+gh pr create --base dev
+```
+
+| Règle | Valeur |
+|---|---|
+| Pull request | obligatoire |
+| Approbations requises | **0** — vous fusionnez votre propre PR |
+| Checks requis | `build_summary`, `security` |
+| Push direct, force-push, suppression | refusés |
+
+**Zéro approbation** est délibéré : à deux sur le dépôt, exiger une revue
+bloquerait le travail en solo. C'est la PR qui devient obligatoire, pas la
+validation par un tiers.
+
+Ces deux checks sont les seuls qui ne peuvent **jamais** être ignorés :
+`build_summary` a `if: always()` et agrège les quatre jobs de build ;
+`security` n'a aucune condition de chemin, donc il tourne sur toute PR. Les
+autres jobs sont conditionnés au contenu de la PR et seraient `skipped` — donc
+considérés comme satisfaits — sur une PR de documentation ou d'iOS.
+
+> **Pourquoi c'est appliqué aux administrateurs.** La première configuration
+> laissait `enforce_admins: false`. Un push direct passait alors quand même,
+> avec pour seule trace un `remote: Bypassed rule violations`. Une règle
+> franchissable informe ; elle ne protège pas.
+
+Le lendemain, le check `security` a bloqué une PR sans rapport, sur une
+[RCE non authentifiée dans Next.js](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4)
+publiée entre-temps. Sans cette configuration, la PR aurait été fusionnée.
+
+`main` reste moins stricte : sa protection sert surtout à interdire le push
+direct, et une PR promue depuis `dev` a déjà franchi le contrôle en amont.
+
+---
+
 ## Déployer un environnement
 
 Le déploiement est **manuel**, par choix : personne ne pousse en production sans

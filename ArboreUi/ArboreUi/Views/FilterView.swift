@@ -54,26 +54,39 @@ struct PlantFilters: Equatable {
             }
         }
         
-        // Filtre difficulté
+        // Filtre difficulté (#485)
+        //
+        // Ce bloc excluait AUTREFOIS toutes les plantes : il lisait
+        // `care.difficulty`, un champ que le backend ne sérialisait pas, donc
+        // toujours vide. Aucun mot-clé ne correspondait jamais, et chaque plante
+        // tombait dans un `return false`. Sélectionner une difficulté vidait la
+        // liste.
+        //
+        // La résolution est désormais partagée avec le wizard
+        // (`Plant.careDifficulty`), et surtout elle distingue « inconnu » de
+        // « ne correspond pas » : une plante dont on ignore l'entretien n'est
+        // PAS masquée. Un filtre qui cache ce qu'il ne sait pas juger ment à
+        // l'utilisateur.
         if let selectedDiff = difficulty {
-            let plantCare = translation.care?.difficulty?.lowercased() ?? ""
             let normalizedSelected = selectedDiff.lowercased()
-            
-            if normalizedSelected.contains("facile") || normalizedSelected.contains("easy") || normalizedSelected.contains("einfach") || normalizedSelected.contains("fácil") || normalizedSelected.contains("facil") {
-                if !plantCare.contains("facile") && !plantCare.contains("easy") && !plantCare.contains("simple") && !plantCare.contains("einfach") && !plantCare.contains("leicht") && !plantCare.contains("fácil") && !plantCare.contains("facil") {
-                    return false
-                }
-            } else if normalizedSelected.contains("intermé") || normalizedSelected.contains("medium") || normalizedSelected.contains("mittel") || normalizedSelected.contains("intermedio") {
-                if !plantCare.contains("intermé") && !plantCare.contains("medium") && !plantCare.contains("modér") && !plantCare.contains("mittel") && !plantCare.contains("moderat") && !plantCare.contains("intermedio") {
-                    return false
-                }
-            } else if normalizedSelected.contains("exigeant") || normalizedSelected.contains("hard") || normalizedSelected.contains("anspruchsvoll") || normalizedSelected.contains("dificil") || normalizedSelected.contains("difícil") {
-                if !plantCare.contains("exigeant") && !plantCare.contains("difficile") && !plantCare.contains("hard") && !plantCare.contains("expert") && !plantCare.contains("anspruchsvoll") && !plantCare.contains("schwer") && !plantCare.contains("dificil") && !plantCare.contains("difícil") {
-                    return false
-                }
+
+            let wanted: Plant.CareDifficulty?
+            if ["facile", "easy", "einfach", "fácil", "facil"].contains(where: normalizedSelected.contains) {
+                wanted = .easy
+            } else if ["intermé", "medium", "mittel", "intermedio"].contains(where: normalizedSelected.contains) {
+                wanted = .moderate
+            } else if ["exigeant", "hard", "anspruchsvoll", "dificil", "difícil"].contains(where: normalizedSelected.contains) {
+                wanted = .demanding
+            } else {
+                wanted = nil
             }
+
+            if let wanted = wanted, let actual = plant.careDifficulty(locale: locale) {
+                if actual != wanted { return false }
+            }
+            // `actual == nil` → donnée absente, on n'exclut pas.
         }
-        
+
         return true
     }
 }
@@ -85,10 +98,15 @@ struct FilterView: View {
     @Binding var filters: PlantFilters
     
     @State private var tempFilters: PlantFilters
-    
-    init(filters: Binding<PlantFilters>) {
+
+    /// Catalogue affiché, pour n'offrir que les niveaux d'entretien auxquels les
+    /// données peuvent répondre (#485).
+    private let plants: [Plant]
+
+    init(filters: Binding<PlantFilters>, plants: [Plant] = []) {
         self._filters = filters
         self._tempFilters = State(initialValue: filters.wrappedValue)
+        self.plants = plants
     }
     
     let lightOptions = [
@@ -103,11 +121,31 @@ struct FilterView: View {
         L10n.t("FILTER_WATER_HIGH")
     ]
     
-    let difficultyOptions = [
-        L10n.t("FILTER_DIFFICULTY_EASY"),
-        L10n.t("FILTER_DIFFICULTY_MEDIUM"),
-        L10n.t("FILTER_DIFFICULTY_HARD")
-    ]
+    /// Niveaux d'entretien réellement proposables, mesurés sur le catalogue (#485).
+    ///
+    /// Proposer un choix auquel aucune donnée ne peut répondre est pire que ne
+    /// pas le proposer : « Intermédiaire » ne renverrait ni les faciles ni les
+    /// exigeantes, mais exactement les fiches SANS donnée — un sous-ensemble
+    /// arbitraire présenté comme une réponse.
+    ///
+    /// Aujourd'hui la seule source est `flags.easyCare`, qui est binaire : le
+    /// niveau intermédiaire disparaît donc de lui-même. Il réapparaîtra sans
+    /// changement de code le jour où des fiches porteront `care.difficulty`.
+    var difficultyOptions: [String] {
+        let niveaux = Set(plants.compactMap { $0.careDifficulty(locale: locale) })
+
+        var options = [L10n.t("FILTER_DIFFICULTY_EASY")]
+        if niveaux.contains(.moderate) {
+            options.append(L10n.t("FILTER_DIFFICULTY_MEDIUM"))
+        }
+        options.append(L10n.t("FILTER_DIFFICULTY_HARD"))
+        return options
+    }
+
+    /// Langue courante, pour lire la bonne traduction des fiches.
+    private var locale: String {
+        Locale.current.language.languageCode?.identifier ?? "fr"
+    }
 
     var body: some View {
         NavigationStack {

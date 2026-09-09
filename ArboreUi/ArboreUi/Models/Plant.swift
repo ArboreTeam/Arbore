@@ -355,3 +355,132 @@ fileprivate struct PlantFallback {
             ])))
     }
 }
+
+// MARK: - Niveau d'entretien (#485)
+
+extension Plant {
+
+    /// Niveau d'entretien d'une plante, tel qu'un filtre peut l'exploiter.
+    enum CareDifficulty {
+        case easy
+        case moderate
+        case demanding
+    }
+
+    /// Résout le niveau d'entretien, ou `nil` si la donnée est absente.
+    ///
+    /// Deux sources, dans cet ordre :
+    ///
+    /// 1. `care.difficulty`, qui porte les trois niveaux. Le backend ne le
+    ///    sérialisait pas jusqu'à #485 et aucune fiche ne le renseigne encore.
+    /// 2. `flags.easyCare`, présent sur 98 des 124 fiches. Binaire, donc
+    ///    incapable de distinguer « intermédiaire » — d'où le repli, pas le
+    ///    remplacement.
+    ///
+    /// **`nil` signifie « inconnu », pas « ne correspond pas ».** La distinction
+    /// est tout l'objet de #485 : le filtre du catalogue traitait l'absence de
+    /// donnée comme un échec de correspondance et excluait donc la totalité du
+    /// catalogue. Un filtre ne doit jamais cacher ce qu'il ne sait pas juger.
+    func careDifficulty(locale: String = "fr") -> CareDifficulty? {
+        // La langue demandée d'abord, puis n'importe quelle autre.
+        //
+        // La difficulté est une CATÉGORIE, pas de la prose : la lire dans une
+        // autre langue reste juste, puisque la reconnaissance est multilingue.
+        // Sans ce repli, une fiche traduite en français seulement perdrait sa
+        // difficulté pour un utilisateur anglophone — la donnée existe, elle
+        // serait simplement ignorée.
+        let candidates = [translations[locale]] + translations
+            .filter { $0.key != locale }
+            .sorted { $0.key < $1.key }        // ordre stable, pas au hasard du dictionnaire
+            .map { $0.value }
+
+        if let raw = candidates
+            .compactMap({ $0?.care?.difficulty?.lowercased() })
+            .first(where: { !$0.isEmpty }) {
+            // Mots-clés des quatre langues servies par le catalogue.
+            let easy = ["facile", "easy", "simple", "einfach", "leicht", "fácil", "facil", "débutant"]
+            let moderate = ["intermé", "medium", "modér", "mittel", "moderat", "intermedio"]
+            let demanding = ["exigeant", "difficile", "hard", "expert", "anspruchsvoll", "schwer", "dificil", "difícil"]
+
+            // « Exigeant » d'abord : « pas facile » contient « facile ».
+            if demanding.contains(where: raw.contains) { return .demanding }
+            if moderate.contains(where: raw.contains) { return .moderate }
+            if easy.contains(where: raw.contains) { return .easy }
+        }
+
+        if let flags = flags {
+            return flags.easyCare ? .easy : .demanding
+        }
+
+        return nil
+    }
+}
+
+// MARK: - Toxicité (#488)
+
+extension Plant {
+
+    /// Verdict de toxicité pour un public donné.
+    enum ToxicityVerdict {
+        case toxic
+        case safe
+    }
+
+    /// Toxicité pour les animaux, ou `nil` si elle n'est pas établie.
+    ///
+    /// Deux sources, dans cet ordre :
+    ///
+    /// 1. `botanicalProfile.petToxicity` — faisant autorité, avec sa provenance.
+    ///    Renseignée depuis l'ASPCA sur 38 fiches (#489).
+    /// 2. `flags.toxicToPets` — issue de l'enrichissement botanique, présente
+    ///    sur 98 fiches. Confrontée à l'ASPCA sur les 30 fiches couvertes par
+    ///    les deux : **30 accords, 0 désaccord**. C'est ce contrôle qui autorise
+    ///    à lire son `false` comme « sûre » et non comme « non recherchée ».
+    ///
+    /// **`nil` signifie « non établie ».** Contrairement au filtre de difficulté
+    /// (#485), où l'inconnu n'exclut pas, l'inconnu doit ici EXCLURE : le coût
+    /// des deux erreurs n'est pas le même. Masquer une plante inoffensive prive
+    /// d'un choix ; en proposer une toxique à quelqu'un qui a demandé le
+    /// contraire rompt une promesse.
+    func petToxicity() -> ToxicityVerdict? {
+        if let fact = botanicalProfile?.petToxicity, let v = Self.verdict(from: fact.value) {
+            return v
+        }
+        if let flags = flags {
+            return flags.toxicToPets ? .toxic : .safe
+        }
+        return nil
+    }
+
+    /// Toxicité pour les enfants, ou `nil` si elle n'est pas établie.
+    ///
+    /// Aucune fiche ne porte `childToxicity` : l'ASPCA ne couvre que chiens,
+    /// chats et chevaux, et l'extrapoler aurait été inventer (#489). La source
+    /// est donc `flags.toxicToChildren` seule, en attendant une référence
+    /// dédiée.
+    func childToxicity() -> ToxicityVerdict? {
+        if let fact = botanicalProfile?.childToxicity, let v = Self.verdict(from: fact.value) {
+            return v
+        }
+        if let flags = flags {
+            return flags.toxicToChildren ? .toxic : .safe
+        }
+        return nil
+    }
+
+    /// Lit un verdict dans la formulation libre d'un fait.
+    ///
+    /// La valeur n'est pas un énuméré : l'ASPCA donne « toxic to dogs, cats,
+    /// horses » ou « non-toxic ». La négation est testée EN PREMIER, sans quoi
+    /// « non-toxic » serait lu comme toxique — il contient « toxic ».
+    private static func verdict(from raw: String) -> ToxicityVerdict? {
+        let v = raw.lowercased()
+        if ["non-toxic", "non toxic", "not toxic", "safe"].contains(where: v.contains) {
+            return .safe
+        }
+        if ["toxic", "irritant", "danger", "poison"].contains(where: v.contains) {
+            return .toxic
+        }
+        return nil
+    }
+}

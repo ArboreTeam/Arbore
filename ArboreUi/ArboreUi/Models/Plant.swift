@@ -415,3 +415,72 @@ extension Plant {
         return nil
     }
 }
+
+// MARK: - Toxicité (#488)
+
+extension Plant {
+
+    /// Verdict de toxicité pour un public donné.
+    enum ToxicityVerdict {
+        case toxic
+        case safe
+    }
+
+    /// Toxicité pour les animaux, ou `nil` si elle n'est pas établie.
+    ///
+    /// Deux sources, dans cet ordre :
+    ///
+    /// 1. `botanicalProfile.petToxicity` — faisant autorité, avec sa provenance.
+    ///    Renseignée depuis l'ASPCA sur 38 fiches (#489).
+    /// 2. `flags.toxicToPets` — issue de l'enrichissement botanique, présente
+    ///    sur 98 fiches. Confrontée à l'ASPCA sur les 30 fiches couvertes par
+    ///    les deux : **30 accords, 0 désaccord**. C'est ce contrôle qui autorise
+    ///    à lire son `false` comme « sûre » et non comme « non recherchée ».
+    ///
+    /// **`nil` signifie « non établie ».** Contrairement au filtre de difficulté
+    /// (#485), où l'inconnu n'exclut pas, l'inconnu doit ici EXCLURE : le coût
+    /// des deux erreurs n'est pas le même. Masquer une plante inoffensive prive
+    /// d'un choix ; en proposer une toxique à quelqu'un qui a demandé le
+    /// contraire rompt une promesse.
+    func petToxicity() -> ToxicityVerdict? {
+        if let fact = botanicalProfile?.petToxicity, let v = Self.verdict(from: fact.value) {
+            return v
+        }
+        if let flags = flags {
+            return flags.toxicToPets ? .toxic : .safe
+        }
+        return nil
+    }
+
+    /// Toxicité pour les enfants, ou `nil` si elle n'est pas établie.
+    ///
+    /// Aucune fiche ne porte `childToxicity` : l'ASPCA ne couvre que chiens,
+    /// chats et chevaux, et l'extrapoler aurait été inventer (#489). La source
+    /// est donc `flags.toxicToChildren` seule, en attendant une référence
+    /// dédiée.
+    func childToxicity() -> ToxicityVerdict? {
+        if let fact = botanicalProfile?.childToxicity, let v = Self.verdict(from: fact.value) {
+            return v
+        }
+        if let flags = flags {
+            return flags.toxicToChildren ? .toxic : .safe
+        }
+        return nil
+    }
+
+    /// Lit un verdict dans la formulation libre d'un fait.
+    ///
+    /// La valeur n'est pas un énuméré : l'ASPCA donne « toxic to dogs, cats,
+    /// horses » ou « non-toxic ». La négation est testée EN PREMIER, sans quoi
+    /// « non-toxic » serait lu comme toxique — il contient « toxic ».
+    private static func verdict(from raw: String) -> ToxicityVerdict? {
+        let v = raw.lowercased()
+        if ["non-toxic", "non toxic", "not toxic", "safe"].contains(where: v.contains) {
+            return .safe
+        }
+        if ["toxic", "irritant", "danger", "poison"].contains(where: v.contains) {
+            return .toxic
+        }
+        return nil
+    }
+}

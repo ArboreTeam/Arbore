@@ -204,7 +204,6 @@ struct WizardPlantFilter {
     private func matchesSafety(plant: Plant, translation: PlantTranslation) -> Bool {
         guard let safety = wizard.safety, !safety.isEmpty else { return true }
 
-        // If "Aucune contrainte" is selected, no filtering needed
         if safety.contains("Aucune contrainte") || safety.contains("none") {
             return true
         }
@@ -212,43 +211,17 @@ struct WizardPlantFilter {
         let wantsPetSafe = safety.contains("Éviter les plantes toxiques pour les animaux") || safety.contains("pets")
         let wantsChildSafe = safety.contains("Éviter les plantes dangereuses pour les enfants") || safety.contains("children")
 
-        // Prefer structured flags when available — robust (the keyword fallback
-        // below false-positives on "non toxique" / "non-toxic" descriptions).
-        if let flags = plant.flags {
-            if wantsPetSafe && flags.toxicToPets { return false }
-            if wantsChildSafe && flags.toxicToChildren { return false }
-            return true
+        // L'inconnu EXCLUT, et c'est l'inverse du filtre de difficulté (#485).
+        //
+        // Le coût des deux erreurs n'est pas le même. Masquer une plante
+        // inoffensive prive d'un choix ; en proposer une toxique à quelqu'un qui
+        // a demandé le contraire rompt une promesse — et les conséquences ne
+        // sont pas les siennes, mais celles de son animal ou de son enfant.
+        if wantsPetSafe {
+            guard let verdict = plant.petToxicity(), verdict == .safe else { return false }
         }
-
-        let problems = (translation.health?.commonProblems ?? []).joined(separator: " ").lowercased()
-        let treatments = (translation.health?.treatments ?? []).joined(separator: " ").lowercased()
-        let description = translation.description.lowercased()
-        let combined = problems + " " + treatments + " " + description
-
-        let toxicKeywords = ["toxique", "toxic", "dangere", "danger", "poison",
-                             "irritant", "nocif", "vénéneux", "nocive"]
-
-        let isToxic = toxicKeywords.contains { combined.contains($0) }
-
-        if isToxic {
-            // If user wants pet-safe plants, exclude toxic ones
-            if safety.contains("Éviter les plantes toxiques pour les animaux")
-                || safety.contains("pets") {
-                let petToxic = combined.contains("animal") || combined.contains("chat")
-                    || combined.contains("chien") || combined.contains("pet")
-                    || combined.contains("cat") || combined.contains("dog")
-                    || isToxic
-                if petToxic { return false }
-            }
-
-            // If user wants child-safe plants, exclude dangerous ones
-            if safety.contains("Éviter les plantes dangereuses pour les enfants")
-                || safety.contains("children") {
-                let childDanger = combined.contains("enfant") || combined.contains("child")
-                    || combined.contains("ingestion") || combined.contains("ingér")
-                    || isToxic
-                if childDanger { return false }
-            }
+        if wantsChildSafe {
+            guard let verdict = plant.childToxicity(), verdict == .safe else { return false }
         }
 
         return true

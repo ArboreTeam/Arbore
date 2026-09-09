@@ -150,14 +150,26 @@ def watering_days(txt: str):
     return None
 
 
-# Ordonné du plus exigeant au plus tolérant : « très drainant » doit gagner
-# sur « drainant », et « humide » ne doit pas capter « bien drainant mais
-# maintenu humide ».
+# Les valeurs SONT celles qu'attend le client : `fast`, `normal`, `slow` — les
+# `rawValue` de `GardenDrainageDTO`, comparés par ÉGALITÉ STRICTE dans
+# `PlantCatalogContext.appendDrainageCriterion`.
+#
+# Écrire un libellé lisible (« well-drained ») serait pire que ne rien écrire :
+# sans le champ, le moteur note simplement la donnée comme manquante ; avec une
+# valeur qu'il ne reconnaît pas, il conclut à un CONFLIT de drainage sur chaque
+# plante. Une valeur incomprise n'est pas neutre, elle est fausse.
+#
+# Ordonné du plus exigeant au plus tolérant : « très drainant » doit gagner sur
+# « drainant », et « humide » ne doit pas capter « bien drainant mais maintenu
+# humide ».
 DRAINAGE_RULES = [
-    ("very well-drained", ["très drainant", "parfaitement drainant", "très bien drain",
-                           "drainage excellent", "sableux", "cactus", "succulente"]),
-    ("well-drained", ["bien drain", "drainant", "drainage"]),
-    ("moisture-retentive", ["retient l'humidité", "frais", "humifère", "reste humide"]),
+    # Substrats de cactées et sols sableux : l'eau doit filer.
+    ("fast", ["très drainant", "parfaitement drainant", "très bien drain",
+              "drainage excellent", "sableux", "cactus", "succulente"]),
+    # Le « bien drainant » horticole ordinaire, majoritaire au catalogue.
+    ("normal", ["bien drain", "drainant", "drainage"]),
+    # Sols qui gardent l'eau.
+    ("slow", ["retient l'humidité", "frais", "humifère", "reste humide"]),
 ]
 
 

@@ -109,18 +109,22 @@ homepage, and filtering it would have hidden the traffic we actually want.
 `force-dynamic` on the route is required — without it Next.js would prerender
 it, and the probe would only test the ability to serve a static file.
 
-### ⚠️ Environments are not distinguished
+### Environment tagging
 
-`NEXT_PUBLIC_SENTRY_ENV` is **empty** in `web/.env`, so environment falls back to
-`NODE_ENV` — which is `production` in any Next build. **Both prod and dev report
-as `production`**, into the same project.
+`SENTRY_ENVIRONMENT` (`prod` / `dev`, derived from `ARBORE_ENV`) is read **at
+runtime** by `sentry.server.config.ts` and `sentry.edge.config.ts`. One image
+therefore serves both environments, each tagging itself.
 
-`docker-compose.yml` does set this variable at runtime. It has no effect: Next.js
-replaces `NEXT_PUBLIC_*` with their values **at build time**, on the server as
-well as the client. The compiled code no longer reads `process.env`.
+The trap fixed by #469: `NEXT_PUBLIC_SENTRY_ENV` is inlined **at build time**.
+Setting it on the container had no effect, `web/.env` left it empty, and the
+`NODE_ENV` fallback yielded `production` everywhere — prod and dev
+indistinguishable.
 
-**Corollary: this cannot be fixed at deploy time.** It needs a build `ARG`, hence
-one image per environment. Tracked in #469.
+> ⚠️ **Remaining limit, browser side only.** `sentry.client.config.ts` runs in
+> the browser and cannot read a runtime variable: its tag stays frozen at build
+> time. No effect today — over 90 days the project received **no** browser
+> transactions at all, every span comes from the server. Fixing it would require
+> one image per environment.
 
 ## Backend (Go)
 

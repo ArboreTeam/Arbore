@@ -25,7 +25,8 @@ struct PrivacyPolicyView: View {
                     NSLocalizedString("PRIVACY_SECTION_DATA_ITEM4", comment: ""),
                     NSLocalizedString("PRIVACY_SECTION_DATA_ITEM5", comment: ""),
                     NSLocalizedString("PRIVACY_SECTION_DATA_ITEM6", comment: ""),
-                    NSLocalizedString("PRIVACY_SECTION_DATA_ITEM7", comment: "")
+                    NSLocalizedString("PRIVACY_SECTION_DATA_ITEM7", comment: ""),
+                    NSLocalizedString("PRIVACY_SECTION_DATA_ITEM8", comment: "")
                 ],
                 themeManager: themeManager
             )
@@ -50,7 +51,8 @@ struct PrivacyPolicyView: View {
                     NSLocalizedString("PRIVACY_SECTION_LEGAL_ITEM1", comment: ""),
                     String(format: NSLocalizedString("PRIVACY_SECTION_LEGAL_ITEM2", comment: ""), brandName),
                     NSLocalizedString("PRIVACY_SECTION_LEGAL_ITEM3", comment: ""),
-                    NSLocalizedString("PRIVACY_SECTION_LEGAL_ITEM4", comment: "")
+                    NSLocalizedString("PRIVACY_SECTION_LEGAL_ITEM4", comment: ""),
+                    NSLocalizedString("PRIVACY_SECTION_LEGAL_ITEM5", comment: "")
                 ],
                 themeManager: themeManager
             )

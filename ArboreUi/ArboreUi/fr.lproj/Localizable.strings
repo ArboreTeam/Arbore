@@ -260,7 +260,7 @@
 "PRIVACY_HEADER_TITLE" = "%@ respecte ta vie privée.";
 "PRIVACY_HEADER_SUBTITLE" = "Cette politique explique quelles données personnelles nous traitons, pourquoi, avec qui, combien de temps, et les droits dont tu disposes au titre du RGPD.";
 "PRIVACY_LAST_UPDATED" = "Dernière mise à jour : %@ — version %@";
-"PRIVACY_LAST_UPDATED_DATE" = "23 juillet 2026";
+"PRIVACY_LAST_UPDATED_DATE" = "9 septembre 2026";
 
 // Données collectées
 "PRIVACY_SECTION_DATA_TITLE" = "Données que nous traitons";
@@ -271,6 +271,7 @@
 "PRIVACY_SECTION_DATA_ITEM5" = "Restent sur ton appareil : images brutes de la caméra et du LiDAR, mouvement et cartes spatiales ARKit. Une photo n’est envoyée que si tu l’ajoutes au chatbot ou au diagnostic.";
 "PRIVACY_SECTION_DATA_ITEM6" = "Diagnostic santé & assistant : les photos que tu envoies pour un diagnostic, ainsi que tes messages, sont transmis à nos serveurs puis à Google (Gemini) pour être analysés, y compris hors de l'Union européenne.";
 "PRIVACY_SECTION_DATA_ITEM7" = "Journaux techniques : ton adresse IP est traitée pour limiter les abus et sécuriser le service. Elle n’est jamais enregistrée en base, et n’apparaît dans les journaux serveur que tronquée (par exemple 92.184.105.x).";
+"PRIVACY_SECTION_DATA_ITEM8" = "Rapports de plantage : anonymes par défaut — pile d’appel, version de l’app et modèle d’appareil, sans aucun identifiant. Si tu actives « Rattacher les diagnostics à mon compte », ton identifiant Firebase y est ajouté pour relier plusieurs incidents.";
 
 // Pourquoi nous les utilisons
 "PRIVACY_SECTION_USAGE_TITLE" = "Pourquoi nous utilisons ces données";
@@ -286,6 +287,7 @@
 "PRIVACY_SECTION_LEGAL_ITEM2" = "Intérêts légitimes : sécuriser et améliorer %@.";
 "PRIVACY_SECTION_LEGAL_ITEM3" = "Consentement : caméra, photos, localisation, calendrier et notifications.";
 "PRIVACY_SECTION_LEGAL_ITEM4" = "Obligation légale et responsabilité : conserver la preuve du consentement.";
+"PRIVACY_SECTION_LEGAL_ITEM5" = "Hors RGPD : les rapports de plantage anonymes ne contiennent aucune donnée permettant de t’identifier (considérant 26). Les rattacher à ton compte relève, lui, du consentement.";
 
 // Conservation
 "PRIVACY_SECTION_RETENTION_TITLE" = "Conservation";
@@ -295,7 +297,7 @@
 
 // Partage
 "PRIVACY_SECTION_SHARING_TITLE" = "Partage & destinataires";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Sous-traitants : Firebase et Google (dont Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI et Sentry si tu actives les diagnostics.";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Sous-traitants : Firebase et Google (dont Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI, et Sentry pour les rapports de plantage.";
 "PRIVACY_SECTION_SHARING_ITEM2" = "Aucune publicité et aucun suivi entre applications.";
 "PRIVACY_SECTION_SHARING_ITEM3" = "Nous ne vendons jamais tes données. Les transferts sont limités au nécessaire et encadrés par contrat.";
 
@@ -348,8 +350,8 @@
 "PRIVACYSETTINGS_ACTIVITY_TITLE" = "Afficher mon activité";
 "PRIVACYSETTINGS_ACTIVITY_SUB" = "Permet d’afficher tes mises à jour récentes de jardin.";
 
-"PRIVACYSETTINGS_DATASHARING_TITLE" = "Partager des données pour l’analytics";
-"PRIVACYSETTINGS_DATASHARING_SUB" = "Aide-nous à améliorer les fonctionnalités et la fiabilité. Aucun contenu personnel n’est vendu.";
+"PRIVACYSETTINGS_DATASHARING_TITLE" = "Rattacher les diagnostics à mon compte";
+"PRIVACYSETTINGS_DATASHARING_SUB" = "Les plantages nous sont toujours signalés de façon anonyme. Activer ceci y ajoute ton identifiant de compte, pour relier plusieurs incidents et répondre à un signalement précis.";
 
 // Lien vers la politique
 "PRIVACYSETTINGS_READ_POLICY" = "Lire notre politique de confidentialité";

@@ -84,6 +84,37 @@ The report distinguishes:
 - verified coverage;
 - plants certifiable on critical fields.
 
+## Enrichment tools
+
+Three scripts, to run in this order. None writes to the database: they produce
+an operations file to be reviewed before applying it with `mongosh`.
+
+```sh
+# 1. Collect the ASPCA list (toxicity to dogs / cats / horses)
+python3 scripts/collect-aspca-toxicity.py          # → aspca.json
+
+# 2. Match against the catalogue and produce the operations
+python3 scripts/enrich-pet-toxicity.py \
+  --aspca aspca.json --plants plants.json --out ops.json
+
+# 3. Derive sun, watering and drainage from each plant's prose
+python3 scripts/derive-botanical-profile.py \
+  --plants plants.json --out derived.json
+```
+
+The expected plants file is a `GET /plants` export, as for the audit.
+
+**Two rules baked into these scripts, not to be undone:**
+
+Name matching only accepts an exact species, or an ASPCA entry in `spp.` which
+covers the whole genus. An entry naming a **different** species of the same genus
+is rejected — `hydrangea arborescens` says nothing about *Hydrangea macrophylla*.
+Without this rule, 72 plants would receive a borrowed verdict.
+
+Derivation rejects any fragment mentioning centimetres: "water when the top 2–3
+centimetres are dry" describes a soil depth, not a periodicity. Reading it as
+"every 2–3 days" would be a fivefold error, invisible on review.
+
 ## Acceptance criteria
 
 A verified value has:

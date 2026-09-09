@@ -85,6 +85,38 @@ Le rapport distingue :
 - couverture vérifiée ;
 - plante certifiable sur les champs critiques.
 
+## Outils d'enrichissement
+
+Trois scripts, à lancer dans cet ordre. Aucun n'écrit en base : ils produisent
+un fichier d'opérations que l'on relit avant de l'appliquer par `mongosh`.
+
+```sh
+# 1. Collecter la liste ASPCA (toxicité chiens / chats / chevaux)
+python3 scripts/collect-aspca-toxicity.py          # → aspca.json
+
+# 2. Rapprocher le catalogue et produire les opérations
+python3 scripts/enrich-pet-toxicity.py \
+  --aspca aspca.json --plants plants.json --out ops.json
+
+# 3. Dériver soleil, arrosage et drainage depuis la prose des fiches
+python3 scripts/derive-botanical-profile.py \
+  --plants plants.json --out derived.json
+```
+
+Le fichier de plantes attendu est un export de `GET /plants`, comme pour l'audit.
+
+**Deux règles inscrites dans ces scripts, à ne pas défaire :**
+
+Le rapprochement des noms ne retient que l'espèce exacte, ou une entrée ASPCA en
+`spp.` qui vise le genre entier. Une entrée nommant une **autre** espèce du même
+genre est écartée — `hydrangea arborescens` ne dit rien de *Hydrangea
+macrophylla*. Sans cette règle, 72 fiches recevraient un verdict emprunté.
+
+La dérivation refuse tout fragment mentionnant des centimètres : « arrose quand
+les 2 à 3 premiers centimètres sont secs » décrit une profondeur de sol, pas une
+périodicité. En tirer « tous les 2 à 3 jours » serait une erreur d'un facteur
+cinq, invisible à la relecture.
+
 ## Critères d'acceptation
 
 Une valeur vérifiée possède :

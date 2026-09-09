@@ -260,7 +260,7 @@
 "PRIVACY_HEADER_TITLE" = "%@ respects your privacy.";
 "PRIVACY_HEADER_SUBTITLE" = "This policy explains what personal data we process, why, with whom, how long we keep it, and the rights you have under the GDPR.";
 "PRIVACY_LAST_UPDATED" = "Last updated: %@ — version %@";
-"PRIVACY_LAST_UPDATED_DATE" = "23 July 2026";
+"PRIVACY_LAST_UPDATED_DATE" = "September 9, 2026";
 
 // Data we collect
 "PRIVACY_SECTION_DATA_TITLE" = "Data we process";
@@ -271,6 +271,7 @@
 "PRIVACY_SECTION_DATA_ITEM5" = "Kept on your device: raw camera and LiDAR images, motion data and ARKit world maps. A photo is uploaded only when you add it to chat or plant diagnosis.";
 "PRIVACY_SECTION_DATA_ITEM6" = "Health diagnosis & assistant: photos you submit for a diagnosis, and your messages, are sent to our servers and then to Google (Gemini) for analysis, including outside the European Union.";
 "PRIVACY_SECTION_DATA_ITEM7" = "Technical logs: your IP address is processed to limit abuse and keep the service secure. It is never stored in the database, and only appears in server logs in truncated form (for example 92.184.105.x).";
+"PRIVACY_SECTION_DATA_ITEM8" = "Crash reports: anonymous by default — call stack, app version and device model, with no identifier at all. If you turn on “Link diagnostics to my account”, your Firebase identifier is added so several incidents can be linked.";
 
 // Why we use it
 "PRIVACY_SECTION_USAGE_TITLE" = "Why we use this data";
@@ -286,6 +287,7 @@
 "PRIVACY_SECTION_LEGAL_ITEM2" = "Legitimate interests: securing and improving %@.";
 "PRIVACY_SECTION_LEGAL_ITEM3" = "Consent: camera, photos, location, calendar and notifications.";
 "PRIVACY_SECTION_LEGAL_ITEM4" = "Legal obligation and accountability: keeping proof of consent.";
+"PRIVACY_SECTION_LEGAL_ITEM5" = "Outside GDPR: anonymous crash reports contain no data allowing you to be identified (recital 26). Linking them to your account, however, relies on consent.";
 
 // Retention
 "PRIVACY_SECTION_RETENTION_TITLE" = "Retention";
@@ -295,7 +297,7 @@
 
 // Sharing
 "PRIVACY_SECTION_SHARING_TITLE" = "Sharing & recipients";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Sub-processors: Firebase and Google (including Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI and Sentry if you enable diagnostics.";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Processors: Firebase and Google (including Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI, and Sentry for crash reports.";
 "PRIVACY_SECTION_SHARING_ITEM2" = "No advertising and no cross-app tracking.";
 "PRIVACY_SECTION_SHARING_ITEM3" = "We never sell your data. Transfers are limited to what is necessary and governed by contract.";
 

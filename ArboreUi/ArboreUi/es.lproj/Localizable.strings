@@ -241,7 +241,7 @@
 "PRIVACY_HEADER_TITLE" = "%@ respeta tu privacidad.";
 "PRIVACY_HEADER_SUBTITLE" = "Esta política explica qué datos personales tratamos, por qué, con quién, durante cuánto tiempo y los derechos que tienes según el RGPD.";
 "PRIVACY_LAST_UPDATED" = "Última actualización: %@ — versión %@";
-"PRIVACY_LAST_UPDATED_DATE" = "23 de julio de 2026";
+"PRIVACY_LAST_UPDATED_DATE" = "9 de septiembre de 2026";
 
 // Datos que recopilamos
 "PRIVACY_SECTION_DATA_TITLE" = "Datos que tratamos";
@@ -252,6 +252,7 @@
 "PRIVACY_SECTION_DATA_ITEM5" = "Permanecen en tu dispositivo: imágenes brutas de cámara y LiDAR, movimiento y mapas ARKit. Solo se envía una foto si la añades al chat o al diagnóstico.";
 "PRIVACY_SECTION_DATA_ITEM6" = "Diagnóstico de salud y asistente: las fotos que envías para un diagnóstico, así como tus mensajes, se transmiten a nuestros servidores y luego a Google (Gemini) para su análisis, incluso fuera de la Unión Europea.";
 "PRIVACY_SECTION_DATA_ITEM7" = "Registros técnicos: tu dirección IP se trata para limitar los abusos y proteger el servicio. Nunca se guarda en la base de datos y solo aparece truncada en los registros del servidor (por ejemplo 92.184.105.x).";
+"PRIVACY_SECTION_DATA_ITEM8" = "Informes de fallos: anónimos por defecto — pila de llamadas, versión de la app y modelo de dispositivo, sin ningún identificador. Si activas «Vincular los diagnósticos a mi cuenta», se añade tu identificador de Firebase para vincular varios incidentes.";
 
 // Por qué los usamos
 "PRIVACY_SECTION_USAGE_TITLE" = "Por qué usamos estos datos";
@@ -267,6 +268,7 @@
 "PRIVACY_SECTION_LEGAL_ITEM2" = "Intereses legítimos: proteger y mejorar %@.";
 "PRIVACY_SECTION_LEGAL_ITEM3" = "Consentimiento: cámara, fotos, ubicación, calendario y notificaciones.";
 "PRIVACY_SECTION_LEGAL_ITEM4" = "Obligación legal y responsabilidad proactiva: conservar la prueba del consentimiento.";
+"PRIVACY_SECTION_LEGAL_ITEM5" = "Fuera del RGPD: los informes de fallos anónimos no contienen datos que permitan identificarte (considerando 26). Vincularlos a tu cuenta sí se basa en el consentimiento.";
 
 // Conservación
 "PRIVACY_SECTION_RETENTION_TITLE" = "Conservación";
@@ -276,7 +278,7 @@
 
 // Compartición
 "PRIVACY_SECTION_SHARING_TITLE" = "Comparticion y destinatarios";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Encargados: Firebase y Google (incluido Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI y Sentry si activas los diagnósticos.";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Encargados: Firebase y Google (incluido Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI y Sentry para los informes de fallos.";
 "PRIVACY_SECTION_SHARING_ITEM2" = "Sin publicidad y sin seguimiento entre aplicaciones.";
 "PRIVACY_SECTION_SHARING_ITEM3" = "Nunca vendemos tus datos. Las transferencias se limitan a lo necesario y están reguladas por contrato.";
 

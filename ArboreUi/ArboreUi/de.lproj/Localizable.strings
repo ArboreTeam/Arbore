@@ -241,7 +241,7 @@
 "PRIVACY_HEADER_TITLE" = "%@ respektiert deine Privatsphäre.";
 "PRIVACY_HEADER_SUBTITLE" = "Diese Richtlinie erklärt, welche personenbezogenen Daten wir verarbeiten, warum, mit wem, wie lange und welche Rechte du nach der DSGVO hast.";
 "PRIVACY_LAST_UPDATED" = "Zuletzt aktualisiert: %@ — Version %@";
-"PRIVACY_LAST_UPDATED_DATE" = "23. Juli 2026";
+"PRIVACY_LAST_UPDATED_DATE" = "9. September 2026";
 
 // Daten, die wir sammeln
 "PRIVACY_SECTION_DATA_TITLE" = "Daten, die wir verarbeiten";
@@ -252,6 +252,7 @@
 "PRIVACY_SECTION_DATA_ITEM5" = "Bleiben auf deinem Gerät: rohe Kamera- und LiDAR-Bilder, Bewegung und ARKit-Weltkarten. Ein Foto wird nur für Chat oder Diagnose hochgeladen.";
 "PRIVACY_SECTION_DATA_ITEM6" = "Gesundheitsdiagnose & Assistent: Fotos, die du für eine Diagnose sendest, sowie deine Nachrichten werden an unsere Server und anschließend an Google (Gemini) zur Analyse übermittelt, auch außerhalb der Europäischen Union.";
 "PRIVACY_SECTION_DATA_ITEM7" = "Technische Protokolle: Deine IP-Adresse wird verarbeitet, um Missbrauch zu begrenzen und den Dienst abzusichern. Sie wird nie in der Datenbank gespeichert und erscheint in den Server-Protokollen nur gekürzt (zum Beispiel 92.184.105.x).";
+"PRIVACY_SECTION_DATA_ITEM8" = "Absturzberichte: standardmäßig anonym — Aufrufliste, App-Version und Gerätemodell, ohne jede Kennung. Wenn du „Diagnosedaten mit meinem Konto verknüpfen“ aktivierst, wird deine Firebase-Kennung ergänzt, um mehrere Vorfälle zu verknüpfen.";
 
 // Warum wir sie nutzen
 "PRIVACY_SECTION_USAGE_TITLE" = "Warum wir diese Daten nutzen";
@@ -267,6 +268,7 @@
 "PRIVACY_SECTION_LEGAL_ITEM2" = "Berechtigte Interessen: %@ absichern und verbessern.";
 "PRIVACY_SECTION_LEGAL_ITEM3" = "Einwilligung: Kamera, Fotos, Standort, Kalender und Mitteilungen.";
 "PRIVACY_SECTION_LEGAL_ITEM4" = "Gesetzliche Pflicht und Rechenschaftspflicht: Nachweis der Einwilligung aufbewahren.";
+"PRIVACY_SECTION_LEGAL_ITEM5" = "Außerhalb der DSGVO: Anonyme Absturzberichte enthalten keine Daten, die dich identifizierbar machen (Erwägungsgrund 26). Die Verknüpfung mit deinem Konto beruht dagegen auf Einwilligung.";
 
 // Aufbewahrung
 "PRIVACY_SECTION_RETENTION_TITLE" = "Aufbewahrung";
@@ -276,7 +278,7 @@
 
 // Weitergabe
 "PRIVACY_SECTION_SHARING_TITLE" = "Weitergabe & Empfänger";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Auftragsverarbeiter: Firebase und Google (einschließlich Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI und Sentry bei aktivierter Diagnose.";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Auftragsverarbeiter: Firebase und Google (inkl. Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI und Sentry für Absturzberichte.";
 "PRIVACY_SECTION_SHARING_ITEM2" = "Keine Werbung und kein app-übergreifendes Tracking.";
 "PRIVACY_SECTION_SHARING_ITEM3" = "Wir verkaufen deine Daten niemals. Übermittlungen beschränken sich auf das Notwendige und sind vertraglich geregelt.";
 

@@ -355,3 +355,50 @@ fileprivate struct PlantFallback {
             ])))
     }
 }
+
+// MARK: - Niveau d'entretien (#485)
+
+extension Plant {
+
+    /// Niveau d'entretien d'une plante, tel qu'un filtre peut l'exploiter.
+    enum CareDifficulty {
+        case easy
+        case moderate
+        case demanding
+    }
+
+    /// Résout le niveau d'entretien, ou `nil` si la donnée est absente.
+    ///
+    /// Deux sources, dans cet ordre :
+    ///
+    /// 1. `care.difficulty`, qui porte les trois niveaux. Le backend ne le
+    ///    sérialisait pas jusqu'à #485 et aucune fiche ne le renseigne encore.
+    /// 2. `flags.easyCare`, présent sur 98 des 124 fiches. Binaire, donc
+    ///    incapable de distinguer « intermédiaire » — d'où le repli, pas le
+    ///    remplacement.
+    ///
+    /// **`nil` signifie « inconnu », pas « ne correspond pas ».** La distinction
+    /// est tout l'objet de #485 : le filtre du catalogue traitait l'absence de
+    /// donnée comme un échec de correspondance et excluait donc la totalité du
+    /// catalogue. Un filtre ne doit jamais cacher ce qu'il ne sait pas juger.
+    func careDifficulty(locale: String = "fr") -> CareDifficulty? {
+        if let raw = translations[locale]?.care?.difficulty?.lowercased(),
+           !raw.isEmpty {
+            // Mots-clés des quatre langues servies par le catalogue.
+            let easy = ["facile", "easy", "simple", "einfach", "leicht", "fácil", "facil", "débutant"]
+            let moderate = ["intermé", "medium", "modér", "mittel", "moderat", "intermedio"]
+            let demanding = ["exigeant", "difficile", "hard", "expert", "anspruchsvoll", "schwer", "dificil", "difícil"]
+
+            // « Exigeant » d'abord : « pas facile » contient « facile ».
+            if demanding.contains(where: raw.contains) { return .demanding }
+            if moderate.contains(where: raw.contains) { return .moderate }
+            if easy.contains(where: raw.contains) { return .easy }
+        }
+
+        if let flags = flags {
+            return flags.easyCare ? .easy : .demanding
+        }
+
+        return nil
+    }
+}

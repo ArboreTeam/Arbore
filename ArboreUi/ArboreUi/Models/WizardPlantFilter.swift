@@ -21,8 +21,8 @@ struct WizardPlantFilter {
         // 2. Exposure → flags.shade/fullSun (fallback: sun.lightType)
         if !matchesExposure(plant: plant, translation: translation) { return false }
 
-        // 3. Maintenance → flags.easyCare (fallback: care.difficulty + water.frequency)
-        if !matchesMaintenance(plant: plant, translation: translation) { return false }
+        // 3. Maintenance → Plant.careDifficulty (care.difficulty, repli flags.easyCare)
+        if !matchesMaintenance(plant: plant, locale: locale) { return false }
 
         // 4. Safety → flags.toxicToPets/Children (fallback: toxic keywords)
         if !matchesSafety(plant: plant, translation: translation) { return false }
@@ -175,50 +175,27 @@ struct WizardPlantFilter {
 
     // MARK: - Maintenance Matching
 
-    private func matchesMaintenance(plant: Plant, translation: PlantTranslation) -> Bool {
+    private func matchesMaintenance(plant: Plant, locale: String) -> Bool {
         guard let maintenance = wizard.maintenance, !maintenance.isEmpty else { return true }
         let maintL = maintenance.lowercased()
 
-        // Prefer structured flags when available.
-        if let flags = plant.flags {
-            if maintL.contains("facile") || maintL == "veryeasy" || maintL == "easy" {
-                return flags.easyCare
-            }
-            // "Exigeant" / unknown → accept all.
-            return true
+        // Résolution partagée avec le filtre du catalogue (#485) : `care.difficulty`
+        // quand il existe, repli sur `flags.easyCare` sinon.
+        //
+        // `nil` = entretien inconnu. On n'exclut pas : 26 des 124 fiches n'ont
+        // ni difficulté ni flags, et les masquer sur une donnée manquante
+        // reviendrait à affirmer qu'elles ne conviennent pas.
+        guard let actual = plant.careDifficulty(locale: locale) else { return true }
+
+        // ⚠️ « Très facile » et « Facile » donnent le même résultat tant que la
+        // source est `flags.easyCare`, qui est binaire. La distinction
+        // n'apparaîtra qu'une fois `care.difficulty` peuplé (#485).
+        if maintL.contains("facile") || maintL == "veryeasy" || maintL == "easy" {
+            return actual == .easy
         }
 
-        let plantDifficulty = (translation.care?.difficulty ?? "").lowercased()
-        let plantWater = (translation.water?.frequency ?? "").lowercased()
-        let combined = plantDifficulty + " " + plantWater
-
-        let maint = maintenance.lowercased()
-
-        // "Très facile" → veryEasy
-        if maint.contains("très facile") || maint == "veryeasy" {
-            // Only accept very easy / easy plants
-            let isEasy = combined.contains("facile") || combined.contains("simple")
-                || combined.contains("easy") || combined.contains("débutant")
-                || combined.contains("minimal") || combined.contains("peu")
-                || combined.contains("résistant")
-            let isHard = combined.contains("exigeant") || combined.contains("difficile")
-                || combined.contains("expert") || combined.contains("hard")
-            return isEasy || !isHard
-        }
-
-        // "Facile" → easy
-        if maint.contains("facile") || maint == "easy" {
-            // Accept easy + moderate plants
-            let isHard = combined.contains("exigeant") || combined.contains("difficile")
-                || combined.contains("expert") || combined.contains("hard")
-            return !isHard
-        }
-
-        // "Exigeant" → demanding - show ALL plants, including demanding ones
-        if maint.contains("exigeant") || maint == "demanding" {
-            return true
-        }
-
+        // « Exigeant » n'exclut rien : quelqu'un prêt à s'investir accepte aussi
+        // les plantes faciles. Le critère est une capacité, pas une exigence.
         return true
     }
 

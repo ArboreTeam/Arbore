@@ -185,3 +185,93 @@ final class PlantCareDifficultyTests: XCTestCase {
         XCTAssertTrue(filters.matches(plant: plant, locale: "fr"))
     }
 }
+
+// PlantToxicityTests — issue #488.
+//
+// Le filtre de sécurité laissait passer 25 des 26 fiches sans `flags` : il
+// cherchait le mot « toxique » dans une prose écrite pour décrire l'apparence
+// et l'entretien. Rien n'oblige la description d'un rhododendron à mentionner
+// ses grayanotoxines — et de fait, elle ne les mentionne pas.
+//
+// L'invariant central, et il est l'INVERSE de celui du filtre de difficulté :
+// ici, une toxicité non établie doit EXCLURE. Le coût des deux erreurs n'est
+// pas le même.
+
+final class PlantToxicityTests: XCTestCase {
+
+    private func makePlant(petToxicity: String? = nil,
+                           toxicToPetsFlag: Bool? = nil) throws -> Plant {
+        var profile = ""
+        if let t = petToxicity {
+            profile = #""botanicalProfile": {"petToxicity": {"value": "\#(t)"}},"#
+        }
+        var flags = ""
+        if let f = toxicToPetsFlag {
+            flags = #""flags": {"toxicToPets": \#(f), "toxicToChildren": \#(f), "easyCare": true, "shadeTolerant": false, "fullSunTolerant": false, "droughtTolerant": false, "humidityLoving": false, "flowering": false, "climbing": false, "trailing": false, "compact": false, "airPurifying": false},"#
+        }
+        let json = #"""
+        {
+            "id": "t", "name": "Test", "type": "x", "imageURLs": [],
+            "description": "", "modelURL": null,
+            \#(profile)\#(flags)
+            "translations": { "fr": { "description": "", "plantType": "" } }
+        }
+        """#
+        return try JSONDecoder().decode(Plant.self, from: Data(json.utf8))
+    }
+
+    // MARK: - L'invariant central
+
+    /// Sans donnée, la toxicité n'est pas établie — et surtout pas « sûre ».
+    func testToxiciteNonEtablieQuandRienNEstRenseigne() throws {
+        XCTAssertNil(try makePlant().petToxicity())
+    }
+
+    /// C'est la régression de #488 : 25 fiches passaient le filtre faute de
+    /// donnée, pas parce qu'elles étaient inoffensives.
+    func testUneToxiciteInconnueEstExclueDUnFiltreSurete() throws {
+        let plant = try makePlant()
+        let wizard = GardenWizardDTO(style: "", spaceType: "", safety: ["Éviter les plantes toxiques pour les animaux"])
+        XCTAssertFalse(WizardPlantFilter(wizard: wizard).matches(plant: plant, locale: "fr"),
+                       "Une toxicité non établie doit exclure quand l'utilisateur demande des plantes sûres")
+    }
+
+    // MARK: - Résolution
+
+    func testLeProfilBotaniquePrimeSurLesFlags() throws {
+        // Le flag dit « sûre », l'ASPCA dit « toxique ». L'autorité l'emporte.
+        let p = try makePlant(petToxicity: "toxic to dogs, cats, horses", toxicToPetsFlag: false)
+        XCTAssertEqual(p.petToxicity(), .toxic)
+    }
+
+    /// « non-toxic » contient « toxic » : l'ordre d'évaluation doit protéger
+    /// contre cette lecture naïve.
+    func testNonToxiqueNEstPasLuCommeToxique() throws {
+        XCTAssertEqual(try makePlant(petToxicity: "non-toxic").petToxicity(), .safe)
+    }
+
+    func testReplieSurLesFlagsQuandLeProfilManque() throws {
+        XCTAssertEqual(try makePlant(toxicToPetsFlag: true).petToxicity(), .toxic)
+        XCTAssertEqual(try makePlant(toxicToPetsFlag: false).petToxicity(), .safe)
+    }
+
+    // MARK: - Le filtre
+
+    func testUnePlanteToxiqueEstExclue() throws {
+        let p = try makePlant(petToxicity: "toxic to dogs, cats, horses")
+        let wizard = GardenWizardDTO(style: "", spaceType: "", safety: ["Éviter les plantes toxiques pour les animaux"])
+        XCTAssertFalse(WizardPlantFilter(wizard: wizard).matches(plant: p, locale: "fr"))
+    }
+
+    func testUnePlanteSureEstConservee() throws {
+        let p = try makePlant(petToxicity: "non-toxic")
+        let wizard = GardenWizardDTO(style: "", spaceType: "", safety: ["Éviter les plantes toxiques pour les animaux"])
+        XCTAssertTrue(WizardPlantFilter(wizard: wizard).matches(plant: p, locale: "fr"))
+    }
+
+    /// Sans contrainte de sécurité demandée, rien n'est exclu — même inconnu.
+    func testSansDemandeDeSureteRienNEstExclu() throws {
+        let p = try makePlant()
+        XCTAssertTrue(WizardPlantFilter(wizard: GardenWizardDTO(style: "", spaceType: "")).matches(plant: p, locale: "fr"))
+    }
+}

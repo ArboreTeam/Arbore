@@ -41,8 +41,10 @@ struct PrivacySettingsView: View {
                 )
                 .onChange(of: shareData) { _, newValue in
                     recordConsentChange(type: "analytics", granted: newValue)
-                    // Ce toggle gouverne le crash reporting Sentry : on démarre /
-                    // coupe le SDK selon le consentement diagnostic (issue #226).
+                    // Ce réglage ne gouverne plus la COLLECTE mais l'IDENTIFICATION
+                    // (#469) : les plantages remontent de toute façon, en régime
+                    // anonyme. L'activer y ajoute l'UID Firebase. Sentry est
+                    // redémarré pour que ses options soient réévaluées.
                     SentryManager.updateConsent(granted: newValue, uid: Auth.auth().currentUser?.uid)
                 }
             }

@@ -15,9 +15,12 @@ import UserNotifications
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool{
         // Sentry en premier (issue #205), AVANT Firebase, pour capturer aussi un
-        // éventuel crash pendant l'init de Firebase. No-op si pas de DSN ou si
-        // l'utilisateur n'a pas consenti au diagnostic (opt-in RGPD, issue #226) ;
-        // réactivé par SentryManager.updateConsent dès qu'il accepte.
+        // éventuel crash pendant l'init de Firebase. No-op sans DSN.
+        //
+        // Depuis #469, la collecte ne dépend PLUS du consentement : sans lui,
+        // elle tourne en régime anonyme — aucun identifiant, pas de hiérarchie
+        // de vues, pas de fil d'Ariane réseau, pas de traces. Le consentement
+        // n'ajoute que le rattachement à un compte.
         SentryManager.start()
 
         FirebaseApp.configure()

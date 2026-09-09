@@ -69,10 +69,10 @@ struct AppConfig {
     /// numérique. Ce changement matériel doit être re-consenti.
     /// https://arbore.app/privacy et https://arbore.app/terms. Les nouveaux
     /// consentements sont horodatés avec cette version.
-    static let privacyPolicyVersion = "2.3"
+    static let privacyPolicyVersion = "2.4"
 
     /// Date de dernière mise à jour de la politique
-    static let privacyPolicyLastUpdate = "23 July 2026"
+    static let privacyPolicyLastUpdate = "9 September 2026"
 
     /// URL publique de la politique de confidentialité (FR/EN).
     /// Champ obligatoire App Store Connect + liens in-app.

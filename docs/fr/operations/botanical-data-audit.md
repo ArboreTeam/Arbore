@@ -2,14 +2,61 @@
 
 ## Référence actuelle
 
-Audit en lecture seule de la collection de production `arbore.plants`, réalisé le 23 juillet 2026 :
+Audit de la collection de production `arbore.plants`, relevé le 9 septembre 2026 :
 
-- 124 plantes au catalogue ;
-- 0 profil `botanicalProfile` ;
-- 0 plante certifiable sur les contraintes critiques ;
-- 0 valeur vérifiée sur 1 860 valeurs possibles (124 plantes × 15 champs).
+```
+124 plantes au catalogue
+123 portent désormais un botanicalProfile
+  0 plante certifiable sur les contraintes critiques
+  0 valeur vérifiée sur 1 860 possibles
+```
 
-Le moteur doit donc afficher au mieux **Probablement compatible** tant que les profils ne sont pas renseignés. Les anciens textes et `PlantFlags` restent des indices faibles et ne permettent jamais d'afficher **Adaptée**.
+Quatre champs ont été renseignés le 9 septembre (#489) :
+
+| Champ | Couverture | Provenance |
+|---|---|---|
+| `petToxicity` | 38/124 | ASPCA, source nommée et datée |
+| `directSunHours` | 121/124 | dérivé de `sun.durationPerDay` |
+| `wateringIntervalDays` | 107/124 | dérivé de `water.frequency` |
+| `drainage` | 110/124 | dérivé de `soilAndPot.substrate` |
+
+**« 0 valeur vérifiée » reste exact, et ce n'est pas une contradiction.** L'audit
+n'accepte que `reliability: high`, réservée par ce document à une relecture par
+un horticulteur ou un botaniste — étape 5 du plan de remplissage. Aucune de ces
+valeurs n'a été relue par un humain.
+
+Le vocabulaire employé le dit :
+
+| Valeur | Signification |
+|---|---|
+| `high` | relue par un humain compétent — **aucune à ce jour** |
+| `authoritative` | source faisant autorité, collectée automatiquement (ASPCA) |
+| `authoritative-genus` | idem, mais le verdict vaut pour le genre, pas l'espèce |
+| `derived` | transcrite depuis la prose de la fiche |
+
+> ⚠️ **Une nuance à trancher.** L'étape 3 du plan demande de « compléter les
+> champs **sans déduire** une valeur absente depuis le texte ». Les trois champs
+> `derived` transcrivent un nombre explicitement écrit — « 6–8 h / jour » devient
+> `{minimum: 6, maximum: 8}` — plutôt qu'ils ne l'infèrent. La frontière est
+> mince et mérite d'être arbitrée : ces valeurs peuvent être conservées comme
+> indices, ou retirées si la règle doit être stricte.
+
+Le moteur doit donc toujours afficher au mieux **Probablement compatible**. Les
+anciens textes et `PlantFlags` restent des indices faibles et ne permettent
+jamais d'afficher **Adaptée**.
+
+## Ce que les filtres consomment déjà
+
+Indépendamment de la certification, deux filtres iOS lisent ces données :
+
+- **sécurité** (#488) — `botanicalProfile.petToxicity` d'abord, `flags.toxicToPets`
+  ensuite. Une toxicité **non établie exclut** la plante quand l'utilisateur
+  demande des plantes sûres : 40 fiches sur 124 subsistent alors ;
+- **difficulté** (#485) — `care.difficulty`, jamais renseigné à ce jour, puis
+  `flags.easyCare`. Ici l'inconnu **n'exclut pas**.
+
+Les deux règles diffèrent délibérément : masquer une plante inoffensive prive
+d'un choix, en proposer une toxique rompt une promesse.
 
 ## Lancer l'audit
 

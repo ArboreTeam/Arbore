@@ -71,6 +71,7 @@ rien observer. Deux régimes coexistent donc, et le consentement choisit lequel 
 |---|---|---|
 | `user` (UID Firebase) | supprimé | conservé |
 | `device_app_hash` | **retiré** (#498) | conservé |
+| adresse IP | **remplacée par `0.0.0.0`** | **remplacée par `0.0.0.0`** |
 | fils d'Ariane réseau | écartés | conservés |
 | `tracesSampleRate` | `0` | `0.1` |
 | `attachViewHierarchy` | non | oui |
@@ -82,12 +83,41 @@ La logique vit dans deux fonctions pures, `scrub(_:consenti:)` et
 enfouie dans une closure imbriquée, et c'est ce qui avait rendu #498 invisible
 (#496). Neuf tests la couvrent, dont un éprouvé par neutralisation.
 
-> ⚠️ **Ce qui n'est toujours pas anonyme : la géolocalisation.** Sentry déduit
-> une ville de l'adresse IP **après** ingestion. Le réglage « Prevent Storing of
-> IP Addresses » supprime l'adresse, pas la position qui en a été tirée, et
-> aucun code client ne peut l'atteindre. Il faut soit une règle *Advanced Data
-> Scrubbing* sur `$user.geo` dans `Settings → Security & Privacy`, soit
-> l'annoncer sur `arbore.app/privacy`. Suivi dans #498.
+### La géolocalisation, et pourquoi le scrubbing n'y peut rien
+
+Sentry dérive un pays **et une ville** de l'adresse IP, et les pose dans
+`user.geo`. Ça se produisait y compris sur les rapports anonymes.
+
+Le réglage « Prevent Storing of IP Addresses » ne suffit pas : il supprime
+l'adresse, pas la position qui en a été tirée.
+
+**Les règles de scrubbing non plus.** Mesuré le 2026-09-10, série de cinq
+événements de contrôle :
+
+| envoi | `user.geo` |
+|---|---|
+| aucune IP dans la charge | `FR, France` |
+| aucune IP + règle `[Remove][Anything]` sur `$user.geo` | `FR, France` |
+| aucune IP + règle sur `user.geo` (chemin, sans `$`) | `FR, Paris, France` |
+| `user.ip_address: "0.0.0.0"` | **aucun bloc `user`** |
+| `user.ip_address: "127.0.0.1"` | **aucun bloc `user`** |
+
+Le troisième essai lève l'objection évidente — le pipeline ne tournerait pas :
+sur ce même événement, `extra.password` et `extra.api_key` revenaient
+`[Filtered]`. Le scrubbing marchait, les règles étaient actives, et elles ne
+matchaient pas. La géolocalisation est calculée **après** l'étape de nettoyage :
+le champ n'existe pas encore quand les règles s'appliquent.
+
+**Ne pas reposer de règle sur `user.geo`.** Elle donnerait l'illusion d'une
+protection.
+
+**Ce qui marche** est côté client, dans `scrub()` : poser une adresse explicite
+et non routable au lieu d'effacer le champ. Sentry n'essaie alors plus de
+deviner. `0.0.0.0` est identique pour toutes les installations, donc rien
+d'identifiant n'est réintroduit en échange.
+
+C'est contre-intuitif et ça vaut d'être retenu : **effacer une donnée peut en
+révéler une autre**, quand l'effacement rend la main à celui qui sait deviner.
 
 `app_id` reste envoyé dans les deux régimes : c'est l'**UUID du binaire**,
 identique pour toutes les installations d'un même build, et la symbolication en

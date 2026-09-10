@@ -158,8 +158,23 @@ enum SentryManager {
     /// `app_id` est délibérément CONSERVÉ : vérifié contre le dSYM téléversé,
     /// c'est l'UUID du binaire, identique pour tous les porteurs d'un même
     /// build. Le retirer casserait la symbolication sans rien gagner.
+    /// Adresse non routable posée à la place de celle de l'utilisateur.
+    ///
+    /// Effacer l'adresse IP ne suffisait pas : quand la charge n'en porte
+    /// aucune, Sentry prend celle de la connexion et en dérive un pays et une
+    /// ville, qui atterrissent dans `user.geo`. Ça se produisait **même sur les
+    /// rapports anonymes**, et aucune règle de scrubbing ne peut l'empêcher —
+    /// la géolocalisation est calculée après l'étape de nettoyage (#498).
+    ///
+    /// Poser une adresse explicite coupe la déduction à la source : Sentry
+    /// n'essaie plus de deviner. Mesuré — un événement portant cette valeur
+    /// revient sans aucun bloc `user`.
+    ///
+    /// `0.0.0.0` est identique pour toutes les installations : rien
+    /// d'identifiant n'est réintroduit en échange.
+    private static let adresseAnonyme = "0.0.0.0"
+
     static func scrub(_ event: Event, consenti: Bool) -> Event {
-        event.user?.ipAddress = nil
         event.user?.email = nil
         event.user?.username = nil
         event.user?.name = nil
@@ -167,9 +182,19 @@ enum SentryManager {
         event.serverName = nil
         event.request = nil
 
+        // Vaut pour les deux régimes : le consentement porte sur le
+        // rattachement au compte, jamais sur la localisation.
+        event.user?.ipAddress = adresseAnonyme
+
         guard !consenti else { return event }
 
-        event.user = nil
+        // Sans consentement, il ne reste de l'utilisateur que l'adresse
+        // factice. Un `nil` pur rendrait la main à Sentry, qui regarderait
+        // alors la connexion.
+        let anonyme = Sentry.User()
+        anonyme.ipAddress = adresseAnonyme
+        event.user = anonyme
+
         if var contexts = event.context, var app = contexts["app"] {
             app.removeValue(forKey: "device_app_hash")
             contexts["app"] = app

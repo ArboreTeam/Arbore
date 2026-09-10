@@ -26,11 +26,30 @@ enum SentryManager {
     /// Vrai si l'utilisateur a consenti au partage des données de diagnostic.
     static var hasConsent: Bool { UserDefaults.standard.bool(forKey: consentKey) }
 
-    /// Vrai si le crash reporting tourne — DSN présent suffit désormais (#469).
+    /// Vrai si le processus courant est piloté par XCTest.
+    ///
+    /// Depuis #469, un DSN suffit à démarrer le SDK. Or les tests instancient
+    /// `AppDelegate`, donc toute machine dont le `Secrets.xcconfig` porte un DSN
+    /// émettait à chaque exécution de la suite — et le lancement du runner
+    /// XCTest est assez lent pour déclencher le détecteur d'app hangs. Résultat
+    /// dans Sentry : un « App Hanging for at least 2000 ms » dont la pile est
+    /// celle de `_XCTestMain`, indiscernable d'un gel chez un testeur tant qu'on
+    /// ne l'a pas lue (#506).
+    ///
+    /// Un test ne doit pas pouvoir écrire dans l'observabilité de production.
+    ///
+    /// La variable est posée par le harnais XCTest lui-même : elle est absente
+    /// de l'app livrée, et sa lecture ne coûte rien.
+    static var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
+    /// Vrai si le crash reporting tourne — DSN présent suffit désormais (#469),
+    /// sauf sous XCTest (#506).
     ///
     /// L'opt-in ne conditionne plus la COLLECTE, mais l'IDENTIFICATION. Voir
     /// `start()` pour ce que cela change concrètement.
-    static var isEnabled: Bool { isConfigured }
+    static var isEnabled: Bool { isConfigured && !isRunningTests }
 
     /// Démarre Sentry dès qu'un DSN est configuré. Appelée au tout début de
     /// `AppDelegate.didFinishLaunchingWithOptions`, AVANT `FirebaseApp.configure()`,
@@ -65,6 +84,13 @@ enum SentryManager {
     /// réglage Sentry « Prevent Storing of IP Addresses » doit être activé côté
     /// projet — le SDK n'envoie pas l'IP, mais l'ingest la voit passer.
     static func start() {
+        guard !isRunningTests else {
+            #if DEBUG
+            print("ℹ️ Sentry désactivé (exécution sous XCTest — cf. #506).")
+            #endif
+            return
+        }
+
         guard isConfigured else {
             #if DEBUG
             print("ℹ️ Sentry désactivé (aucun DSN dans Secrets.xcconfig).")
@@ -132,8 +158,23 @@ enum SentryManager {
     /// `app_id` est délibérément CONSERVÉ : vérifié contre le dSYM téléversé,
     /// c'est l'UUID du binaire, identique pour tous les porteurs d'un même
     /// build. Le retirer casserait la symbolication sans rien gagner.
+    /// Adresse non routable posée à la place de celle de l'utilisateur.
+    ///
+    /// Effacer l'adresse IP ne suffisait pas : quand la charge n'en porte
+    /// aucune, Sentry prend celle de la connexion et en dérive un pays et une
+    /// ville, qui atterrissent dans `user.geo`. Ça se produisait **même sur les
+    /// rapports anonymes**, et aucune règle de scrubbing ne peut l'empêcher —
+    /// la géolocalisation est calculée après l'étape de nettoyage (#498).
+    ///
+    /// Poser une adresse explicite coupe la déduction à la source : Sentry
+    /// n'essaie plus de deviner. Mesuré — un événement portant cette valeur
+    /// revient sans aucun bloc `user`.
+    ///
+    /// `0.0.0.0` est identique pour toutes les installations : rien
+    /// d'identifiant n'est réintroduit en échange.
+    private static let adresseAnonyme = "0.0.0.0"
+
     static func scrub(_ event: Event, consenti: Bool) -> Event {
-        event.user?.ipAddress = nil
         event.user?.email = nil
         event.user?.username = nil
         event.user?.name = nil
@@ -141,9 +182,19 @@ enum SentryManager {
         event.serverName = nil
         event.request = nil
 
+        // Vaut pour les deux régimes : le consentement porte sur le
+        // rattachement au compte, jamais sur la localisation.
+        event.user?.ipAddress = adresseAnonyme
+
         guard !consenti else { return event }
 
-        event.user = nil
+        // Sans consentement, il ne reste de l'utilisateur que l'adresse
+        // factice. Un `nil` pur rendrait la main à Sentry, qui regarderait
+        // alors la connexion.
+        let anonyme = Sentry.User()
+        anonyme.ipAddress = adresseAnonyme
+        event.user = anonyme
+
         if var contexts = event.context, var app = contexts["app"] {
             app.removeValue(forKey: "device_app_hash")
             contexts["app"] = app

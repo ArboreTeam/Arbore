@@ -11,19 +11,37 @@ Crash and performance reporting for Arbore. **iOS**, **web** and the **Go/Gin ba
 
 ---
 
-## Measured state — 2026-09-08
+## Measured state — 2026-09-10
 
 Read from the Sentry organization, not inferred from configuration. Re-measure
 rather than trust: these figures age.
 
-| project | SDK | traffic over 90 days |
+| project | SDK | state |
 |---|---|---|
-| `arbore-frontend` (iOS) | ✅ | **nothing at all** |
-| `frontend-web-arbore` | ✅ | 192,800 spans, 0 errors |
-| `arbore-backend` | ❌ absent from `go.mod` | empty |
+| `arbore-frontend` (iOS) | ✅ | **reporting since build 29** (anonymous regime, #495) |
+| `frontend-web-arbore` | ✅ | 192,800 spans |
+| `arbore-backend` | ✅ since #388 | panics, 5xx and startup failures |
 
-**Zero errors across all three projects.** That is not a sign of health, it is
-the measurement of what is not wired up — see the two sections below.
+### What the instrumentation found on day one
+
+The 2026-09-08 reading showed "zero errors across all three projects". That was
+not a sign of health, it was the measurement of what was not wired up. Two days
+later the first real events delivered three defects no code review had caught:
+
+| event | defect | issue |
+|---|---|---|
+| `App Hanging: 2000 ms` | plant traits recomputed on every call, on the main thread | #499 |
+| first anonymous event | `device_app_hash` was leaving the device without consent | #498 |
+| — | wizard questions skippable by swiping, found validating the same build | #500 |
+
+The second one is the one to remember: **the anonymisation had been declared
+sound after a code review, and the public privacy policy asserted it the next
+day.** A real event contradicted both. A review cannot see what an SDK adds by
+itself.
+
+Hence the rule that now applies to this project: **verify against a real event
+after every build**, and only write into the policy what has been observed
+leaving the device.
 
 A Sentry organization `arbore` also exists, **empty**. It must not be used as a
 destination by mistake: everything lives in `epi-apps`.
@@ -39,16 +57,73 @@ destination by mistake: everything lives in `epi-apps`.
 | Privacy manifest | `ArboreUi/ArboreUi/PrivacyInfo.xcprivacy` (CrashData + OtherDiagnosticData) |
 | dSYM upload | `fastlane/Fastfile` → `beta` lane |
 
-`SentryManager` is **disabled until a DSN is configured _and_ the user has explicitly opted in** to diagnostics sharing (the `privacy_shareData` toggle in the privacy settings, **off by default** — GDPR opt-in, #226). Without secrets or consent, the app builds and runs identically (handy for contributors and CI). `start()` is a no-op until consent is given; toggling consent starts/stops the SDK at runtime via `updateConsent(granted:uid:)`. The user context is the **Firebase UID only** (no email or name) and tracks auth state through a single `addStateDidChangeListener` in `AppDelegate`.
+`SentryManager` is **disabled until a DSN is configured**. Without secrets, the
+app builds and runs identically (handy for contributors and CI).
 
-Options set: `environment` (`debug` / `production`, see the next section), `releaseName = version+build`, `dist = build`, `tracesSampleRate = 0.1`, `attachScreenshot = false` (privacy), `attachViewHierarchy = true`, `sendDefaultPii = false`, plus a `beforeSend` hook that strips IP / email / name / request body from every event (keeping only the UID pseudonym).
+It no longer **depends on consent to start**, however (#469, #495). The
+reasoning: a crash could only be observed on devices whose owners had enabled a
+setting they were never offered, which amounted to observing nothing. So two
+regimes coexist, and consent picks which one applies:
 
-> ⚠️ **Consequence worth knowing: iOS reports nothing.** Zero events in 90 days
-> (measured 2026-09-08). The mechanism works — it is consent that is never
-> given, because it is never offered. The whole chain, DSN and dSYM upload
-> included, is in place and has no effect. A launch crash on a tester's device
-> is today indistinguishable from a tester who does not open the app. Open
-> decision in #469.
+| | without consent | with consent |
+|---|---|---|
+| `user` (Firebase UID) | dropped | kept |
+| `device_app_hash` | **removed** (#498) | kept |
+| IP address | **replaced with `0.0.0.0`** | **replaced with `0.0.0.0`** |
+| network breadcrumbs | discarded | kept |
+| `tracesSampleRate` | `0` | `0.1` |
+| `attachViewHierarchy` | no | yes |
+
+In both regimes: no IP, no email, no name, no request body.
+
+The logic lives in two pure functions, `scrub(_:consenti:)` and
+`filtrer(_:consenti:)`, precisely so it can be tested — it used to sit inside a
+nested closure, which is what made #498 invisible (#496). Nine tests cover it,
+one of them proven by neutralisation.
+
+### Geolocation, and why scrubbing cannot touch it
+
+Sentry derives a country **and a city** from the IP address and puts them in
+`user.geo`. This happened even on anonymous reports.
+
+The "Prevent Storing of IP Addresses" setting is not enough: it removes the
+address, not the position derived from it.
+
+**Scrubbing rules are not enough either.** Measured on 2026-09-10, five control
+events:
+
+| what was sent | `user.geo` |
+|---|---|
+| no IP in the payload | `FR, France` |
+| no IP + `[Remove][Anything]` rule on `$user.geo` | `FR, France` |
+| no IP + rule on `user.geo` (path, no `$`) | `FR, Paris, France` |
+| `user.ip_address: "0.0.0.0"` | **no `user` block at all** |
+| `user.ip_address: "127.0.0.1"` | **no `user` block at all** |
+
+The third run settles the obvious objection — that the pipeline was not running:
+on that very event, `extra.password` and `extra.api_key` came back `[Filtered]`.
+Scrubbing worked, the rules were active, and they did not match. Geolocation is
+computed **after** the scrubbing stage: the field does not exist yet when the
+rules run.
+
+**Do not add a rule on `user.geo` again.** It would give the illusion of
+protection.
+
+**What works** is on the client, in `scrub()`: set an explicit non-routable
+address instead of clearing the field. Sentry then stops guessing. `0.0.0.0` is
+identical across every installation, so nothing identifying is reintroduced in
+exchange.
+
+It is counter-intuitive and worth remembering: **erasing one piece of data can
+reveal another**, when the erasure hands control back to whoever can guess.
+
+`app_id` is still sent under both regimes: it is the **binary's UUID**, identical
+across every installation of a given build, and symbolication depends on it. It
+designates nobody — unlike `device_app_hash`, which is per-installation.
+
+Other options set: `environment` (`debug` / `production`, see the next section),
+`releaseName = version+build`, `dist = build`, `attachScreenshot = false`
+(privacy), `sendDefaultPii = false`.
 
 ### iOS setup (one-shot)
 
@@ -80,6 +155,11 @@ Create the token at `sentry.io → Settings → Auth Tokens` (scopes `project:re
 3. The event shows up in `sentry.io → arbore-frontend → Issues` within seconds, tagged `environment: debug` and with the Firebase UID.
 4. For symbolicated **release** crashes, ship a `fastlane beta` build with the token above, then trigger a crash on the TestFlight build.
 
+**And the check that actually matters**: after every shipped build, open a real
+event and read its raw JSON — `user`, the `app` context, the breadcrumbs. That
+reading, not CI, is what found #498. Tests guarantee the code removes what it
+was told to remove; they will never tell you nothing else remains.
+
 ## ⚠️ Environment vocabulary is not unified
 
 The three components do not tag their events the same way. This is a known
@@ -109,8 +189,9 @@ which backend it targets. The defect is that `AppConfig.environment` does not
 look at it — it keys off `#if DEBUG`, which `Dev` inherits anyway. **Wrong
 criterion, not missing information.**
 
-No effect today, iOS reporting nothing (see above), but it is a trap armed for
-the day it does.
+That trap is now **fully armed**: since build 29, iOS reports. An event coming
+from a `Dev` build is today indistinguishable from one coming from a `Debug`
+build, even though they target two different backends.
 
 ---
 

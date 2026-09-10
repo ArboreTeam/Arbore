@@ -1106,6 +1106,39 @@ enum PlantCatalogTraits {
     /// normalized text across all inference families.
     private static let searchableTextCache = NSCache<NSString, NSString>()
 
+    /// Caching the normalized text was not enough: `snapshot(for:)` re-ran every
+    /// inference family on every call — `kinds` alone performs 36 substring
+    /// scans over the plant's prose in all four languages. The garden wizard
+    /// evaluates the whole catalog at once, so the cost landed on the main
+    /// thread as a 2-second hang (#499).
+    ///
+    /// A plant's traits do not change between two evaluations, so the snapshot
+    /// is memoized like the text it derives from. `NSCache` stores objects, and
+    /// the snapshot is a struct, hence the box.
+    private final class SnapshotBox {
+        let value: PlantCatalogTraitsSnapshot
+        init(_ value: PlantCatalogTraitsSnapshot) { self.value = value }
+    }
+
+    private static let snapshotCache = NSCache<NSString, SnapshotBox>()
+
+    /// The identifier alone is not a sound cache key. A snapshot is derived
+    /// from the plant's prose *and* its flags, and the same id can carry a
+    /// different payload within one process — a catalog refresh after the data
+    /// was edited server-side, or two fixtures sharing an id in a test. Folding
+    /// the flags into the key makes the memoization observe what it depends on
+    /// rather than assume it never changes.
+    private static func cacheKey(for plant: Plant) -> NSString {
+        guard let flags = plant.flags else { return "\(plant.id)|-" as NSString }
+        let bits = [
+            flags.toxicToPets, flags.toxicToChildren, flags.easyCare,
+            flags.shadeTolerant, flags.fullSunTolerant, flags.droughtTolerant,
+            flags.humidityLoving, flags.flowering, flags.climbing,
+            flags.trailing, flags.compact, flags.airPurifying
+        ].map { $0 ? "1" : "0" }.joined()
+        return "\(plant.id)|\(bits)" as NSString
+    }
+
     struct SunlightTolerances {
         let shade: Bool
         let fullSun: Bool
@@ -1113,12 +1146,21 @@ enum PlantCatalogTraits {
         var hasKnownValue: Bool { shade || fullSun }
     }
 
-    static func clearSearchableTextCache() {
+    /// Both caches are purged together: a snapshot is derived from the
+    /// searchable text, so keeping one while dropping the other would serve
+    /// traits computed from prose that no longer exists.
+    static func clearCaches() {
         searchableTextCache.removeAllObjects()
+        snapshotCache.removeAllObjects()
     }
 
     static func snapshot(for plant: Plant) -> PlantCatalogTraitsSnapshot {
-        PlantCatalogTraitsSnapshot(
+        let key = cacheKey(for: plant)
+        if let cached = snapshotCache.object(forKey: key) {
+            return cached.value
+        }
+
+        let value = PlantCatalogTraitsSnapshot(
             searchableText: searchableText(for: plant),
             sunlightTolerances: sunlightTolerances(for: plant),
             goals: goals(for: plant),
@@ -1133,6 +1175,9 @@ enum PlantCatalogTraits {
             needsLittlePruning: needsLittlePruning(plant),
             hasLongBloom: hasLongBloom(plant)
         )
+
+        snapshotCache.setObject(SnapshotBox(value), forKey: key)
+        return value
     }
 
     static func searchableText(for plant: Plant) -> String {

@@ -540,7 +540,7 @@ private actor PlantCatalogMemoryCache {
 private enum PlantCatalogBuilder {
     static func index(_ plants: [Plant]) async -> [PlantCatalogIndexedPlant] {
         await Task.detached(priority: .userInitiated) {
-            PlantCatalogTraits.clearSearchableTextCache()
+            PlantCatalogTraits.clearCaches()
             return plants.map { plant in
                 PlantCatalogIndexedPlant(
                     plant: plant,

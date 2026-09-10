@@ -103,6 +103,24 @@ final class SentryAnonymisationTests: XCTestCase {
         XCTAssertNotNil(SentryManager.filtrer(c, consenti: true))
     }
 
+    // MARK: - Muet sous XCTest (#506)
+
+    /// Ce test s'exécute sous XCTest, donc il vérifie la détection dans le seul
+    /// contexte où elle compte. Casser le mécanisme le fait échouer.
+    func testLaPresenceDuHarnaisDeTestEstDetectee() {
+        XCTAssertTrue(SentryManager.isRunningTests,
+                      "Le harnais XCTest pose XCTestConfigurationFilePath : ne pas le voir, "
+                      + "c'est réémettre de faux plantages depuis la suite de tests")
+    }
+
+    /// L'invariant réel : un test ne doit pas pouvoir écrire dans
+    /// l'observabilité de production, DSN configuré ou non.
+    func testLeSDKResteEteintPendantLesTests() {
+        XCTAssertFalse(SentryManager.isEnabled,
+                       "Un DSN présent dans Secrets.xcconfig ne doit pas suffire à faire "
+                       + "émettre la suite de tests (#506)")
+    }
+
     /// Les autres fils d'Ariane — navigation, cycle de vie — ne portent pas
     /// d'identifiant et restent utiles au diagnostic.
     func testLesAutresFilsDArianePassentDansLesDeuxCas() {

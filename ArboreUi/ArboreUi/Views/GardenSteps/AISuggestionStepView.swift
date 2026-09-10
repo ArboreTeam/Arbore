@@ -27,8 +27,13 @@ struct AISuggestionStepView: View {
     @State private var acceptedPlantIds: Set<String> = []
     @State private var showAllPlants = false
 
-    // Engine
-    private let engine = GardenSuggestionEngine(targetPlantCount: 7)
+    // Engine — built inside the background task, so nothing of it is shared
+    // across threads.
+    private let targetPlantCount = 7
+
+    /// The "AI is thinking" animation has a floor, not an added delay: the
+    /// computation runs during it, and we only wait out whatever is left.
+    private let generationAnimationFloor: TimeInterval = 1.2
 
     // MARK: - Colors
 
@@ -331,6 +336,10 @@ struct AISuggestionStepView: View {
 
     // MARK: - Actions
 
+    /// Explicitly main-actor bound so the `Task` below inherits that context:
+    /// the detached work is the only part that leaves the main thread, and the
+    /// `@State` mutations that follow are guaranteed to come back to it.
+    @MainActor
     private func generateSuggestion() {
         isGenerating = true
 
@@ -353,14 +362,27 @@ struct AISuggestionStepView: View {
                 : state.conditionalAnswers
         ))
 
-        // Simulate a brief "AI thinking" delay for UX delight,
-        // actual computation is < 50ms
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            let result = engine.suggest(
-                from: dto,
-                plants: allPlants,
-                locale: Locale.current.language.languageCode?.identifier ?? "fr"
-            )
+        // This used to run on the main thread behind a 1.2 s delay, under a
+        // comment claiming the computation took under 50 ms. The first real
+        // Sentry event measured 2 000 ms on an iPhone 17 Pro (#499): ranking
+        // the whole catalog is not view work, and older hardware fares worse.
+        let plants = allPlants
+        let locale = Locale.current.language.languageCode?.identifier ?? "fr"
+        let count = targetPlantCount
+        let floor = generationAnimationFloor
+
+        Task {
+            let startedAt = Date()
+
+            let result = await Task.detached(priority: .userInitiated) {
+                GardenSuggestionEngine(targetPlantCount: count)
+                    .suggest(from: dto, plants: plants, locale: locale)
+            }.value
+
+            let remaining = floor - Date().timeIntervalSince(startedAt)
+            if remaining > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+            }
 
             withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
                 self.suggestion = result

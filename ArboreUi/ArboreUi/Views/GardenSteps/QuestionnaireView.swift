@@ -309,6 +309,10 @@ struct GardenWizardView: View {
     @StateObject private var state = GardenWizardState()
     @State private var currentStep: GardenWizardStep = .intro
 
+    /// Sens de la dernière navigation, pour que la transition glisse du bon
+    /// côté. Le geste est parti (#500), l'animation reste.
+    @State private var isMovingForward = true
+
     // Step `scanMethod` déclenche immédiatement l'un de ces deux flows
     // selon la méthode choisie par l'utilisateur :
     // - perimeter → ouvre ARViewContainerMesure pour tracer la boundary
@@ -373,9 +377,55 @@ struct GardenWizardView: View {
         visibleSteps.firstIndex(of: currentStep) ?? 0
     }
 
+    /// L'étape affichée. `soil` reste dans l'énumération même hors jardin :
+    /// `visibleSteps` l'écarte alors de la navigation, donc `currentStep` ne
+    /// peut pas s'y poser.
+    @ViewBuilder
+    private var currentStepView: some View {
+        switch currentStep {
+        case .intro:
+            IntroStepView(onNext: goToNext)
+        case .style:
+            StyleStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+        case .spaceType:
+            SpaceTypeStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+        case .exposure:
+            ExposureStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+        case .maintenance:
+            MaintenanceStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+        case .safety:
+            SafetyStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+        case .soil:
+            SoilStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+        case .scanMethod:
+            ScanMethodStepView(
+                state: state,
+                onStartScan: startScanFlow,
+                onBack: goToPrevious
+            )
+        case .aiSuggestion:
+            AISuggestionStepView(
+                state: state,
+                allPlants: allCataloguePlants,
+                onPlaceInAR: startFinalPlacement(with:),
+                onBack: goToPrevious,
+                selectedPlants: $aiSelectedPlants
+            )
+        }
+    }
+
+    /// Conserve le glissement latéral du style `.page`, dans le sens de la
+    /// navigation : ce qu'on retire, c'est le geste, pas l'animation.
+    private var stepTransition: AnyTransition {
+        isMovingForward
+            ? .asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading))
+            : .asymmetric(insertion: .move(edge: .leading), removal: .move(edge: .trailing))
+    }
+
     private func goToNext() {
         let nextIndex = currentIndex + 1
         if nextIndex < visibleSteps.count {
+            isMovingForward = true
             withAnimation(.easeInOut) { currentStep = visibleSteps[nextIndex] }
         }
     }
@@ -383,6 +433,7 @@ struct GardenWizardView: View {
     private func goToPrevious() {
         let prevIndex = currentIndex - 1
         if prevIndex >= 0 {
+            isMovingForward = false
             withAnimation(.easeInOut) { currentStep = visibleSteps[prevIndex] }
         }
     }
@@ -609,47 +660,25 @@ struct GardenWizardView: View {
                         .padding(.bottom, 12)
                 }
 
-                TabView(selection: $currentStep) {
-                    IntroStepView(onNext: goToNext)
-                        .tag(GardenWizardStep.intro)
-
-                    StyleStepView(state: state, onNext: goToNext, onBack: goToPrevious)
-                        .tag(GardenWizardStep.style)
-
-                    SpaceTypeStepView(state: state, onNext: goToNext, onBack: goToPrevious)
-                        .tag(GardenWizardStep.spaceType)
-
-                    ExposureStepView(state: state, onNext: goToNext, onBack: goToPrevious)
-                        .tag(GardenWizardStep.exposure)
-
-                    MaintenanceStepView(state: state, onNext: goToNext, onBack: goToPrevious)
-                        .tag(GardenWizardStep.maintenance)
-
-                    SafetyStepView(state: state, onNext: goToNext, onBack: goToPrevious)
-                        .tag(GardenWizardStep.safety)
-
-                    if state.spaceType == .garden {
-                        SoilStepView(state: state, onNext: goToNext, onBack: goToPrevious)
-                            .tag(GardenWizardStep.soil)
-                    }
-
-                    ScanMethodStepView(
-                        state: state,
-                        onStartScan: startScanFlow,
-                        onBack: goToPrevious
-                    )
-                    .tag(GardenWizardStep.scanMethod)
-
-                    AISuggestionStepView(
-                        state: state,
-                        allPlants: allCataloguePlants,
-                        onPlaceInAR: startFinalPlacement(with:),
-                        onBack: goToPrevious,
-                        selectedPlants: $aiSelectedPlants
-                    )
-                    .tag(GardenWizardStep.aiSuggestion)
+                // Une seule étape est montée à la fois, et seuls `goToNext` /
+                // `goToPrevious` la changent.
+                //
+                // C'était auparavant un `TabView` en style `.page`. Sa pagination
+                // au doigt n'était utile à rien — la navigation a toujours été
+                // pilotée par les boutons — mais elle laissait glisser d'une
+                // question à l'autre sans y répondre, jusqu'à la validation
+                // (#500, remonté par un bêta-testeur). Chaque étape verrouille
+                // pourtant son bouton « Continuer » tant qu'aucune réponse n'est
+                // donnée : le glissement était la seule porte dérobée, et sauter
+                // une question ne produisait pas d'erreur mais une recommandation
+                // qui ignorait ce critère en silence.
+                ZStack {
+                    currentStepView
+                        .id(currentStep)
+                        .transition(stepTransition)
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
             }
 
             // bouton close
@@ -767,6 +796,7 @@ struct GardenWizardView: View {
         // ✅ super important: quand tu ré-ouvres un wizard, on repart de 0
         .onAppear {
             currentStep = .intro
+            isMovingForward = true
             state.scanMethod = nil
             // Reset des champs liés au tracé pour éviter qu'un ancien tracé
             // ne soit réutilisé sur une session wizard fraîche (sinon, lors

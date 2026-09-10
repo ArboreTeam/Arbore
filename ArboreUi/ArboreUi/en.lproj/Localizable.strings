@@ -273,6 +273,7 @@
 "PRIVACY_SECTION_DATA_ITEM7" = "Technical logs: your IP address is processed to limit abuse and keep the service secure. It is never stored in the database, and only appears in server logs in truncated form (for example 92.184.105.x).";
 "PRIVACY_SECTION_DATA_ITEM8" = "Crash reports: anonymous by default — call stack, app version and device model, with no identifier at all. If you turn on “Link diagnostics to my account”, your Firebase identifier is added so several incidents can be linked.";
 
+"PRIVACY_SECTION_DATA_ITEM9" = "Approximate location: Sentry derives a country and city from the connection that sends the report. The app never sends it; your IP address itself is not retained. This happens even on anonymous reports.";
 // Why we use it
 "PRIVACY_SECTION_USAGE_TITLE" = "Why we use this data";
 "PRIVACY_SECTION_USAGE_ITEM1" = "Provide %@’s core features: create, save and restore your gardens in AR.";
@@ -287,8 +288,7 @@
 "PRIVACY_SECTION_LEGAL_ITEM2" = "Legitimate interests: securing and improving %@.";
 "PRIVACY_SECTION_LEGAL_ITEM3" = "Consent: camera, photos, location, calendar and notifications.";
 "PRIVACY_SECTION_LEGAL_ITEM4" = "Legal obligation and accountability: keeping proof of consent.";
-"PRIVACY_SECTION_LEGAL_ITEM5" = "Outside GDPR: anonymous crash reports contain no data allowing you to be identified (recital 26). Linking them to your account, however, relies on consent.";
-
+"PRIVACY_SECTION_LEGAL_ITEM5" = "Outside GDPR: anonymous crash reports are considered to contain no data allowing you to be identified (recital 26) — no account, no installation identifier, no IP address, and the derived location stays at city level. Linking them to your account, however, relies on consent.";
 // Retention
 "PRIVACY_SECTION_RETENTION_TITLE" = "Retention";
 "PRIVACY_SECTION_RETENTION_ITEM1" = "Your account, profile and gardens are kept while your account exists.";

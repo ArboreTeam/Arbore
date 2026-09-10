@@ -26,7 +26,11 @@ struct PrivacyPolicyView: View {
                     NSLocalizedString("PRIVACY_SECTION_DATA_ITEM5", comment: ""),
                     NSLocalizedString("PRIVACY_SECTION_DATA_ITEM6", comment: ""),
                     NSLocalizedString("PRIVACY_SECTION_DATA_ITEM7", comment: ""),
-                    NSLocalizedString("PRIVACY_SECTION_DATA_ITEM8", comment: "")
+                    NSLocalizedString("PRIVACY_SECTION_DATA_ITEM8", comment: ""),
+                    // Localisation déduite par Sentry après ingestion : ni le
+                    // SDK ni une règle de scrubbing ne peuvent l'empêcher, donc
+                    // elle s'annonce (#498).
+                    NSLocalizedString("PRIVACY_SECTION_DATA_ITEM9", comment: "")
                 ],
                 themeManager: themeManager
             )

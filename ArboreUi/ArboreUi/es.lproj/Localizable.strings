@@ -254,6 +254,7 @@
 "PRIVACY_SECTION_DATA_ITEM7" = "Registros técnicos: tu dirección IP se trata para limitar los abusos y proteger el servicio. Nunca se guarda en la base de datos y solo aparece truncada en los registros del servidor (por ejemplo 92.184.105.x).";
 "PRIVACY_SECTION_DATA_ITEM8" = "Informes de fallos: anónimos por defecto — pila de llamadas, versión de la app y modelo de dispositivo, sin ningún identificador. Si activas «Vincular los diagnósticos a mi cuenta», se añade tu identificador de Firebase para vincular varios incidentes.";
 
+"PRIVACY_SECTION_DATA_ITEM9" = "Ubicación aproximada: Sentry deduce un país y una ciudad a partir de la conexión que envía el informe. La app nunca la envía; tu dirección IP no se conserva. Esto ocurre incluso en los informes anónimos.";
 // Por qué los usamos
 "PRIVACY_SECTION_USAGE_TITLE" = "Por qué usamos estos datos";
 "PRIVACY_SECTION_USAGE_ITEM1" = "Ofrecer las funciones principales de %@: crear, guardar y restaurar tus jardines en RA.";

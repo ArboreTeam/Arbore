@@ -273,6 +273,7 @@
 "PRIVACY_SECTION_DATA_ITEM7" = "Journaux techniques : ton adresse IP est traitée pour limiter les abus et sécuriser le service. Elle n’est jamais enregistrée en base, et n’apparaît dans les journaux serveur que tronquée (par exemple 92.184.105.x).";
 "PRIVACY_SECTION_DATA_ITEM8" = "Rapports de plantage : anonymes par défaut — pile d’appel, version de l’app et modèle d’appareil, sans aucun identifiant. Si tu actives « Rattacher les diagnostics à mon compte », ton identifiant Firebase y est ajouté pour relier plusieurs incidents.";
 
+"PRIVACY_SECTION_DATA_ITEM9" = "Localisation approximative : Sentry déduit un pays et une ville de la connexion qui transmet le rapport. L’app ne l’envoie jamais ; ton adresse IP, elle, n’est pas conservée. Cette déduction a lieu même sur les rapports anonymes.";
 // Pourquoi nous les utilisons
 "PRIVACY_SECTION_USAGE_TITLE" = "Pourquoi nous utilisons ces données";
 "PRIVACY_SECTION_USAGE_ITEM1" = "Fournir les fonctionnalités principales de %@ : créer, sauvegarder et réafficher tes jardins en RA.";
@@ -287,8 +288,7 @@
 "PRIVACY_SECTION_LEGAL_ITEM2" = "Intérêts légitimes : sécuriser et améliorer %@.";
 "PRIVACY_SECTION_LEGAL_ITEM3" = "Consentement : caméra, photos, localisation, calendrier et notifications.";
 "PRIVACY_SECTION_LEGAL_ITEM4" = "Obligation légale et responsabilité : conserver la preuve du consentement.";
-"PRIVACY_SECTION_LEGAL_ITEM5" = "Hors RGPD : les rapports de plantage anonymes ne contiennent aucune donnée permettant de t’identifier (considérant 26). Les rattacher à ton compte relève, lui, du consentement.";
-
+"PRIVACY_SECTION_LEGAL_ITEM5" = "Hors RGPD : les rapports de plantage anonymes sont considérés comme ne contenant aucune donnée permettant de t’identifier (considérant 26) — ni compte, ni identifiant d’installation, ni adresse IP, et la localisation déduite reste à l’échelle d’une ville. Les rattacher à ton compte relève, lui, du consentement.";
 // Conservation
 "PRIVACY_SECTION_RETENTION_TITLE" = "Conservation";
 "PRIVACY_SECTION_RETENTION_ITEM1" = "Ton compte, ton profil et tes jardins sont conservés tant que ton compte existe.";

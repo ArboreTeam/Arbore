@@ -32,6 +32,8 @@ later the first real events delivered three defects no code review had caught:
 |---|---|---|
 | `App Hanging: 2000 ms` | plant traits recomputed on every call, on the main thread | #499 |
 | first anonymous event | `device_app_hash` was leaving the device without consent | #498 |
+| the same one, read closer | `user.geo` carried country **and city**, on an anonymous report | #498 |
+| `App Hanging` with culprit `YourApp.$main` | it was an XCTest runner, not a user | #506 |
 | — | wizard questions skippable by swiping, found validating the same build | #500 |
 
 The second one is the one to remember: **the anonymisation had been declared
@@ -152,8 +154,14 @@ Create the token at `sentry.io → Settings → Auth Tokens` (scopes `project:re
 
 1. Fill in the DSN in `Secrets.xcconfig`, run a **Debug** build.
 2. Profile → **Debug Tools → "Send Sentry test event"** (visible in DEBUG only).
-3. The event shows up in `sentry.io → arbore-frontend → Issues` within seconds, tagged `environment: debug` and with the Firebase UID.
+3. The event shows up in `sentry.io → arbore-frontend → Issues` within seconds, tagged `environment: debug`. **Without consent it carries no `user` at all** — the Firebase UID is attached only if "Link diagnostics to my account" is on.
 4. For symbolicated **release** crashes, ship a `fastlane beta` build with the token above, then trigger a crash on the TestFlight build.
+
+> ℹ️ **Tests emit nothing.** `start()` returns immediately under XCTest (#506).
+> Before that fix, any machine whose `Secrets.xcconfig` carried a DSN sent a fake
+> "App Hanging" on every run of the suite — the stack was the runner starting up.
+> If a test event seems missing, that is expected: use the debug button above,
+> not `xcodebuild test`.
 
 **And the check that actually matters**: after every shipped build, open a real
 event and read its raw JSON — `user`, the `app` context, the breadcrumbs. That

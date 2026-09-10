@@ -186,6 +186,32 @@ Utile pour confirmer que l'upload précédent a bien été enregistré côté AS
 | `Build number 42 already exists` | Race condition avec un autre upload en cours | Attendre la fin du processing, vérifier `current_build`, relancer |
 | `App Store Connect timeout` | Processing Apple anormalement long | Vérifier le statut sur [Apple System Status](https://www.apple.com/support/systemstatus/), relancer plus tard |
 | `Code signing entitlements` divergent | Capabilities Xcode modifiées sans MAJ ASC | Activer/désactiver la capability dans Xcode, builder à nouveau |
+| `Could not set changelog: SSL_connect ... unexpected eof` | Coupure réseau vers Apple **après** l'upload | Le binaire est livré — vérifier avec `current_build`. **Mais téléverser les dSYM à la main**, voir ci-dessous |
+
+### ⚠️ Une lane qui échoue après l'upload laisse un build sans ses symboles
+
+L'ordre de la lane `beta` est : archive → `upload_to_testflight` → changelog →
+dSYM vers Sentry. Un échec au changelog — arrivé le 2026-09-10 sur le build 31,
+coupure SSL côté Apple 36 minutes après un upload réussi — **arrête la lane avant
+l'upload des dSYM**.
+
+Le build est alors chez les testeurs, et ses plantages remontent avec des piles
+d'appel illisibles.
+
+Le `begin/rescue` du Fastfile protège le cas inverse (un dSYM qui échoue après un
+build livré ne doit pas marquer le déploiement comme raté). Il ne couvre pas
+celui-ci.
+
+Rattrapage :
+
+```bash
+export SENTRY_AUTH_TOKEN=$(grep -m1 -E '^\s*token\s*=' .sentryclirc | sed 's/^[^=]*=[[:space:]]*//')
+sentry-cli debug-files upload -o epi-apps -p arbore-frontend ./fastlane/builds/
+```
+
+Après un échec de lane, **toujours vérifier deux choses séparément** : le build
+est-il sur TestFlight (`bundle exec fastlane current_build`), et ses symboles
+sont-ils dans Sentry (`Settings → Debug Files`).
 
 ### Logs détaillés
 

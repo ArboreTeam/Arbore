@@ -11,19 +11,38 @@ Reporting de crashs et de performance pour Arbore. **iOS**, **web** et **backend
 
 ---
 
-## État mesuré — 2026-09-08
+## État mesuré — 2026-09-10
 
 Relevé dans l'organisation Sentry, pas déduit de la configuration. À refaire
 plutôt qu'à croire : ces chiffres vieillissent.
 
-| projet | SDK | trafic sur 90 jours |
+| projet | SDK | état |
 |---|---|---|
-| `arbore-frontend` (iOS) | ✅ | **rien** |
-| `frontend-web-arbore` | ✅ | 192 800 spans, 0 erreur |
-| `arbore-backend` | ❌ absent de `go.mod` | vide |
+| `arbore-frontend` (iOS) | ✅ | **remonte depuis le build 29** (régime anonyme, #495) |
+| `frontend-web-arbore` | ✅ | 192 800 spans |
+| `arbore-backend` | ✅ depuis #388 | panics, 5xx et échecs de démarrage |
 
-**Zéro erreur pour les trois projets.** Ce n'est pas un signe de bonne santé,
-c'est la mesure de ce qui n'est pas branché — voir les deux sections suivantes.
+### Ce que l'instrumentation a trouvé dès le premier jour
+
+Le relevé du 2026-09-08 affichait « zéro erreur pour les trois projets ». Ce
+n'était pas un signe de bonne santé, c'était la mesure de ce qui n'était pas
+branché. Deux jours plus tard, les premiers événements réels ont livré trois
+défauts qu'aucune relecture n'avait vus :
+
+| événement | défaut | issue |
+|---|---|---|
+| `App Hanging: 2000 ms` | traits de plante recalculés à chaque appel, sur le fil principal | #499 |
+| premier événement anonyme | `device_app_hash` quittait l'appareil sans consentement | #498 |
+| — | questions du wizard sautables au doigt, trouvé en validant le même build | #500 |
+
+Le second mérite d'être retenu : **l'anonymisation avait été déclarée conforme
+après relecture, et la politique publique l'avait affirmée le lendemain.** C'est
+l'événement réel qui a démenti les deux. Une relecture ne voit pas ce qu'un SDK
+ajoute lui-même.
+
+D'où la règle qui vaut maintenant pour ce projet : **vérifier sur un événement
+réel après chaque build**, et n'écrire dans la politique que ce qui a été
+observé sortir de l'appareil.
 
 Une organisation Sentry `arbore` existe aussi, **vide**. Elle ne doit pas servir
 de destination par erreur : tout vit dans `epi-apps`.
@@ -39,16 +58,45 @@ de destination par erreur : tout vit dans `epi-apps`.
 | Privacy manifest | `ArboreUi/ArboreUi/PrivacyInfo.xcprivacy` (CrashData + OtherDiagnosticData) |
 | Upload dSYM | `fastlane/Fastfile` → lane `beta` |
 
-`SentryManager` est **désactivé tant qu'un DSN n'est pas configuré _et_ que l'utilisateur n'a pas explicitement opté** pour le partage de diagnostics (toggle `privacy_shareData` dans les réglages de confidentialité, **off par défaut** — opt-in RGPD, #226). Sans secrets ni consentement, l'app se build et tourne à l'identique (pratique pour les contributeurs et la CI). `start()` est un no-op jusqu'au consentement ; basculer le consentement démarre/arrête le SDK à chaud via `updateConsent(granted:uid:)`. Le contexte utilisateur est l'**UID Firebase uniquement** (ni email ni nom) et suit l'état d'auth via un unique `addStateDidChangeListener` dans `AppDelegate`.
+`SentryManager` est **désactivé tant qu'un DSN n'est pas configuré**. Sans
+secrets, l'app se build et tourne à l'identique (pratique pour les contributeurs
+et la CI).
 
-Options posées : `environment` (`debug` / `production`, cf. la section suivante), `releaseName = version+build`, `dist = build`, `tracesSampleRate = 0.1`, `attachScreenshot = false` (vie privée), `attachViewHierarchy = true`, `sendDefaultPii = false`, plus un hook `beforeSend` qui retire IP / email / nom / corps de requête de chaque événement (ne conserve que le pseudonyme UID).
+Il ne dépend en revanche **plus du consentement pour démarrer** (#469, #495).
+Le raisonnement : un crash ne pouvait être observé que chez les utilisateurs
+ayant activé un réglage qu'on ne leur proposait jamais, ce qui revenait à ne
+rien observer. Deux régimes coexistent donc, et le consentement choisit lequel :
 
-> ⚠️ **Conséquence à connaître : l'iOS ne remonte rien.** Zéro événement en
-> 90 jours (mesuré le 2026-09-08). Le mécanisme fonctionne — c'est le
-> consentement qui n'est jamais donné, faute d'être proposé. Toute la chaîne,
-> DSN et upload dSYM compris, est en place et sans effet. Un crash au lancement
-> chez un testeur est aujourd'hui indiscernable d'un testeur qui n'ouvre pas
-> l'app. Arbitrage ouvert dans #469.
+| | sans consentement | avec consentement |
+|---|---|---|
+| `user` (UID Firebase) | supprimé | conservé |
+| `device_app_hash` | **retiré** (#498) | conservé |
+| fils d'Ariane réseau | écartés | conservés |
+| `tracesSampleRate` | `0` | `0.1` |
+| `attachViewHierarchy` | non | oui |
+
+Dans les deux régimes : ni IP, ni email, ni nom, ni corps de requête.
+
+La logique vit dans deux fonctions pures, `scrub(_:consenti:)` et
+`filtrer(_:consenti:)`, précisément pour être testable — elle était auparavant
+enfouie dans une closure imbriquée, et c'est ce qui avait rendu #498 invisible
+(#496). Neuf tests la couvrent, dont un éprouvé par neutralisation.
+
+> ⚠️ **Ce qui n'est toujours pas anonyme : la géolocalisation.** Sentry déduit
+> une ville de l'adresse IP **après** ingestion. Le réglage « Prevent Storing of
+> IP Addresses » supprime l'adresse, pas la position qui en a été tirée, et
+> aucun code client ne peut l'atteindre. Il faut soit une règle *Advanced Data
+> Scrubbing* sur `$user.geo` dans `Settings → Security & Privacy`, soit
+> l'annoncer sur `arbore.app/privacy`. Suivi dans #498.
+
+`app_id` reste envoyé dans les deux régimes : c'est l'**UUID du binaire**,
+identique pour toutes les installations d'un même build, et la symbolication en
+dépend. Il ne désigne personne — contrairement à `device_app_hash`, qui est
+propre à l'installation.
+
+Autres options posées : `environment` (`debug` / `production`, cf. la section
+suivante), `releaseName = version+build`, `dist = build`, `attachScreenshot =
+false` (vie privée), `sendDefaultPii = false`.
 
 ### Setup iOS (one-shot)
 
@@ -80,6 +128,12 @@ Créer le token sur `sentry.io → Settings → Auth Tokens` (scopes `project:re
 3. L'événement apparaît dans `sentry.io → arbore-frontend → Issues` en quelques secondes, tagué `environment: debug` et avec l'UID Firebase.
 4. Pour des crashs **release** symbolisés, livrer un build `fastlane beta` avec le token ci-dessus, puis déclencher un crash sur le build TestFlight.
 
+**Et la vérification qui compte vraiment** : après chaque build livré, ouvrir un
+événement réel et lire son JSON brut — `user`, le contexte `app`, les fils
+d'Ariane. C'est cette lecture, et non la CI, qui a trouvé #498. Les tests
+garantissent que le code retire ce qu'on lui a demandé de retirer ; ils ne
+diront jamais qu'il ne reste rien d'autre.
+
 ## ⚠️ Le vocabulaire des environnements n'est pas unifié
 
 Les trois composants n'étiquettent pas leurs événements de la même façon. C'est
@@ -109,8 +163,9 @@ configuration : l'app sait parfaitement quel backend elle vise. Le défaut est
 que `AppConfig.environment` ne le regarde pas — elle se fonde sur `#if DEBUG`,
 que `Dev` hérite de toute façon. **Mauvais critère, pas information manquante.**
 
-Sans effet aujourd'hui, l'iOS ne remontant rien (voir plus haut), mais c'est un
-piège armé pour le jour où il remontera.
+Ce piège est désormais **armé pour de bon** : depuis le build 29, l'iOS remonte.
+Un événement venu d'un build `Dev` est aujourd'hui indiscernable d'un événement
+venu d'un build `Debug`, alors qu'ils visent deux backends différents.
 
 ---
 

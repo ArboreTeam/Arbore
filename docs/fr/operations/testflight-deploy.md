@@ -186,7 +186,7 @@ Utile pour confirmer que l'upload précédent a bien été enregistré côté AS
 | `Build number 42 already exists` | Race condition avec un autre upload en cours | Attendre la fin du processing, vérifier `current_build`, relancer |
 | `App Store Connect timeout` | Processing Apple anormalement long | Vérifier le statut sur [Apple System Status](https://www.apple.com/support/systemstatus/), relancer plus tard |
 | `Code signing entitlements` divergent | Capabilities Xcode modifiées sans MAJ ASC | Activer/désactiver la capability dans Xcode, builder à nouveau |
-| `Could not set changelog: SSL_connect ... unexpected eof` | Coupure réseau vers Apple **après** l'upload du binaire | N'échoue plus la lane depuis #512 : le binaire est livré et les dSYM sont déjà partis. Le changelog se pose à la main depuis App Store Connect |
+| `Could not set changelog: SSL_connect ... unexpected eof` | Coupure réseau vers Apple **après** l'upload du binaire | N'échoue plus la lane depuis #511 : le binaire est livré et les dSYM sont déjà partis. Le changelog se pose à la main depuis App Store Connect |
 
 ### L'ordre de la lane, et pourquoi il a changé
 

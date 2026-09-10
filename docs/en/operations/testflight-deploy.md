@@ -185,7 +185,7 @@ Useful to confirm the previous upload was properly registered on the ASC side be
 | `Build number 42 already exists` | Race condition with another upload in progress | Wait for processing to finish, check `current_build`, retry |
 | `App Store Connect timeout` | Abnormally long Apple processing | Check the status on [Apple System Status](https://www.apple.com/support/systemstatus/), retry later |
 | Diverging `Code signing entitlements` | Xcode capabilities changed without updating ASC | Toggle the capability in Xcode, build again |
-| `Could not set changelog: SSL_connect ... unexpected eof` | Network drop to Apple **after** the binary upload | No longer fails the lane since #512: the binary is shipped and the dSYMs already went out. Set the changelog by hand in App Store Connect |
+| `Could not set changelog: SSL_connect ... unexpected eof` | Network drop to Apple **after** the binary upload | No longer fails the lane since #511: the binary is shipped and the dSYMs already went out. Set the changelog by hand in App Store Connect |
 
 ### The lane's ordering, and why it changed
 

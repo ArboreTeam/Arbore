@@ -43,9 +43,55 @@ final class SentryAnonymisationTests: XCTestCase {
     // MARK: - Sans consentement : l'anonymat
 
     /// L'invariant que la politique publique promet.
-    func testSansConsentementAucunUtilisateurNeSubsiste() {
+    ///
+    /// Le bloc `user` n'est plus supprimé mais vidé : il ne porte qu'une adresse
+    /// factice. Un `nil` pur rendrait la main à Sentry, qui regarderait alors
+    /// l'adresse de la connexion et en dériverait une ville (#498). Ce qui
+    /// compte n'est pas que `user` soit absent — c'est qu'il ne désigne
+    /// personne.
+    func testSansConsentementAucunIdentifiantNeSubsiste() {
         let e = SentryManager.scrub(evenement(avecUtilisateur: "firebase-uid-123"), consenti: false)
-        XCTAssertNil(e.user, "Aucun identifiant de compte ne doit subsister")
+
+        XCTAssertNil(e.user?.userId, "Aucun identifiant de compte ne doit subsister")
+        XCTAssertNil(e.user?.email)
+        XCTAssertNil(e.user?.username)
+        XCTAssertNil(e.user?.name)
+        XCTAssertNil(e.user?.data)
+    }
+
+    // MARK: - L'adresse IP (#498)
+
+    /// Effacer l'IP ne suffisait pas : sans adresse dans la charge, Sentry
+    /// prenait celle de la connexion et en dérivait `user.geo` — pays ET ville,
+    /// y compris sur les rapports anonymes. Aucune règle de scrubbing ne peut
+    /// l'atteindre, la géolocalisation étant calculée après le nettoyage.
+    ///
+    /// Poser une adresse explicite coupe la déduction. Remettre `nil` ici fait
+    /// échouer le test, et rouvre la fuite.
+    func testSansConsentementLAdresseEstRemplaceeEtNonEffacee() {
+        let e = SentryManager.scrub(evenement(avecUtilisateur: "uid"), consenti: false)
+
+        XCTAssertEqual(e.user?.ipAddress, "0.0.0.0",
+                       "Une adresse absente laisse Sentry lire celle de la connexion "
+                       + "et en déduire une ville")
+    }
+
+    /// Le consentement porte sur le rattachement au compte, jamais sur la
+    /// localisation : l'adresse est remplacée dans les deux régimes.
+    func testAvecConsentementLAdresseEstAussiRemplacee() {
+        let e = SentryManager.scrub(evenement(avecUtilisateur: "uid"), consenti: true)
+
+        XCTAssertEqual(e.user?.ipAddress, "0.0.0.0")
+        XCTAssertEqual(e.user?.userId, "uid", "Le compte, lui, reste rattaché")
+    }
+
+    /// L'adresse posée doit être la même partout : une valeur qui varierait
+    /// redeviendrait un identifiant.
+    func testLAdresseAnonymeEstConstanteEntreDeuxEvenements() {
+        let a = SentryManager.scrub(evenement(avecUtilisateur: "uid-a"), consenti: false)
+        let b = SentryManager.scrub(evenement(avecUtilisateur: "uid-b"), consenti: false)
+
+        XCTAssertEqual(a.user?.ipAddress, b.user?.ipAddress)
     }
 
     /// La régression de #498 : `user = nil` ne suffisait pas.
@@ -77,9 +123,10 @@ final class SentryAnonymisationTests: XCTestCase {
     }
 
     /// Même consenti, l'identité directe ne part jamais — minimisation RGPD.
-    func testMemeConsentiNiIPNiEmailNePartent() {
+    /// L'adresse réelle non plus : elle est remplacée, cf. la section suivante.
+    func testMemeConsentiNiEmailNiNomNePartent() {
         let e = SentryManager.scrub(evenement(avecUtilisateur: "uid"), consenti: true)
-        XCTAssertNil(e.user?.ipAddress)
+        XCTAssertNotEqual(e.user?.ipAddress, "92.184.105.12", "L'adresse réelle ne doit jamais partir")
         XCTAssertNil(e.user?.email)
         XCTAssertNil(e.user?.name)
         XCTAssertNil(e.user?.username)

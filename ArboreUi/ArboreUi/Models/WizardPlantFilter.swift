@@ -182,14 +182,19 @@ struct WizardPlantFilter {
         // Résolution partagée avec le filtre du catalogue (#485) : `care.difficulty`
         // quand il existe, repli sur `flags.easyCare` sinon.
         //
-        // `nil` = entretien inconnu. On n'exclut pas : 26 des 124 fiches n'ont
-        // ni difficulté ni flags, et les masquer sur une donnée manquante
-        // reviendrait à affirmer qu'elles ne conviennent pas.
+        // `nil` = entretien inconnu. On n'exclut pas : masquer une fiche sur une
+        // donnée manquante reviendrait à affirmer qu'elle ne convient pas.
+        //
+        // Le cas est devenu rare — 123 des 124 fiches portent désormais une
+        // difficulté (#485). La seule sans est un LIVRE aspiré par erreur du
+        // catalogue botanic, qu'aucune difficulté ne saurait décrire.
         guard let actual = plant.careDifficulty(locale: locale) else { return true }
 
-        // ⚠️ « Très facile » et « Facile » donnent le même résultat tant que la
-        // source est `flags.easyCare`, qui est binaire. La distinction
-        // n'apparaîtra qu'une fois `care.difficulty` peuplé (#485).
+        // « Très facile » et « Facile » donnent toujours le même résultat, mais
+        // pour une autre raison qu'avant : le barème n'a que trois niveaux, et
+        // les deux premiers crans de l'interface visent le même. Ce n'est plus
+        // une limite de la donnée, c'est le vocabulaire de l'interface qui est
+        // plus fin que celui du barème.
         if maintL.contains("facile") || maintL == "veryeasy" || maintL == "easy" {
             return actual == .easy
         }

@@ -1,0 +1,114 @@
+import XCTest
+import Sentry
+@testable import ArboreUi
+
+// SentryAnonymisationTests — issues #496 et #498.
+//
+// Ces tests existent à cause d'un échec précis. Le 9 septembre, #495 a instauré
+// un régime anonyme et j'ai affirmé, après relecture, qu'aucun identifiant ne
+// quittait l'appareil. La politique de confidentialité publique l'a affirmé le
+// lendemain.
+//
+// Le PREMIER événement réel a démenti les deux : `device_app_hash`, un
+// identifiant d'installation stable, passait toujours. Il ne vit pas dans
+// `user` mais dans le contexte `app` — un angle mort que la relecture ne
+// pouvait pas voir, et qu'aucun test ne pouvait attraper puisque la logique
+// vivait dans une closure imbriquée.
+//
+// D'où l'extraction de `scrub` et `filtrer`, et d'où ces tests. Ils gardent une
+// promesse écrite sur arbore.app/privacy — pas une préférence d'implémentation.
+
+final class SentryAnonymisationTests: XCTestCase {
+
+    private func evenement(avecUtilisateur uid: String? = nil,
+                           deviceAppHash: String? = "abc123",
+                           appId: String? = "BCA5EA99-112D-3DF0-BDB4-0D6553E5B2FE") -> Event {
+        let e = Event()
+        if let uid {
+            let u = Sentry.User()
+            u.userId = uid
+            u.email = "quelquun@exemple.fr"
+            u.ipAddress = "92.184.105.12"
+            e.user = u
+        }
+        var app: [String: Any] = [:]
+        if let deviceAppHash { app["device_app_hash"] = deviceAppHash }
+        if let appId { app["app_id"] = appId }
+        e.context = ["app": app]
+        return e
+    }
+
+    private func app(_ e: Event) -> [String: Any] { (e.context?["app"]) ?? [:] }
+
+    // MARK: - Sans consentement : l'anonymat
+
+    /// L'invariant que la politique publique promet.
+    func testSansConsentementAucunUtilisateurNeSubsiste() {
+        let e = SentryManager.scrub(evenement(avecUtilisateur: "firebase-uid-123"), consenti: false)
+        XCTAssertNil(e.user, "Aucun identifiant de compte ne doit subsister")
+    }
+
+    /// La régression de #498 : `user = nil` ne suffisait pas.
+    func testSansConsentementLIdentifiantDInstallationEstRetire() {
+        let e = SentryManager.scrub(evenement(), consenti: false)
+        XCTAssertNil(app(e)["device_app_hash"],
+                     "device_app_hash est un identifiant d'installation : il doit partir avec le reste")
+    }
+
+    /// L'UUID du binaire reste — il ne désigne pas une personne, et la
+    /// symbolication en dépend.
+    func testLUUIDDuBinaireEstConserve() {
+        let e = SentryManager.scrub(evenement(), consenti: false)
+        XCTAssertEqual(app(e)["app_id"] as? String, "BCA5EA99-112D-3DF0-BDB4-0D6553E5B2FE",
+                       "app_id est l'UUID du binaire, identique pour tous : le retirer casserait la symbolication")
+    }
+
+    /// Un contexte `app` absent ne doit pas faire échouer le nettoyage.
+    func testUnContexteAbsentNeCassePas() {
+        let e = Event()
+        XCTAssertNoThrow(SentryManager.scrub(e, consenti: false))
+    }
+
+    // MARK: - Avec consentement : le régime enrichi
+
+    func testAvecConsentementLIdentifiantDeCompteEstConserve() {
+        let e = SentryManager.scrub(evenement(avecUtilisateur: "firebase-uid-123"), consenti: true)
+        XCTAssertEqual(e.user?.userId, "firebase-uid-123")
+    }
+
+    /// Même consenti, l'identité directe ne part jamais — minimisation RGPD.
+    func testMemeConsentiNiIPNiEmailNePartent() {
+        let e = SentryManager.scrub(evenement(avecUtilisateur: "uid"), consenti: true)
+        XCTAssertNil(e.user?.ipAddress)
+        XCTAssertNil(e.user?.email)
+        XCTAssertNil(e.user?.name)
+        XCTAssertNil(e.user?.username)
+    }
+
+    // MARK: - Fils d'Ariane
+
+    /// Les URL portent `/gardens/<id>` : par recoupement, elles désignent
+    /// leur propriétaire.
+    func testSansConsentementLesTracesReseauSontEcartees() {
+        let c = Breadcrumb()
+        c.type = "http"
+        c.category = "http"
+        XCTAssertNil(SentryManager.filtrer(c, consenti: false))
+    }
+
+    func testAvecConsentementLesTracesReseauPassent() {
+        let c = Breadcrumb()
+        c.type = "http"
+        c.category = "http"
+        XCTAssertNotNil(SentryManager.filtrer(c, consenti: true))
+    }
+
+    /// Les autres fils d'Ariane — navigation, cycle de vie — ne portent pas
+    /// d'identifiant et restent utiles au diagnostic.
+    func testLesAutresFilsDArianePassentDansLesDeuxCas() {
+        let c = Breadcrumb()
+        c.category = "ui.lifecycle"
+        XCTAssertNotNil(SentryManager.filtrer(c, consenti: false))
+        XCTAssertNotNil(SentryManager.filtrer(c, consenti: true))
+    }
+}

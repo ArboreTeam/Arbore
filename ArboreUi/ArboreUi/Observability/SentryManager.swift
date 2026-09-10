@@ -97,45 +97,70 @@ enum SentryManager {
             // Minimisation RGPD : ne jamais joindre les PII collectées « par
             // défaut » par le SDK (adresse IP, etc.).
             options.sendDefaultPii = false
-
             // Défense en profondeur, appliquée à CHAQUE événement.
-            options.beforeSend = { event in
-                event.user?.ipAddress = nil
-                event.user?.email = nil
-                event.user?.username = nil
-                event.user?.name = nil
-                event.user?.data = nil
-                event.serverName = nil
-                event.request = nil
+            // La logique vit dans `scrub` et `filtrer`, hors de ces closures,
+            // pour être vérifiable sans démarrer le SDK (#496, #498).
+            options.beforeSend = { Self.scrub($0, consenti: consenti) }
+            options.beforeBreadcrumb = { Self.filtrer($0, consenti: consenti) }
 
-                // Sans consentement : aucun identifiant, pas même celui que le
-                // SDK génère par installation. `user = nil` les emporte tous.
-                //
-                // C'est CE point qui fait la différence entre « pseudonymisé »
-                // et « anonyme ». Un identifiant stable, même dépourvu de nom,
-                // suit un individu dans le temps — et reste donc une donnée
-                // personnelle.
-                if !consenti {
-                    event.user = nil
-                }
-                return event
-            }
-
-            // Fil d'Ariane : sans consentement, on écarte les traces réseau. Les
-            // URL de l'app portent des identifiants (`/gardens/<id>`,
-            // `/plants/<id>`) qui rattacheraient l'événement à des ressources
-            // précises — donc, par recoupement, à leur propriétaire.
-            options.beforeBreadcrumb = { crumb in
-                if !consenti && (crumb.type == "http" || crumb.category == "http") {
-                    return nil
-                }
-                return crumb
-            }
 
             #if DEBUG
             options.debug = true
             #endif
         }
+    }
+
+    // MARK: - Anonymisation
+
+    /// Retire d'un événement ce qui pourrait désigner une personne.
+    ///
+    /// Extraite de `start()` pour être vérifiable. La relecture n'avait pas
+    /// suffi : elle avait laissé passer `device_app_hash`, découvert sur le
+    /// premier événement réel (#498). Une closure imbriquée n'est atteignable
+    /// par aucun test.
+    ///
+    /// Dans les DEUX régimes : IP, e-mail, nom, corps de requête.
+    ///
+    /// Sans consentement, deux retraits de plus :
+    ///
+    /// - `user` en entier, ce qui emporte l'UID Firebase et l'identifiant que le
+    ///   SDK génère de lui-même ;
+    /// - `device_app_hash` dans le contexte `app` — un identifiant
+    ///   d'INSTALLATION, stable d'un lancement à l'autre. Il ne vit PAS dans
+    ///   `user`, ce qui l'avait fait échapper au premier correctif.
+    ///
+    /// `app_id` est délibérément CONSERVÉ : vérifié contre le dSYM téléversé,
+    /// c'est l'UUID du binaire, identique pour tous les porteurs d'un même
+    /// build. Le retirer casserait la symbolication sans rien gagner.
+    static func scrub(_ event: Event, consenti: Bool) -> Event {
+        event.user?.ipAddress = nil
+        event.user?.email = nil
+        event.user?.username = nil
+        event.user?.name = nil
+        event.user?.data = nil
+        event.serverName = nil
+        event.request = nil
+
+        guard !consenti else { return event }
+
+        event.user = nil
+        if var contexts = event.context, var app = contexts["app"] {
+            app.removeValue(forKey: "device_app_hash")
+            contexts["app"] = app
+            event.context = contexts
+        }
+        return event
+    }
+
+    /// Écarte les fils d'Ariane qui rattacheraient l'événement à des ressources.
+    ///
+    /// Les URL de l'app portent `/gardens/<id>` et `/plants/<id>` : par
+    /// recoupement, elles désignent leur propriétaire.
+    static func filtrer(_ crumb: Breadcrumb, consenti: Bool) -> Breadcrumb? {
+        if !consenti && (crumb.type == "http" || crumb.category == "http") {
+            return nil
+        }
+        return crumb
     }
 
     /// Réagit à un changement du consentement depuis PrivacySettingsView.

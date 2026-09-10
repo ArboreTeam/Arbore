@@ -186,6 +186,42 @@ Utile pour confirmer que l'upload précédent a bien été enregistré côté AS
 | `Build number 42 already exists` | Race condition avec un autre upload en cours | Attendre la fin du processing, vérifier `current_build`, relancer |
 | `App Store Connect timeout` | Processing Apple anormalement long | Vérifier le statut sur [Apple System Status](https://www.apple.com/support/systemstatus/), relancer plus tard |
 | `Code signing entitlements` divergent | Capabilities Xcode modifiées sans MAJ ASC | Activer/désactiver la capability dans Xcode, builder à nouveau |
+| `Could not set changelog: SSL_connect ... unexpected eof` | Coupure réseau vers Apple **après** l'upload du binaire | N'échoue plus la lane depuis #511 : le binaire est livré et les dSYM sont déjà partis. Le changelog se pose à la main depuis App Store Connect |
+
+### L'ordre de la lane, et pourquoi il a changé
+
+`beta` enchaîne : bump → archive → **dSYM vers Sentry** → `upload_to_testflight`.
+
+Les symboles partent **avant** le binaire. Un build ne doit jamais atteindre un
+testeur sans de quoi lire ses plantages.
+
+Ce n'était pas le cas avant le 2026-09-10. L'ordre était archive → upload →
+changelog → dSYM, et sur le build 31 une coupure SSL vers Apple pendant la pose
+du changelog a arrêté la lane **36 minutes après un upload réussi** — donc avant
+l'envoi des symboles. Le build était chez les testeurs, ses plantages promis à
+des piles illisibles.
+
+Deux garde-fous en découlent :
+
+- **les dSYM d'abord.** Si la livraison échoue ensuite, on aura téléversé les
+  symboles d'un build qui n'existe pas : quelques mégaoctets orphelins, sans
+  conséquence ;
+- **un changelog qui échoue n'échoue plus la lane.** Il est cosmétique. Le
+  rattrapage est signalé et la lane continue — mais seulement pour cette
+  erreur-là : un échec d'upload du binaire reste fatal, sans quoi la lane
+  annoncerait une livraison qui n'a pas eu lieu.
+
+Si l'upload des dSYM échoue malgré tout, la lane le dit fort et continue :
+livrer sans symboles vaut mieux que ne pas livrer. Rattrapage :
+
+```bash
+export SENTRY_AUTH_TOKEN=$(grep -m1 -E '^\s*token\s*=' .sentryclirc | sed 's/^[^=]*=[[:space:]]*//')
+sentry-cli debug-files upload -o epi-apps -p arbore-frontend ./fastlane/builds/
+```
+
+Après un échec de lane, **toujours vérifier deux choses séparément** : le build
+est-il sur TestFlight (`bundle exec fastlane current_build`), et ses symboles
+sont-ils dans Sentry (`Settings → Debug Files`).
 
 ### Logs détaillés
 

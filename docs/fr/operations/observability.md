@@ -33,6 +33,8 @@ défauts qu'aucune relecture n'avait vus :
 |---|---|---|
 | `App Hanging: 2000 ms` | traits de plante recalculés à chaque appel, sur le fil principal | #499 |
 | premier événement anonyme | `device_app_hash` quittait l'appareil sans consentement | #498 |
+| le même, relu de plus près | `user.geo` portait pays **et ville**, sur un rapport anonyme | #498 |
+| `App Hanging` au culprit `YourApp.$main` | c'était un runner XCTest, pas un utilisateur | #506 |
 | — | questions du wizard sautables au doigt, trouvé en validant le même build | #500 |
 
 Le second mérite d'être retenu : **l'anonymisation avait été déclarée conforme
@@ -155,8 +157,14 @@ Créer le token sur `sentry.io → Settings → Auth Tokens` (scopes `project:re
 
 1. Renseigner le DSN dans `Secrets.xcconfig`, lancer un build **Debug**.
 2. Profil → **Debug Tools → « Send Sentry test event »** (visible en DEBUG uniquement).
-3. L'événement apparaît dans `sentry.io → arbore-frontend → Issues` en quelques secondes, tagué `environment: debug` et avec l'UID Firebase.
+3. L'événement apparaît dans `sentry.io → arbore-frontend → Issues` en quelques secondes, tagué `environment: debug`. **Sans consentement il ne porte aucun `user`** — l'UID Firebase n'y est joint que si « Rattacher les diagnostics à mon compte » est activé.
 4. Pour des crashs **release** symbolisés, livrer un build `fastlane beta` avec le token ci-dessus, puis déclencher un crash sur le build TestFlight.
+
+> ℹ️ **Les tests n'émettent rien.** `start()` sort immédiatement sous XCTest
+> (#506). Avant ce correctif, toute machine dont le `Secrets.xcconfig` portait un
+> DSN envoyait un faux « App Hanging » à chaque exécution de la suite — la pile
+> était celle du runner qui démarre. Si un événement de test vous manque, c'est
+> normal : utilisez le bouton de debug ci-dessus, pas `xcodebuild test`.
 
 **Et la vérification qui compte vraiment** : après chaque build livré, ouvrir un
 événement réel et lire son JSON brut — `user`, le contexte `app`, les fils

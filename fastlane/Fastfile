@@ -1,8 +1,12 @@
 # Fastfile — automatisation TestFlight pour Arbore iOS
 #
 # Lane principale : `fastlane beta`
-#   Bump le build number à `latest_testflight + 1`, archive et upload sur
-#   TestFlight, distribue automatiquement au groupe interne « Internal QA ».
+#   Bump le build number à `latest_testflight + 1`, archive, téléverse les dSYM
+#   chez Sentry, puis upload sur TestFlight et distribue automatiquement au
+#   groupe interne « Internal QA ».
+#
+#   L'ordre compte : les symboles partent AVANT le binaire, pour qu'aucun build
+#   n'atteigne un testeur sans de quoi lire ses plantages (#498).
 #
 # Prérequis (one-shot, cf. docs/operations/testflight-deploy.md) :
 #   1. App Store Connect API Key (rôle App Manager) → fichier `.p8`
@@ -95,30 +99,29 @@ platform :ios do
       xcargs: "-allowProvisioningUpdates"
     )
 
-    # Internal-only deploy : on ne soumet PAS pour Beta App Review et on
-    # ne passe pas de `groups` (qui pousserait fastlane à appeler
-    # post_beta_app_review_submission, qui exige une "Beta App Description"
-    # qu'on n'a pas renseignée pour Arbore — réservée à la distribution
-    # externe). Le groupe « Internal QA » avec « Enable automatic
-    # distribution » coché côté ASC récupère la build automatiquement
-    # une fois le processing terminé.
-    upload_to_testflight(
-      api_key_path: AUTH_KEY,
-      ipa: "./fastlane/builds/Arbore.ipa",
-      distribute_external: false,
-      skip_submission: true,
-      skip_waiting_for_build_processing: false,
-      changelog: "Build interne automatique (lane: beta)."
-    )
-
-    # --- Sentry : upload des dSYM pour symboliser les crashes (#205) ---
+    # --- Sentry : upload des dSYM AVANT la livraison (#205, ordre revu #498) ---
+    #
+    # Les dSYM partaient autrefois APRÈS `upload_to_testflight`. Le 2026-09-10,
+    # sur le build 31, une coupure SSL vers Apple pendant la pose du changelog a
+    # arrêté la lane 36 minutes après un upload réussi — donc AVANT cet envoi.
+    # Le build était chez les testeurs, et ses plantages promis à des piles
+    # d'appel illisibles.
+    #
+    # L'ordre est donc inversé : un binaire ne doit jamais atteindre un testeur
+    # avant que ses symboles soient chez Sentry. Le dSYM est disponible dès la
+    # fin de `build_app`, rien n'obligeait à attendre.
+    #
+    # Si la livraison échoue ensuite, on aura téléversé les symboles d'un build
+    # qui n'existe pas : quelques mégaoctets orphelins, sans conséquence. C'est
+    # le bon sens de l'échange.
+    #
     # Skippé proprement si non configuré, pour ne pas casser la lane chez
     # quelqu'un sans Sentry. Nécessite `sentry-cli`
     # (brew install getsentry/tools/sentry-cli) + un token : SENTRY_AUTH_TOKEN
     # ou un .sentryclirc. org/projet sont déjà câblés (epi-apps/arbore-frontend).
-    # Le build est DÉJÀ sur TestFlight à ce stade : un échec d'upload dSYM
-    # (réseau, sleep macOS pendant le transfert…) ne doit PAS marquer le
-    # déploiement comme raté. On log et on continue ; relançable à la main.
+    #
+    # L'échec reste non bloquant : livrer un build sans symboles vaut mieux que
+    # ne pas livrer. Mais on le dit fort, parce que c'est une dette immédiate.
     begin
       upload_dsyms_to_sentry(
         version: version,
@@ -126,8 +129,41 @@ platform :ios do
         dsym: lane_context[SharedValues::DSYM_OUTPUT_PATH]
       )
     rescue => e
-      UI.important("⚠️ Upload dSYM Sentry échoué (build déjà livré sur TestFlight) : #{e.message}")
-      UI.important("   Relance : sentry-cli debug-files upload -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} ./fastlane/builds/Arbore.app.dSYM.zip")
+      UI.important("⚠️ Upload dSYM Sentry échoué : #{e.message}")
+      UI.important("   Le build va être livré SANS symboles — les plantages remonteront illisibles.")
+      UI.important("   Rattrapage : sentry-cli debug-files upload -o #{SENTRY_ORG} -p #{SENTRY_PROJECT} ./fastlane/builds/")
+    end
+
+    # Internal-only deploy : on ne soumet PAS pour Beta App Review et on
+    # ne passe pas de `groups` (qui pousserait fastlane à appeler
+    # post_beta_app_review_submission, qui exige une "Beta App Description"
+    # qu'on n'a pas renseignée pour Arbore — réservée à la distribution
+    # externe). Le groupe « Internal QA » avec « Enable automatic
+    # distribution » coché côté ASC récupère la build automatiquement
+    # une fois le processing terminé.
+    #
+    # Le `changelog` est posé par un appel séparé APRÈS l'upload du binaire.
+    # C'est là qu'a échoué le build 31, et c'est purement cosmétique : on ne
+    # laisse pas un texte d'accompagnement faire échouer une livraison qui a
+    # abouti. L'échec est signalé, la lane continue.
+    begin
+      upload_to_testflight(
+        api_key_path: AUTH_KEY,
+        ipa: "./fastlane/builds/Arbore.ipa",
+        distribute_external: false,
+        skip_submission: true,
+        skip_waiting_for_build_processing: false,
+        changelog: "Build interne automatique (lane: beta)."
+      )
+    rescue => e
+      # Ne rattraper QUE l'échec du changelog : un échec d'upload du binaire
+      # doit rester fatal, sans quoi la lane annoncerait une livraison qui n'a
+      # pas eu lieu.
+      raise e unless e.message.to_s.include?("Could not set changelog")
+
+      UI.important("⚠️ Changelog non posé : #{e.message}")
+      UI.important("   Le BINAIRE est bien livré — vérifier avec `bundle exec fastlane current_build`.")
+      UI.important("   Le changelog est cosmétique ; il se pose à la main depuis App Store Connect.")
     end
 
     UI.success("✅ Build #{latest + 1} déployée sur TestFlight → groupe #{INTERNAL_GROUP}")

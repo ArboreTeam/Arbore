@@ -185,23 +185,32 @@ Useful to confirm the previous upload was properly registered on the ASC side be
 | `Build number 42 already exists` | Race condition with another upload in progress | Wait for processing to finish, check `current_build`, retry |
 | `App Store Connect timeout` | Abnormally long Apple processing | Check the status on [Apple System Status](https://www.apple.com/support/systemstatus/), retry later |
 | Diverging `Code signing entitlements` | Xcode capabilities changed without updating ASC | Toggle the capability in Xcode, build again |
-| `Could not set changelog: SSL_connect ... unexpected eof` | Network drop to Apple **after** the upload | The binary is shipped — confirm with `current_build`. **But upload the dSYMs by hand**, see below |
+| `Could not set changelog: SSL_connect ... unexpected eof` | Network drop to Apple **after** the binary upload | No longer fails the lane since #512: the binary is shipped and the dSYMs already went out. Set the changelog by hand in App Store Connect |
 
-### ⚠️ A lane failing after the upload leaves a build without its symbols
+### The lane's ordering, and why it changed
 
-The `beta` lane runs: archive → `upload_to_testflight` → changelog → dSYMs to
-Sentry. A failure at the changelog step — which happened on 2026-09-10 for
-build 31, an SSL drop on Apple's side 36 minutes after a successful upload —
-**stops the lane before the dSYM upload**.
+`beta` runs: bump → archive → **dSYMs to Sentry** → `upload_to_testflight`.
 
-The build is then in testers' hands, and its crashes come back with unreadable
-stack traces.
+Symbols go out **before** the binary. A build must never reach a tester without
+the means to read its crashes.
 
-The Fastfile's `begin/rescue` covers the opposite case (a dSYM upload failing
-after a shipped build must not mark the deploy as failed). It does not cover
-this one.
+That was not the case before 2026-09-10. The order was archive → upload →
+changelog → dSYMs, and on build 31 an SSL drop to Apple during the changelog step
+stopped the lane **36 minutes after a successful upload** — that is, before the
+symbols were sent. The build was in testers' hands, its crashes bound for
+unreadable stacks.
 
-Recovery:
+Two guardrails follow:
+
+- **dSYMs first.** If delivery then fails, we will have uploaded symbols for a
+  build that does not exist: a few orphaned megabytes, no harm done;
+- **a failing changelog no longer fails the lane.** It is cosmetic. The failure
+  is reported and the lane carries on — but only for that error: a failure to
+  upload the binary stays fatal, otherwise the lane would announce a delivery
+  that never happened.
+
+If the dSYM upload fails anyway, the lane says so loudly and continues: shipping
+without symbols beats not shipping. Recovery:
 
 ```bash
 export SENTRY_AUTH_TOKEN=$(grep -m1 -E '^\s*token\s*=' .sentryclirc | sed 's/^[^=]*=[[:space:]]*//')

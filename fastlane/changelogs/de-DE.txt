@@ -1,0 +1,11 @@
+Der Katalog hängt nicht mehr, wenn du schnell scrollst. Die Bilder werden vor der Anzeige aufbereitet.
+
+Die Pflanzenseiten sind auf Spanisch und Deutsch vollständig. Bisher fielen drei Viertel des Katalogs auf Englisch zurück.
+
+Der Filter nach Schwierigkeit funktioniert. Vorher lieferte er keine Ergebnisse.
+
+Außenpflanzen (Ahorn, Olive, Lavendel) erscheinen in Augmented Reality in hoher Auflösung.
+
+Ein Eintrag, der keine Pflanze war, wurde aus dem Katalog entfernt.
+
+Zuerst testen: Scrolle den Katalog ganz nach unten und wechsle dann die App-Sprache in den iOS-Einstellungen.

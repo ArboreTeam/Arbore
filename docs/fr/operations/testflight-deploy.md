@@ -162,6 +162,69 @@ La commande :
 
 Total : 10-40 min selon le processing Apple.
 
+### Livrer à la bêta publique
+
+```bash
+bundle exec fastlane public_beta
+```
+
+Même déroulé que `beta`, avec trois différences qui comptent.
+
+| | `beta` | `public_beta` |
+|---|---|---|
+| groupe | Internal QA (3 testeurs) | Bêta privée (10 testeurs, lien public) |
+| revue Apple | aucune | Beta App Review |
+| délai avant réception | après le processing | après approbation, de quelques heures à un jour |
+
+La build **n'atteint personne** tant qu'Apple n'a pas approuvé. Ne pas confondre
+« livrée » et « reçue » : `current_build` affichera le numéro bien avant que
+quiconque puisse l'installer.
+
+### Les notes de version
+
+Elles vivent dans `fastlane/changelogs/<locale>.txt`, une par langue desservie :
+`fr-FR`, `en-US`, `es-ES`, `de-DE`. Versionnées, donc relues en revue comme le
+reste.
+
+Ni variable d'environnement, ni génération depuis le journal git : un testeur
+n'a rien à faire de sujets de commit, et un texte qu'on relit est un texte qu'on
+écrit mieux.
+
+```bash
+bundle exec fastlane verifier_notes     # contrôle sans rien livrer
+bundle exec fastlane notes build:33     # republie sur une build déjà en ligne
+```
+
+`public_beta` lance ce contrôle **avant l'archive**. Échouer sur une tournure
+après deux minutes et demie de compilation serait une punition gratuite.
+
+#### Ce que le contrôle refuse
+
+- un fichier absent ou vide, dans l'une des quatre langues ;
+- plus de 4 000 caractères (la limite d'App Store Connect) ;
+- un **tiret long** (`—` ou `–`) : il ne se tape pas au clavier par accident, sa
+  présence signe un texte produit ailleurs ;
+- une liste de tournures qui reviennent toujours, par langue : « nous sommes
+  ravis », « we're excited », « sumérgete », « wir freuen uns », « n'hésitez
+  pas », « seamless », « unlock »…
+
+La lane **refuse de livrer** plutôt que de laisser passer. C'est délibéré : une
+note mal écrite reste lisible par dix personnes jusqu'à la build suivante, alors
+qu'un échec de lane coûte trente secondes.
+
+> La liste de tournures n'est pas une garantie de style. Elle attrape ce qui se
+> répète, elle ne remplace pas une relecture. La lane affiche donc la première
+> ligne de chaque langue avant d'envoyer.
+
+#### Comment écrire ces notes
+
+Une ligne par changement, au présent, en disant ce qui change pour l'utilisateur
+et non ce qui a changé dans le code. « Le catalogue ne se fige plus quand on le
+fait défiler vite » plutôt que « optimisation du décodage des vignettes ».
+
+Terminer par ce qu'on veut voir testé en priorité : c'est la seule partie que les
+testeurs suivent vraiment.
+
 ### Vérifier le dernier build sur TestFlight
 
 ```bash

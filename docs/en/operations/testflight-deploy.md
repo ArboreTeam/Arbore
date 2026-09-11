@@ -161,6 +161,68 @@ The command:
 
 Total: 10-40 min depending on Apple processing.
 
+### Ship to the public beta
+
+```bash
+bundle exec fastlane public_beta
+```
+
+Same flow as `beta`, with three differences that matter.
+
+| | `beta` | `public_beta` |
+|---|---|---|
+| group | Internal QA (3 testers) | Bêta privée (10 testers, public link) |
+| Apple review | none | Beta App Review |
+| delay before testers get it | after processing | after approval, hours to a day |
+
+The build **reaches nobody** until Apple approves it. Do not confuse "shipped"
+with "received": `current_build` will show the number long before anyone can
+install it.
+
+### Release notes
+
+They live in `fastlane/changelogs/<locale>.txt`, one per language the app
+serves: `fr-FR`, `en-US`, `es-ES`, `de-DE`. Version-controlled, so they get
+reviewed like everything else.
+
+Neither an environment variable nor generated from the git log: a tester has no
+use for commit subjects, and text you reread is text you write better.
+
+```bash
+bundle exec fastlane verifier_notes     # check without shipping anything
+bundle exec fastlane notes build:33     # republish on a build already online
+```
+
+`public_beta` runs this check **before archiving**. Failing on a turn of phrase
+after two and a half minutes of compilation would be a gratuitous punishment.
+
+#### What the check rejects
+
+- a missing or empty file, in any of the four languages;
+- more than 4,000 characters (the App Store Connect limit);
+- a **long dash** (`—` or `–`): it is not typed by accident, and its presence
+  marks text produced elsewhere;
+- a list of turns of phrase that keep coming back, per language: "nous sommes
+  ravis", "we're excited", "sumérgete", "wir freuen uns", "feel free to",
+  "seamless", "unlock"…
+
+The lane **refuses to ship** rather than let it through. That is deliberate: a
+badly written note stays readable by ten people until the next build, whereas a
+failed lane costs thirty seconds.
+
+> The phrase list is not a guarantee of style. It catches what repeats; it does
+> not replace a proofread. The lane therefore prints the first line of each
+> language before sending.
+
+#### How to write these notes
+
+One line per change, present tense, saying what changes for the user rather than
+what changed in the code. "The catalog no longer freezes when you scroll
+quickly" rather than "optimised thumbnail decoding".
+
+End with what you want tested first: that is the only part testers actually
+follow.
+
 ### Check the latest build on TestFlight
 
 ```bash

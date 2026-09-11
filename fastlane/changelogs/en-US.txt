@@ -1,0 +1,11 @@
+The catalog no longer freezes when you scroll quickly. Images are prepared before they are shown.
+
+Plant pages are complete in Spanish and German. Until now, three quarters of the catalog fell back to English.
+
+The difficulty filter works. It returned no results before.
+
+Outdoor plants (maple, olive, lavender) show in high definition in augmented reality.
+
+One entry that was not a plant has been removed from the catalog.
+
+Worth testing first: scroll the catalog all the way down, then change the app language in iOS settings.

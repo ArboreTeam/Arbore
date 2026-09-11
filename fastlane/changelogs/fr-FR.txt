@@ -1,0 +1,11 @@
+Le catalogue ne se fige plus quand on le fait défiler vite. Les images sont préparées avant d'être affichées.
+
+Les fiches sont complètes en espagnol et en allemand. Jusqu'ici, les trois quarts du catalogue basculaient en anglais.
+
+Le filtre par difficulté fonctionne. Il ne renvoyait aucun résultat avant.
+
+Les plantes d'extérieur (érable, olivier, lavande) s'affichent en haute définition en réalité augmentée.
+
+Une fiche qui n'était pas une plante a été retirée du catalogue.
+
+À tester en premier : faites défiler le catalogue jusqu'en bas, puis changez la langue de l'app dans les réglages iOS.

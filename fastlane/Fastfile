@@ -15,8 +15,20 @@
 #   4. Xcode automatic signing activé sur la machine qui déploie
 #
 # Usage :
-#   bundle exec fastlane beta            # déploie une nouvelle build interne
+#   bundle exec fastlane beta            # build interne (3 testeurs, immédiat)
+#   bundle exec fastlane public_beta     # build externe (« Bêta privée », via Apple)
+#   bundle exec fastlane verifier_notes  # contrôle les notes sans rien livrer
+#   bundle exec fastlane notes build:33  # republie les notes d'une build en ligne
 #   bundle exec fastlane current_build   # affiche le dernier build_number sur TestFlight
+#
+# Interne ou externe, la différence n'est pas cosmétique :
+#
+#   `beta`        → groupe « Internal QA », distribution immédiate après le
+#                   processing, aucune revue Apple.
+#   `public_beta` → groupe « Bêta privée », lien public TestFlight, soumission à
+#                   la Beta App Review. La build n'atteint personne tant
+#                   qu'Apple n'a pas approuvé, ce qui prend de quelques heures
+#                   à un jour.
 
 WORKSPACE = "ArboreUi/ArboreUi.xcworkspace"
 SCHEME    = "ArboreUi"
@@ -26,6 +38,17 @@ SCHEME    = "ArboreUi"
 # relatif chercherait `fastlane/fastlane/AuthKey.json`).
 AUTH_KEY  = File.expand_path("AuthKey.json", __dir__)
 INTERNAL_GROUP = "Internal QA"
+# Groupe EXTERNE, celui du lien public TestFlight. Distribuer ici expose la
+# build à des gens qui ne sont pas dans l'équipe, et passe par la Beta App
+# Review d'Apple.
+EXTERNAL_GROUP = "Bêta privée"
+APP_IDENTIFIER = "com.arboreteam.arbore"
+
+# Les quatre locales que l'app dessert, et les seules déclarées côté ASC.
+# Un testeur dont l'iPhone est dans une autre langue lit la locale par défaut.
+BETA_LOCALES = ["fr-FR", "en-US", "es-ES", "de-DE"].freeze
+DEFAULT_LOCALE = "fr-FR"
+CHANGELOG_DIR = File.expand_path("changelogs", __dir__)
 
 # Sentry (#205) — org/projet ne sont pas des secrets, donc valeurs par défaut.
 # Overridables par variable d'env. Le token, lui, reste hors-repo : variable
@@ -167,6 +190,196 @@ platform :ios do
     end
 
     UI.success("✅ Build #{latest + 1} déployée sur TestFlight → groupe #{INTERNAL_GROUP}")
+  end
+
+  # ─── Notes de version ───────────────────────────────────────────────────
+  #
+  # Les notes vivent dans `fastlane/changelogs/<locale>.txt`, versionnées, une
+  # par langue desservie. Pas dans une variable d'environnement ni dérivées du
+  # journal git : un testeur ne veut pas lire des sujets de commit, et un texte
+  # qu'on relit en revue est un texte qu'on écrit mieux.
+  #
+  # Le contrôle ci-dessous REFUSE la livraison plutôt que de laisser passer.
+  # C'est délibéré : une note publiée mal écrite reste lisible par dix personnes
+  # jusqu'à la build suivante, alors qu'un échec de lane coûte trente secondes.
+
+  # Tournures bannies, par langue. La liste n'est pas une garantie de style,
+  # c'est un filet contre les formules qui reviennent toujours. Elle attrape ce
+  # qui se répète ; elle ne remplace pas une relecture.
+  TOURNURES_BANNIES = {
+    "fr-FR" => [
+      "nous sommes ravis", "nous sommes heureux", "n'hésitez pas",
+      "plongez dans", "révolutionn", "et ce n'est pas tout",
+      "toujours plus", "au service de", "une expérience unique"
+    ],
+    "en-US" => [
+      "we're excited", "we are excited", "we're thrilled", "we are thrilled",
+      "dive into", "seamless", "unlock", "elevate your", "game-chang",
+      "supercharge", "and that's not all", "feel free to", "take your"
+    ],
+    "es-ES" => [
+      "nos complace", "estamos encantados", "no dudes en", "sumérgete",
+      "revolucion", "lleva tu", "y eso no es todo"
+    ],
+    "de-DE" => [
+      "wir freuen uns", "zögern sie nicht", "tauchen sie ein",
+      "revolutionär", "heben sie", "und das ist noch nicht alles"
+    ]
+  }.freeze
+
+  # La limite d'App Store Connect sur le champ « What to Test ».
+  LIMITE_NOTES = 4000
+
+  desc "Vérifie les notes de version sans rien livrer."
+  lane :verifier_notes do
+    notes = lire_et_verifier_notes
+    UI.success("✅ Les #{notes.size - 1} langues passent le contrôle.")
+  end
+
+  # Lit les quatre fichiers, les contrôle, et rend la structure attendue par
+  # `upload_to_testflight`. Lève à la première faute.
+  def lire_et_verifier_notes
+    fautes = []
+    textes = {}
+
+    BETA_LOCALES.each do |locale|
+      chemin = File.join(CHANGELOG_DIR, "#{locale}.txt")
+      unless File.exist?(chemin)
+        fautes << "#{locale} : fichier absent (#{chemin})"
+        next
+      end
+
+      texte = File.read(chemin).strip
+      if texte.empty?
+        fautes << "#{locale} : fichier vide"
+        next
+      end
+
+      if texte.length > LIMITE_NOTES
+        fautes << "#{locale} : #{texte.length} caractères, la limite ASC est #{LIMITE_NOTES}"
+      end
+
+      # Le tiret cadratin et le tiret demi-cadratin. Ils ne se tapent pas au
+      # clavier par accident ; leur présence signe un texte produit ailleurs.
+      if texte.include?("—") || texte.include?("–")
+        fautes << "#{locale} : contient un tiret long (— ou –). Utiliser deux-points, parenthèses ou point."
+      end
+
+      bannies = (TOURNURES_BANNIES[locale] || []).select { |t| texte.downcase.include?(t) }
+      bannies.each { |t| fautes << "#{locale} : tournure bannie « #{t} »" }
+
+      textes[locale] = texte
+    end
+
+    unless fautes.empty?
+      UI.user_error!(
+        "Notes de version refusées :\n" +
+        fautes.map { |f| "  · #{f}" }.join("\n") +
+        "\n\nLes fichiers sont dans fastlane/changelogs/."
+      )
+    end
+
+    # On montre ce qui part. Un contrôle automatique attrape des tournures, pas
+    # un contresens : la dernière relecture est humaine.
+    UI.message("Notes de version qui seront publiées :")
+    BETA_LOCALES.each do |locale|
+      UI.message("  [#{locale}] #{textes[locale].lines.first.to_s.strip}")
+    end
+
+    infos = {}
+    textes.each { |locale, texte| infos[locale] = { whats_new: texte } }
+    infos["default"] = { whats_new: textes[DEFAULT_LOCALE] }
+    infos
+  end
+
+  desc "Build + upload TestFlight + distribution au groupe EXTERNE « Bêta privée »."
+  desc "Soumet à la Beta App Review d'Apple et publie des notes dans les 4 langues."
+  lane :public_beta do
+    # Le contrôle des notes passe AVANT l'archive. Échouer sur une tournure
+    # après deux minutes et demie de compilation serait une punition gratuite.
+    notes = lire_et_verifier_notes
+
+    version = get_version_number(xcodeproj: "ArboreUi/ArboreUi.xcodeproj")
+    latest = latest_testflight_build_number(api_key_path: AUTH_KEY, version: version)
+    increment_build_number(
+      xcodeproj: "ArboreUi/ArboreUi.xcodeproj",
+      build_number: latest + 1
+    )
+
+    build_app(
+      workspace: WORKSPACE,
+      scheme: SCHEME,
+      export_method: "app-store",
+      clean: true,
+      output_directory: "./fastlane/builds",
+      output_name: "Arbore.ipa",
+      include_symbols: true,
+      include_bitcode: false,
+      xcargs: "-allowProvisioningUpdates"
+    )
+
+    # Même ordre que `beta`, et pour la même raison : les symboles avant le
+    # binaire. Elle compte davantage ici, puisque les plantages viendront de
+    # gens qui ne peuvent pas nous décrire ce qu'ils faisaient.
+    begin
+      upload_dsyms_to_sentry(
+        version: version,
+        build: latest + 1,
+        dsym: lane_context[SharedValues::DSYM_OUTPUT_PATH]
+      )
+    rescue => e
+      UI.important("⚠️ Upload dSYM Sentry échoué : #{e.message}")
+      UI.important("   Le build partira SANS symboles vers des testeurs externes.")
+    end
+
+    # `distribute_external: true` déclenche la Beta App Review. Apple la traite
+    # en général en quelques heures, et la build n'atteint le groupe qu'une fois
+    # approuvée : elle n'est donc PAS visible immédiatement, contrairement au
+    # groupe interne.
+    #
+    # Pas de `rescue` sur le changelog ici, à l'inverse de `beta` : les notes
+    # sont l'objet de cette lane. Les perdre silencieusement rendrait à dix
+    # testeurs externes un texte vide ou celui de la build précédente.
+    upload_to_testflight(
+      api_key_path: AUTH_KEY,
+      ipa: "./fastlane/builds/Arbore.ipa",
+      distribute_external: true,
+      groups: [EXTERNAL_GROUP],
+      submit_beta_review: true,
+      skip_waiting_for_build_processing: false,
+      localized_build_info: notes
+    )
+
+    UI.success("✅ Build #{latest + 1} soumise à la Beta App Review → groupe #{EXTERNAL_GROUP}")
+    UI.important("   Elle n'atteindra les testeurs qu'une fois approuvée par Apple.")
+  end
+
+  desc "Republie les notes de version sur une build DÉJÀ en ligne, sans rien reconstruire."
+  desc "Usage : bundle exec fastlane notes build:33"
+  lane :notes do |options|
+    numero = options[:build] or UI.user_error!("Préciser la build : fastlane notes build:33")
+    infos = lire_et_verifier_notes
+
+    version = get_version_number(xcodeproj: "ArboreUi/ArboreUi.xcodeproj")
+    # `distribute_only` dit à pilot de travailler sur une build DÉJÀ en ligne.
+    # Sans lui, l'action réclame une IPA et échoue sur « No ipa or pkg file
+    # given » : elle croit qu'on lui demande de livrer, pas de corriger un texte.
+    upload_to_testflight(
+      api_key_path: AUTH_KEY,
+      # Sans IPA, pilot ne peut déduire ni l'app ni la plateforme : il les
+      # demande en invite, ce qui fait planter toute exécution non interactive.
+      app_identifier: APP_IDENTIFIER,
+      app_platform: "ios",
+      app_version: version,
+      build_number: numero.to_s,
+      distribute_only: true,
+      distribute_external: false,
+      skip_submission: true,
+      skip_waiting_for_build_processing: true,
+      localized_build_info: infos
+    )
+
+    UI.success("✅ Notes republiées sur la build #{numero} dans #{BETA_LOCALES.size} langues.")
   end
 
   desc "Pousse les TEXTES du listing App Store (fastlane/metadata) vers ASC."

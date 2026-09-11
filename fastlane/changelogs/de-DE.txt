@@ -1,11 +1,7 @@
-Der Katalog hängt nicht mehr, wenn du schnell scrollst. Die Bilder werden vor der Anzeige aufbereitet.
+Der Katalog hängt nicht mehr, wenn du schnell scrollst, auch nicht beim Durchwischen aller 123 Pflanzen.
 
-Die Pflanzenseiten sind auf Spanisch und Deutsch vollständig. Bisher fielen drei Viertel des Katalogs auf Englisch zurück.
+Der 2D-Plan des Gartens bleibt auch mit vielen Pflanzen flüssig. Ab etwa fünfzehn wurde er vorher langsam.
 
-Der Filter nach Schwierigkeit funktioniert. Vorher lieferte er keine Ergebnisse.
+Die Fotos der Pflanzenseiten sind jetzt unsere eigenen 3D-Renderings. Du siehst also genau die Pflanze, die du in Augmented Reality platzieren wirst.
 
-Außenpflanzen (Ahorn, Olive, Lavendel) erscheinen in Augmented Reality in hoher Auflösung.
-
-Ein Eintrag, der keine Pflanze war, wurde aus dem Katalog entfernt.
-
-Zuerst testen: Scrolle den Katalog ganz nach unten und wechsle dann die App-Sprache in den iOS-Einstellungen.
+Zuerst testen: Wische zügig durch den Katalog und öffne dann einen Garten mit mindestens sechzehn Pflanzen und ziehe den Plan.

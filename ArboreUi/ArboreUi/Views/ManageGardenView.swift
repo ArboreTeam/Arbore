@@ -3747,21 +3747,29 @@ struct GardenPlanInteractiveMap: View {
                         }
 
                         // Bordures du jardin
+                        //
+                        // Le chemin est construit UNE fois et réutilisé pour les
+                        // trois passes. Il l'était trois fois, et comme chaque
+                        // construction boucle sur tous les points du contour en
+                        // recalculant leur projection, le coût était triplé à
+                        // chaque image d'un glissement (#533).
                         if !viewModel.boundaryPoints.isEmpty {
-                            gardenBoundaryPath(centerX: centerX, centerY: centerY)
-                            .fill(ArboreDesign.Colors.primaryGreen.opacity(0.14))
+                            let contour = gardenBoundaryPath(centerX: centerX, centerY: centerY)
 
-                            gardenBoundaryPath(centerX: centerX, centerY: centerY)
+                            contour
+                                .fill(ArboreDesign.Colors.primaryGreen.opacity(0.14))
+
+                            contour
                                 .stroke(
                                     Color(hex: "#2F332E").opacity(0.96),
                                     style: StrokeStyle(lineWidth: 7.4, lineCap: .round, lineJoin: .round)
                                 )
 
-                            gardenBoundaryPath(centerX: centerX, centerY: centerY)
-                            .stroke(
-                                Color(hex: "#171A16").opacity(0.78),
-                                style: StrokeStyle(lineWidth: 3.2, lineCap: .round, lineJoin: .round)
-                            )
+                            contour
+                                .stroke(
+                                    Color(hex: "#171A16").opacity(0.78),
+                                    style: StrokeStyle(lineWidth: 3.2, lineCap: .round, lineJoin: .round)
+                                )
                         }
 
                         ForEach(plantingZones) { zone in
@@ -3951,7 +3959,7 @@ struct IconBtn: View {
     }
 }
 
-enum PlantMapMarkerVariant {
+enum PlantMapMarkerVariant: Hashable {
     case rosette
     case palm
     case fern
@@ -3978,6 +3986,70 @@ enum PlantMapMarkerVariant {
     }
 }
 
+/// Symboles de plante rastérisés une fois, puis réutilisés. (#533)
+///
+/// Chaque symbole est un dessin vectoriel coûteux : `RosettePlantSymbol` empile
+/// dix `LeafPetal`, chacun avec son dégradé et sa rotation. Les autres variantes
+/// sont du même ordre.
+///
+/// Ils étaient reconstruits à chaque événement tactile. Le glissement met à jour
+/// `offset`, dont dépend la position de chaque marqueur, donc SwiftUI
+/// réévaluait les seize marqueurs et leurs ~160 pétales soixante fois par
+/// seconde. À seize plantes, le plan devenait saccadé.
+///
+/// Or ces symboles ne dépendent de RIEN qui change pendant un geste : ni de
+/// `offset`, ni de `scale`, ni de la sélection — seulement d'une variante et
+/// d'une taille parmi deux. Les rastériser une fois est donc sans contrepartie :
+/// le rendu est identique au pixel près, il n'est simplement plus refait.
+@MainActor
+enum PlantSymbolCache {
+    private static var images: [Cle: Image] = [:]
+
+    private struct Cle: Hashable {
+        let variante: PlantMapMarkerVariant
+        let cote: CGFloat
+    }
+
+    /// Rend le symbole, en le dessinant au premier appel seulement.
+    ///
+    /// L'échelle de l'écran est fixée à celle de l'appareil : une image
+    /// rastérisée à l'échelle 1 puis agrandie serait floue sur un écran Retina.
+    static func image(pour variante: PlantMapMarkerVariant, cote: CGFloat) -> Image {
+        let cle = Cle(variante: variante, cote: cote)
+        if let deja = images[cle] { return deja }
+
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = UIScreen.main.scale
+        format.opaque = false
+
+        let vue = symbole(variante)
+            .frame(width: cote, height: cote)
+        let rendu = ImageRenderer(content: vue)
+        rendu.scale = UIScreen.main.scale
+
+        // Repli sur le dessin vectoriel si le rendu échoue : mieux vaut un
+        // marqueur coûteux qu'un marqueur absent.
+        guard let uiImage = rendu.uiImage else {
+            return Image(systemName: "leaf.fill")
+        }
+
+        let image = Image(uiImage: uiImage)
+        images[cle] = image
+        return image
+    }
+
+    @ViewBuilder
+    private static func symbole(_ variante: PlantMapMarkerVariant) -> some View {
+        switch variante {
+        case .rosette:   RosettePlantSymbol()
+        case .palm:      PalmPlantSymbol()
+        case .fern:      FernPlantSymbol()
+        case .succulent: SucculentPlantSymbol()
+        case .cactus:    CactusPlantSymbol()
+        }
+    }
+}
+
 struct PlantMapMarker: View {
     let variant: PlantMapMarkerVariant
     let statusColor: Color
@@ -3988,10 +4060,24 @@ struct PlantMapMarker: View {
 
     var body: some View {
         ZStack {
+            // Halo. Un `.blur(radius: 2.2)` donnait le même résultat au prix
+            // d'une passe de rendu hors écran, refaite à chaque image pendant
+            // un glissement. Un dégradé qui s'estompe vers la transparence
+            // produit le même adoucissement sans passe supplémentaire (#533).
             Circle()
-                .fill(statusColor.opacity(isSelected ? 0.26 : 0.16))
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            statusColor.opacity(isSelected ? 0.26 : 0.16),
+                            statusColor.opacity(isSelected ? 0.26 : 0.16),
+                            statusColor.opacity(0)
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: (size + 14) / 2
+                    )
+                )
                 .frame(width: size + 14, height: size + 14)
-                .blur(radius: 2.2)
 
             Circle()
                 .fill(
@@ -4020,24 +4106,25 @@ struct PlantMapMarker: View {
                 .stroke(statusColor.opacity(0.65), lineWidth: isSelected ? 2 : 1.3)
                 .frame(width: size + 3, height: size + 3)
         }
+        // Aplatit l'empilement — dégradés, traces et ombres — en une seule
+        // couche rendue par Metal. Sans lui, SwiftUI rastérise chaque effet
+        // séparément, seize fois par image (#533).
+        //
+        // Posé sur le marqueur et non sur la carte entière : à ce niveau il ne
+        // capture que du contenu statique, alors qu'un `drawingGroup` englobant
+        // les étiquettes forcerait à réaplatir du texte à chaque changement de
+        // sélection.
+        .drawingGroup()
         .scaleEffect(isSelected ? 1.05 : 1)
         .animation(.spring(response: 0.28, dampingFraction: 0.78), value: isSelected)
     }
 
-    @ViewBuilder
+    /// Le symbole vient du cache : il est dessiné une fois par couple
+    /// (variante, taille), puis réutilisé tel quel (#533).
     private var plantShape: some View {
-        switch variant {
-        case .rosette:
-            RosettePlantSymbol()
-        case .palm:
-            PalmPlantSymbol()
-        case .fern:
-            FernPlantSymbol()
-        case .succulent:
-            SucculentPlantSymbol()
-        case .cactus:
-            CactusPlantSymbol()
-        }
+        PlantSymbolCache.image(pour: variant, cote: plantSize)
+            .resizable()
+            .interpolation(.high)
     }
 }
 

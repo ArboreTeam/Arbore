@@ -165,8 +165,15 @@ Total : 10-40 min selon le processing Apple.
 ### Livrer à la bêta publique
 
 ```bash
-bundle exec fastlane public_beta
+bundle exec fastlane public_beta \
+  fr:fastlane/changelogs/fr-FR.txt \
+  en:fastlane/changelogs/en-US.txt \
+  es:fastlane/changelogs/es-ES.txt \
+  de:fastlane/changelogs/de-DE.txt
 ```
+
+Les quatre langues sont **obligatoires**. La lane refuse de démarrer s'il en
+manque une, et refuse aussi un chemin qui ne désigne aucun fichier.
 
 Même déroulé que `beta`, avec trois différences qui comptent.
 
@@ -190,10 +197,37 @@ Ni variable d'environnement, ni génération depuis le journal git : un testeur
 n'a rien à faire de sujets de commit, et un texte qu'on relit est un texte qu'on
 écrit mieux.
 
+#### Les quatre chemins se nomment à la main
+
+`fastlane/changelogs/` est une convention, **pas un défaut**. Aucune lane ne lit
+ce dossier toute seule.
+
+C'est le point important. Une lane qui irait y chercher les fichiers publierait
+les notes de la version précédente le jour où l'on oublie de les mettre à jour,
+sans rien signaler, et le texte resterait lisible par les testeurs jusqu'à la
+build suivante. Devoir nommer les quatre fichiers force à les regarder.
+
+Pour la même raison, un chemin qui ne désigne aucun fichier est une **faute**,
+jamais un texte littéral : accepter les deux ferait publier
+`notes/33-de.txt` à la moindre faute de frappe.
+
 ```bash
-bundle exec fastlane verifier_notes     # contrôle sans rien livrer
-bundle exec fastlane notes build:33     # republie sur une build déjà en ligne
+bundle exec fastlane verifier_notes \
+  fr:fastlane/changelogs/fr-FR.txt \
+  en:fastlane/changelogs/en-US.txt \
+  es:fastlane/changelogs/es-ES.txt \
+  de:fastlane/changelogs/de-DE.txt
+
+bundle exec fastlane notes build:33 \
+  fr:fastlane/changelogs/fr-FR.txt \
+  en:fastlane/changelogs/en-US.txt \
+  es:fastlane/changelogs/es-ES.txt \
+  de:fastlane/changelogs/de-DE.txt
 ```
+
+Les chemins relatifs se résolvent depuis la **racine du dépôt**, pas depuis
+`fastlane/` où fastlane se place au démarrage. Les chemins absolus marchent
+aussi.
 
 `public_beta` lance ce contrôle **avant l'archive**. Échouer sur une tournure
 après deux minutes et demie de compilation serait une punition gratuite.

@@ -48,7 +48,21 @@ APP_IDENTIFIER = "com.arboreteam.arbore"
 # Un testeur dont l'iPhone est dans une autre langue lit la locale par défaut.
 BETA_LOCALES = ["fr-FR", "en-US", "es-ES", "de-DE"].freeze
 DEFAULT_LOCALE = "fr-FR"
+# Option courte attendue sur la ligne de commande → locale App Store Connect.
+# `fastlane public_beta fr:… en:… es:… de:…`
+OPTIONS_LOCALES = {
+  fr: "fr-FR",
+  en: "en-US",
+  es: "es-ES",
+  de: "de-DE"
+}.freeze
+# Emplacement conventionnel des fichiers. Ce n'est PAS un défaut : la lane ne
+# lit jamais ce dossier toute seule (cf. `lire_et_verifier_notes`).
 CHANGELOG_DIR = File.expand_path("changelogs", __dir__)
+# Racine du dépôt. fastlane se place dans `fastlane/` au démarrage : un chemin
+# relatif tapé depuis la racine y désignerait `fastlane/fastlane/…`. On résout
+# donc d'abord depuis la racine, qui est là où l'on lance la commande.
+REPO_ROOT = File.expand_path("..", __dir__)
 
 # Sentry (#205) — org/projet ne sont pas des secrets, donc valeurs par défaut.
 # Overridables par variable d'env. Le token, lui, reste hors-repo : variable
@@ -230,28 +244,81 @@ platform :ios do
   # La limite d'App Store Connect sur le champ « What to Test ».
   LIMITE_NOTES = 4000
 
-  desc "Vérifie les notes de version sans rien livrer."
-  lane :verifier_notes do
-    notes = lire_et_verifier_notes
+  desc "Vérifie des notes de version sans rien livrer."
+  desc "Usage : fastlane verifier_notes fr:… en:… es:… de:… (chemins de fichiers)"
+  lane :verifier_notes do |options|
+    notes = lire_et_verifier_notes(options)
     UI.success("✅ Les #{notes.size - 1} langues passent le contrôle.")
   end
 
-  # Lit les quatre fichiers, les contrôle, et rend la structure attendue par
-  # `upload_to_testflight`. Lève à la première faute.
-  def lire_et_verifier_notes
+  # Résout un chemin donné sur la ligne de commande.
+  #
+  # fastlane fait `chdir` dans `fastlane/` au démarrage. Un chemin relatif tapé
+  # depuis la racine du dépôt — ce que tout le monde fait — y chercherait
+  # `fastlane/fastlane/changelogs/…`. Le piège a été rencontré, pas anticipé :
+  # c'est le même que celui déjà documenté pour `AuthKey.json`.
+  #
+  # On essaie donc la racine d'abord, puis le dossier courant. Un chemin absolu
+  # est pris tel quel.
+  def resoudre_chemin(brut)
+    return File.expand_path(brut) if brut.start_with?("/")
+
+    depuis_racine = File.expand_path(brut, REPO_ROOT)
+    return depuis_racine if File.file?(depuis_racine)
+
+    depuis_courant = File.expand_path(brut)
+    return depuis_courant if File.file?(depuis_courant)
+
+    # Aucun des deux n'existe : rendre celui depuis la racine, pour que le
+    # message d'erreur montre le chemin auquel l'utilisateur pensait.
+    depuis_racine
+  end
+
+  # Le message d'aide, rendu une fois plutôt que recopié dans chaque lane.
+  def usage_notes(commande)
+    "Les quatre langues doivent être nommées explicitement :\n\n" \
+    "  bundle exec fastlane #{commande} \\\n" \
+    "    fr:fastlane/changelogs/fr-FR.txt \\\n" \
+    "    en:fastlane/changelogs/en-US.txt \\\n" \
+    "    es:fastlane/changelogs/es-ES.txt \\\n" \
+    "    de:fastlane/changelogs/de-DE.txt"
+  end
+
+  # Lit les quatre fichiers NOMMÉS SUR LA LIGNE DE COMMANDE, les contrôle, et
+  # rend la structure attendue par `upload_to_testflight`.
+  #
+  # Aucun chemin par défaut, volontairement. Une lane qui lirait
+  # `fastlane/changelogs/` toute seule publierait les notes de la version
+  # précédente le jour où l'on oublie de les mettre à jour — sans rien signaler,
+  # et le texte resterait lisible par dix testeurs jusqu'à la build suivante.
+  # Devoir nommer les quatre fichiers force à les regarder.
+  #
+  # Un chemin qui ne désigne aucun fichier est une FAUTE, jamais un texte
+  # littéral : accepter les deux ferait publier « notes/33-fr.txt » à la moindre
+  # faute de frappe.
+  def lire_et_verifier_notes(options)
+    options ||= {}
     fautes = []
     textes = {}
 
-    BETA_LOCALES.each do |locale|
-      chemin = File.join(CHANGELOG_DIR, "#{locale}.txt")
-      unless File.exist?(chemin)
-        fautes << "#{locale} : fichier absent (#{chemin})"
+    manquantes = OPTIONS_LOCALES.keys.reject { |k| options[k].to_s.strip != "" }
+    unless manquantes.empty?
+      UI.user_error!(
+        "Langues non fournies : #{manquantes.join(', ')}\n\n" +
+        usage_notes("<lane>")
+      )
+    end
+
+    OPTIONS_LOCALES.each do |option, locale|
+      chemin = resoudre_chemin(options[option].to_s.strip)
+      unless File.file?(chemin)
+        fautes << "#{locale} (#{option}:) : aucun fichier à #{chemin}"
         next
       end
 
       texte = File.read(chemin).strip
       if texte.empty?
-        fautes << "#{locale} : fichier vide"
+        fautes << "#{locale} : fichier vide (#{chemin})"
         next
       end
 
@@ -274,8 +341,7 @@ platform :ios do
     unless fautes.empty?
       UI.user_error!(
         "Notes de version refusées :\n" +
-        fautes.map { |f| "  · #{f}" }.join("\n") +
-        "\n\nLes fichiers sont dans fastlane/changelogs/."
+        fautes.map { |f| "  · #{f}" }.join("\n")
       )
     end
 
@@ -294,10 +360,11 @@ platform :ios do
 
   desc "Build + upload TestFlight + distribution au groupe EXTERNE « Bêta privée »."
   desc "Soumet à la Beta App Review d'Apple et publie des notes dans les 4 langues."
-  lane :public_beta do
+  desc "Usage : fastlane public_beta fr:… en:… es:… de:… (chemins de fichiers)"
+  lane :public_beta do |options|
     # Le contrôle des notes passe AVANT l'archive. Échouer sur une tournure
     # après deux minutes et demie de compilation serait une punition gratuite.
-    notes = lire_et_verifier_notes
+    notes = lire_et_verifier_notes(options)
 
     version = get_version_number(xcodeproj: "ArboreUi/ArboreUi.xcodeproj")
     latest = latest_testflight_build_number(api_key_path: AUTH_KEY, version: version)
@@ -355,10 +422,13 @@ platform :ios do
   end
 
   desc "Republie les notes de version sur une build DÉJÀ en ligne, sans rien reconstruire."
-  desc "Usage : bundle exec fastlane notes build:33"
+  desc "Usage : fastlane notes build:33 fr:… en:… es:… de:…"
   lane :notes do |options|
-    numero = options[:build] or UI.user_error!("Préciser la build : fastlane notes build:33")
-    infos = lire_et_verifier_notes
+    numero = options[:build]
+    unless numero
+      UI.user_error!("Préciser la build.\n\n" + usage_notes("notes build:33"))
+    end
+    infos = lire_et_verifier_notes(options)
 
     version = get_version_number(xcodeproj: "ArboreUi/ArboreUi.xcodeproj")
     # `distribute_only` dit à pilot de travailler sur une build DÉJÀ en ligne.

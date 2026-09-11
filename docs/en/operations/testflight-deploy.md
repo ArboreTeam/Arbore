@@ -164,8 +164,15 @@ Total: 10-40 min depending on Apple processing.
 ### Ship to the public beta
 
 ```bash
-bundle exec fastlane public_beta
+bundle exec fastlane public_beta \
+  fr:fastlane/changelogs/fr-FR.txt \
+  en:fastlane/changelogs/en-US.txt \
+  es:fastlane/changelogs/es-ES.txt \
+  de:fastlane/changelogs/de-DE.txt
 ```
+
+All four languages are **required**. The lane refuses to start if one is
+missing, and also refuses a path that points at no file.
 
 Same flow as `beta`, with three differences that matter.
 
@@ -188,10 +195,35 @@ reviewed like everything else.
 Neither an environment variable nor generated from the git log: a tester has no
 use for commit subjects, and text you reread is text you write better.
 
+#### The four paths are named by hand
+
+`fastlane/changelogs/` is a convention, **not a default**. No lane reads that
+directory on its own.
+
+That is the point. A lane that went looking there would publish the previous
+release's notes the day someone forgets to update them, silently, and the text
+would stay readable by testers until the next build. Having to name the four
+files forces you to look at them.
+
+For the same reason, a path pointing at no file is an **error**, never literal
+text: accepting both would publish `notes/33-de.txt` on the smallest typo.
+
 ```bash
-bundle exec fastlane verifier_notes     # check without shipping anything
-bundle exec fastlane notes build:33     # republish on a build already online
+bundle exec fastlane verifier_notes \
+  fr:fastlane/changelogs/fr-FR.txt \
+  en:fastlane/changelogs/en-US.txt \
+  es:fastlane/changelogs/es-ES.txt \
+  de:fastlane/changelogs/de-DE.txt
+
+bundle exec fastlane notes build:33 \
+  fr:fastlane/changelogs/fr-FR.txt \
+  en:fastlane/changelogs/en-US.txt \
+  es:fastlane/changelogs/es-ES.txt \
+  de:fastlane/changelogs/de-DE.txt
 ```
+
+Relative paths resolve from the **repo root**, not from `fastlane/` where
+fastlane chdirs at startup. Absolute paths work too.
 
 `public_beta` runs this check **before archiving**. Failing on a turn of phrase
 after two and a half minutes of compilation would be a gratuitous punishment.

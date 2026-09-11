@@ -150,7 +150,7 @@ Plant catalog document. Each plant embeds its multilingual translations so that 
 | `_id` | ObjectID | Primary key. Referenced by `PlacedPlant.plantId`. |
 | `name` | string | Canonical name. |
 | `type` | string | Plant family / type. |
-| `imageURLs` | array<string> | Photos (Unsplash) via `fetchUnsplashImageURLs`. |
+| `imageURLs` | array<string> | Since #527, **our own studio renders**: `https://api.arbore.app/models/thumbnails/<id>.png?v=<version>`. One entry per record. |
 | `description` | string | Description in French (served by default). |
 | `modelURL` | string | USDZ file name served by `GET /models/:filename`. |
 | `translations` | map<lang, LanguageData> | Sub-document per language (`fr`, `en`, `es`, `de`). |
@@ -161,6 +161,27 @@ Plant catalog document. Each plant embeds its multilingual translations so that 
 | `botanicalProfile` | `PlantBotanicalProfile` (optional) | Canonical horticultural constraints, structured and sourced per field. When absent, the verdict can only be “Probably compatible” or “Not suitable,” never “Suitable.” |
 | `source` | string (optional) | Optional provenance label (curated catalog vs legacy/beta entries). |
 | `sourceUrl` | string (optional) | Optional origin URL, kept for later updates. |
+
+##### Why the photos are ours
+
+The 123 records used to carry direct links to the botanic (97) and Unsplash (25)
+CDNs. The app copied nothing: every device fetched them itself, and those third
+parties saw the user's IP address, the time, and which records were viewed — a
+flow the privacy policy did not mention for botanic.
+
+Botanic's terms also explicitly forbid reproduction (articles L.122-4 and
+L.335-3 of the French intellectual property code), and some of their visuals come
+from stock agencies that license them to botanic, not to us. Hosting a copy was
+therefore out.
+
+Our studio renders settle all three points at once: no third-party call, no one
+else's rights, and the user sees exactly what they will place in augmented
+reality. They are the same files served to the catalogue cards, so one cache
+entry per plant.
+
+> ⚠️ **The generation path did not follow.** `generateAndInsertPlant` still calls
+> `fetchUnsplashImageURLs`: a plant created through AI generation therefore comes
+> back with third-party URLs. Tracked in #526.
 
 The `translations[lang]` sub-document (type `LanguageData`) groups:
 

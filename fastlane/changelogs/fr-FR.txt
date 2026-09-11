@@ -1,11 +1,7 @@
-Le catalogue ne se fige plus quand on le fait défiler vite. Les images sont préparées avant d'être affichées.
+Le catalogue ne se fige plus quand on le fait défiler vite, même en descendant d'un trait jusqu'au bas des 123 plantes.
 
-Les fiches sont complètes en espagnol et en allemand. Jusqu'ici, les trois quarts du catalogue basculaient en anglais.
+Le plan 2D du jardin reste fluide avec beaucoup de plantes. Il ralentissait à partir d'une quinzaine.
 
-Le filtre par difficulté fonctionne. Il ne renvoyait aucun résultat avant.
+Les photos des fiches sont maintenant nos propres rendus 3D. Vous voyez donc exactement la plante que vous placerez en réalité augmentée.
 
-Les plantes d'extérieur (érable, olivier, lavande) s'affichent en haute définition en réalité augmentée.
-
-Une fiche qui n'était pas une plante a été retirée du catalogue.
-
-À tester en premier : faites défiler le catalogue jusqu'en bas, puis changez la langue de l'app dans les réglages iOS.
+À tester en premier : parcourez le catalogue d'un balayage franc, puis ouvrez un jardin d'au moins seize plantes et faites glisser le plan.

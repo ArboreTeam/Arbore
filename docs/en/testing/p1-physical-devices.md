@@ -52,8 +52,14 @@ must be clearly offered for manual correction.
 2. Test a narrow balcony, a terrace, and a non-rectangular garden outline.
 3. Redo the dimensions from the 2D plan.
 
+4. Place **at least sixteen plants**, then pan and zoom the plan.
+
 Pass: points are easy to place and undo, the contour never self-intersects,
 closure is understandable, and edits reach the 2D plan.
+
+The sixteen threshold is not arbitrary: the plan redraws everything on every
+touch event, and that is roughly where the cost became noticeable before #533.
+Below it, the defect does not show.
 
 ### 4. Catalogue and network
 

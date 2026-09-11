@@ -1,11 +1,7 @@
-The catalog no longer freezes when you scroll quickly. Images are prepared before they are shown.
+The catalogue no longer freezes when you scroll quickly, even flicking straight down through all 123 plants.
 
-Plant pages are complete in Spanish and German. Until now, three quarters of the catalog fell back to English.
+The garden's 2D plan stays smooth with many plants. It used to slow down past fifteen or so.
 
-The difficulty filter works. It returned no results before.
+Plant photos are now our own 3D renders, so you see exactly the plant you will place in augmented reality.
 
-Outdoor plants (maple, olive, lavender) show in high definition in augmented reality.
-
-One entry that was not a plant has been removed from the catalog.
-
-Worth testing first: scroll the catalog all the way down, then change the app language in iOS settings.
+Worth testing first: flick through the catalogue fast, then open a garden with at least sixteen plants and drag the plan around.

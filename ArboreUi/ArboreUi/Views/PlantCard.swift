@@ -122,7 +122,7 @@ struct PlantCard: View {
         // to the dedicated debug/admin screen used before uploading PNGs.
         if let rawURL = plant.imageURLs.first(where: { !$0.isEmpty }),
            let url = URL(string: rawURL),
-           let image = await downloadImage(from: url) {
+           let image = await downloadPreparedImage(from: url) {
             await MainActor.run {
                 fetchedImage = image
                 didFailLoading = false
@@ -132,6 +132,28 @@ struct PlantCard: View {
 
         await MainActor.run {
             didFailLoading = true
+        }
+    }
+
+    /// Variante du téléchargement qui décode **ici**, pour les images affichées
+    /// directement sans passer par `PlantThumbnailCache.save`.
+    ///
+    /// `downloadImage` doit rendre l'image d'origine : son résultat alimente le
+    /// contrôle d'ancienneté, dont les heuristiques échantillonnent des pixels,
+    /// et l'écriture disque, qui ne doit pas figer une version réduite. Ce
+    /// chemin-ci n'a aucune de ces deux contraintes.
+    private func downloadPreparedImage(from url: URL) async -> UIImage? {
+        do {
+            var request = URLRequest(url: url)
+            request.cachePolicy = .returnCacheDataElseLoad
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode) else {
+                return nil
+            }
+            return PlantThumbnailCache.imagePreteAAfficher(data: data)
+        } catch {
+            return nil
         }
     }
 
@@ -151,17 +173,22 @@ struct PlantCard: View {
     }
 
     private func displayAndCache(_ image: UIImage) async {
-        await MainActor.run {
-            fetchedImage = image
-            didFailLoading = false
-        }
-
+        // L'image d'origine n'est PAS affichée telle quelle. `UIImage(data:)`
+        // est paresseux : la poser ici ferait décompresser 720 × 900 px dans le
+        // passage de rendu, sur le thread principal — ce que ce correctif
+        // supprime partout ailleurs.
+        //
+        // `save` écrit le PNG puis rend la version déjà décodée. La carte reste
+        // sur son indicateur de chargement le temps de cet aller-retour, ce qui
+        // est à la fois plus court et plus honnête qu'une image posée d'avance
+        // au prix d'un gel.
         let cachedImage = await Task.detached(priority: .utility) {
             PlantThumbnailCache.save(image, plantID: plant.id)
         }.value
 
         await MainActor.run {
             cachedThumbnail = cachedImage
+            didFailLoading = false
         }
     }
 

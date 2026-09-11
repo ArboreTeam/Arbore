@@ -19,9 +19,13 @@ champs — c'est ce qu'achète l'abstraction `StorageProvider`
 
 | `STORAGE_PROVIDER` | Usage | Particularité |
 |---|---|---|
-| `filesystem` | défaut, et état actuel de la production | sert depuis `MODELS_HOST_PATH` |
-| `r2` / `s3` | production visée | aucun frais de sortie chez R2 |
+| `filesystem` | défaut, et **environnement de dev** | sert depuis `MODELS_HOST_PATH` |
+| `r2` / `s3` | **production** | aucun frais de sortie chez R2 |
 | `minio` | développement local | `STORAGE_S3_USE_SSL=false` |
+
+La production sert donc ses modèles depuis R2, et le dev depuis le disque —
+c'est délibéré : donner au dev les identifiants du seau aurait signifié qu'une
+clé age de dev ouvre l'écriture sur le stockage de production.
 
 L'inventaire complet des variables, avec un exemple par support, est dans
 [`ops/secrets/env.template`](../../../ops/secrets/env.template).
@@ -76,6 +80,15 @@ Retirer le `https://` et tout ce qui suit l'hôte : la bibliothèque veut l'hôt
 seul.
 
 ## Migrer vers R2 — l'ordre importe
+
+> **Fait.** La production est passée sur R2, et cette section reste pour
+> documenter la marche à suivre — au cas où il faudrait recommencer sur un autre
+> seau, ou comprendre pourquoi l'ordre est celui-là.
+>
+> État mesuré le 2026-09-11 : `arbore-prod-backend` journalise au démarrage
+> `📦 Stockage des assets : s3(…eu.r2.cloudflarestorage.com)+garde`, et le seau
+> `arbore-assets` porte 370 objets pour 4,5 Gio. `arbore-dev-backend`
+> journalise `filesystem`.
 
 L'ordre inverse ferait servir la production depuis un seau vide : tous les
 modèles en 404, immédiatement.

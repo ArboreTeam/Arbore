@@ -19,9 +19,13 @@ what the `StorageProvider` abstraction buys
 
 | `STORAGE_PROVIDER` | Use | Specificity |
 |---|---|---|
-| `filesystem` | default, and current production state | serves from `MODELS_HOST_PATH` |
-| `r2` / `s3` | intended production | no egress fees with R2 |
+| `filesystem` | default, and the **dev environment** | serves from `MODELS_HOST_PATH` |
+| `r2` / `s3` | **production** | no egress fees with R2 |
 | `minio` | local development | `STORAGE_S3_USE_SSL=false` |
+
+Production therefore serves its models from R2, and dev from disk — deliberately:
+giving dev the bucket credentials would have meant a dev age key opens write
+access to production storage.
 
 The full variable inventory, with one example per store, is in
 [`ops/secrets/env.template`](../../../ops/secrets/env.template).
@@ -76,6 +80,15 @@ Strip the `https://` and anything after the host: the library wants the bare
 host.
 
 ## Migrating to R2 — order matters
+
+> **Done.** Production has moved to R2. This section stays to document the
+> procedure — in case it must be redone against another bucket, or to explain
+> why the order is what it is.
+>
+> Measured on 2026-09-11: `arbore-prod-backend` logs
+> `📦 Stockage des assets : s3(…eu.r2.cloudflarestorage.com)+garde` at startup,
+> and the `arbore-assets` bucket holds 370 objects for 4.5 GiB.
+> `arbore-dev-backend` logs `filesystem`.
 
 The reverse order would have production serving from an empty bucket: every
 model 404, immediately.

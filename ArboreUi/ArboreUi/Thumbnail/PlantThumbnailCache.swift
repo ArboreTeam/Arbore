@@ -1,4 +1,5 @@
 import UIKit
+import ImageIO
 
 struct PlantThumbnailCache {
 
@@ -27,6 +28,92 @@ struct PlantThumbnailCache {
         blue: 186.0 / 255.0,
         alpha: 1
     )
+
+    // MARK: - Décodage hors du thread principal
+
+    /// Images déjà décodées, prêtes à dessiner.
+    ///
+    /// `UIImage(contentsOfFile:)` et `UIImage(data:)` sont **paresseux** : ils ne
+    /// décompressent rien. La décompression a lieu au premier dessin, donc dans
+    /// le commit Core Animation — sur le thread principal. Charger le fichier
+    /// dans un `Task.detached` déporte la lecture, pas le décodage, et donne
+    /// l'illusion d'un travail mis de côté.
+    ///
+    /// C'est ce qui a produit le gel de 2 s relevé par Sentry en parcourant le
+    /// catalogue (`ARBORE-FRONTEND-A`, build 32) : la pile s'arrêtait dans
+    /// `CA::Layer::layout_and_display_if_needed`, sans aucune frame applicative.
+    ///
+    /// Les vignettes pèsent 720 × 900 px pour ~500 Ko, la grille en montre cinq
+    /// à la fois et le catalogue en compte 123.
+    private static let decodees: NSCache<NSString, UIImage> = {
+        let c = NSCache<NSString, UIImage>()
+        // Une vignette décodée occupe 576 × 720 × 4 ≈ 1,7 Mo. Un plafond de
+        // 40 Mio en garde une vingtaine — bien plus que la grille n'en montre,
+        // et sans retenir les 123 fiches en mémoire.
+        c.totalCostLimit = 40 * 1024 * 1024
+        return c
+    }()
+
+    /// Verdicts de `isLegacyThumbnail` déjà rendus, par fichier.
+    ///
+    /// Ce contrôle enchaîne quatre balayages de pixels, et chacun force un
+    /// décodage complet de l'image. Il était rejoué à **chaque** apparition de
+    /// carte alors que son résultat ne dépend que du fichier, lequel ne change
+    /// pas sous la même clé de version.
+    private static let verdicts = NSCache<NSString, NSNumber>()
+
+    /// Côté le plus long, en pixels, d'une vignette préparée pour l'affichage.
+    ///
+    /// La carte mesure environ 173 × 220 pt ; à l'échelle 3 il faut donc
+    /// 519 × 660 px. Une source de 720 × 900 ramenée à 576 × 720 couvre ce
+    /// besoin avec ~11 % de marge, tout en divisant par 1,6 le nombre de pixels
+    /// à décoder. Descendre plus bas se verrait sur les écrans les plus denses.
+    private static let cotePrepare: CGFloat = 720
+
+    private static func cle(_ plantID: String) -> NSString {
+        "\(plantID)_\(version)" as NSString
+    }
+
+    private static func cout(_ image: UIImage) -> Int {
+        guard let cg = image.cgImage else { return 0 }
+        return cg.bytesPerRow * cg.height
+    }
+
+    /// Décode et redimensionne en une passe, **là où on l'appelle**.
+    ///
+    /// `kCGImageSourceShouldCacheImmediately` est le drapeau qui compte : sans
+    /// lui, ImageIO reste paresseux comme `UIImage(data:)` et le coût retombe
+    /// dans le rendu. Avec lui, le travail est fait ici — donc hors du thread
+    /// principal si l'appelant s'y trouve.
+    static func imagePreteAAfficher(source: CGImageSource) -> UIImage? {
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: cotePrepare
+        ]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
+            return nil
+        }
+        return UIImage(cgImage: cg)
+    }
+
+    /// Variante pour des octets fraîchement téléchargés.
+    ///
+    /// Le repli sur `UIImage(data:)` couvre le cas où ImageIO refuse le format :
+    /// mieux vaut une image paresseuse qu'une carte vide.
+    static func imagePreteAAfficher(data: Data) -> UIImage? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return UIImage(data: data)
+        }
+        return imagePreteAAfficher(source: src) ?? UIImage(data: data)
+    }
+
+    /// Vide les caches mémoire. Utile après une régénération de vignettes.
+    static func viderCachesMemoire() {
+        decodees.removeAllObjects()
+        verdicts.removeAllObjects()
+    }
 
     static func url(for plantID: String) -> URL {
         directory.appendingPathComponent("\(plantID)_\(version).png")
@@ -67,17 +154,43 @@ struct PlantThumbnailCache {
         return Set(ids).sorted()
     }
 
+    /// Rend une vignette **déjà décodée**, en ne payant lecture, contrôle et
+    /// décompression qu'une fois par fichier.
+    ///
+    /// L'ordre importe : le contrôle d'ancienneté porte sur l'image d'origine,
+    /// pas sur la version réduite. Ses heuristiques échantillonnent des pixels à
+    /// des positions précises — les juger sur une image redimensionnée
+    /// changerait leur verdict, et une vignette légitime finirait effacée.
     static func load(for plantID: String) -> UIImage? {
-        let fileURL = url(for: plantID)
-        guard let image = UIImage(contentsOfFile: fileURL.path) else { return nil }
+        let k = cle(plantID)
+        if let deja = decodees.object(forKey: k) { return deja }
 
-        if isLegacyThumbnail(image) {
+        let fileURL = url(for: plantID)
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
+
+        let estAncienne: Bool
+        if let memorise = verdicts.object(forKey: k) {
+            estAncienne = memorise.boolValue
+        } else {
+            guard let originale = UIImage(contentsOfFile: fileURL.path) else { return nil }
+            estAncienne = isLegacyThumbnail(originale)
+            verdicts.setObject(NSNumber(value: estAncienne), forKey: k)
+        }
+
+        if estAncienne {
             try? FileManager.default.removeItem(at: fileURL)
+            verdicts.removeObject(forKey: k)
             print("🧹 Ancien thumbnail supprimé:", fileURL.path)
             return nil
         }
 
-        return image
+        guard let source = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
+              let prete = imagePreteAAfficher(source: source) else {
+            return nil
+        }
+
+        decodees.setObject(prete, forKey: k, cost: cout(prete))
+        return prete
     }
 
     @discardableResult
@@ -90,6 +203,24 @@ struct PlantThumbnailCache {
         let path = url(for: plantID)
         try? data.write(to: path)
         print("✅ PNG écrit:", path.path)
+
+        // Le fichier vient de changer sous cette clé : les deux mémoires qui en
+        // dépendent doivent partir avec lui, sinon un `load` suivant servirait
+        // l'ancienne image ou l'ancien verdict.
+        //
+        // On réamorce dans la foulée plutôt que de laisser le prochain `load`
+        // repayer lecture et décodage : `save` tourne déjà hors du thread
+        // principal, c'est le bon endroit pour le faire. Le marqueur vient
+        // d'être posé, donc le verdict est connu sans le calculer.
+        let k = cle(plantID)
+        decodees.removeObject(forKey: k)
+        verdicts.setObject(NSNumber(value: false), forKey: k)
+        if let source = CGImageSourceCreateWithData(data as CFData, nil),
+           let prete = imagePreteAAfficher(source: source) {
+            decodees.setObject(prete, forKey: k, cost: cout(prete))
+            return prete
+        }
+
         return cachedImage
     }
 

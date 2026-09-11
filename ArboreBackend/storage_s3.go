@@ -32,6 +32,7 @@ const (
 	s3PrefixModelsLight = "models/"
 	s3PrefixModelsHeavy = "models/heavy/"
 	s3PrefixThumbnails  = "thumbnails/"
+	s3PrefixPhotos      = "photos/"
 
 	// Durée de validité d'une URL signée. Assez longue pour qu'un
 	// téléchargement de 121 Mo aboutisse sur une connexion mobile médiocre,
@@ -104,6 +105,8 @@ func (s *s3Storage) key(obj StorageObject) (string, error) {
 		return s3PrefixModelsHeavy + obj.Name, nil
 	case BucketThumbnails:
 		return s3PrefixThumbnails + obj.Name, nil
+	case BucketPhotos:
+		return s3PrefixPhotos + obj.Name, nil
 	default:
 		return "", fmt.Errorf("unknown bucket %q", obj.Bucket)
 	}

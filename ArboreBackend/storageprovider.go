@@ -42,6 +42,20 @@ const (
 	BucketModelsLight StorageBucket = "models-light"
 	BucketModelsHeavy StorageBucket = "models-heavy"
 	BucketThumbnails  StorageBucket = "thumbnails"
+
+	// BucketPhotos porte les photos de fiche, que nous hébergeons désormais
+	// nous-mêmes (#526).
+	//
+	// Elles pointaient auparavant directement sur les CDN de botanic et
+	// d'Unsplash. Chaque appareil ouvrant le catalogue émettait donc une requête
+	// vers un tiers, qui y voyait une adresse IP, une heure et les fiches
+	// consultées — un flux que la politique de confidentialité ne mentionnait
+	// pas pour botanic, alors qu'il concernait 97 fiches sur 123.
+	//
+	// S'y ajoutait une dépendance muette : une image retirée ou un lien direct
+	// bloqué chez eux, et les trois quarts du catalogue perdaient leur photo
+	// sans que rien ne nous prévienne.
+	BucketPhotos StorageBucket = "photos"
 )
 
 // StorageObject identifie un objet. `Name` est un nom de fichier simple, déjà
@@ -89,6 +103,7 @@ type filesystemStorage struct {
 	modelsDir     string
 	heavyDir      string
 	thumbnailsDir string
+	photosDir     string
 }
 
 func newFilesystemStorage() *filesystemStorage {
@@ -96,10 +111,15 @@ func newFilesystemStorage() *filesystemStorage {
 	if thumbs == "" {
 		thumbs = "./models/thumbnails"
 	}
+	photos := strings.TrimSpace(os.Getenv("PHOTOS_DIR"))
+	if photos == "" {
+		photos = "./models/photos"
+	}
 	return &filesystemStorage{
 		modelsDir:     "./models",
 		heavyDir:      "./models/heavy",
 		thumbnailsDir: thumbs,
+		photosDir:     photos,
 	}
 }
 
@@ -117,6 +137,8 @@ func (f *filesystemStorage) resolve(obj StorageObject) (string, error) {
 		baseDir = f.heavyDir
 	case BucketThumbnails:
 		baseDir = f.thumbnailsDir
+	case BucketPhotos:
+		baseDir = f.photosDir
 	default:
 		return "", fmt.Errorf("unknown bucket %q", obj.Bucket)
 	}

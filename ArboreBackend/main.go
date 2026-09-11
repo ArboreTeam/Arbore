@@ -2247,6 +2247,42 @@ func buildRouter() *gin.Engine {
 			"image/png",
 			"Thumbnail not found")
 	})
+
+	// Photos de fiche, hébergées par nous depuis #526.
+	//
+	// Publique comme les vignettes, et pour la même raison : `AsyncImage` et
+	// `URLSession` vont chercher ces URL sans porter d'en-tête d'authentification.
+	// Exiger une session ici afficherait des cartes vides.
+	//
+	// Deux extensions, contrairement aux vignettes : les sources d'origine
+	// mêlaient JPEG et PNG, et reconvertir un JPEG en PNG le ferait grossir sans
+	// rien gagner.
+	router.GET("/photos/:filename", publicLimiter.Middleware(), func(c *gin.Context) {
+		filename := c.Param("filename")
+
+		if strings.Contains(filename, "..") || strings.Contains(filename, "/") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid filename"})
+			return
+		}
+
+		lower := strings.ToLower(filename)
+		var contentType string
+		switch {
+		case strings.HasSuffix(lower, ".jpg"), strings.HasSuffix(lower, ".jpeg"):
+			contentType = "image/jpeg"
+		case strings.HasSuffix(lower, ".png"):
+			contentType = "image/png"
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Only .jpg and .png files are allowed"})
+			return
+		}
+
+		serveStorageObject(c,
+			StorageObject{Bucket: BucketPhotos, Name: filename},
+			contentType,
+			"Photo not found")
+	})
+
 	// === ROUTES API KEY UNIQUEMENT (sans session Firebase) ===
 	// Config de référence (wizard + règles de soin, cf. #236) : non sensible,
 	// nécessaire dès le lancement de l'app avant authentification utilisateur.

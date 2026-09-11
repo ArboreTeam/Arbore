@@ -160,6 +160,9 @@ services:
       - ARBORE_ADMIN_UIDS=${ARBORE_ADMIN_UIDS:-}
       # Thumbnails dans un chemin séparé (hors du montage read-only /app/models)
       - THUMBNAILS_DIR=/app/thumbnails
+      # Photos de fiche, hébergées par nous depuis #526 (auparavant : appels
+      # directs aux CDN de botanic et Unsplash depuis chaque appareil).
+      - PHOTOS_DIR=/app/photos
       # Montage conservé uniquement pour supprimer les anciens fichiers lors
       # d'une suppression de compte. Aucune route communautaire n'est exposée.
       - COMMUNITY_UPLOADS_DIR=/app/uploads/community
@@ -170,6 +173,9 @@ services:
       - ${MODELS_HOST_PATH:-./ArboreBackend/models}:/app/models:ro
       # Thumbnails : bind mount sur le dossier existant de la VM (conserve les anciens thumbnails)
       - ${THUMBNAILS_HOST_PATH:-./ArboreBackend/models/thumbnails}:/app/thumbnails
+      # Photos de fiche. Montées en lecture seule : elles sont déposées par la
+      # migration, jamais écrites par le backend — aucune route ne les téléverse.
+      - ${PHOTOS_HOST_PATH:-./ArboreBackend/models/photos}:/app/photos:ro
       # Firebase service account JSON (le vrai fichier du projet)
       - ${FIREBASE_SERVICE_ACCOUNT_HOST_PATH:-./arbore-firebase-adminsdk.json}:/run/secrets/firebase-adminsdk.json:ro
       # Clé privée Apple : fichier hôte hors Git, lecture seule dans le conteneur.

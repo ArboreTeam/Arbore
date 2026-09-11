@@ -17,6 +17,25 @@ Result: the catalog is instant (PNG), AR placement is fast (light), and the user
 ## Runtime behavior
 
 - **Catalog**: `ArboreUi/ArboreUi/Views/PlantCard.swift` loads the PNG thumbnail through `GET /models/thumbnails/{id}.png?v={designVersion}` and stores it in `PlantThumbnailCache`. The version parameter invalidates both the iOS disk cache and the former Cloudflare response when a new design replaces a file under the same identifier. Every render also carries a version signature hidden inside the card's clipped corners; any server PNG without that signature is rejected. If a PNG is unavailable or outdated, the catalog photo is used as a lightweight fallback: the customer-facing catalog never builds 3D thumbnails locally. `PlantThumbnailGenerator` remains limited to the debug/admin screen used before upload. Those renders fit the model's complete projected volume with a shared margin, a continuous gray backdrop, and a short contact shadow.
+
+  **Decoding** those PNGs matters as much as downloading them, and is less
+  obvious. `UIImage(contentsOfFile:)` and `UIImage(data:)` are lazy: they
+  decompress nothing, and decoding happens on first draw, inside the Core
+  Animation commit, on the main thread. Loading the file in a `Task.detached`
+  moves the read off the main thread, not the decode. With 720 × 900 px
+  thumbnails and a grid showing five of them, fast scrolling froze the app for
+  two seconds, measured in production on build 32 (`ARBORE-FRONTEND-A`).
+
+  Since #518, `PlantThumbnailCache` decodes and downsamples in one pass through
+  `CGImageSourceCreateThumbnailAtIndex` with `kCGImageSourceShouldCacheImmediately`,
+  the flag without which ImageIO stays lazy. Two memory caches go with it:
+  decoded images (40 MiB cap) and the version-signature verdicts, whose four
+  pixel scans used to run again on every card appearance.
+
+  The signature check runs on the **original** image, never on the downsampled
+  one: its heuristics sample pixels and **delete the file** when they conclude it
+  is outdated. Judging them on a resampled image would shift their thresholds,
+  and legitimate thumbnails would be removed.
 - **3D model**: `ArboreUi/ArboreUi/Services/ModelCacheManager.swift` downloads the USDZ (disk cache keyed by file name), used in AR and for thumbnail generation.
 - **Backend**: `GET /models/:filename` (protected) serves the USDZ from `./models/`; the `?lod=heavy` parameter switches the read to `./models/heavy/`. `GET /models/thumbnails/:filename` (public) serves the PNGs.
 

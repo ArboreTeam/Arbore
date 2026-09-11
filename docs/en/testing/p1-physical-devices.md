@@ -58,7 +58,9 @@ closure is understandable, and edits reach the 2D plan.
 ### 4. Catalogue and network
 
 1. Clear thumbnail cache, then open the catalogue on Wi-Fi and cellular data.
-2. Scroll through all 124 plants, search, and combine several filters.
+2. Scroll through all 123 plants **with a fast flick all the way down**, search,
+   and combine several filters. Fast scrolling is what revealed the 2 s freeze
+   fixed by #518; a slow pass would not have triggered it.
 3. Open ten plants and place at least five AR models.
 
 Pass: cards download server PNGs without local USDZ reconstruction, simple

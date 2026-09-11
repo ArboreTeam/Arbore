@@ -1,7 +1,7 @@
 # Stockage des assets 3D
 
-Où vivent les 372 fichiers du catalogue — 124 modèles légers, 124 haute
-définition, 124 vignettes — et comment en changer sans interrompre le service.
+Où vivent les 369 fichiers du catalogue : 123 modèles légers, 123 haute
+définition, 123 vignettes, et comment en changer sans interrompre le service.
 
 ## Pourquoi ce document existe
 

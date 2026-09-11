@@ -172,9 +172,51 @@ LanguageData {
   soilAndPot: {substrate, drainage, potSize, repotFrequency, repotSigns},
   health: {commonProblems, symptomsAndCauses, pests, treatments, prevention},
   lifeCycle: {growth, flowering, dormancy, fertilizer, pruning},
-  care: {weekly, monthly, yearly, extraTips}
+  care: {difficulty, weekly, monthly, yearly, extraTips}
 }
 ```
+
+All 123 records carry the **four languages** since #513 and #514. Before that,
+97 of them had only `fr` and `en`, and a Spanish or German reader saw English
+through the `language → en → any` fallback.
+
+##### `care.difficulty` is not prose
+
+This field is read **by keyword**, not displayed as-is: `Plant.careDifficulty(locale:)`
+matches it against a fixed list, and the catalogue's difficulty filter depends on
+it. The binary shipped to testers carries its own copy of that list, so widening
+it in code does not help installations already deployed.
+
+The only recognised labels, to be written exactly:
+
+| level | `fr` | `en` | `es` | `de` |
+|---|---|---|---|---|
+| easy | Facile | Easy | Fácil | Einfach |
+| moderate | Intermédiaire | Moderate | Intermedio | Mittel |
+| hard | Exigeant | Hard | Difícil | Anspruchsvoll |
+
+⚠️ "Difficult" and "Demanding" are **not** recognised, hence "Hard" in English.
+The writing scripts therefore reimpose these values from English rather than
+leaving them to the translator, human or machine (#485, #512).
+
+##### A partial translation makes the plant disappear
+
+`description` and `plantType` are **non-optional** on the app side. Writing a
+language without those two fields does not degrade the display: the record
+becomes undecodable and the plant vanishes from the catalogue, **in every
+language**, including the ones that were fine.
+
+Two protections, at two levels:
+
+- the writing scripts (`scripts/translate-plant-catalog.py`,
+  `scripts/apply-translation-memory.py`) check each record for completeness
+  before writing, and never overwrite an existing language;
+- since #515, `Plant.init(from:)` decodes `translations` **language by
+  language**: an unreadable language costs only that language, and the reader
+  falls back to `en`.
+
+The model-level guard exists because the scripts' discipline protects nothing the
+moment a `$set` is typed by hand in `mongosh`.
 
 #### `PlantBotanicalProfile` sub-document
 

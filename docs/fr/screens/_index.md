@@ -32,7 +32,15 @@ Les écrans suivants sont en limite mais ne sont pas encore documentés. Ils ser
 - `LiDARScanWizardView` — single screen mais RoomPlan + transition vers `GardenARPlacementView`. Suivi par l'issue #139.
 - `ARViewContainerMeasure` — single screen, principalement pour le tracé périmètre non-LiDAR.
 - `SignUpView` — flow critique (#137) mais le détail est déjà dans [`../flows/auth-signup.md`](../flows/auth-signup.md).
-- `CatalogueView` — listing avec filtres mais sans logique complexe (`PlantCatalogView` est désormais documenté ci-dessus).
+- `CatalogueView` — l'onglet Catalogue, à ne pas confondre avec `PlantCatalogView`
+  documenté ci-dessus, qui est le sélecteur de plantes du parcours AR. Deux écrans,
+  deux mécanismes de filtre distincts : dimensions `PlantCatalogContext` d'un côté,
+  `PlantFilters` (lumière, arrosage, difficulté) de l'autre.
+  Toujours en limite, mais il ne tient plus de « listing sans logique » : il porte
+  la grille de 123 fiches, le pipeline de vignettes de `PlantCard` et
+  `PlantThumbnailCache` (décodage, réduction, deux caches mémoire), et il a produit
+  le premier gel de 2 s relevé en production (#518). À promouvoir si un troisième
+  défaut s'y concentre.
 
 ## Structure d'une per-screen spec
 

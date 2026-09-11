@@ -276,6 +276,7 @@ var (
 		"GET /config",
 		"GET /models/:filename",
 		"GET /models/thumbnails/:filename",
+		"GET /photos/:filename",
 		"GET /plants",
 		"GET /plants/:id",
 		"POST /chat",

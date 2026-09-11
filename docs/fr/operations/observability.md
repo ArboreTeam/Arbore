@@ -58,7 +58,7 @@ de destination par erreur : tout vit dans `epi-apps`.
 | Config / assemblage DSN | `ArboreUi/ArboreUi/Config/AppConfig.swift` |
 | Secrets (gitignorés) | `ArboreUi/Secrets.xcconfig` (+ `.example`) |
 | Privacy manifest | `ArboreUi/ArboreUi/PrivacyInfo.xcprivacy` (CrashData + OtherDiagnosticData) |
-| Upload dSYM | `fastlane/Fastfile` → lane `beta` |
+| Upload dSYM | `fastlane/Fastfile` → lanes `beta` et `public_beta` |
 
 `SentryManager` est **désactivé tant qu'un DSN n'est pas configuré**. Sans
 secrets, l'app se build et tourne à l'identique (pratique pour les contributeurs
@@ -143,7 +143,19 @@ SENTRY_DSN_PROJECT_ID = <project id>
 
 Laisser vide pour garder Sentry désactivé.
 
-**2. Symbolication dSYM (fastlane).** La lane `beta` uploade les dSYM après l'upload TestFlight. Org/projet sont déjà câblés dans le Fastfile (`epi-apps` / `arbore-frontend`) ; il ne reste qu'à fournir un token d'auth. Sans token, la lane log un skip et continue.
+**2. Symbolication dSYM (fastlane).** Les lanes `beta` et `public_beta` envoient les dSYM **avant** l'upload TestFlight. Org/projet sont déjà câblés dans le Fastfile (`epi-apps` / `arbore-frontend`) ; il ne reste qu'à fournir un token d'auth. Sans token, la lane log un skip et continue.
+
+> L'ordre a été inversé le 2026-09-10 (#511), et ce n'est pas un détail. Sur le
+> build 31, une coupure SSL vers Apple pendant la pose du changelog a arrêté la
+> lane 36 minutes après un upload réussi, donc avant l'envoi des symboles : le
+> binaire était chez les testeurs et ses plantages promis à des piles d'appel
+> illisibles. Un binaire ne doit jamais atteindre un testeur avant que ses
+> symboles soient chez Sentry. Le dSYM est disponible dès la fin de `build_app`,
+> rien n'obligeait à attendre.
+>
+> Si la livraison échoue ensuite, on aura téléversé les symboles d'un build qui
+> n'existe pas : quelques mégaoctets orphelins, sans conséquence. C'est le bon
+> sens de l'échange.
 
 ```bash
 brew install getsentry/tools/sentry-cli
@@ -158,7 +170,7 @@ Créer le token sur `sentry.io → Settings → Auth Tokens` (scopes `project:re
 1. Renseigner le DSN dans `Secrets.xcconfig`, lancer un build **Debug**.
 2. Profil → **Debug Tools → « Send Sentry test event »** (visible en DEBUG uniquement).
 3. L'événement apparaît dans `sentry.io → arbore-frontend → Issues` en quelques secondes, tagué `environment: debug`. **Sans consentement il ne porte aucun `user`** — l'UID Firebase n'y est joint que si « Rattacher les diagnostics à mon compte » est activé.
-4. Pour des crashs **release** symbolisés, livrer un build `fastlane beta` avec le token ci-dessus, puis déclencher un crash sur le build TestFlight.
+4. Pour des crashs **release** symbolisés, livrer un build `fastlane beta` (ou `public_beta`) avec le token ci-dessus, puis déclencher un crash sur le build TestFlight.
 
 > ℹ️ **Les tests n'émettent rien.** `start()` sort immédiatement sous XCTest
 > (#506). Avant ce correctif, toute machine dont le `Secrets.xcconfig` portait un

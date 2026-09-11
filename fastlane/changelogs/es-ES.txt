@@ -1,0 +1,11 @@
+El catálogo ya no se congela al desplazarte rápido. Las imágenes se preparan antes de mostrarse.
+
+Las fichas están completas en español y en alemán. Hasta ahora, tres cuartas partes del catálogo pasaban al inglés.
+
+El filtro por dificultad funciona. Antes no devolvía ningún resultado.
+
+Las plantas de exterior (arce, olivo, lavanda) se muestran en alta definición en realidad aumentada.
+
+Se ha retirado del catálogo una ficha que no era una planta.
+
+Para probar primero: desplaza el catálogo hasta el final y luego cambia el idioma de la app en los ajustes de iOS.

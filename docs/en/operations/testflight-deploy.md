@@ -161,6 +161,100 @@ The command:
 
 Total: 10-40 min depending on Apple processing.
 
+### Ship to the public beta
+
+```bash
+bundle exec fastlane public_beta \
+  fr:fastlane/changelogs/fr-FR.txt \
+  en:fastlane/changelogs/en-US.txt \
+  es:fastlane/changelogs/es-ES.txt \
+  de:fastlane/changelogs/de-DE.txt
+```
+
+All four languages are **required**. The lane refuses to start if one is
+missing, and also refuses a path that points at no file.
+
+Same flow as `beta`, with three differences that matter.
+
+| | `beta` | `public_beta` |
+|---|---|---|
+| group | Internal QA (3 testers) | Bêta privée (10 testers, public link) |
+| Apple review | none | Beta App Review |
+| delay before testers get it | after processing | after approval, hours to a day |
+
+The build **reaches nobody** until Apple approves it. Do not confuse "shipped"
+with "received": `current_build` will show the number long before anyone can
+install it.
+
+### Release notes
+
+They live in `fastlane/changelogs/<locale>.txt`, one per language the app
+serves: `fr-FR`, `en-US`, `es-ES`, `de-DE`. Version-controlled, so they get
+reviewed like everything else.
+
+Neither an environment variable nor generated from the git log: a tester has no
+use for commit subjects, and text you reread is text you write better.
+
+#### The four paths are named by hand
+
+`fastlane/changelogs/` is a convention, **not a default**. No lane reads that
+directory on its own.
+
+That is the point. A lane that went looking there would publish the previous
+release's notes the day someone forgets to update them, silently, and the text
+would stay readable by testers until the next build. Having to name the four
+files forces you to look at them.
+
+For the same reason, a path pointing at no file is an **error**, never literal
+text: accepting both would publish `notes/33-de.txt` on the smallest typo.
+
+```bash
+bundle exec fastlane verifier_notes \
+  fr:fastlane/changelogs/fr-FR.txt \
+  en:fastlane/changelogs/en-US.txt \
+  es:fastlane/changelogs/es-ES.txt \
+  de:fastlane/changelogs/de-DE.txt
+
+bundle exec fastlane notes build:33 \
+  fr:fastlane/changelogs/fr-FR.txt \
+  en:fastlane/changelogs/en-US.txt \
+  es:fastlane/changelogs/es-ES.txt \
+  de:fastlane/changelogs/de-DE.txt
+```
+
+Relative paths resolve from the **repo root**, not from `fastlane/` where
+fastlane chdirs at startup. Absolute paths work too.
+
+`public_beta` runs this check **before archiving**. Failing on a turn of phrase
+after two and a half minutes of compilation would be a gratuitous punishment.
+
+#### What the check rejects
+
+- a missing or empty file, in any of the four languages;
+- more than 4,000 characters (the App Store Connect limit);
+- a **long dash** (`—` or `–`): it is not typed by accident, and its presence
+  marks text produced elsewhere;
+- a list of turns of phrase that keep coming back, per language: "nous sommes
+  ravis", "we're excited", "sumérgete", "wir freuen uns", "feel free to",
+  "seamless", "unlock"…
+
+The lane **refuses to ship** rather than let it through. That is deliberate: a
+badly written note stays readable by ten people until the next build, whereas a
+failed lane costs thirty seconds.
+
+> The phrase list is not a guarantee of style. It catches what repeats; it does
+> not replace a proofread. The lane therefore prints the first line of each
+> language before sending.
+
+#### How to write these notes
+
+One line per change, present tense, saying what changes for the user rather than
+what changed in the code. "The catalog no longer freezes when you scroll
+quickly" rather than "optimised thumbnail decoding".
+
+End with what you want tested first: that is the only part testers actually
+follow.
+
 ### Check the latest build on TestFlight
 
 ```bash

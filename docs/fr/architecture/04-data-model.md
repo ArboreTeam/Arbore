@@ -150,7 +150,7 @@ Document du catalogue de plantes. Chaque plante embarque ses traductions multili
 | `_id` | ObjectID | Clé primaire. Référencée par `PlacedPlant.plantId`. |
 | `name` | string | Nom canonique. |
 | `type` | string | Famille / type botanique. |
-| `imageURLs` | array<string> | Photos (Unsplash) via `fetchUnsplashImageURLs`. |
+| `imageURLs` | array<string> | Depuis #527, **nos propres rendus studio** : `https://api.arbore.app/models/thumbnails/<id>.png?v=<version>`. Une seule entrée par fiche. |
 | `description` | string | Description en français (servie par défaut). |
 | `modelURL` | string | Nom de fichier USDZ servi par `GET /models/:filename`. |
 | `translations` | map<lang, LanguageData> | Sous-document par langue (`fr`, `en`, `es`, `de`). |
@@ -161,6 +161,28 @@ Document du catalogue de plantes. Chaque plante embarque ses traductions multili
 | `botanicalProfile` | `PlantBotanicalProfile` (optionnel) | Contraintes horticoles canoniques, structurées et sourcées champ par champ. Son absence force le verdict « Probablement compatible » ou « Non adaptée », jamais « Adaptée ». |
 | `source` | string (optionnel) | Libellé de provenance optionnel (catalogue curé vs entrées legacy/beta). |
 | `sourceUrl` | string (optionnel) | URL d'origine optionnelle, conservée pour mise à jour ultérieure. |
+
+##### Pourquoi les photos sont les nôtres
+
+Les 123 fiches portaient auparavant des liens directs vers les CDN de botanic
+(97) et d'Unsplash (25). L'app ne copiait rien : chaque appareil allait les
+chercher lui-même, et ces tiers voyaient l'adresse IP de l'utilisateur, l'heure
+et les fiches consultées — un flux que la politique de confidentialité ne
+mentionnait pas pour botanic.
+
+Les CGU de botanic interdisent par ailleurs explicitement la reproduction
+(articles L.122-4 et L.335-3 du Code de la propriété intellectuelle), et une
+partie de leurs visuels vient de banques d'images qui les leur licencient.
+Héberger une copie était donc exclu.
+
+Nos rendus studio règlent les trois points d'un coup : aucun appel tiers, aucun
+droit d'autrui, et l'utilisateur voit exactement ce qu'il placera en réalité
+augmentée. Ce sont les mêmes fichiers que ceux servis aux cartes du catalogue,
+donc une seule entrée de cache par plante.
+
+> ⚠️ **Le chemin de génération n'a pas suivi.** `generateAndInsertPlant` appelle
+> toujours `fetchUnsplashImageURLs` : une plante créée par la génération IA
+> repart donc avec des URL tierces. Suivi dans #526.
 
 Le sous-document `translations[lang]` (type `LanguageData`) regroupe :
 

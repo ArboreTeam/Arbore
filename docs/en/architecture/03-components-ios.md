@@ -146,6 +146,14 @@ flowchart TB
 - **`NetworkManager` is the single entry point** for HTTP calls. Every outgoing request goes through this singleton to guarantee credential injection and network retry.
 - **`saveAuthDB.swift` is the only caller** to implement a business-level retry with exponential backoff and a Firebase Auth rollback. This logic is dedicated to signup (issue #137).
 - **`DatabaseFireBaseStore/` is being deprecated** in favor of the Go backend for all business operations outside of authentication.
+- **The 2D plan's markers are rasterised, and must stay that way.** The plan
+  redraws everything on every touch event: each marker's position derives from a
+  `@State offset` that dragging updates continuously. Every effect added to
+  `PlantMapMarker` is therefore paid sixteen times per frame in a sixteen-plant
+  garden. Symbols come from a cache bounded to ten entries (`PlantSymbolCache`),
+  the halo is a gradient rather than a blur, and the marker is flattened by
+  `drawingGroup()`. Adding a shadow or a blur here costs one offscreen render
+  pass per marker per frame (#533).
 - **`GardenLocalStore` is local-only**: no data is shared between devices, which motivates issue #114 (cross-install recovery). Since #394 the files stay on the device but are **partitioned per account**: `LocalDataOwnership` records the owner and filters on read. Nothing is deleted on logout — AR scenes exist only here, so a purge would destroy the only copy.
 
 ## Apple frameworks used

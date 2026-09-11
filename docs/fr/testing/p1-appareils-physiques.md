@@ -56,8 +56,14 @@ erreur supérieure à 10 % doit être considérée bloquante ou clairement propo
 2. Tester un balcon étroit, une terrasse et un contour de jardin non rectangulaire.
 3. Refaire les dimensions depuis le plan 2D.
 
+4. Placer **au moins seize plantes**, puis faire glisser et zoomer le plan.
+
 Critère : points faciles à poser et annuler, contour jamais auto-croisé, fermeture
 compréhensible et modification reflétée dans le plan 2D.
+
+Le seuil de seize n'est pas arbitraire : le plan redessine tout à chaque
+événement tactile, et c'est à peu près là que le coût devenait perceptible avant
+#533. En dessous, le défaut ne se voit pas.
 
 ### 4. Catalogue et réseau
 

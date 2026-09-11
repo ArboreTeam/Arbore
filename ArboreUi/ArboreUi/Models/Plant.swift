@@ -45,8 +45,7 @@ struct Plant: Identifiable, Codable {
 
         self.modelURL = try container.decodeIfPresent(String.self, forKey: .modelURL)
 
-        self.translations = try container.decodeIfPresent([String: PlantTranslation].self, forKey: .translations)
-            ?? [:]
+        self.translations = Plant.traductionsUtilisables(dans: container)
 
         self.generated = try container.decodeIfPresent(Bool.self, forKey: .generated)
         self.upAxis = try container.decodeIfPresent(String.self, forKey: .upAxis)
@@ -55,6 +54,75 @@ struct Plant: Identifiable, Codable {
         self.flags = try container.decodeIfPresent(PlantFlags.self, forKey: .flags)
         self.botanicalProfile = try container.decodeIfPresent(PlantBotanicalProfile.self, forKey: .botanicalProfile)
         self.hasHeavy = try container.decodeIfPresent(Bool.self, forKey: .hasHeavy)
+    }
+
+    /// Clé dynamique : le bloc `translations` est indexé par code de langue,
+    /// et rien ne borne l'ensemble des langues à l'avance.
+    private struct CodeDeLangue: CodingKey {
+        let stringValue: String
+        init?(stringValue: String) { self.stringValue = stringValue }
+        var intValue: Int? { nil }
+        init?(intValue: Int) { nil }
+    }
+
+    /// Décode `translations` **langue par langue**, en écartant celles qui ne
+    /// tiennent pas — issue #489.
+    ///
+    /// ## Le défaut que ce garde-fou corrige
+    ///
+    /// `PlantTranslation` déclare `description` et `plantType` NON optionnels.
+    /// Décoder le bloc d'un seul coup — `decodeIfPresent([String: PlantTranslation])` —
+    /// fait donc échouer TOUT le dictionnaire dès qu'une seule langue est
+    /// partielle. Et comme cette erreur remonte l'`init(from:)`, ce n'est pas la
+    /// traduction fautive qui est perdue : c'est **la plante entière**, qui
+    /// disparaît du catalogue.
+    ///
+    /// Un `$set` maladroit sur `translations.de` d'une seule fiche suffisait à
+    /// l'effacer de l'app. Les scripts d'écriture se gardent de le faire, mais
+    /// la discipline d'un script ne protège pas d'une commande tapée à la main
+    /// dans `mongosh` un soir de correctif.
+    ///
+    /// Ici, une langue illisible ne coûte que cette langue. Les appelants
+    /// retombent tous sur `en` (`PlantDetailView.translation(for:)`,
+    /// `ManageGardenView.preferredTranslation(for:)`), donc le lecteur voit une
+    /// fiche complète dans une autre langue — au lieu de rien du tout.
+    ///
+    /// ## Ce que ce garde-fou ne fait délibérément PAS
+    ///
+    /// Il ne juge pas le contenu. Une traduction dont `description` est vide est
+    /// conservée, alors qu'elle affichera peu de chose.
+    ///
+    /// La tentation était forte de l'écarter au profit du repli sur `en`, plus
+    /// complet. C'est une erreur : un bloc de langue ne porte pas que de la
+    /// prose, il porte aussi des données structurées que le catalogue consomme —
+    /// `care.difficulty` en tête, dont `careDifficulty(locale:)` dépend pour
+    /// filtrer. Jeter la langue entière parce que son texte est vide reviendrait
+    /// à jeter sa difficulté avec, et à faire disparaître la plante des filtres
+    /// pour régler un problème d'affichage.
+    ///
+    /// Un décodeur ne détruit pas de la donnée valide pour arranger une vue. La
+    /// complétude est vérifiée en amont par les scripts d'écriture, qui voient
+    /// la source ; le repli sur un champ vide se règle à la lecture, là où le
+    /// contexte existe.
+    private static func traductionsUtilisables(
+        dans container: KeyedDecodingContainer<CodingKeys>
+    ) -> [String: PlantTranslation] {
+        guard let bloc = try? container.nestedContainer(keyedBy: CodeDeLangue.self,
+                                                        forKey: .translations) else {
+            return [:]
+        }
+
+        var retenues: [String: PlantTranslation] = [:]
+        for cle in bloc.allKeys {
+            guard let traduction = try? bloc.decode(PlantTranslation.self, forKey: cle) else {
+                #if DEBUG
+                print("⚠️ Plant: traduction « \(cle.stringValue) » illisible — langue ignorée, la fiche est conservée")
+                #endif
+                continue
+            }
+            retenues[cle.stringValue] = traduction
+        }
+        return retenues
     }
 
     // ✅ Helper pour reconstruire une plante minimale au moment du restore

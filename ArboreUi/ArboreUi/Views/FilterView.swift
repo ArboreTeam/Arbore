@@ -128,9 +128,10 @@ struct FilterView: View {
     /// exigeantes, mais exactement les fiches SANS donnée — un sous-ensemble
     /// arbitraire présenté comme une réponse.
     ///
-    /// Aujourd'hui la seule source est `flags.easyCare`, qui est binaire : le
-    /// niveau intermédiaire disparaît donc de lui-même. Il réapparaîtra sans
-    /// changement de code le jour où des fiches porteront `care.difficulty`.
+    /// Ce jour est arrivé : les 123 fiches portent une difficulté depuis #485,
+    /// dont 21 intermédiaires. Le niveau apparaît donc de lui-même, sans qu'une
+    /// ligne ait changé ici — c'était l'intérêt de dériver les options de la
+    /// donnée plutôt que de les coder en dur.
     var difficultyOptions: [String] {
         let niveaux = Set(plants.compactMap { $0.careDifficulty(locale: locale) })
 

@@ -32,7 +32,14 @@ The following screens are borderline but are not yet documented. They will be pr
 - `LiDARScanWizardView` — single screen but RoomPlan + transition to `GardenARPlacementView`. Tracked by issue #139.
 - `ARViewContainerMeasure` — single screen, mainly for non-LiDAR perimeter tracing.
 - `SignUpView` — critical flow (#137) but the details are already in [`../flows/auth-signup.md`](../flows/auth-signup.md).
-- `CatalogueView` — listing with filters but without complex logic (`PlantCatalogView` is now documented above).
+- `CatalogueView` — the Catalogue tab, not to be confused with `PlantCatalogView`
+  documented above, which is the AR flow's plant picker. Two screens, two distinct
+  filter mechanisms: `PlantCatalogContext` dimensions on one side, `PlantFilters`
+  (light, watering, difficulty) on the other.
+  Still borderline, but no longer a "listing without logic": it carries the grid of
+  123 records, the thumbnail pipeline in `PlantCard` and `PlantThumbnailCache`
+  (decoding, downsampling, two memory caches), and it produced the first 2 s freeze
+  seen in production (#518). To be promoted if a third defect concentrates there.
 
 ## Structure of a per-screen spec
 

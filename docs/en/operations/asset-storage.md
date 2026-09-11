@@ -1,7 +1,7 @@
 # 3D asset storage
 
-Where the catalogue's 372 files live — 124 light models, 124 high-definition,
-124 thumbnails — and how to move them without interrupting service.
+Where the catalogue's 369 files live: 123 light models, 123 high-definition,
+123 thumbnails, and how to move them without interrupting service.
 
 ## Why this document exists
 

@@ -17,6 +17,26 @@ Résultat : le catalogue est instantané (PNG), le placement AR est rapide (lég
 ## Comportement runtime
 
 - **Catalogue** : `ArboreUi/ArboreUi/Views/PlantCard.swift` charge le thumbnail PNG via `GET /models/thumbnails/{id}.png?v={designVersion}` et le conserve dans `PlantThumbnailCache`. Le paramètre de version invalide simultanément le cache disque iOS et l'ancienne réponse Cloudflare lorsqu'un nouveau design remplace un fichier sous le même identifiant. Chaque rendu porte aussi une signature masquée dans les coins rognés de la carte ; tout PNG serveur sans cette signature est rejeté. En cas de PNG indisponible ou ancien, la photo catalogue sert de fallback léger : le catalogue utilisateur ne construit jamais de miniature 3D localement. `PlantThumbnailGenerator` reste réservé à l'écran debug/admin avant l'upload. Le cadrage de ces rendus ajuste la caméra au volume projeté complet du modèle, avec une marge commune, un fond gris continu et une ombre de contact courte.
+
+  Le **décodage** de ces PNG est aussi important que leur téléchargement, et c'est
+  moins évident. `UIImage(contentsOfFile:)` et `UIImage(data:)` sont paresseux :
+  ils ne décompressent rien, et le décodage a lieu au premier dessin, donc dans le
+  commit Core Animation, sur le thread principal. Charger le fichier dans un
+  `Task.detached` déporte la lecture, pas le décodage. Avec des vignettes de
+  720 × 900 px et une grille qui en montre cinq, un défilement rapide gelait l'app
+  deux secondes — mesuré en production sur le build 32 (`ARBORE-FRONTEND-A`).
+
+  Depuis #518, `PlantThumbnailCache` décode et réduit en une passe via
+  `CGImageSourceCreateThumbnailAtIndex` avec `kCGImageSourceShouldCacheImmediately`,
+  le drapeau sans lequel ImageIO reste paresseux. Deux caches mémoire s'y
+  ajoutent : les images décodées (plafond 40 Mio) et les verdicts de la signature
+  de version, dont les quatre balayages de pixels étaient rejoués à chaque
+  apparition de carte.
+
+  Le contrôle de signature porte sur l'image **d'origine**, jamais sur la version
+  réduite : ses heuristiques échantillonnent des pixels et **effacent le fichier**
+  quand elles concluent au périmé. Les juger sur une image rééchantillonnée ferait
+  basculer leurs seuils, et des vignettes légitimes seraient supprimées.
 - **Modèle 3D** : `ArboreUi/ArboreUi/Services/ModelCacheManager.swift` télécharge le USDZ (cache disque par nom de fichier), utilisé en AR et pour la génération de thumbnail.
 - **Backend** : `GET /models/:filename` (protégé) sert le USDZ depuis `./models/` ; le paramètre `?lod=heavy` bascule la lecture vers `./models/heavy/`. `GET /models/thumbnails/:filename` (public) sert les PNG.
 

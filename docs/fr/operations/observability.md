@@ -316,6 +316,31 @@ Au débit observé (~500 Ko/jour côté backend), 30 Mo représentent environ **
 | Commit déployé | `curl localhost:8080/health` → champ `commit` ([#341](https://github.com/ArboreTeam/Arbore/issues/341)) |
 | IP complète d'un incident | journaux Cloudflare |
 
+## Ce que les événements réels ont trouvé
+
+Sentry n'a pas servi qu'à confirmer que l'instrumentation marchait. Chaque
+défaut listé ici a été découvert par un événement réel, pas par une relecture.
+
+| issue Sentry | build | découverte |
+|---|---|---|
+| `ARBORE-FRONTEND-1` | 29 | `device_app_hash`, un identifiant d'installation stable, passait malgré le régime anonyme (#496) |
+| `ARBORE-FRONTEND-5` | 31 | faux « App Hanging » émis par la suite de tests, le harnais XCTest n'étant pas détecté (#506) |
+| `ARBORE-FRONTEND-6` à `-9` | 31 | contrôles manuels prouvant qu'aucune règle de scrubbing n'atteint `user.geo` (#498) |
+| `ARBORE-FRONTEND-A` | 32 | gel de 2 s en parcourant le catalogue : décodage PNG sur le thread principal (#518) |
+
+Deux enseignements qui valent au-delà de ces cas.
+
+**Une relecture ne voit pas ce qui n'est pas dans le champ.** `device_app_hash`
+ne vit pas dans `user` mais dans le contexte `app` : personne ne l'a vu en
+relisant le code d'anonymisation, et la politique de confidentialité publique a
+affirmé le contraire pendant une journée.
+
+**Une pile sans frame applicative n'est pas une pile inutile.** Celle de
+`ARBORE-FRONTEND-A` s'arrêtait dans le graphe SwiftUI, sans une seule ligne de
+notre code. Elle désignait pourtant l'endroit exact : le thread principal était
+bloqué dans le rendu, donc le coupable était un travail fait au dessin et non à
+l'appel.
+
 ## Notes / suites
 
 - Le pont breadcrumbs depuis l'`AppLog` de l'app iOS (nav / session AR / sauvegarde jardin) est un nice-to-have pas encore câblé.

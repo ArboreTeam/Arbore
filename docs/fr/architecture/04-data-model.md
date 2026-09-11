@@ -172,9 +172,51 @@ LanguageData {
   soilAndPot: {substrate, drainage, potSize, repotFrequency, repotSigns},
   health: {commonProblems, symptomsAndCauses, pests, treatments, prevention},
   lifeCycle: {growth, flowering, dormancy, fertilizer, pruning},
-  care: {weekly, monthly, yearly, extraTips}
+  care: {difficulty, weekly, monthly, yearly, extraTips}
 }
 ```
+
+Les 123 fiches portent les **quatre langues** depuis #513 et #514. Avant cela,
+97 d'entre elles n'avaient que `fr` et `en`, et un lecteur hispanophone ou
+germanophone voyait de l'anglais par le repli
+`langue → en → n'importe laquelle`.
+
+##### `care.difficulty` n'est pas de la prose
+
+Ce champ est lu **par mots-clés**, pas affiché tel quel : `Plant.careDifficulty(locale:)`
+le compare à une liste figée, et c'est de lui que dépend le filtre par difficulté
+du catalogue. Le binaire livré aux testeurs porte sa propre copie de cette liste,
+donc l'élargir côté code n'aide pas les installations déjà déployées.
+
+Les seuls libellés reconnus, à écrire tels quels :
+
+| niveau | `fr` | `en` | `es` | `de` |
+|---|---|---|---|---|
+| facile | Facile | Easy | Fácil | Einfach |
+| intermédiaire | Intermédiaire | Moderate | Intermedio | Mittel |
+| exigeant | Exigeant | Hard | Difícil | Anspruchsvoll |
+
+⚠️ « Difficult » et « Demanding » ne sont **pas** reconnus, d'où « Hard » en
+anglais. Les scripts d'écriture réimposent donc ces valeurs depuis l'anglais au
+lieu de les confier au traducteur, humain ou machine (#485, #512).
+
+##### Une traduction partielle fait disparaître la plante
+
+`description` et `plantType` sont **non optionnels** côté app. Écrire une langue
+sans ces deux champs ne dégrade pas l'affichage : la fiche devient indécodable et
+la plante disparaît du catalogue, **dans toutes les langues**, y compris celles
+qui allaient bien.
+
+Deux protections, à deux niveaux :
+
+- les scripts d'écriture (`scripts/translate-plant-catalog.py`,
+  `scripts/apply-translation-memory.py`) vérifient la complétude de chaque fiche
+  avant d'écrire, et n'écrasent jamais une langue existante ;
+- depuis #515, `Plant.init(from:)` décode `translations` **langue par langue** :
+  une langue illisible ne coûte que cette langue, le lecteur retombe sur `en`.
+
+Le garde-fou du modèle existe parce que la discipline des scripts ne protège de
+rien dès qu'un `$set` est tapé à la main dans `mongosh`.
 
 #### Sous-document `PlantBotanicalProfile`
 

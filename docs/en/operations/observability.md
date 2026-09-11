@@ -312,6 +312,30 @@ At the observed rate (~500 KB/day for the backend), 30 MB is roughly **two month
 | Deployed commit | `curl localhost:8080/health` → `commit` field ([#341](https://github.com/ArboreTeam/Arbore/issues/341)) |
 | Full IP for an incident | Cloudflare logs |
 
+## What real events found
+
+Sentry did not merely confirm the instrumentation worked. Every defect listed
+here was found by a real event, not by a code review.
+
+| Sentry issue | build | what it found |
+|---|---|---|
+| `ARBORE-FRONTEND-1` | 29 | `device_app_hash`, a stable install identifier, was still shipping despite the anonymous regime (#496) |
+| `ARBORE-FRONTEND-5` | 31 | fake "App Hanging" events emitted by the test suite, the XCTest harness going undetected (#506) |
+| `ARBORE-FRONTEND-6` to `-9` | 31 | manual controls proving no scrubbing rule can reach `user.geo` (#498) |
+| `ARBORE-FRONTEND-A` | 32 | 2 s freeze while browsing the catalogue: PNG decoding on the main thread (#518) |
+
+Two lessons that reach beyond these cases.
+
+**A review does not see what is outside the field it is looking at.**
+`device_app_hash` does not live in `user` but in the `app` context: nobody
+spotted it while reviewing the anonymisation code, and the public privacy policy
+claimed the opposite for a day.
+
+**A stack with no application frame is not a useless stack.** The one in
+`ARBORE-FRONTEND-A` stopped inside the SwiftUI graph, without a single line of
+our code. It still pointed at the exact place: the main thread was blocked in
+rendering, so the culprit was work done at draw time rather than at call time.
+
 ## Notes / follow-ups
 
 - The breadcrumbs bridge from the iOS app's `AppLog` (nav / AR session / garden save) is a nice-to-have, not wired up yet.

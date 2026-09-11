@@ -62,7 +62,9 @@ compréhensible et modification reflétée dans le plan 2D.
 ### 4. Catalogue et réseau
 
 1. Vider le cache de vignettes, lancer le catalogue en Wi-Fi puis en 4G/5G.
-2. Faire défiler les 124 plantes, rechercher et appliquer plusieurs filtres.
+2. Faire défiler les 123 plantes **d'un balayage franc jusqu'en bas**, rechercher
+   et appliquer plusieurs filtres. Le défilement rapide est ce qui a révélé le
+   gel de 2 s corrigé par #518 : un parcours posé ne l'aurait pas déclenché.
 3. Ouvrir dix plantes et placer au moins cinq modèles AR.
 
 Critère : les cartes téléchargent des PNG serveur sans reconstruction USDZ locale,

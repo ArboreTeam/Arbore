@@ -19,6 +19,18 @@ const (
 	DBSelectorTest = "test"
 )
 
+// APIKeyMiddleware lit les clés dans l'environnement.
+//
+// Conservée pour les appelants qui n'ont pas de résolution de secret à leur
+// disposition — les tests, notamment. La production passe par
+// APIKeyMiddlewareWithKeys, qui accepte un fichier monté.
+func APIKeyMiddleware() gin.HandlerFunc {
+	return APIKeyMiddlewareWithKeys(
+		os.Getenv("ARBORE_API_KEY"),
+		os.Getenv("ARBORE_API_KEY_TEST"),
+	)
+}
+
 // APIKeyMiddleware validates the X-API-Key header against either:
 //
 //   - ARBORE_API_KEY      → context value DBSelectorKey = DBSelectorProd
@@ -28,12 +40,13 @@ const (
 // so the same backend process handles both prod traffic and the integration
 // test suite without mutating prod data. ARBORE_API_KEY_TEST is optional —
 // if unset, only the prod key is accepted.
-func APIKeyMiddleware() gin.HandlerFunc {
-	expectedKey := os.Getenv("ARBORE_API_KEY")
+// Les deux clés sont résolues par l'appelant, qui préfère un fichier monté à
+// une variable d'environnement (audit #338 constat 4) — ce paquet ne connaît
+// pas cette règle et n'a pas à la connaître.
+func APIKeyMiddlewareWithKeys(expectedKey, testKey string) gin.HandlerFunc {
 	if expectedKey == "" {
 		panic("ARBORE_API_KEY environment variable not set")
 	}
-	testKey := os.Getenv("ARBORE_API_KEY_TEST")
 
 	return func(c *gin.Context) {
 		apiKey := c.GetHeader("X-API-Key")

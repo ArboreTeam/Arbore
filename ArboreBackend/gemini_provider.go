@@ -34,7 +34,7 @@ func newGeminiProvider() *GeminiProvider {
 		model = defaultGeminiModel
 	}
 	return &GeminiProvider{
-		apiKey: os.Getenv("GEMINI_API_KEY"),
+		apiKey: secretFromFileOrEnv("GEMINI_API_KEY"),
 		model:  model,
 		client: &http.Client{Timeout: 60 * time.Second},
 	}

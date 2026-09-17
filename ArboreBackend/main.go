@@ -2127,7 +2127,7 @@ func connectMongoDatabases(ctx context.Context) error {
 	// L'URI Mongo est obligatoire et passée par l'environnement
 	// (.env ou variable système) — jamais de credentials en dur dans le code.
 	// export MONGODB_URI="mongodb+srv://..."
-	uri := strings.TrimSpace(os.Getenv("MONGODB_URI"))
+	uri := secretFromFileOrEnv("MONGODB_URI")
 	if uri == "" {
 		return fmt.Errorf("MONGODB_URI non défini")
 	}
@@ -2283,11 +2283,17 @@ func buildRouter() *gin.Engine {
 			"Photo not found")
 	})
 
+	// Clés d'API résolues une fois, en préférant un fichier monté à une variable
+	// d'environnement (audit #338 constat 4). Le paquet `middleware` reçoit des
+	// valeurs déjà résolues : il n'a pas à connaître cette règle.
+	apiKeyProd := secretFromFileOrEnv("ARBORE_API_KEY")
+	apiKeyTest := secretFromFileOrEnv("ARBORE_API_KEY_TEST")
+
 	// === ROUTES API KEY UNIQUEMENT (sans session Firebase) ===
 	// Config de référence (wizard + règles de soin, cf. #236) : non sensible,
 	// nécessaire dès le lancement de l'app avant authentification utilisateur.
 	apiKeyOnly := router.Group("/")
-	apiKeyOnly.Use(middleware.APIKeyMiddleware())
+	apiKeyOnly.Use(middleware.APIKeyMiddlewareWithKeys(apiKeyProd, apiKeyTest))
 	{
 		apiKeyOnly.GET("/config", getConfig)
 	}
@@ -2295,7 +2301,7 @@ func buildRouter() *gin.Engine {
 	// === ROUTES PROTÉGÉES (API Key + Firebase Auth) ===
 	// Ordre important: API Key PUIS Firebase Auth
 	protected := router.Group("/")
-	protected.Use(middleware.APIKeyMiddleware())
+	protected.Use(middleware.APIKeyMiddlewareWithKeys(apiKeyProd, apiKeyTest))
 	protected.Use(middleware.FirebaseAuthMiddleware())
 	protected.Use(apiLimiter.Middleware())
 	protected.Use(middleware.MaxBodyBytes(maxJSONBodyBytes))

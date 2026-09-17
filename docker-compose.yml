@@ -127,6 +127,12 @@ services:
       # rend la bascule progressive et réversible.
       - MASTER_ENCRYPTION_KEY=${MASTER_ENCRYPTION_KEY:-}
       - MASTER_ENCRYPTION_KEY_PATH=${MASTER_ENCRYPTION_KEY_PATH:-}
+      # Mêmes chemins pour les trois secrets restants (audit #338 constat 4).
+      # Vides par défaut : le backend retombe alors sur la variable, donc une
+      # installation qui ne monte rien démarre comme avant.
+      - MONGODB_URI_PATH=${MONGODB_URI_PATH:-}
+      - ARBORE_API_KEY_PATH=${ARBORE_API_KEY_PATH:-}
+      - GEMINI_API_KEY_PATH=${GEMINI_API_KEY_PATH:-}
       # Origines navigateur autorisées. Vide = CORS désactivé (audit #338
       # constat 5) : le web passe par son proxy Next.js côté serveur.
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-}
@@ -186,6 +192,11 @@ services:
       # pas fourni ; le backend ne le lit que si MASTER_ENCRYPTION_KEY_PATH est
       # défini, sinon il retombe sur la variable d'environnement.
       - ${MASTER_ENCRYPTION_KEY_HOST_PATH:-/dev/null}:/run/secrets/master-encryption.key:ro
+      # Même schéma que la clé maître : défaut /dev/null, donc toujours présent
+      # et jamais de répertoire fantôme quand le fichier n'est pas fourni.
+      - ${MONGODB_URI_HOST_PATH:-/dev/null}:/run/secrets/mongodb-uri:ro
+      - ${ARBORE_API_KEY_HOST_PATH:-/dev/null}:/run/secrets/arbore-api-key:ro
+      - ${GEMINI_API_KEY_HOST_PATH:-/dev/null}:/run/secrets/gemini-api-key:ro
       # Anciennes images communautaires, accessibles uniquement pour effacement RGPD.
       - ${LEGACY_COMMUNITY_UPLOADS_HOST_PATH:-./ArboreBackend/uploads/community}:/app/uploads/community
     depends_on:

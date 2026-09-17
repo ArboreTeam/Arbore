@@ -4,7 +4,7 @@
 # ─────────────────────────────────────────────
 
 # 1. Dépendances
-FROM node:24-alpine3.23 AS deps
+FROM node:24-alpine3.24 AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -12,7 +12,7 @@ RUN npm ci
 # 2. Build
 #    Les variables NEXT_PUBLIC_* (Firebase, Sentry) sont lues depuis web/.env
 #    (présent dans le contexte) et inlinées dans le bundle à ce stade.
-FROM node:24-alpine3.23 AS builder
+FROM node:24-alpine3.24 AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
@@ -20,7 +20,7 @@ COPY . .
 RUN npm run build
 
 # 3. Runtime (image minimale)
-FROM node:24-alpine3.23 AS runner
+FROM node:24-alpine3.24 AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

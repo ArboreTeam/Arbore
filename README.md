@@ -89,13 +89,16 @@ Stratégie de test complète : [`docs/fr/testing/`](docs/fr/testing/).
 
 ## 🤝 Contribution
 
-Projet développé dans un cadre académique.
+**Contributions internes uniquement.** Arbore est un projet académique sous
+licence propriétaire, tous droits réservés : le code n'est pas ouvert à la
+réutilisation, au fork ni aux contributions extérieures. Le dépôt est public
+pour être lu, pas pour être repris — cf. [`LICENSE`](LICENSE).
 
-1. Fork du projet
-2. Branche feature (`git checkout -b feature/ma-fonctionnalite`)
-3. Commit des changements
-4. Push vers la branche
-5. Ouverture d'une Pull Request
+Pour l'équipe, le déroulé habituel :
+
+1. Branche depuis `dev` (`git checkout -b feat/ma-fonctionnalite`)
+2. Commits, puis Pull Request vers `dev`
+3. Promotion de `dev` vers `main` une fois la CI verte
 
 > Toute PR touchant un domaine documenté doit mettre à jour la documentation correspondante (FR **et** EN) — cf. [`docs/`](docs/README.md).
 

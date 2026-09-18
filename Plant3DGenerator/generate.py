@@ -24,6 +24,18 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 
 
 def parse_input(path: Path):
+    """Parse input.txt — one plant per non-comment line.
+
+    Format: `Common Name | Latin Name | hint | height_m | habit | default_pot_id`
+      - column 4 (height_m, optional) : real-world height in meters
+        forwarded to Meshy via the prompt + `auto_size=True`. Reused
+        runtime côté composer + iOS pour scale-normalize.
+      - column 5 (habit, optional, default "upright") : drives the
+        cascade-aware prompt block (cf issue #185).
+      - column 6 (default_pot_id, optional) : id d'un pot dans pots.txt.
+        Pas utilisé par Meshy ; sert au seed `Plant.defaultPotId`
+        backend et à l'auto-sélection dans le web composer.
+    """
     plants = []
     with open(path) as f:
         for raw in f:
@@ -33,10 +45,21 @@ def parse_input(path: Path):
             parts = [p.strip() for p in line.split("|")]
             if len(parts) < 2:
                 continue
+            height_m = 0.0
+            if len(parts) >= 4 and parts[3]:
+                try:
+                    height_m = float(parts[3])
+                except ValueError:
+                    height_m = 0.0
+            habit = parts[4].lower() if len(parts) >= 5 and parts[4] else "upright"
+            default_pot_id = parts[5] if len(parts) >= 6 and parts[5] else ""
             plants.append({
                 "common": parts[0],
                 "latin": parts[1],
                 "hint": parts[2] if len(parts) >= 3 else "",
+                "height_m": height_m,
+                "habit": habit,
+                "default_pot_id": default_pot_id,
             })
     return plants
 
@@ -93,7 +116,8 @@ def main() -> None:
 
     ok = 0
     for pl in plants:
-        job = make_job(pl["common"], pl["latin"], pl["hint"])
+        job = make_job(pl["common"], pl["latin"], pl["hint"],
+                       height_m=pl["height_m"], habit=pl["habit"])
         runner.run(job, preview_only=args.preview_only)
         last_stage = "preview" if args.preview_only else "refine"
         if job.stages[last_stage].status == "done":

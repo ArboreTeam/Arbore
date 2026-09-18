@@ -63,8 +63,6 @@
 	<string>Arbore utilise la caméra pour mesurer votre espace et y afficher les plantes en réalité augmentée.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Arbore utilise une position approximative pour adapter les plantes au climat local et calculer l'orientation.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>L'application a besoin d'accéder au microphone pour certaines fonctionnalités.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Arbore enregistre dans vos photos uniquement l’image de votre aménagement lorsque vous le demandez.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

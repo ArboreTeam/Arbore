@@ -14,16 +14,34 @@ Textes prêts à coller dans App Store Connect → **App Information** + **Versi
 
 ## App Privacy — réponses à reporter dans App Store Connect
 
-Arbore ne pratique aucun suivi inter-apps et n'utilise aucune donnée pour la publicité. Déclarer les catégories suivantes comme liées à l'identité et utilisées pour les fonctionnalités de l'app :
+Vérifié contre le code le **2026-09-18**. Arbore ne pratique aucun suivi inter-apps et n'utilise aucune donnée pour la publicité. Déclarer les catégories suivantes comme liées à l'identité et utilisées pour les fonctionnalités de l'app :
 
-- coordonnées : adresse e-mail ;
-- informations de contact : nom ;
-- identifiants : identifiant utilisateur Firebase ;
-- localisation : localisation approximative ;
-- contenu utilisateur : photos ou vidéos et autre contenu utilisateur (jardins, réponses, messages IA) ;
-- diagnostics : données de crash et autres données de diagnostic, uniquement lorsque le consentement Sentry est activé.
+| Catégorie | Ce qui part | Où le vérifier |
+|---|---|---|
+| Coordonnées — adresse e-mail | compte Firebase Auth, stocké dans Mongo | `POST /users` |
+| Informations de contact — nom | `displayName` Firebase + Mongo | `PATCH /users/me` |
+| Identifiants — identifiant utilisateur | UID Firebase, clé primaire de toutes les collections | partout |
+| Localisation — **approximative** | ville saisie, ou coordonnées **arrondies à 2 décimales** | `GardenModels.swift` → `roundedCoordinate` |
+| Contenu utilisateur — photos ou vidéos | photos jointes au diagnostic et à l'assistant, en base64 | `PlantHealthScanner.swift` → `/diagnose`, `GeminiService.swift` → `/chat` |
+| Contenu utilisateur — autre | jardins, disposition 3D, réponses au questionnaire | `/gardens`, `/users` |
+| Diagnostics — **données de crash** | **toujours collectées**, en régime anonyme par défaut | `SentryManager.swift` |
+| Diagnostics — autres données | traces de performance et hiérarchie de vues, **seulement avec consentement** | `tracesSampleRate`, `attachViewHierarchy` |
 
-Répondre « non » au tracking. La caméra/LiDAR brute, le mouvement et les WorldMaps restant sur l'appareil ne sont pas des données collectées. Cette section, `PrivacyInfo.xcprivacy`, la politique publique version 2.2 et le texte in-app doivent évoluer ensemble.
+**Les deux lignes « diagnostics » ne répondent pas pareil, et c'est le piège de cette page.** Avant #469/#495, tout Sentry était conditionné au consentement. Depuis, les **plantages remontent pour tout le monde** — sans identifiant, IP forcée à `0.0.0.0`, `device_app_hash` retiré. Le consentement ne gouverne plus la collecte mais le seul rattachement à l'UID. Répondre « uniquement avec consentement » pour les crash data serait donc **sous-déclarer**.
+
+Les déclarer *liées à l'identité* reste la bonne réponse : c'est vrai pour les utilisateurs consentants, et Apple attend la plus large des deux situations.
+
+### Ce qui n'est PAS collecté, et qu'il ne faut pas déclarer
+
+- **Images caméra et LiDAR brutes, mouvement, WorldMaps ARKit** — restent sur l'appareil.
+- **Captures photo et vidéo du jardin en RA** — écrites dans le container de l'app ; le partage est une action explicite de l'utilisateur, pas une collecte.
+- **Photo de profil** — `uploadProfileImage` ne fait qu'écrire un fichier local malgré son nom (#329). La catégorie « photos » reste néanmoins à déclarer, les deux flux IA la justifiant seuls.
+- **Aucun identifiant d'appareil** — ni jeton de push, ni `identifierForVendor`, ni IDFA. Les notifications sont locales.
+- **Calendrier** — `CalendarService` écrit et supprime, ne lit jamais d'événement existant.
+
+Répondre **« non » au tracking** : `IS_ANALYTICS_ENABLED` est à `false`, FirebaseAnalytics et Crashlytics ne sont pas liés, et le projet n'importe ni AppTrackingTransparency ni `ASIdentifierManager`.
+
+Cette section, `PrivacyInfo.xcprivacy`, la politique publique (**version 2.4**, 9 septembre 2026, cf. `AppConfig.privacyPolicyVersion`) et le texte in-app doivent évoluer ensemble.
 
 ## Compte démo Apple Reviewer (App Review Information → Sign-In required)
 Compte créé en prod (Firebase Auth `emailVerified=true` + record Mongo), login vérifié de bout en bout.

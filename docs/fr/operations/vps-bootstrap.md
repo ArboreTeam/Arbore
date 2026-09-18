@@ -180,6 +180,7 @@ attendues (sources de vérité indiquées) :
 | `FIREBASE_SERVICE_ACCOUNT_HOST_PATH` | Chemin absolu du JSON Firebase | Voir étape 7 ; monté en lecture seule |
 | `MASTER_ENCRYPTION_KEY` | Secret opérateur | Clé 32 octets **encodée en hexadécimal** (64 caractères), pour les jetons Apple. Générer avec `openssl rand -hex 32`. ⚠️ Pas du base64 : `parseMasterEncryptionKey` fait un `hex.DecodeString`. Préférer le fichier, cf. `MASTER_ENCRYPTION_KEY_PATH` |
 | `MASTER_ENCRYPTION_KEY_PATH` / `..._HOST_PATH` | Secret opérateur | **Source recommandée** de la clé maître : un fichier plutôt qu'une variable, cf. plus bas |
+| `MONGODB_URI_PATH`, `ARBORE_API_KEY_PATH`, `GEMINI_API_KEY_PATH` (+ `..._HOST_PATH`) | Secret opérateur | Même source fichier, étendue aux trois secrets restants (#338 constat 4). Laisser vide conserve la variable : la bascule se fait machine par machine |
 | `APPLE_TEAM_ID` / `APPLE_KEY_ID` | Apple Developer → Keys | Identifiants de la clé Sign in with Apple |
 | `APPLE_SIWA_CLIENT_ID` | Bundle ID | `com.arboreteam.arbore` pour le flux iOS natif |
 | `APPLE_SIWA_KEY_HOST_PATH` | Chemin absolu du `.p8` Apple | Fichier `0600`, hors Git |

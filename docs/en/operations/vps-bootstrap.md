@@ -180,6 +180,7 @@ variables (sources of truth indicated):
 | `FIREBASE_SERVICE_ACCOUNT_HOST_PATH` | Absolute path to the Firebase JSON | See step 7; mounted read-only |
 | `MASTER_ENCRYPTION_KEY` | Operator secret | **Hex-encoded** 32-byte key (64 characters), used for Apple tokens. Generate with `openssl rand -hex 32`. ⚠️ Not base64: `parseMasterEncryptionKey` does a `hex.DecodeString`. Prefer the file, see `MASTER_ENCRYPTION_KEY_PATH` |
 | `MASTER_ENCRYPTION_KEY_PATH` / `..._HOST_PATH` | Operator secret | **Recommended source** for the master key: a file rather than a variable, see below |
+| `MONGODB_URI_PATH`, `ARBORE_API_KEY_PATH`, `GEMINI_API_KEY_PATH` (+ `..._HOST_PATH`) | Operator secret | Same file source, extended to the three remaining secrets (#338 finding 4). Leaving them empty keeps the variable: the switch happens machine by machine |
 | `APPLE_TEAM_ID` / `APPLE_KEY_ID` | Apple Developer → Keys | Sign in with Apple key identifiers |
 | `APPLE_SIWA_CLIENT_ID` | Bundle ID | `com.arboreteam.arbore` for the native iOS flow |
 | `APPLE_SIWA_KEY_HOST_PATH` | Absolute path to the Apple `.p8` | Mode `0600`, outside Git |

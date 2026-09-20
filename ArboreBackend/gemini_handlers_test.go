@@ -20,6 +20,10 @@ type fakeProvider struct {
 }
 
 func (f fakeProvider) Name() string { return "fake" }
+
+// Aucun débit déclaré : les tests de handler ne doivent pas attendre devant la
+// porte d'étranglement, qui a ses propres tests.
+func (f fakeProvider) Limits() LLMLimits { return LLMLimits{} }
 func (f fakeProvider) Generate(ctx context.Context, req LLMRequest) (LLMResult, error) {
 	return f.fn(ctx, req)
 }
@@ -131,9 +135,41 @@ func TestHandleGeminiChat_UpstreamError(t *testing.T) {
 	}
 }
 
+// Une porte d'étranglement saturée n'est pas une panne du fournisseur : le
+// client doit recevoir 429 avec Retry-After, et non 502. Répondre 502 ferait
+// croire à une indisponibilité et découragerait le réessai (#553).
+func TestHandleGeminiChat_SurchargeRend429EtNon502(t *testing.T) {
+	setFakeProvider(t, func(context.Context, LLMRequest) (LLMResult, error) {
+		return LLMResult{}, ErrLLMSurcharge
+	})
+	w := doPOSTJSON(handleGeminiChat, "/chat", `{"newMessage":"salut"}`)
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("attendu 429, obtenu %d", w.Code)
+	}
+	if w.Header().Get("Retry-After") == "" {
+		t.Error("un 429 doit porter Retry-After, sinon le client ne sait pas quand revenir")
+	}
+	if !strings.Contains(w.Body.String(), "AI_BUSY") {
+		t.Errorf("code AI_BUSY attendu dans le corps, obtenu %s", w.Body.String())
+	}
+}
+
 // --- /diagnose -------------------------------------------------------------
 
 const validDiagnoseBody = `{"imageData":"AAAA","colorimetry":{"greenRatio":0.5,"yellowRatio":0.1,"brownRatio":0.1,"whiteSpotRatio":0.0}}`
+
+func TestHandleGeminiDiagnose_SurchargeRend429EtNon502(t *testing.T) {
+	setFakeProvider(t, func(context.Context, LLMRequest) (LLMResult, error) {
+		return LLMResult{}, ErrLLMSurcharge
+	})
+	w := doPOSTJSON(handleGeminiDiagnose, "/diagnose", validDiagnoseBody)
+	if w.Code != http.StatusTooManyRequests {
+		t.Fatalf("attendu 429, obtenu %d", w.Code)
+	}
+	if w.Header().Get("Retry-After") == "" {
+		t.Error("un 429 doit porter Retry-After")
+	}
+}
 
 func TestHandleGeminiDiagnose_MissingImageRejected(t *testing.T) {
 	called := false

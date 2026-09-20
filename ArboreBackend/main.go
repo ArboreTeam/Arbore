@@ -1946,6 +1946,18 @@ func handleGeminiChat(c *gin.Context) {
 	if err != nil {
 		// Ne jamais propager err.Error() au client : l'erreur peut contenir des
 		// détails internes (URL sortante…). Log serveur uniquement.
+		// Une file pleine n'est pas une panne : on répond 429 comme les
+		// limiteurs maison, avec Retry-After, plutôt qu'un 502 qui ferait
+		// croire à une indisponibilité du fournisseur (#553).
+		if errors.Is(err, ErrLLMSurcharge) {
+			log.Printf("🚦 chat : porte d'étranglement saturée (provider %s)", providerName())
+			c.Header("Retry-After", "5")
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": "Le service est momentanément saturé. Réessaie dans quelques secondes.",
+				"code":  "AI_BUSY",
+			})
+			return
+		}
 		log.Printf("❌ chat (provider %s) a échoué: %v", providerName(), err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Le service d'assistance est temporairement indisponible."})
 		return
@@ -2036,6 +2048,18 @@ Les valeurs numériques sont entre 0 et 1.
 	})
 	if err != nil {
 		// Idem chat : aucune fuite de l'erreur brute (peut contenir des détails internes).
+		// Une file pleine n'est pas une panne : on répond 429 comme les
+		// limiteurs maison, avec Retry-After, plutôt qu'un 502 qui ferait
+		// croire à une indisponibilité du fournisseur (#553).
+		if errors.Is(err, ErrLLMSurcharge) {
+			log.Printf("🚦 diagnose : porte d'étranglement saturée (provider %s)", providerName())
+			c.Header("Retry-After", "5")
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": "Le service est momentanément saturé. Réessaie dans quelques secondes.",
+				"code":  "AI_BUSY",
+			})
+			return
+		}
 		log.Printf("❌ diagnose (provider %s) a échoué: %v", providerName(), err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Le service de diagnostic est temporairement indisponible."})
 		return

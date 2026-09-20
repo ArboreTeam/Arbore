@@ -29,6 +29,10 @@ import (
 // `systemInstruction`. Toute cette traduction reste confinée ici.
 
 const (
+	// Palier gratuit « Experiment » : 1 requête/seconde. C'est le débit qui
+	// sature en premier, bien avant les 500 000 tokens/minute.
+	defaultMistralRPS = 1.0
+
 	defaultMistralModel = "mistral-small-latest"
 	mistralChatURL      = "https://api.mistral.ai/v1/chat/completions"
 )
@@ -56,6 +60,13 @@ func newMistralProvider() *MistralProvider {
 }
 
 func (p *MistralProvider) Name() string { return "mistral" }
+
+// Limits déclare le débit du palier gratuit : 1 requête par seconde, au niveau
+// de l'organisation — des clés supplémentaires n'y changent rien. Surchargeable
+// par MISTRAL_RPS pour un palier payant, sans recompiler.
+func (p *MistralProvider) Limits() LLMLimits {
+	return LLMLimits{RequestsPerSecond: debitDeclare("MISTRAL_RPS", defaultMistralRPS)}
+}
 
 // Generate traduit la requête neutre, appelle l'API et extrait le texte.
 func (p *MistralProvider) Generate(ctx context.Context, req LLMRequest) (LLMResult, error) {

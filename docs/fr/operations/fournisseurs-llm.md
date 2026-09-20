@@ -77,58 +77,84 @@ très bien autoriser un appel que Gemini refusera en 429.
 Le rapport 1 pour 5 entre diagnostic et chat traduit déjà l'intuition juste —
 une requête qui porte une image coûte bien plus cher qu'un tour de conversation.
 
-## Le point le plus important : le régime des données en palier gratuit
+## Le régime des données en palier gratuit — vérifié le 2026-09-20
 
-**À vérifier avant toute décision, et à re-vérifier régulièrement.**
+C'est le critère qui décide, avant le quota et avant la vitesse. Arbore transmet
+des **photos prises par les gens chez eux**. Voici ce que disent les conditions,
+lues à la source.
 
-Les conditions des API génératives distinguent presque toutes le palier gratuit
-du palier payant sur un point qui n'est pas le prix : **l'usage des contenus
-soumis**. Plusieurs fournisseurs, Google compris, se réservent en palier gratuit
-le droit d'exploiter les contenus envoyés pour améliorer leurs produits, avec
-relecture humaine possible ; le palier payant l'exclut.
+### Ce que Google dit de son palier gratuit
 
-Arbore transmet des **photos prises par l'utilisateur chez lui** et ses messages.
-Si le palier gratuit emporte ce régime, alors :
+Les conditions de l'API Gemini séparent « Unpaid Services » et « Paid Services ».
+Pour le palier gratuit :
 
-- la politique de confidentialité doit le dire — elle annonce aujourd'hui une
-  transmission « pour être analysés », ce qui ne couvre pas un entraînement ni
-  une relecture humaine ;
-- c'est un argument fort pour un fournisseur européen, ou pour un palier payant
-  même symbolique.
+> Google uses the content you submit to the Services and any generated responses
+> to provide, improve, and develop Google products and services
 
-Cette page ne tranche pas : elle signale que **la vérification conditionne tout
-le reste**, y compris le choix des fournisseurs du tableau suivant.
+> human reviewers may read, annotate, and process your API input and output
 
-## Catalogue des API gratuites
+Et surtout, la phrase qui tranche :
 
-⚠️ **Les chiffres ci-dessous datent et doivent être revérifiés à la source avant
-d'être codés en dur.** Les paliers gratuits changent sans préavis, parfois d'un
-mois à l'autre, et varient selon la région. Ce tableau sert à choisir *qui
-tester*, jamais à alimenter une constante.
+> **Do not submit sensitive, confidential, or personal information to the Unpaid
+> Services.**
 
-Colonne « Vision » = capable de traiter une image, donc éligible à `/diagnose`.
-Sans elle, un fournisseur ne peut servir que `/chat`.
+Google dissocie les données du compte et de la clé avant relecture, mais la
+relecture humaine des images reste prévue. Le palier payant exclut l'usage
+d'amélioration : *« Google doesn't use your prompts or responses to improve our
+products »*, la conservation s'y limitant à la détection d'abus.
 
-| Fournisseur | Vision | Ordre de grandeur du palier gratuit | À vérifier en priorité |
-|---|---|---|---|
-| **Google Gemini** (AI Studio) | ✅ | quelques dizaines de requêtes/min, quelques centaines/jour selon le modèle | régime des données, disponibilité UE |
-| **Mistral** (La Plateforme) | ✅ Pixtral | palier d'expérimentation, vérification téléphonique requise | **hébergement UE** — pas de transfert hors UE |
-| **Groq** | ✅ Llama 4 | généreux en requêtes/jour, très rapide | politique d'entraînement, modèles vision disponibles |
-| **Cerebras** | ❌ surtout texte | quota quotidien en tokens | couvre `/chat` seulement |
-| **OpenRouter** | ✅ selon modèle | variantes `:free`, plafond bas sans crédit | quel modèle sous-jacent, et ses conditions |
-| **Cloudflare Workers AI** | ✅ selon modèle | allocation quotidienne | déjà fournisseur du projet (R2, CDN) |
-| **GitHub Models** | ✅ selon modèle | paliers liés au compte GitHub | usage en production autorisé ? |
-| **Cohere** | ✅ Aya Vision | clé d'essai, plafond mensuel | usage commercial exclu du palier d'essai |
+**Arbore tourne aujourd'hui sur le palier gratuit et y envoie des photos
+d'intérieurs.** C'est exactement ce que la phrase ci-dessus demande de ne pas
+faire. Le constat est suivi dans une issue dédiée.
 
-Deux remarques de sélection :
+### Mistral n'est pas le refuge évident
 
-**Mistral mérite un examen à part.** C'est le seul de la liste dont
-l'hébergement est européen. La politique de confidentialité gère aujourd'hui un
-transfert hors UE avec clauses contractuelles types ; un fournisseur européen le
-rendrait sans objet pour ces deux routes. Et `initLLMProvider()` l'attend déjà.
+Contre-intuitif, et c'est pourquoi il faut le lire : **le palier gratuit
+« Experiment » de Mistral est opté-IN par défaut** dans le programme
+d'amélioration. Les paliers payants, eux, ne sont pas utilisés pour
+l'entraînement, et le plan Scale en est exclu d'office.
 
-**Cloudflare est déjà un sous-traitant du projet** (R2, CDN, WAF). Ajouter une
-route IA chez lui n'ajoute pas de sous-traitant à déclarer.
+La sortie existe et tient en un geste : console d'administration → menu
+**Privacy** → désactiver la bascule **« Anonymous improvement data »**. Les
+bascules Vibe et API sont distinctes ; c'est celle de l'API qui compte ici.
+
+Mistral reste donc le meilleur candidat — mais **au prix d'une action explicite
+à faire et à vérifier**, pas par défaut.
+
+### Les trois qui n'entraînent pas, sans rien avoir à faire
+
+| Fournisseur | Engagement | Nuance |
+|---|---|---|
+| **Groq** | interdiction contractuelle d'utiliser les entrées et sorties pour entraîner ou affiner, **sans distinction gratuit/payant** | données en compartiments GCP **aux États-Unis** ; conservation 30 j pour abus, option « zéro rétention » |
+| **Cloudflare Workers AI** | *« Cloudflare does not use your Customer Content to (1) train any AI models made available on Workers AI or (2) improve any Cloudflare or third-party services »* | **déjà sous-traitant du projet** (R2, CDN, WAF) |
+| **Cerebras** | aucun droit d'entraînement sur le contenu, pas de conservation des entrées/sorties | centres de données **américains** ; offre surtout du texte, donc `/chat` seulement |
+
+### À écarter en l'état
+
+**OpenRouter** : la plateforme elle-même n'entraîne pas, mais elle ne fait que
+router. Sa propre documentation prévient que **la plupart des points d'accès
+gratuits entraînent sur les invites reçues, voire les publient**. Utilisable
+seulement en restreignant le routage aux fournisseurs « zéro rétention ».
+
+**GitHub** : depuis avril 2026, les interactions Copilot des paliers Free, Pro et
+Pro+ servent à l'entraînement par défaut, opt-out possible. Cela vise Copilot ;
+le régime de GitHub Models n'a pas été vérifié ici et ne doit pas être déduit du
+précédent.
+
+### Ce que ça donne pour Arbore
+
+Deux familles de réponses, et elles ne coûtent pas la même chose :
+
+1. **Rester hors UE mais sans entraînement** — Groq ou Cloudflare. Rien à
+   activer, mais le transfert hors UE demeure, avec les clauses contractuelles
+   types que la politique décrit déjà.
+2. **Rester en UE** — Mistral, avec la bascule désactivée. Supprime le transfert
+   hors UE pour ces deux routes, au prix d'une configuration à maintenir et à
+   revérifier.
+
+Dans tous les cas, **le palier gratuit de Gemini est le seul de la liste dont
+les conditions demandent explicitement de ne pas envoyer de données
+personnelles**.
 
 ## Ce que le code devrait apprendre à faire
 

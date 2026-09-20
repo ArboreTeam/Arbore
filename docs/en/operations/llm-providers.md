@@ -74,57 +74,81 @@ call that Gemini then refuses with a 429.
 The 1-to-5 ratio between diagnosis and chat already reflects the right
 intuition — a request carrying an image costs far more than a conversation turn.
 
-## The point that matters most: how free tiers treat your data
+## How free tiers treat your data — verified 2026-09-20
 
-**To verify before any decision, and to re-verify regularly.**
+This is the criterion that decides, ahead of quota and ahead of speed. Arbore
+transmits **photos taken by people inside their homes**. Here is what the terms
+say, read at the source.
 
-Almost every generative API's terms separate the free tier from the paid tier on
-something other than price: **what may be done with submitted content**. Several
-providers, Google included, reserve the right on free tiers to use submitted
-content to improve their products, with possible human review; paid tiers
-exclude this.
+### What Google says about its free tier
 
-Arbore transmits **photos taken by users inside their homes**, plus their
-messages. If the free tier carries that regime, then:
+The Gemini API terms separate "Unpaid Services" from "Paid Services". For the
+free tier:
 
-- the privacy policy must say so — it currently announces transmission "to be
-  analysed", which covers neither training nor human review;
-- it becomes a strong argument for a European provider, or for a paid tier even
-  a symbolic one.
+> Google uses the content you submit to the Services and any generated responses
+> to provide, improve, and develop Google products and services
 
-This page does not settle it: it flags that **the verification governs
-everything else**, including which providers in the next table are eligible.
+> human reviewers may read, annotate, and process your API input and output
 
-## Catalogue of free APIs
+And the sentence that settles it:
 
-⚠️ **The figures below age, and must be re-checked at the source before being
-hard-coded.** Free tiers change without notice, sometimes month to month, and
-vary by region. This table exists to choose *who to test*, never to feed a
-constant.
+> **Do not submit sensitive, confidential, or personal information to the Unpaid
+> Services.**
 
-"Vision" = able to process an image, hence eligible for `/diagnose`. Without it,
-a provider can only serve `/chat`.
+Google disconnects the data from the account and API key before review, but
+human review of the images remains expected. The paid tier excludes improvement
+use — *"Google doesn't use your prompts or responses to improve our products"* —
+with retention limited to abuse detection.
 
-| Provider | Vision | Free-tier order of magnitude | Verify first |
-|---|---|---|---|
-| **Google Gemini** (AI Studio) | ✅ | tens of requests/min, hundreds/day depending on model | data regime, EU availability |
-| **Mistral** (La Plateforme) | ✅ Pixtral | experimentation tier, phone verification required | **EU hosting** — no transfer outside the EU |
-| **Groq** | ✅ Llama 4 | generous daily request counts, very fast | training policy, vision model availability |
-| **Cerebras** | ❌ mostly text | daily token allowance | covers `/chat` only |
-| **OpenRouter** | ✅ model-dependent | `:free` variants, low ceiling without credit | which underlying model, and its terms |
-| **Cloudflare Workers AI** | ✅ model-dependent | daily allowance | already a project provider (R2, CDN) |
-| **GitHub Models** | ✅ model-dependent | tiers tied to the GitHub account | is production use permitted? |
-| **Cohere** | ✅ Aya Vision | trial key, monthly ceiling | commercial use excluded from the trial tier |
+**Arbore runs on the free tier today and sends photos of people's interiors
+through it.** That is precisely what the sentence above asks you not to do.
+Tracked in a dedicated issue.
 
-Two selection notes:
+### Mistral is not the obvious refuge
 
-**Mistral deserves separate consideration.** It is the only entry hosted in
-Europe. The privacy policy currently handles a non-EU transfer with standard
-contractual clauses; a European provider would make that moot for these two
-routes. And `initLLMProvider()` is already waiting for it.
+Counter-intuitive, which is why it must be read: **Mistral's free "Experiment"
+tier is opted IN by default** to the improvement programme. Paid tiers are not
+used for training, and the Scale plan is excluded outright.
 
-**Cloudflare is already a project processor** (R2, CDN, WAF). Routing AI through
-it adds no new processor to declare.
+The way out exists and takes one gesture: admin console → **Privacy** menu →
+turn off the **"Anonymous improvement data"** toggle. The Vibe and API toggles
+are separate; the API one is what matters here.
+
+Mistral therefore remains the best candidate — but **at the cost of an explicit
+action to take and to verify**, not by default.
+
+### The three that do not train, with nothing to do
+
+| Provider | Commitment | Caveat |
+|---|---|---|
+| **Groq** | contractually not permitted to use inputs or outputs to train or fine-tune, **with no free/paid split** | data held in GCP buckets **in the United States**; 30-day abuse retention, zero-data-retention option |
+| **Cloudflare Workers AI** | *"Cloudflare does not use your Customer Content to (1) train any AI models made available on Workers AI or (2) improve any Cloudflare or third-party services"* | **already a project processor** (R2, CDN, WAF) |
+| **Cerebras** | no training right over service content, inputs and outputs not retained | **US** data centres; mostly text, so `/chat` only |
+
+### To rule out as they stand
+
+**OpenRouter**: the platform itself does not train, but it only routes. Its own
+documentation warns that **most free endpoints train on the prompts they
+receive, or even publish them**. Usable only by restricting routing to
+zero-data-retention providers.
+
+**GitHub**: since April 2026, Copilot interactions on Free, Pro and Pro+ tiers
+feed training by default, with opt-out available. That covers Copilot; the
+GitHub Models regime was not verified here and must not be inferred from it.
+
+### What this means for Arbore
+
+Two families of answers, at different costs:
+
+1. **Stay outside the EU but without training** — Groq or Cloudflare. Nothing to
+   enable, but the non-EU transfer remains, under the standard contractual
+   clauses the privacy policy already describes.
+2. **Stay in the EU** — Mistral, with the toggle turned off. Removes the non-EU
+   transfer for these two routes, at the cost of a setting to maintain and
+   re-verify.
+
+In every case, **Gemini's free tier is the only entry whose terms explicitly ask
+you not to send personal data**.
 
 ## What the code would need to learn
 

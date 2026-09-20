@@ -12,6 +12,7 @@ learn in order to switch providers.
 | Abstraction | `LLMProvider` (Name, Generate) | [`ArboreBackend/llmprovider.go`](../../../ArboreBackend/llmprovider.go) |
 | Implementations | **exactly one** — Gemini | [`gemini_provider.go`](../../../ArboreBackend/gemini_provider.go) |
 | Model | `gemini-2.5-flash`, overridable via `GEMINI_MODEL` | `defaultGeminiModel` |
+| Mistral model | `ministral-8b-2512` — **only the Ministral family is granted** | `defaultMistralModel` |
 | Selection | `AI_PROVIDER`, read **once at startup** | `initLLMProvider()` |
 | Key | **a single key, shared by every user** | `GEMINI_API_KEY` |
 | Timeout | 60 s | `http.Client{Timeout: ...}` |
@@ -131,6 +132,41 @@ two sets of toggles are independent, and `/api/privacy` does not exist: it is
 
 Mistral therefore remains the best candidate — but **at the cost of two explicit
 actions to take and to verify**, not by default.
+
+### Which models are actually granted
+
+Measured by calling the API on 2026-09-20. The console's **Limits** page lists
+the platform's whole catalogue; it does **not** tell you what your organisation
+actually gets.
+
+| Model | Response | Granted rate |
+|---|---|---|
+| `ministral-3b-2512` | 200 | 750 req/min |
+| **`ministral-8b-2512`** | 200 | **188 req/min** — chosen |
+| `ministral-14b-2512` | 200 | 30 req/min |
+| `mistral-small-2603` | 429 | **0** |
+| `mistral-medium-latest` | 429 | **0** |
+| `mistral-large-2512` | 403 | — |
+
+**Only the Ministral family is granted.** And `mistral-small-latest`, the alias
+one writes by reflex, is not even in the organisation's catalogue.
+
+The two failure modes differ, and neither says "unknown model":
+
+- **403** — model not authorised for this organisation;
+- **429 with `x-ratelimit-limit-req-minute: 0`** — in the catalogue, but with no
+  quota.
+
+The second reads like an account problem. It cost an afternoon to diagnose
+before anyone thought to change the model name. **On a 429, read the
+`x-ratelimit-limit-req-minute` header before suspecting the plan.**
+
+**Vision works on all three Ministral models**, which `/diagnose` requires —
+verified with a real image as a data URI.
+
+Corollary: the rate belongs to the **model**, not the account. Changing
+`MISTRAL_MODEL` means revisiting `MISTRAL_RPS`, or the throttle guards the wrong
+limit.
 
 ### The three that do not train, with nothing to do
 

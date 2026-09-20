@@ -29,11 +29,34 @@ import (
 // `systemInstruction`. Toute cette traduction reste confinée ici.
 
 const (
-	// Palier gratuit « Experiment » : 1 requête/seconde. C'est le débit qui
-	// sature en premier, bien avant les 500 000 tokens/minute.
-	defaultMistralRPS = 1.0
+	// Débit du modèle par défaut, mesuré sur le compte réel le 2026-09-20 :
+	// 188 requêtes/minute, soit 3,13 req/s. Arrondi à la baisse pour la marge.
+	//
+	// ⚠️ Ce chiffre est propre au MODÈLE, pas au compte : chaque modèle a son
+	// propre débit. Changer MISTRAL_MODEL impose donc de revoir MISTRAL_RPS,
+	// sans quoi la porte d'étranglement protège contre la mauvaise limite.
+	defaultMistralRPS = 3.0
 
-	defaultMistralModel = "mistral-small-latest"
+	// ⚠️ Seule la famille Ministral est accordée sur ce plan. Vérifié en
+	// appelant l'API le 2026-09-20 :
+	//
+	//   ministral-3b-2512    200, 750 req/min
+	//   ministral-8b-2512    200, 188 req/min   ← retenu
+	//   ministral-14b-2512   200,  30 req/min
+	//   mistral-small-latest 429, limite 0      ← n'existe même pas au catalogue
+	//   mistral-small-2603   429, limite 0
+	//   mistral-medium-latest 429, limite 0
+	//   mistral-large-2512   403 Forbidden
+	//
+	// Les deux modes d'échec se distinguent : 403 = modèle non autorisé,
+	// 429 avec `x-ratelimit-limit-req-minute: 0` = autorisé au catalogue mais
+	// sans quota. Aucun des deux ne dit « modèle inconnu », d'où trois heures
+	// passées à chercher un problème de compte qui n'existait pas.
+	//
+	// 8b retenu : meilleur compromis qualité/débit des trois. 3b répond moins
+	// finement sur un diagnostic de phytopathologie, 14b plafonne à 30/min.
+	// La vision fonctionne sur les trois — ce que /diagnose exige.
+	defaultMistralModel = "ministral-8b-2512"
 	mistralChatURL      = "https://api.mistral.ai/v1/chat/completions"
 )
 

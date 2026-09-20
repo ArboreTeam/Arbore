@@ -400,3 +400,37 @@ func TestMistralPost_ReponseTronqueeEstUneErreur(t *testing.T) {
 		t.Fatal("une réponse tronquée doit remonter une erreur")
 	}
 }
+
+// --- Le modèle par défaut doit être un modèle réellement accordé -----------
+
+// Régression du 2026-09-20 : le défaut était `mistral-small-latest`, un alias
+// absent du catalogue de l'organisation. L'API ne répond pas « modèle
+// inconnu » mais 429 avec `x-ratelimit-limit-req-minute: 0`, ce qui se lit
+// comme un problème de compte. Seule la famille Ministral est accordée.
+func TestMistral_LeModeleParDefautEstDeLaFamilleAccordee(t *testing.T) {
+	const prefixeAccorde = "ministral-"
+	if len(defaultMistralModel) < len(prefixeAccorde) ||
+		defaultMistralModel[:len(prefixeAccorde)] != prefixeAccorde {
+		t.Fatalf("le modèle par défaut doit être de la famille Ministral, seule accordée "+
+			"sur ce plan — obtenu %q", defaultMistralModel)
+	}
+}
+
+// Un modèle Labs annulerait l'opt-out d'entraînement, quel que soit le réglage
+// de la console. Le défaut ne doit jamais en être un.
+func TestMistral_LeModeleParDefautNestPasUnModeleLabs(t *testing.T) {
+	const labs = "labs-"
+	if len(defaultMistralModel) >= len(labs) && defaultMistralModel[:len(labs)] == labs {
+		t.Fatalf("un modèle Labs accepte l'entraînement « regardless of opt-out settings » "+
+			"— obtenu %q", defaultMistralModel)
+	}
+}
+
+// Le débit déclaré doit rester cohérent avec celui du modèle par défaut.
+// 188 req/min mesurées = 3,13 req/s ; on déclare 3,0 pour la marge.
+func TestMistral_LeDebitDeclareCorrespondAuModeleParDefaut(t *testing.T) {
+	if defaultMistralRPS <= 0 || defaultMistralRPS > 3.13 {
+		t.Fatalf("le débit déclaré doit tenir dans les 3,13 req/s mesurées "+
+			"pour %s — obtenu %v", defaultMistralModel, defaultMistralRPS)
+	}
+}

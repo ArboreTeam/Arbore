@@ -12,6 +12,7 @@ que le code devrait apprendre à faire pour basculer d'un fournisseur à l'autre
 | Abstraction | `LLMProvider` (Name, Generate) | [`ArboreBackend/llmprovider.go`](../../../ArboreBackend/llmprovider.go) |
 | Implémentations | **une seule** — Gemini | [`gemini_provider.go`](../../../ArboreBackend/gemini_provider.go) |
 | Modèle | `gemini-2.5-flash`, surchargeable par `GEMINI_MODEL` | `defaultGeminiModel` |
+| Modèle Mistral | `ministral-8b-2512` — **seule la famille Ministral est accordée** | `defaultMistralModel` |
 | Sélection | `AI_PROVIDER` lu **une fois au démarrage** | `initLLMProvider()` |
 | Clé | **une seule, partagée par tous les utilisateurs** | `GEMINI_API_KEY` |
 | Timeout | 60 s | `http.Client{Timeout: ...}` |
@@ -135,6 +136,41 @@ c'est `/plateforme/privacy`.
 
 Mistral reste donc le meilleur candidat — mais **au prix de deux actions
 explicites à faire et à vérifier**, pas par défaut.
+
+### Quels modèles sont réellement accordés
+
+Mesuré en appelant l'API le 2026-09-20. La page **Limits** de la console liste
+tout le catalogue de la plateforme ; elle ne dit **pas** ce que votre
+organisation obtient réellement.
+
+| Modèle | Réponse | Débit accordé |
+|---|---|---|
+| `ministral-3b-2512` | 200 | 750 req/min |
+| **`ministral-8b-2512`** | 200 | **188 req/min** — retenu |
+| `ministral-14b-2512` | 200 | 30 req/min |
+| `mistral-small-2603` | 429 | **0** |
+| `mistral-medium-latest` | 429 | **0** |
+| `mistral-large-2512` | 403 | — |
+
+**Seule la famille Ministral est accordée.** Et `mistral-small-latest`, l'alias
+qu'on écrit spontanément, n'existe même pas au catalogue de l'organisation.
+
+Les deux modes d'échec se distinguent, et aucun ne dit « modèle inconnu » :
+
+- **403** — modèle non autorisé pour cette organisation ;
+- **429 avec `x-ratelimit-limit-req-minute: 0`** — présent au catalogue, mais
+  sans quota.
+
+Le second se lit comme un problème de compte. Il a coûté un après-midi à
+diagnostiquer avant qu'on pense à changer le nom du modèle. **Devant un 429,
+lire l'en-tête `x-ratelimit-limit-req-minute` avant de soupçonner le plan.**
+
+La **vision fonctionne sur les trois Ministral**, ce qu'exige `/diagnose` —
+vérifié avec une vraie image en URI de données.
+
+Corollaire : le débit dépend du **modèle**, pas du compte. Changer
+`MISTRAL_MODEL` impose de revoir `MISTRAL_RPS`, sinon la porte d'étranglement
+protège contre la mauvaise limite.
 
 ### Les trois qui n'entraînent pas, sans rien avoir à faire
 

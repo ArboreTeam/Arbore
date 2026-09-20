@@ -124,7 +124,6 @@ services:
       - MISTRAL_RPS=${MISTRAL_RPS:-}
       - GEMINI_RPS=${GEMINI_RPS:-}
       - AI_THROTTLE_MAX_WAIT=${AI_THROTTLE_MAX_WAIT:-}
-      - UNSPLASH_ACCESS_KEY=${UNSPLASH_ACCESS_KEY}
       - GIN_MODE=${GIN_MODE:-release}
       # Le port interne reste fixe ; PORT ne change que le port publié sur l'hôte.
       - PORT=8080
@@ -133,7 +132,6 @@ services:
       # Thumbnails dans un chemin séparé (hors du montage read-only /app/models)
       - THUMBNAILS_DIR=/app/thumbnails
       # Photos de fiche, hébergées par nous depuis #526 (auparavant : appels
-      # directs aux CDN de botanic et Unsplash depuis chaque appareil).
       - PHOTOS_DIR=/app/photos
       # Montage conservé uniquement pour supprimer les anciens fichiers lors
       # d'une suppression de compte. Aucune route communautaire n'est exposée.

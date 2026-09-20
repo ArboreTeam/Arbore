@@ -57,9 +57,6 @@ jobs:
           - service: backend
             context: ./ArboreBackend
             suffix: backend
-          - service: ai-generator
-            context: ./AiGenerator
-            suffix: ai
           - service: web
             context: ./web
             suffix: web

@@ -44,20 +44,6 @@ updates:
     commit-message:
       prefix: "deps(backend)"
 
-  # Python pip (AI Generator)
-  - package-ecosystem: "pip"
-    directory: "/AiGenerator"
-    target-branch: "dev"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 3
-    labels:
-      - "⚙️ backend"
-      - "🔒 security"
-    commit-message:
-      prefix: "deps(ai)"
-
   # npm — app web Next.js
   - package-ecosystem: "npm"
     directory: "/web"
@@ -102,7 +88,6 @@ updates:
   - package-ecosystem: "docker"
     directories:
       - "/ArboreBackend"
-      - "/AiGenerator"
       - "/web"
     target-branch: "dev"
     schedule:

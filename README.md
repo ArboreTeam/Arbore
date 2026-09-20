@@ -28,7 +28,6 @@ Arbore/
 ├── 📱 ArboreUi/          # Application iOS (SwiftUI · ARKit · RoomPlan)
 ├── 🌐 web/               # Front web compagnon (Next.js · TypeScript)
 ├── 🔧 ArboreBackend/     # API backend (Go 1.24 · Gin · MongoDB)
-└── 🤖 AiGenerator/       # Service IA de génération de fiches (Python · FastAPI)
 ```
 
 Le backend, l'AI Generator et le web tournent en containers Docker sur un VPS unique (Docker Compose) ; l'app iOS et le web parlent au backend via une API REST sécurisée (clé API + token Firebase). Détails complets : [`docs/`](docs/README.md) ([C4 Containers](docs/fr/architecture/02-containers.md)).

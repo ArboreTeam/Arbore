@@ -20,7 +20,7 @@ Composants installés à la fin de la procédure :
 
 | Composant | Rôle |
 |---|---|
-| Docker + Compose | Exécute `arbore-backend` (Go/Gin, `:8080`), `arbore-ai-generator` (Python/FastAPI, `:8000`) et `arbore-web` (Next.js standalone, `:3000`) |
+| Docker + Compose | Exécute `arbore-backend` (Go/Gin, `:8080`) et `arbore-web` (Next.js standalone, `:3000`) |
 | Nginx | Reverse proxy `:80` + `:443` (TLS, Cloudflare Origin cert) : `api.arbore.app` → `127.0.0.1:8080` (backend) et `web.arbore.app` → `127.0.0.1:3000` (web) |
 | MongoDB Atlas | DB hébergée (pas de Mongo local) ; `mongosh` et `mongodump` côté VPS pour cleanup et backups |
 | cronie | Lance `cleanup-test-db.sh` chaque nuit à 04:00 UTC |
@@ -309,14 +309,14 @@ build local **en le signalant**.
 ```bash
 cd /home/fedora/Arbore
 ./deploy.sh                   # tire les images, ou builde en repli
-sudo docker compose ps        # backend + ai-generator + web → Up (healthy)
+sudo docker compose ps        # backend + web → Up (healthy)
 ```
 
 Pour un premier démarrage à la main, avant que `deploy.sh` ne soit en place :
 
 ```bash
 export ARBORE_IMAGE_TAG="sha-$(git rev-parse HEAD)"
-sudo docker compose pull backend ai-generator web
+sudo docker compose pull backend web
 sudo -E docker compose up -d
 ```
 
@@ -485,7 +485,7 @@ mongorestore --uri="$MONGODB_URI" --drop --nsInclude="arbore.*" "$SNAPSHOT/arbor
 Cocher ces points avant de considérer le VPS opérationnel :
 
 - [ ] `systemctl is-active docker crond nginx` → tous `active`
-- [ ] `sudo docker compose ps` → `arbore-backend` + `arbore-ai-generator` + `arbore-web` healthy
+- [ ] `sudo docker compose ps` → `arbore-backend` + `arbore-web` healthy
 - [ ] `curl -fsS http://localhost:8080/health` → 200 OK
 - [ ] `curl -fsS http://localhost:3000/` → 200 OK (web)
 - [ ] `curl -fsS http://<VPS_IP>/health` → 200 OK (via nginx)

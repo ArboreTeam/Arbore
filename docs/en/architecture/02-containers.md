@@ -30,7 +30,6 @@ flowchart TB
         mongo[("[System Ext] MongoDB Atlas<br/>users · plants · gardens · consents")]
         apple["[System Ext] Apple ID<br/>Sign in with Apple / revocation"]
         llm["[System Ext] OpenAI / Mistral<br/>LLM plant profiles"]
-        unsplash["[System Ext] Unsplash API<br/>Catalog photos"]
         r2[("[System Ext] Cloudflare R2<br/>3D assets — 372 objects")]
     end
 
@@ -45,7 +44,6 @@ flowchart TB
     backend -- "Go MongoDB driver"                             --> mongo
     backend -- "Token revocation (account deletion)"           --> apple
     backend -- "Internal Docker HTTP"                          --> ai
-    backend -- "HTTPS"                                         --> unsplash
     backend -- "Object read / write (S3)"                     --> r2
     ios     -. "Direct download (15 min presigned URL)" .-> r2
     ai      -- "LLM prompt (HTTPS)"                            --> llm
@@ -55,7 +53,7 @@ flowchart TB
     classDef ext_node fill:#999,stroke:#666,color:#fff
     class user person
     class ios,web,backend,ai cont
-    class firebase_auth,firebase_admin,mongo,apple,llm,unsplash,r2 ext_node
+    class firebase_auth,firebase_admin,mongo,apple,llm,r2 ext_node
 ```
 
 ## Key points
@@ -68,7 +66,7 @@ flowchart TB
   2. **Bearer Firebase token** validated by the Firebase Admin SDK on the backend side — guarantees that the request comes from an authenticated, verified, and non-banned user, and provides their `uid`.
 - **The AI Generator is isolated from the client**: only the backend calls it (internal Docker network), never the iOS or web application directly. This choice hides the OpenAI/Mistral key and enables caching and throttling on the backend side.
 - **MongoDB Atlas is external to the Arbore system** but driven exclusively by the backend. Clients (iOS, web) **never** open a direct MongoDB connection.
-- **Backend, AI Generator, and Web share the same VPS** and communicate over the internal Docker network (`http://ai-generator:8000`, `http://backend:8080`) rather than via the public IP.
+- **Backend and Web share the same VPS** and communicate over the internal Docker network (`http://backend:8080`) rather than via the public IP.
 - **HTTPS at the edge**: public access is over HTTPS via Cloudflare (Full strict), with nginx restricted to Cloudflare IPs; the Cloudflare → origin TLS hardening is tracked on the operations side (see [`../operations/vps-bootstrap.md`](../operations/vps-bootstrap.md)).
 
 ## Infrastructure choices

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# deploy.sh — Déploiement automatisé d'Arbore (backend + ai-generator + web) sur le VPS.
+# deploy.sh — Déploiement automatisé d'Arbore (backend + web) sur le VPS.
 #
 # Enchaîne :
 #   1. git pull --ff-only, ou checkout d'une release (ARBORE_DEPLOY_TAG)
 #   2. mongodump pre-deploy → backups/daily/arbore-predeploy-<ISO>.tar.gz
 #   3. rotation des snapshots > 14 jours
 #   4. tirage des images ghcr (repli : build local)
-#   5. docker compose up -d  (backend + ai-generator + web)
+#   5. docker compose up -d  (backend + web)
 #   6. health check backend (localhost:8080/health) + web (localhost:3000/)
 #
 # Codes de sortie :
@@ -694,7 +694,7 @@ do_docker_images() {
     # ARBORE_IMAGE_TAG est consommée par docker-compose.yml. L'assignation vient
     # après DOCKER_PRIVILEGE, cf. le commentaire à sa définition.
     if "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" ARBORE_IMAGE_TAG="$wanted" \
-        docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" pull backend ai-generator web; then
+        docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" pull backend web; then
         IMAGE_TAG="$wanted"
         ok "Images tirées depuis ghcr ($wanted)"
         echo
@@ -708,7 +708,7 @@ do_docker_images() {
     # GIT_COMMIT est injecté dans le binaire backend puis renvoyé par GET /health :
     # c'est ce qui rend une dérive prod ↔ main détectable d'un simple curl (#341).
     if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" GIT_COMMIT="$git_sha" ARBORE_IMAGE_TAG="$wanted" \
-        docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" build backend ai-generator web; then
+        docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" build backend web; then
         fail "docker compose build a échoué"
         exit 1
     fi
@@ -727,7 +727,10 @@ do_docker_images() {
 # jamais.
 #
 # Idempotent : sans effet dès que la migration a eu lieu une fois.
-LEGACY_CONTAINERS=( arbore-backend arbore-web arbore-ai-generator arbore-minio )
+# `arbore-prod-ai-generator` rejoint la liste : le service est déposé (#558),
+# et un conteneur orphelin continuerait de tourner sans que rien ne le réclame.
+LEGACY_CONTAINERS=( arbore-backend arbore-web arbore-ai-generator arbore-minio \
+                    arbore-prod-ai-generator arbore-dev-ai-generator )
 
 drop_legacy_containers() {
     local name found=0
@@ -747,7 +750,7 @@ do_docker_up() {
     step 5 "Redémarrage des containers..."
     drop_legacy_containers
     if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" ARBORE_IMAGE_TAG="$IMAGE_TAG" \
-        docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" up -d backend ai-generator web; then
+        docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" up -d backend web; then
         fail "docker compose up a échoué"
         exit 1
     fi

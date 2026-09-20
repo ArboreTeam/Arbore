@@ -1,6 +1,6 @@
 # C4 — Niveau 3 : Composants Backend
 
-Cette vue ouvre le container **Backend API** (Go 1.24 + Gin) et expose ses modules principaux. Le code est organisé autour d'un fichier `main.go` (~2 500 lignes) regroupant déclarations de types, handlers et bootstrap, complété par un sous-dossier `middleware/` pour l'authentification et l'autorisation (`api_key.go`, `firebase_auth.go`, `roles.go`, `security.go`) et quelques fichiers spécialisés (`config.go`, `crypto.go`, `apple_revocation.go`, `unsplash.go`, `setdefault.go`, `indexes.go`, `httplogging.go`), ainsi que les fichiers dédiés aux **proxies IA** (`llmprovider.go`, `gemini_provider.go`, `httphardening.go`, `promptsafety.go`, `diagnose_normalize.go`).
+Cette vue ouvre le container **Backend API** (Go 1.24 + Gin) et expose ses modules principaux. Le code est organisé autour d'un fichier `main.go` (~2 500 lignes) regroupant déclarations de types, handlers et bootstrap, complété par un sous-dossier `middleware/` pour l'authentification et l'autorisation (`api_key.go`, `firebase_auth.go`, `roles.go`, `security.go`) et quelques fichiers spécialisés (`config.go`, `crypto.go`, `apple_revocation.go`, `setdefault.go`, `indexes.go`, `httplogging.go`), ainsi que les fichiers dédiés aux **proxies IA** (`llmprovider.go`, `gemini_provider.go`, `httphardening.go`, `promptsafety.go`, `diagnose_normalize.go`).
 
 Pour la vue d'ensemble des containers, consulter [`02-containers.md`](02-containers.md). Pour les composants côté iOS et web, consulter [`03-components-ios.md`](03-components-ios.md) et [`03-components-web.md`](03-components-web.md).
 
@@ -16,7 +16,7 @@ flowchart TB
         apikey["Groupe API-key-only<br/>(APIKeyMiddleware) · GET /config"]
         protected["Groupe protégé<br/>(APIKeyMiddleware + FirebaseAuthMiddleware)"]
         handlers["Handlers HTTP<br/>users · plants · gardens · consents · models · assistant IA"]
-        access["Accès données + clients externes<br/>(driver MongoDB · crypto · unsplash · apple)"]
+        access["Accès données + clients externes<br/>(driver MongoDB · crypto · apple)"]
         storage["StorageProvider + garde<br/>(filesystem · R2 / S3 / MinIO)"]
 
         apikey --> handlers
@@ -28,7 +28,6 @@ flowchart TB
     mongo[("[System Ext]<br/>MongoDB Atlas")]
     firebase_admin["[System Ext]<br/>Firebase Admin SDK"]
     ai_gen["[Container]<br/>AI Generator (FastAPI)"]
-    unsplash["[System Ext]<br/>Unsplash API"]
     apple["[System Ext]<br/>Apple ID (SIWA)"]
     gemini["[System Ext]<br/>Google Gemini API"]
     storage_ext[("[System Ext]<br/>Cloudflare R2 (S3)")]
@@ -39,7 +38,6 @@ flowchart TB
     protected --> firebase_admin
     access --> mongo
     access --> ai_gen
-    access --> unsplash
     access --> apple
     handlers --> gemini
     storage --> storage_ext
@@ -50,7 +48,7 @@ flowchart TB
     classDef cont  fill:#2E7D32,stroke:#1B5E20,color:#fff
     class public,apikey,protected,handlers,access,storage layer
     class client,ai_gen cont
-    class mongo,firebase_admin,unsplash,apple,gemini,storage_ext ext
+    class mongo,firebase_admin,apple,gemini,storage_ext ext
 ```
 
 Le backend expose **cinq niveaux d'accès** distincts, définis dans `buildRouter()` : des routes **publiques** (aucun middleware), un groupe **API-key-only**, un groupe **protégé** (clé API *puis* token Firebase), un sous-groupe **`account`** fermé aux invités, et un sous-groupe **`admin`**. Cette discipline est imposée par la composition des `router.Group(...)`.
@@ -190,7 +188,6 @@ Les proxies `/chat` et `/diagnose` sont découplés du fournisseur concret via `
 | `config.go` — `getConfig` | Données de référence du wizard et de l'entretien servies à `GET /config` (miroir du `GardenSuggestionEngine` iOS). |
 | `crypto.go` — `encrypt` / `decrypt` | Chiffrement **AES-256-GCM** au repos. Clé maître 32 octets (64 hex) résolue par `resolveMasterEncryptionKey` : **fichier `MASTER_ENCRYPTION_KEY_PATH` en priorité**, sinon repli sur la variable `MASTER_ENCRYPTION_KEY`. Le fichier est préféré parce qu'une variable est lisible par `docker inspect` et `/proc/<pid>/environ` — or cette clé déchiffre les refresh tokens Apple, elle était donc moins protégée que ce qu'elle protège (#338 constat 4). Un chemin défini mais illisible est une **erreur**, jamais un repli silencieux. Mise en cache via `sync.Once`, format `nonce \|\| ciphertext`. Seul appelant : le refresh token Apple (#210). |
 | `apple_revocation.go` | Révocation **Sign in with Apple** (Guideline 5.1.1(v)) : `generateClientSecret()` (JWT ES256), `exchangeAuthorizationCode()` → refresh token, `revokeRefreshToken()` à la suppression de compte. `revokeAppleBestEffort` n'échoue jamais la suppression. |
-| `unsplash.go` — `fetchUnsplashImageURLs(query, count)` | Récupère des photos via `UNSPLASH_ACCESS_KEY` ; fallback intégré si absente/échec. Alimente `Plant.imageURLs`. |
 | `setdefault.go` — `(*Plant).SetDefaults()` | Remplit des valeurs par défaut défensives (nom, type, image, description, garantit les 4 langues) sans jamais fabriquer de données d'entretien. |
 | `generateAndInsertPlant` (main.go) | Pipeline : dédup par nom → appel HTTP `AI_GENERATOR_URL/generate` → enrichissement Unsplash → résolution du fichier USDZ local → insertion Mongo. La dédup passe par `plantNameFilter`, qui **échappe le nom avec `regexp.QuoteMeta`** : interpolé brut dans un `$regex`, il permettait d'injecter un motif arbitraire, et MongoDB utilise PCRE (backtracking) là où le RE2 de Go est linéaire — un `(a+)+!` suffisait à saturer le CPU Mongo partagé avec la prod (#338 constat 3). |
 | `client` / `testClient` (`*mongo.Client`, main.go) | Connexions Mongo (`arbore`, et `arbore_test` optionnelle). `getDatabaseForRequest` choisit la base selon le sélecteur posé par la clé API ; fail-safe vers prod. |

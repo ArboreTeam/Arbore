@@ -2,74 +2,6 @@ services:
   # ─────────────────────────────────────────────
   # 🤖  AI Generator  (FastAPI / Python)
   # ─────────────────────────────────────────────
-  ai-generator:
-    build:
-      context: ./AiGenerator
-      dockerfile: Dockerfile
-    # Image publiée par .github/workflows/deploy.yml. `deploy.sh` la tire par
-    # SHA (ARBORE_IMAGE_TAG=sha-<commit>) au lieu de builder sur le VPS, qui
-    # n'a ni le CPU ni le disque pour trois builds (#425). Le bloc `build:`
-    # reste pour le dev local et pour le repli si le tirage échoue.
-    image: ${ARBORE_IMAGE_PREFIX:-ghcr.io/arboreteam/arbore}-ai:${ARBORE_IMAGE_TAG:-latest}
-    # Le nom porte l'environnement (#434). Un nom de conteneur est GLOBAL à
-    # l'hôte : figé, il empêcherait une seconde pile de démarrer, quel que
-    # soit le projet compose.
-    #
-    # Paramétré plutôt que supprimé, car des scripts hors compose résolvent
-    # le conteneur par son nom — notamment le cron de réconciliation
-    # (ArboreBackend/scripts/reconcile-guests.sh). Les laisser deviner un
-    # nom généré `<projet>-<service>-1` serait plus fragile.
-    container_name: arbore-${ARBORE_ENV:-prod}-ai-generator
-    restart: unless-stopped
-    # Rotation des journaux (#385). Sans elle, le driver json-file croît sans
-    # limite : les journaux d'accès contiennent des adresses IP (tronquées
-    # depuis #385, mais des données personnelles tout de même) et seraient
-    # conservés indéfiniment, faute de politique de conservation — contraire au
-    # principe de limitation de la conservation (RGPD art. 5(1)(e)).
-    # 3 fichiers de 10 Mo = fenêtre glissante bornée, les plus anciens écrasés.
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    init: true
-    read_only: true
-    mem_limit: 1g
-    cpus: 1.5
-    pids_limit: 256
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:size=128m,noexec,nosuid,nodev
-    environment:
-      # Fournisseur du GÉNÉRATEUR de fiches, sans rapport avec celui du backend
-      # (/chat, /diagnose) qui lit AI_PROVIDER_BACKEND — cf. son bloc plus bas.
-      # Ces noms-ci sont historiques (#86, avril 2026) et restent tels quels :
-      # les renommer ferait perdre la clé au service sans rien apporter.
-      - AI_PROVIDER=${AI_PROVIDER:-mistral}
-      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
-      # `mistral-small-latest` n'existe pas au catalogue de l'organisation :
-      # l'API y répond 429 avec une limite nulle, jamais « modèle inconnu ».
-      # Seule la famille Ministral est accordée sur le plan actuel.
-      - MISTRAL_MODEL=${MISTRAL_MODEL:-ministral-8b-2512}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
-    ports:
-      - "${BIND_ADDRESS:-127.0.0.1}:${AI_PORT:-8000}:8000"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - arbore-net
-
-  # ─────────────────────────────────────────────
-  # 🌿  Backend  (Gin / Go)
-  # ─────────────────────────────────────────────
   backend:
     build:
       context: ./ArboreBackend
@@ -164,31 +96,22 @@ services:
       - APPLE_SIWA_KEY_PATH=/run/secrets/apple-siwa.p8
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
-      # Fournisseur d'IA du BACKEND (/chat, /diagnose) — #553, #555.
+      # Fournisseur d'IA du backend (/chat, /diagnose) — #553, #555.
       #
-      # Les noms de SOURCE portent le suffixe _BACKEND, comme SENTRY_DSN plus
-      # haut et pour la même raison : `ai-generator` lit déjà AI_PROVIDER et
-      # MISTRAL_API_KEY. Un nom partagé rendrait impossible d'éprouver Mistral
-      # sur le backend sans déplacer aussi le générateur — une variable par
-      # service, donc.
+      # Noms nus depuis la dépose du générateur (#558) : il était le seul autre
+      # service à lire AI_PROVIDER et MISTRAL_API_KEY, et c'est cette collision
+      # qui imposait un suffixe _BACKEND. Plus de second lecteur, plus de
+      # suffixe.
       #
-      # Le DÉFAUT EST GEMINI, volontairement. Le .env de production porte déjà
-      # AI_PROVIDER=mistral pour le générateur ; sans ce suffixe, ajouter la
-      # ligne ici aurait fait basculer le backend en silence.
-      - AI_PROVIDER=${AI_PROVIDER_BACKEND:-gemini}
-      # La CLÉ, elle, n'a pas à être dédoublée : les deux services visent la
-      # même organisation Mistral, donc la même valeur. L'écrire deux fois dans
-      # SOPS créerait surtout un risque d'en faire tourner une et d'oublier
-      # l'autre.
-      #
-      # MISTRAL_API_KEY_BACKEND reste possible pour donner au backend une clé
-      # révocable seule ; sans elle, la clé partagée sert.
-      - MISTRAL_API_KEY=${MISTRAL_API_KEY_BACKEND:-${MISTRAL_API_KEY:-}}
+      # Le DÉFAUT RESTE GEMINI : la bascule vers Mistral doit être un geste
+      # délibéré, pas une conséquence d'un déploiement.
+      - AI_PROVIDER=${AI_PROVIDER:-gemini}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
       # Vide = défaut du code (ministral-8b-2512). Seule la famille Ministral
       # est accordée sur le plan actuel : small et medium répondent 429 avec une
       # limite nulle, large répond 403. Changer ce modèle impose de revoir
       # MISTRAL_RPS, le débit appartenant au modèle et non au compte.
-      - MISTRAL_MODEL=${MISTRAL_MODEL_BACKEND:-}
+      - MISTRAL_MODEL=${MISTRAL_MODEL:-}
       # Chemin fichier, même mécanique que les autres secrets (#338 constat 4).
       - MISTRAL_API_KEY_PATH=${MISTRAL_API_KEY_PATH:-}
       # Étranglement du fournisseur (#553). Vides = valeurs du code : 3 req/s
@@ -201,7 +124,6 @@ services:
       # Le port interne reste fixe ; PORT ne change que le port publié sur l'hôte.
       - PORT=8080
       # Le backend appelle l'AI Generator via le réseau Docker interne
-      - AI_GENERATOR_URL=http://ai-generator:8000
       - ARBORE_ADMIN_UIDS=${ARBORE_ADMIN_UIDS:-}
       # Thumbnails dans un chemin séparé (hors du montage read-only /app/models)
       - THUMBNAILS_DIR=/app/thumbnails
@@ -238,9 +160,6 @@ services:
       - ${GEMINI_API_KEY_HOST_PATH:-/dev/null}:/run/secrets/gemini-api-key:ro
       # Anciennes images communautaires, accessibles uniquement pour effacement RGPD.
       - ${LEGACY_COMMUNITY_UPLOADS_HOST_PATH:-./ArboreBackend/uploads/community}:/app/uploads/community
-    depends_on:
-      ai-generator:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:8080/health"]
       interval: 30s

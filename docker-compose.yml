@@ -99,13 +99,18 @@ services:
       # Fournisseur d'IA du backend (/chat, /diagnose) — #553, #555.
       #
       # Noms nus depuis la dépose du générateur (#558) : il était le seul autre
-      # service à lire AI_PROVIDER et MISTRAL_API_KEY, et c'est cette collision
-      # qui imposait un suffixe _BACKEND. Plus de second lecteur, plus de
-      # suffixe.
+      # service à lire AI_PROVIDER, et c'est cette collision qui imposait un
+      # suffixe _BACKEND. Plus de second lecteur, plus de suffixe.
       #
-      # Le DÉFAUT RESTE GEMINI : la bascule vers Mistral doit être un geste
-      # délibéré, pas une conséquence d'un déploiement.
-      - AI_PROVIDER=${AI_PROVIDER:-gemini}
+      # DÉFAUT MISTRAL, et c'est un choix de sûreté, pas une préférence. Si la
+      # variable venait à manquer, un repli sur Gemini enverrait les photos
+      # d'intérieurs des utilisateurs vers un palier gratuit dont les conditions
+      # demandent explicitement de ne PAS y soumettre de données personnelles
+      # (#555). Le repli doit viser la destination sûre, pas l'ancienne.
+      #
+      # Poser AI_PROVIDER=gemini reste possible et reste le retour arrière :
+      # GEMINI_API_KEY est toujours transmise.
+      - AI_PROVIDER=${AI_PROVIDER:-mistral}
       - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
       # Vide = défaut du code (ministral-8b-2512). Seule la famille Ministral
       # est accordée sur le plan actuel : small et medium répondent 429 avec une
@@ -119,7 +124,6 @@ services:
       - MISTRAL_RPS=${MISTRAL_RPS:-}
       - GEMINI_RPS=${GEMINI_RPS:-}
       - AI_THROTTLE_MAX_WAIT=${AI_THROTTLE_MAX_WAIT:-}
-      - UNSPLASH_ACCESS_KEY=${UNSPLASH_ACCESS_KEY}
       - GIN_MODE=${GIN_MODE:-release}
       # Le port interne reste fixe ; PORT ne change que le port publié sur l'hôte.
       - PORT=8080
@@ -128,7 +132,6 @@ services:
       # Thumbnails dans un chemin séparé (hors du montage read-only /app/models)
       - THUMBNAILS_DIR=/app/thumbnails
       # Photos de fiche, hébergées par nous depuis #526 (auparavant : appels
-      # directs aux CDN de botanic et Unsplash depuis chaque appareil).
       - PHOTOS_DIR=/app/photos
       # Montage conservé uniquement pour supprimer les anciens fichiers lors
       # d'une suppression de compte. Aucune route communautaire n'est exposée.

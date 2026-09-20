@@ -39,6 +39,8 @@ linters:
       ignore-rules:
         - plantes
         - plante
+        - enveloppe
+        - envelopper
         - trafic
         - exemple
         - marrage

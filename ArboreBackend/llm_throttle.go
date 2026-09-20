@@ -80,7 +80,11 @@ func attenteMax() time.Duration {
 	}
 	d, err := time.ParseDuration(brut)
 	if err != nil || d <= 0 {
-		log.Printf("⚠️ AI_THROTTLE_MAX_WAIT illisible (%q), valeur par défaut %s", brut, defaultAttenteMax)
+		// La valeur vient de l'environnement : elle est assainie avant d'entrer
+		// dans un journal, sans quoi un saut de ligne y forgerait une fausse
+		// entrée (G706).
+		log.Printf("⚠️ AI_THROTTLE_MAX_WAIT illisible (%q), valeur par défaut %s",
+			sanitizeLine(brut, 40), defaultAttenteMax)
 		return defaultAttenteMax
 	}
 	return d
@@ -121,7 +125,9 @@ func debitDeclare(variable string, defaut float64) float64 {
 	}
 	v, err := strconv.ParseFloat(brut, 64)
 	if err != nil || v < 0 {
-		log.Printf("⚠️ %s illisible (%q), valeur par défaut %.3g req/s", variable, brut, defaut)
+		// Idem : valeur d'environnement assainie avant journalisation (G706).
+		log.Printf("⚠️ %s illisible (%q), valeur par défaut %.3g req/s",
+			variable, sanitizeLine(brut, 40), defaut)
 		return defaut
 	}
 	return v

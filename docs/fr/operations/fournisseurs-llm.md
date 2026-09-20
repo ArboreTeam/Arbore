@@ -114,12 +114,27 @@ Contre-intuitif, et c'est pourquoi il faut le lire : **le palier gratuit
 d'amélioration. Les paliers payants, eux, ne sont pas utilisés pour
 l'entraînement, et le plan Scale en est exclu d'office.
 
-La sortie existe et tient en un geste : console d'administration → menu
-**Privacy** → désactiver la bascule **« Anonymous improvement data »**. Les
-bascules Vibe et API sont distinctes ; c'est celle de l'API qui compte ici.
+**Deux réglages, pas un**, sur <https://admin.mistral.ai/plateforme/privacy> :
 
-Mistral reste donc le meilleur candidat — mais **au prix d'une action explicite
-à faire et à vérifier**, pas par défaut.
+| Réglage | État voulu | Pourquoi |
+|---|---|---|
+| *Data usage for improving our services* | **désactivé** | c'est l'opt-out proprement dit ; le palier gratuit est opté-IN |
+| *Enable Labs models* | **désactivé** | son propre texte dit que les données servent à l'entraînement *« regardless of my subscription plan or opt-out settings »* — l'activer **annule** le premier |
+
+Le second est le piège. Il n'annule pas l'opt-out par accident de conception :
+il le dit noir sur blanc, dans la case à cocher. Activer les modèles Labs, c'est
+accepter l'entraînement quoi qu'on ait réglé par ailleurs.
+
+**Corollaire pour `MISTRAL_MODEL`** : ne jamais y poser un modèle Labs. Le nom
+du modèle vient de l'environnement, donc aucune ligne de code ne peut empêcher
+cette bascule — seule la discipline de configuration le peut.
+
+⚠️ La page **Privacy visible dans la navigation gouverne Vibe, pas l'API**. Les
+deux jeux de bascules sont indépendants, et l'URL `/api/privacy` n'existe pas :
+c'est `/plateforme/privacy`.
+
+Mistral reste donc le meilleur candidat — mais **au prix de deux actions
+explicites à faire et à vérifier**, pas par défaut.
 
 ### Les trois qui n'entraînent pas, sans rien avoir à faire
 

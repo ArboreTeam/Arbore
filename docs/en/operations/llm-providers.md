@@ -110,12 +110,27 @@ Counter-intuitive, which is why it must be read: **Mistral's free "Experiment"
 tier is opted IN by default** to the improvement programme. Paid tiers are not
 used for training, and the Scale plan is excluded outright.
 
-The way out exists and takes one gesture: admin console → **Privacy** menu →
-turn off the **"Anonymous improvement data"** toggle. The Vibe and API toggles
-are separate; the API one is what matters here.
+**Two settings, not one**, at <https://admin.mistral.ai/plateforme/privacy>:
 
-Mistral therefore remains the best candidate — but **at the cost of an explicit
-action to take and to verify**, not by default.
+| Setting | Desired state | Why |
+|---|---|---|
+| *Data usage for improving our services* | **off** | the opt-out proper; the free tier is opted IN |
+| *Enable Labs models* | **off** | its own wording says data may train Mistral models *"regardless of my subscription plan or opt-out settings"* — enabling it **voids** the first |
+
+The second is the trap. It does not override the opt-out by design accident: it
+says so in the checkbox itself. Enabling Labs models means accepting training
+whatever else you set.
+
+**Corollary for `MISTRAL_MODEL`**: never point it at a Labs model. The model
+name comes from the environment, so no line of code can prevent that switch —
+only configuration discipline can.
+
+⚠️ The Privacy page visible in the navigation **governs Vibe, not the API**. The
+two sets of toggles are independent, and `/api/privacy` does not exist: it is
+`/plateforme/privacy`.
+
+Mistral therefore remains the best candidate — but **at the cost of two explicit
+actions to take and to verify**, not by default.
 
 ### The three that do not train, with nothing to do
 

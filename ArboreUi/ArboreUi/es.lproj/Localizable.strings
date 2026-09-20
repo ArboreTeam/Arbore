@@ -250,7 +250,7 @@
 "PRIVACY_SECTION_DATA_ITEM3" = "Jardines y RA: plantas seleccionadas, posiciones 3D, respuestas, ciudad y ubicación aproximada si la autorizas.";
 "PRIVACY_SECTION_DATA_ITEM4" = "Consentimientos: tipo, versión, fecha del servidor e información técnica limitada de la app.";
 "PRIVACY_SECTION_DATA_ITEM5" = "Permanecen en tu dispositivo: imágenes brutas de cámara y LiDAR, movimiento y mapas ARKit. Solo se envía una foto si la añades al chat o al diagnóstico.";
-"PRIVACY_SECTION_DATA_ITEM6" = "Diagnóstico de salud y asistente: las fotos que envías para un diagnóstico, así como tus mensajes, se transmiten a nuestros servidores y luego a Google (Gemini) para su análisis, incluso fuera de la Unión Europea.";
+"PRIVACY_SECTION_DATA_ITEM6" = "Diagnóstico de salud y asistente: las fotos que envías para un diagnóstico, así como tus mensajes, se transmiten a nuestros servidores y luego a Mistral AI, alojado en la Unión Europea, para su análisis. No se utilizan para entrenar ningún modelo.";
 "PRIVACY_SECTION_DATA_ITEM7" = "Registros técnicos: tu dirección IP se trata para limitar los abusos y proteger el servicio. Nunca se guarda en la base de datos y solo aparece truncada en los registros del servidor (por ejemplo 92.184.105.x).";
 "PRIVACY_SECTION_DATA_ITEM8" = "Informes de fallos: anónimos por defecto — pila de llamadas, versión de la app y modelo de dispositivo, sin ningún identificador. Si activas «Vincular los diagnósticos a mi cuenta», se añade tu identificador de Firebase para vincular varios incidentes.";
 
@@ -278,7 +278,7 @@
 
 // Compartición
 "PRIVACY_SECTION_SHARING_TITLE" = "Comparticion y destinatarios";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Encargados: Firebase y Google (incluido Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI y Sentry para los informes de fallos.";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Encargados: Firebase (Google), Apple, MongoDB Atlas, Cloudflare, Mistral AI para el diagnóstico de salud y el asistente, y Sentry para los informes de fallos.";
 "PRIVACY_SECTION_SHARING_ITEM2" = "Sin publicidad y sin seguimiento entre aplicaciones.";
 "PRIVACY_SECTION_SHARING_ITEM3" = "Nunca vendemos tus datos. Las transferencias se limitan a lo necesario y están reguladas por contrato.";
 
@@ -302,7 +302,7 @@
 
 // Transferencias internacionales
 "PRIVACY_SECTION_TRANSFERS_TITLE" = "Transferencias internacionales";
-"PRIVACY_SECTION_TRANSFERS_ITEM1" = "Cuando se tratan datos fuera de la UE/EEE (p. ej. por Google, Apple, MongoDB, Cloudflare), aplicamos garantías adecuadas: cláusulas contractuales tipo y, cuando corresponde, el Marco UE–EE. UU. de Privacidad de Datos.";
+"PRIVACY_SECTION_TRANSFERS_ITEM1" = "Cuando se tratan datos fuera de la UE/EEE (p. ej. por Firebase, Apple, MongoDB, Cloudflare), aplicamos garantías adecuadas: cláusulas contractuales tipo y, cuando corresponde, el Marco UE–EE. UU. de Privacidad de Datos. El diagnóstico de salud y el asistente, en cambio, se tratan dentro de la Unión Europea.";
 
 // Contacto
 "PRIVACY_CONTACT_TITLE" = "Contactar con nosotros";
@@ -397,7 +397,7 @@
 
 // Servicios de terceros
 "TERMS_SECTION_THIRDPARTY_TITLE" = "Servicios de terceros";
-"TERMS_SECTION_THIRDPARTY_ITEM1" = "Arbore se apoya en servicios de terceros (Firebase, Apple, MongoDB, Cloudflare, Unsplash); se aplican sus propias condiciones.";
+"TERMS_SECTION_THIRDPARTY_ITEM1" = "Arbore se apoya en servicios de terceros (Firebase, Apple, MongoDB, Cloudflare, Mistral AI); se aplican sus propias condiciones.";
 "TERMS_SECTION_THIRDPARTY_ITEM2" = "Estas Condiciones son entre tú y Arbore, no Apple. El EULA estándar de Apple se aplica cuando Arbore no proporciona uno propio, y Apple es tercero beneficiario de estas Condiciones.";
 
 // Disponibilidad y modificaciones
@@ -798,7 +798,7 @@
 // Privacy Settings - AI
 "PRIVACYSETTINGS_SECTION_AI" = "Inteligencia artificial";
 "PRIVACYSETTINGS_AI_TITLE" = "Procesamiento IA";
-"PRIVACYSETTINGS_AI_SUB" = "Generación de plantas con OpenAI";
+"PRIVACYSETTINGS_AI_SUB" = "Diagnóstico de salud y asistente, tratados por Mistral AI (UE)";
 
 // Privacy Settings - Notifications
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notificaciones";
@@ -1957,3 +1957,10 @@
 "AR_CATALOG_REASON_COASTAL_CONFLICT" = "La brisa marina o la sal pueden afectarla.";
 "AR_CATALOG_REASON_WIDTH_MATCH" = "Su anchura adulta cabe en el espacio disponible.";
 "AR_CATALOG_REASON_WIDTH_CONFLICT" = "Su anchura adulta supera el espacio disponible.";
+
+/* Assistant — messages d'erreur. Neutres : l'utilisateur ne peut rien
+   faire du nom du prestataire, et celui-ci peut changer (#549, #555). */
+"CHATBOT_ERROR_UNAVAILABLE" = "El asistente no está disponible por ahora. Inténtalo de nuevo en unos instantes.";
+"CHATBOT_ERROR_BLOCKED" = "Respuesta bloqueada por motivos de seguridad.";
+"CHATBOT_ERROR_INVALID" = "Respuesta ilegible. Reformula tu pregunta o inténtalo de nuevo.";
+"CHATBOT_ERROR_GENERIC" = "El asistente no ha podido responder. Inténtalo de nuevo en unos instantes.";

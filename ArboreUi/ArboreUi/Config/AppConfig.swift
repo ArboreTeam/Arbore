@@ -64,15 +64,23 @@ struct AppConfig {
     // MARK: - RGPD Configuration
 
     /// Version actuelle de la politique de confidentialité.
-    /// Bumpée à 2.3 (23 juillet 2026) : la section relative aux mineurs précise
-    /// l'autorisation parentale requise sous l'âge local de consentement
-    /// numérique. Ce changement matériel doit être re-consenti.
+    ///
+    /// Bumpée à 2.5 (20 septembre 2026) : le diagnostic santé et l'assistant
+    /// ne passent plus par Google (Gemini) mais par Mistral AI, hébergé dans
+    /// l'Union européenne (#555). Changement matériel à double titre — le
+    /// destinataire des photos change, et le transfert hors UE disparaît pour
+    /// ces deux traitements.
+    ///
+    /// Historique : 2.3 (23 juillet 2026) précisait l'autorisation parentale
+    /// requise sous l'âge local de consentement numérique ; 2.4 (9 septembre)
+    /// annonçait les rapports de plantage anonymes.
+    ///
     /// https://arbore.app/privacy et https://arbore.app/terms. Les nouveaux
     /// consentements sont horodatés avec cette version.
-    static let privacyPolicyVersion = "2.4"
+    static let privacyPolicyVersion = "2.5"
 
     /// Date de dernière mise à jour de la politique
-    static let privacyPolicyLastUpdate = "9 September 2026"
+    static let privacyPolicyLastUpdate = "20 September 2026"
 
     /// URL publique de la politique de confidentialité (FR/EN).
     /// Champ obligatoire App Store Connect + liens in-app.

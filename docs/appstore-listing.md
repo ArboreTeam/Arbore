@@ -22,7 +22,7 @@ Vérifié contre le code le **2026-09-18**. Arbore ne pratique aucun suivi inter
 | Informations de contact — nom | `displayName` Firebase + Mongo | `PATCH /users/me` |
 | Identifiants — identifiant utilisateur | UID Firebase, clé primaire de toutes les collections | partout |
 | Localisation — **approximative** | ville saisie, ou coordonnées **arrondies à 2 décimales** | `GardenModels.swift` → `roundedCoordinate` |
-| Contenu utilisateur — photos ou vidéos | photos jointes au diagnostic et à l'assistant, en base64 | `PlantHealthScanner.swift` → `/diagnose`, `GeminiService.swift` → `/chat` |
+| Contenu utilisateur — photos ou vidéos | photos jointes au diagnostic et à l'assistant, en base64, traitées par **Mistral AI (UE)** | `PlantHealthScanner.swift` → `/diagnose`, `GeminiService.swift` → `/chat` |
 | Contenu utilisateur — autre | jardins, disposition 3D, réponses au questionnaire | `/gardens`, `/users` |
 | Diagnostics — **données de crash** | **toujours collectées**, en régime anonyme par défaut | `SentryManager.swift` |
 | Diagnostics — autres données | traces de performance et hiérarchie de vues, **seulement avec consentement** | `tracesSampleRate`, `attachViewHierarchy` |
@@ -41,7 +41,7 @@ Les déclarer *liées à l'identité* reste la bonne réponse : c'est vrai pour 
 
 Répondre **« non » au tracking** : `IS_ANALYTICS_ENABLED` est à `false`, FirebaseAnalytics et Crashlytics ne sont pas liés, et le projet n'importe ni AppTrackingTransparency ni `ASIdentifierManager`.
 
-Cette section, `PrivacyInfo.xcprivacy`, la politique publique (**version 2.4**, 9 septembre 2026, cf. `AppConfig.privacyPolicyVersion`) et le texte in-app doivent évoluer ensemble.
+Cette section, `PrivacyInfo.xcprivacy`, la politique publique (**version 2.5**, 20 septembre 2026, cf. `AppConfig.privacyPolicyVersion`) et le texte in-app doivent évoluer ensemble.
 
 ## Compte démo Apple Reviewer (App Review Information → Sign-In required)
 Compte créé en prod (Firebase Auth `emailVerified=true` + record Mongo), login vérifié de bout en bout.

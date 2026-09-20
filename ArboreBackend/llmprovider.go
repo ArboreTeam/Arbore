@@ -54,10 +54,15 @@ func initLLMProvider() error {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("AI_PROVIDER"))) {
 	case "", "gemini":
 		activeLLMProvider = newGeminiProvider()
-	// case "mistral":
-	//     activeLLMProvider = newMistralProvider()
+	case "mistral":
+		// ⚠️ Avant de basculer une machine ici : le palier gratuit « Experiment »
+		// est opté-IN par défaut dans le programme d'amélioration de Mistral.
+		// Désactiver « Anonymous improvement data » dans la console
+		// d'administration (menu Privacy) AVANT d'y envoyer des photos
+		// d'utilisateurs. Cf. #555 et docs/fr/operations/fournisseurs-llm.md.
+		activeLLMProvider = newMistralProvider()
 	default:
-		return fmt.Errorf("AI_PROVIDER inconnu: %q (attendu: gemini)", os.Getenv("AI_PROVIDER"))
+		return fmt.Errorf("AI_PROVIDER inconnu: %q (attendu: gemini, mistral)", os.Getenv("AI_PROVIDER"))
 	}
 	return nil
 }

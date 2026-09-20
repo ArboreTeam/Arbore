@@ -36,10 +36,27 @@ type LLMResult struct {
 	Blocked bool   // true si le fournisseur a bloqué la réponse (sécurité/politique)
 }
 
+// LLMLimits décrit ce que le fournisseur accepte en régime nominal.
+//
+// Seul le débit en requêtes est retenu : chez Mistral, une requête /diagnose
+// complète pèse environ 2 000 tokens (image comprise), donc 60 requêtes par
+// minute en consomment ~120 000 pour un plafond de 500 000. On sature les
+// requêtes bien avant les tokens, et compter ces derniers reviendrait à
+// surveiller une limite qu'on n'atteint jamais — avec l'inconvénient qu'ils ne
+// sont pas connaissables avant l'appel.
+type LLMLimits struct {
+	// RequestsPerSecond est le débit soutenable. Zéro signifie « aucune limite
+	// connue » : le fournisseur n'est alors pas étranglé du tout.
+	RequestsPerSecond float64
+}
+
 // LLMProvider abstrait un modèle de chat/vision derrière une interface stable.
 type LLMProvider interface {
 	// Name identifie le fournisseur (télémétrie, logs).
 	Name() string
+	// Limits déclare le débit soutenable, pour que l'étranglement se configure
+	// sans rien savoir du fournisseur concret.
+	Limits() LLMLimits
 	// Generate produit une réponse à partir d'une requête neutre.
 	Generate(ctx context.Context, req LLMRequest) (LLMResult, error)
 }
@@ -64,6 +81,9 @@ func initLLMProvider() error {
 	default:
 		return fmt.Errorf("AI_PROVIDER inconnu: %q (attendu: gemini, mistral)", os.Getenv("AI_PROVIDER"))
 	}
+	// L'étranglement est posé ici, une fois, plutôt que dans chaque
+	// implémentation : un fournisseur ajouté demain en hérite sans rien écrire.
+	activeLLMProvider = throttled(activeLLMProvider)
 	return nil
 }
 

@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
     Arbore app-level Privacy Manifest (Apple required since 2024-05).
-    Cf. issue #202. Co-existing with each Pod's own PrivacyInfo.xcprivacy
-    (Firebase, GoogleSignIn, Facebook, etc. — they ship their own).
+    Cf. issue #202. Coexiste avec le manifeste propre à chaque dépendance.
+    Le projet est passé à Swift Package Manager : les quatre paquets liés
+    sont firebase-ios-sdk (Auth, Core, Firestore), sentry-cocoa,
+    GoogleSignIn-iOS et SwiftUI-Introspect — plus aucun Podfile.
 
     Sources d'inventaire :
-      - Required Reason APIs : audit grep le 2026-05-24 sur
+      - Required Reason APIs : audit grep le 2026-05-24, revérifié le
+        2026-09-18 (inchangé : ni DiskSpace, ni SystemBootTime, ni
+        ActiveKeyboard) sur
         ArboreUi/ArboreUi/**/*.swift (UserDefaults via @AppStorage,
         FileManager.attributesOfItem dans ManageGardenView +
         ModelCacheManager). Pas de disk space / boot time / keyboard.
@@ -92,10 +96,18 @@
             </array>
         </dict>
 
-        <!-- Photos choisies explicitement par l'utilisateur : photo de profil,
-             image jointe au chatbot ou au diagnostic. Les images de profil
-             sont stockées dans Mongo ; les images IA sont transmises au
-             prestataire uniquement pour produire la réponse demandée. -->
+        <!-- Photos choisies explicitement par l'utilisateur, envoyées en
+             base64 au backend qui relaie à Google (Gemini) :
+               - PlantHealthScanner.swift -> POST /diagnose
+               - GeminiService.swift      -> POST /chat
+             La photo de PROFIL, elle, ne sort PAS de l'appareil :
+             `uploadProfileImage` n'appelle que `saveProfileImageLocally`
+             (cf. #329 — la fonction porte un nom qui ment). Ne pas retirer
+             cette déclaration le jour où #329 sera corrigé : les deux flux
+             IA la justifient à eux seuls.
+             Les captures photo/vidéo du jardin en RA restent locales
+             (GardenShareCapture ecrit dans le container de l'app) et ne sont
+             partagées que sur action explicite de l'utilisateur. -->
         <dict>
             <key>NSPrivacyCollectedDataType</key>
             <string>NSPrivacyCollectedDataTypePhotosorVideos</string>
@@ -129,9 +141,14 @@
             </array>
         </dict>
 
-        <!-- Crash data : stacktraces / rapports de crash envoyés à Sentry
-             (#205). Rattachés à l'UID Firebase (Linked) pour le debug par
-             user, mais pas utilisés pour du tracking cross-app. -->
+        <!-- Crash data : stacktraces envoyées à Sentry (#205).
+             Depuis #469/#495, la collecte n'est PLUS conditionnée au
+             consentement — elle a lieu pour tous, en régime anonyme :
+             `user` vidé, IP forcée à 0.0.0.0, `device_app_hash` retiré.
+             Le consentement ne gouverne que le RATTACHEMENT à l'UID
+             Firebase. Déclaré Linked=true parce que c'est vrai pour les
+             utilisateurs consentants, et qu'Apple demande la réponse la
+             plus large des deux. -->
         <dict>
             <key>NSPrivacyCollectedDataType</key>
             <string>NSPrivacyCollectedDataTypeCrashData</string>
@@ -145,8 +162,12 @@
             </array>
         </dict>
 
-        <!-- Other diagnostic data : performance / breadcrumbs Sentry
-             (tracesSampleRate = 0.1). Même régime que les crash data. -->
+        <!-- Other diagnostic data : traces de performance et hiérarchie de
+             vues Sentry. Régime DIFFÉRENT des crash data : celles-ci sont
+             bien conditionnées au consentement —
+             `tracesSampleRate = consenti ? 0.1 : 0.0` et
+             `attachViewHierarchy = consenti` (SentryManager.swift).
+             Sans consentement, rien de cette catégorie ne part. -->
         <dict>
             <key>NSPrivacyCollectedDataType</key>
             <string>NSPrivacyCollectedDataTypeOtherDiagnosticData</string>

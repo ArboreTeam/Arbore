@@ -176,7 +176,14 @@ services:
       # AI_PROVIDER=mistral pour le générateur ; sans ce suffixe, ajouter la
       # ligne ici aurait fait basculer le backend en silence.
       - AI_PROVIDER=${AI_PROVIDER_BACKEND:-gemini}
-      - MISTRAL_API_KEY=${MISTRAL_API_KEY_BACKEND:-}
+      # La CLÉ, elle, n'a pas à être dédoublée : les deux services visent la
+      # même organisation Mistral, donc la même valeur. L'écrire deux fois dans
+      # SOPS créerait surtout un risque d'en faire tourner une et d'oublier
+      # l'autre.
+      #
+      # MISTRAL_API_KEY_BACKEND reste possible pour donner au backend une clé
+      # révocable seule ; sans elle, la clé partagée sert.
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY_BACKEND:-${MISTRAL_API_KEY:-}}
       # Vide = défaut du code (ministral-8b-2512). Seule la famille Ministral
       # est accordée sur le plan actuel : small et medium répondent 429 avec une
       # limite nulle, large répond 403. Changer ce modèle impose de revoir

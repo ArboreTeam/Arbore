@@ -1,6 +1,6 @@
 module ArboreBackend
 
-go 1.25.14
+go 1.26.0
 
 require (
 	firebase.google.com/go/v4 v4.21.0
@@ -12,7 +12,7 @@ require (
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/stretchr/testify v1.12.1
 	go.mongodb.org/mongo-driver v1.17.10
-	golang.org/x/time v0.15.0
+	golang.org/x/time v0.16.0
 	google.golang.org/api v0.298.0
 )
 

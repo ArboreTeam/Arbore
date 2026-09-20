@@ -44,9 +44,16 @@ services:
     tmpfs:
       - /tmp:size=128m,noexec,nosuid,nodev
     environment:
+      # Fournisseur du GÉNÉRATEUR de fiches, sans rapport avec celui du backend
+      # (/chat, /diagnose) qui lit AI_PROVIDER_BACKEND — cf. son bloc plus bas.
+      # Ces noms-ci sont historiques (#86, avril 2026) et restent tels quels :
+      # les renommer ferait perdre la clé au service sans rien apporter.
       - AI_PROVIDER=${AI_PROVIDER:-mistral}
       - MISTRAL_API_KEY=${MISTRAL_API_KEY:-}
-      - MISTRAL_MODEL=${MISTRAL_MODEL:-mistral-small-latest}
+      # `mistral-small-latest` n'existe pas au catalogue de l'organisation :
+      # l'API y répond 429 avec une limite nulle, jamais « modèle inconnu ».
+      # Seule la famille Ministral est accordée sur le plan actuel.
+      - MISTRAL_MODEL=${MISTRAL_MODEL:-ministral-8b-2512}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
     ports:
@@ -157,6 +164,31 @@ services:
       - APPLE_SIWA_KEY_PATH=/run/secrets/apple-siwa.p8
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      # Fournisseur d'IA du BACKEND (/chat, /diagnose) — #553, #555.
+      #
+      # Les noms de SOURCE portent le suffixe _BACKEND, comme SENTRY_DSN plus
+      # haut et pour la même raison : `ai-generator` lit déjà AI_PROVIDER et
+      # MISTRAL_API_KEY. Un nom partagé rendrait impossible d'éprouver Mistral
+      # sur le backend sans déplacer aussi le générateur — une variable par
+      # service, donc.
+      #
+      # Le DÉFAUT EST GEMINI, volontairement. Le .env de production porte déjà
+      # AI_PROVIDER=mistral pour le générateur ; sans ce suffixe, ajouter la
+      # ligne ici aurait fait basculer le backend en silence.
+      - AI_PROVIDER=${AI_PROVIDER_BACKEND:-gemini}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY_BACKEND:-}
+      # Vide = défaut du code (ministral-8b-2512). Seule la famille Ministral
+      # est accordée sur le plan actuel : small et medium répondent 429 avec une
+      # limite nulle, large répond 403. Changer ce modèle impose de revoir
+      # MISTRAL_RPS, le débit appartenant au modèle et non au compte.
+      - MISTRAL_MODEL=${MISTRAL_MODEL_BACKEND:-}
+      # Chemin fichier, même mécanique que les autres secrets (#338 constat 4).
+      - MISTRAL_API_KEY_PATH=${MISTRAL_API_KEY_PATH:-}
+      # Étranglement du fournisseur (#553). Vides = valeurs du code : 3 req/s
+      # pour Mistral, aucune limite pour Gemini, 5 s d'attente maximale.
+      - MISTRAL_RPS=${MISTRAL_RPS:-}
+      - GEMINI_RPS=${GEMINI_RPS:-}
+      - AI_THROTTLE_MAX_WAIT=${AI_THROTTLE_MAX_WAIT:-}
       - UNSPLASH_ACCESS_KEY=${UNSPLASH_ACCESS_KEY}
       - GIN_MODE=${GIN_MODE:-release}
       # Le port interne reste fixe ; PORT ne change que le port publié sur l'hôte.

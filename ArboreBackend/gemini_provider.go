@@ -42,6 +42,14 @@ func newGeminiProvider() *GeminiProvider {
 
 func (p *GeminiProvider) Name() string { return "gemini" }
 
+// Limits ne déclare aucun débit : les plafonds de Gemini sont plus hauts que
+// ceux de Mistral et aucun refus pour quota n'a été constaté en production.
+// Zéro veut dire « pas d'étranglement », donc le comportement ne change pas.
+// Poser GEMINI_RPS suffit à en activer un le jour où ce serait nécessaire.
+func (p *GeminiProvider) Limits() LLMLimits {
+	return LLMLimits{RequestsPerSecond: debitDeclare("GEMINI_RPS", 0)}
+}
+
 // Generate traduit la requête neutre en payload Gemini, appelle l'API et
 // extrait le texte de la réponse.
 func (p *GeminiProvider) Generate(ctx context.Context, req LLMRequest) (LLMResult, error) {

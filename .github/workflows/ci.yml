@@ -57,7 +57,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
-      ai_generator: ${{ steps.filter.outputs.ai_generator }}
       ios_ui: ${{ steps.filter.outputs.ios_ui }}
       ios_ar: ${{ steps.filter.outputs.ios_ar }}
     steps:
@@ -70,8 +69,6 @@ jobs:
               - 'ArboreBackend/**'
               - '.golangci.yml'
               - '.github/workflows/ci.yml'
-            ai_generator:
-              - 'AiGenerator/**'
               - '.github/workflows/ci.yml'
             ios_ui:
               - 'ArboreUi/**'
@@ -172,96 +169,6 @@ jobs:
           retention-days: 7
 
   # AI Generator Python - Tests et Build  
-  ai_generator:
-    needs: changes
-    if: needs.changes.outputs.ai_generator == 'true' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./AiGenerator
-    
-    steps:
-      - name: 📥 Checkout code
-        uses: actions/checkout@v6
-
-      - name: 🐍 Setup Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-          cache-dependency-path: AiGenerator/requirements.txt
-
-      - name: 📦 Install dependencies
-        run: |
-          python -m pip install --upgrade pip setuptools wheel
-          if [ -f requirements.txt ]; then 
-            pip install -r requirements.txt
-          fi
-          pip install pytest pytest-cov black flake8 mypy pylint
-
-      - name: 🎨 Check code formatting with Black
-        run: |
-          black --check --diff . || {
-            echo "❌ Code formatting issues found. Run 'black .' to fix."
-            exit 1
-          }
-
-      - name: 🔍 Lint with Flake8
-        run: |
-          flake8 . \
-            --count \
-            --max-line-length=88 \
-            --extend-ignore=E203,W503,E501 \
-            --statistics \
-            --show-source
-
-      - name: 🔍 Type check with mypy
-        continue-on-error: true
-        run: |
-          mypy . --ignore-missing-imports || echo "Type checking completed with warnings"
-
-      - name: 🧪 Run tests with coverage
-        run: |
-          if [ -d tests ]; then
-            pytest -v --cov=. --cov-report=xml --cov-report=term
-          else
-            echo "⚠️ No tests directory found"
-            mkdir -p tests
-            echo "# TODO: Add tests" > tests/__init__.py
-          fi
-
-      - name: 📊 Upload coverage
-        uses: codecov/codecov-action@v4
-        continue-on-error: true
-        with:
-          file: ./AiGenerator/coverage.xml
-          flags: ai-generator
-          name: ai-generator-coverage
-
-      - name: 🐳 Build Docker image
-        run: |
-          docker build -t arbore-ai-generator:${{ github.sha }} .
-          docker tag arbore-ai-generator:${{ github.sha }} arbore-ai-generator:latest
-          
-      # BLOQUANT en CRITICAL uniquement (audit #338 constat 6). Avant, le
-      # `|| echo` avalait le code de sortie : le scan ne pouvait rien empêcher.
-      # Les HIGH restent affichés dans le log mais ne bloquent pas — il en existe
-      # aujourd'hui dans les dépendances npm, et Dependabot doit les résorber
-      # avant qu'on resserre le seuil (cf. .github/dependabot.yml).
-      - name: 🔍 Scan Docker image for vulnerabilities
-        run: |
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:latest image \
-            --severity HIGH,CRITICAL --ignore-unfixed --no-progress \
-            arbore-ai-generator:latest
-          echo "::group::Gate bloquant (CRITICAL)"
-          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:latest image \
-            --severity CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
-            arbore-ai-generator:latest
-          echo "::endgroup::"
-
-  # iOS UI - Build (nécessite macOS)
   ios_ui:
     needs: changes
     # La promotion `dev` -> `main` porte un code déjà validé par la PR de
@@ -668,7 +575,7 @@ jobs:
 
   # Job de résumé final
   build_summary:
-    needs: [changes, backend, ai_generator, ios_ui, ios_ar]
+    needs: [changes, backend, ios_ui, ios_ar]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -687,7 +594,6 @@ jobs:
           echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Backend (Go) | ${{ needs.backend.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| AI Generator (Python) | ${{ needs.ai_generator.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| iOS UI | ${{ needs.ios_ui.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| iOS AR Kit | ${{ needs.ios_ar.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -709,7 +615,6 @@ jobs:
           echo "🌱 Arbore CI/CD Summary"
           echo "================================"
           echo "Backend (Go):        ${{ needs.backend.result || 'skipped' }}"
-          echo "AI Generator (Py):   ${{ needs.ai_generator.result || 'skipped' }}"
           echo "iOS UI:              ${{ needs.ios_ui.result || 'skipped' }}"
           echo "iOS AR Kit:          ${{ needs.ios_ar.result || 'skipped' }}"
           echo "================================"
@@ -726,7 +631,6 @@ jobs:
 
           # Échec si un job requis a échoué
           if [[ "${{ needs.backend.result }}" == "failure" ]] || \
-             [[ "${{ needs.ai_generator.result }}" == "failure" ]] || \
              [[ "${{ needs.ios_ui.result }}" == "failure" ]] || \
              [[ "${{ needs.ios_ar.result }}" == "failure" ]]; then
             echo "❌ Un ou plusieurs builds ont échoué"

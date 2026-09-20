@@ -2,19 +2,15 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -82,17 +78,6 @@ func getDatabaseForRequest(c *gin.Context) *mongo.Database {
 		if selector == middleware.DBSelectorTest && testClient != nil {
 			return testClient.Database(testDBName)
 		}
-	}
-	return client.Database(prodDBName)
-}
-
-// getDatabaseByName retourne la *mongo.Database par nom logique
-// (`prod` ou `test`). Utilisé par les helpers qui ne reçoivent pas
-// directement un *gin.Context (par exemple loadAccessProfileFromDB
-// appelé par le middleware Firebase).
-func getDatabaseByName(name string) *mongo.Database {
-	if name == middleware.DBSelectorTest && testClient != nil {
-		return testClient.Database(testDBName)
 	}
 	return client.Database(prodDBName)
 }
@@ -354,10 +339,6 @@ type PlantBotanicalProfile struct {
 	PetToxicity            *PlantStringFact     `json:"petToxicity,omitempty" bson:"petToxicity,omitempty"`
 	ChildToxicity          *PlantStringFact     `json:"childToxicity,omitempty" bson:"childToxicity,omitempty"`
 	SchemaVersion          *int                 `json:"schemaVersion,omitempty" bson:"schemaVersion,omitempty"`
-}
-
-type AIRequest struct {
-	Name string `json:"name"`
 }
 
 type AIResponse struct {
@@ -1206,244 +1187,9 @@ func getPlantByID(c *gin.Context) {
 	c.JSON(http.StatusOK, plant)
 }
 
-// ---------- AI GENERATION (logique commune) ----------
-
-// Génère une plante avec l'IA + Unsplash + insertion Mongo
-//   - name : nom de la plante
-//   - dbSelector : sélecteur de DB ("prod" ou "test") — propagé depuis le
-//     gin.Context du handler appelant pour respecter le routing par API key
-//
-// Retourne: (plant, alreadyExists, error)
-func generateAndInsertPlant(ctx context.Context, name string, dbSelector string) (Plant, bool, error) {
-	collection := getDatabaseByName(dbSelector).Collection("plants")
-
-	// Vérifie si la plante existe déjà (insensible à la casse).
-	var existing Plant
-	err := collection.FindOne(ctx, plantNameFilter(name)).Decode(&existing)
-	if err == nil {
-		// Elle existe déjà
-		return Plant{}, true, nil
-	} else if err != mongo.ErrNoDocuments {
-		// Erreur Mongo
-		return Plant{}, false, err
-	}
-
-	// Appel du microservice IA
-	jsonData, _ := json.Marshal(AIRequest{Name: name})
-	aiGeneratorURL := os.Getenv("AI_GENERATOR_URL")
-	if aiGeneratorURL == "" {
-		aiGeneratorURL = "http://localhost:8001"
-	}
-	aiGeneratorEndpoint, err := trustedServiceEndpoint(aiGeneratorURL, "/generate")
-	if err != nil {
-		return Plant{}, false, fmt.Errorf("invalid AI generator URL: %w", err)
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, aiGeneratorEndpoint, bytes.NewBuffer(jsonData)) //nolint:gosec
-	if err != nil {
-		return Plant{}, false, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	// The endpoint was parsed and restricted to HTTP(S) by
-	// trustedServiceEndpoint; its base URL comes from server configuration.
-	resp, err := (&http.Client{Timeout: 60 * time.Second}).Do(req) //nolint:gosec
-	if err != nil {
-		log.Println("❌ Erreur appel API IA:", err)
-		return Plant{}, false, err
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			log.Println("Error closing response body:", err)
-		}
-	}()
-
-	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
-	if err != nil {
-		return Plant{}, false, err
-	}
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return Plant{}, false, fmt.Errorf("AI generator returned HTTP %d", resp.StatusCode)
-	}
-
-	var aiResponse AIResponse
-	err = json.Unmarshal(bodyBytes, &aiResponse)
-	if err != nil {
-		log.Println("❌ Erreur parsing IA:", err, string(bodyBytes))
-		return Plant{}, false, err
-	}
-
-	// Images Unsplash
-	imageURLs := fetchUnsplashImageURLs(ctx, name, 3)
-	modelFile := resolveModelFilename(name)
-	if modelFile == "" {
-		log.Println("⚠️ Aucun modèle USDZ trouvé pour:", name)
-	}
-
-	plant := Plant{
-		ID:          primitive.NewObjectID(),
-		Name:        name,
-		Type:        aiResponse.FR.PlantType,
-		ImageURLs:   imageURLs,
-		Description: aiResponse.FR.Description,
-		ModelURL:    modelFile,
-		Translations: map[string]LanguageData{
-			"fr": aiResponse.FR,
-			"en": aiResponse.EN,
-			"es": aiResponse.ES,
-			"de": aiResponse.DE,
-		},
-	}
-
-	_, err = collection.InsertOne(ctx, maybeLabelTestDoc(dbSelector, plant))
-	if err != nil {
-		log.Println("❌ Erreur lors de l'insertion MongoDB :", err)
-		return Plant{}, false, err
-	}
-
-	return plant, false, nil
-}
-
-func trustedServiceEndpoint(rawBaseURL, endpointPath string) (string, error) {
-	parsed, err := url.Parse(strings.TrimSpace(rawBaseURL))
-	if err != nil {
-		return "", err
-	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return "", fmt.Errorf("unsupported scheme %q", parsed.Scheme)
-	}
-	if parsed.Host == "" || parsed.User != nil {
-		return "", fmt.Errorf("host is missing or contains credentials")
-	}
-	parsed.Path = strings.TrimRight(parsed.Path, "/") + "/" + strings.TrimLeft(endpointPath, "/")
-	parsed.RawQuery = ""
-	parsed.Fragment = ""
-	return parsed.String(), nil
-}
-
-func normalizeModelNameKey(input string) string {
-	input = strings.ToLower(strings.TrimSpace(input))
-	replacer := strings.NewReplacer(" ", "", "_", "", "-", "")
-	return replacer.Replace(input)
-}
-
-func resolveModelFilename(plantName string) string {
-	entries, err := os.ReadDir("./models")
-	if err != nil {
-		log.Println("⚠️ Impossible de lire ./models:", err)
-		return ""
-	}
-
-	target := normalizeModelNameKey(plantName)
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		filename := entry.Name()
-		if !strings.HasSuffix(strings.ToLower(filename), ".usdz") {
-			continue
-		}
-
-		basename := strings.TrimSuffix(filename, filepath.Ext(filename))
-		if normalizeModelNameKey(basename) == target {
-			return filename
-		}
-	}
-
-	return ""
-}
-
 // ---------- AI GENERATION : single ----------
 
-func generatePlantWithAI(c *gin.Context) {
-	var req AIRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		respondInvalidBody(c, err)
-		return
-	}
-
-	req.Name = strings.TrimSpace(req.Name)
-	if req.Name == "" || len([]rune(req.Name)) > maxPlantNameRunes {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Plant name must contain between 1 and 120 characters"})
-		return
-	}
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 75*time.Second)
-	defer cancel()
-	plant, exists, err := generateAndInsertPlant(ctx, req.Name, c.GetString(middleware.DBSelectorKey))
-	if err != nil {
-		log.Println("❌ Erreur lors de la génération de la plante :", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la génération de la plante"})
-		return
-	}
-
-	if exists {
-		c.JSON(http.StatusConflict, gin.H{"error": "🌿 Cette plante existe déjà."})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Plante générée et enregistrée avec succès 🌿",
-		"plant":   plant,
-	})
-}
-
 // ---------- AI GENERATION : multiple ----------
-
-func generateMultiplePlantsHandler(c *gin.Context) {
-	var req struct {
-		Names []string `json:"names"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Requête invalide"})
-		return
-	}
-	if len(req.Names) == 0 || len(req.Names) > maxBulkPlantNames {
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Provide between 1 and 10 plant names"})
-		return
-	}
-
-	var created []Plant
-	var skipped []string
-	seen := make(map[string]struct{}, len(req.Names))
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 110*time.Second)
-	defer cancel()
-
-	for _, rawName := range req.Names {
-		name := strings.TrimSpace(rawName)
-		normalized := strings.ToLower(name)
-		if name == "" || len([]rune(name)) > maxPlantNameRunes {
-			skipped = append(skipped, name)
-			continue
-		}
-		if _, duplicate := seen[normalized]; duplicate {
-			skipped = append(skipped, name)
-			continue
-		}
-		seen[normalized] = struct{}{}
-
-		plant, exists, err := generateAndInsertPlant(ctx, name, c.GetString(middleware.DBSelectorKey))
-		if err != nil {
-			log.Println("❌ Erreur lors de la génération pour", name, ":", err)
-			skipped = append(skipped, name)
-			continue
-		}
-
-		if exists {
-			// Déjà présente en base → on la met dans skipped
-			skipped = append(skipped, name)
-			continue
-		}
-
-		created = append(created, plant)
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": fmt.Sprintf("%d plante(s) générée(s)", len(created)),
-		"created": created,
-		"skipped": skipped,
-	})
-}
 
 // ---------- USER PHOTOS ----------
 
@@ -1946,6 +1692,18 @@ func handleGeminiChat(c *gin.Context) {
 	if err != nil {
 		// Ne jamais propager err.Error() au client : l'erreur peut contenir des
 		// détails internes (URL sortante…). Log serveur uniquement.
+		// Une file pleine n'est pas une panne : on répond 429 comme les
+		// limiteurs maison, avec Retry-After, plutôt qu'un 502 qui ferait
+		// croire à une indisponibilité du fournisseur (#553).
+		if errors.Is(err, ErrLLMSurcharge) {
+			log.Printf("🚦 chat : porte d'étranglement saturée (provider %s)", providerName())
+			c.Header("Retry-After", "5")
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": "Le service est momentanément saturé. Réessaie dans quelques secondes.",
+				"code":  "AI_BUSY",
+			})
+			return
+		}
 		log.Printf("❌ chat (provider %s) a échoué: %v", providerName(), err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Le service d'assistance est temporairement indisponible."})
 		return
@@ -2036,6 +1794,18 @@ Les valeurs numériques sont entre 0 et 1.
 	})
 	if err != nil {
 		// Idem chat : aucune fuite de l'erreur brute (peut contenir des détails internes).
+		// Une file pleine n'est pas une panne : on répond 429 comme les
+		// limiteurs maison, avec Retry-After, plutôt qu'un 502 qui ferait
+		// croire à une indisponibilité du fournisseur (#553).
+		if errors.Is(err, ErrLLMSurcharge) {
+			log.Printf("🚦 diagnose : porte d'étranglement saturée (provider %s)", providerName())
+			c.Header("Retry-After", "5")
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": "Le service est momentanément saturé. Réessaie dans quelques secondes.",
+				"code":  "AI_BUSY",
+			})
+			return
+		}
 		log.Printf("❌ diagnose (provider %s) a échoué: %v", providerName(), err)
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Le service de diagnostic est temporairement indisponible."})
 		return
@@ -2216,8 +1986,6 @@ func buildRouter() *gin.Engine {
 	chatDailyQuota := middleware.NewTieredWindowLimiter(10, 100, 500, 24*time.Hour)
 	diagnosisMinuteLimiter := middleware.NewWindowLimiter(6, time.Minute)
 	diagnosisDailyQuota := middleware.NewTieredWindowLimiter(3, 20, 100, 24*time.Hour)
-	generationMinuteLimiter := middleware.NewWindowLimiter(5, time.Minute)
-	generationDailyQuota := middleware.NewWindowLimiter(50, 24*time.Hour)
 	uploadMinuteLimiter := middleware.NewWindowLimiter(10, time.Minute)
 
 	configureCORS(router)
@@ -2423,8 +2191,6 @@ func buildRouter() *gin.Engine {
 	admin.Use(middleware.RequireAdmin())
 	{
 		admin.POST("/plants", createPlant)
-		admin.POST("/plants/generate", generationMinuteLimiter.Middleware(), generationDailyQuota.Middleware(), generatePlantWithAI)
-		admin.POST("/plants/generate-multiple", generationMinuteLimiter.Middleware(), generationDailyQuota.Middleware(), generateMultiplePlantsHandler)
 		admin.POST("/models/thumbnails/:plantId", middleware.MaxBodyBytes(maxThumbnailBytes+(1<<20)), uploadMinuteLimiter.Middleware(), uploadPlantThumbnail)
 	}
 

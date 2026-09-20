@@ -16,3 +16,8 @@
 
 # Clé API App Store Connect (fastlane) — gitignorée, citée parfois sans préfixe.
 AuthKey.json
+
+# Fichiers de l'AiGenerator, microservice déposé le 2026-09-20 (#558). Les docs
+# de docs/legacy/ décrivent un état PASSÉ : leurs références à ces chemins sont
+# correctes historiquement, et ne doivent pas faire échouer le drift check.
+AiGenerator/pyproject.toml

@@ -36,10 +36,27 @@ type LLMResult struct {
 	Blocked bool   // true si le fournisseur a bloqué la réponse (sécurité/politique)
 }
 
+// LLMLimits décrit ce que le fournisseur accepte en régime nominal.
+//
+// Seul le débit en requêtes est retenu : chez Mistral, une requête /diagnose
+// complète pèse environ 2 000 tokens (image comprise), donc 60 requêtes par
+// minute en consomment ~120 000 pour un plafond de 500 000. On sature les
+// requêtes bien avant les tokens, et compter ces derniers reviendrait à
+// surveiller une limite qu'on n'atteint jamais — avec l'inconvénient qu'ils ne
+// sont pas connaissables avant l'appel.
+type LLMLimits struct {
+	// RequestsPerSecond est le débit soutenable. Zéro signifie « aucune limite
+	// connue » : le fournisseur n'est alors pas étranglé du tout.
+	RequestsPerSecond float64
+}
+
 // LLMProvider abstrait un modèle de chat/vision derrière une interface stable.
 type LLMProvider interface {
 	// Name identifie le fournisseur (télémétrie, logs).
 	Name() string
+	// Limits déclare le débit soutenable, pour que l'étranglement se configure
+	// sans rien savoir du fournisseur concret.
+	Limits() LLMLimits
 	// Generate produit une réponse à partir d'une requête neutre.
 	Generate(ctx context.Context, req LLMRequest) (LLMResult, error)
 }
@@ -54,11 +71,29 @@ func initLLMProvider() error {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("AI_PROVIDER"))) {
 	case "", "gemini":
 		activeLLMProvider = newGeminiProvider()
-	// case "mistral":
-	//     activeLLMProvider = newMistralProvider()
+	case "mistral":
+		// ⚠️ DEUX réglages à vérifier sur https://admin.mistral.ai/plateforme/privacy
+		// AVANT d'envoyer la moindre photo d'utilisateur ici (#555) :
+		//
+		//   1. « Data usage for improving our services » → DÉSACTIVÉ.
+		//      Le palier gratuit est opté-IN par défaut.
+		//
+		//   2. « Enable Labs models » → DÉSACTIVÉ. Son propre texte dit que les
+		//      données servent à l'entraînement « regardless of my subscription
+		//      plan or opt-out settings ». Activer Labs ANNULE donc le point 1.
+		//
+		// Corollaire pour MISTRAL_MODEL : ne jamais y poser un modèle Labs. Le
+		// nom du modèle vient de l'environnement, donc rien dans ce code ne peut
+		// empêcher cette bascule — seule la discipline de configuration le peut.
+		//
+		// Cf. docs/fr/operations/fournisseurs-llm.md.
+		activeLLMProvider = newMistralProvider()
 	default:
-		return fmt.Errorf("AI_PROVIDER inconnu: %q (attendu: gemini)", os.Getenv("AI_PROVIDER"))
+		return fmt.Errorf("AI_PROVIDER inconnu: %q (attendu: gemini, mistral)", os.Getenv("AI_PROVIDER"))
 	}
+	// L'étranglement est posé ici, une fois, plutôt que dans chaque
+	// implémentation : un fournisseur ajouté demain en hérite sans rien écrire.
+	activeLLMProvider = throttled(activeLLMProvider)
 	return nil
 }
 

@@ -1,5 +1,9 @@
 # 🔧 Guide de dépannage - Arbore CI/CD
 
+> ⚠️ **Les sections AiGenerator sont historiques.** Ce microservice a été
+> déposé le 2026-09-20 (#558) ; les commandes qui le concernent ne
+> s'appliquent plus. Voir [`AI-GENERATOR.md`](AI-GENERATOR.md).
+
 ## Problèmes courants et solutions
 
 ### 🍎 iOS / CocoaPods

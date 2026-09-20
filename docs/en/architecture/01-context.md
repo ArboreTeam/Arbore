@@ -21,7 +21,6 @@ flowchart TB
         firebase["[System Ext] Firebase<br/>Auth + Admin SDK"]
         mongo[("[System Ext] MongoDB Atlas<br/>Users / plants / gardens")]
         openai["[System Ext] OpenAI / Mistral<br/>LLM plant sheets"]
-        unsplash["[System Ext] Unsplash<br/>Catalog photos"]
         apple_id["[System Ext] Apple ID<br/>Sign in with Apple"]
         r2[("[System Ext] Cloudflare R2<br/>3D models + thumbnails")]
     end
@@ -41,7 +40,6 @@ flowchart TB
     arbore    -- "Sign in with Apple"                  --> apple_id
     arbore    -- "Persistence via backend"             --> mongo
     arbore    -- "Sheet generation (via AI Gen)"       --> openai
-    arbore    -- "Plant photos"                        --> unsplash
     arbore    -- "3D models (presigned URL)"           --> r2
     arbore    -- "Telemetry (opt-in)"                  --> sentry
 
@@ -53,7 +51,7 @@ flowchart TB
     classDef ext    fill:#999,stroke:#666,color:#fff
     class user,reviewer,team person
     class arbore system
-    class firebase,mongo,openai,unsplash,apple_id,github,appstore,sentry ext
+    class firebase,mongo,openai,apple_id,github,appstore,sentry ext
 ```
 
 ## Key points

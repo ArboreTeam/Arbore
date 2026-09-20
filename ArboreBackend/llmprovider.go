@@ -72,11 +72,21 @@ func initLLMProvider() error {
 	case "", "gemini":
 		activeLLMProvider = newGeminiProvider()
 	case "mistral":
-		// ⚠️ Avant de basculer une machine ici : le palier gratuit « Experiment »
-		// est opté-IN par défaut dans le programme d'amélioration de Mistral.
-		// Désactiver « Anonymous improvement data » dans la console
-		// d'administration (menu Privacy) AVANT d'y envoyer des photos
-		// d'utilisateurs. Cf. #555 et docs/fr/operations/fournisseurs-llm.md.
+		// ⚠️ DEUX réglages à vérifier sur https://admin.mistral.ai/plateforme/privacy
+		// AVANT d'envoyer la moindre photo d'utilisateur ici (#555) :
+		//
+		//   1. « Data usage for improving our services » → DÉSACTIVÉ.
+		//      Le palier gratuit est opté-IN par défaut.
+		//
+		//   2. « Enable Labs models » → DÉSACTIVÉ. Son propre texte dit que les
+		//      données servent à l'entraînement « regardless of my subscription
+		//      plan or opt-out settings ». Activer Labs ANNULE donc le point 1.
+		//
+		// Corollaire pour MISTRAL_MODEL : ne jamais y poser un modèle Labs. Le
+		// nom du modèle vient de l'environnement, donc rien dans ce code ne peut
+		// empêcher cette bascule — seule la discipline de configuration le peut.
+		//
+		// Cf. docs/fr/operations/fournisseurs-llm.md.
 		activeLLMProvider = newMistralProvider()
 	default:
 		return fmt.Errorf("AI_PROVIDER inconnu: %q (attendu: gemini, mistral)", os.Getenv("AI_PROVIDER"))

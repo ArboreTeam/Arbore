@@ -39,6 +39,7 @@ The documentation is split into complementary views. Depending on what you are l
 | Prod/dev environments (targeting dev from Xcode) | [`operations/environments.md`](operations/environments.md) |
 | VPS provisioning (Docker · nginx · Mongo) | [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md) |
 | 3D asset storage (R2 · S3 · MinIO) | [`operations/asset-storage.md`](operations/asset-storage.md) |
+| LLM providers (free quotas, failover, RAG) | [`operations/llm-providers.md`](operations/llm-providers.md) |
 | Architecture Decision Records (ADR) index | [`decisions/_index.md`](decisions/_index.md) |
 | App Store listing (multilingual) | [`../appstore-listing.md`](../appstore-listing.md) |
 | Definition of a domain or technical term | [`glossary.md`](glossary.md) |

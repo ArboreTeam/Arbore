@@ -174,7 +174,7 @@ The service sits under the **`dev` profile**: it never starts in production,
 where `docker compose up` runs without a profile. Verifiable:
 
 ```bash
-docker compose config --services                # ai-generator backend web
+docker compose config --services                # backend web
 docker compose --profile dev config --services  # + minio
 ```
 

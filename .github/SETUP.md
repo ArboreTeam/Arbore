@@ -51,7 +51,6 @@ act push              # Teste le workflow complet
 
 # Build direct des images
 docker build -t arbore-backend ArboreBackend/
-docker build -t arbore-ai AiGenerator/
 ```
 
 ## 📊 Monitoring

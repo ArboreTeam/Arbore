@@ -55,10 +55,11 @@ var requiredIndexes = []indexSpec{
 	},
 }
 
-// La collection `plants` n'apparaît pas ci-dessus : sa seule recherche par nom
-// (generateAndInsertPlant) est une regex insensible à la casse, qu'un index
-// classique ne peut pas exploiter efficacement. Si ce chemin devient chaud, la
-// bonne réponse est un champ `nameNormalized` indexé, pas un index sur `name`.
+// La collection `plants` n'apparaît pas ci-dessus : plus aucun chemin ne la
+// cherche par nom depuis la dépose du générateur de fiches (#558). Si une
+// recherche par nom revient, la bonne réponse reste un champ `nameNormalized`
+// indexé plutôt qu'un index sur `name` — une regex insensible à la casse ne
+// sait pas exploiter ce dernier.
 
 // ensureIndexes crée les index manquants sur les bases fournies. L'opération est
 // idempotente : MongoDB ignore une création d'index déjà satisfaite.

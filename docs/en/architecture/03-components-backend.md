@@ -1,6 +1,6 @@
 # C4 — Level 3: Backend Components
 
-This view opens up the **Backend API** container (Go 1.24 + Gin) and exposes its main modules. The code is organized around a `main.go` file (~2,500 lines) bundling type declarations, handlers, and bootstrap, supplemented by a `middleware/` subfolder for authentication and a few specialized files (`config.go`, `crypto.go`, `apple_revocation.go`, `unsplash.go`, `setdefault.go`), plus files dedicated to the **AI proxies** (`llmprovider.go`, `gemini_provider.go`, `httphardening.go`, `promptsafety.go`, `diagnose_normalize.go`).
+This view opens up the **Backend API** container (Go 1.24 + Gin) and exposes its main modules. The code is organized around a `main.go` file (~2,500 lines) bundling type declarations, handlers, and bootstrap, supplemented by a `middleware/` subfolder for authentication and a few specialized files (`config.go`, `crypto.go`, `apple_revocation.go`, `setdefault.go`), plus files dedicated to the **AI proxies** (`llmprovider.go`, `gemini_provider.go`, `httphardening.go`, `promptsafety.go`, `diagnose_normalize.go`).
 
 For the container overview, see [`02-containers.md`](02-containers.md). For the iOS and web components, see [`03-components-ios.md`](03-components-ios.md) and [`03-components-web.md`](03-components-web.md).
 
@@ -16,7 +16,7 @@ flowchart TB
         apikey["API-key-only group<br/>(APIKeyMiddleware) · GET /config"]
         protected["Protected group<br/>(APIKeyMiddleware + FirebaseAuthMiddleware)"]
         handlers["HTTP handlers<br/>users · plants · gardens · consents · models · AI assistant"]
-        access["Data access + external clients<br/>(MongoDB driver · crypto · unsplash · apple)"]
+        access["Data access + external clients<br/>(MongoDB driver · crypto · apple)"]
         storage["StorageProvider + guard<br/>(filesystem · R2 / S3 / MinIO)"]
 
         apikey --> handlers
@@ -28,7 +28,6 @@ flowchart TB
     mongo[("[System Ext]<br/>MongoDB Atlas")]
     firebase_admin["[System Ext]<br/>Firebase Admin SDK"]
     ai_gen["[Container]<br/>AI Generator (FastAPI)"]
-    unsplash["[System Ext]<br/>Unsplash API"]
     apple["[System Ext]<br/>Apple ID (SIWA)"]
     gemini["[System Ext]<br/>Google Gemini API"]
     storage_ext[("[System Ext]<br/>Cloudflare R2 (S3)")]
@@ -39,7 +38,6 @@ flowchart TB
     protected --> firebase_admin
     access --> mongo
     access --> ai_gen
-    access --> unsplash
     access --> apple
     handlers --> gemini
     storage --> storage_ext
@@ -50,7 +48,7 @@ flowchart TB
     classDef cont  fill:#2E7D32,stroke:#1B5E20,color:#fff
     class public,apikey,protected,handlers,access,storage layer
     class client,ai_gen cont
-    class mongo,firebase_admin,unsplash,apple,gemini,storage_ext ext
+    class mongo,firebase_admin,apple,gemini,storage_ext ext
 ```
 
 The backend exposes **five distinct access levels**, defined in `buildRouter()`: **public** routes (no middleware), an **API-key-only** group, a **protected** group (API key *then* Firebase token), an **`account`** subgroup closed to guests, and an **`admin`** subgroup. This discipline is enforced by how the `router.Group(...)` calls are composed.
@@ -190,7 +188,6 @@ The `/chat` and `/diagnose` proxies are decoupled from the concrete provider via
 | `config.go` — `getConfig` | Wizard and care reference data served at `GET /config` (mirror of the iOS `GardenSuggestionEngine`). |
 | `crypto.go` — `encrypt` / `decrypt` | **AES-256-GCM** encryption at rest. 32-byte master key (64 hex) resolved by `resolveMasterEncryptionKey`: **file `MASTER_ENCRYPTION_KEY_PATH` first**, otherwise falling back to the `MASTER_ENCRYPTION_KEY` variable. The file is preferred because a variable is readable through `docker inspect` and `/proc/<pid>/environ` — yet this key decrypts the Apple refresh tokens, so it was less protected than what it protects (#338 finding 4). A path that is set but unreadable is an **error**, never a silent fallback. Cached via `sync.Once`, format `nonce \|\| ciphertext`. Only caller: the Apple refresh token (#210). |
 | `apple_revocation.go` | **Sign in with Apple** revocation (Guideline 5.1.1(v)): `generateClientSecret()` (JWT ES256), `exchangeAuthorizationCode()` → refresh token, `revokeRefreshToken()` on account deletion. `revokeAppleBestEffort` never fails the deletion. |
-| `unsplash.go` — `fetchUnsplashImageURLs(query, count)` | Fetches photos via `UNSPLASH_ACCESS_KEY`; built-in fallback if missing/failing. Feeds `Plant.imageURLs`. |
 | `setdefault.go` — `(*Plant).SetDefaults()` | Fills in defensive default values (name, type, image, description, guarantees all 4 languages) without ever fabricating care data. |
 | `generateAndInsertPlant` (main.go) | Pipeline: dedup by name → HTTP call `AI_GENERATOR_URL/generate` → Unsplash enrichment → resolution of the local USDZ file → Mongo insertion. Dedup goes through `plantNameFilter`, which **escapes the name with `regexp.QuoteMeta`**: interpolated raw into a `$regex`, it allowed injecting an arbitrary pattern, and MongoDB uses PCRE (backtracking) where Go's RE2 is linear — an `(a+)+!` was enough to saturate the Mongo CPU shared with production (#338 finding 3). |
 | `client` / `testClient` (`*mongo.Client`, main.go) | Mongo connections (`arbore`, plus an optional `arbore_test`). `getDatabaseForRequest` chooses the database based on the selector set by the API key; fail-safe to prod. |

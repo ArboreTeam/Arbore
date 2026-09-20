@@ -305,11 +305,9 @@ var (
 		"GET /consents/latest",
 	}
 
-	// Réservées aux administrateurs : écriture catalogue et génération IA.
+	// Réservées aux administrateurs : écriture du catalogue.
 	adminOnlyRoutes = []string{
 		"POST /plants",
-		"POST /plants/generate",
-		"POST /plants/generate-multiple",
 		"POST /models/thumbnails/:plantId",
 	}
 )

@@ -36,7 +36,6 @@ Le workflow `.github/workflows/ci.yml` orchestre les tests, avec des jobs **filt
 | `backend` | `ArboreBackend/**`, `.golangci.yml` | `go vet`, `go test -race -coverprofile`, upload Codecov, `golangci-lint`, **`govulncheck` (bloquant)**, cross-build linux/amd64 + darwin/arm64. |
 | `ios_ui` | `ArboreUi/**` | Build + `xcodebuild test` (simulateur iPhone 16 Pro / iOS 18.2), parsing `.xcresult` (CLI/txt/html/JUnit). |
 | `ios_ar` | `ArboreARkit/**` | Build + tests du projet AR (`continue-on-error`). |
-| `ai_generator` | `AiGenerator/**` | `black` / `flake8` / `mypy` + `pytest`. |
 | `security` | PR / main | Trivy (système de fichiers), en deux passes : un **rapport SARIF complet** vers l'onglet Security (non bloquant, pour la visibilité) puis un **gate bloquant en CRITICAL** (`--ignore-unfixed`). |
 | `build_summary` | toujours | Agrège les résultats et échoue si un job requis a échoué. |
 

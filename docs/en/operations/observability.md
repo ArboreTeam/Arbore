@@ -1,6 +1,6 @@
 # Observability (Sentry)
 
-Crash and performance reporting for Arbore. **iOS**, **web** and the **Go/Gin backend** are wired up; the Python AiGenerator remains in **Phase 2**.
+Crash and performance reporting for Arbore. **iOS**, **web** and the **Go/Gin backend** are wired up — every service, since the AiGenerator was removed (#558).
 
 - Issue: #205
 - iOS SDK: [`sentry-cocoa`](https://github.com/getsentry/sentry-cocoa) via Swift Package Manager
@@ -339,6 +339,6 @@ rendering, so the culprit was work done at draw time rather than at call time.
 ## Notes / follow-ups
 
 - The breadcrumbs bridge from the iOS app's `AppLog` (nav / AR session / garden save) is a nice-to-have, not wired up yet.
-- The backend has been instrumented since #388. The **AiGenerator** (`sentry-python`) remains unwired: its errors still do not survive Docker log rotation.
+- The backend has been instrumented since #388. The **AiGenerator**, the only service never wired, has been removed (#558): no gap remains.
 - Deliberate partial coverage on 5xx: a handler returning 500 produces a synthetic event (route + status) for lack of a declared error — the code counts 40 such responses against 2 `c.Error(...)` calls. Enriching this requires handlers to declare their errors, which is a deeper change.
 - Session Replay is a paid feature — not used.

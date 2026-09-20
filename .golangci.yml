@@ -41,6 +41,7 @@ linters:
         - plante
         - enveloppe
         - envelopper
+        - respecte
         - trafic
         - exemple
         - marrage

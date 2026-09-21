@@ -24,18 +24,21 @@ struct MorphingPreviewHintBanner: View {
         let (icon, title, subtitle, color): (String, String, String, Color) = {
             if warnings.isEmpty {
                 return ("checkmark.seal.fill",
-                        "Placement fiable",
-                        "Toutes les plantes ont été placées avec succès",
+                        L10n.t("AR_MORPH_RELIABLE_TITLE"),
+                        L10n.t("AR_MORPH_RELIABLE_SUBTITLE"),
                         Color(hex: "#2BEE79"))
             } else if severeCount > 0 {
+                let total = severeCount + moderateCount
+                // Le pluriel vit dans les fichiers de langue : l'ajout d'un « s »
+                // en Swift ne vaut qu'en français et en anglais.
                 return ("exclamationmark.triangle.fill",
-                        "\(severeCount + moderateCount) plante\(severeCount + moderateCount > 1 ? "s" : "") à vérifier",
-                        "Certaines zones ont beaucoup changé",
+                        L10n.f(total > 1 ? "AR_MORPH_CHECK_TITLE_PLURAL" : "AR_MORPH_CHECK_TITLE", total),
+                        L10n.t("AR_MORPH_CHECK_SUBTITLE"),
                         .orange)
             } else {
                 return ("info.circle.fill",
-                        "\(moderateCount) plante\(moderateCount > 1 ? "s" : "") à surveiller",
-                        "Légères différences de forme détectées",
+                        L10n.f(moderateCount > 1 ? "AR_MORPH_WATCH_TITLE_PLURAL" : "AR_MORPH_WATCH_TITLE", moderateCount),
+                        L10n.t("AR_MORPH_WATCH_SUBTITLE"),
                         .yellow)
             }
         }()

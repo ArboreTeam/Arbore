@@ -29,7 +29,7 @@ final class PlantHealthScannerTests: XCTestCase {
             .noPlantDetected(bestLabel: "wall", bestConfidence: 0.2),
             .cameraUnavailable,
             .analysisTimeout,
-            .geminiError("boom")
+            .llmError("boom")
         ]
         for error in errors {
             XCTAssertFalse(error.errorDescription?.isEmpty ?? true, "\(error) sans description")
@@ -38,7 +38,7 @@ final class PlantHealthScannerTests: XCTestCase {
     }
 
     func testScanError_geminiErrorEmbedsMessage() {
-        let error = PlantScanError.geminiError("quota dépassé")
+        let error = PlantScanError.llmError("quota dépassé")
         XCTAssertTrue(error.errorDescription?.contains("quota dépassé") ?? false)
     }
 
@@ -101,7 +101,7 @@ final class PlantHealthScannerTests: XCTestCase {
         """.data(using: .utf8)!
 
         let decoded = try JSONDecoder().decode(
-            GeminiDiagnosticService.GeminiDiagnosticResponse.self,
+            GeminiDiagnosticService.LLMDiagnosticResponse.self,
             from: json
         )
         XCTAssertEqual(decoded.species, "Rosa")
@@ -117,7 +117,7 @@ final class PlantHealthScannerTests: XCTestCase {
         // l'absence des champs optionnels (species/overallHealth/etc.).
         let json = "{}".data(using: .utf8)!
         let decoded = try JSONDecoder().decode(
-            GeminiDiagnosticService.GeminiDiagnosticResponse.self,
+            GeminiDiagnosticService.LLMDiagnosticResponse.self,
             from: json
         )
         XCTAssertNil(decoded.species)
@@ -132,7 +132,7 @@ final class PlantHealthScannerTests: XCTestCase {
         { "diseases": [{ "severity": 0.5 }] }
         """.data(using: .utf8)!
         XCTAssertThrowsError(
-            try JSONDecoder().decode(GeminiDiagnosticService.GeminiDiagnosticResponse.self, from: json)
+            try JSONDecoder().decode(GeminiDiagnosticService.LLMDiagnosticResponse.self, from: json)
         )
     }
 }

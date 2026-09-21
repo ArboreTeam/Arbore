@@ -543,7 +543,7 @@ struct PlantHealthScannerView: View {
             .foregroundColor(result.isUncertain ? .orange : .green).padding(.vertical, 8).padding(.horizontal, 14)
             .background(.ultraThinMaterial, in: Capsule()).overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 1))
             Spacer()
-            Image(systemName: result.source == .gemini ? "sparkles" : "eyedropper").font(.system(size: 14)).foregroundColor(.white.opacity(0.7))
+            Image(systemName: result.source == .remote ? "sparkles" : "eyedropper").font(.system(size: 14)).foregroundColor(.white.opacity(0.7))
                 .frame(width: 40, height: 40).background(.ultraThinMaterial, in: Circle()).overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
         }
     }

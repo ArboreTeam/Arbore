@@ -2020,7 +2020,7 @@
 "SCAN_DISEASE_PARASITES" = "Posibles plagas";
 "SCAN_ERROR_BLURRY" = "Imagen demasiado borrosa. Estabiliza el dispositivo e inténtalo de nuevo.";
 "SCAN_ERROR_CAMERA" = "Cámara no disponible.";
-"SCAN_ERROR_GEMINI_FORMAT" = "Error de análisis con IA: %@";
+"SCAN_ERROR_AI_FORMAT" = "Error de análisis con IA: %@";
 "SCAN_ERROR_LOW_BRIGHTNESS" = "Luz insuficiente. Acércate a una fuente de luz.";
 "SCAN_ERROR_NO_PLANT" = "No se ha detectado ninguna planta. Encuadra bien el follaje.";
 "SCAN_ERROR_TIMEOUT" = "El análisis ha tardado demasiado. Inténtalo de nuevo.";

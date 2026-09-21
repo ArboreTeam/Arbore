@@ -2024,7 +2024,7 @@
 "SCAN_DISEASE_PARASITES" = "Mögliche Schädlinge";
 "SCAN_ERROR_BLURRY" = "Bild zu unscharf. Halte das Gerät ruhig und versuche es erneut.";
 "SCAN_ERROR_CAMERA" = "Kamera nicht verfügbar.";
-"SCAN_ERROR_GEMINI_FORMAT" = "Fehler bei der KI-Analyse: %@";
+"SCAN_ERROR_AI_FORMAT" = "Fehler bei der KI-Analyse: %@";
 "SCAN_ERROR_LOW_BRIGHTNESS" = "Zu wenig Licht. Geh näher an eine Lichtquelle.";
 "SCAN_ERROR_NO_PLANT" = "Keine Pflanze erkannt. Rahme das Blattwerk richtig ein.";
 "SCAN_ERROR_TIMEOUT" = "Die Analyse hat zu lange gedauert. Versuche es erneut.";

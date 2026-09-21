@@ -801,8 +801,8 @@
 
 // Privacy Settings - AI
 "PRIVACYSETTINGS_SECTION_AI" = "Künstliche Intelligenz";
-"PRIVACYSETTINGS_AI_TITLE" = "KI-Verarbeitung";
-"PRIVACYSETTINGS_AI_SUB" = "Gesundheitsdiagnose und Assistent, verarbeitet von Mistral AI (EU)";
+"PRIVACYSETTINGS_AI_TITLE" = "KI-Diagnose und Assistent";
+"PRIVACYSETTINGS_AI_SUB" = "Ein: Fotos und Nachrichten werden von Mistral AI (EU) analysiert. Aus: Der Scan bleibt auf dem Gerät, der Assistent ist nicht verfügbar.";
 
 // Privacy Settings - Notifications
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Benachrichtigungen";
@@ -1968,3 +1968,5 @@
 "CHATBOT_ERROR_BLOCKED" = "Antwort aus Sicherheitsgründen blockiert.";
 "CHATBOT_ERROR_INVALID" = "Unlesbare Antwort. Formuliere deine Frage neu oder versuche es erneut.";
 "CHATBOT_ERROR_GENERIC" = "Der Assistent konnte nicht antworten. Versuche es gleich noch einmal.";
+"CHATBOT_ERROR_AI_DISABLED" = "Der Assistent ist in deinen Datenschutzeinstellungen deaktiviert. Aktiviere „KI-Diagnose und Assistent“, um ihn zu nutzen.";
+"SCAN_WARNING_AI_DISABLED" = "KI-Analyse in deinen Einstellungen deaktiviert — Ergebnisse basieren auf der Farbanalyse, das Foto hat das Gerät nicht verlassen.";

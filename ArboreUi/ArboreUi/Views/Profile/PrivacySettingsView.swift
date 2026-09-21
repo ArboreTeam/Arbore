@@ -91,9 +91,12 @@ struct PrivacySettingsView: View {
                     isOn: $aiConsent,
                     tint: ArboreDesign.Colors.accentGold
                 )
-                .onChange(of: aiConsent) { _, newValue in
-                    recordConsentChange(type: "ai", granted: newValue)
-                }
+                // Volontairement PAS de recordConsentChange : ce réglage n'est
+                // pas un consentement mais une préférence de fonctionnalité
+                // (#549). La base légale de ces traitements est le contrat, et
+                // le registre des consentements ne doit contenir que des
+                // consentements. Le réglage vit dans @AppStorage, et les deux
+                // points d'envoi le lisent via AIProcessingPreference.
             }
 
             SettingsSectionCard(
@@ -227,8 +230,6 @@ struct PrivacySettingsView: View {
                                 self.marketingConsent = consent.granted
                             case "camera":
                                 self.cameraConsent = consent.granted
-                            case "ai":
-                                self.aiConsent = consent.granted
                             case "notifications":
                                 self.notificationsConsent = consent.granted
                             default:

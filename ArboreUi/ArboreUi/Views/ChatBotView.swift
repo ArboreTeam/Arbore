@@ -61,11 +61,11 @@ struct ChatBotView: View {
                     }
 
                     VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
-                        Text("Chat")
+                        Text(NSLocalizedString("CHATBOT_TITLE", comment: ""))
                             .font(.system(size: 34, weight: .bold, design: .rounded))
                             .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                        Text("Posez vos questions à Arbore, votre assistant jardinage.")
+                        Text(NSLocalizedString("CHATBOT_HEADER_SUBTITLE", comment: ""))
                             .font(ArboreDesign.Typography.bodySmall)
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
                     }
@@ -74,7 +74,7 @@ struct ChatBotView: View {
 
                     if !conversations.isEmpty {
                         Button {
-                            let conv = ChatConversation(title: "Nouvelle discussion")
+                            let conv = ChatConversation(title: NSLocalizedString("CHATBOT_NEW_CONVERSATION", comment: ""))
                             modelContext.insert(conv)
                             activeConversationId = conv.id
                         } label: {
@@ -105,7 +105,7 @@ struct ChatBotView: View {
             if !newValue { conversationToRename = nil }
         })) {
             TextField("Titre", text: $renameText)
-            Button("Annuler", role: .cancel) {
+            Button(NSLocalizedString("CHATBOT_CANCEL", comment: ""), role: .cancel) {
                 conversationToRename = nil
             }
             Button("OK") {
@@ -116,7 +116,7 @@ struct ChatBotView: View {
                 conversationToRename = nil
             }
         } message: {
-            Text("Entrez un nouveau nom pour cette discussion.")
+            Text(NSLocalizedString("CHATBOT_RENAME_PROMPT", comment: ""))
         }
     }
 
@@ -134,25 +134,25 @@ struct ChatBotView: View {
                 .clipShape(Circle())
 
             VStack(spacing: ArboreDesign.Spacing.xs) {
-                Text("Aucune conversation")
+                Text(NSLocalizedString("CHATBOT_EMPTY_TITLE", comment: ""))
                     .font(ArboreDesign.Typography.sectionTitle)
                     .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                Text("Commencez une nouvelle discussion\navec l'assistant jardinage.")
+                Text(NSLocalizedString("CHATBOT_EMPTY_SUBTITLE", comment: ""))
                     .font(ArboreDesign.Typography.bodySmall)
                     .foregroundColor(ArboreDesign.Colors.textSecondary)
                     .multilineTextAlignment(.center)
             }
 
             Button {
-                let conv = ChatConversation(title: "Nouvelle discussion")
+                let conv = ChatConversation(title: NSLocalizedString("CHATBOT_NEW_CONVERSATION", comment: ""))
                 modelContext.insert(conv)
                 activeConversationId = conv.id
             } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 16))
-                    Text("Nouveau chat")
+                    Text(NSLocalizedString("CHATBOT_NEW_CHAT", comment: ""))
                         .font(ArboreDesign.Typography.button)
                 }
                 .foregroundColor(.white)
@@ -339,11 +339,11 @@ struct ChatBotView: View {
                 .clipShape(Circle())
 
             VStack(spacing: ArboreDesign.Spacing.xs) {
-                Text("Posez votre question")
+                Text(NSLocalizedString("CHATBOT_ASK_TITLE", comment: ""))
                     .font(ArboreDesign.Typography.sectionTitle)
                     .foregroundColor(ArboreDesign.Colors.textPrimary)
 
-                Text("Je peux vous aider sur le jardinage,\nles plantes, l'entretien, et plus encore.")
+                Text(NSLocalizedString("CHATBOT_ASK_SUBTITLE", comment: ""))
                     .font(ArboreDesign.Typography.bodySmall)
                     .foregroundColor(ArboreDesign.Colors.textSecondary)
                     .multilineTextAlignment(.center)
@@ -438,10 +438,10 @@ struct ChatBotView: View {
                         .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Photo sélectionnée")
+                        Text(NSLocalizedString("CHATBOT_PHOTO_SELECTED", comment: ""))
                             .font(ArboreDesign.Typography.caption)
                             .foregroundColor(ArboreDesign.Colors.textSecondary)
-                        Text("Appuyez sur envoyer pour analyser")
+                        Text(NSLocalizedString("CHATBOT_PHOTO_HINT", comment: ""))
                             .font(ArboreDesign.Typography.caption)
                             .foregroundColor(ArboreDesign.Colors.textMuted)
                     }

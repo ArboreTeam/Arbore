@@ -99,7 +99,7 @@ final class GardenSuggestionEngine {
 
         // 3. Build suggestion
         let avgScore = composed.isEmpty ? 0 : composed.map(\.score).reduce(0, +) / Double(composed.count)
-        let styleName = wizard.style.isEmpty ? "Personnalisé" : wizard.style
+        let styleName = wizard.style.isEmpty ? L10n.t("GARDEN_STYLE_CUSTOM") : wizard.style
 
         return GardenSuggestion(
             plants: composed,

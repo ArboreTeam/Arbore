@@ -1970,3 +1970,102 @@
 "CHATBOT_ERROR_GENERIC" = "Der Assistent konnte nicht antworten. Versuche es gleich noch einmal.";
 "CHATBOT_ERROR_AI_DISABLED" = "Der Assistent ist in deinen Datenschutzeinstellungen deaktiviert. Aktiviere „KI-Diagnose und Assistent“, um ihn zu nutzen.";
 "SCAN_WARNING_AI_DISABLED" = "KI-Analyse in deinen Einstellungen deaktiviert — Ergebnisse basieren auf der Farbanalyse, das Foto hat das Gerät nicht verlassen.";
+
+/* Assistant et scan santé — ces écrans étaient entièrement figés
+   en français jusqu'à #578. */
+"CHATBOT_TITLE" = "Chat";
+"CHATBOT_HEADER_SUBTITLE" = "Stelle Arbore deine Fragen rund ums Gärtnern.";
+"CHATBOT_NEW_CONVERSATION" = "Neue Unterhaltung";
+"CHATBOT_CANCEL" = "Abbrechen";
+"CHATBOT_RENAME_PROMPT" = "Gib dieser Unterhaltung einen neuen Namen.";
+"CHATBOT_EMPTY_TITLE" = "Keine Unterhaltungen";
+"CHATBOT_EMPTY_SUBTITLE" = "Beginne eine neue Unterhaltung\nmit dem Garten-Assistenten.";
+"CHATBOT_NEW_CHAT" = "Neuer Chat";
+"CHATBOT_ASK_TITLE" = "Stelle deine Frage";
+"CHATBOT_ASK_SUBTITLE" = "Ich helfe bei Garten, Pflanzen,\nPflege und vielem mehr.";
+"CHATBOT_PHOTO_SELECTED" = "Foto ausgewählt";
+"CHATBOT_PHOTO_HINT" = "Zum Analysieren auf Senden tippen";
+"SCAN_CAMERA_REQUIRED" = "Kamerazugriff erforderlich";
+"SCAN_OPEN_SETTINGS" = "Einstellungen öffnen";
+"SCAN_ANALYSING" = "Analyse läuft…";
+"SCAN_ANALYSING_SUBTITLE" = "Künstliche Intelligenz & Farbanalyse";
+"SCAN_STEP_QUALITY" = "Bildqualität geprüft";
+"SCAN_STEP_PLANT" = "Pflanze erkannt";
+"SCAN_STEP_COLOUR" = "Farbanalyse…";
+"SCAN_STEP_AI" = "KI-Diagnose läuft…";
+"SCAN_CONFIDENCE_LABEL" = "KI-Konfidenzwert";
+"SCAN_SPECIES_LABEL" = "Erkannte Art";
+"SCAN_ISSUES_TITLE" = "Erkannte Probleme";
+"SCAN_LOCAL_ANALYSIS_TITLE" = "Lokale Farbanalyse";
+"SCAN_METRIC_HEALTHY" = "Gesund";
+"SCAN_METRIC_CHLOROSIS" = "Chlorose";
+"SCAN_METRIC_NECROSIS" = "Nekrose";
+"SCAN_METRIC_UNIFORMITY" = "Gleichmäßigkeit";
+"SCAN_RECOMMENDATIONS_TITLE" = "Empfehlungen";
+"SCAN_DONE" = "Fertig";
+"SCAN_FAILED_TITLE" = "Analyse nicht möglich";
+"SCAN_RETRY" = "Erneut versuchen";
+"SCAN_CLOSE" = "Schließen";
+"SCAN_VERDICT_EXCELLENT" = "Ausgezeichneter Zustand";
+"SCAN_VERDICT_GOOD" = "Guter Zustand";
+"SCAN_VERDICT_WEAK" = "Anzeichen von Schwäche";
+"SCAN_VERDICT_STRESSED" = "Pflanze unter Stress";
+"SCAN_VERDICT_POOR" = "Pflanze in schlechtem Zustand";
+
+/* Scan santé — ces clés existaient dans le code avec un repli français
+   en dur, mais n'étaient définies dans aucune langue (#578). */
+"SCAN_ADVICE_CHLOROSIS" = "Vergilbung erkannt → prüfe Bewässerung und Stickstoffversorgung.";
+"SCAN_ADVICE_GENERAL" = "Pflege anpassen: Licht, Bewässerung, Dünger.";
+"SCAN_ADVICE_HEALTHY" = "Deine Pflanze wirkt gesund. Mach mit der Pflege weiter.";
+"SCAN_ADVICE_NECROSIS" = "Braune Flecken → auf Pilzbefall oder Verbrennungen achten.";
+"SCAN_CAPTURE_HINT" = "Zum Scannen der Pflanze tippen";
+"SCAN_DISEASE_CHLOROSIS" = "Chlorose (Vergilbung)";
+"SCAN_DISEASE_NECROSIS" = "Nekrose (braune Flecken)";
+"SCAN_DISEASE_PARASITES" = "Mögliche Schädlinge";
+"SCAN_ERROR_BLURRY" = "Bild zu unscharf. Halte das Gerät ruhig und versuche es erneut.";
+"SCAN_ERROR_CAMERA" = "Kamera nicht verfügbar.";
+"SCAN_ERROR_GEMINI_FORMAT" = "Fehler bei der KI-Analyse: %@";
+"SCAN_ERROR_LOW_BRIGHTNESS" = "Zu wenig Licht. Geh näher an eine Lichtquelle.";
+"SCAN_ERROR_NO_PLANT" = "Keine Pflanze erkannt. Rahme das Blattwerk richtig ein.";
+"SCAN_ERROR_TIMEOUT" = "Die Analyse hat zu lange gedauert. Versuche es erneut.";
+"SCAN_GUIDE_LIGHT" = "Mehr Licht nötig";
+"SCAN_GUIDE_TEXT" = "Blattwerk einrahmen";
+"SCAN_WARNING_AI_UNAVAILABLE" = "KI-Analyse nicht verfügbar, Ergebnisse basieren auf der Farbanalyse";
+"SCAN_WARNING_LOW_PLANT_CONFIDENCE_FORMAT" = "Pflanzenerkennung unsicher (%d%%)";
+"SCAN_WARNING_NO_JPEG" = "Bildkomprimierung fehlgeschlagen, Ergebnisse basieren auf der Farbanalyse";
+"SCAN_WARNING_UNCERTAIN" = "Unsichere Diagnose, die Ergebnisse sind nur Anhaltspunkte";
+
+/* Réseau, mesure AR et aperçu de morphing — littéraux français
+   sortis du code lors du tri de #578. */
+"NET_ERROR_INVALID_URL" = "Ungültige URL";
+"NET_ERROR_NO_USER" = "Du bist nicht angemeldet";
+"NET_ERROR_NO_TOKEN" = "Authentifizierungs-Token fehlt";
+"NET_ERROR_SERVER_FORMAT" = "Serverfehler: %@";
+"NET_ERROR_UNAUTHORIZED" = "Nicht autorisiert: Token ungültig oder abgelaufen";
+"NET_ERROR_FORBIDDEN" = "Zugriff verweigert: Konto gesperrt oder unzureichende Rechte";
+"NET_ERROR_EMAIL_NOT_VERIFIED" = "E-Mail nicht bestätigt. Prüfe dein Postfach, um dein Konto zu aktivieren.";
+"NET_ERROR_NOT_FOUND" = "Ressource nicht gefunden";
+"NET_ERROR_DECODING_FORMAT" = "Dekodierungsfehler: %@";
+"MEASURE_STEP_SCAN_DESC" = "Bewege das Gerät, um den Boden zu erkennen";
+"MEASURE_STEP_DIAMETER_DESC_FIRST" = "Setze den ersten Punkt an den Rand";
+"MEASURE_STEP_DIAMETER_DESC_SECOND" = "Setze den zweiten Punkt gegenüber";
+"MEASURE_STEP_HEIGHT_DESC_BASE" = "Tippe auf den Boden am Fuß des Topfes";
+"MEASURE_STEP_HEIGHT_DESC_TOP" = "Hebe das Telefon bis zur Oberkante des Topfes";
+"MEASURE_STEP_COMPLETE_DESC" = "Messungen abgeschlossen";
+"AR_TOAST_NO_MODELS" = "Kein 3D-Modell verfügbar. Füge deine Pflanzen manuell hinzu.";
+"AR_MORPH_RELIABLE_TITLE" = "Zuverlässige Platzierung";
+"AR_MORPH_RELIABLE_SUBTITLE" = "Alle Pflanzen wurden erfolgreich platziert";
+"AR_MORPH_CHECK_TITLE" = "%d Pflanze prüfen";
+"AR_MORPH_CHECK_TITLE_PLURAL" = "%d Pflanzen prüfen";
+"AR_MORPH_CHECK_SUBTITLE" = "Einige Bereiche haben sich stark verändert";
+"AR_MORPH_WATCH_TITLE" = "%d Pflanze beobachten";
+"AR_MORPH_WATCH_TITLE_PLURAL" = "%d Pflanzen beobachten";
+"AR_MORPH_WATCH_SUBTITLE" = "Leichte Formunterschiede erkannt";
+"AR_TOAST_PLACED_FORMAT" = "%d Pflanzen platziert. Verschiebe sie nach Belieben.";
+"AR_TOAST_PLACED_WITH_SKIPPED_FORMAT" = "%d Pflanzen platziert (%d ohne Modell). Verschiebe sie nach Belieben.";
+"CALENDAR_ERROR_INVALID_DATE" = "Das Datum des Termins konnte nicht berechnet werden.";
+"CALENDAR_ERROR_ACCESS_DENIED" = "Der Kalenderzugriff wurde verweigert.";
+"GARDEN_SAVE_FAILED" = "Der Garten konnte nicht gespeichert werden. Prüfe deine Verbindung und versuche es erneut.";
+"GARDEN_STYLE_CUSTOM" = "Individuell";
+"NET_ERROR_INVALID_RESPONSE" = "Ungültige Antwort";
+"NET_ERROR_JSON_FORMAT" = "JSON-Serialisierungsfehler: %@";

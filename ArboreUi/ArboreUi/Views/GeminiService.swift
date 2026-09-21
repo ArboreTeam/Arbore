@@ -11,13 +11,13 @@ extension GeminiError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noAPIKey:
-            return "Clé API Gemini manquante"
+            return L10n.t("CHATBOT_ERROR_UNAVAILABLE")
         case .invalidResponse:
-            return "Réponse invalide de l'API Gemini"
+            return L10n.t("CHATBOT_ERROR_INVALID")
         case .requestFailed(let error):
             return (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         case .blocked:
-            return "Réponse bloquée pour des raisons de sécurité"
+            return L10n.t("CHATBOT_ERROR_BLOCKED")
         }
     }
 }

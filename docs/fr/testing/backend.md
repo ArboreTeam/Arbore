@@ -14,7 +14,7 @@ Les tests du backend Go vivent à la racine du package (`ArboreBackend/*_test.go
 | `ArboreBackend/gemini_provider_test.go` | Traduction du fournisseur Gemini : `buildGeminiPayload` (system/historique/image, rôles) et `extractGeminiText` (OK, blocage sans candidat, JSON invalide). |
 | `ArboreBackend/httphardening_test.go` | Backoff **interruptible** (`backoffOrCancel` : attend la durée, ou rend la main immédiatement si le contexte est annulé). |
 | `ArboreBackend/promptsafety_test.go` | Helpers anti-injection : `truncateRunes` (troncature sûre en runes) et `sanitizeLine` (retrait des caractères de contrôle, compactage des espaces, troncature). |
-| `ArboreBackend/gemini_handlers_test.go` | Handlers `/chat` et `/diagnose` appelés **réellement** via un faux `LLMProvider` injecté : message vide → 400, markdown nettoyé, historique borné + clause anti-injection présente, image obligatoire, extraction JSON (brut et noyé dans du texte), blocage, erreurs amont → 502, `plantName` assaini et encadré. |
+| `ArboreBackend/ai_handlers_test.go` | Handlers `/chat` et `/diagnose` appelés **réellement** via un faux `LLMProvider` injecté : message vide → 400, markdown nettoyé, historique borné + clause anti-injection présente, image obligatoire, extraction JSON (brut et noyé dans du texte), blocage, erreurs amont → 502, `plantName` assaini et encadré. |
 | `ArboreBackend/diagnose_normalize_test.go` | Normalisation du diagnostic (`normalizeDiagnose`) : clamp `[0,1]`, bornes (max maladies / recommandations), maladies sans nom écartées, défauts (`isUncertain=true`, `species` null si vide), tableaux jamais `null`, JSON invalide → erreur. |
 
 ## Ce qui est garanti par ces tests

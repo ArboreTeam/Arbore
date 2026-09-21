@@ -14,7 +14,7 @@ The Go backend tests live at the package root (`ArboreBackend/*_test.go`) and in
 | `ArboreBackend/gemini_provider_test.go` | Gemini provider translation: `buildGeminiPayload` (system/history/image, roles) and `extractGeminiText` (OK, blocked when no candidate, invalid JSON). |
 | `ArboreBackend/httphardening_test.go` | **Interruptible** backoff (`backoffOrCancel`: waits the duration, or returns immediately if the context is cancelled). |
 | `ArboreBackend/promptsafety_test.go` | Anti-injection helpers: `truncateRunes` (rune-safe truncation) and `sanitizeLine` (control-character removal, whitespace collapsing, truncation). |
-| `ArboreBackend/gemini_handlers_test.go` | The `/chat` and `/diagnose` handlers called **for real** via a fake `LLMProvider` injected: empty message → 400, markdown stripped, bounded history + anti-injection clause present, image required, JSON extraction (raw and embedded in prose), blocked, upstream errors → 502, `plantName` sanitized and framed. |
+| `ArboreBackend/ai_handlers_test.go` | The `/chat` and `/diagnose` handlers called **for real** via a fake `LLMProvider` injected: empty message → 400, markdown stripped, bounded history + anti-injection clause present, image required, JSON extraction (raw and embedded in prose), blocked, upstream errors → 502, `plantName` sanitized and framed. |
 | `ArboreBackend/diagnose_normalize_test.go` | Diagnosis normalization (`normalizeDiagnose`): clamp to `[0,1]`, bounds (max diseases / recommendations), nameless diseases dropped, defaults (`isUncertain=true`, `species` null when empty), arrays never `null`, invalid JSON → error. |
 
 ## What these tests guarantee

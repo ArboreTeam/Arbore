@@ -1,13 +1,13 @@
 import Foundation
 
-enum GeminiError: Error {
+enum LLMError: Error {
     case noAPIKey
     case invalidResponse
     case requestFailed(Error)
     case blocked
 }
 
-extension GeminiError: LocalizedError {
+extension LLMError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noAPIKey:
@@ -26,7 +26,7 @@ struct ChatBackendResponse: Decodable {
     let reply: String
 }
 
-actor GeminiService {
+actor LLMService {
 
     func sendMessage(history: [MessageDTO], newMessage: String, imageData: Data? = nil) async throws -> String {
         // Encode base64 image if present
@@ -49,7 +49,7 @@ actor GeminiService {
         // Encode payload as Dictionary for NetworkManager
         guard let payloadData = try? JSONEncoder().encode(payload),
               let payloadDict = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any] else {
-            throw GeminiError.invalidResponse
+            throw LLMError.invalidResponse
         }
         
         do {
@@ -60,7 +60,7 @@ actor GeminiService {
             )
             return response.reply
         } catch {
-            throw GeminiError.requestFailed(error)
+            throw LLMError.requestFailed(error)
         }
     }
 }

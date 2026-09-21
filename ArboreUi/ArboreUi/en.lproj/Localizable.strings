@@ -2040,7 +2040,7 @@
 "SCAN_DISEASE_PARASITES" = "Possible pests";
 "SCAN_ERROR_BLURRY" = "Image too blurry. Hold the device steady and try again.";
 "SCAN_ERROR_CAMERA" = "Camera unavailable.";
-"SCAN_ERROR_GEMINI_FORMAT" = "AI analysis error: %@";
+"SCAN_ERROR_AI_FORMAT" = "AI analysis error: %@";
 "SCAN_ERROR_LOW_BRIGHTNESS" = "Not enough light. Move closer to a light source.";
 "SCAN_ERROR_NO_PLANT" = "No plant detected. Frame the foliage properly.";
 "SCAN_ERROR_TIMEOUT" = "The analysis took too long. Try again.";

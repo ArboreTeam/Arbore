@@ -600,7 +600,7 @@ struct ChatBotView: View {
 
         Task {
             do {
-                let service = GeminiService()
+                let service = LLMService()
                 let reply = try await service.sendMessage(
                     history: historyMessages.map { MessageDTO(content: $0.content, isUser: $0.isUser) },
                     newMessage: text,
@@ -615,22 +615,22 @@ struct ChatBotView: View {
                         isTyping = false
                     }
                 }
-            } catch GeminiError.noAPIKey {
+            } catch LLMError.noAPIKey {
                 await MainActor.run {
                     isTyping = false
                     apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_UNAVAILABLE", comment: "")
                 }
-            } catch GeminiError.blocked {
+            } catch LLMError.blocked {
                 await MainActor.run {
                     isTyping = false
                     apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_BLOCKED", comment: "")
                 }
-            } catch GeminiError.invalidResponse {
+            } catch LLMError.invalidResponse {
                 await MainActor.run {
                     isTyping = false
                     apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_INVALID", comment: "")
                 }
-            } catch GeminiError.requestFailed(let underlying) {
+            } catch LLMError.requestFailed(let underlying) {
                 await MainActor.run {
                     isTyping = false
                     apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_GENERIC", comment: "")
@@ -645,7 +645,7 @@ struct ChatBotView: View {
     }
 }
 
-// MARK: - DTO for Gemini API (lightweight, non-SwiftData)
+// MARK: - DTO pour le backend d'IA (léger, hors SwiftData)
 
 struct MessageDTO {
     let content: String

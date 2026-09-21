@@ -37,21 +37,30 @@ const (
 	// sans quoi la porte d'étranglement protège contre la mauvaise limite.
 	defaultMistralRPS = 3.0
 
-	// ⚠️ Seule la famille Ministral est accordée sur ce plan. Vérifié en
+	// ⚠️ Seule la famille Ministral reçoit du quota sur ce plan. Vérifié en
 	// appelant l'API le 2026-09-20 :
 	//
-	//   ministral-3b-2512    200, 750 req/min
-	//   ministral-8b-2512    200, 188 req/min   ← retenu
-	//   ministral-14b-2512   200,  30 req/min
-	//   mistral-small-latest 429, limite 0      ← n'existe même pas au catalogue
-	//   mistral-small-2603   429, limite 0
+	//   ministral-3b-2512     200, 750 req/min
+	//   ministral-8b-2512     200, 188 req/min   ← retenu
+	//   ministral-14b-2512    200,  30 req/min
+	//   mistral-small-latest  429, limite 0
+	//   mistral-small-2603    429, limite 0
 	//   mistral-medium-latest 429, limite 0
-	//   mistral-large-2512   403 Forbidden
+	//   mistral-large-2512    403 Forbidden
 	//
-	// Les deux modes d'échec se distinguent : 403 = modèle non autorisé,
-	// 429 avec `x-ratelimit-limit-req-minute: 0` = autorisé au catalogue mais
-	// sans quota. Aucun des deux ne dit « modèle inconnu », d'où trois heures
-	// passées à chercher un problème de compte qui n'existait pas.
+	// Les trois premiers ET les trois suivants sont TOUS présents dans
+	// GET /v1/models — 46 modèles y figurent. Le catalogue n'est donc pas le
+	// critère : c'est le QUOTA accordé par le plan qui l'est.
+	//
+	//   403                            → modèle absent du catalogue
+	//   429 + x-ratelimit-limit-req-minute: 0
+	//                                  → présent, mais ZÉRO quota sur ce plan
+	//
+	// Le second se lit exactement comme un compte saturé. Deux clés API ont été
+	// rotées avant qu'on pense à changer le nom du modèle. Conséquence pour une
+	// future bascule automatique : une limite à 0 n'est PAS une saturation
+	// passagère, c'est un refus durable — réessayer ou changer de fournisseur
+	// n'y changerait rien, il faut changer de modèle.
 	//
 	// 8b retenu : meilleur compromis qualité/débit des trois. 3b répond moins
 	// finement sur un diagnostic de phytopathologie, 14b plafonne à 30/min.

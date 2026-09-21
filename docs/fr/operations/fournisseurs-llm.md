@@ -152,18 +152,25 @@ organisation obtient réellement.
 | `mistral-medium-latest` | 429 | **0** |
 | `mistral-large-2512` | 403 | — |
 
-**Seule la famille Ministral est accordée.** Et `mistral-small-latest`, l'alias
-qu'on écrit spontanément, n'existe même pas au catalogue de l'organisation.
+**Seule la famille Ministral reçoit du quota.** Mais attention au raccourci :
+`mistral-small-latest` et `mistral-small-2603` sont bien **présents au
+catalogue** — `GET /v1/models` en liste 46, eux compris. Le catalogue n'est donc
+pas le critère ; le **quota accordé par le plan** l'est.
 
 Les deux modes d'échec se distinguent, et aucun ne dit « modèle inconnu » :
 
-- **403** — modèle non autorisé pour cette organisation ;
-- **429 avec `x-ratelimit-limit-req-minute: 0`** — présent au catalogue, mais
-  sans quota.
+| Réponse | Signification |
+|---|---|
+| **403** | modèle **absent** du catalogue de l'organisation |
+| **429** + `x-ratelimit-limit-req-minute: 0` | modèle **présent**, mais **zéro quota** sur ce plan |
 
-Le second se lit comme un problème de compte. Il a coûté un après-midi à
-diagnostiquer avant qu'on pense à changer le nom du modèle. **Devant un 429,
-lire l'en-tête `x-ratelimit-limit-req-minute` avant de soupçonner le plan.**
+Le second se lit exactement comme un compte saturé. Il a coûté un après-midi, et
+deux clés API rotées, avant qu'on pense à changer le nom du modèle. **Devant un
+429, lire cet en-tête avant de soupçonner le plan ou la clé.**
+
+Conséquence pour une bascule automatique : une limite à **0** n'est pas une
+saturation passagère, c'est un **refus durable**. Réessayer plus tard, ou
+changer de fournisseur, n'y changerait rien — il faut changer de modèle.
 
 La **vision fonctionne sur les trois Ministral**, ce qu'exige `/diagnose` —
 vérifié avec une vraie image en URI de données.

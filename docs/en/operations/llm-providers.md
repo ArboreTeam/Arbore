@@ -148,18 +148,25 @@ actually gets.
 | `mistral-medium-latest` | 429 | **0** |
 | `mistral-large-2512` | 403 | — |
 
-**Only the Ministral family is granted.** And `mistral-small-latest`, the alias
-one writes by reflex, is not even in the organisation's catalogue.
+**Only the Ministral family receives quota.** But beware the shortcut:
+`mistral-small-latest` and `mistral-small-2603` *are* in the catalogue —
+`GET /v1/models` lists 46, including them. The catalogue is not the criterion;
+the **quota the plan grants** is.
 
 The two failure modes differ, and neither says "unknown model":
 
-- **403** — model not authorised for this organisation;
-- **429 with `x-ratelimit-limit-req-minute: 0`** — in the catalogue, but with no
-  quota.
+| Response | Meaning |
+|---|---|
+| **403** | model **absent** from the organisation's catalogue |
+| **429** + `x-ratelimit-limit-req-minute: 0` | model **present**, but **zero quota** on this plan |
 
-The second reads like an account problem. It cost an afternoon to diagnose
-before anyone thought to change the model name. **On a 429, read the
-`x-ratelimit-limit-req-minute` header before suspecting the plan.**
+The second reads exactly like a saturated account. It cost an afternoon, and two
+rotated API keys, before anyone thought to change the model name. **On a 429,
+read that header before suspecting the plan or the key.**
+
+Consequence for automatic failover: a limit of **0** is not transient
+saturation, it is a **durable refusal**. Retrying later, or switching provider,
+would change nothing — the model must change.
 
 **Vision works on all three Ministral models**, which `/diagnose` requires —
 verified with a real image as a data URI.

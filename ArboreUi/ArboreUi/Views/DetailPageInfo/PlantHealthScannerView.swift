@@ -421,8 +421,8 @@ struct PlantHealthScannerView: View {
     private var permissionDeniedView: some View {
         VStack(spacing: 16) {
             Image(systemName: "camera.fill").font(.system(size: 44)).foregroundColor(.white.opacity(0.3))
-            Text("Accès caméra requis").font(.system(size: 18, weight: .semibold)).foregroundColor(.white)
-            Button("Ouvrir les Réglages") {
+            Text(NSLocalizedString("SCAN_CAMERA_REQUIRED", comment: "")).font(.system(size: 18, weight: .semibold)).foregroundColor(.white)
+            Button(NSLocalizedString("SCAN_OPEN_SETTINGS", comment: "")) {
                 if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
             }.padding().background(Color.white, in: Capsule()).foregroundColor(.black)
         }
@@ -454,15 +454,15 @@ struct PlantHealthScannerView: View {
                 }
 
                 VStack(spacing: 8) {
-                    Text("Analyse en cours…").font(.system(size: 24, weight: .bold)).foregroundColor(.white)
-                    Text("Intelligence Artificielle & Colorimétrie").font(.system(size: 15)).foregroundColor(.white.opacity(0.7))
+                    Text(NSLocalizedString("SCAN_ANALYSING", comment: "")).font(.system(size: 24, weight: .bold)).foregroundColor(.white)
+                    Text(NSLocalizedString("SCAN_ANALYSING_SUBTITLE", comment: "")).font(.system(size: 15)).foregroundColor(.white.opacity(0.7))
                 }
 
                 VStack(alignment: .leading, spacing: 16) {
-                    stepRow(icon: loadingStep >= 1 ? "checkmark.circle.fill" : "circle.dotted", text: "Qualité d'image validée", done: loadingStep >= 1)
-                    stepRow(icon: loadingStep >= 2 ? "checkmark.circle.fill" : "circle.dotted", text: "Plante détectée", done: loadingStep >= 2)
-                    stepRow(icon: loadingStep >= 3 ? "checkmark.circle.fill" : "circle.dotted", text: "Analyse colorimétrique…", done: loadingStep >= 3)
-                    stepRow(icon: loadingStep >= 4 ? "checkmark.circle.fill" : "circle.dotted", text: "Diagnostic IA en cours…", done: loadingStep >= 4)
+                    stepRow(icon: loadingStep >= 1 ? "checkmark.circle.fill" : "circle.dotted", text: NSLocalizedString("SCAN_STEP_QUALITY", comment: ""), done: loadingStep >= 1)
+                    stepRow(icon: loadingStep >= 2 ? "checkmark.circle.fill" : "circle.dotted", text: NSLocalizedString("SCAN_STEP_PLANT", comment: ""), done: loadingStep >= 2)
+                    stepRow(icon: loadingStep >= 3 ? "checkmark.circle.fill" : "circle.dotted", text: NSLocalizedString("SCAN_STEP_COLOUR", comment: ""), done: loadingStep >= 3)
+                    stepRow(icon: loadingStep >= 4 ? "checkmark.circle.fill" : "circle.dotted", text: NSLocalizedString("SCAN_STEP_AI", comment: ""), done: loadingStep >= 4)
                 }
                 .padding(24)
                 .liquidGlass()
@@ -562,7 +562,7 @@ struct PlantHealthScannerView: View {
             }
             Text(diagnosisText(for: result.overallHealth)).font(.system(size: 20, weight: .bold)).foregroundColor(healthColor(result.overallHealth))
             HStack(spacing: 8) {
-                Text("Indice de confiance IA").font(.system(size: 13, weight: .medium)).foregroundColor(.white.opacity(0.5))
+                Text(NSLocalizedString("SCAN_CONFIDENCE_LABEL", comment: "")).font(.system(size: 13, weight: .medium)).foregroundColor(.white.opacity(0.5))
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule().fill(Color.white.opacity(0.1)).frame(height: 6)
@@ -595,7 +595,7 @@ struct PlantHealthScannerView: View {
         HStack(spacing: 16) {
             Image(systemName: "leaf.fill").font(.system(size: 18)).foregroundColor(.green).frame(width: 44, height: 44).background(Color.green.opacity(0.15), in: Circle())
             VStack(alignment: .leading, spacing: 4) {
-                Text("Espèce identifiée").font(.system(size: 12, weight: .medium)).foregroundColor(.white.opacity(0.5))
+                Text(NSLocalizedString("SCAN_SPECIES_LABEL", comment: "")).font(.system(size: 12, weight: .medium)).foregroundColor(.white.opacity(0.5))
                 Text(species).font(.system(size: 17, weight: .semibold)).foregroundColor(.white)
             }
             Spacer()
@@ -606,7 +606,7 @@ struct PlantHealthScannerView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Image(systemName: "microbe.fill").font(.system(size: 16)).foregroundColor(.orange)
-                Text("Problèmes détectés").font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
+                Text(NSLocalizedString("SCAN_ISSUES_TITLE", comment: "")).font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
                 Spacer()
                 Text("\(diseases.count)").font(.system(size: 13, weight: .bold)).foregroundColor(.white)
                     .frame(width: 28, height: 28).background(Color.orange, in: Circle())
@@ -636,13 +636,13 @@ struct PlantHealthScannerView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Image(systemName: "paintpalette.fill").font(.system(size: 16)).foregroundColor(.cyan)
-                Text("Analyse colorimétrique locale").font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
+                Text(NSLocalizedString("SCAN_LOCAL_ANALYSIS_TITLE", comment: "")).font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
             }
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                metricPill(icon: "leaf.fill", label: "Sain", value: metrics.greenRatio, color: .green)
-                metricPill(icon: "sun.min.fill", label: "Chlorose", value: metrics.yellowRatio, color: .yellow)
-                metricPill(icon: "drop.fill", label: "Nécrose", value: metrics.brownRatio, color: .orange)
-                metricPill(icon: "sparkles", label: "Uniformité", value: 1.0 - min(metrics.luminanceStdDev * 3, 1.0), color: .cyan)
+                metricPill(icon: "leaf.fill", label: NSLocalizedString("SCAN_METRIC_HEALTHY", comment: ""), value: metrics.greenRatio, color: .green)
+                metricPill(icon: "sun.min.fill", label: NSLocalizedString("SCAN_METRIC_CHLOROSIS", comment: ""), value: metrics.yellowRatio, color: .yellow)
+                metricPill(icon: "drop.fill", label: NSLocalizedString("SCAN_METRIC_NECROSIS", comment: ""), value: metrics.brownRatio, color: .orange)
+                metricPill(icon: "sparkles", label: NSLocalizedString("SCAN_METRIC_UNIFORMITY", comment: ""), value: 1.0 - min(metrics.luminanceStdDev * 3, 1.0), color: .cyan)
             }
         }.padding(20).liquidGlass()
     }
@@ -662,7 +662,7 @@ struct PlantHealthScannerView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
                 Image(systemName: "lightbulb.fill").font(.system(size: 16)).foregroundColor(.yellow)
-                Text("Recommandations").font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
+                Text(NSLocalizedString("SCAN_RECOMMENDATIONS_TITLE", comment: "")).font(.system(size: 16, weight: .semibold)).foregroundColor(.white)
             }
             ForEach(Array(recs.enumerated()), id: \.offset) { _, rec in
                 HStack(alignment: .top, spacing: 12) {
@@ -689,7 +689,7 @@ struct PlantHealthScannerView: View {
                     .frame(width: 60, height: 60).liquidGlass()
             }
             Button(action: { dismiss() }) {
-                Text("Terminer").font(.system(size: 17, weight: .bold)).foregroundColor(.black)
+                Text(NSLocalizedString("SCAN_DONE", comment: "")).font(.system(size: 17, weight: .bold)).foregroundColor(.black)
                     .frame(maxWidth: .infinity).frame(height: 60)
                     .background(LinearGradient(colors: [Color(hex: "#BBF7D0"), Color(hex: "#4ADE80")], startPoint: .leading, endPoint: .trailing), in: RoundedRectangle(cornerRadius: 28, style: .continuous))
                     .shadow(color: Color(hex: "#4ADE80").opacity(0.3), radius: 15, y: 8)
@@ -708,17 +708,17 @@ struct PlantHealthScannerView: View {
                 Spacer()
                 Image(systemName: error.systemImage).font(.system(size: 48)).foregroundColor(.orange).frame(width: 100, height: 100).background(.ultraThinMaterial, in: Circle()).overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
                 VStack(spacing: 12) {
-                    Text("Analyse impossible").font(.system(size: 24, weight: .bold)).foregroundColor(.white)
+                    Text(NSLocalizedString("SCAN_FAILED_TITLE", comment: "")).font(.system(size: 24, weight: .bold)).foregroundColor(.white)
                     Text(error.localizedDescription).font(.system(size: 16)).foregroundColor(.white.opacity(0.7)).multilineTextAlignment(.center).padding(.horizontal, 40)
                 }
                 VStack(spacing: 16) {
                     Button(action: { scanner.reset(); camera.capturedImage = nil }) {
-                        HStack(spacing: 10) { Image(systemName: "arrow.counterclockwise"); Text("Réessayer") }
+                        HStack(spacing: 10) { Image(systemName: "arrow.counterclockwise"); Text(NSLocalizedString("SCAN_RETRY", comment: "")) }
                             .font(.system(size: 17, weight: .semibold)).foregroundColor(.black).frame(maxWidth: .infinity).frame(height: 56)
                             .background(Color.white, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                     }
                     Button(action: { dismiss() }) {
-                        Text("Fermer").font(.system(size: 17, weight: .semibold)).foregroundColor(.white).frame(maxWidth: .infinity).frame(height: 56).liquidGlass()
+                        Text(NSLocalizedString("SCAN_CLOSE", comment: "")).font(.system(size: 17, weight: .semibold)).foregroundColor(.white).frame(maxWidth: .infinity).frame(height: 56).liquidGlass()
                     }
                 }.padding(.horizontal, 40)
                 Spacer()
@@ -739,11 +739,11 @@ struct PlantHealthScannerView: View {
     }
     private func diagnosisText(for health: Double) -> String {
         switch health {
-        case 0.80...1.0: return "Excellente santé"
-        case 0.65..<0.80: return "Bonne santé"
-        case 0.50..<0.65: return "Signes de faiblesse"
-        case 0.30..<0.50: return "Plante stressée"
-        default: return "Plante en mauvais état"
+        case 0.80...1.0: return NSLocalizedString("SCAN_VERDICT_EXCELLENT", comment: "")
+        case 0.65..<0.80: return NSLocalizedString("SCAN_VERDICT_GOOD", comment: "")
+        case 0.50..<0.65: return NSLocalizedString("SCAN_VERDICT_WEAK", comment: "")
+        case 0.30..<0.50: return NSLocalizedString("SCAN_VERDICT_STRESSED", comment: "")
+        default: return NSLocalizedString("SCAN_VERDICT_POOR", comment: "")
         }
     }
 }

@@ -1970,3 +1970,67 @@
 "CHATBOT_ERROR_GENERIC" = "Der Assistent konnte nicht antworten. Versuche es gleich noch einmal.";
 "CHATBOT_ERROR_AI_DISABLED" = "Der Assistent ist in deinen Datenschutzeinstellungen deaktiviert. Aktiviere „KI-Diagnose und Assistent“, um ihn zu nutzen.";
 "SCAN_WARNING_AI_DISABLED" = "KI-Analyse in deinen Einstellungen deaktiviert — Ergebnisse basieren auf der Farbanalyse, das Foto hat das Gerät nicht verlassen.";
+
+/* Assistant et scan santé — ces écrans étaient entièrement figés
+   en français jusqu'à #578. */
+"CHATBOT_TITLE" = "Chat";
+"CHATBOT_HEADER_SUBTITLE" = "Stelle Arbore deine Fragen rund ums Gärtnern.";
+"CHATBOT_NEW_CONVERSATION" = "Neue Unterhaltung";
+"CHATBOT_CANCEL" = "Abbrechen";
+"CHATBOT_RENAME_PROMPT" = "Gib dieser Unterhaltung einen neuen Namen.";
+"CHATBOT_EMPTY_TITLE" = "Keine Unterhaltungen";
+"CHATBOT_EMPTY_SUBTITLE" = "Beginne eine neue Unterhaltung\nmit dem Garten-Assistenten.";
+"CHATBOT_NEW_CHAT" = "Neuer Chat";
+"CHATBOT_ASK_TITLE" = "Stelle deine Frage";
+"CHATBOT_ASK_SUBTITLE" = "Ich helfe bei Garten, Pflanzen,\nPflege und vielem mehr.";
+"CHATBOT_PHOTO_SELECTED" = "Foto ausgewählt";
+"CHATBOT_PHOTO_HINT" = "Zum Analysieren auf Senden tippen";
+"SCAN_CAMERA_REQUIRED" = "Kamerazugriff erforderlich";
+"SCAN_OPEN_SETTINGS" = "Einstellungen öffnen";
+"SCAN_ANALYSING" = "Analyse läuft…";
+"SCAN_ANALYSING_SUBTITLE" = "Künstliche Intelligenz & Farbanalyse";
+"SCAN_STEP_QUALITY" = "Bildqualität geprüft";
+"SCAN_STEP_PLANT" = "Pflanze erkannt";
+"SCAN_STEP_COLOUR" = "Farbanalyse…";
+"SCAN_STEP_AI" = "KI-Diagnose läuft…";
+"SCAN_CONFIDENCE_LABEL" = "KI-Konfidenzwert";
+"SCAN_SPECIES_LABEL" = "Erkannte Art";
+"SCAN_ISSUES_TITLE" = "Erkannte Probleme";
+"SCAN_LOCAL_ANALYSIS_TITLE" = "Lokale Farbanalyse";
+"SCAN_METRIC_HEALTHY" = "Gesund";
+"SCAN_METRIC_CHLOROSIS" = "Chlorose";
+"SCAN_METRIC_NECROSIS" = "Nekrose";
+"SCAN_METRIC_UNIFORMITY" = "Gleichmäßigkeit";
+"SCAN_RECOMMENDATIONS_TITLE" = "Empfehlungen";
+"SCAN_DONE" = "Fertig";
+"SCAN_FAILED_TITLE" = "Analyse nicht möglich";
+"SCAN_RETRY" = "Erneut versuchen";
+"SCAN_CLOSE" = "Schließen";
+"SCAN_VERDICT_EXCELLENT" = "Ausgezeichneter Zustand";
+"SCAN_VERDICT_GOOD" = "Guter Zustand";
+"SCAN_VERDICT_WEAK" = "Anzeichen von Schwäche";
+"SCAN_VERDICT_STRESSED" = "Pflanze unter Stress";
+"SCAN_VERDICT_POOR" = "Pflanze in schlechtem Zustand";
+
+/* Scan santé — ces clés existaient dans le code avec un repli français
+   en dur, mais n'étaient définies dans aucune langue (#578). */
+"SCAN_ADVICE_CHLOROSIS" = "Vergilbung erkannt → prüfe Bewässerung und Stickstoffversorgung.";
+"SCAN_ADVICE_GENERAL" = "Pflege anpassen: Licht, Bewässerung, Dünger.";
+"SCAN_ADVICE_HEALTHY" = "Deine Pflanze wirkt gesund. Mach mit der Pflege weiter.";
+"SCAN_ADVICE_NECROSIS" = "Braune Flecken → auf Pilzbefall oder Verbrennungen achten.";
+"SCAN_CAPTURE_HINT" = "Zum Scannen der Pflanze tippen";
+"SCAN_DISEASE_CHLOROSIS" = "Chlorose (Vergilbung)";
+"SCAN_DISEASE_NECROSIS" = "Nekrose (braune Flecken)";
+"SCAN_DISEASE_PARASITES" = "Mögliche Schädlinge";
+"SCAN_ERROR_BLURRY" = "Bild zu unscharf. Halte das Gerät ruhig und versuche es erneut.";
+"SCAN_ERROR_CAMERA" = "Kamera nicht verfügbar.";
+"SCAN_ERROR_GEMINI_FORMAT" = "Fehler bei der KI-Analyse: %@";
+"SCAN_ERROR_LOW_BRIGHTNESS" = "Zu wenig Licht. Geh näher an eine Lichtquelle.";
+"SCAN_ERROR_NO_PLANT" = "Keine Pflanze erkannt. Rahme das Blattwerk richtig ein.";
+"SCAN_ERROR_TIMEOUT" = "Die Analyse hat zu lange gedauert. Versuche es erneut.";
+"SCAN_GUIDE_LIGHT" = "Mehr Licht nötig";
+"SCAN_GUIDE_TEXT" = "Blattwerk einrahmen";
+"SCAN_WARNING_AI_UNAVAILABLE" = "KI-Analyse nicht verfügbar, Ergebnisse basieren auf der Farbanalyse";
+"SCAN_WARNING_LOW_PLANT_CONFIDENCE_FORMAT" = "Pflanzenerkennung unsicher (%d%%)";
+"SCAN_WARNING_NO_JPEG" = "Bildkomprimierung fehlgeschlagen, Ergebnisse basieren auf der Farbanalyse";
+"SCAN_WARNING_UNCERTAIN" = "Unsichere Diagnose, die Ergebnisse sind nur Anhaltspunkte";

@@ -819,8 +819,8 @@
 
 // Privacy Settings - AI
 "PRIVACYSETTINGS_SECTION_AI" = "Artificial intelligence";
-"PRIVACYSETTINGS_AI_TITLE" = "AI processing";
-"PRIVACYSETTINGS_AI_SUB" = "Health diagnosis and assistant, processed by Mistral AI (EU)";
+"PRIVACYSETTINGS_AI_TITLE" = "AI diagnosis and assistant";
+"PRIVACYSETTINGS_AI_SUB" = "On: photos and messages analysed by Mistral AI (EU). Off: the scan stays on your device, the assistant is unavailable.";
 
 // Privacy Settings - Notifications
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notifications";
@@ -1984,3 +1984,5 @@
 "CHATBOT_ERROR_BLOCKED" = "Response blocked for safety reasons.";
 "CHATBOT_ERROR_INVALID" = "Unreadable response. Rephrase your question or try again.";
 "CHATBOT_ERROR_GENERIC" = "The assistant could not reply. Try again in a moment.";
+"CHATBOT_ERROR_AI_DISABLED" = "The assistant is turned off in your privacy settings. Enable “AI diagnosis and assistant” to use it.";
+"SCAN_WARNING_AI_DISABLED" = "AI analysis turned off in your settings — results based on colour analysis, the photo never left your device.";

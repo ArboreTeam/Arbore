@@ -589,6 +589,15 @@ struct ChatBotView: View {
             .sorted(by: { $0.timestamp < $1.timestamp })
             .dropLast()
 
+        // Réglage éteint : rien ne part. L'assistant n'a pas d'équivalent local
+        // — contrairement au scan santé, qui se rabat sur la colorimétrie — donc
+        // il s'efface au lieu de se dégrader (#549).
+        guard AIProcessingPreference.estAutorise else {
+            isTyping = false
+            apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_AI_DISABLED", comment: "")
+            return
+        }
+
         Task {
             do {
                 let service = GeminiService()

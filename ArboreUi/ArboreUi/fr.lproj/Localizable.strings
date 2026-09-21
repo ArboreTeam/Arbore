@@ -269,7 +269,7 @@
 "PRIVACY_SECTION_DATA_ITEM3" = "Jardins & RA : plantes sélectionnées, positions 3D, réponses au questionnaire, ville et position approximative si tu l’autorises.";
 "PRIVACY_SECTION_DATA_ITEM4" = "Consentements : type, version, date serveur et informations techniques limitées de l’application.";
 "PRIVACY_SECTION_DATA_ITEM5" = "Restent sur ton appareil : images brutes de la caméra et du LiDAR, mouvement et cartes spatiales ARKit. Une photo n’est envoyée que si tu l’ajoutes au chatbot ou au diagnostic.";
-"PRIVACY_SECTION_DATA_ITEM6" = "Diagnostic santé & assistant : les photos que tu envoies pour un diagnostic, ainsi que tes messages, sont transmis à nos serveurs puis à Google (Gemini) pour être analysés, y compris hors de l'Union européenne.";
+"PRIVACY_SECTION_DATA_ITEM6" = "Diagnostic santé & assistant : les photos que tu envoies pour un diagnostic, ainsi que tes messages, sont transmis à nos serveurs puis à Mistral AI, hébergé dans l'Union européenne, pour être analysés. Ils ne servent pas à entraîner de modèle.";
 "PRIVACY_SECTION_DATA_ITEM7" = "Journaux techniques : ton adresse IP est traitée pour limiter les abus et sécuriser le service. Elle n’est jamais enregistrée en base, et n’apparaît dans les journaux serveur que tronquée (par exemple 92.184.105.x).";
 "PRIVACY_SECTION_DATA_ITEM8" = "Rapports de plantage : anonymes par défaut — pile d’appel, version de l’app et modèle d’appareil, sans aucun identifiant. Si tu actives « Rattacher les diagnostics à mon compte », ton identifiant Firebase y est ajouté pour relier plusieurs incidents.";
 
@@ -297,7 +297,7 @@
 
 // Partage
 "PRIVACY_SECTION_SHARING_TITLE" = "Partage & destinataires";
-"PRIVACY_SECTION_SHARING_ITEM1" = "Sous-traitants : Firebase et Google (dont Gemini), Apple, MongoDB Atlas, Cloudflare, Unsplash, Mistral, OpenAI, et Sentry pour les rapports de plantage.";
+"PRIVACY_SECTION_SHARING_ITEM1" = "Sous-traitants : Firebase (Google), Apple, MongoDB Atlas, Cloudflare, Mistral AI pour le diagnostic santé et l'assistant, et Sentry pour les rapports de plantage.";
 "PRIVACY_SECTION_SHARING_ITEM2" = "Aucune publicité et aucun suivi entre applications.";
 "PRIVACY_SECTION_SHARING_ITEM3" = "Nous ne vendons jamais tes données. Les transferts sont limités au nécessaire et encadrés par contrat.";
 
@@ -321,7 +321,7 @@
 
 // Transferts internationaux
 "PRIVACY_SECTION_TRANSFERS_TITLE" = "Transferts internationaux";
-"PRIVACY_SECTION_TRANSFERS_ITEM1" = "Lorsque des données sont traitées hors UE/EEE (ex. par Google, Apple, MongoDB, Cloudflare), nous appliquons des garanties appropriées : clauses contractuelles types et, le cas échéant, le cadre UE–États-Unis (Data Privacy Framework).";
+"PRIVACY_SECTION_TRANSFERS_ITEM1" = "Lorsque des données sont traitées hors UE/EEE (ex. par Firebase, Apple, MongoDB, Cloudflare), nous appliquons des garanties appropriées : clauses contractuelles types et, le cas échéant, le cadre UE–États-Unis (Data Privacy Framework). Le diagnostic santé et l'assistant, eux, sont traités dans l'Union européenne.";
 
 // Contact
 "PRIVACY_CONTACT_TITLE" = "Nous contacter";
@@ -420,7 +420,7 @@
 
 // Services tiers
 "TERMS_SECTION_THIRDPARTY_TITLE" = "Services tiers";
-"TERMS_SECTION_THIRDPARTY_ITEM1" = "Arbore repose sur des services tiers (Firebase, Apple, MongoDB, Cloudflare, Unsplash) ; leurs propres conditions s’appliquent.";
+"TERMS_SECTION_THIRDPARTY_ITEM1" = "Arbore repose sur des services tiers (Firebase, Apple, MongoDB, Cloudflare, Mistral AI) ; leurs propres conditions s’appliquent.";
 "TERMS_SECTION_THIRDPARTY_ITEM2" = "Ces Conditions sont conclues entre toi et Arbore, pas Apple. Le contrat de licence type d’Apple s’applique à défaut de contrat propre, et Apple est tiers bénéficiaire des présentes.";
 
 // Disponibilité & modifications
@@ -945,7 +945,7 @@
 // Privacy Settings - AI
 "PRIVACYSETTINGS_SECTION_AI" = "Intelligence artificielle";
 "PRIVACYSETTINGS_AI_TITLE" = "Traitement IA";
-"PRIVACYSETTINGS_AI_SUB" = "Génération de plantes avec OpenAI";
+"PRIVACYSETTINGS_AI_SUB" = "Diagnostic santé et assistant, traités par Mistral AI (UE)";
 
 // Privacy Settings - Notifications
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notifications";
@@ -2004,3 +2004,10 @@
 "AR_CATALOG_REASON_COASTAL_CONFLICT" = "Elle risque de mal supporter les embruns ou le sel.";
 "AR_CATALOG_REASON_WIDTH_MATCH" = "Son développement adulte tient dans la largeur disponible.";
 "AR_CATALOG_REASON_WIDTH_CONFLICT" = "Sa largeur adulte dépasse l’espace disponible.";
+
+/* Assistant — messages d'erreur. Neutres : l'utilisateur ne peut rien
+   faire du nom du prestataire, et celui-ci peut changer (#549, #555). */
+"CHATBOT_ERROR_UNAVAILABLE" = "L'assistant est momentanément indisponible. Réessaie dans quelques instants.";
+"CHATBOT_ERROR_BLOCKED" = "Réponse bloquée pour des raisons de sécurité.";
+"CHATBOT_ERROR_INVALID" = "Réponse illisible. Reformule ta question ou réessaie.";
+"CHATBOT_ERROR_GENERIC" = "L'assistant n'a pas pu répondre. Réessaie dans quelques instants.";

@@ -609,27 +609,27 @@ struct ChatBotView: View {
             } catch GeminiError.noAPIKey {
                 await MainActor.run {
                     isTyping = false
-                    apiErrorMessage = "Clé API Gemini manquante. Obtenez-en une sur https://aistudio.google.com/apikey"
+                    apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_UNAVAILABLE", comment: "")
                 }
             } catch GeminiError.blocked {
                 await MainActor.run {
                     isTyping = false
-                    apiErrorMessage = "Réponse bloquée pour des raisons de sécurité."
+                    apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_BLOCKED", comment: "")
                 }
             } catch GeminiError.invalidResponse {
                 await MainActor.run {
                     isTyping = false
-                    apiErrorMessage = "Réponse invalide de l'API Gemini."
+                    apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_INVALID", comment: "")
                 }
             } catch GeminiError.requestFailed(let underlying) {
                 await MainActor.run {
                     isTyping = false
-                    apiErrorMessage = "Erreur Gemini : \((underlying as? LocalizedError)?.errorDescription ?? underlying.localizedDescription)"
+                    apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_GENERIC", comment: "")
                 }
             } catch {
                 await MainActor.run {
                     isTyping = false
-                    apiErrorMessage = "Erreur : \(error.localizedDescription)"
+                    apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_GENERIC", comment: "")
                 }
             }
         }

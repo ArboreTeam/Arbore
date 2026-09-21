@@ -3374,7 +3374,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                             props.autoPlaceTotal = 0
                             props.autoPlaceCurrentName = ""
                             withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                                props.autoPlaceToast = "Aucun modèle 3D disponible — ajoutez vos plantes manuellement"
+                                props.autoPlaceToast = L10n.t("AR_TOAST_NO_MODELS")
                             }
                             UINotificationFeedbackGenerator().notificationOccurred(.warning)
                             return
@@ -3454,9 +3454,9 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                         props.autoPlaceCurrentName = ""
                                         let toastText: String
                                         if skipped > 0 {
-                                            toastText = "\(totalCount) plantes placées (\(skipped) sans modèle) — Déplacez-les !"
+                                            toastText = L10n.f("AR_TOAST_PLACED_WITH_SKIPPED_FORMAT", totalCount, skipped)
                                         } else {
-                                            toastText = "\(totalCount) plantes placées — Déplacez-les !"
+                                            toastText = L10n.f("AR_TOAST_PLACED_FORMAT", totalCount)
                                         }
                                         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                                             props.autoPlaceToast = toastText

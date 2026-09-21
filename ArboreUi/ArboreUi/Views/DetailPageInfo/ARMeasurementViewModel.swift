@@ -49,25 +49,25 @@ class ARMeasurementViewModel: NSObject, ObservableObject {
         case .scanSurface:
             return MeasurementInstruction(
                 title: NSLocalizedString("MEASURE_STEP_SCAN_TITLE", comment: "Scan"),
-                description: "Bougez l'appareil pour détecter le sol",
+                description: L10n.t("MEASURE_STEP_SCAN_DESC"),
                 icon: "camera.metering.center.weighted"
             )
         case .measureDiameter:
             return MeasurementInstruction(
                 title: NSLocalizedString("MEASURE_STEP_DIAMETER_TITLE", comment: "Diamètre"),
-                description: diameterStartPoint == nil ? "Placez le premier point au bord" : "Placez le second point à l'opposé",
+                description: L10n.t(diameterStartPoint == nil ? "MEASURE_STEP_DIAMETER_DESC_FIRST" : "MEASURE_STEP_DIAMETER_DESC_SECOND"),
                 icon: "arrow.left.and.right"
             )
         case .measureHeight:
             return MeasurementInstruction(
                 title: NSLocalizedString("MEASURE_STEP_HEIGHT_TITLE", comment: "Hauteur"),
-                description: heightBasePoint == nil ? "Touchez le sol à la base du pot" : "Levez le téléphone jusqu'au haut du pot",
+                description: L10n.t(heightBasePoint == nil ? "MEASURE_STEP_HEIGHT_DESC_BASE" : "MEASURE_STEP_HEIGHT_DESC_TOP"),
                 icon: "arrow.up.and.down"
             )
         case .complete:
             return MeasurementInstruction(
                 title: NSLocalizedString("MEASURE_STEP_COMPLETE_TITLE", comment: "Fini"),
-                description: "Mesures terminées !",
+                description: L10n.t("MEASURE_STEP_COMPLETE_DESC"),
                 icon: "checkmark.circle.fill"
             )
         }

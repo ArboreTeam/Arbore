@@ -29,25 +29,25 @@ extension NetworkError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            return "URL invalide"
+            return L10n.t("NET_ERROR_INVALID_URL")
         case .noUser:
-            return "Utilisateur non connecté"
+            return L10n.t("NET_ERROR_NO_USER")
         case .noToken:
-            return "Token d'authentification manquant"
+            return L10n.t("NET_ERROR_NO_TOKEN")
         case .serverError(let message):
-            return "Erreur serveur: \(message)"
+            return L10n.f("NET_ERROR_SERVER_FORMAT", message)
         case .unauthorized:
-            return "Non autorisé - Token invalide ou expiré"
+            return L10n.t("NET_ERROR_UNAUTHORIZED")
         case .forbidden:
-            return "Accès interdit - Compte banni ou permissions insuffisantes"
+            return L10n.t("NET_ERROR_FORBIDDEN")
         case .emailNotVerified:
-            return "Email non vérifié - vérifie ta boîte mail pour activer ton compte"
+            return L10n.t("NET_ERROR_EMAIL_NOT_VERIFIED")
         case .accountRequired:
             return L10n.t("GUEST_ACCOUNT_REQUIRED_MESSAGE")
         case .notFound:
-            return "Ressource introuvable"
+            return L10n.t("NET_ERROR_NOT_FOUND")
         case .decodingError(let error):
-            return "Erreur de décodage: \(error.localizedDescription)"
+            return L10n.f("NET_ERROR_DECODING_FORMAT", error.localizedDescription)
         }
     }
 }
@@ -187,14 +187,14 @@ class NetworkManager {
             do {
                 request.httpBody = try JSONSerialization.data(withJSONObject: body)
             } catch {
-                throw NetworkError.serverError("Erreur sérialisation JSON: \(error.localizedDescription)")
+                throw NetworkError.serverError(L10n.f("NET_ERROR_JSON_FORMAT", error.localizedDescription))
             }
         }
 
         var (data, response) = try await performWithRetry(request)
 
         guard var httpResponse = response as? HTTPURLResponse else {
-            throw NetworkError.serverError("Réponse invalide")
+            throw NetworkError.serverError(L10n.t("NET_ERROR_INVALID_RESPONSE"))
         }
 
         // 401 → l'ID token en cache a peut-être été invalidé côté backend.
@@ -205,7 +205,7 @@ class NetworkManager {
             request.setValue("Bearer \(freshToken)", forHTTPHeaderField: "Authorization")
             (data, response) = try await performWithRetry(request)
             guard let retried = response as? HTTPURLResponse else {
-                throw NetworkError.serverError("Réponse invalide")
+                throw NetworkError.serverError(L10n.t("NET_ERROR_INVALID_RESPONSE"))
             }
             httpResponse = retried
         }
@@ -315,7 +315,7 @@ class NetworkManager {
         var (data, response) = try await performWithRetry(request)
 
         guard var httpResponse = response as? HTTPURLResponse else {
-            throw NetworkError.serverError("Réponse invalide")
+            throw NetworkError.serverError(L10n.t("NET_ERROR_INVALID_RESPONSE"))
         }
 
         // 401 → refresh forcé + un seul retry (cf. request<T>).
@@ -324,7 +324,7 @@ class NetworkManager {
             request.setValue("Bearer \(freshToken)", forHTTPHeaderField: "Authorization")
             (data, response) = try await performWithRetry(request)
             guard let retried = response as? HTTPURLResponse else {
-                throw NetworkError.serverError("Réponse invalide")
+                throw NetworkError.serverError(L10n.t("NET_ERROR_INVALID_RESPONSE"))
             }
             httpResponse = retried
         }
@@ -384,14 +384,14 @@ class NetworkManager {
             do {
                 request.httpBody = try JSONSerialization.data(withJSONObject: body)
             } catch {
-                throw NetworkError.serverError("Erreur sérialisation JSON: \(error.localizedDescription)")
+                throw NetworkError.serverError(L10n.f("NET_ERROR_JSON_FORMAT", error.localizedDescription))
             }
         }
 
         let (data, response) = try await performWithRetry(request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw NetworkError.serverError("Réponse invalide")
+            throw NetworkError.serverError(L10n.t("NET_ERROR_INVALID_RESPONSE"))
         }
 
         switch httpResponse.statusCode {

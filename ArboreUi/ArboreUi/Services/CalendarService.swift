@@ -273,9 +273,9 @@ enum CalendarServiceError: LocalizedError {
         case .noCalendarSource:
             return "Aucune source de calendrier disponible sur cet appareil."
         case .invalidDate:
-            return "Impossible de calculer la date de l'événement."
+            return L10n.t("CALENDAR_ERROR_INVALID_DATE")
         case .accessDenied:
-            return "L'accès au calendrier a été refusé."
+            return L10n.t("CALENDAR_ERROR_ACCESS_DENIED")
         }
     }
 }

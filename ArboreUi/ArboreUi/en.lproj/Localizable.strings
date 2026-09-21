@@ -2050,3 +2050,38 @@
 "SCAN_WARNING_LOW_PLANT_CONFIDENCE_FORMAT" = "Uncertain plant detection (%d%%)";
 "SCAN_WARNING_NO_JPEG" = "Image compression failed, results based on colour analysis";
 "SCAN_WARNING_UNCERTAIN" = "Uncertain diagnosis, results are indicative only";
+
+/* Réseau, mesure AR et aperçu de morphing — littéraux français
+   sortis du code lors du tri de #578. */
+"NET_ERROR_INVALID_URL" = "Invalid URL";
+"NET_ERROR_NO_USER" = "You are not signed in";
+"NET_ERROR_NO_TOKEN" = "Missing authentication token";
+"NET_ERROR_SERVER_FORMAT" = "Server error: %@";
+"NET_ERROR_UNAUTHORIZED" = "Not authorised: invalid or expired token";
+"NET_ERROR_FORBIDDEN" = "Access denied: account banned or insufficient permissions";
+"NET_ERROR_EMAIL_NOT_VERIFIED" = "Email not verified. Check your inbox to activate your account.";
+"NET_ERROR_NOT_FOUND" = "Resource not found";
+"NET_ERROR_DECODING_FORMAT" = "Decoding error: %@";
+"MEASURE_STEP_SCAN_DESC" = "Move the device to detect the floor";
+"MEASURE_STEP_DIAMETER_DESC_FIRST" = "Place the first point on the rim";
+"MEASURE_STEP_DIAMETER_DESC_SECOND" = "Place the second point opposite";
+"MEASURE_STEP_HEIGHT_DESC_BASE" = "Tap the floor at the base of the pot";
+"MEASURE_STEP_HEIGHT_DESC_TOP" = "Raise the phone to the top of the pot";
+"MEASURE_STEP_COMPLETE_DESC" = "Measurements complete";
+"AR_TOAST_NO_MODELS" = "No 3D model available. Add your plants manually.";
+"AR_MORPH_RELIABLE_TITLE" = "Reliable placement";
+"AR_MORPH_RELIABLE_SUBTITLE" = "All plants were placed successfully";
+"AR_MORPH_CHECK_TITLE" = "%d plant to check";
+"AR_MORPH_CHECK_TITLE_PLURAL" = "%d plants to check";
+"AR_MORPH_CHECK_SUBTITLE" = "Some areas have changed a lot";
+"AR_MORPH_WATCH_TITLE" = "%d plant to watch";
+"AR_MORPH_WATCH_TITLE_PLURAL" = "%d plants to watch";
+"AR_MORPH_WATCH_SUBTITLE" = "Slight shape differences detected";
+"AR_TOAST_PLACED_FORMAT" = "%d plants placed. Move them as you like.";
+"AR_TOAST_PLACED_WITH_SKIPPED_FORMAT" = "%d plants placed (%d without a model). Move them as you like.";
+"CALENDAR_ERROR_INVALID_DATE" = "Could not work out the event date.";
+"CALENDAR_ERROR_ACCESS_DENIED" = "Calendar access was denied.";
+"GARDEN_SAVE_FAILED" = "Could not save the garden. Check your connection and try again.";
+"GARDEN_STYLE_CUSTOM" = "Custom";
+"NET_ERROR_INVALID_RESPONSE" = "Invalid response";
+"NET_ERROR_JSON_FORMAT" = "JSON serialisation error: %@";

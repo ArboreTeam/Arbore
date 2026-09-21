@@ -2030,3 +2030,38 @@
 "SCAN_WARNING_LOW_PLANT_CONFIDENCE_FORMAT" = "Detección de planta incierta (%d%%)";
 "SCAN_WARNING_NO_JPEG" = "Fallo al comprimir la imagen; resultados basados en la colorimetría";
 "SCAN_WARNING_UNCERTAIN" = "Diagnóstico incierto; los resultados son orientativos";
+
+/* Réseau, mesure AR et aperçu de morphing — littéraux français
+   sortis du code lors du tri de #578. */
+"NET_ERROR_INVALID_URL" = "URL no válida";
+"NET_ERROR_NO_USER" = "No has iniciado sesión";
+"NET_ERROR_NO_TOKEN" = "Falta el token de autenticación";
+"NET_ERROR_SERVER_FORMAT" = "Error del servidor: %@";
+"NET_ERROR_UNAUTHORIZED" = "No autorizado: token no válido o caducado";
+"NET_ERROR_FORBIDDEN" = "Acceso denegado: cuenta bloqueada o permisos insuficientes";
+"NET_ERROR_EMAIL_NOT_VERIFIED" = "Correo no verificado. Revisa tu bandeja de entrada para activar tu cuenta.";
+"NET_ERROR_NOT_FOUND" = "Recurso no encontrado";
+"NET_ERROR_DECODING_FORMAT" = "Error de decodificación: %@";
+"MEASURE_STEP_SCAN_DESC" = "Mueve el dispositivo para detectar el suelo";
+"MEASURE_STEP_DIAMETER_DESC_FIRST" = "Coloca el primer punto en el borde";
+"MEASURE_STEP_DIAMETER_DESC_SECOND" = "Coloca el segundo punto en el lado opuesto";
+"MEASURE_STEP_HEIGHT_DESC_BASE" = "Toca el suelo en la base de la maceta";
+"MEASURE_STEP_HEIGHT_DESC_TOP" = "Levanta el teléfono hasta el borde superior de la maceta";
+"MEASURE_STEP_COMPLETE_DESC" = "Mediciones completadas";
+"AR_TOAST_NO_MODELS" = "No hay modelo 3D disponible. Añade tus plantas manualmente.";
+"AR_MORPH_RELIABLE_TITLE" = "Colocación fiable";
+"AR_MORPH_RELIABLE_SUBTITLE" = "Todas las plantas se han colocado correctamente";
+"AR_MORPH_CHECK_TITLE" = "%d planta por revisar";
+"AR_MORPH_CHECK_TITLE_PLURAL" = "%d plantas por revisar";
+"AR_MORPH_CHECK_SUBTITLE" = "Algunas zonas han cambiado mucho";
+"AR_MORPH_WATCH_TITLE" = "%d planta a vigilar";
+"AR_MORPH_WATCH_TITLE_PLURAL" = "%d plantas a vigilar";
+"AR_MORPH_WATCH_SUBTITLE" = "Se han detectado ligeras diferencias de forma";
+"AR_TOAST_PLACED_FORMAT" = "%d plantas colocadas. Muévelas a tu gusto.";
+"AR_TOAST_PLACED_WITH_SKIPPED_FORMAT" = "%d plantas colocadas (%d sin modelo). Muévelas a tu gusto.";
+"CALENDAR_ERROR_INVALID_DATE" = "No se ha podido calcular la fecha del evento.";
+"CALENDAR_ERROR_ACCESS_DENIED" = "Se ha denegado el acceso al calendario.";
+"GARDEN_SAVE_FAILED" = "No se ha podido guardar el jardín. Comprueba tu conexión e inténtalo de nuevo.";
+"GARDEN_STYLE_CUSTOM" = "Personalizado";
+"NET_ERROR_INVALID_RESPONSE" = "Respuesta no válida";
+"NET_ERROR_JSON_FORMAT" = "Error de serialización JSON: %@";

@@ -443,7 +443,7 @@ struct LiDARScanWizardView: View {
         } catch {
             print("❌ POST /gardens (LiDAR) a échoué: \(error)")
             isProcessing = false
-            createGardenError = "Impossible de sauvegarder le jardin. Vérifie ta connexion et réessaie."
+            createGardenError = L10n.t("GARDEN_SAVE_FAILED")
         }
     }
 

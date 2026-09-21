@@ -5,10 +5,11 @@ import (
 	"strings"
 )
 
-// Normalisation de la réponse de diagnostic Gemini (issue #312) : on ne renvoie
+// Normalisation de la réponse de diagnostic du fournisseur d'IA (issue #312) :
+// on ne renvoie
 // jamais au client la sortie brute du modèle, mais une structure typée, bornée
 // et sûre, respectant le contrat du décodeur iOS
-// (GeminiDiagnosticResponse dans PlantHealthScanner.swift).
+// (LLMDiagnosticResponse dans PlantHealthScanner.swift).
 
 const (
 	maxDiseases          = 10

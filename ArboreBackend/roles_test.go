@@ -257,7 +257,7 @@ func TestUserAuthorizationFieldsSurviveBSONRoundTrip(t *testing.T) {
 // un double de token Firebase (hors périmètre de #381).
 var (
 	// Atteignables sans compte durable : catalogue, modèles 3D, config, santé,
-	// les deux proxys Gemini (sur un budget de quota réduit) — et depuis #393,
+	// les deux proxys d'IA (sur un budget de quota réduit) — et depuis #393,
 	// les jardins.
 	//
 	// « Sans compte » ne veut pas dire « sans authentification » : hormis

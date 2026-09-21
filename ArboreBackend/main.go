@@ -1629,7 +1629,7 @@ func stripMarkdown(text string) string {
 	return result
 }
 
-func handleGeminiChat(c *gin.Context) {
+func handleChat(c *gin.Context) {
 	var req ChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondInvalidBody(c, err)
@@ -1751,7 +1751,7 @@ func handleGeminiChat(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"reply": cleanedText})
 }
 
-func handleGeminiDiagnose(c *gin.Context) {
+func handleDiagnose(c *gin.Context) {
 	var req DiagnoseRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondInvalidBody(c, err)
@@ -1859,7 +1859,7 @@ Les valeurs numériques sont entre 0 et 1.
 		return
 	}
 	if result.Blocked {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse Gemini vide ou bloquée"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse vide ou bloquée par le service d'IA."})
 		return
 	}
 
@@ -1868,7 +1868,7 @@ Les valeurs numériques sont entre 0 et 1.
 	lastBrace := strings.LastIndex(rawText, "}")
 
 	if firstBrace == -1 || lastBrace == -1 || firstBrace >= lastBrace {
-		log.Printf("❌ diagnose: aucun objet JSON dans la réponse Gemini (%d octets)", len(rawText))
+		log.Printf("❌ diagnose: aucun objet JSON dans la réponse du modèle (%d octets)", len(rawText))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse de diagnostic illisible."})
 		return
 	}
@@ -2201,16 +2201,16 @@ func buildRouter() *gin.Engine {
 		protected.DELETE("/gardens/:id", deleteGarden)
 		protected.POST("/climate/profile", climateProfile)
 
-		// Gemini Chat & Scanner Proxies — rate limité par uid (quota minute + jour)
-		// pour borner le coût Gemini. Le cap de corps est appliqué globalement sur
+		// Proxys d'IA (assistant et scanner) — rate limités par uid (quota minute
+		// et jour) pour borner le coût du fournisseur. Le cap de corps est appliqué globalement sur
 		// le groupe protégé (middleware.MaxBodyBytes), les timeouts par newServer.
 		//
 		// Le quota JOURNALIER est modulé par profil (#377) : c'est lui qui borne
 		// la dépense réelle, et c'est donc là que `tier` a le plus de sens. Le
 		// quota MINUTE reste uniforme — il protège le service contre les rafales,
 		// un abonné n'a aucune raison d'avoir le droit de le saturer plus vite.
-		protected.POST("/chat", chatMinuteLimiter.Middleware(), chatDailyQuota.Middleware(), handleGeminiChat)
-		protected.POST("/diagnose", diagnosisMinuteLimiter.Middleware(), diagnosisDailyQuota.Middleware(), handleGeminiDiagnose)
+		protected.POST("/chat", chatMinuteLimiter.Middleware(), chatDailyQuota.Middleware(), handleChat)
+		protected.POST("/diagnose", diagnosisMinuteLimiter.Middleware(), diagnosisDailyQuota.Middleware(), handleDiagnose)
 
 		// Consents (RGPD)
 		account.POST("/consents", recordConsent)
@@ -2313,7 +2313,8 @@ func main() {
 		return
 	}
 
-	// Sélection du fournisseur d'IA/LLM (Gemini par défaut, cf. AI_PROVIDER).
+	// Sélection du fournisseur d'IA/LLM. Le défaut du CODE reste gemini ; celui
+	// du déploiement est mistral, posé dans docker-compose.yml (#555).
 	if err := initLLMProvider(); err != nil {
 		fatalf("❌ LLM provider init failed: %v", err)
 	}

@@ -294,3 +294,9 @@ ops/secrets/*
 # Clés privées age, où qu'elles traînent.
 *.agekey
 age-key*.txt
+
+# Rapports d'analyse gitleaks. Produits par le hook local à chaque commit, ils
+# n'ont rien à faire dans l'arbre : ce sont des constats datés, pas de la
+# configuration. Un `git add -A` en a emporté un le 2026-09-21.
+gitleaks.json
+gitleaks-report.json

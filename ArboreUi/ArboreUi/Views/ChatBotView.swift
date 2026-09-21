@@ -104,7 +104,7 @@ struct ChatBotView: View {
         }, set: { newValue in
             if !newValue { conversationToRename = nil }
         })) {
-            TextField("Titre", text: $renameText)
+            TextField(NSLocalizedString("CHATBOT_RENAME_PLACEHOLDER", comment: ""), text: $renameText)
             Button(NSLocalizedString("CHATBOT_CANCEL", comment: ""), role: .cancel) {
                 conversationToRename = nil
             }
@@ -497,7 +497,7 @@ struct ChatBotView: View {
 
                 // Text field
                 HStack {
-                    TextField("Votre question...", text: $inputText)
+                    TextField(NSLocalizedString("CHATBOT_INPUT_PLACEHOLDER", comment: ""), text: $inputText)
                         .font(ArboreDesign.Typography.body)
                         .focused($isFocused)
                 }
@@ -512,7 +512,7 @@ struct ChatBotView: View {
                     let hasText = !text.isEmpty
                     let hasImage = pendingImageData != nil
                     guard hasText || hasImage else { return }
-                    sendMessage(hasText ? text : "Analyse cette plante", imageData: pendingImageData)
+                    sendMessage(hasText ? text : NSLocalizedString("CHATBOT_ANALYSE_THIS_PLANT", comment: ""), imageData: pendingImageData)
                     pendingImageData = nil
                 } label: {
                     Image(systemName: "arrow.up")
@@ -531,6 +531,18 @@ struct ChatBotView: View {
             }
             .padding(.horizontal, ArboreDesign.Spacing.md)
             .padding(.vertical, ArboreDesign.Spacing.sm)
+
+            // Avertissement sous la zone de saisie, où la convention le place :
+            // visible sans masquer la conversation, et lu au moment où l'on
+            // s'apprête à faire confiance à la réponse.
+            Text(NSLocalizedString("AI_DISCLAIMER", comment: ""))
+                .font(ArboreDesign.Typography.caption)
+                .foregroundColor(ArboreDesign.Colors.textSecondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, ArboreDesign.Spacing.md)
+                .padding(.bottom, ArboreDesign.Spacing.xs)
+                .accessibilityAddTraits(.isStaticText)
         }
         .padding(.top, 40)
         .background(
@@ -600,7 +612,7 @@ struct ChatBotView: View {
 
         Task {
             do {
-                let service = GeminiService()
+                let service = LLMService()
                 let reply = try await service.sendMessage(
                     history: historyMessages.map { MessageDTO(content: $0.content, isUser: $0.isUser) },
                     newMessage: text,
@@ -615,22 +627,22 @@ struct ChatBotView: View {
                         isTyping = false
                     }
                 }
-            } catch GeminiError.noAPIKey {
+            } catch LLMError.noAPIKey {
                 await MainActor.run {
                     isTyping = false
                     apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_UNAVAILABLE", comment: "")
                 }
-            } catch GeminiError.blocked {
+            } catch LLMError.blocked {
                 await MainActor.run {
                     isTyping = false
                     apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_BLOCKED", comment: "")
                 }
-            } catch GeminiError.invalidResponse {
+            } catch LLMError.invalidResponse {
                 await MainActor.run {
                     isTyping = false
                     apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_INVALID", comment: "")
                 }
-            } catch GeminiError.requestFailed(let underlying) {
+            } catch LLMError.requestFailed(let underlying) {
                 await MainActor.run {
                     isTyping = false
                     apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_GENERIC", comment: "")
@@ -645,7 +657,7 @@ struct ChatBotView: View {
     }
 }
 
-// MARK: - DTO for Gemini API (lightweight, non-SwiftData)
+// MARK: - DTO pour le backend d'IA (léger, hors SwiftData)
 
 struct MessageDTO {
     let content: String

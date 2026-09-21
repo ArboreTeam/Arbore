@@ -6,7 +6,7 @@ import (
 )
 
 // Garde-fous contre le détournement de prompt (prompt injection) et bornes des
-// entrées utilisateur transmises à Gemini (issue #303).
+// entrées utilisateur transmises au fournisseur d'IA (issue #303).
 
 const (
 	maxChatMessageLen    = 4000 // longueur max du message courant

@@ -5,10 +5,11 @@ import (
 	"strings"
 )
 
-// Normalisation de la réponse de diagnostic Gemini (issue #312) : on ne renvoie
+// Normalisation de la réponse de diagnostic du fournisseur d'IA (issue #312) :
+// on ne renvoie
 // jamais au client la sortie brute du modèle, mais une structure typée, bornée
 // et sûre, respectant le contrat du décodeur iOS
-// (GeminiDiagnosticResponse dans PlantHealthScanner.swift).
+// (LLMDiagnosticResponse dans PlantHealthScanner.swift).
 
 const (
 	maxDiseases          = 10
@@ -34,6 +35,15 @@ type diagnoseOut struct {
 	Diseases        []diagnoseDiseaseOut `json:"diseases"`
 	Recommendations []string             `json:"recommendations"`
 	IsUncertain     bool                 `json:"isUncertain"`
+
+	// Réconciliation avec le catalogue (#554). Absents quand l'espèce rendue
+	// par le modèle ne correspond à aucune fiche — ce qui arrive, et n'est pas
+	// une erreur : le modèle connaît plus d'espèces que notre catalogue.
+	//
+	// `omitempty` : l'app distingue « pas de fiche » de « fiche vide », et un
+	// identifiant nul l'enverrait vers une page inexistante.
+	CatalogPlantID   string `json:"catalogPlantId,omitempty"`
+	CatalogPlantName string `json:"catalogPlantName,omitempty"`
 }
 
 // Structs d'ENTRÉE — pointeurs pour distinguer « absent » de « valeur zéro ».

@@ -2040,7 +2040,7 @@
 "SCAN_DISEASE_PARASITES" = "Possible pests";
 "SCAN_ERROR_BLURRY" = "Image too blurry. Hold the device steady and try again.";
 "SCAN_ERROR_CAMERA" = "Camera unavailable.";
-"SCAN_ERROR_GEMINI_FORMAT" = "AI analysis error: %@";
+"SCAN_ERROR_AI_FORMAT" = "AI analysis error: %@";
 "SCAN_ERROR_LOW_BRIGHTNESS" = "Not enough light. Move closer to a light source.";
 "SCAN_ERROR_NO_PLANT" = "No plant detected. Frame the foliage properly.";
 "SCAN_ERROR_TIMEOUT" = "The analysis took too long. Try again.";
@@ -2085,3 +2085,10 @@
 "GARDEN_STYLE_CUSTOM" = "Custom";
 "NET_ERROR_INVALID_RESPONSE" = "Invalid response";
 "NET_ERROR_JSON_FORMAT" = "JSON serialisation error: %@";
+
+/* Avertissement IA (#585) et libellés de saisie du chat. */
+"AI_DISCLAIMER" = "AI can make mistakes. Check important advice.";
+"AI_DISCLAIMER_SCAN" = "This diagnosis is an estimate, not professional plant health advice. AI can make mistakes: when in doubt, ask a specialist.";
+"CHATBOT_RENAME_PLACEHOLDER" = "Title";
+"CHATBOT_INPUT_PLACEHOLDER" = "Your question…";
+"CHATBOT_ANALYSE_THIS_PLANT" = "Analyse this plant";

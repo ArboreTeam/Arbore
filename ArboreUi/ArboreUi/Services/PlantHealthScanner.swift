@@ -7,7 +7,7 @@
 //    1. Validation qualité (luminosité + flou)
 //    2. Détection de plante (Vision Framework)
 //    3. Analyse colorimétrique (HSL segmentation)
-//    4. Diagnostic Gemini (identification espèce + pathologie)
+//    4. Diagnostic distant (identification espèce + pathologie)
 //
 
 import Foundation
@@ -25,7 +25,7 @@ struct PlantHealthScanResult {
     let overallHealth: Double
     /// Indice de confiance global du diagnostic (0…1)
     let confidence: Double
-    /// Espèce identifiée par Gemini (nil si inconnue)
+    /// Espèce identifiée par le modèle (nil si inconnue)
     let species: String?
     /// Maladies détectées avec sévérité et confiance
     let diseases: [DetectedDisease]
@@ -37,12 +37,12 @@ struct PlantHealthScanResult {
     let qualityWarnings: [String]
     /// `true` si le diagnostic ne peut pas être fiable (confiance < 60%)
     let isUncertain: Bool
-    /// Source du diagnostic (Gemini ou colorimétrie seule)
+    /// Source du diagnostic (distante ou colorimétrie seule)
     let source: DiagnosticSource
 
     enum DiagnosticSource {
-        case gemini          // diagnostic complet via Gemini
-        case colorimetryOnly // fallback sans réseau / Gemini échoué
+        case remote          // diagnostic complet par le fournisseur d'IA
+        case colorimetryOnly // repli local : hors ligne, réglage coupé, ou échec distant
     }
 }
 
@@ -80,7 +80,7 @@ enum PlantScanError: Error, LocalizedError {
     case noPlantDetected(bestLabel: String?, bestConfidence: Double)
     case cameraUnavailable
     case analysisTimeout
-    case geminiError(String)
+    case llmError(String)
 
     var errorDescription: String? {
         switch self {
@@ -94,8 +94,8 @@ enum PlantScanError: Error, LocalizedError {
             return NSLocalizedString("SCAN_ERROR_CAMERA", value: "Caméra indisponible.", comment: "")
         case .analysisTimeout:
             return NSLocalizedString("SCAN_ERROR_TIMEOUT", value: "L'analyse a pris trop de temps. Réessayez.", comment: "")
-        case .geminiError(let msg):
-            return String(format: NSLocalizedString("SCAN_ERROR_GEMINI_FORMAT", value: "Erreur d'analyse IA : %@", comment: ""), msg)
+        case .llmError(let msg):
+            return String(format: NSLocalizedString("SCAN_ERROR_AI_FORMAT", value: "Erreur d'analyse IA : %@", comment: ""), msg)
         }
     }
 
@@ -107,7 +107,7 @@ enum PlantScanError: Error, LocalizedError {
         case .noPlantDetected: return "leaf.fill"
         case .cameraUnavailable: return "camera.fill"
         case .analysisTimeout: return "clock.fill"
-        case .geminiError: return "exclamationmark.icloud.fill"
+        case .llmError: return "exclamationmark.icloud.fill"
         }
     }
 }
@@ -452,37 +452,41 @@ struct ColorimetricAnalyzer {
 // MARK: 4 — GEMINI DIAGNOSTIC SERVICE
 // MARK: ═══════════════════════════════════════════════════════
 
-/// Service de diagnostic phytopathologique via Gemini multimodal.
+/// Service de diagnostic phytopathologique via le modèle multimodal du backend.
+///
+/// Le nom du fournisseur ne figure volontairement nulle part ici : l'app
+/// appelle `/diagnose`, et c'est le backend qui choisit (#553, #555). Il a
+/// déjà changé une fois.
 /// Envoie la photo de la plante + contexte colorimétrique + nom d'espèce (si connu)
 /// et reçoit un diagnostic structuré en JSON.
-actor GeminiDiagnosticService {
+actor RemoteDiagnosticService {
 
-    /// Réponse JSON parsée de Gemini.
-    struct GeminiDiagnosticResponse: Decodable {
+    /// Réponse JSON parsée du backend.
+    struct LLMDiagnosticResponse: Decodable {
         let species: String?
         let overallHealth: Double?
-        let diseases: [GeminiDisease]?
+        let diseases: [RemoteDisease]?
         let recommendations: [String]?
         let isUncertain: Bool?
 
-        struct GeminiDisease: Decodable {
+        struct RemoteDisease: Decodable {
             let name: String
             let severity: Double?
             let confidence: Double?
         }
     }
 
-    /// Envoie une photo de plante au backend pour diagnostic via Gemini.
+    /// Envoie une photo de plante au backend pour diagnostic.
     /// - Parameters:
     ///   - imageData: Photo JPEG de la plante.
     ///   - plantName: Nom de la plante (si connu) pour contextualiser.
     ///   - colorimetry: Résultat colorimétrique pour enrichir le prompt.
-    /// - Returns: Réponse structurée de Gemini.
+    /// - Returns: Réponse structurée du backend.
     func diagnose(
         imageData: Data,
         plantName: String?,
         colorimetry: ColorimetricResult
-    ) async throws -> GeminiDiagnosticResponse {
+    ) async throws -> LLMDiagnosticResponse {
 
         let base64Image = imageData.base64EncodedString()
         
@@ -514,18 +518,18 @@ actor GeminiDiagnosticService {
         
         guard let payloadData = try? JSONEncoder().encode(payload),
               let payloadDict = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any] else {
-            throw PlantScanError.geminiError("Impossible de sérialiser les données d'analyse")
+            throw PlantScanError.llmError("Impossible de sérialiser les données d'analyse")
         }
         
         do {
-            let response: GeminiDiagnosticResponse = try await NetworkManager.shared.request(
+            let response: LLMDiagnosticResponse = try await NetworkManager.shared.request(
                 endpoint: "/diagnose",
                 method: .POST,
                 body: payloadDict
             )
             return response
         } catch {
-            throw PlantScanError.geminiError(error.localizedDescription)
+            throw PlantScanError.llmError(error.localizedDescription)
         }
     }
 }
@@ -558,7 +562,7 @@ final class PlantHealthScanner: ObservableObject {
         case error       // erreur détectée
     }
 
-    private let geminiService = GeminiDiagnosticService()
+    private let remoteDiagnostic = RemoteDiagnosticService()
     private let ciContext = CIContext(options: [.priorityRequestLow: true])
 
     /// Nom de la plante (passé depuis PlantDetailView) pour contextualiser.
@@ -638,14 +642,14 @@ final class PlantHealthScanner: ObservableObject {
 
         if let imageData = resizedImage.jpegData(compressionQuality: 0.6) {
             do {
-                let geminiResult = try await geminiService.diagnose(
+                let llmResult = try await remoteDiagnostic.diagnose(
                     imageData: imageData,
                     plantName: plantName,
                     colorimetry: colorimetry
                 )
 
-                // Fusionner les résultats Gemini + colorimétrie
-                let diseases = (geminiResult.diseases ?? []).map { d in
+                // Fusionner le diagnostic distant et la colorimétrie
+                let diseases = (llmResult.diseases ?? []).map { d in
                     DetectedDisease(
                         name: d.name,
                         severity: d.severity ?? 0,
@@ -653,16 +657,16 @@ final class PlantHealthScanner: ObservableObject {
                     )
                 }
 
-                // Score de santé : moyenne pondérée Gemini (70%) + colorimétrie (30%)
-                let geminiHealth = geminiResult.overallHealth ?? colorimetry.healthScore
-                let combinedHealth = geminiHealth * 0.70 + colorimetry.healthScore * 0.30
+                // Score de santé : moyenne pondérée distant (70 %) + colorimétrie (30 %)
+                let llmHealth = llmResult.overallHealth ?? colorimetry.healthScore
+                let combinedHealth = llmHealth * 0.70 + colorimetry.healthScore * 0.30
 
                 // Confiance globale
                 let diseaseConfidences = diseases.map(\.confidence)
                 let avgDiseaseConf = diseaseConfidences.isEmpty ? 0.8 : diseaseConfidences.reduce(0, +) / Double(diseaseConfidences.count)
                 let globalConfidence = avgDiseaseConf
 
-                let isUncertain = geminiResult.isUncertain ?? (globalConfidence < 0.60)
+                let isUncertain = llmResult.isUncertain ?? (globalConfidence < 0.60)
 
                 if isUncertain {
                     warnings.append(
@@ -674,19 +678,19 @@ final class PlantHealthScanner: ObservableObject {
                 self.result = PlantHealthScanResult(
                     overallHealth: combinedHealth,
                     confidence: globalConfidence,
-                    species: geminiResult.species,
+                    species: llmResult.species,
                     diseases: diseases,
                     metrics: colorimetry,
-                    recommendations: geminiResult.recommendations ?? [],
+                    recommendations: llmResult.recommendations ?? [],
                     qualityWarnings: warnings,
                     isUncertain: isUncertain,
-                    source: .gemini
+                    source: .remote
                 )
                 self.phase = .result
 
             } catch {
-                // Gemini a échoué → fallback colorimétrie seule
-                print("⚠️ Gemini diagnostic failed, falling back to colorimetry: \(error)")
+                // Le diagnostic distant a échoué → repli colorimétrie seule
+                print("⚠️ Diagnostic distant en échec, repli colorimétrie : \(error)")
                 warnings.append(
                     NSLocalizedString("SCAN_WARNING_AI_UNAVAILABLE",
                         value: "Analyse IA indisponible — résultats basés sur la colorimétrie", comment: "")

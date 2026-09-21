@@ -2067,7 +2067,7 @@
 "SCAN_DISEASE_PARASITES" = "Parasites potentiels";
 "SCAN_ERROR_BLURRY" = "Image trop floue. Stabilisez l'appareil et réessayez.";
 "SCAN_ERROR_CAMERA" = "Caméra indisponible.";
-"SCAN_ERROR_GEMINI_FORMAT" = "Erreur d'analyse IA : %@";
+"SCAN_ERROR_AI_FORMAT" = "Erreur d'analyse IA : %@";
 "SCAN_ERROR_LOW_BRIGHTNESS" = "Éclairage insuffisant. Rapprochez-vous d'une source de lumière.";
 "SCAN_ERROR_NO_PLANT" = "Aucune plante détectée. Cadrez bien le feuillage.";
 "SCAN_ERROR_TIMEOUT" = "L'analyse a pris trop de temps. Réessayez.";
@@ -2112,3 +2112,10 @@
 "GARDEN_STYLE_CUSTOM" = "Personnalisé";
 "NET_ERROR_INVALID_RESPONSE" = "Réponse invalide";
 "NET_ERROR_JSON_FORMAT" = "Erreur de sérialisation JSON : %@";
+
+/* Avertissement IA (#585) et libellés de saisie du chat. */
+"AI_DISCLAIMER" = "L'IA peut se tromper. Vérifie les conseils importants.";
+"AI_DISCLAIMER_SCAN" = "Ce diagnostic est une estimation, pas un avis vétérinaire ou phytosanitaire. L'IA peut se tromper : en cas de doute, demande à un professionnel.";
+"CHATBOT_RENAME_PLACEHOLDER" = "Titre";
+"CHATBOT_INPUT_PLACEHOLDER" = "Votre question…";
+"CHATBOT_ANALYSE_THIS_PLANT" = "Analyse cette plante";

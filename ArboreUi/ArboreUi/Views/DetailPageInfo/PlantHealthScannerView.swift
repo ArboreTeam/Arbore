@@ -510,6 +510,20 @@ struct PlantHealthScannerView: View {
                         if !result.diseases.isEmpty { diseasesGlass(result.diseases) }
                         colorimetryGlass(result.metrics)
                         if !result.recommendations.isEmpty { recommendationsGlass(result.recommendations) }
+
+                        // Avertissement en fin de résultat, après les
+                        // recommandations : c'est là qu'on décide d'agir, donc
+                        // là qu'il doit être lu. Affiché aussi quand l'analyse
+                        // est restée locale, la colorimétrie étant elle aussi
+                        // une estimation.
+                        Text(NSLocalizedString("AI_DISCLAIMER_SCAN", comment: ""))
+                            .font(.system(size: 12))
+                            .foregroundColor(.white.opacity(0.55))
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: .infinity)
+                            .padding(.horizontal, 8)
+                            .padding(.top, 4)
+
                         Color.clear.frame(height: 100) // Espace pour boutons fixes
                     }
                     .padding(.horizontal, 16)
@@ -543,7 +557,7 @@ struct PlantHealthScannerView: View {
             .foregroundColor(result.isUncertain ? .orange : .green).padding(.vertical, 8).padding(.horizontal, 14)
             .background(.ultraThinMaterial, in: Capsule()).overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 1))
             Spacer()
-            Image(systemName: result.source == .gemini ? "sparkles" : "eyedropper").font(.system(size: 14)).foregroundColor(.white.opacity(0.7))
+            Image(systemName: result.source == .remote ? "sparkles" : "eyedropper").font(.system(size: 14)).foregroundColor(.white.opacity(0.7))
                 .frame(width: 40, height: 40).background(.ultraThinMaterial, in: Circle()).overlay(Circle().stroke(Color.white.opacity(0.2), lineWidth: 1))
         }
     }

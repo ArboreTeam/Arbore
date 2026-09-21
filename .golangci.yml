@@ -42,6 +42,7 @@ linters:
         - enveloppe
         - envelopper
         - respecte
+        - ressemble
         - trafic
         - exemple
         - marrage

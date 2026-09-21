@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -67,9 +68,19 @@ func normaliserNom(s string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(strings.TrimSpace(s)) {
 		switch {
+		case r == '×':
+			// Marqueur d'hybride. Le catalogue écrit « Pelargonium × hortorum »,
+			// l'utilisateur tape « pelargonium x hortorum » : les deux doivent
+			// se rejoindre.
+			b.WriteRune('x')
 		case unicode.IsLetter(r) || unicode.IsDigit(r):
 			b.WriteRune(sansAccent(r))
-		case unicode.IsSpace(r) || r == '-' || r == '\'':
+		default:
+			// TOUT le reste sépare, au lieu d'être supprimé. Les libellés du
+			// catalogue sont commerciaux et portent apostrophes typographiques,
+			// tirets demi-cadratins, parenthèses et « + » : les faire
+			// disparaître collait les mots entre eux et rendait la fiche
+			// introuvable (« Scindapsus N'Joy » devenait « scindapsus njoy »).
 			b.WriteRune(' ')
 		}
 	}
@@ -115,15 +126,19 @@ func chargerCatalogue(ctx context.Context, db *mongo.Database) []ficheLegere {
 	var nouvelles []ficheLegere
 	for cur.Next(ctx) {
 		var doc struct {
-			ID   interface{} `bson:"_id"`
-			Name string      `bson:"name"`
-			Type string      `bson:"type"`
+			// ObjectID typé, PAS interface{} : `fmt.Sprintf("%v")` sur un
+			// ObjectID rend `ObjectID("68f…")`, pas l'hexadécimal — la
+			// conversion inverse échouait donc silencieusement, et le contexte
+			// sortait vide sans qu'aucun test synthétique ne le voie.
+			ID   primitive.ObjectID `bson:"_id"`
+			Name string             `bson:"name"`
+			Type string             `bson:"type"`
 		}
 		if err := cur.Decode(&doc); err != nil {
 			continue
 		}
 		nouvelles = append(nouvelles, ficheLegere{
-			ID:          fmt.Sprintf("%v", doc.ID),
+			ID:          doc.ID.Hex(),
 			Nom:         doc.Name,
 			NomNormalis: normaliserNom(doc.Name),
 			Type:        doc.Type,
@@ -147,47 +162,65 @@ func chargerCatalogue(ctx context.Context, db *mongo.Database) []ficheLegere {
 // « Monstera deliciosa »), puis l'inverse. Aucune distance d'édition : une
 // correspondance approximative qui se trompe de fiche injecterait les soins
 // d'une AUTRE plante, ce qui est pire que de ne rien injecter.
-func trouverFiche(fiches []ficheLegere, nom string) (ficheLegere, bool) {
-	cible := normaliserNom(nom)
+// prefixesMots rend les préfixes d'un nom alignés sur les mots, du plus long au
+// plus court : « sansevieria trifasciata laurentii » donne aussi
+// « sansevieria trifasciata » puis « sansevieria ».
+//
+// C'est ce qui permet d'apparier un libellé commercial — le catalogue est plein
+// de « Ficus elastica Abidjan » et de « Zamioculcas Zenzi » — à ce qu'un
+// utilisateur écrit réellement, qui s'arrête au genre ou à l'espèce.
+func prefixesMots(nom string) []string {
+	mots := strings.Fields(nom)
+	prefixes := make([]string, 0, len(mots))
+	for i := len(mots); i > 0; i-- {
+		prefixes = append(prefixes, strings.Join(mots[:i], " "))
+	}
+	return prefixes
+}
+
+// contientMots dit si `hay` contient `aiguille` sur des frontières de mots.
+// Sans ce contrôle, « aloe » apparierait « aloes » et « cactus » « cactuseraie ».
+func contientMots(hay, aiguille string) bool {
+	if aiguille == "" {
+		return false
+	}
+	return strings.HasPrefix(hay, aiguille+" ") ||
+		strings.HasSuffix(hay, " "+aiguille) ||
+		strings.Contains(hay, " "+aiguille+" ") ||
+		hay == aiguille
+}
+
+// longueurMinAppariement écarte les appariements trop courts pour être sûrs.
+// Quatre caractères : en dessous, un fragment apparie n'importe quoi.
+const longueurMinAppariement = 4
+
+// trouverFiche cherche la fiche dont le nom correspond le mieux au texte.
+//
+// Pour chaque fiche, on essaie ses préfixes de mots du plus long au plus court
+// et on retient le plus long qui apparaisse dans le texte, sur frontières de
+// mots. La fiche gagnante est celle dont l'appariement est le plus long.
+//
+// Aucune distance d'édition, délibérément : trouver la MAUVAISE fiche
+// injecterait les soins d'une autre plante présentés comme des faits vérifiés,
+// ce qui est pire que de ne rien injecter.
+func trouverFiche(fiches []ficheLegere, texte string) (ficheLegere, bool) {
+	cible := normaliserNom(texte)
 	if cible == "" {
 		return ficheLegere{}, false
 	}
+	meilleure, meilleurScore := ficheLegere{}, 0
 	for _, f := range fiches {
-		if f.NomNormalis == cible {
-			return f, true
-		}
-	}
-	// Le plus long d'abord : « ficus lyrata » doit l'emporter sur « ficus ».
-	meilleur, trouve := ficheLegere{}, false
-	for _, f := range fiches {
-		if f.NomNormalis != "" && strings.Contains(cible, f.NomNormalis) {
-			if len(f.NomNormalis) > len(meilleur.NomNormalis) {
-				meilleur, trouve = f, true
+		for _, p := range prefixesMots(f.NomNormalis) {
+			if len(p) < longueurMinAppariement || len(p) <= meilleurScore {
+				break // les préfixes suivants sont plus courts encore
+			}
+			if contientMots(cible, p) {
+				meilleure, meilleurScore = f, len(p)
+				break
 			}
 		}
 	}
-	if trouve {
-		return meilleur, true
-	}
-	// Troisième passe : la saisie est le DÉBUT du nom de catalogue, sur une
-	// frontière de mot. « monstera » trouve « Monstera deliciosa », ce que les
-	// deux premières passes ne savent pas faire.
-	//
-	// La frontière est ce qui rend la passe sûre. Sans elle, « monster »
-	// apparierait « Monstera deliciosa » — et par extension n'importe quel
-	// fragment apparierait n'importe quelle fiche assez longue.
-	for _, f := range fiches {
-		if len(cible) < 4 {
-			continue
-		}
-		if f.NomNormalis == cible {
-			return f, true
-		}
-		if strings.HasPrefix(f.NomNormalis, cible+" ") {
-			return f, true
-		}
-	}
-	return ficheLegere{}, false
+	return meilleure, meilleurScore > 0
 }
 
 // fichesMentionnees relève les plantes du catalogue citées dans un texte libre.
@@ -195,24 +228,42 @@ func trouverFiche(fiches []ficheLegere, nom string) (ficheLegere, bool) {
 // Bornée à `maxFiches` : au-delà, le contexte injecté pèserait plus que la
 // question posée, et la réponse s'en trouverait noyée plutôt qu'ancrée.
 func fichesMentionnees(fiches []ficheLegere, texte string, maxFiches int) []ficheLegere {
-	normalise := normaliserNom(texte)
-	if normalise == "" {
+	cible := normaliserNom(texte)
+	if cible == "" {
 		return nil
 	}
-	var vues []ficheLegere
-	dejaVu := map[string]bool{}
+	type candidate struct {
+		f     ficheLegere
+		score int
+	}
+	var candidates []candidate
 	for _, f := range fiches {
-		// Trois lettres minimum : en dessous, un nom de plante s'appariera à
-		// n'importe quel mot.
-		if len(f.NomNormalis) < 4 || dejaVu[f.ID] {
-			continue
-		}
-		if strings.Contains(normalise, f.NomNormalis) {
-			vues = append(vues, f)
-			dejaVu[f.ID] = true
-			if len(vues) >= maxFiches {
+		for _, p := range prefixesMots(f.NomNormalis) {
+			if len(p) < longueurMinAppariement {
 				break
 			}
+			if contientMots(cible, p) {
+				candidates = append(candidates, candidate{f, len(p)})
+				break
+			}
+		}
+	}
+	// Les appariements les plus longs d'abord : si le message cite
+	// « ficus elastica » et « ficus », la fiche précise passe devant.
+	sort.SliceStable(candidates, func(i, j int) bool {
+		return candidates[i].score > candidates[j].score
+	})
+
+	var vues []ficheLegere
+	dejaVu := map[string]bool{}
+	for _, c := range candidates {
+		if dejaVu[c.f.ID] {
+			continue
+		}
+		vues = append(vues, c.f)
+		dejaVu[c.f.ID] = true
+		if len(vues) >= maxFiches {
+			break
 		}
 	}
 	return vues

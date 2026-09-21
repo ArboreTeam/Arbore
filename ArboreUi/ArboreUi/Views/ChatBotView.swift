@@ -589,6 +589,15 @@ struct ChatBotView: View {
             .sorted(by: { $0.timestamp < $1.timestamp })
             .dropLast()
 
+        // Réglage éteint : rien ne part. L'assistant n'a pas d'équivalent local
+        // — contrairement au scan santé, qui se rabat sur la colorimétrie — donc
+        // il s'efface au lieu de se dégrader (#549).
+        guard AIProcessingPreference.estAutorise else {
+            isTyping = false
+            apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_AI_DISABLED", comment: "")
+            return
+        }
+
         Task {
             do {
                 let service = GeminiService()
@@ -609,27 +618,27 @@ struct ChatBotView: View {
             } catch GeminiError.noAPIKey {
                 await MainActor.run {
                     isTyping = false
-                    apiErrorMessage = "Clé API Gemini manquante. Obtenez-en une sur https://aistudio.google.com/apikey"
+                    apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_UNAVAILABLE", comment: "")
                 }
             } catch GeminiError.blocked {
                 await MainActor.run {
                     isTyping = false
-                    apiErrorMessage = "Réponse bloquée pour des raisons de sécurité."
+                    apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_BLOCKED", comment: "")
                 }
             } catch GeminiError.invalidResponse {
                 await MainActor.run {
                     isTyping = false
-                    apiErrorMessage = "Réponse invalide de l'API Gemini."
+                    apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_INVALID", comment: "")
                 }
             } catch GeminiError.requestFailed(let underlying) {
                 await MainActor.run {
                     isTyping = false
-                    apiErrorMessage = "Erreur Gemini : \((underlying as? LocalizedError)?.errorDescription ?? underlying.localizedDescription)"
+                    apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_GENERIC", comment: "")
                 }
             } catch {
                 await MainActor.run {
                     isTyping = false
-                    apiErrorMessage = "Erreur : \(error.localizedDescription)"
+                    apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_GENERIC", comment: "")
                 }
             }
         }

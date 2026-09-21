@@ -34,12 +34,18 @@ enum ConsentDefaults {
     static let marketing = false
     /// Caméra — informatif : le vrai consentement est la permission iOS (NSCameraUsageDescription).
     static let camera = true
-    /// Suggestions / traitement IA — fonctionnalité cœur, base légale contrat (Art. 6(1)(b)),
-    /// pas un consentement. Le moteur de *suggestion de plantes* est local, mais le
-    /// diagnostic santé et l'assistant transmettent photos et messages à Google (Gemini),
-    /// y compris hors UE (cf. politique de confidentialité 2.1).
-    /// ⚠️ Ce drapeau n'est aujourd'hui lu ni par PlantHealthScanner ni par GeminiService :
-    /// conditionner ces envois à ce consentement est suivi dans l'issue de conformité.
+    /// Diagnostic santé et assistant — **préférence de fonctionnalité**, pas un
+    /// consentement. La base légale est le contrat (Art. 6(1)(b)) : l'utilisateur
+    /// déclenche chaque envoi en prenant une photo ou en écrivant un message. Le
+    /// moteur de *suggestion de plantes*, lui, est entièrement local et n'est pas
+    /// concerné. Les contenus partent vers Mistral AI, hébergé dans l'UE (#555).
+    ///
+    /// Lu par `AIProcessingPreference`, que consultent les deux points d'envoi
+    /// (#549). Éteint : le scan se rabat sur la colorimétrie locale et la photo
+    /// ne quitte pas l'appareil, l'assistant devient indisponible.
+    ///
+    /// N'apparaît PAS dans `initialSnapshot` : le registre des consentements ne
+    /// doit contenir que des consentements.
     static let ai = true
     /// Notifications — informatif : le vrai consentement est la permission iOS.
     static let notifications = true
@@ -53,7 +59,6 @@ enum ConsentDefaults {
         ("analytics", analytics),
         ("marketing", marketing),
         ("camera", camera),
-        ("ai", ai),
         ("notifications", notifications),
     ]
 }

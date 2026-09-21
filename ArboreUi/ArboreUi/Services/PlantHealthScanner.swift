@@ -623,6 +623,19 @@ final class PlantHealthScanner: ObservableObject {
         let resizedImage = UIGraphicsGetImageFromCurrentImageContext() ?? image
         UIGraphicsEndImageContext()
         
+        // Réglage éteint : la photo ne quitte pas l'appareil. Le diagnostic se
+        // dégrade en colorimétrie locale au lieu de disparaître — c'est tout
+        // l'intérêt d'avoir gardé ce chemin (#549).
+        guard AIProcessingPreference.estAutorise else {
+            warnings.append(
+                NSLocalizedString("SCAN_WARNING_AI_DISABLED",
+                    value: "Analyse par IA désactivée dans tes réglages — résultats basés sur la colorimétrie, la photo n'a pas quitté l'appareil.", comment: "")
+            )
+            self.result = buildColorimetryOnlyResult(colorimetry: colorimetry, warnings: warnings)
+            self.phase = .result
+            return
+        }
+
         if let imageData = resizedImage.jpegData(compressionQuality: 0.6) {
             do {
                 let geminiResult = try await geminiService.diagnose(

@@ -101,7 +101,7 @@ final class PlantHealthScannerTests: XCTestCase {
         """.data(using: .utf8)!
 
         let decoded = try JSONDecoder().decode(
-            GeminiDiagnosticService.LLMDiagnosticResponse.self,
+            RemoteDiagnosticService.LLMDiagnosticResponse.self,
             from: json
         )
         XCTAssertEqual(decoded.species, "Rosa")
@@ -117,7 +117,7 @@ final class PlantHealthScannerTests: XCTestCase {
         // l'absence des champs optionnels (species/overallHealth/etc.).
         let json = "{}".data(using: .utf8)!
         let decoded = try JSONDecoder().decode(
-            GeminiDiagnosticService.LLMDiagnosticResponse.self,
+            RemoteDiagnosticService.LLMDiagnosticResponse.self,
             from: json
         )
         XCTAssertNil(decoded.species)
@@ -132,7 +132,7 @@ final class PlantHealthScannerTests: XCTestCase {
         { "diseases": [{ "severity": 0.5 }] }
         """.data(using: .utf8)!
         XCTAssertThrowsError(
-            try JSONDecoder().decode(GeminiDiagnosticService.LLMDiagnosticResponse.self, from: json)
+            try JSONDecoder().decode(RemoteDiagnosticService.LLMDiagnosticResponse.self, from: json)
         )
     }
 }

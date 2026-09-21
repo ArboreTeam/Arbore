@@ -2085,3 +2085,10 @@
 "GARDEN_STYLE_CUSTOM" = "Custom";
 "NET_ERROR_INVALID_RESPONSE" = "Invalid response";
 "NET_ERROR_JSON_FORMAT" = "JSON serialisation error: %@";
+
+/* Avertissement IA (#585) et libellés de saisie du chat. */
+"AI_DISCLAIMER" = "AI can make mistakes. Check important advice.";
+"AI_DISCLAIMER_SCAN" = "This diagnosis is an estimate, not professional plant health advice. AI can make mistakes: when in doubt, ask a specialist.";
+"CHATBOT_RENAME_PLACEHOLDER" = "Title";
+"CHATBOT_INPUT_PLACEHOLDER" = "Your question…";
+"CHATBOT_ANALYSE_THIS_PLANT" = "Analyse this plant";

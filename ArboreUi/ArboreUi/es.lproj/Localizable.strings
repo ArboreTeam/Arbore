@@ -2065,3 +2065,10 @@
 "GARDEN_STYLE_CUSTOM" = "Personalizado";
 "NET_ERROR_INVALID_RESPONSE" = "Respuesta no válida";
 "NET_ERROR_JSON_FORMAT" = "Error de serialización JSON: %@";
+
+/* Avertissement IA (#585) et libellés de saisie du chat. */
+"AI_DISCLAIMER" = "La IA puede equivocarse. Verifica los consejos importantes.";
+"AI_DISCLAIMER_SCAN" = "Este diagnóstico es una estimación, no un dictamen fitosanitario profesional. La IA puede equivocarse: ante la duda, consulta a un especialista.";
+"CHATBOT_RENAME_PLACEHOLDER" = "Título";
+"CHATBOT_INPUT_PLACEHOLDER" = "Tu pregunta…";
+"CHATBOT_ANALYSE_THIS_PLANT" = "Analiza esta planta";

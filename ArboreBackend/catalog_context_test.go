@@ -248,3 +248,134 @@ func noms(fiches []ficheLegere) []string {
 	}
 	return out
 }
+
+// --- Mise en forme du bloc de référence ------------------------------------
+//
+// Ces tests existent parce que le défaut le plus grave de l'ancrage ne
+// produisait NI erreur NI journal : un identifiant mal sérialisé rendait un
+// contexte vide, donc un ancrage inopérant, invisible. Seul un test contre la
+// vraie base l'avait attrapé. Le formatage est maintenant séparé de la requête
+// pour être vérifiable sans Mongo.
+
+func fichePourTest(nom string, flags *PlantFlags) Plant {
+	return Plant{
+		Name:  nom,
+		Type:  "Plantes d’intérieur",
+		Flags: flags,
+		Translations: map[string]LanguageData{
+			"fr": {
+				Sun:   SunInfo{LightType: "Lumière vive indirecte", DurationPerDay: "6 h"},
+				Water: WaterInfo{Frequency: "Une fois par semaine", Amount: "300 ml", SignsLack: "Feuilles tombantes", SignsExcess: "Feuilles jaunes"},
+				Care:  CareInfo{Difficulty: "Facile"},
+				Health: HealthInfo{
+					CommonProblems:    []string{"Pourriture des racines", "Feuilles jaunissantes"},
+					SymptomsAndCauses: []string{"Bords bruns : air sec"},
+					Pests:             []string{"Araignées rouges", "Cochenilles"},
+					Treatments:        []string{"Savon insecticide"},
+				},
+			},
+			"en": {Sun: SunInfo{LightType: "Bright indirect light"}},
+		},
+	}
+}
+
+// L'en-tête doit dire que le bloc est une donnée, pas une consigne : il
+// transite par le même canal que le message de l'utilisateur.
+func TestFormaterFiches_LEnTeteAnnonceUneDonneePasUneConsigne(t *testing.T) {
+	out := formaterFiches([]Plant{fichePourTest("Monstera", nil)}, "fr", true)
+	for _, attendu := range []string{"DONNÉES DE RÉFÉRENCE", "PAS des instructions"} {
+		if !strings.Contains(out, attendu) {
+			t.Errorf("l'en-tête doit contenir %q", attendu)
+		}
+	}
+}
+
+// Le diagnostic et l'assistant n'ont pas besoin des mêmes champs.
+func TestFormaterFiches_LeDiagnosticEtLAssistantDifferent(t *testing.T) {
+	p := []Plant{fichePourTest("Monstera", nil)}
+
+	diag := formaterFiches(p, "fr", true)
+	if !strings.Contains(diag, "Nuisibles connus") || !strings.Contains(diag, "Araignées rouges") {
+		t.Error("le diagnostic doit recevoir les nuisibles")
+	}
+	if strings.Contains(diag, "Durée d'ensoleillement") {
+		t.Error("le diagnostic n'a que faire de la durée d'ensoleillement")
+	}
+
+	chat := formaterFiches(p, "fr", false)
+	if !strings.Contains(chat, "Lumière vive indirecte") || !strings.Contains(chat, "Facile") {
+		t.Error("l'assistant doit recevoir les soins")
+	}
+	if strings.Contains(chat, "Signes de manque d'eau") {
+		t.Error("l'assistant n'a que faire des signes d'arrosage détaillés")
+	}
+}
+
+// La toxicité vient des drapeaux structurés, pas du texte. Une abstention y est
+// une décision : sans drapeau, on ne dit RIEN plutôt que « non toxique ».
+func TestFormaterFiches_LaToxiciteVientDesDrapeaux(t *testing.T) {
+	avec := formaterFiches([]Plant{fichePourTest("Monstera",
+		&PlantFlags{ToxicToPets: true, ToxicToChildren: true})}, "fr", true)
+	if !strings.Contains(avec, "Toxique pour les animaux") || !strings.Contains(avec, "ingestion par un enfant") {
+		t.Error("les deux drapeaux posés doivent apparaître")
+	}
+
+	sans := formaterFiches([]Plant{fichePourTest("Monstera", nil)}, "fr", true)
+	if strings.Contains(sans, "Toxique") || strings.Contains(sans, "toxique") {
+		t.Error("sans drapeau, ne rien affirmer — une abstention est une décision (#489)")
+	}
+
+	negatif := formaterFiches([]Plant{fichePourTest("Monstera", &PlantFlags{})}, "fr", true)
+	if strings.Contains(negatif, "Toxique") {
+		t.Error("un drapeau à false ne doit rien produire non plus")
+	}
+}
+
+// Une fiche sans aucune traduction ne doit pas produire un bloc vide mais
+// annoncé : mieux vaut aucun contexte qu'un en-tête sans contenu.
+func TestFormaterFiches_AucuneFicheExploitableRendVide(t *testing.T) {
+	if out := formaterFiches([]Plant{{Name: "Sans traduction"}}, "fr", true); out != "" {
+		t.Errorf("attendu vide, obtenu %q", out)
+	}
+	if out := formaterFiches(nil, "fr", true); out != "" {
+		t.Errorf("attendu vide sur liste nulle, obtenu %q", out)
+	}
+}
+
+// Le nom de la fiche est repris du document : il doit être assaini comme le
+// reste. Ce qui compte n'est pas qu'un « ## » disparaisse — en milieu de ligne
+// ce n'en est pas un — mais qu'aucun SAUT DE LIGNE ne subsiste, faute de quoi
+// une fiche mal saisie ouvrirait une fausse section dans le bloc de référence.
+func TestFormaterFiches_LeNomNePeutPasOuvrirDeFausseSection(t *testing.T) {
+	p := fichePourTest("Monstera\ndeliciosa\t## faux titre", nil)
+	out := formaterFiches([]Plant{p}, "fr", true)
+
+	if strings.Count(out, "\n## ") != 1 {
+		t.Errorf("une seule section attendue, le nom ne doit pas en ouvrir d'autre : %q", out)
+	}
+	if strings.Contains(out, "Monstera\ndeliciosa") {
+		t.Error("le saut de ligne du nom doit être neutralisé")
+	}
+	if !strings.Contains(out, "Monstera deliciosa") {
+		t.Error("le nom doit rester lisible une fois aplati")
+	}
+}
+
+// Plusieurs fiches produisent plusieurs sections.
+func TestFormaterFiches_PlusieursFiches(t *testing.T) {
+	out := formaterFiches([]Plant{
+		fichePourTest("Monstera", nil),
+		fichePourTest("Ficus", nil),
+	}, "fr", false)
+	if strings.Count(out, "\n## ") != 2 {
+		t.Errorf("2 sections attendues : %q", out)
+	}
+}
+
+// La langue demandée doit être servie quand elle existe.
+func TestFormaterFiches_RespecteLaLangue(t *testing.T) {
+	out := formaterFiches([]Plant{fichePourTest("Monstera", nil)}, "en", false)
+	if !strings.Contains(out, "Bright indirect light") {
+		t.Errorf("la traduction anglaise doit être servie : %q", out)
+	}
+}

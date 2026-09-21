@@ -38,7 +38,11 @@ final class LocalizationCoverageTests: XCTestCase {
         // Scan santé — erreurs et avertissements
         "SCAN_ERROR_LOW_BRIGHTNESS", "SCAN_ERROR_NO_PLANT", "SCAN_ERROR_TIMEOUT",
         "SCAN_WARNING_AI_DISABLED", "SCAN_WARNING_AI_UNAVAILABLE",
-        "SCAN_ADVICE_HEALTHY", "SCAN_ADVICE_CHLOROSIS"
+        "SCAN_ADVICE_HEALTHY", "SCAN_ADVICE_CHLOROSIS",
+        // Avertissements IA (#585) : ils doivent atteindre l'utilisateur dans
+        // SA langue, sans quoi l'avertissement n'en est pas un.
+        "AI_DISCLAIMER", "AI_DISCLAIMER_SCAN",
+        "CHATBOT_INPUT_PLACEHOLDER", "CHATBOT_RENAME_PLACEHOLDER"
     ]
 
     private func bundle(_ langue: String) -> Bundle? {

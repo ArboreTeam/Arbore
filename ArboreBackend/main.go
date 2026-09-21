@@ -79,6 +79,15 @@ func getDatabaseForRequest(c *gin.Context) *mongo.Database {
 			return testClient.Database(testDBName)
 		}
 	}
+	// Client absent : rendre nil plutôt que paniquer. `mongo.Client.Database`
+	// déréférence son récepteur sans vérification, donc un client nil y provoque
+	// un SIGSEGV — ce qui transformait une base indisponible en crash du
+	// processus. Les appelants qui ont besoin de la base la testent déjà ; ceux
+	// pour qui elle est un enrichissement (l'ancrage catalogue de #554) doivent
+	// pouvoir s'en passer.
+	if client == nil {
+		return nil
+	}
 	return client.Database(prodDBName)
 }
 
@@ -1620,7 +1629,7 @@ func stripMarkdown(text string) string {
 	return result
 }
 
-func handleGeminiChat(c *gin.Context) {
+func handleChat(c *gin.Context) {
 	var req ChatRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondInvalidBody(c, err)
@@ -1683,8 +1692,33 @@ func handleGeminiChat(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 55*time.Second)
 	defer cancel()
+	// Ancrage sur le catalogue (#554). Le message est du texte libre : on y
+	// cherche les noms de plantes que nous connaissons, et on joint nos données
+	// de soin pour celles-là.
+	//
+	// L'historique récent compte, sinon « et pour l'arroser ? » perdrait la
+	// plante nommée au tour précédent. Borné aux trois derniers tours : au-delà,
+	// une plante citée en passant ancrerait toute la conversation sur elle.
+	var pourRecherche strings.Builder
+	pourRecherche.WriteString(req.NewMessage)
+	for i := len(req.History) - 1; i >= 0 && i >= len(req.History)-3; i-- {
+		pourRecherche.WriteString(" ")
+		pourRecherche.WriteString(req.History[i].Content)
+	}
+
+	langue := langueDemandee(c.GetHeader("Accept-Language"))
+	db := getDatabaseForRequest(c)
+	contexte := ""
+	if citees := fichesMentionnees(chargerCatalogue(ctx, db), pourRecherche.String(), maxFichesChat); len(citees) > 0 {
+		ids := make([]string, 0, len(citees))
+		for _, f := range citees {
+			ids = append(ids, f.ID)
+		}
+		contexte = contexteFiches(ctx, db, ids, langue, false)
+	}
+
 	result, err := generateLLM(ctx, LLMRequest{
-		SystemPrompt:    chatPrompt + antiInjectionClause,
+		SystemPrompt:    chatPrompt + antiInjectionClause + contexte,
 		History:         history,
 		UserText:        req.NewMessage,
 		ImageJPEGBase64: req.ImageData,
@@ -1717,7 +1751,7 @@ func handleGeminiChat(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"reply": cleanedText})
 }
 
-func handleGeminiDiagnose(c *gin.Context) {
+func handleDiagnose(c *gin.Context) {
 	var req DiagnoseRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		respondInvalidBody(c, err)
@@ -1787,8 +1821,22 @@ Les valeurs numériques sont entre 0 et 1.
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 55*time.Second)
 	defer cancel()
+	// Ancrage sur le catalogue (#554). Le nom saisi est une donnée non fiable,
+	// mais c'est la seule piste dont on dispose pour retrouver la fiche : s'il
+	// correspond, on joint nos propres données de santé au prompt.
+	langue := langueDemandee(c.GetHeader("Accept-Language"))
+	db := getDatabaseForRequest(c)
+	var ficheAncree *ficheLegere
+	contexte := ""
+	if req.PlantName != nil {
+		if f, ok := trouverFiche(chargerCatalogue(ctx, db), *req.PlantName); ok {
+			ficheAncree = &f
+			contexte = contexteFiches(ctx, db, []string{f.ID}, langue, true)
+		}
+	}
+
 	result, err := generateLLM(ctx, LLMRequest{
-		SystemPrompt:    systemPrompt + antiInjectionClause,
+		SystemPrompt:    systemPrompt + antiInjectionClause + contexte,
 		UserText:        userPrompt,
 		ImageJPEGBase64: req.ImageData,
 	})
@@ -1811,7 +1859,7 @@ Les valeurs numériques sont entre 0 et 1.
 		return
 	}
 	if result.Blocked {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse Gemini vide ou bloquée"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse vide ou bloquée par le service d'IA."})
 		return
 	}
 
@@ -1820,7 +1868,7 @@ Les valeurs numériques sont entre 0 et 1.
 	lastBrace := strings.LastIndex(rawText, "}")
 
 	if firstBrace == -1 || lastBrace == -1 || firstBrace >= lastBrace {
-		log.Printf("❌ diagnose: aucun objet JSON dans la réponse Gemini (%d octets)", len(rawText))
+		log.Printf("❌ diagnose: aucun objet JSON dans la réponse du modèle (%d octets)", len(rawText))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse de diagnostic illisible."})
 		return
 	}
@@ -1834,6 +1882,21 @@ Les valeurs numériques sont entre 0 et 1.
 		log.Printf("❌ diagnose: parsing du JSON de diagnostic impossible: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Réponse de diagnostic illisible."})
 		return
+	}
+
+	// Réconciliation de l'espèce (#554) : sans elle, le modèle peut nommer une
+	// plante que nous n'avons pas, et l'app n'a alors aucune fiche vers laquelle
+	// enchaîner. On ne CORRIGE pas le modèle — on ajoute l'identifiant quand son
+	// espèce correspond à une fiche connue.
+	if normalized.Species != nil && *normalized.Species != "" {
+		if f, trouve := trouverFiche(chargerCatalogue(ctx, db), *normalized.Species); trouve {
+			normalized.CatalogPlantID, normalized.CatalogPlantName = f.ID, f.Nom
+		}
+	}
+	if normalized.CatalogPlantID == "" && ficheAncree != nil {
+		// Espèce non identifiée, mais l'utilisateur avait nommé sa plante et
+		// elle est au catalogue : l'enchaînement reste possible.
+		normalized.CatalogPlantID, normalized.CatalogPlantName = ficheAncree.ID, ficheAncree.Nom
 	}
 
 	c.JSON(http.StatusOK, normalized)
@@ -2138,16 +2201,16 @@ func buildRouter() *gin.Engine {
 		protected.DELETE("/gardens/:id", deleteGarden)
 		protected.POST("/climate/profile", climateProfile)
 
-		// Gemini Chat & Scanner Proxies — rate limité par uid (quota minute + jour)
-		// pour borner le coût Gemini. Le cap de corps est appliqué globalement sur
+		// Proxys d'IA (assistant et scanner) — rate limités par uid (quota minute
+		// et jour) pour borner le coût du fournisseur. Le cap de corps est appliqué globalement sur
 		// le groupe protégé (middleware.MaxBodyBytes), les timeouts par newServer.
 		//
 		// Le quota JOURNALIER est modulé par profil (#377) : c'est lui qui borne
 		// la dépense réelle, et c'est donc là que `tier` a le plus de sens. Le
 		// quota MINUTE reste uniforme — il protège le service contre les rafales,
 		// un abonné n'a aucune raison d'avoir le droit de le saturer plus vite.
-		protected.POST("/chat", chatMinuteLimiter.Middleware(), chatDailyQuota.Middleware(), handleGeminiChat)
-		protected.POST("/diagnose", diagnosisMinuteLimiter.Middleware(), diagnosisDailyQuota.Middleware(), handleGeminiDiagnose)
+		protected.POST("/chat", chatMinuteLimiter.Middleware(), chatDailyQuota.Middleware(), handleChat)
+		protected.POST("/diagnose", diagnosisMinuteLimiter.Middleware(), diagnosisDailyQuota.Middleware(), handleDiagnose)
 
 		// Consents (RGPD)
 		account.POST("/consents", recordConsent)
@@ -2250,7 +2313,8 @@ func main() {
 		return
 	}
 
-	// Sélection du fournisseur d'IA/LLM (Gemini par défaut, cf. AI_PROVIDER).
+	// Sélection du fournisseur d'IA/LLM. Le défaut du CODE reste gemini ; celui
+	// du déploiement est mistral, posé dans docker-compose.yml (#555).
 	if err := initLLMProvider(); err != nil {
 		fatalf("❌ LLM provider init failed: %v", err)
 	}

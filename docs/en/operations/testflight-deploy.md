@@ -255,6 +255,39 @@ quickly" rather than "optimised thumbnail decoding".
 End with what you want tested first: that is the only part testers actually
 follow.
 
+### Fill in the App Store listing (text and screenshots)
+
+Two separate lanes, pushing into the current version's **draft** and never
+submitting anything. They read the version from the Xcode project, so an
+editable version must exist in ASC (App Store → **+ VERSION**).
+
+```bash
+bundle exec fastlane upload_metadata      # description, subtitle, keywords, URLs, release notes
+bundle exec fastlane upload_screenshots   # screenshots, 4 languages
+```
+
+`upload_metadata` also pushes `release_notes.txt`, which **is** the "What's New
+in This Version" field. Two traps:
+
+- that field does **not** exist for a first version — ASC only shows it from the
+  second one onwards;
+- do not confuse it with `fastlane/changelogs/`, which holds the **TestFlight**
+  notes, a separate path.
+
+`upload_screenshots` reads `fastlane/screenshots/<locale>/*.png`. That folder is
+**gitignored**: screenshots are not in the repository, they are regenerated from
+the design tool. The lane therefore fails loudly when one of the four locales is
+empty — without that guard, `deliver` would pass silently and ASC would reuse
+French on the English, Spanish and German listings.
+
+Two App Store Connect constraints are worth knowing before uploading:
+
+- files at `1290 × 2796` land in the **6.9"** slot, the only one required since
+  2024; the interface sometimes opens on the 6.5" slot, which expects different
+  dimensions;
+- a screenshot must carry **no alpha channel**, even a fully opaque one: it is
+  the channel's presence that is checked, not transparency.
+
 ### Check the latest build on TestFlight
 
 ```bash

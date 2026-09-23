@@ -1,7 +1,12 @@
-Le catalogue ne se fige plus quand on le fait défiler vite, même en descendant d'un trait jusqu'au bas des 123 plantes.
+Le diagnostic santé s'appuie désormais sur notre catalogue. Quand la plante y figure, le modèle reçoit nos données de soin, nos nuisibles connus et nos signes d'arrosage avant de répondre, et le résultat renvoie vers la bonne fiche.
 
-Le plan 2D du jardin reste fluide avec beaucoup de plantes. Il ralentissait à partir d'une quinzaine.
+L'assistant fait de même : citez une plante du catalogue et il répond à partir de ce que nous savons d'elle.
 
-Les photos des fiches sont maintenant nos propres rendus 3D. Vous voyez donc exactement la plante que vous placerez en réalité augmentée.
+Les deux écrans indiquent maintenant que l'IA peut se tromper. Le diagnostic précise qu'il s'agit d'une estimation et non d'un avis phytosanitaire.
 
-À tester en premier : parcourez le catalogue d'un balayage franc, puis ouvrez un jardin d'au moins seize plantes et faites glisser le plan.
+Quelques textes restaient en français quelle que soit la langue choisie. Ils sont traduits.
+
+À tester en premier :
+1. Lancez un scan santé sur une plante du catalogue et vérifiez que le diagnostic parle bien de cette plante.
+2. Demandez à l'assistant comment arroser une plante que vous possédez.
+3. Réglages iOS, langue de l'app en English : les avertissements et les textes du scan doivent suivre.

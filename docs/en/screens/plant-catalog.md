@@ -55,4 +55,4 @@ Level (`PlantSuitabilityLevel`): `unsuitable` → `neutral` → `suitable` → `
 ## Out of scope for this view
 
 - AR plant placement is documented in [`garden-ar-placement.md`](garden-ar-placement.md).
-- Plant record generation (AI Generator) and 3D LOD are in [`../3d-lod-architecture.md`](../3d-lod-architecture.md).
+- 3D LOD is documented in [`../3d-lod-architecture.md`](../3d-lod-architecture.md).

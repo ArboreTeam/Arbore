@@ -1,7 +1,12 @@
-Der Katalog hängt nicht mehr, wenn du schnell scrollst, auch nicht beim Durchwischen aller 123 Pflanzen.
+Die Gesundheitsdiagnose stützt sich jetzt auf unseren Katalog. Steht die Pflanze darin, erhält das Modell vor der Antwort unsere Pflegedaten, bekannten Schädlinge und Gießhinweise, und das Ergebnis verweist auf den richtigen Eintrag.
 
-Der 2D-Plan des Gartens bleibt auch mit vielen Pflanzen flüssig. Ab etwa fünfzehn wurde er vorher langsam.
+Der Assistent macht dasselbe: Nenne eine Pflanze aus dem Katalog, und er antwortet anhand dessen, was wir über sie wissen.
 
-Die Fotos der Pflanzenseiten sind jetzt unsere eigenen 3D-Renderings. Du siehst also genau die Pflanze, die du in Augmented Reality platzieren wirst.
+Beide Bildschirme weisen nun darauf hin, dass KI Fehler machen kann. Die Diagnose stellt klar, dass es sich um eine Schätzung handelt und nicht um einen fachlichen Pflanzenschutzbefund.
 
-Zuerst testen: Wische zügig durch den Katalog und öffne dann einen Garten mit mindestens sechzehn Pflanzen und ziehe den Plan.
+Einige Texte blieben unabhängig von der gewählten Sprache französisch. Sie sind übersetzt.
+
+Was zuerst zu testen ist:
+1. Führe einen Gesundheitsscan an einer Pflanze aus dem Katalog durch und prüfe, ob die Diagnose diese Pflanze betrifft.
+2. Frage den Assistenten, wie du eine deiner Pflanzen gießen sollst.
+3. iOS-Einstellungen, App-Sprache auf English: Die Hinweise und Scan-Texte sollen folgen.

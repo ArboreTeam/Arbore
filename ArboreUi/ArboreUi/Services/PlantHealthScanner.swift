@@ -449,7 +449,7 @@ struct ColorimetricAnalyzer {
 }
 
 // MARK: - ═══════════════════════════════════════════════════════
-// MARK: 4 — GEMINI DIAGNOSTIC SERVICE
+// MARK: 4 — REMOTE DIAGNOSTIC SERVICE
 // MARK: ═══════════════════════════════════════════════════════
 
 /// Service de diagnostic phytopathologique via le modèle multimodal du backend.

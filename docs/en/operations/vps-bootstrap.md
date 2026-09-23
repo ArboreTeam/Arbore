@@ -26,9 +26,8 @@ Components installed by the end of the procedure:
 | cronie | Runs `cleanup-test-db.sh` every night at 04:00 UTC |
 | gh CLI | Used by `cleanup-test-db.sh` (optional, curl fallback) |
 
-The AI Generator listens internally on `:8000`, and the backend calls it over the
-Docker network `arbore-net`; the web calls the backend on `http://backend:8080`
-(via its server proxy). These ports are exposed on the host but their direct
+The web calls the backend on `http://backend:8080` over the Docker network
+`arbore-net`, from its server proxy. These ports are exposed on the host but their direct
 external access is blocked by the firewall (see firewall appendix); public
 traffic goes through Nginx on `:80`/`:443`, which are themselves restricted to Cloudflare IPs.
 
@@ -188,10 +187,9 @@ variables (sources of truth indicated):
 | `MODELS_HOST_PATH` | Persistent VPS storage | USDZ directory, independent from the code checkout |
 | `THUMBNAILS_HOST_PATH` | Persistent VPS storage | Generated thumbnails directory |
 | `LEGACY_COMMUNITY_UPLOADS_HOST_PATH` | Persistent VPS storage | Retained only for GDPR deletion |
-| `OPENAI_API_KEY` | OpenAI Platform → API keys | For the AI Generator |
-| `UNSPLASH_ACCESS_KEY` | Unsplash Developers → Application | Plant photos |
-| `MISTRAL_API_KEY` | console.mistral.ai → API keys | Alternative backend AI provider |
-| `AI_PROVIDER` | Config constant | `openai` or `mistral` |
+| `GEMINI_API_KEY` | Google AI Studio → API keys | Fallback AI provider |
+| `MISTRAL_API_KEY` | admin.mistral.ai → API Keys | **Provider in service** for `/chat` and `/diagnose` |
+| `AI_PROVIDER` | Config constant | `gemini` or `mistral`. Deployment default: `mistral` |
 | `GIN_MODE` | Config constant | `release` in prod |
 | `PORT` | Config constant | `8080` |
 
@@ -225,13 +223,13 @@ LEGACY_COMMUNITY_UPLOADS_HOST_PATH=/home/fedora/arbore-data/uploads/community
 # the web app calls the API through its server-side Next.js proxy (#338 finding 5).
 CORS_ALLOWED_ORIGINS=
 
-# AI providers
-AI_PROVIDER=openai
-OPENAI_API_KEY=sk-...
+# AI provider. Before setting mistral, check on
+# admin.mistral.ai/plateforme/privacy that both "Data usage for improving our
+# services" AND "Enable Labs models" are OFF: the free tier is opted in to
+# training by default, and a Labs model voids the opt-out (#555).
+AI_PROVIDER=mistral
 MISTRAL_API_KEY=...
-
-# Unsplash
-UNSPLASH_ACCESS_KEY=...
+GEMINI_API_KEY=...
 
 # Gin config
 GIN_MODE=release

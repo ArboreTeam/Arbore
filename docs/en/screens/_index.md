@@ -22,7 +22,7 @@ A screen becomes a hero screen, and therefore a target for a per-screen spec, wh
 | `GardenARPlacementView` | [`garden-ar-placement.md`](garden-ar-placement.md) | State machine (`RelocationPhase`), 3,300 LOC, 3 frameworks (ARKit + SceneKit + SwiftUI), ≥ 5 issues (#96, #111, #113, #114, #123, #124, #136, #138). |
 | Garden creation wizard | [`questionnaire-wizard.md`](questionnaire-wizard.md) | 10 steps with skip rules, `POST /gardens` + branching into two distinct AR flows, ≥ 3 issues (#139, #21, #97). |
 | `PersonalDetailsView` | [`personal-details.md`](personal-details.md) | `PATCH /users/me` + Firebase `displayName` update, save state machine (idle → saving → success/error), issue #138. |
-| Plant health scan | [`plant-health-scan.md`](plant-health-scan.md) | State machine (`ScanPhase`), 4-step pipeline, 2 Apple frameworks (Vision + CoreImage), `POST /diagnose`, GDPR contract (photo sent to Gemini). |
+| Plant health scan | [`plant-health-scan.md`](plant-health-scan.md) | State machine (`ScanPhase`), 4-step pipeline, 2 Apple frameworks (Vision + CoreImage), `POST /diagnose`, the “AI processing” setting and colorimetry fallback, catalogue grounding, GDPR contract. |
 | Plant catalog | [`plant-catalog.md`](plant-catalog.md) | Multi-dimension filtering + compatibility evaluation (`PlantSuitabilityEvaluator`, 9 criteria), ~1,600 LOC, tracked scoring duplication (#319). |
 
 ## Undocumented hero screens (to be promoted if needed)

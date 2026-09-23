@@ -55,4 +55,4 @@ Niveau (`PlantSuitabilityLevel`) : `unsuitable` → `neutral` → `suitable` →
 ## Hors-scope de cette vue
 
 - Le placement AR des plantes est documenté dans [`garden-ar-placement.md`](garden-ar-placement.md).
-- La génération des fiches (AI Generator) et le LOD 3D sont dans [`../3d-lod-architecture.md`](../3d-lod-architecture.md).
+- Le LOD 3D est documenté dans [`../3d-lod-architecture.md`](../3d-lod-architecture.md).

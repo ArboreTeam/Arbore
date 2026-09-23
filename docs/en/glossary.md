@@ -104,7 +104,7 @@ Apple 3D model format (a ZIP archive containing a USD file and its textures). Al
 
 ## VPS (Fedora)
 
-Single server that hosts the Go backend, the Python AI Generator, and the Next.js web front end via Docker Compose. Details in [`architecture/02-containers.md`](architecture/02-containers.md) and [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md).
+Single server that hosts the Go backend and the Next.js web front end via Docker Compose. Details in [`architecture/02-containers.md`](architecture/02-containers.md) and [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md).
 
 ## WorldMap
 

@@ -65,4 +65,4 @@ flowchart TB
 
 ## Vue suivante
 
-Le [niveau 2 — Container](02-containers.md) ouvre la boîte « Arbore » et expose les applications et services qui la composent : application iOS, front web Next.js, backend Go et AI Generator Python.
+Le [niveau 2 — Container](02-containers.md) ouvre la boîte « Arbore » et expose les applications et services qui la composent : application iOS, front web Next.js et backend Go.

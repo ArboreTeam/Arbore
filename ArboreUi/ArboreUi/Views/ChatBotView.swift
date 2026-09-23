@@ -642,7 +642,10 @@ struct ChatBotView: View {
                     isTyping = false
                     apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_INVALID", comment: "")
                 }
-            } catch LLMError.requestFailed(let underlying) {
+            // La cause sous-jacente n'est plus liée : depuis #549 le message
+            // rendu est générique et ne nomme aucun prestataire, donc rien ne
+            // la consomme. La branche reste pour distinguer ce cas du catch-all.
+            } catch LLMError.requestFailed {
                 await MainActor.run {
                     isTyping = false
                     apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_GENERIC", comment: "")

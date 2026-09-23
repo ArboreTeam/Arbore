@@ -1,7 +1,12 @@
-El catálogo ya no se congela al desplazarte rápido, ni siquiera bajando de un tirón por las 123 plantas.
+El diagnóstico de salud se apoya ahora en nuestro catálogo. Cuando la planta figura en él, el modelo recibe nuestros datos de cuidados, las plagas conocidas y los signos de riego antes de responder, y el resultado enlaza con la ficha correcta.
 
-El plano 2D del jardín se mantiene fluido con muchas plantas. Antes se ralentizaba a partir de unas quince.
+El asistente hace lo mismo: menciona una planta del catálogo y responderá a partir de lo que sabemos de ella.
 
-Las fotos de las fichas son ahora nuestros propios renders 3D, así que ves exactamente la planta que colocarás en realidad aumentada.
+Ambas pantallas indican ahora que la IA puede equivocarse. El diagnóstico aclara que es una estimación, no un dictamen fitosanitario.
 
-Para probar primero: recorre el catálogo con un desplazamiento rápido y luego abre un jardín con al menos dieciséis plantas y arrastra el plano.
+Algunos textos seguían en francés fuera cual fuera el idioma elegido. Ya están traducidos.
+
+Qué probar primero:
+1. Haz un escaneo de salud sobre una planta del catálogo y comprueba que el diagnóstico trata de esa planta.
+2. Pregunta al asistente cómo regar una planta que tengas.
+3. Ajustes de iOS, idioma de la app en English: los avisos y los textos del escaneo deben seguirlo.

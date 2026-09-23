@@ -1,7 +1,12 @@
-The catalogue no longer freezes when you scroll quickly, even flicking straight down through all 123 plants.
+Plant health diagnosis now draws on our own catalogue. When the plant is in it, the model receives our care data, known pests and watering signs before answering, and the result links back to the right entry.
 
-The garden's 2D plan stays smooth with many plants. It used to slow down past fifteen or so.
+The assistant does the same: mention a plant from the catalogue and it answers from what we know about it.
 
-Plant photos are now our own 3D renders, so you see exactly the plant you will place in augmented reality.
+Both screens now state that AI can make mistakes. The diagnosis makes clear it is an estimate, not professional plant health advice.
 
-Worth testing first: flick through the catalogue fast, then open a garden with at least sixteen plants and drag the plan around.
+A few texts stayed in French whatever language you picked. They are translated.
+
+What to test first:
+1. Run a health scan on a plant from the catalogue and check the diagnosis is about that plant.
+2. Ask the assistant how to water a plant you own.
+3. iOS Settings, app language set to Français: the warnings and scan texts should follow.

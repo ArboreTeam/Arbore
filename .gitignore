@@ -276,6 +276,11 @@ fastlane/README.md
 /state.md
 /jury-greenlight.md
 
+# Outillage local de préparation des visuels App Store. Ce sont des scripts
+# jetables qui dépendent de fichiers hors dépôt (~/Downloads) : ils n'ont pas
+# de sens pour quelqu'un d'autre, et n'ont donc rien à faire dans l'arbre.
+/tools-local/
+
 # ─── Secrets : seuls les fichiers CHIFFRÉS sont versionnés (#401) ─────────────
 # Filet contre un `git add` malheureux : tout ce qui ressemble à un secret en
 # clair sous ops/secrets/ est ignoré. Les `*.enc.*` sont explicitement réadmis.

@@ -1,12 +1,13 @@
-El diagnóstico de salud se apoya ahora en nuestro catálogo. Cuando la planta figura en él, el modelo recibe nuestros datos de cuidados, las plagas conocidas y los signos de riego antes de responder, y el resultado enlaza con la ficha correcta.
+Esta build es la versión 1.0.0, la que pensamos enviar a la App Store.
 
-El asistente hace lo mismo: menciona una planta del catálogo y responderá a partir de lo que sabemos de ella.
+No hay nada nuevo desde la build 37: el diagnóstico apoyado en el catálogo, el asistente y las traducciones siguen igual. Solo cambia el número de versión, de 0.1.12 a 1.0.0.
 
-Ambas pantallas indican ahora que la IA puede equivocarse. El diagnóstico aclara que es una estimación, no un dictamen fitosanitario.
-
-Algunos textos seguían en francés fuera cual fuera el idioma elegido. Ya están traducidos.
+Por eso nos interesa un repaso general y no una prueba concreta. Si algo te molesta, este es el momento de decirlo: una vez enviada la app, la menor corrección exige otra revisión de Apple.
 
 Qué probar primero:
-1. Haz un escaneo de salud sobre una planta del catálogo y comprueba que el diagnóstico trata de esa planta.
-2. Pregunta al asistente cómo regar una planta que tengas.
-3. Ajustes de iOS, idioma de la app en English: los avisos y los textos del escaneo deben seguirlo.
+1. Crea un jardín de principio a fin: cuestionario, elección de plantas y colocación en RA.
+2. Haz un escaneo de salud y luego una conversación con el asistente.
+3. Recorre el catálogo y abre algunas fichas.
+4. Cambia el idioma de la app en los ajustes de iOS y da otra vuelta rápida.
+
+Avisa de cualquier texto que siga en francés con la app en otro idioma, y de cualquier pantalla que parezca sin terminar.

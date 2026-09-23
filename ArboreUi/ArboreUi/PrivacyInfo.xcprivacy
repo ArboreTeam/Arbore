@@ -97,9 +97,12 @@
         </dict>
 
         <!-- Photos choisies explicitement par l'utilisateur, envoyées en
-             base64 au backend qui relaie à Google (Gemini) :
+             base64 au backend, qui les relaie au fournisseur d'IA qu'il a
+             configuré (Mistral AI depuis #555) :
                - PlantHealthScanner.swift -> POST /diagnose
-               - GeminiService.swift      -> POST /chat
+               - LLMService.swift         -> POST /chat
+             Les deux envois sont conditionnés au réglage « Traitement IA »
+             (AIProcessingPreference, #549) : éteint, la photo ne sort pas.
              La photo de PROFIL, elle, ne sort PAS de l'appareil :
              `uploadProfileImage` n'appelle que `saveProfileImageLocally`
              (cf. #329 — la fonction porte un nom qui ment). Ne pas retirer

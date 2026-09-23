@@ -1,6 +1,13 @@
 # C4 — Niveau 3 : Composants Backend
 
-Cette vue ouvre le container **Backend API** (Go 1.24 + Gin) et expose ses modules principaux. Le code est organisé autour d'un fichier `main.go` (~2 500 lignes) regroupant déclarations de types, handlers et bootstrap, complété par un sous-dossier `middleware/` pour l'authentification et l'autorisation (`api_key.go`, `firebase_auth.go`, `roles.go`, `security.go`) et quelques fichiers spécialisés (`config.go`, `crypto.go`, `apple_revocation.go`, `setdefault.go`, `indexes.go`, `httplogging.go`), ainsi que les fichiers dédiés aux **proxies IA** (`llmprovider.go`, `gemini_provider.go`, `httphardening.go`, `promptsafety.go`, `diagnose_normalize.go`).
+Cette vue ouvre le container **Backend API** (Go 1.25 + Gin) et expose ses modules principaux.
+
+Le code est organisé autour d'un `main.go` (~2 500 lignes) regroupant déclarations de types, handlers et bootstrap, complété par :
+
+- `middleware/` pour l'authentification et l'autorisation — `api_key.go`, `firebase_auth.go`, `roles.go`, `security.go` ;
+- des fichiers spécialisés — `config.go`, `secrets.go`, `crypto.go`, `apple_revocation.go`, `setdefault.go`, `indexes.go`, `httplogging.go`, `observability.go`, `account_cleanup.go`, `climate.go` ;
+- la **couche IA** — `llmprovider.go`, `gemini_provider.go`, `mistral_provider.go`, `llm_throttle.go`, `catalog_context.go`, `httphardening.go`, `promptsafety.go`, `diagnose_normalize.go` ;
+- le **stockage des assets** — `storageprovider.go`, `storage_s3.go`, `storage_guard.go`.
 
 Pour la vue d'ensemble des containers, consulter [`02-containers.md`](02-containers.md). Pour les composants côté iOS et web, consulter [`03-components-ios.md`](03-components-ios.md) et [`03-components-web.md`](03-components-web.md).
 
@@ -27,9 +34,8 @@ flowchart TB
 
     mongo[("[System Ext]<br/>MongoDB Atlas")]
     firebase_admin["[System Ext]<br/>Firebase Admin SDK"]
-    ai_gen["[Container]<br/>AI Generator (FastAPI)"]
     apple["[System Ext]<br/>Apple ID (SIWA)"]
-    gemini["[System Ext]<br/>Google Gemini API"]
+    gemini["[System Ext]<br/>Fournisseur IA<br/>(Mistral AI · Gemini)"]
     storage_ext[("[System Ext]<br/>Cloudflare R2 (S3)")]
 
     client --> public
@@ -37,7 +43,6 @@ flowchart TB
     client --> protected
     protected --> firebase_admin
     access --> mongo
-    access --> ai_gen
     access --> apple
     handlers --> gemini
     storage --> storage_ext
@@ -47,7 +52,7 @@ flowchart TB
     classDef layer fill:#1168BD,stroke:#0B4884,color:#fff
     classDef cont  fill:#2E7D32,stroke:#1B5E20,color:#fff
     class public,apikey,protected,handlers,access,storage layer
-    class client,ai_gen cont
+    class client cont
     class mongo,firebase_admin,apple,gemini,storage_ext ext
 ```
 
@@ -121,8 +126,6 @@ prouver.
 | `POST /plants` | `createPlant` | Insertion (auth standard, pas d'authz supplémentaire). |
 | `GET /plants` | `getPlants` | Catalogue complet. |
 | `GET /plants/:id` | `getPlantByID` | Validation `ObjectIDFromHex`. |
-| `POST /plants/generate` | `generatePlantWithAI` | Génère une fiche multilingue via l'AI Generator ; `409` si la plante existe déjà. |
-| `POST /plants/generate-multiple` | `generateMultiplePlantsHandler` | Variante batch ; retourne created/skipped. |
 
 #### Domaine Gardens (`/gardens`) — ouvert aux invités depuis #393
 
@@ -153,14 +156,14 @@ prouver.
 
 #### Domaine Assistant IA (`/chat`, `/diagnose`)
 
-Ces deux routes sont des **proxies** vers l'API **Google Gemini** : le backend relaie l'appel côté serveur pour que la clé Gemini ne soit **jamais** exposée au client. Le prompt système est envoyé via le champ `systemInstruction` (séparé du contenu utilisateur).
+Ces deux routes sont des **proxies** vers le fournisseur d'IA configuré — **Mistral AI depuis le 2026-09-20** (#555), Gemini restant implémenté — : le backend relaie l'appel côté serveur pour que la clé ne soit **jamais** exposée au client. Le prompt système est envoyé via le champ `systemInstruction` (séparé du contenu utilisateur).
 
 | Endpoint | Handler | Notes |
 |---|---|---|
-| `POST /chat` | `handleGeminiChat` | Assistant jardinage conversationnel (historique + message + image optionnelle). Réponse en texte brut (markdown retiré). |
-| `POST /diagnose` | `handleGeminiDiagnose` | Diagnostic phytopathologique à partir d'une photo + données colorimétriques. Réponse **JSON normalisée** (cf. ci-dessous). |
+| `POST /chat` | `handleChat` | Assistant jardinage conversationnel (historique + message + image optionnelle). Réponse en texte brut (markdown retiré). |
+| `POST /diagnose` | `handleDiagnose` | Diagnostic phytopathologique à partir d'une photo + données colorimétriques. Réponse **JSON normalisée** (cf. ci-dessous). |
 
-Les handlers construisent une requête **neutre** (`LLMRequest`) et l'envoient via l'interface `LLMProvider` : ils ignorent tout de Gemini. L'implémentation `GeminiProvider` (`gemini_provider.go`) porte la clé dans l'en-tête `x-goog-api-key` (jamais dans l'URL, qui fuiterait dans les `*url.Error`), avec retries à backoff et **propagation du `context`** : un client déconnecté annule l'appel en cours (`http.NewRequestWithContext`). L'erreur brute n'est jamais renvoyée au client (log serveur + `502` générique). Changer de fournisseur (Gemini, Mistral, …) = ajouter une implémentation de `LLMProvider`, sans toucher aux handlers.
+Les handlers construisent une requête **neutre** (`LLMRequest`) et l'envoient via l'interface `LLMProvider` : ils ignorent tout du fournisseur. Avant l'envoi, ils **ancrent** la requête sur le catalogue (cf. `catalog_context.go` ci-dessous). L'implémentation `GeminiProvider` (`gemini_provider.go`) porte la clé dans l'en-tête `x-goog-api-key` (jamais dans l'URL, qui fuiterait dans les `*url.Error`), avec retries à backoff et **propagation du `context`** : un client déconnecté annule l'appel en cours (`http.NewRequestWithContext`). L'erreur brute n'est jamais renvoyée au client (log serveur + `502` générique). Changer de fournisseur (Gemini, Mistral, …) = ajouter une implémentation de `LLMProvider`, sans toucher aux handlers.
 
 ### Fournisseur IA & durcissement (#303, #312, #319)
 
@@ -173,10 +176,14 @@ Les proxies `/chat` et `/diagnose` sont découplés du fournisseur concret via `
 | `middleware/security.go` — `WindowLimiter` | **Rate limiting par `uid`** (fenêtre fixe, quotas minute + jour) : `/chat` 20/min, `/diagnose` 6/min (couvre aussi generate/uploads/thumbnails). Les quotas **journaliers** sont modulés par profil via `TieredWindowLimiter` — `/chat` 10 (invité) / 100 (free) / 500 (premium), `/diagnose` 3 / 20 / 100 : c'est le quota journalier qui borne la dépense Gemini, donc l'endroit où le niveau d'abonnement a du sens. Le quota minute reste uniforme, il protège le service contre les rafales. Dépassement → `429` + en-têtes `X-RateLimit-*`. Clé du compteur via `rateLimitKey` : `uid` authentifié en priorité, sinon l'IP réelle rendue par `TrustedClientIP` (`CF-Connecting-IP` puis `X-Real-IP`, validées comme IP). **`X-Forwarded-For` n'est jamais lu** — nginx le construit avec `$proxy_add_x_forwarded_for`, donc sa partie gauche vient du client et rendait le quota contournable (audit #338, constat 2). Mémoire bornée (constat 10) : purge des entrées expirées toutes les minutes indépendamment de la fenêtre (avant, une fenêtre de 24 h gardait une entrée expirée jusqu'à 48 h), et plafond de `limiterMaxEntries` compteurs — au-delà, les plus anciens sont évincés et l'événement est journalisé. Compromis assumé : évincer rend du quota gratuit, ce qui reste préférable à une croissance mémoire non bornée. |
 | `middleware/security.go` — `MaxBodyBytes` | **Cap du corps** (10 Mo) global sur le groupe protégé : `413` anticipé sur `Content-Length` + `http.MaxBytesReader` (gère le chunked). |
 | `httphardening.go` — `newServer` | **Timeouts serveur explicites** (`ReadHeaderTimeout` 15 s anti-Slowloris, `ReadTimeout` 60 s, `WriteTimeout` 300 s, `IdleTimeout` 120 s) au lieu de `router.Run`. |
-| `httphardening.go` — `backoffOrCancel` | Backoff des retries **interruptible** par le `context` (pas d'attente ni de rappel Gemini pour une requête abandonnée). |
+| `httphardening.go` — `backoffOrCancel` | Backoff des retries **interruptible** par le `context` (pas d'attente ni de rappel du fournisseur pour une requête abandonnée). |
 | `main.go` — `hardenClientIPResolution` | **Résolution non falsifiable de l'IP client** : `SetTrustedProxies(nil)` coupe la lecture de `X-Forwarded-For` (gin fait confiance à tous les proxies par défaut), et `TrustedPlatform = "X-Real-IP"` s'appuie sur l'en-tête que nginx écrase systématiquement. Échec fatal au démarrage. |
 | `indexes.go` — `ensureIndexesAtStartup` | **Index Mongo sur les champs `uid`** créés au démarrage (idempotent, non bloquant). Évite un balayage complet de `users` à chaque requête authentifiée. Cf. [modèle de données](04-data-model.md#index). |
+| `observability.go` — `initSentry` | **Reporting Sentry** (#388) : panics interceptés et 5xx remontés, ainsi que les échecs de démarrage. **No-op sans DSN**. Détails dans [`../operations/observability.md`](../operations/observability.md). |
 | `promptsafety.go` | **Anti-prompt-injection** : clause de sécurité prioritaire ajoutée aux system prompts (le contenu utilisateur est une donnée, jamais une instruction) ; entrées bornées (message, historique) ; `plantName` assaini (une ligne, sans caractères de contrôle) et encadré comme donnée non fiable au lieu d'être interpolé brut. |
+| `mistral_provider.go` — `MistralProvider` | Implémentation Mistral, **fournisseur en service depuis le 2026-09-20** (#555). Forme Chat Completions : prompt système en tour `system`, rôle `assistant` (et non `model`), image en objet `image_url` portant une URI de données. Les trois diffèrent de Gemini et sont verrouillées par test. Modèle par défaut `ministral-8b-2512` — seule la famille Ministral reçoit du quota sur le plan actuel. |
+| `llm_throttle.go` — `throttledProvider` | **Porte globale** devant le fournisseur (#553). Les limiteurs de `middleware` sont posés PAR UTILISATEUR et répondent à l'équité ; ils ne peuvent pas protéger le quota du fournisseur, dix clients chacun dans son droit produisant ensemble bien plus que le débit autorisé. Décorateur plutôt qu'ajout dans `Generate` : chaque fournisseur garde une seule raison de changer, et un fournisseur ajouté demain en hérite. Attente bornée, puis `ErrLLMSurcharge` → **429 + `Retry-After`**, jamais 502. ⚠️ La porte est globale **par instance**. |
+| `catalog_context.go` | **Ancrage sur le catalogue** (#554). Les noms de plantes cités sont rapprochés des 123 fiches, dont les soins, nuisibles et signes d'arrosage sont joints au prompt comme **données de référence** — jamais comme consignes, et assainies par `sanitizeLine`. Pas d'index vectoriel : l'appariement se fait sur les préfixes de mots du nom, sans distance d'édition, car trouver la MAUVAISE fiche injecterait les soins d'une autre plante présentés comme des faits vérifiés. Après coup, l'espèce rendue est réconciliée et la réponse porte `catalogPlantId`. |
 | `diagnose_normalize.go` — `normalizeDiagnose` | **Validation du schéma de sortie** du diagnostic : décodage typé, valeurs numériques clampées dans `[0,1]`, tableaux bornés et jamais `null`, maladies sans nom écartées, défauts prudents. Respecte le contrat du décodeur iOS (`diseases[].name` toujours émis, clés camelCase). |
 
 ## Modules de support et clients externes
@@ -189,7 +196,6 @@ Les proxies `/chat` et `/diagnose` sont découplés du fournisseur concret via `
 | `crypto.go` — `encrypt` / `decrypt` | Chiffrement **AES-256-GCM** au repos. Clé maître 32 octets (64 hex) résolue par `resolveMasterEncryptionKey` : **fichier `MASTER_ENCRYPTION_KEY_PATH` en priorité**, sinon repli sur la variable `MASTER_ENCRYPTION_KEY`. Le fichier est préféré parce qu'une variable est lisible par `docker inspect` et `/proc/<pid>/environ` — or cette clé déchiffre les refresh tokens Apple, elle était donc moins protégée que ce qu'elle protège (#338 constat 4). Un chemin défini mais illisible est une **erreur**, jamais un repli silencieux. Mise en cache via `sync.Once`, format `nonce \|\| ciphertext`. Seul appelant : le refresh token Apple (#210). |
 | `apple_revocation.go` | Révocation **Sign in with Apple** (Guideline 5.1.1(v)) : `generateClientSecret()` (JWT ES256), `exchangeAuthorizationCode()` → refresh token, `revokeRefreshToken()` à la suppression de compte. `revokeAppleBestEffort` n'échoue jamais la suppression. |
 | `setdefault.go` — `(*Plant).SetDefaults()` | Remplit des valeurs par défaut défensives (nom, type, image, description, garantit les 4 langues) sans jamais fabriquer de données d'entretien. |
-| `generateAndInsertPlant` (main.go) | Pipeline : dédup par nom → appel HTTP `AI_GENERATOR_URL/generate` → enrichissement Unsplash → résolution du fichier USDZ local → insertion Mongo. La dédup passe par `plantNameFilter`, qui **échappe le nom avec `regexp.QuoteMeta`** : interpolé brut dans un `$regex`, il permettait d'injecter un motif arbitraire, et MongoDB utilise PCRE (backtracking) là où le RE2 de Go est linéaire — un `(a+)+!` suffisait à saturer le CPU Mongo partagé avec la prod (#338 constat 3). |
 | `client` / `testClient` (`*mongo.Client`, main.go) | Connexions Mongo (`arbore`, et `arbore_test` optionnelle). `getDatabaseForRequest` choisit la base selon le sélecteur posé par la clé API ; fail-safe vers prod. |
 | `loadDotEnv` (main.go) | Charge un `.env` local au démarrage (ne surcharge jamais l'environnement déjà défini). |
 | CORS (`configureCORS`, main.go) | **Désactivé par défaut** : le middleware n'est installé que si `CORS_ALLOWED_ORIGINS` liste des origines (séparées par des virgules). Sans lui, aucun en-tête CORS n'est émis et le navigateur bloque toute requête cross-origin — comportement voulu, l'app web appelant l'API via son proxy Next.js **côté serveur** où CORS ne s'applique pas. Quand des origines sont configurées : méthodes GET/POST/PUT/PATCH/DELETE/OPTIONS, en-têtes `Authorization` / `Content-Type` / `X-API-Key`, `AllowCredentials: true`. L'ancienne config autorisait `http://localhost:3000` **en dur, y compris en production** (#338 constat 5). |
@@ -207,15 +213,25 @@ Les proxies `/chat` et `/diagnose` sont découplés du fournisseur concret via `
 | `APPLE_TEAM_ID` / `APPLE_KEY_ID` | Identifiants Apple Developer (révocation SIWA). | configuration |
 | `APPLE_SIWA_CLIENT_ID` | `client_id` OAuth Apple. Flux natif iOS = bundle ID `com.arboreteam.arbore`. | configuration |
 | `APPLE_SIWA_KEY_PATH` | Chemin interne vers la clé privée `.p8` SIWA, montée en lecture seule hors du dépôt. | 🔒 secret |
-| `UNSPLASH_ACCESS_KEY` | Clé API Unsplash (photos du catalogue). | 🔒 secret |
 | `GEMINI_API_KEY` | Clé de l'API Google Gemini pour les proxies `/chat` et `/diagnose`. Portée dans l'en-tête `x-goog-api-key`. | 🔒 secret |
 | `GEMINI_MODEL` | Modèle Gemini utilisé. Défaut code : `gemini-2.5-flash`. | configuration |
-| `AI_GENERATOR_URL` | URL de l'AI Generator. Défaut code : `http://localhost:8001` ; en prod : URL interne Docker. Endpoint `/generate`. | configuration |
+| `AI_PROVIDER` | Fournisseur retenu : `gemini` ou `mistral`. **Défaut du CODE : `gemini` ; défaut du DÉPLOIEMENT : `mistral`**, posé dans `docker-compose.yml`. Confondre les deux a produit une bascule accidentelle (#555). | configuration |
+| `MISTRAL_API_KEY` | Clé Mistral, portée dans l'en-tête `Authorization` — jamais dans l'URL, qui fuirait dans les `*url.Error`. | 🔒 secret |
+| `MISTRAL_MODEL` | Modèle Mistral. Défaut code : `ministral-8b-2512`. ⚠️ Seule la famille Ministral reçoit du quota ; `mistral-small` et `medium` répondent 429 avec une limite nulle. | configuration |
+| `MISTRAL_RPS` / `GEMINI_RPS` | Débit déclaré par le fournisseur, en requêtes/seconde. Mistral : 3 par défaut, mesuré. Gemini : 0, soit **aucun étranglement** — son comportement ne change pas. | configuration |
+| `AI_THROTTLE_MAX_WAIT` | Attente maximale devant la porte d'étranglement. Défaut 5 s : acceptable parce qu'un appel LLM en prend déjà plusieurs. | configuration |
+| `MISTRAL_BASE_URL` | Surcharge de l'URL d'API. **Réservée aux tests** : permet de viser un serveur local. | configuration |
+| `MONGODB_URI_PATH`, `ARBORE_API_KEY_PATH`, `GEMINI_API_KEY_PATH`, `MISTRAL_API_KEY_PATH`, `MASTER_ENCRYPTION_KEY_PATH` | Variantes **fichier** des secrets (#338 constat 4, #543). Une variable d'environnement est lisible par `docker inspect` et dans `/proc/<pid>/environ`. Vides par défaut : un montage oublié retombe sur la variable plutôt que d'empêcher le démarrage. | configuration |
+| `STORAGE_PROVIDER` | `filesystem` (défaut) ou `s3`. En production : R2 via l'API S3. | configuration |
+| `STORAGE_S3_ENDPOINT`, `_BUCKET`, `_REGION`, `_ACCESS_KEY`, `_SECRET_KEY`, `_USE_SSL` | Configuration du stockage objet. Les deux clés sont des secrets. | 🔒 secret / configuration |
+| `CORS_ALLOWED_ORIGINS` | Origines navigateur autorisées. **Vide = CORS désactivé** (#338 constat 5) : le web passe par son proxy Next.js côté serveur. | configuration |
+| `SENTRY_DSN` | DSN du projet backend. Source `SENTRY_DSN_BACKEND` dans compose — un nom partagé enverrait les erreurs du web dans le projet du backend (#388). Sans DSN, le SDK ne démarre pas et le comportement est identique. | 🔒 secret |
+| `METEOFRANCE_API_KEY` / `_TOKEN`, `METEOFRANCE_CLIMATE_BASE_URL`, `GEOGOUV_API_BASE_URL` | Profil climatique local (`/climate/profile`). | 🔒 secret / configuration |
 | `THUMBNAILS_DIR` | Répertoire des thumbnails PNG. | configuration |
 | `ARBORE_ADMIN_UIDS` | Liste d'amorçage des UID administrateurs ; préférer ensuite les claims Firebase. | 🔒 secret |
 | `GIN_MODE` | `release` en prod, `debug` en local. | configuration |
 
-> **Note `OPENAI_API_KEY`** : consommée uniquement par l'AI Generator lorsque ce fournisseur est sélectionné, jamais par le backend Go. **Note `PORT`** : définit le port d'écoute du serveur Go en exécution directe ; Docker conserve le port `8080` dans le conteneur et utilise `PORT` uniquement pour le mapping côté hôte.
+> **Note `PORT`** : définit le port d'écoute du serveur Go en exécution locale ; en conteneur, c'est la publication de port de `docker-compose.yml` qui décide.
 
 ## Points clés
 
@@ -223,7 +239,7 @@ Les proxies `/chat` et `/diagnose` sont découplés du fournisseur concret via `
 - **Aucun ORM** : driver MongoDB officiel utilisé directement avec `bson.M{...}`. Lisibilité maximale, pas de protection structurelle contre les fautes de frappe sur les champs.
 - **Self-only authz omniprésente** : les handlers `users`/`gardens` filtrent par `uid` extrait du token, jamais par l'`uid` du body ou de l'URL (cf. [ADR 0005](../decisions/0005-self-authz-pattern.md)).
 - **Défense en profondeur** : clé API (temps constant) **et** token Firebase (vérifié, email-verified, non banni) sur tout le trafic métier.
-- **Proxies IA durcis** : les routes Gemini (`/chat`, `/diagnose`) ne relaient jamais la clé au client, sont rate-limitées par `uid`, bornées en taille de corps et en temps, protégées contre le prompt injection, et leur sortie de diagnostic est validée/normalisée avant renvoi (#303, #312).
+- **Proxies IA durcis** : les routes `/chat` et `/diagnose` ne relaient jamais la clé au client, sont rate-limitées par `uid`, bornées en taille de corps et en temps, protégées contre le prompt injection, et leur sortie de diagnostic est validée/normalisée avant renvoi (#303, #312).
 - **Secrets chiffrés au repos** : le refresh token Apple est chiffré AES-256-GCM (`crypto.go`) avant écriture en base.
 - **Configuration uniquement par l'environnement** : `MONGODB_URI` est obligatoire (`log.Fatal` si absente) — aucun credential Mongo n'est codé en dur.
 - **HTTPS** : l'accès public se fait en HTTPS via Cloudflare (cf. [`../operations/vps-bootstrap.md`](../operations/vps-bootstrap.md)) ; le durcissement TLS Cloudflare → origine est suivi côté opérations.

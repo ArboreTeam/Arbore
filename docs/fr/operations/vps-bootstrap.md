@@ -26,9 +26,8 @@ Composants installés à la fin de la procédure :
 | cronie | Lance `cleanup-test-db.sh` chaque nuit à 04:00 UTC |
 | gh CLI | Utilisé par `cleanup-test-db.sh` (optionnel, fallback curl) |
 
-L'AI Generator écoute en interne sur `:8000`, le backend l'appelle via le
-réseau Docker `arbore-net` ; le web appelle le backend sur `http://backend:8080`
-(via son proxy serveur). Ces ports sont exposés sur l'hôte mais leur accès
+Le web appelle le backend sur `http://backend:8080` via le réseau Docker
+`arbore-net`, depuis son proxy serveur. Ces ports sont exposés sur l'hôte mais leur accès
 externe direct est bloqué par le firewall (cf. annexe pare-feu) ; le trafic
 public passe par Nginx sur `:80`/`:443`, eux-mêmes restreints aux IP Cloudflare.
 
@@ -188,10 +187,9 @@ attendues (sources de vérité indiquées) :
 | `MODELS_HOST_PATH` | Stockage persistant du VPS | Dossier USDZ, indépendant du checkout de code |
 | `THUMBNAILS_HOST_PATH` | Stockage persistant du VPS | Dossier de miniatures générées |
 | `LEGACY_COMMUNITY_UPLOADS_HOST_PATH` | Stockage persistant du VPS | Conservé uniquement pour l'effacement RGPD |
-| `OPENAI_API_KEY` | OpenAI Platform → API keys | Pour l'AI Generator |
-| `UNSPLASH_ACCESS_KEY` | Unsplash Developers → Application | Photos de plantes |
-| `MISTRAL_API_KEY` | console.mistral.ai → API keys | Backend AI provider alternatif |
-| `AI_PROVIDER` | Constante config | `openai` ou `mistral` |
+| `GEMINI_API_KEY` | Google AI Studio → API keys | Fournisseur d'IA de repli |
+| `MISTRAL_API_KEY` | admin.mistral.ai → API Keys | **Fournisseur en service** pour `/chat` et `/diagnose` |
+| `AI_PROVIDER` | Constante config | `gemini` ou `mistral`. Défaut du déploiement : `mistral` |
 | `GIN_MODE` | Constante config | `release` en prod |
 | `PORT` | Constante config | `8080` |
 
@@ -225,13 +223,13 @@ LEGACY_COMMUNITY_UPLOADS_HOST_PATH=/home/fedora/arbore-data/uploads/community
 # le web appelle l'API via son proxy Next.js côté serveur (#338 constat 5).
 CORS_ALLOWED_ORIGINS=
 
-# AI providers
-AI_PROVIDER=openai
-OPENAI_API_KEY=sk-...
+# Fournisseur d'IA. Avant de poser mistral, vérifier sur
+# admin.mistral.ai/plateforme/privacy que « Data usage for improving our
+# services » ET « Enable Labs models » sont DÉSACTIVÉS : le palier gratuit est
+# opté-in à l'entraînement par défaut, et un modèle Labs annule l'opt-out (#555).
+AI_PROVIDER=mistral
 MISTRAL_API_KEY=...
-
-# Unsplash
-UNSPLASH_ACCESS_KEY=...
+GEMINI_API_KEY=...
 
 # Config Gin
 GIN_MODE=release

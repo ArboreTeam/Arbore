@@ -180,9 +180,10 @@ droit d'autrui, et l'utilisateur voit exactement ce qu'il placera en réalité
 augmentée. Ce sont les mêmes fichiers que ceux servis aux cartes du catalogue,
 donc une seule entrée de cache par plante.
 
-> ⚠️ **Le chemin de génération n'a pas suivi.** `generateAndInsertPlant` appelle
-> toujours `fetchUnsplashImageURLs` : une plante créée par la génération IA
-> repart donc avec des URL tierces. Suivi dans #526.
+> ℹ️ **Le chemin de génération n'existe plus.** `generateAndInsertPlant` et son
+> enrichissement Unsplash sont partis avec le microservice AiGenerator, déposé le
+> 2026-09-20 (#558). Plus aucune URL tierce n'entre donc dans le catalogue, et
+> #526 s'est refermée d'elle-même.
 
 Le sous-document `translations[lang]` (type `LanguageData`) regroupe :
 
@@ -379,7 +380,7 @@ Avant ces index, la seule collection indexée l'était sur `_id` : chaque requê
 >
 > ⚠️ **Changer les caractéristiques d'un index existant est impossible en place.** MongoDB renvoie selon le cas `IndexOptionsConflict` (**85**, les options divergent) ou `IndexKeySpecsConflict` (**86**, les specs de clé divergent). Ajouter `unique: true` à un index existant renvoie **86** — vérifié en production. `ensureIndexes` ne tente donc **pas** de remplacer l'index automatiquement : un `drop` suivi d'un `create` qui échoue laisserait la collection sans aucun index, donc en balayage complet à chaque requête authentifiée. Le log affiche à la place la commande `dropIndex`/`createIndex` à exécuter, une fois les doublons éliminés.
 
-`plants` n'est pas indexée : sa seule recherche par nom (`generateAndInsertPlant`) est une regex insensible à la casse, qu'un index classique ne peut pas exploiter efficacement. Si ce chemin devient chaud, la bonne réponse est un champ `nameNormalized` indexé.
+`plants` n'est pas indexée. Depuis la dépose du générateur (#558), plus aucune recherche par nom ne frappe Mongo : l'ancrage catalogue de #554 charge les 123 noms **une fois toutes les quinze minutes** et les apparie en mémoire, ce qui rend un index sans objet. Si une recherche par nom revenait côté base, la bonne réponse resterait un champ `nameNormalized` indexé — une regex insensible à la casse ne sait pas exploiter un index sur `name`.
 
 ## Relations entre collections
 
@@ -396,6 +397,6 @@ Les insertions via le sélecteur de base **test** sont étiquetées par `maybeLa
 
 ## Hors-scope de cette vue
 
-- Le pipeline de génération de plantes (`generateAndInsertPlant`) relève de [`03-components-backend.md`](03-components-backend.md).
+- L'ancrage des réponses d'IA sur cette collection (`catalog_context.go`) relève de [`03-components-backend.md`](03-components-backend.md).
 - Les fichiers locaux iOS (`scene_{id}.json`, `worldmap_{id}.arworldmap`) sont propres au client et n'apparaissent pas dans Mongo — voir [`03-components-ios.md`](03-components-ios.md).
 - Les séquences signup et sauvegarde de jardin sont documentées dans [`../flows/`](../flows/).

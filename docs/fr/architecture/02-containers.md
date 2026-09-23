@@ -19,8 +19,7 @@ flowchart TB
         subgraph vps["VPS Fedora (Docker Compose)"]
             direction TB
             web["🌐 [Container] Web Arbore<br/>Next.js · standalone (web.arbore.app)"]
-            backend["⚙️ [Container] Backend API<br/>Go 1.24 · Gin"]
-            ai["🤖 [Container] AI Generator<br/>Python 3.11 · FastAPI"]
+            backend["⚙️ [Container] Backend API<br/>Go 1.25 · Gin"]
         end
     end
 
@@ -43,7 +42,6 @@ flowchart TB
     backend -- "Vérifie chaque requête (service account)"      --> firebase_admin
     backend -- "MongoDB driver Go"                             --> mongo
     backend -- "Révocation token (suppression compte)"         --> apple
-    backend -- "HTTP interne Docker"                           --> ai
     backend -- "Lecture / écriture objets (S3)"                --> r2
     ios     -. "Téléchargement direct (URL signée 15 min)" .-> r2
     ai      -- "Prompt LLM (HTTPS)"                            --> llm
@@ -52,19 +50,18 @@ flowchart TB
     classDef cont     fill:#1168BD,stroke:#0B4884,color:#fff
     classDef ext_node fill:#999,stroke:#666,color:#fff
     class user person
-    class ios,web,backend,ai cont
+    class ios,web,backend cont
     class firebase_auth,firebase_admin,mongo,apple,llm,r2 ext_node
 ```
 
 ## Points clés
 
-- **Quatre containers Arbore sont en production** : l'application iOS, le front web Next.js, le backend Go et l'AI Generator Python. Les trois derniers tournent en containers Docker sur un VPS Fedora unique, orchestrés par `docker-compose.yml`.
+- **Trois containers Arbore sont en production** : l'application iOS, le front web Next.js et le backend Go. L'AI Generator Python a été déposé le 2026-09-20 (#558), faute de trafic et avec un schéma de sortie périmé. Les trois derniers tournent en containers Docker sur un VPS Fedora unique, orchestrés par `docker-compose.yml`.
 - **Le front web est déployé** sur `web.arbore.app` (Cloudflare → nginx → container `arbore-web` sur le port 3000). Il sert de compagnon à l'app iOS : consultation du catalogue, des jardins, calendrier d'arrosage, gestion du compte (export/suppression RGPD). Les jardins sont **créés sur iOS** (placement AR).
 - **Le web n'expose jamais la clé API ni l'URL du backend au navigateur** : tous les appels passent par un **proxy serveur same-origin** (`/api/backend`) qui injecte `X-API-Key` côté serveur et relaie le token Firebase de l'utilisateur. Conséquence : pas de CORS côté navigateur, clé API jamais exposée.
 - **Deux barrières de sécurité protègent l'accès aux données** :
   1. **X-API-Key** validée par un middleware backend dédié (comparaison à temps constant) — limite l'exposition aux requêtes automatisées non autorisées venant de l'extérieur.
   2. **Bearer Firebase token** validé par le Firebase Admin SDK côté backend — garantit que la requête provient d'un utilisateur authentifié, vérifié et non banni, et fournit son `uid`.
-- **L'AI Generator est isolé du client** : seul le backend l'appelle (réseau Docker interne), jamais l'application iOS ou web directement. Ce choix cache la clé OpenAI/Mistral et permet caching et throttling côté backend.
 - **MongoDB Atlas est externe au système Arbore** mais piloté exclusivement par le backend. Les clients (iOS, web) n'ouvrent **jamais** de connexion MongoDB directe.
 - **Backend et Web partagent le même VPS** et communiquent via le réseau Docker interne (`http://backend:8080`) plutôt que via l'IP publique.
 - **HTTPS en façade** : l'accès public se fait en HTTPS via Cloudflare (Full strict), nginx restreint aux IP Cloudflare ; le durcissement TLS Cloudflare → origine est suivi côté opérations (cf. [`../operations/vps-bootstrap.md`](../operations/vps-bootstrap.md)).

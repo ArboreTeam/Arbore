@@ -37,7 +37,7 @@ final class PlantHealthScannerTests: XCTestCase {
         }
     }
 
-    func testScanError_geminiErrorEmbedsMessage() {
+    func testScanError_llmErrorEmbedsMessage() {
         let error = PlantScanError.llmError("quota dépassé")
         XCTAssertTrue(error.errorDescription?.contains("quota dépassé") ?? false)
     }

@@ -259,6 +259,39 @@ fait défiler vite » plutôt que « optimisation du décodage des vignettes ».
 Terminer par ce qu'on veut voir testé en priorité : c'est la seule partie que les
 testeurs suivent vraiment.
 
+### Remplir la fiche App Store (textes et captures)
+
+Deux lanes distinctes, qui poussent dans le **brouillon** de la version courante
+et ne soumettent jamais rien. Elles lisent la version depuis le projet Xcode :
+une version éditable doit donc exister dans ASC (App Store → **+ VERSION**).
+
+```bash
+bundle exec fastlane upload_metadata      # description, sous-titre, mots-clés, URLs, notes de version
+bundle exec fastlane upload_screenshots   # captures, 4 langues
+```
+
+`upload_metadata` pousse aussi `release_notes.txt`, qui **est** le champ
+« What's New in This Version ». Deux pièges :
+
+- ce champ n'existe **pas** pour une première version — ASC ne l'affiche qu'à
+  partir de la deuxième ;
+- ne pas le confondre avec `fastlane/changelogs/`, qui sont les notes
+  **TestFlight**, un circuit séparé.
+
+`upload_screenshots` lit `fastlane/screenshots/<locale>/*.png`. Ce dossier est
+**gitignoré** : les captures ne sont pas dans le dépôt, elles se régénèrent
+depuis l'outil de design. La lane échoue donc explicitement si une des quatre
+locales est vide — sans cette garde, `deliver` passerait sans rien dire et ASC
+réutiliserait le français sur les fiches anglaise, espagnole et allemande.
+
+Deux contraintes d'App Store Connect valent d'être connues avant l'upload :
+
+- les fichiers en `1290 × 2796` atterrissent dans le slot **6,9"**, le seul
+  requis depuis 2024 ; l'interface ouvre parfois sur le slot 6,5", qui attend
+  d'autres dimensions ;
+- une capture ne doit porter **aucun canal alpha**, même entièrement opaque :
+  c'est la présence du canal qui est contrôlée, pas la transparence.
+
 ### Vérifier le dernier build sur TestFlight
 
 ```bash

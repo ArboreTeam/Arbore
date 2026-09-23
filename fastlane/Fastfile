@@ -20,6 +20,8 @@
 #   bundle exec fastlane verifier_notes  # contrôle les notes sans rien livrer
 #   bundle exec fastlane notes build:33  # republie les notes d'une build en ligne
 #   bundle exec fastlane current_build   # affiche le dernier build_number sur TestFlight
+#   bundle exec fastlane upload_metadata     # textes de la fiche App Store (4 langues)
+#   bundle exec fastlane upload_screenshots  # captures de la fiche App Store (4 langues)
 #
 # Interne ou externe, la différence n'est pas cosmétique :
 #
@@ -469,6 +471,50 @@ platform :ios do
     )
     UI.success("✅ Textes poussés dans le brouillon ASC (version #{version}). Rien n'a été soumis.")
     UI.message("Prérequis : une version App Store éditable doit exister dans ASC (App Store → + VERSION).")
+  end
+
+  desc "Pousse les CAPTURES d'écran (fastlane/screenshots) vers le brouillon ASC."
+  desc "Ne touche ni aux textes, ni au binaire, et ne soumet rien."
+  lane :upload_screenshots do
+    dossier = File.expand_path("screenshots", __dir__)
+
+    # Les captures ne sont PAS versionnées (cf. .gitignore) : elles sont
+    # régénérées depuis l'artifact de design. Un dossier vide ferait passer
+    # `deliver` sans rien envoyer et sans rien dire — on préfère échouer ici.
+    UI.user_error!("Dossier introuvable : #{dossier}") unless Dir.exist?(dossier)
+
+    manquantes = BETA_LOCALES.reject do |locale|
+      Dir.glob(File.join(dossier, locale, "*.png")).any?
+    end
+    unless manquantes.empty?
+      UI.user_error!(
+        "Aucune capture pour : #{manquantes.join(', ')}. " \
+        "App Store Connect réutiliserait alors la langue par défaut pour ces fiches."
+      )
+    end
+
+    BETA_LOCALES.each do |locale|
+      fichiers = Dir.glob(File.join(dossier, locale, "*.png")).sort
+      UI.message("#{locale} : #{fichiers.size} capture(s)")
+    end
+
+    version = get_version_number(xcodeproj: "ArboreUi/ArboreUi.xcodeproj")
+    upload_to_app_store(
+      api_key_path: AUTH_KEY,
+      app_version: version,
+      screenshots_path: dossier,
+      skip_binary_upload: true,          # on ne touche pas au build
+      skip_metadata: true,               # … ni aux textes
+      skip_screenshots: false,           # seulement les captures
+      overwrite_screenshots: true,       # remplace, sinon ASC empile les doublons
+      submit_for_review: false,          # NE SOUMET PAS
+      force: true,                       # pas de prompt preview HTML
+      run_precheck_before_submit: false,
+      precheck_include_in_app_purchases: false
+    )
+
+    UI.success("✅ Captures poussées dans le brouillon ASC (version #{version}). Rien n'a été soumis.")
+    UI.message("Les fichiers en 1290 × 2796 atterrissent dans le slot 6,9\" — le seul requis depuis 2024.")
   end
 
   desc "Pousse les infos TestFlight (description testeurs + compte démo de Beta"

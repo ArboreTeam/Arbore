@@ -1,12 +1,13 @@
-Le diagnostic santé s'appuie désormais sur notre catalogue. Quand la plante y figure, le modèle reçoit nos données de soin, nos nuisibles connus et nos signes d'arrosage avant de répondre, et le résultat renvoie vers la bonne fiche.
+Cette build est la version 1.0.0, celle que nous comptons soumettre à l'App Store.
 
-L'assistant fait de même : citez une plante du catalogue et il répond à partir de ce que nous savons d'elle.
+Rien de nouveau depuis la build 37 : le diagnostic ancré sur le catalogue, l'assistant et les traductions sont inchangés. Seul le numéro de version passe de 0.1.12 à 1.0.0.
 
-Les deux écrans indiquent maintenant que l'IA peut se tromper. Le diagnostic précise qu'il s'agit d'une estimation et non d'un avis phytosanitaire.
+C'est donc une relecture générale qui nous intéresse, pas un test ciblé. Si quelque chose vous gêne, c'est le moment de le dire : une fois la soumission partie, la moindre correction demandera une nouvelle revue Apple.
 
-Quelques textes restaient en français quelle que soit la langue choisie. Ils sont traduits.
+À tester en priorité :
+1. Créez un jardin de bout en bout : questionnaire, choix des plantes, placement en RA.
+2. Lancez un scan santé, puis un échange avec l'assistant.
+3. Parcourez le catalogue et ouvrez quelques fiches.
+4. Changez la langue de l'app dans les réglages iOS et refaites un tour rapide.
 
-À tester en premier :
-1. Lancez un scan santé sur une plante du catalogue et vérifiez que le diagnostic parle bien de cette plante.
-2. Demandez à l'assistant comment arroser une plante que vous possédez.
-3. Réglages iOS, langue de l'app en English : les avertissements et les textes du scan doivent suivre.
+Signalez tout texte resté en français alors que l'app est dans une autre langue, et tout écran qui paraît inachevé.

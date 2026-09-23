@@ -1,12 +1,13 @@
-Plant health diagnosis now draws on our own catalogue. When the plant is in it, the model receives our care data, known pests and watering signs before answering, and the result links back to the right entry.
+This build is version 1.0.0, the one we intend to submit to the App Store.
 
-The assistant does the same: mention a plant from the catalogue and it answers from what we know about it.
+Nothing is new since build 37: the catalogue-grounded diagnosis, the assistant and the translations are unchanged. Only the version number moves from 0.1.12 to 1.0.0.
 
-Both screens now state that AI can make mistakes. The diagnosis makes clear it is an estimate, not professional plant health advice.
+So a general pass is what we need, not a targeted test. If something bothers you, now is the moment to say so: once the submission is out, the smallest fix means another Apple review.
 
-A few texts stayed in French whatever language you picked. They are translated.
+What to try first:
+1. Create a garden end to end: questionnaire, plant picks, AR placement.
+2. Run a health scan, then a conversation with the assistant.
+3. Browse the catalogue and open a few plant pages.
+4. Switch the app language in iOS settings and do another quick round.
 
-What to test first:
-1. Run a health scan on a plant from the catalogue and check the diagnosis is about that plant.
-2. Ask the assistant how to water a plant you own.
-3. iOS Settings, app language set to Français: the warnings and scan texts should follow.
+Report any text still in French while the app runs in another language, and any screen that looks unfinished.

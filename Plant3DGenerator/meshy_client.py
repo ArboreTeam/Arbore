@@ -47,13 +47,40 @@ class MeshyClient:
         })
 
     def create_preview(self, prompt: str, *, lowpoly: bool = True,
-                       formats: Optional[list] = None) -> str:
+                       formats: Optional[list] = None,
+                       auto_size: bool = True,
+                       origin_at: str = "bottom",
+                       negative_prompt: str = "") -> str:
+        """Create a Meshy preview task.
+
+        `auto_size=True` lets Meshy resize the mesh to a realistic height
+        estimated from the prompt (avoids the need for a separate Python
+        post-process to scale plants to species-level dimensions).
+
+        `origin_at="bottom"` parks the mesh origin at the base of the bbox
+        so iOS can drop the USDZ at the raycast hit point without computing
+        a pivot offset for the model's lowest vertex.
+
+        `negative_prompt` is accepted in the signature for forward-compat,
+        but **not sent to Meshy v2 preview mode** : leur API renvoie un
+        400 quand on l'inclut (déprécié sur preview, jamais réactivé sur
+        meshy-4/5/6). On garde le paramètre pour qu'on puisse le brancher
+        instantanément le jour où Meshy le ré-ajoute. En attendant, le
+        contenu du negative_prompt doit être incorporé au prompt positif
+        sous forme de "no X" agressifs côté pipeline.build_*_prompt.
+        """
         payload = {
             "mode": "preview",
             "prompt": prompt,
             "model_type": "lowpoly" if lowpoly else "standard",
             "target_formats": formats or ["glb", "usdz"],
+            "auto_size": auto_size,
+            "origin_at": origin_at,
         }
+        # NOTE: negative_prompt délibérément exclu du payload — Meshy v2
+        # rejette la requête en 400 si on l'envoie en preview. cf doc :
+        # https://docs.meshy.ai/en/api/text-to-3d (déprécié sur preview).
+        _ = negative_prompt  # acked, ignored
         r = _request_with_retry("POST", BASE_URL, session=self.session,
                                 json=payload, timeout=30)
         r.raise_for_status()
@@ -61,7 +88,8 @@ class MeshyClient:
 
     def create_refine(self, preview_id: str, *, texture_prompt: str = "",
                       enable_pbr: bool = True, remove_lighting: bool = True,
-                      ai_model: str = "meshy-6") -> str:
+                      ai_model: str = "meshy-6",
+                      negative_prompt: str = "") -> str:
         payload = {
             "mode": "refine",
             "preview_task_id": preview_id,
@@ -71,6 +99,8 @@ class MeshyClient:
         }
         if texture_prompt:
             payload["texture_prompt"] = texture_prompt
+        # Idem preview — Meshy v2 ne supporte pas negative_prompt en refine.
+        _ = negative_prompt
         r = _request_with_retry("POST", BASE_URL, session=self.session,
                                 json=payload, timeout=30)
         r.raise_for_status()

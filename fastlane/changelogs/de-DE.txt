@@ -1,12 +1,13 @@
-Die Gesundheitsdiagnose stützt sich jetzt auf unseren Katalog. Steht die Pflanze darin, erhält das Modell vor der Antwort unsere Pflegedaten, bekannten Schädlinge und Gießhinweise, und das Ergebnis verweist auf den richtigen Eintrag.
+Dieser Build ist Version 1.0.0, die wir im App Store einreichen wollen.
 
-Der Assistent macht dasselbe: Nenne eine Pflanze aus dem Katalog, und er antwortet anhand dessen, was wir über sie wissen.
+Seit Build 37 gibt es nichts Neues: die auf dem Katalog gestützte Diagnose, der Assistent und die Übersetzungen bleiben unverändert. Nur die Versionsnummer wechselt von 0.1.12 auf 1.0.0.
 
-Beide Bildschirme weisen nun darauf hin, dass KI Fehler machen kann. Die Diagnose stellt klar, dass es sich um eine Schätzung handelt und nicht um einen fachlichen Pflanzenschutzbefund.
-
-Einige Texte blieben unabhängig von der gewählten Sprache französisch. Sie sind übersetzt.
+Uns interessiert deshalb ein allgemeiner Durchgang, kein gezielter Test. Wenn dich etwas stört, ist jetzt der Moment, es zu sagen: nach der Einreichung kostet jede Korrektur eine neue Prüfung durch Apple.
 
 Was zuerst zu testen ist:
-1. Führe einen Gesundheitsscan an einer Pflanze aus dem Katalog durch und prüfe, ob die Diagnose diese Pflanze betrifft.
-2. Frage den Assistenten, wie du eine deiner Pflanzen gießen sollst.
-3. iOS-Einstellungen, App-Sprache auf English: Die Hinweise und Scan-Texte sollen folgen.
+1. Lege einen Garten von Anfang bis Ende an: Fragebogen, Pflanzenauswahl, Platzierung in AR.
+2. Führe einen Gesundheitsscan durch und danach ein Gespräch mit dem Assistenten.
+3. Sieh dir den Katalog an und öffne ein paar Pflanzenseiten.
+4. Stelle die App-Sprache in den iOS-Einstellungen um und mach eine weitere kurze Runde.
+
+Melde jeden Text, der auf Französisch bleibt, während die App in einer anderen Sprache läuft, und jeden Bildschirm, der unfertig wirkt.

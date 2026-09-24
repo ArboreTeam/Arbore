@@ -36,6 +36,8 @@ The documentation is split into complementary views. Depending on what you are l
 | Observability (Sentry iOS + web) | [`operations/observability.md`](operations/observability.md) |
 | Botanical data audit | [`operations/botanical-data-audit.md`](operations/botanical-data-audit.md) |
 | TestFlight deployment, internal and public beta (fastlane) | [`operations/testflight-deploy.md`](operations/testflight-deploy.md) |
+| App Store release (listing, App Privacy, traps) | [`operations/app-store-release.md`](operations/app-store-release.md) |
+| Asset provenance (images, 3D models, data) | [`operations/asset-provenance.md`](operations/asset-provenance.md) |
 | Prod/dev environments (targeting dev from Xcode) | [`operations/environments.md`](operations/environments.md) |
 | VPS provisioning (Docker · nginx · Mongo) | [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md) |
 | 3D asset storage (R2 · S3 · MinIO) | [`operations/asset-storage.md`](operations/asset-storage.md) |

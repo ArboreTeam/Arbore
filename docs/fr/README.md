@@ -36,6 +36,8 @@ La documentation est découpée en vues complémentaires. Selon l'information re
 | Observabilité (Sentry iOS + web) | [`operations/observability.md`](operations/observability.md) |
 | Audit des données botaniques | [`operations/botanical-data-audit.md`](operations/botanical-data-audit.md) |
 | Déploiement TestFlight, interne et bêta publique (fastlane) | [`operations/testflight-deploy.md`](operations/testflight-deploy.md) |
+| Publication App Store (fiche, App Privacy, pièges) | [`operations/publication-app-store.md`](operations/publication-app-store.md) |
+| Provenance des assets (images, modèles 3D, données) | [`operations/provenance-assets.md`](operations/provenance-assets.md) |
 | Environnements prod/dev (viser le dev depuis Xcode) | [`operations/environnements.md`](operations/environnements.md) |
 | Provisionnement VPS (Docker · nginx · Mongo) | [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md) |
 | Stockage des assets 3D (R2 · S3 · MinIO) | [`operations/stockage-assets.md`](operations/stockage-assets.md) |

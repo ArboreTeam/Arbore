@@ -189,7 +189,7 @@ variables (sources of truth indicated):
 | `LEGACY_COMMUNITY_UPLOADS_HOST_PATH` | Persistent VPS storage | Retained only for GDPR deletion |
 | `GEMINI_API_KEY` | Google AI Studio → API keys | Fallback AI provider |
 | `MISTRAL_API_KEY` | admin.mistral.ai → API Keys | **Provider in service** for `/chat` and `/diagnose` |
-| `AI_PROVIDER` | Config constant | `gemini` or `mistral`. Deployment default: `mistral` |
+| `AI_PROVIDER` | Config constant | `gemini` or `mistral`. Default `mistral`, in the code as well as in the deployment |
 | `GIN_MODE` | Config constant | `release` in prod |
 | `PORT` | Config constant | `8080` |
 

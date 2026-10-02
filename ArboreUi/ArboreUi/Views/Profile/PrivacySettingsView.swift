@@ -97,6 +97,18 @@ struct PrivacySettingsView: View {
                 // le registre des consentements ne doit contenir que des
                 // consentements. Le réglage vit dans @AppStorage, et les deux
                 // points d'envoi le lisent via AIProcessingPreference.
+                .onChange(of: aiConsent) { _, _ in
+                    // Actionner cette ligne vaut autorisation informée : son
+                    // sous-titre nomme les données ET le destinataire, ce que la
+                    // directive 5.1.1(i) réclame. On marque donc la divulgation
+                    // comme répondue, sinon la feuille se présenterait juste
+                    // après pour redemander ce qui vient d'être accordé.
+                    //
+                    // Marqué dans les deux sens, y compris à l'extinction : qui
+                    // éteint a lu la même ligne, et lui présenter la feuille au
+                    // prochain scan reviendrait à insister.
+                    AIProcessingPreference.marquerDivulgationRepondue()
+                }
             }
 
             SettingsSectionCard(

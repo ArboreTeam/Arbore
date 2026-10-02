@@ -14,7 +14,7 @@ learn in order to switch providers.
 | Provider in service | **Mistral AI** since 2026-09-20 (#555) | `AI_PROVIDER=mistral` in prod |
 | Model | `gemini-2.5-flash`, overridable via `GEMINI_MODEL` | `defaultGeminiModel` |
 | Mistral model | `ministral-8b-2512` — **only the Ministral family is granted** | `defaultMistralModel` |
-| Selection | `AI_PROVIDER`, read **once at startup** | `initLLMProvider()` |
+| Selection | `AI_PROVIDER`, read **once at startup**, default `mistral` | `initLLMProvider()` |
 | Key | **a single key, shared by every user** | `MISTRAL_API_KEY` / `GEMINI_API_KEY` |
 | Throughput to the provider | globally throttled, 3 req/s by default | `llm_throttle.go`, `MISTRAL_RPS` |
 | Catalogue grounding | **yes** since #554 | `catalog_context.go` |
@@ -251,6 +251,33 @@ Three distinct steps, in the order they depend on each other:
 3. **Fail over on exhaustion.** On `429` or on a local quota breach, try the
    next provider. This requires recognising a quota refusal — each API signals
    it differently — and avoiding retry loops.
+
+## Switching provider reaches the app, not just the backend
+
+The provider's name was long treated as an operational detail confined to the
+server. That stopped being true with the App Review rejection of 1.0.0 (2):
+guideline 5.1.1(i) requires **naming** the third party that receives the data, so
+the app names it, in four languages and in two places.
+
+A provider switch is therefore a **cross-cutting** change, and setting
+`AI_PROVIDER` is no longer enough. It also means revising:
+
+| To revise | Where |
+|---|---|
+| The recipient's name in the disclosure | `AIDISCLOSURE_WHO_TEXT`, in `fr`, `en`, `es`, `de` |
+| The name in the Privacy setting | `PRIVACYSETTINGS_AI_SUB`, same four languages |
+| The disclosure version | `AIProcessingPreference.versionDivulgation`, to **increment** |
+| The privacy policy | `PRIVACY_SECTION_*` strings and the marketing site (two repositories) |
+
+Incrementing the version is not a formality: it re-asks every user for
+permission. That is the point — their agreement concerned the old recipient, and
+silently carrying it over to a new one is exactly what the guideline forbids.
+Forgetting it, conversely, ships an app that announces one provider and uses
+another: grounds for rejection, and untrue.
+
+A corollary on the two defaults: the code's (`initLLMProvider`) and the
+deployment's (`docker-compose.yml`) are both `mistral` and must stay aligned.
+`TestInitLLMProvider_ValeurVideVautMistral` guards that alignment.
 
 ## One key per user?
 

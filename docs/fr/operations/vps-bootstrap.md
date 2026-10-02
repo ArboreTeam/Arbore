@@ -189,7 +189,7 @@ attendues (sources de vérité indiquées) :
 | `LEGACY_COMMUNITY_UPLOADS_HOST_PATH` | Stockage persistant du VPS | Conservé uniquement pour l'effacement RGPD |
 | `GEMINI_API_KEY` | Google AI Studio → API keys | Fournisseur d'IA de repli |
 | `MISTRAL_API_KEY` | admin.mistral.ai → API Keys | **Fournisseur en service** pour `/chat` et `/diagnose` |
-| `AI_PROVIDER` | Constante config | `gemini` ou `mistral`. Défaut du déploiement : `mistral` |
+| `AI_PROVIDER` | Constante config | `gemini` ou `mistral`. Défaut `mistral`, dans le code comme au déploiement |
 | `GIN_MODE` | Constante config | `release` en prod |
 | `PORT` | Constante config | `8080` |
 

@@ -799,6 +799,22 @@
 "PRIVACYSETTINGS_SECTION_AI" = "Inteligencia artificial";
 "PRIVACYSETTINGS_AI_TITLE" = "Diagnóstico y asistente con IA";
 "PRIVACYSETTINGS_AI_SUB" = "Activado: fotos y mensajes analizados por Mistral AI (UE). Desactivado: el escaneo se queda en el dispositivo, el asistente no está disponible.";
+// AI Disclosure — aviso previo al primer envío (#601, App Review 5.1.1(i))
+"AIDISCLOSURE_TITLE" = "Análisis con inteligencia artificial";
+"AIDISCLOSURE_SUBTITLE" = "El diagnóstico de salud y el asistente recurren a un servicio de IA externo. Antes de activarlos, esto es exactamente lo que sale de tu dispositivo.";
+"AIDISCLOSURE_WHAT_TITLE" = "Qué se envía";
+"AIDISCLOSURE_WHAT_TEXT" = "La foto que haces para un diagnóstico, los mensajes que escribes al asistente y la foto que adjuntes, si adjuntas alguna. Nada más: ni tu identidad, ni tu ubicación, ni las imágenes de la cámara en realidad aumentada.";
+"AIDISCLOSURE_WHO_TITLE" = "A quién";
+"AIDISCLOSURE_WHO_TEXT" = "A nuestros servidores y después a Mistral AI, alojado en la Unión Europea.";
+"AIDISCLOSURE_WHY_TITLE" = "Para qué";
+"AIDISCLOSURE_WHY_TEXT" = "Identificar la especie, detectar enfermedades en el follaje y responder a tus preguntas de jardinería.";
+"AIDISCLOSURE_TRAINING_TITLE" = "Sin entrenamiento";
+"AIDISCLOSURE_TRAINING_TEXT" = "Tus fotos y tus mensajes no se usan para entrenar ningún modelo.";
+"AIDISCLOSURE_DECLINE_NOTE" = "Si lo rechazas, el escaneo de salud sigue funcionando: analiza los colores del follaje en el dispositivo y la foto no sale de él. El asistente, en cambio, no estará disponible.";
+"AIDISCLOSURE_REVERSIBLE" = "Puedes cambiar de opinión cuando quieras en Perfil, Privacidad.";
+"AIDISCLOSURE_READ_POLICY" = "Leer la política de privacidad";
+"AIDISCLOSURE_ACCEPT" = "Activar el análisis con IA";
+"AIDISCLOSURE_DECLINE" = "Ahora no";
 
 // Privacy Settings - Notifications
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notificaciones";

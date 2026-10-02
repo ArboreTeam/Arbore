@@ -16,6 +16,11 @@ struct ChatBotView: View {
     @State private var apiErrorMessage: String? = nil
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var pendingImageData: Data? = nil
+    /// Message retenu le temps de la divulgation préalable (#601). Il n'est pas
+    /// inséré dans la conversation avant d'avoir une réponse : un tour de
+    /// l'utilisateur affiché sans réponse possible serait un envoi apparent.
+    @State private var envoiEnAttente: (texte: String, image: Data?)? = nil
+    @State private var divulgationPresentee = false
     @EnvironmentObject var themeManager: ThemeManager
     @FocusState private var isFocused: Bool
 
@@ -117,6 +122,30 @@ struct ChatBotView: View {
             }
         } message: {
             Text(NSLocalizedString("CHATBOT_RENAME_PROMPT", comment: ""))
+        }
+        .sheet(isPresented: $divulgationPresentee) {
+            AIDisclosureSheet { autorise in
+                let attente = envoiEnAttente
+                envoiEnAttente = nil
+                guard let attente else { return }
+                if autorise {
+                    // La préférence vient d'être écrite par la feuille : le même
+                    // appel repasse maintenant la garde.
+                    sendMessage(attente.texte, imageData: attente.image)
+                } else {
+                    // Refus : l'assistant n'a pas d'équivalent local, donc rien
+                    // n'est inséré et l'indisponibilité est dite.
+                    //
+                    // Le champ de saisie n'est PAS retouché : `sendMessage` est
+                    // sorti avant de le vider, le texte y est donc toujours. La
+                    // photo, elle, doit être remise — c'est le bouton d'envoi qui
+                    // la met à nil juste après l'appel, sans savoir que l'envoi
+                    // n'a pas eu lieu. Sans cette ligne, refuser coûterait à
+                    // l'utilisateur la pièce jointe qu'il venait de choisir.
+                    pendingImageData = attente.image
+                    apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_AI_DISABLED", comment: "")
+                }
+            }
         }
     }
 
@@ -579,6 +608,18 @@ struct ChatBotView: View {
 
     private func sendMessage(_ text: String, imageData: Data? = nil) {
         guard let conv = conversations.first(where: { $0.id == activeConversationId }) else { return }
+
+        // Première utilisation : on dit ce qui part et à qui, puis on demande,
+        // AVANT d'insérer le message et a fortiori de l'envoyer (5.1.1(i)).
+        // L'interception est ici, au seuil de la fonction, et non plus bas
+        // devant l'appel réseau : plus bas, le tour de l'utilisateur serait déjà
+        // affiché et la conversation porterait la trace d'un envoi qui n'a pas eu
+        // lieu.
+        guard AIProcessingPreference.divulgationFaite else {
+            envoiEnAttente = (text, imageData)
+            divulgationPresentee = true
+            return
+        }
 
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             let userMsg = ChatMessage(content: text, isUser: true, imageData: imageData)

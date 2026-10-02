@@ -46,7 +46,23 @@ enum ConsentDefaults {
     ///
     /// N'apparaît PAS dans `initialSnapshot` : le registre des consentements ne
     /// doit contenir que des consentements.
-    static let ai = true
+    ///
+    /// **`false` depuis #601, et ce n'est pas un revirement sur la base légale.**
+    /// Ce défaut valait `true`, au motif qu'une fonctionnalité contractuelle est
+    /// proposée d'emblée. App Review a refusé la 1.0.0 (2) pour cette raison
+    /// même (5.1.1(i)) : des photos partaient vers un tiers avant que quiconque
+    /// n'en ait été informé. Deux raisons de le renverser, aucune des deux
+    /// n'étant le consentement :
+    ///
+    ///   · la plateforme exige l'autorisation AVANT l'envoi, point final ;
+    ///   · afficher « activé » à qui n'a rien lu serait un énoncé faux, et le
+    ///     réglage est précisément là pour dire la vérité sur ce qui sort.
+    ///
+    /// Ce défaut ne gouverne de toute façon plus l'envoi : `estAutorise` est
+    /// fermé tant que `privacy_ai_divulgation` n'a pas de réponse. Il gouverne
+    /// l'affichage de la ligne dans l'écran Confidentialité, et c'est pour que
+    /// cet affichage soit exact qu'il vaut `false`.
+    static let ai = false
     /// Notifications — informatif : le vrai consentement est la permission iOS.
     static let notifications = true
 

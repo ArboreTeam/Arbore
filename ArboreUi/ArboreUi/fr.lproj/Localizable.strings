@@ -946,6 +946,22 @@
 "PRIVACYSETTINGS_SECTION_AI" = "Intelligence artificielle";
 "PRIVACYSETTINGS_AI_TITLE" = "Diagnostic et assistant par IA";
 "PRIVACYSETTINGS_AI_SUB" = "Activé : photos et messages analysés par Mistral AI (UE). Désactivé : le scan reste sur l'appareil, l'assistant est indisponible.";
+// AI Disclosure — divulgation préalable au premier envoi (#601, App Review 5.1.1(i))
+"AIDISCLOSURE_TITLE" = "Analyse par intelligence artificielle";
+"AIDISCLOSURE_SUBTITLE" = "Le diagnostic santé et l'assistant font appel à un service d'IA extérieur. Avant de les activer, voici exactement ce qui quitte ton appareil.";
+"AIDISCLOSURE_WHAT_TITLE" = "Ce qui est envoyé";
+"AIDISCLOSURE_WHAT_TEXT" = "La photo que tu prends pour un diagnostic, les messages que tu écris à l'assistant, et la photo que tu y joins si tu en joins une. Rien d'autre : ni ton identité, ni ta position, ni les images de la caméra en réalité augmentée.";
+"AIDISCLOSURE_WHO_TITLE" = "À qui";
+"AIDISCLOSURE_WHO_TEXT" = "À nos serveurs, puis à Mistral AI, hébergé dans l'Union européenne.";
+"AIDISCLOSURE_WHY_TITLE" = "Pourquoi";
+"AIDISCLOSURE_WHY_TEXT" = "Identifier l'espèce, repérer une maladie sur le feuillage et répondre à tes questions de jardinage.";
+"AIDISCLOSURE_TRAINING_TITLE" = "Pas d'entraînement";
+"AIDISCLOSURE_TRAINING_TEXT" = "Tes photos et tes messages ne servent pas à entraîner de modèle.";
+"AIDISCLOSURE_DECLINE_NOTE" = "Si tu refuses, le scan santé fonctionne quand même : il analyse les couleurs du feuillage sur l'appareil, et la photo ne part pas. L'assistant, lui, reste indisponible.";
+"AIDISCLOSURE_REVERSIBLE" = "Tu peux changer d'avis à tout moment dans Profil, Confidentialité.";
+"AIDISCLOSURE_READ_POLICY" = "Lire la politique de confidentialité";
+"AIDISCLOSURE_ACCEPT" = "Activer l'analyse par IA";
+"AIDISCLOSURE_DECLINE" = "Pas maintenant";
 
 // Privacy Settings - Notifications
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notifications";

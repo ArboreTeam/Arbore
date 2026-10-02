@@ -821,6 +821,22 @@
 "PRIVACYSETTINGS_SECTION_AI" = "Artificial intelligence";
 "PRIVACYSETTINGS_AI_TITLE" = "AI diagnosis and assistant";
 "PRIVACYSETTINGS_AI_SUB" = "On: photos and messages analysed by Mistral AI (EU). Off: the scan stays on your device, the assistant is unavailable.";
+// AI Disclosure — shown before the first send (#601, App Review 5.1.1(i))
+"AIDISCLOSURE_TITLE" = "Artificial intelligence analysis";
+"AIDISCLOSURE_SUBTITLE" = "The health diagnosis and the assistant rely on an outside AI service. Before turning them on, here is exactly what leaves your device.";
+"AIDISCLOSURE_WHAT_TITLE" = "What is sent";
+"AIDISCLOSURE_WHAT_TEXT" = "The photo you take for a diagnosis, the messages you write to the assistant, and any photo you attach to them. Nothing else: not your identity, not your location, not the augmented reality camera feed.";
+"AIDISCLOSURE_WHO_TITLE" = "Who receives it";
+"AIDISCLOSURE_WHO_TEXT" = "Our servers, then Mistral AI, hosted in the European Union.";
+"AIDISCLOSURE_WHY_TITLE" = "Why";
+"AIDISCLOSURE_WHY_TEXT" = "To identify the species, spot disease on the foliage and answer your gardening questions.";
+"AIDISCLOSURE_TRAINING_TITLE" = "No training";
+"AIDISCLOSURE_TRAINING_TEXT" = "Your photos and messages are not used to train any model.";
+"AIDISCLOSURE_DECLINE_NOTE" = "If you decline, the health scan still works: it analyses the foliage colours on your device, and the photo stays there. The assistant, however, remains unavailable.";
+"AIDISCLOSURE_REVERSIBLE" = "You can change your mind at any time under Profile, Privacy.";
+"AIDISCLOSURE_READ_POLICY" = "Read the privacy policy";
+"AIDISCLOSURE_ACCEPT" = "Turn on AI analysis";
+"AIDISCLOSURE_DECLINE" = "Not now";
 
 // Privacy Settings - Notifications
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Notifications";

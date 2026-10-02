@@ -803,6 +803,22 @@
 "PRIVACYSETTINGS_SECTION_AI" = "Künstliche Intelligenz";
 "PRIVACYSETTINGS_AI_TITLE" = "KI-Diagnose und Assistent";
 "PRIVACYSETTINGS_AI_SUB" = "Ein: Fotos und Nachrichten werden von Mistral AI (EU) analysiert. Aus: Der Scan bleibt auf dem Gerät, der Assistent ist nicht verfügbar.";
+// AI Disclosure — Hinweis vor dem ersten Senden (#601, App Review 5.1.1(i))
+"AIDISCLOSURE_TITLE" = "Analyse durch künstliche Intelligenz";
+"AIDISCLOSURE_SUBTITLE" = "Die Gesundheitsdiagnose und der Assistent nutzen einen externen KI-Dienst. Bevor du sie einschaltest, siehst du hier genau, was dein Gerät verlässt.";
+"AIDISCLOSURE_WHAT_TITLE" = "Was gesendet wird";
+"AIDISCLOSURE_WHAT_TEXT" = "Das Foto, das du für eine Diagnose aufnimmst, die Nachrichten, die du dem Assistenten schreibst, und ein Foto, das du daran anhängst, falls du eines anhängst. Nichts weiter: weder deine Identität noch dein Standort noch die Bilder der AR-Kamera.";
+"AIDISCLOSURE_WHO_TITLE" = "An wen";
+"AIDISCLOSURE_WHO_TEXT" = "An unsere Server und dann an Mistral AI, gehostet in der Europäischen Union.";
+"AIDISCLOSURE_WHY_TITLE" = "Wozu";
+"AIDISCLOSURE_WHY_TEXT" = "Die Art bestimmen, Krankheiten am Blattwerk erkennen und deine Gartenfragen beantworten.";
+"AIDISCLOSURE_TRAINING_TITLE" = "Kein Training";
+"AIDISCLOSURE_TRAINING_TEXT" = "Deine Fotos und Nachrichten werden nicht zum Trainieren von Modellen verwendet.";
+"AIDISCLOSURE_DECLINE_NOTE" = "Wenn du ablehnst, funktioniert der Gesundheitsscan weiterhin: Er analysiert die Blattfarben auf dem Gerät, und das Foto bleibt dort. Der Assistent bleibt dagegen nicht verfügbar.";
+"AIDISCLOSURE_REVERSIBLE" = "Du kannst es jederzeit unter Profil, Datenschutz ändern.";
+"AIDISCLOSURE_READ_POLICY" = "Datenschutzerklärung lesen";
+"AIDISCLOSURE_ACCEPT" = "KI-Analyse einschalten";
+"AIDISCLOSURE_DECLINE" = "Nicht jetzt";
 
 // Privacy Settings - Notifications
 "PRIVACYSETTINGS_SECTION_NOTIFICATIONS" = "Benachrichtigungen";

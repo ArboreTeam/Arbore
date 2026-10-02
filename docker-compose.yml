@@ -108,6 +108,13 @@ services:
       # demandent explicitement de ne PAS y soumettre de données personnelles
       # (#555). Le repli doit viser la destination sûre, pas l'ancienne.
       #
+      # Le code a le MÊME défaut depuis que les deux ont été réalignés : ce
+      # `:-mistral` n'est donc plus la seule protection, il la redouble. Tant
+      # qu'ils coïncident, aucun chemin — variable absente, fichier d'env perdu,
+      # service démarré à la main — ne peut déplacer le destinataire des photos
+      # hors de l'UE ni contredire ce que la politique de confidentialité
+      # annonce aux utilisateurs.
+      #
       # Poser AI_PROVIDER=gemini reste possible et reste le retour arrière :
       # GEMINI_API_KEY est toujours transmise.
       - AI_PROVIDER=${AI_PROVIDER:-mistral}

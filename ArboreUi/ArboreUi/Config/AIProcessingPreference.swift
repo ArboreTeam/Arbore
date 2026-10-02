@@ -2,7 +2,7 @@
 //  AIProcessingPreference.swift
 //  ArboreUi
 //
-//  Préférence de traitement IA — issues #549, #601.
+//  Préférence de traitement IA — issues #549, #607.
 //
 
 import Foundation

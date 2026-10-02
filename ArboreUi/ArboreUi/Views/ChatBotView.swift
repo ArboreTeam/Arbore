@@ -16,7 +16,7 @@ struct ChatBotView: View {
     @State private var apiErrorMessage: String? = nil
     @State private var selectedPhotoItem: PhotosPickerItem? = nil
     @State private var pendingImageData: Data? = nil
-    /// Message retenu le temps de la divulgation préalable (#601). Il n'est pas
+    /// Message retenu le temps de la divulgation préalable (#607). Il n'est pas
     /// inséré dans la conversation avant d'avoir une réponse : un tour de
     /// l'utilisateur affiché sans réponse possible serait un envoi apparent.
     @State private var envoiEnAttente: (texte: String, image: Data?)? = nil

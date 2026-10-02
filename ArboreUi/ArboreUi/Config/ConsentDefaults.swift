@@ -47,7 +47,7 @@ enum ConsentDefaults {
     /// N'apparaît PAS dans `initialSnapshot` : le registre des consentements ne
     /// doit contenir que des consentements.
     ///
-    /// **`false` depuis #601, et ce n'est pas un revirement sur la base légale.**
+    /// **`false` depuis #607, et ce n'est pas un revirement sur la base légale.**
     /// Ce défaut valait `true`, au motif qu'une fonctionnalité contractuelle est
     /// proposée d'emblée. App Review a refusé la 1.0.0 (2) pour cette raison
     /// même (5.1.1(i)) : des photos partaient vers un tiers avant que quiconque

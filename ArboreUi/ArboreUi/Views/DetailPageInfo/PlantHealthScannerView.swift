@@ -252,7 +252,7 @@ struct PlantHealthScannerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showResultAnimation = false
     @State private var pulseCorners = false
-    /// Divulgation à présenter avant le tout premier envoi (#601).
+    /// Divulgation à présenter avant le tout premier envoi (#607).
     @State private var divulgationPresentee = false
 
     var body: some View {

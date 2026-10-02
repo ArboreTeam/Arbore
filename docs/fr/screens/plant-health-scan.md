@@ -57,7 +57,7 @@ C'est une **préférence de fonctionnalité**, pas un consentement RGPD : le dia
 | Activé | Diagnostic IA complet, fusionné avec la colorimétrie | Disponible |
 | Éteint (défaut) | `colorimetryOnly` + warning `SCAN_WARNING_AI_DISABLED` — **la photo ne quitte pas l'appareil** | Indisponible, message explicite |
 
-## Divulgation préalable (#601)
+## Divulgation préalable (#607)
 
 App Review a refusé la 1.0.0 (2) au titre des directives 5.1.1(i) et 5.1.2(i) : l'app envoyait la photo à un service d'IA tiers alors que le réglage était **allumé à l'installation**, donc sans avoir rien dit ni rien demandé. Apple énumère quatre exigences ; la politique de confidentialité couvrait déjà les trois premières, mais Apple précise qu'une politique **ne suffit pas** — il faut le dire au point d'usage, et demander.
 

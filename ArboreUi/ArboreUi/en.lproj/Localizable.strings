@@ -821,7 +821,7 @@
 "PRIVACYSETTINGS_SECTION_AI" = "Artificial intelligence";
 "PRIVACYSETTINGS_AI_TITLE" = "AI diagnosis and assistant";
 "PRIVACYSETTINGS_AI_SUB" = "On: photos and messages analysed by Mistral AI (EU). Off: the scan stays on your device, the assistant is unavailable.";
-// AI Disclosure — shown before the first send (#601, App Review 5.1.1(i))
+// AI Disclosure — shown before the first send (#607, App Review 5.1.1(i))
 "AIDISCLOSURE_TITLE" = "Artificial intelligence analysis";
 "AIDISCLOSURE_SUBTITLE" = "The health diagnosis and the assistant rely on an outside AI service. Before turning them on, here is exactly what leaves your device.";
 "AIDISCLOSURE_WHAT_TITLE" = "What is sent";

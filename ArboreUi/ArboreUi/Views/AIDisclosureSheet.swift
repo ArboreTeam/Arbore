@@ -2,7 +2,7 @@
 //  AIDisclosureSheet.swift
 //  ArboreUi
 //
-//  Divulgation préalable au premier envoi vers le service d'IA — issue #601.
+//  Divulgation préalable au premier envoi vers le service d'IA — issue #607.
 //
 
 import SwiftUI

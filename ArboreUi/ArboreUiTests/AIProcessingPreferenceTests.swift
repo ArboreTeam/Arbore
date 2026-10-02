@@ -1,7 +1,7 @@
 import XCTest
 @testable import ArboreUi
 
-// AIProcessingPreferenceTests — issues #549, #601.
+// AIProcessingPreferenceTests — issues #549, #607.
 //
 // Le réglage « Diagnostic et assistant par IA » a connu deux défauts successifs,
 // et ces tests gardent la correction de chacun.
@@ -10,7 +10,7 @@ import XCTest
 // hors de l'écran Confidentialité, et l'éteindre ne changeait rien. Photos et
 // messages partaient quand même.
 //
-// #601 — il était allumé à l'installation, donc un premier scan envoyait une
+// #607 — il était allumé à l'installation, donc un premier scan envoyait une
 // photo à un tiers avant que l'utilisateur n'ait rien lu ni rien accordé. App
 // Review a refusé la 1.0.0 (2) pour ce motif (directives 5.1.1(i), 5.1.2(i)).
 // La porte est désormais fermée jusqu'à ce que la divulgation reçoive réponse.
@@ -177,7 +177,7 @@ final class AIProcessingPreferenceTests: XCTestCase {
         }
     }
 
-    /// Le défaut est passé à `false` avec #601, et ce test dit pourquoi — pour
+    /// Le défaut est passé à `false` avec #607, et ce test dit pourquoi — pour
     /// qu'on ne le repasse pas à `true` en croyant corriger une régression.
     ///
     /// Ce n'est pas un revirement sur la base légale : c'est qu'App Review exige

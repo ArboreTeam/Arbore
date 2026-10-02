@@ -799,7 +799,7 @@
 "PRIVACYSETTINGS_SECTION_AI" = "Inteligencia artificial";
 "PRIVACYSETTINGS_AI_TITLE" = "Diagnóstico y asistente con IA";
 "PRIVACYSETTINGS_AI_SUB" = "Activado: fotos y mensajes analizados por Mistral AI (UE). Desactivado: el escaneo se queda en el dispositivo, el asistente no está disponible.";
-// AI Disclosure — aviso previo al primer envío (#601, App Review 5.1.1(i))
+// AI Disclosure — aviso previo al primer envío (#607, App Review 5.1.1(i))
 "AIDISCLOSURE_TITLE" = "Análisis con inteligencia artificial";
 "AIDISCLOSURE_SUBTITLE" = "El diagnóstico de salud y el asistente recurren a un servicio de IA externo. Antes de activarlos, esto es exactamente lo que sale de tu dispositivo.";
 "AIDISCLOSURE_WHAT_TITLE" = "Qué se envía";

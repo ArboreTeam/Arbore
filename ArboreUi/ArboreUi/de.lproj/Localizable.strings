@@ -803,7 +803,7 @@
 "PRIVACYSETTINGS_SECTION_AI" = "Künstliche Intelligenz";
 "PRIVACYSETTINGS_AI_TITLE" = "KI-Diagnose und Assistent";
 "PRIVACYSETTINGS_AI_SUB" = "Ein: Fotos und Nachrichten werden von Mistral AI (EU) analysiert. Aus: Der Scan bleibt auf dem Gerät, der Assistent ist nicht verfügbar.";
-// AI Disclosure — Hinweis vor dem ersten Senden (#601, App Review 5.1.1(i))
+// AI Disclosure — Hinweis vor dem ersten Senden (#607, App Review 5.1.1(i))
 "AIDISCLOSURE_TITLE" = "Analyse durch künstliche Intelligenz";
 "AIDISCLOSURE_SUBTITLE" = "Die Gesundheitsdiagnose und der Assistent nutzen einen externen KI-Dienst. Bevor du sie einschaltest, siehst du hier genau, was dein Gerät verlässt.";
 "AIDISCLOSURE_WHAT_TITLE" = "Was gesendet wird";

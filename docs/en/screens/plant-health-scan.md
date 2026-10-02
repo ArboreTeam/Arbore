@@ -57,7 +57,7 @@ It is a **feature preference, not GDPR consent**: the diagnosis rests on the con
 | On | Full AI diagnosis, merged with colorimetry | Available |
 | Off (default) | `colorimetryOnly` + `SCAN_WARNING_AI_DISABLED` warning — **the photo never leaves the device** | Unavailable, with an explicit message |
 
-## Prior disclosure (#601)
+## Prior disclosure (#607)
 
 App Review rejected 1.0.0 (2) under guidelines 5.1.1(i) and 5.1.2(i): the app sent the photo to a third-party AI service while the setting was **on at install time**, so without stating anything or asking. Apple lists four requirements; the privacy policy already covered the first three, but Apple states that a policy **is not sufficient** — it has to be said at the point of use, and permission has to be asked.
 

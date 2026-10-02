@@ -43,7 +43,7 @@ final class LocalizationCoverageTests: XCTestCase {
         // SA langue, sans quoi l'avertissement n'en est pas un.
         "AI_DISCLAIMER", "AI_DISCLAIMER_SCAN",
         "CHATBOT_INPUT_PLACEHOLDER", "CHATBOT_RENAME_PLACEHOLDER",
-        // Divulgation préalable (#601). Celles-ci comptent double : une
+        // Divulgation préalable (#607). Celles-ci comptent double : une
         // divulgation affichée dans une langue que l'utilisateur ne lit pas ne
         // divulgue rien, et c'est précisément l'exigence qu'App Review a jugée
         // non tenue. Le testeur d'Apple, lui, n'était pas en français.

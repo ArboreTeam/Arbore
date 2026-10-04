@@ -8,6 +8,8 @@
 // les routes existent pour l'ouvrier, qui est ailleurs.
 import Link from 'next/link';
 
+import Rafraichir from './Rafraichir';
+
 import { aRevoir, bilan, lire } from '@/lib/generator/depot';
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +41,8 @@ export default function Atelier() {
               File de génération et revue des modèles.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <Rafraichir />
             <Link
               href="/generator/sources"
               className="rounded-lg border border-[#DDD8CF] bg-white px-3 py-2 text-sm text-[#1B1F1A] hover:border-[#234632]"

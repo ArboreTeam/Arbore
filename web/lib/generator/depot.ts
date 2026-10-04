@@ -9,7 +9,7 @@
 //
 // Le jour où R2 prendra les GLB, c'est `cheminArtefact` qui changera, et elle
 // seule : rien d'autre ne manipule d'octets.
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export type EtatTache = 'en_attente' | 'en_cours' | 'livree' | 'echec';
@@ -30,9 +30,24 @@ export type Tache = {
   erreur?: string;
 };
 
+/** Ce qu'une purge a libéré, ou pourquoi elle ne s'est pas faite. */
+export type Purge = {
+  quand: number;
+  fichiers: number;
+  octets: number;
+  garde?: string;
+  /** Renseignée quand rien n'a été effacé alors qu'on s'y attendait. */
+  raison?: string;
+};
+
 export type Etat = {
   taches: Tache[];
-  plantes: Record<string, { graines: number[]; verdict?: 'validee' | 'invalidee'; coupe?: string }>;
+  plantes: Record<string, {
+    graines: number[];
+    verdict?: 'validee' | 'invalidee';
+    coupe?: string;
+    purge?: Purge;
+  }>;
 };
 
 const VIDE: Etat = { taches: [], plantes: {} };
@@ -62,6 +77,153 @@ export function cheminArtefact(plante: string, fichier: string): string {
     throw new Error('chemin refusé');
   }
   return join(racine(), 'plantes', plante, fichier);
+}
+
+/**
+ * Taille d'un artefact, ou `null` s'il manque.
+ *
+ * Sert à annoncer le poids d'un GLB avant de le charger dans la visionneuse :
+ * ils pèsent 30 à 70 Mo, et ouvrir ça sans prévenir sur une connexion moyenne
+ * donne une page qui semble figée.
+ */
+export function tailleArtefact(plante: string, fichier: string): number | null {
+  try {
+    const st = statSync(cheminArtefact(plante, fichier));
+    return st.isFile() ? st.size : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Les GLB présents dans le dossier d'une plante. */
+function glbPresents(plante: string): string[] {
+  try {
+    return readdirSync(join(racine(), 'plantes', plante))
+      .filter((f) => f.toLowerCase().endsWith('.glb'));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Efface les maillages devenus inutiles, en gardant celui qui est nommé.
+ *
+ * Les GLB de l'atelier sont de la sciure : 150 Mo par plante, et 37 Go pour le
+ * catalogue de 246 — davantage que le disque entier du VPS. Une fois le verdict
+ * rendu, le maillage brut de 1,7 million de triangles et le candidat rejeté
+ * n'ont plus d'usage. Les aperçus, eux, restent : 1,4 Mo par plante, et ce sont
+ * eux qui disent ce qui a été jugé.
+ *
+ * Ne touche QU'AUX `.glb`, et jamais à un fichier nommé dans `garder`.
+ * N'échoue jamais : une purge ratée ne doit pas empêcher d'enregistrer un
+ * verdict, qui est la seule chose irremplaçable ici.
+ */
+export function purger(plante: string, garder: string[]): { supprimes: string[]; octets: number } {
+  const garde = new Set(garder.filter((g): g is string => Boolean(g)));
+  const supprimes: string[] = [];
+  let octets = 0;
+  for (const f of glbPresents(plante)) {
+    if (garde.has(f)) continue;
+    try {
+      const chemin = cheminArtefact(plante, f);
+      octets += statSync(chemin).size;
+      unlinkSync(chemin);
+      supprimes.push(f);
+    } catch {
+      // Un fichier déjà parti, ou un nom que `cheminArtefact` refuse : on
+      // passe. Rien ici ne justifie d'interrompre le verdict.
+    }
+  }
+  return { supprimes, octets };
+}
+
+// ── Images sources ─────────────────────────────────────────────────────────
+//
+// Elles vivaient sur Drive pendant le spike, et `tache.image` portait un chemin
+// Colab. L'atelier ne pouvait alors pas déposer de tâche : il aurait écrit un
+// chemin qu'il ne pouvait ni voir ni vérifier. Sur le volume, il le peut.
+//
+// Une source par plante, nommée par elle : c'est le nom de la plante qui fait
+// l'identité dans tout l'atelier, de la file aux artefacts.
+
+const EXT_SOURCE = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+
+/** Dossier des sources. Frère de `plantes/`, pas dedans : ce n'est pas un artefact. */
+export function cheminSource(fichier: string): string {
+  if (fichier.includes('/') || fichier.includes('\\') || fichier.includes('..')) {
+    throw new Error('chemin refusé');
+  }
+  const ext = fichier.slice(fichier.lastIndexOf('.')).toLowerCase();
+  if (!EXT_SOURCE.has(ext) || !/^[a-z0-9_-]+\.[a-z]+$/i.test(fichier)) {
+    throw new Error('nom de source refusé');
+  }
+  return join(racine(), 'sources', fichier);
+}
+
+/** Nom de plante porté par un fichier source. */
+export function planteDe(fichier: string): string {
+  return fichier.slice(0, fichier.lastIndexOf('.'));
+}
+
+export type Source = {
+  plante: string;
+  fichier: string;
+  octets: number;
+  modifie: number;
+  /** Une tâche non terminée existe déjà pour cette plante. */
+  enFile: boolean;
+  verdict?: 'validee' | 'invalidee';
+};
+
+/**
+ * Les sources présentes, avec ce que l'état sait de chacune.
+ *
+ * Le croisement se fait ici et pas dans la page : savoir qu'une plante est déjà
+ * en file est ce qui évite de la déposer deux fois, et c'est au dépôt de le
+ * savoir, pas à l'écran.
+ */
+export function sources(): Source[] {
+  const etat = lire();
+  let fichiers: string[];
+  try {
+    fichiers = readdirSync(join(racine(), 'sources'));
+  } catch {
+    return [];
+  }
+  const vivantes = new Set(
+    etat.taches.filter((t) => t.etat === 'en_attente' || t.etat === 'en_cours').map((t) => t.plante),
+  );
+  return fichiers
+    .filter((f) => EXT_SOURCE.has(f.slice(f.lastIndexOf('.')).toLowerCase()))
+    .map((fichier) => {
+      const plante = planteDe(fichier);
+      let octets = 0;
+      let modifie = 0;
+      try {
+        const st = statSync(join(racine(), 'sources', fichier));
+        octets = st.size;
+        modifie = st.mtimeMs;
+      } catch {
+        // Fichier disparu entre le listage et la mesure : on le rend quand même,
+        // la page affichera une taille nulle plutôt que de tout perdre.
+      }
+      return {
+        plante, fichier, octets, modifie,
+        enFile: vivantes.has(plante),
+        verdict: etat.plantes[plante]?.verdict,
+      };
+    })
+    .sort((a, b) => a.plante.localeCompare(b.plante, 'fr'));
+}
+
+/** Supprime une source. Les artefacts déjà produits ne sont pas touchés. */
+export function supprimerSource(fichier: string): boolean {
+  try {
+    unlinkSync(cheminSource(fichier));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function lire(): Etat {
@@ -214,19 +376,122 @@ export function noterGraine(plante: string, graine: number) {
   });
 }
 
-/** Plantes livrées dont le verdict reste à rendre. */
-export function aRevoir() {
+/**
+ * Réduit un chemin livré par l'ouvrier à son seul nom de fichier.
+ *
+ * L'ouvrier consigne des chemins ABSOLUS de sa propre machine — `/content/...`
+ * sur Colab, un montage Drive ailleurs. Ils n'ont aucun sens ici, et les
+ * suivre serait pire que sans effet : c'est une valeur venue du réseau qui
+ * désignerait un fichier à lire. On n'en garde que le nom, et `cheminArtefact`
+ * le valide ensuite.
+ */
+export function nomFichier(chemin: unknown): string | null {
+  if (typeof chemin !== 'string' || !chemin) return null;
+  const morceaux = chemin.split(/[\\/]/);
+  // Un segment fait uniquement de points (`.`, `..`, `....`) n'a rien à faire
+  // dans un chemin d'artefact. N'en garder que le nom final serait sûr — le
+  // basename reste dans le dossier de la plante, et un fichier absent donne
+  // un 404 — mais ce serait traiter comme normal ce qui ne l'est pas, et
+  // masquer un ouvrier qui envoie n'importe quoi. On refuse.
+  if (morceaux.some((m) => /^\.+$/.test(m))) return null;
+  const nom = morceaux.pop() || '';
+  return /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(nom) && !nom.includes('..') ? nom : null;
+}
+
+export type Candidat = {
+  voie: string;
+  sommet: number | null;
+  aireRetiree: number | null;
+  confianceParoi: number | null;
+  /** Nom du GLB coupé, pour la visionneuse. */
+  fichier: string | null;
+  /** Aperçus de CE candidat, rendus par l'ouvrier. */
+  apercus: string[];
+};
+
+export type AVoir = {
+  plante: string;
+  graine: number | null;
+  accepte: boolean;
+  essai: number | null;
+  secondes: number | null;
+  triangles: number | null;
+  octets: number | null;
+  dominante: number | null;
+  grosses: number | null;
+  plans: number | null;
+  apercus: string[];
+  glb: string | null;
+  candidats: Candidat[];
+  arbitrage: boolean;
+  livre: number | null;
+};
+
+function nombre(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+function candidat(brut: unknown): Candidat {
+  const c = (brut ?? {}) as Record<string, unknown>;
+  return {
+    voie: typeof c.voie === 'string' ? c.voie : 'inconnue',
+    sommet: nombre(c.sommet),
+    aireRetiree: nombre(c.aire_retiree),
+    confianceParoi: nombre(c.confiance_paroi),
+    fichier: nomFichier(c.fichier),
+    apercus: (Array.isArray(c.apercus) ? c.apercus : []).map(nomFichier).filter((n): n is string => n !== null),
+  };
+}
+
+/**
+ * Plantes livrées dont le verdict reste à rendre.
+ *
+ * Rend tout ce que la revue affiche, mesures comprises : c'est le dépôt qui
+ * connaît la disposition des artefacts, pas la page. Celle-ci ne voit que des
+ * noms de fichiers, qu'elle passe à la route de service.
+ */
+export function aRevoir(): AVoir[] {
   const etat = lire();
   return etat.taches
     .filter((t) => t.etat === 'livree' && !etat.plantes[t.plante]?.verdict)
-    .map((t) => ({
-      plante: t.plante,
-      graine: (t.resultat?.graine as number) ?? null,
-      accepte: Boolean(t.resultat?.accepte),
-      apercus: (t.resultat?.apercus as string[]) ?? [],
-      candidats: (t.resultat?.candidats_pot as unknown[]) ?? [],
-      arbitrage: Boolean(t.resultat?.arbitrage_requis),
-    }));
+    .map((t) => {
+      const r = t.resultat ?? {};
+      return {
+        plante: t.plante,
+        graine: nombre(r.graine),
+        accepte: Boolean(r.accepte),
+        essai: nombre(r.essai),
+        secondes: nombre(r.secondes),
+        triangles: nombre(r.triangles),
+        octets: nombre(r.octets),
+        dominante: nombre(r.dominante),
+        grosses: nombre(r.grosses),
+        plans: nombre(r.plans),
+        apercus: (Array.isArray(r.apercus) ? r.apercus : [])
+          .map(nomFichier).filter((n): n is string => n !== null),
+        glb: nomFichier(r.glb),
+        candidats: (Array.isArray(r.candidats_pot) ? r.candidats_pot : []).map(candidat),
+        arbitrage: Boolean(r.arbitrage_requis),
+        livre: nombre(t.livre),
+      };
+    });
+}
+
+/** Compteurs du tableau de bord. */
+export function bilan() {
+  const etat = lire();
+  const par = (e: EtatTache) => etat.taches.filter((t) => t.etat === e).length;
+  const plantes = Object.entries(etat.plantes);
+  return {
+    enAttente: par('en_attente'),
+    enCours: par('en_cours'),
+    livrees: par('livree'),
+    echecs: par('echec'),
+    validees: plantes.filter(([, p]) => p.verdict === 'validee').length,
+    invalidees: plantes.filter(([, p]) => p.verdict === 'invalidee').length,
+    grainesBrulees: plantes.reduce((n, [, p]) => n + p.graines.length, 0),
+    octetsLiberes: plantes.reduce((n, [, p]) => n + (p.purge?.octets ?? 0), 0),
+  };
 }
 
 /**
@@ -247,6 +512,33 @@ export function trancher(plante: string, valide: boolean, coupe?: string) {
         etat: 'en_attente', depose: Date.now(),
       });
     }
+
+    // ── Purge des maillages devenus inutiles ──────────────────────────────
+    //
+    // Validée : on ne garde que ce qui sera livré — la coupe retenue, ou le
+    // maillage complet quand aucun retrait n'a été proposé.
+    // Invalidée : rien n'est gardé, le maillage est rejeté.
+    const livree = etat.taches.filter((t) => t.plante === plante && t.etat === 'livree').at(-1);
+    const complet = nomFichier(livree?.resultat?.glb);
+    const aGarder = valide ? (nomFichier(coupe) ?? complet) : null;
+
+    if (valide && !aGarder) {
+      // Rien d'identifiable à conserver : on ne purge PAS. Effacer ici
+      // supprimerait le seul maillage livrable de la plante.
+      p.purge = { quand: Date.now(), fichiers: 0, octets: 0,
+                  raison: 'aucun fichier à conserver identifié' };
+    } else if (valide && !glbPresents(plante).includes(aGarder!)) {
+      // Le fichier nommé n'est pas sur le disque. Purger quand même
+      // effacerait la coupe retenue par-dessus le marché : 180 Mo de GPU
+      // perdus sur une erreur de nom. On s'abstient et on le dit.
+      p.purge = { quand: Date.now(), fichiers: 0, octets: 0, garde: aGarder!,
+                  raison: `fichier à conserver introuvable : ${aGarder}` };
+    } else {
+      const purge = purger(plante, aGarder ? [aGarder] : []);
+      p.purge = { quand: Date.now(), fichiers: purge.supprimes.length,
+                  octets: purge.octets, garde: aGarder ?? undefined };
+    }
+
     return p.verdict;
   });
 }

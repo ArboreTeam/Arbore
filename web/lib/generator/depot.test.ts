@@ -6,9 +6,12 @@ import { join } from 'node:path';
 const BAC = mkdtempSync(join(tmpdir(), 'atelier-'));
 process.env.GENERATOR_DATA_DIR = BAC;
 
+import { mkdirSync, writeFileSync, readdirSync } from 'node:fs';
+
 import {
-  EXPIRATION_MS, aRevoir, cheminArtefact, deposer, echouer, historique,
-  lire, livrer, noterGraine, prendre, reinitialiser, trancher,
+  EXPIRATION_MS, aRevoir, bilan, cheminArtefact, deposer, echouer, historique,
+  cheminSource, lire, livrer, nomFichier, noterGraine, planteDe, prendre, purger,
+  reinitialiser, sources, supprimerSource, trancher,
 } from './depot';
 
 afterAll(() => rmSync(BAC, { recursive: true, force: true }));
@@ -190,6 +193,385 @@ describe('dépôt — revue', () => {
     expect(taches).toHaveLength(1);
     expect(taches[0].raison).toBe('invalidee_revue');
     expect(taches[0].graine).toBeNull();   // une graine neuve sera tirée
+  });
+});
+
+describe('dépôt — nomFichier, la garde des chemins venus de l ouvrier', () => {
+  /**
+   * L'ouvrier consigne des chemins ABSOLUS de sa propre machine. Les suivre
+   * serait laisser une valeur arrivée par le réseau désigner le fichier à
+   * lire. On n'en garde que le nom.
+   */
+  it('réduit un chemin Colab à son nom de fichier', () => {
+    expect(nomFichier('/content/pipeline/resultats/nephrolepis/apercu_000.png'))
+      .toBe('apercu_000.png');
+    expect(nomFichier('/content/drive/MyDrive/x/sanspot_geometrie.glb'))
+      .toBe('sanspot_geometrie.glb');
+  });
+
+  it('accepte un nom déjà nu', () => {
+    expect(nomFichier('apercu_060.png')).toBe('apercu_060.png');
+  });
+
+  it('refuse tout ce qui pourrait sortir du dossier', () => {
+    for (const hostile of [
+      '..', '../etc/passwd', '/etc/passwd/..', 'a/../../b', '..%2fetc',
+      '....//passwd', '.hidden', '-rf', '', '   ', '/',
+    ]) {
+      expect(nomFichier(hostile), hostile).toBeNull();
+    }
+  });
+
+  /** Un séparateur Windows doit couper comme un slash, sinon il passe entier. */
+  it('coupe aussi sur un antislash', () => {
+    expect(nomFichier('C:\\travail\\plantes\\apercu_120.png')).toBe('apercu_120.png');
+    expect(nomFichier('..\\..\\secret')).toBeNull();
+  });
+
+  it('refuse ce qui n est pas une chaîne', () => {
+    for (const v of [null, undefined, 42, {}, [], true]) {
+      expect(nomFichier(v)).toBeNull();
+    }
+  });
+
+  /**
+   * La garde de `nomFichier` et celle de `cheminArtefact` doivent être
+   * d'accord : un nom accepté par la première ne doit jamais faire lever la
+   * seconde, sinon la revue plante sur un artefact légitime.
+   */
+  it('tout nom qu elle accepte est accepté par cheminArtefact', () => {
+    for (const bon of ['apercu_000.png', 'sanspot_couleur.glb', 'nephrolepis.glb',
+                       'a.png', 'A_1-2.3.glb']) {
+      const nom = nomFichier(bon);
+      expect(nom).not.toBeNull();
+      expect(() => cheminArtefact('plante', nom!)).not.toThrow();
+    }
+  });
+});
+
+describe('dépôt — ce que la revue reçoit', () => {
+  beforeEach(() => reinitialiser());
+
+  async function livrerAvecArtefacts() {
+    await deposer('nephrolepis', '/img/nephrolepis.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      graine: 1312, essai: 2, secondes: 165.2, triangles: 1764560, octets: 42_000_000,
+      dominante: 0.998, grosses: 1, plans: 0.12, accepte: true, vram_go: 18.4,
+      glb: '/content/resultats/nephrolepis/nephrolepis.glb',
+      apercus: [
+        '/content/resultats/nephrolepis/apercu_000.png',
+        '/content/resultats/nephrolepis/apercu_060.png',
+      ],
+      candidats_pot: [
+        { voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', sommet: 0.31,
+          aire_retiree: 0.184, confiance_paroi: 0.62,
+          apercus: ['/content/x/sanspot_geometrie_000.png'] },
+        { voie: 'couleur', fichier: '/content/x/sanspot_couleur.glb', sommet: 0.28,
+          aire_retiree: 0.217, confiance_paroi: 0.58, apercus: [] },
+      ],
+      arbitrage_requis: true,
+    });
+  }
+
+  it('livre les mesures et des noms de fichiers, jamais des chemins', async () => {
+    await livrerAvecArtefacts();
+    const [v] = aRevoir();
+    expect(v.plante).toBe('nephrolepis');
+    expect(v.graine).toBe(1312);
+    expect(v.triangles).toBe(1764560);
+    expect(v.dominante).toBeCloseTo(0.998);
+    expect(v.apercus).toEqual(['apercu_000.png', 'apercu_060.png']);
+    expect(v.glb).toBe('nephrolepis.glb');
+    expect(v.arbitrage).toBe(true);
+    // Aucun chemin absolu ne doit survivre jusqu'à la page.
+    expect(JSON.stringify(v)).not.toContain('/content');
+  });
+
+  it('normalise les candidats et leurs aperçus', async () => {
+    await livrerAvecArtefacts();
+    const [v] = aRevoir();
+    expect(v.candidats).toHaveLength(2);
+    expect(v.candidats[0]).toMatchObject({
+      voie: 'geometrie', fichier: 'sanspot_geometrie.glb',
+      aireRetiree: 0.184, confianceParoi: 0.62,
+    });
+    expect(v.candidats[0].apercus).toEqual(['sanspot_geometrie_000.png']);
+    expect(v.candidats[1].apercus).toEqual([]);
+  });
+
+  /** Une livraison partielle ne doit pas faire planter la revue. */
+  it('survit à un résultat incomplet', async () => {
+    await deposer('maigre', '/m.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, { accepte: false });
+    const [v] = aRevoir();
+    expect(v.graine).toBeNull();
+    expect(v.triangles).toBeNull();
+    expect(v.apercus).toEqual([]);
+    expect(v.candidats).toEqual([]);
+    expect(v.glb).toBeNull();
+  });
+
+  it('écarte un aperçu au nom hostile sans écarter les autres', async () => {
+    await deposer('mixte', '/m.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      accepte: true, apercus: ['/x/apercu_000.png', '../../etc/passwd', '/x/apercu_060.png'],
+    });
+    expect(aRevoir()[0].apercus).toEqual(['apercu_000.png', 'apercu_060.png']);
+  });
+});
+
+describe('dépôt — bilan', () => {
+  beforeEach(() => reinitialiser());
+
+  it('compte chaque état', async () => {
+    expect(bilan()).toMatchObject({ enAttente: 0, enCours: 0, livrees: 0, echecs: 0 });
+
+    await deposer('a', '/a.png');
+    await deposer('b', '/b.png');
+    expect(bilan().enAttente).toBe(2);
+
+    const t = await prendre();
+    expect(bilan()).toMatchObject({ enAttente: 1, enCours: 1 });
+
+    await livrer(t!.id, t!.reservation!, { graine: 5, accepte: true });
+    expect(bilan()).toMatchObject({ livrees: 1, grainesBrulees: 1 });
+
+    const u = await prendre();
+    await echouer(u!.id, u!.reservation!, 'panne');
+    expect(bilan().echecs).toBe(1);
+
+    await trancher('a', true, 'y=0.3');
+    expect(bilan()).toMatchObject({ validees: 1, invalidees: 0 });
+  });
+
+  /** Une invalidation redépose : le bilan doit le montrer. */
+  it('une invalidation remet une tâche en attente', async () => {
+    await deposer('c', '/c.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, { graine: 9, accepte: true });
+    expect(bilan().enAttente).toBe(0);
+    await trancher('c', false);
+    expect(bilan()).toMatchObject({ enAttente: 1, invalidees: 1 });
+  });
+});
+
+describe('dépôt — purge des maillages après verdict', () => {
+  /**
+   * Le calcul qui justifie cette purge : 150 Mo par plante, 246 plantes au
+   * catalogue, soit 37 Go — plus que le disque entier du VPS, et bien plus que
+   * les 10 Go gratuits de R2. Les GLB sont de la sciure une fois le verdict
+   * rendu ; les aperçus, eux, pèsent 1,4 Mo et disent ce qui a été jugé.
+   */
+  const GLB = Buffer.alloc(2048, 7);
+  const PNG = Buffer.alloc(128, 3);
+
+  function poser(plante: string, fichiers: string[]) {
+    mkdirSync(join(BAC, 'plantes', plante), { recursive: true });
+    for (const f of fichiers) {
+      writeFileSync(cheminArtefact(plante, f), f.endsWith('.glb') ? GLB : PNG);
+    }
+  }
+  const restants = (plante: string) => readdirSync(join(BAC, 'plantes', plante)).sort();
+
+  async function livrerAvec(plante: string, candidats: string[]) {
+    await deposer(plante, `/img/${plante}.png`);
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      graine: 7, accepte: true, glb: `/content/x/${plante}.glb`,
+      apercus: [`/content/x/apercu_000.png`],
+      candidats_pot: candidats.map((v) => ({ voie: v, fichier: `/content/x/sanspot_${v}.glb` })),
+    });
+  }
+
+  beforeEach(() => reinitialiser());
+
+  it('ne garde que la coupe retenue, et jamais les aperçus', async () => {
+    poser('monstera', ['monstera.glb', 'sanspot_geometrie.glb', 'sanspot_couleur.glb',
+                       'apercu_000.png', 'apercu_090.png']);
+    await livrerAvec('monstera', ['geometrie', 'couleur']);
+
+    await trancher('monstera', true, 'sanspot_geometrie.glb');
+
+    expect(restants('monstera')).toEqual(
+      ['apercu_000.png', 'apercu_090.png', 'sanspot_geometrie.glb']);
+    const p = lire().plantes.monstera;
+    expect(p.purge?.fichiers).toBe(2);
+    expect(p.purge?.octets).toBe(2 * GLB.length);
+    expect(p.purge?.garde).toBe('sanspot_geometrie.glb');
+  });
+
+  /** Validée sans retrait : c'est le maillage complet qui est livrable. */
+  it('garde le maillage complet quand aucune coupe n est retenue', async () => {
+    poser('cactus', ['cactus.glb', 'apercu_000.png']);
+    await livrerAvec('cactus', []);
+
+    await trancher('cactus', true);
+
+    expect(restants('cactus')).toEqual(['apercu_000.png', 'cactus.glb']);
+    expect(lire().plantes.cactus.purge?.fichiers).toBe(0);
+  });
+
+  it('efface tout à l invalidation : le maillage est rejeté', async () => {
+    poser('rate', ['rate.glb', 'sanspot_geometrie.glb', 'apercu_000.png']);
+    await livrerAvec('rate', ['geometrie']);
+
+    await trancher('rate', false);
+
+    expect(restants('rate')).toEqual(['apercu_000.png']);
+    expect(lire().plantes.rate.purge?.fichiers).toBe(2);
+  });
+
+  /**
+   * LE cas qui compte. Si le nom à conserver ne correspond à aucun fichier,
+   * purger quand même effacerait la coupe retenue par-dessus le marché : 180 Mo
+   * de GPU perdus sur une erreur de nom. On s'abstient, et on le consigne.
+   */
+  it('ne purge RIEN si le fichier à conserver est introuvable', async () => {
+    poser('prudente', ['prudente.glb', 'sanspot_geometrie.glb', 'apercu_000.png']);
+    await livrerAvec('prudente', ['geometrie']);
+
+    await trancher('prudente', true, 'sanspot_inexistant.glb');
+
+    expect(restants('prudente')).toEqual(
+      ['apercu_000.png', 'prudente.glb', 'sanspot_geometrie.glb']);
+    const p = lire().plantes.prudente;
+    expect(p.purge?.fichiers).toBe(0);
+    expect(p.purge?.raison).toContain('introuvable');
+    // Le verdict, lui, est bien enregistré : une purge empêchée ne doit pas
+    // empêcher la seule chose irremplaçable.
+    expect(p.verdict).toBe('validee');
+  });
+
+  it('refuse un nom de coupe qui tenterait de sortir du dossier', async () => {
+    poser('hostile', ['hostile.glb', 'apercu_000.png']);
+    await livrerAvec('hostile', []);
+    await trancher('hostile', true, '../../etc/passwd');
+    // `nomFichier` rejette, on retombe sur le maillage complet, qui est gardé.
+    expect(restants('hostile')).toEqual(['apercu_000.png', 'hostile.glb']);
+  });
+
+  it('un dossier absent ne fait pas échouer le verdict', async () => {
+    await deposer('fantome', '/f.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, { graine: 1, accepte: true });
+    await expect(trancher('fantome', false)).resolves.toBe('invalidee');
+  });
+
+  it('purger ne touche jamais aux aperçus', () => {
+    poser('images', ['a.glb', 'b.glb', 'apercu_000.png', 'sanspot_geometrie_000.png']);
+    const r = purger('images', []);
+    expect(r.supprimes.sort()).toEqual(['a.glb', 'b.glb']);
+    expect(restants('images')).toEqual(['apercu_000.png', 'sanspot_geometrie_000.png']);
+  });
+
+  it('le bilan cumule la place reprise', async () => {
+    poser('p1', ['p1.glb', 'sanspot_geometrie.glb', 'apercu_000.png']);
+    await livrerAvec('p1', ['geometrie']);
+    await trancher('p1', true, 'sanspot_geometrie.glb');
+    expect(bilan().octetsLiberes).toBe(GLB.length);
+  });
+});
+
+describe('dépôt — images sources', () => {
+  /**
+   * Elles vivaient sur Drive pendant le spike, et `tache.image` portait un
+   * chemin Colab : l'atelier ne pouvait pas déposer de tâche, il aurait écrit
+   * un chemin qu'il ne pouvait ni voir ni vérifier. Sur le volume, il le peut.
+   */
+  const IMG = Buffer.alloc(64, 9);
+
+  function poserSource(fichier: string) {
+    mkdirSync(join(BAC, 'sources'), { recursive: true });
+    writeFileSync(join(BAC, 'sources', fichier), IMG);
+  }
+
+  beforeEach(() => {
+    reinitialiser();
+    rmSync(join(BAC, 'sources'), { recursive: true, force: true });
+  });
+
+  it('accepte les formats d image attendus', () => {
+    for (const bon of ['nephrolepis.png', 'Acer_Palmatum.jpg', 'a-b_1.jpeg', 'x.webp']) {
+      expect(() => cheminSource(bon), bon).not.toThrow();
+    }
+  });
+
+  it('refuse tout le reste', () => {
+    for (const mauvais of [
+      'x.glb', 'x.svg', 'x.json', 'x.php', 'x.png.sh', 'sans_extension',
+      '../evade.png', 'a/b.png', 'a\\b.png', '..png', '.png', 'é.png', 'a b.png',
+    ]) {
+      expect(() => cheminSource(mauvais), mauvais).toThrow();
+    }
+  });
+
+  it('le nom du fichier porte le nom de la plante', () => {
+    expect(planteDe('nephrolepis.png')).toBe('nephrolepis');
+    expect(planteDe('Acer_Palmatum.jpg')).toBe('Acer_Palmatum');
+  });
+
+  it('liste ce qui est là, trié, en ignorant les intrus', () => {
+    poserSource('monstera.png');
+    poserSource('acer.jpg');
+    writeFileSync(join(BAC, 'sources', 'notes.txt'), 'x');
+    const l = sources();
+    expect(l.map((s) => s.plante)).toEqual(['acer', 'monstera']);
+    expect(l[0].octets).toBe(IMG.length);
+  });
+
+  it('rend une liste vide quand le dossier n existe pas', () => {
+    expect(sources()).toEqual([]);
+  });
+
+  /**
+   * Le croisement qui évite de déposer deux fois la même plante. Il se fait
+   * ici et pas dans la page : c'est au dépôt de savoir ce qu'il a déjà en vol.
+   */
+  it('dit ce que l état sait de chaque plante', async () => {
+    poserSource('enattente.png');
+    poserSource('encours.png');
+    poserSource('tranchee.png');
+    poserSource('neuve.png');
+
+    // `prendre` sert la plus ANCIENNE : l'ordre de dépôt décide de ce qui part.
+    // On traite donc une plante à la fois pour obtenir les quatre états voulus.
+    await deposer('tranchee', 'tranchee.png');
+    const t = await prendre();
+    expect(t!.plante).toBe('tranchee');
+    await livrer(t!.id, t!.reservation!, { graine: 1, accepte: true });
+    await trancher('tranchee', true);
+
+    await deposer('encours', 'encours.png');
+    const u = await prendre();
+    expect(u!.plante).toBe('encours');
+
+    await deposer('enattente', 'enattente.png');
+
+    const par = Object.fromEntries(sources().map((s) => [s.plante, s]));
+    expect(par.enattente.enFile).toBe(true);
+    expect(par.encours.enFile).toBe(true);
+    expect(par.neuve.enFile).toBe(false);
+    // Tranchée : plus en file, et le verdict est rendu.
+    expect(par.tranchee.enFile).toBe(false);
+    expect(par.tranchee.verdict).toBe('validee');
+  });
+
+  it('supprime une source sans toucher aux artefacts', () => {
+    poserSource('partante.png');
+    mkdirSync(join(BAC, 'plantes', 'partante'), { recursive: true });
+    writeFileSync(cheminArtefact('partante', 'apercu_000.png'), IMG);
+
+    expect(supprimerSource('partante.png')).toBe(true);
+    expect(sources()).toEqual([]);
+    expect(readdirSync(join(BAC, 'plantes', 'partante'))).toEqual(['apercu_000.png']);
+  });
+
+  it('supprimer une source absente ne lève pas', () => {
+    expect(supprimerSource('fantome.png')).toBe(false);
+    expect(supprimerSource('../evade.png')).toBe(false);
   });
 });
 

@@ -7,7 +7,7 @@
 // du notebook consomme — codes de retour, noms de champs, et surtout le trajet
 // du jeton de réservation. Le dépôt a ses propres tests ; on ne les rejoue pas.
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -46,13 +46,28 @@ function req(chemin: string, corps?: unknown, hote = HOTE) {
 
 const params = <T extends object>(p: T) => ({ params: Promise.resolve(p) });
 
+/**
+ * Pose l'image source de la plante.
+ *
+ * Le dépôt ne prend plus de chemin : il retrouve la source sur le volume. Une
+ * plante sans image ne peut donc PAS être déposée, et c'est voulu — l'erreur
+ * est rendue à l'appelant plutôt que découverte par l'ouvrier après 165 s de
+ * GPU.
+ */
+function poserSource(plante: string) {
+  mkdirSync(join(BAC, 'sources'), { recursive: true });
+  writeFileSync(join(BAC, 'sources', `${plante}.png`), Buffer.alloc(32, 1));
+}
+
 describe('routes de la file — cycle de l ouvrier', () => {
-  beforeEach(() => reinitialiser());
+  beforeEach(() => {
+    reinitialiser();
+    rmSync(join(BAC, 'sources'), { recursive: true, force: true });
+  });
 
   it('dépose, prend, livre', async () => {
-    const depot = await taches.POST(req('/api/generator/taches', {
-      plante: 'nephrolepis', image: '/img/nephrolepis.png',
-    }));
+    poserSource('nephrolepis');
+    const depot = await taches.POST(req('/api/generator/taches', { plante: 'nephrolepis' }));
     expect(depot.status).toBe(201);
 
     const prise = await prendreRoute.POST(req('/api/generator/taches/prendre', {}));
@@ -79,7 +94,8 @@ describe('routes de la file — cycle de l ouvrier', () => {
   });
 
   it('refuse une livraison sans jeton de réservation', async () => {
-    await taches.POST(req('/api/generator/taches', { plante: 'a', image: '/a.png' }));
+    poserSource('a');
+    await taches.POST(req('/api/generator/taches', { plante: 'a' }));
     const tache = await (await prendreRoute.POST(req('/api/generator/taches/prendre', {}))).json();
 
     const r = await resultat.POST(
@@ -95,7 +111,8 @@ describe('routes de la file — cycle de l ouvrier', () => {
    * écraser le travail de celui qui a repris la tâche.
    */
   it('rend 409 à une réservation périmée, en distinguant du 404', async () => {
-    await taches.POST(req('/api/generator/taches', { plante: 'lente', image: '/l.png' }));
+    poserSource('lente');
+    await taches.POST(req('/api/generator/taches', { plante: 'lente' }));
     const premier = await (await prendreRoute.POST(req('/api/generator/taches/prendre', {}))).json();
 
     // La tâche expire et un second ouvrier la reprend. Même identifiant.
@@ -122,7 +139,8 @@ describe('routes de la file — cycle de l ouvrier', () => {
   });
 
   it('enregistre un échec et le motif', async () => {
-    await taches.POST(req('/api/generator/taches', { plante: 'rate', image: '/r.png' }));
+    poserSource('rate');
+    await taches.POST(req('/api/generator/taches', { plante: 'rate' }));
     const t = await (await prendreRoute.POST(req('/api/generator/taches/prendre', {}))).json();
 
     const r = await echec.POST(
@@ -136,9 +154,14 @@ describe('routes de la file — cycle de l ouvrier', () => {
     expect(lire().taches[0].erreur).toBe('delai_max_depasse');
   });
 
-  it('refuse une tâche sans plante ni image', async () => {
-    expect((await taches.POST(req('/api/generator/taches', { plante: 'a' }))).status).toBe(400);
+  it('refuse une tâche sans plante, ou dont l image n existe pas', async () => {
     expect((await taches.POST(req('/api/generator/taches', {}))).status).toBe(400);
+    // Nommée mais sans source sur le volume : refusée ici, pas plus tard.
+    expect((await taches.POST(req('/api/generator/taches', { plante: 'fantome' }))).status)
+      .toBe(400);
+    poserSource('reelle');
+    expect((await taches.POST(req('/api/generator/taches', { plante: 'reelle' }))).status)
+      .toBe(201);
   });
 
   it('ne rend pas 500 sur un corps qui n est pas du JSON', async () => {
@@ -149,7 +172,8 @@ describe('routes de la file — cycle de l ouvrier', () => {
   });
 
   it('ne diffuse pas le jeton de réservation dans le tableau de bord', async () => {
-    await taches.POST(req('/api/generator/taches', { plante: 'x', image: '/x.png' }));
+    poserSource('x');
+    await taches.POST(req('/api/generator/taches', { plante: 'x' }));
     await prendreRoute.POST(req('/api/generator/taches/prendre', {}));
 
     const corps = await (await taches.GET(req('/api/generator/taches'))).json();
@@ -162,7 +186,10 @@ describe('routes de la file — cycle de l ouvrier', () => {
 });
 
 describe('routes de la file — historique des graines', () => {
-  beforeEach(() => reinitialiser());
+  beforeEach(() => {
+    reinitialiser();
+    rmSync(join(BAC, 'sources'), { recursive: true, force: true });
+  });
 
   it('consigne une graine avant génération et la rend à la prise suivante', async () => {
     const p = params({ plante: 'ficus' });
@@ -178,7 +205,8 @@ describe('routes de la file — historique des graines', () => {
 
     // Et une tâche déposée APRÈS voit bien ces graines : l'exclusion est relue
     // à la prise, sinon une relance rejouerait la graine qui a échoué.
-    await taches.POST(req('/api/generator/taches', { plante: 'ficus', image: '/f.png' }));
+    poserSource('ficus');
+    await taches.POST(req('/api/generator/taches', { plante: 'ficus' }));
     const t = await (await prendreRoute.POST(req('/api/generator/taches/prendre', {}))).json();
     expect(t.exclure).toEqual([7, 9]);
   });
@@ -192,10 +220,14 @@ describe('routes de la file — historique des graines', () => {
 });
 
 describe('routes de la file — revue', () => {
-  beforeEach(() => reinitialiser());
+  beforeEach(() => {
+    reinitialiser();
+    rmSync(join(BAC, 'sources'), { recursive: true, force: true });
+  });
 
   async function livrerUne(plante: string) {
-    await taches.POST(req('/api/generator/taches', { plante, image: `/${plante}.png` }));
+    poserSource(plante);
+    await taches.POST(req('/api/generator/taches', { plante }));
     const t = await (await prendreRoute.POST(req('/api/generator/taches/prendre', {}))).json();
     await resultat.POST(
       req(`/api/generator/taches/${t.id}/resultat`, {
@@ -257,7 +289,10 @@ describe('routes de la file — revue', () => {
  * ne serait pas pour autant ouverte sur web.arbore.app.
  */
 describe('routes de la file — hors de l hôte de l atelier', () => {
-  beforeEach(() => reinitialiser());
+  beforeEach(() => {
+    reinitialiser();
+    rmSync(join(BAC, 'sources'), { recursive: true, force: true });
+  });
 
   it('rend 404 sur chaque route depuis le site public', async () => {
     const autre = 'web.arbore.app';

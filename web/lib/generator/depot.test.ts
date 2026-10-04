@@ -7,8 +7,8 @@ const BAC = mkdtempSync(join(tmpdir(), 'atelier-'));
 process.env.GENERATOR_DATA_DIR = BAC;
 
 import {
-  EXPIRATION_MS, aRevoir, cheminArtefact, deposer, echouer, historique,
-  lire, livrer, noterGraine, prendre, reinitialiser, trancher,
+  EXPIRATION_MS, aRevoir, bilan, cheminArtefact, deposer, echouer, historique,
+  lire, livrer, nomFichier, noterGraine, prendre, reinitialiser, trancher,
 } from './depot';
 
 afterAll(() => rmSync(BAC, { recursive: true, force: true }));
@@ -190,6 +190,168 @@ describe('dépôt — revue', () => {
     expect(taches).toHaveLength(1);
     expect(taches[0].raison).toBe('invalidee_revue');
     expect(taches[0].graine).toBeNull();   // une graine neuve sera tirée
+  });
+});
+
+describe('dépôt — nomFichier, la garde des chemins venus de l ouvrier', () => {
+  /**
+   * L'ouvrier consigne des chemins ABSOLUS de sa propre machine. Les suivre
+   * serait laisser une valeur arrivée par le réseau désigner le fichier à
+   * lire. On n'en garde que le nom.
+   */
+  it('réduit un chemin Colab à son nom de fichier', () => {
+    expect(nomFichier('/content/pipeline/resultats/nephrolepis/apercu_000.png'))
+      .toBe('apercu_000.png');
+    expect(nomFichier('/content/drive/MyDrive/x/sanspot_geometrie.glb'))
+      .toBe('sanspot_geometrie.glb');
+  });
+
+  it('accepte un nom déjà nu', () => {
+    expect(nomFichier('apercu_060.png')).toBe('apercu_060.png');
+  });
+
+  it('refuse tout ce qui pourrait sortir du dossier', () => {
+    for (const hostile of [
+      '..', '../etc/passwd', '/etc/passwd/..', 'a/../../b', '..%2fetc',
+      '....//passwd', '.hidden', '-rf', '', '   ', '/',
+    ]) {
+      expect(nomFichier(hostile), hostile).toBeNull();
+    }
+  });
+
+  /** Un séparateur Windows doit couper comme un slash, sinon il passe entier. */
+  it('coupe aussi sur un antislash', () => {
+    expect(nomFichier('C:\\travail\\plantes\\apercu_120.png')).toBe('apercu_120.png');
+    expect(nomFichier('..\\..\\secret')).toBeNull();
+  });
+
+  it('refuse ce qui n est pas une chaîne', () => {
+    for (const v of [null, undefined, 42, {}, [], true]) {
+      expect(nomFichier(v)).toBeNull();
+    }
+  });
+
+  /**
+   * La garde de `nomFichier` et celle de `cheminArtefact` doivent être
+   * d'accord : un nom accepté par la première ne doit jamais faire lever la
+   * seconde, sinon la revue plante sur un artefact légitime.
+   */
+  it('tout nom qu elle accepte est accepté par cheminArtefact', () => {
+    for (const bon of ['apercu_000.png', 'sanspot_couleur.glb', 'nephrolepis.glb',
+                       'a.png', 'A_1-2.3.glb']) {
+      const nom = nomFichier(bon);
+      expect(nom).not.toBeNull();
+      expect(() => cheminArtefact('plante', nom!)).not.toThrow();
+    }
+  });
+});
+
+describe('dépôt — ce que la revue reçoit', () => {
+  beforeEach(() => reinitialiser());
+
+  async function livrerAvecArtefacts() {
+    await deposer('nephrolepis', '/img/nephrolepis.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      graine: 1312, essai: 2, secondes: 165.2, triangles: 1764560, octets: 42_000_000,
+      dominante: 0.998, grosses: 1, plans: 0.12, accepte: true, vram_go: 18.4,
+      glb: '/content/resultats/nephrolepis/nephrolepis.glb',
+      apercus: [
+        '/content/resultats/nephrolepis/apercu_000.png',
+        '/content/resultats/nephrolepis/apercu_060.png',
+      ],
+      candidats_pot: [
+        { voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', sommet: 0.31,
+          aire_retiree: 0.184, confiance_paroi: 0.62,
+          apercus: ['/content/x/sanspot_geometrie_000.png'] },
+        { voie: 'couleur', fichier: '/content/x/sanspot_couleur.glb', sommet: 0.28,
+          aire_retiree: 0.217, confiance_paroi: 0.58, apercus: [] },
+      ],
+      arbitrage_requis: true,
+    });
+  }
+
+  it('livre les mesures et des noms de fichiers, jamais des chemins', async () => {
+    await livrerAvecArtefacts();
+    const [v] = aRevoir();
+    expect(v.plante).toBe('nephrolepis');
+    expect(v.graine).toBe(1312);
+    expect(v.triangles).toBe(1764560);
+    expect(v.dominante).toBeCloseTo(0.998);
+    expect(v.apercus).toEqual(['apercu_000.png', 'apercu_060.png']);
+    expect(v.glb).toBe('nephrolepis.glb');
+    expect(v.arbitrage).toBe(true);
+    // Aucun chemin absolu ne doit survivre jusqu'à la page.
+    expect(JSON.stringify(v)).not.toContain('/content');
+  });
+
+  it('normalise les candidats et leurs aperçus', async () => {
+    await livrerAvecArtefacts();
+    const [v] = aRevoir();
+    expect(v.candidats).toHaveLength(2);
+    expect(v.candidats[0]).toMatchObject({
+      voie: 'geometrie', fichier: 'sanspot_geometrie.glb',
+      aireRetiree: 0.184, confianceParoi: 0.62,
+    });
+    expect(v.candidats[0].apercus).toEqual(['sanspot_geometrie_000.png']);
+    expect(v.candidats[1].apercus).toEqual([]);
+  });
+
+  /** Une livraison partielle ne doit pas faire planter la revue. */
+  it('survit à un résultat incomplet', async () => {
+    await deposer('maigre', '/m.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, { accepte: false });
+    const [v] = aRevoir();
+    expect(v.graine).toBeNull();
+    expect(v.triangles).toBeNull();
+    expect(v.apercus).toEqual([]);
+    expect(v.candidats).toEqual([]);
+    expect(v.glb).toBeNull();
+  });
+
+  it('écarte un aperçu au nom hostile sans écarter les autres', async () => {
+    await deposer('mixte', '/m.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      accepte: true, apercus: ['/x/apercu_000.png', '../../etc/passwd', '/x/apercu_060.png'],
+    });
+    expect(aRevoir()[0].apercus).toEqual(['apercu_000.png', 'apercu_060.png']);
+  });
+});
+
+describe('dépôt — bilan', () => {
+  beforeEach(() => reinitialiser());
+
+  it('compte chaque état', async () => {
+    expect(bilan()).toMatchObject({ enAttente: 0, enCours: 0, livrees: 0, echecs: 0 });
+
+    await deposer('a', '/a.png');
+    await deposer('b', '/b.png');
+    expect(bilan().enAttente).toBe(2);
+
+    const t = await prendre();
+    expect(bilan()).toMatchObject({ enAttente: 1, enCours: 1 });
+
+    await livrer(t!.id, t!.reservation!, { graine: 5, accepte: true });
+    expect(bilan()).toMatchObject({ livrees: 1, grainesBrulees: 1 });
+
+    const u = await prendre();
+    await echouer(u!.id, u!.reservation!, 'panne');
+    expect(bilan().echecs).toBe(1);
+
+    await trancher('a', true, 'y=0.3');
+    expect(bilan()).toMatchObject({ validees: 1, invalidees: 0 });
+  });
+
+  /** Une invalidation redépose : le bilan doit le montrer. */
+  it('une invalidation remet une tâche en attente', async () => {
+    await deposer('c', '/c.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, { graine: 9, accepte: true });
+    expect(bilan().enAttente).toBe(0);
+    await trancher('c', false);
+    expect(bilan()).toMatchObject({ enAttente: 1, invalidees: 1 });
   });
 });
 

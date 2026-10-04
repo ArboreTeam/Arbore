@@ -9,7 +9,7 @@
 //
 // Le jour où R2 prendra les GLB, c'est `cheminArtefact` qui changera, et elle
 // seule : rien d'autre ne manipule d'octets.
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export type EtatTache = 'en_attente' | 'en_cours' | 'livree' | 'echec';
@@ -62,6 +62,22 @@ export function cheminArtefact(plante: string, fichier: string): string {
     throw new Error('chemin refusé');
   }
   return join(racine(), 'plantes', plante, fichier);
+}
+
+/**
+ * Taille d'un artefact, ou `null` s'il manque.
+ *
+ * Sert à annoncer le poids d'un GLB avant de le charger dans la visionneuse :
+ * ils pèsent 30 à 70 Mo, et ouvrir ça sans prévenir sur une connexion moyenne
+ * donne une page qui semble figée.
+ */
+export function tailleArtefact(plante: string, fichier: string): number | null {
+  try {
+    const st = statSync(cheminArtefact(plante, fichier));
+    return st.isFile() ? st.size : null;
+  } catch {
+    return null;
+  }
 }
 
 export function lire(): Etat {
@@ -214,19 +230,121 @@ export function noterGraine(plante: string, graine: number) {
   });
 }
 
-/** Plantes livrées dont le verdict reste à rendre. */
-export function aRevoir() {
+/**
+ * Réduit un chemin livré par l'ouvrier à son seul nom de fichier.
+ *
+ * L'ouvrier consigne des chemins ABSOLUS de sa propre machine — `/content/...`
+ * sur Colab, un montage Drive ailleurs. Ils n'ont aucun sens ici, et les
+ * suivre serait pire que sans effet : c'est une valeur venue du réseau qui
+ * désignerait un fichier à lire. On n'en garde que le nom, et `cheminArtefact`
+ * le valide ensuite.
+ */
+export function nomFichier(chemin: unknown): string | null {
+  if (typeof chemin !== 'string' || !chemin) return null;
+  const morceaux = chemin.split(/[\\/]/);
+  // Un segment fait uniquement de points (`.`, `..`, `....`) n'a rien à faire
+  // dans un chemin d'artefact. N'en garder que le nom final serait sûr — le
+  // basename reste dans le dossier de la plante, et un fichier absent donne
+  // un 404 — mais ce serait traiter comme normal ce qui ne l'est pas, et
+  // masquer un ouvrier qui envoie n'importe quoi. On refuse.
+  if (morceaux.some((m) => /^\.+$/.test(m))) return null;
+  const nom = morceaux.pop() || '';
+  return /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(nom) && !nom.includes('..') ? nom : null;
+}
+
+export type Candidat = {
+  voie: string;
+  sommet: number | null;
+  aireRetiree: number | null;
+  confianceParoi: number | null;
+  /** Nom du GLB coupé, pour la visionneuse. */
+  fichier: string | null;
+  /** Aperçus de CE candidat, rendus par l'ouvrier. */
+  apercus: string[];
+};
+
+export type AVoir = {
+  plante: string;
+  graine: number | null;
+  accepte: boolean;
+  essai: number | null;
+  secondes: number | null;
+  triangles: number | null;
+  octets: number | null;
+  dominante: number | null;
+  grosses: number | null;
+  plans: number | null;
+  apercus: string[];
+  glb: string | null;
+  candidats: Candidat[];
+  arbitrage: boolean;
+  livre: number | null;
+};
+
+function nombre(v: unknown): number | null {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+function candidat(brut: unknown): Candidat {
+  const c = (brut ?? {}) as Record<string, unknown>;
+  return {
+    voie: typeof c.voie === 'string' ? c.voie : 'inconnue',
+    sommet: nombre(c.sommet),
+    aireRetiree: nombre(c.aire_retiree),
+    confianceParoi: nombre(c.confiance_paroi),
+    fichier: nomFichier(c.fichier),
+    apercus: (Array.isArray(c.apercus) ? c.apercus : []).map(nomFichier).filter((n): n is string => n !== null),
+  };
+}
+
+/**
+ * Plantes livrées dont le verdict reste à rendre.
+ *
+ * Rend tout ce que la revue affiche, mesures comprises : c'est le dépôt qui
+ * connaît la disposition des artefacts, pas la page. Celle-ci ne voit que des
+ * noms de fichiers, qu'elle passe à la route de service.
+ */
+export function aRevoir(): AVoir[] {
   const etat = lire();
   return etat.taches
     .filter((t) => t.etat === 'livree' && !etat.plantes[t.plante]?.verdict)
-    .map((t) => ({
-      plante: t.plante,
-      graine: (t.resultat?.graine as number) ?? null,
-      accepte: Boolean(t.resultat?.accepte),
-      apercus: (t.resultat?.apercus as string[]) ?? [],
-      candidats: (t.resultat?.candidats_pot as unknown[]) ?? [],
-      arbitrage: Boolean(t.resultat?.arbitrage_requis),
-    }));
+    .map((t) => {
+      const r = t.resultat ?? {};
+      return {
+        plante: t.plante,
+        graine: nombre(r.graine),
+        accepte: Boolean(r.accepte),
+        essai: nombre(r.essai),
+        secondes: nombre(r.secondes),
+        triangles: nombre(r.triangles),
+        octets: nombre(r.octets),
+        dominante: nombre(r.dominante),
+        grosses: nombre(r.grosses),
+        plans: nombre(r.plans),
+        apercus: (Array.isArray(r.apercus) ? r.apercus : [])
+          .map(nomFichier).filter((n): n is string => n !== null),
+        glb: nomFichier(r.glb),
+        candidats: (Array.isArray(r.candidats_pot) ? r.candidats_pot : []).map(candidat),
+        arbitrage: Boolean(r.arbitrage_requis),
+        livre: nombre(t.livre),
+      };
+    });
+}
+
+/** Compteurs du tableau de bord. */
+export function bilan() {
+  const etat = lire();
+  const par = (e: EtatTache) => etat.taches.filter((t) => t.etat === e).length;
+  const plantes = Object.entries(etat.plantes);
+  return {
+    enAttente: par('en_attente'),
+    enCours: par('en_cours'),
+    livrees: par('livree'),
+    echecs: par('echec'),
+    validees: plantes.filter(([, p]) => p.verdict === 'validee').length,
+    invalidees: plantes.filter(([, p]) => p.verdict === 'invalidee').length,
+    grainesBrulees: plantes.reduce((n, [, p]) => n + p.graines.length, 0),
+  };
 }
 
 /**

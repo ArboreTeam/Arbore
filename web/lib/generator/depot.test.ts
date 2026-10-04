@@ -6,9 +6,11 @@ import { join } from 'node:path';
 const BAC = mkdtempSync(join(tmpdir(), 'atelier-'));
 process.env.GENERATOR_DATA_DIR = BAC;
 
+import { mkdirSync, writeFileSync, readdirSync } from 'node:fs';
+
 import {
   EXPIRATION_MS, aRevoir, bilan, cheminArtefact, deposer, echouer, historique,
-  lire, livrer, nomFichier, noterGraine, prendre, reinitialiser, trancher,
+  lire, livrer, nomFichier, noterGraine, prendre, purger, reinitialiser, trancher,
 } from './depot';
 
 afterAll(() => rmSync(BAC, { recursive: true, force: true }));
@@ -352,6 +354,123 @@ describe('dépôt — bilan', () => {
     expect(bilan().enAttente).toBe(0);
     await trancher('c', false);
     expect(bilan()).toMatchObject({ enAttente: 1, invalidees: 1 });
+  });
+});
+
+describe('dépôt — purge des maillages après verdict', () => {
+  /**
+   * Le calcul qui justifie cette purge : 150 Mo par plante, 246 plantes au
+   * catalogue, soit 37 Go — plus que le disque entier du VPS, et bien plus que
+   * les 10 Go gratuits de R2. Les GLB sont de la sciure une fois le verdict
+   * rendu ; les aperçus, eux, pèsent 1,4 Mo et disent ce qui a été jugé.
+   */
+  const GLB = Buffer.alloc(2048, 7);
+  const PNG = Buffer.alloc(128, 3);
+
+  function poser(plante: string, fichiers: string[]) {
+    mkdirSync(join(BAC, 'plantes', plante), { recursive: true });
+    for (const f of fichiers) {
+      writeFileSync(cheminArtefact(plante, f), f.endsWith('.glb') ? GLB : PNG);
+    }
+  }
+  const restants = (plante: string) => readdirSync(join(BAC, 'plantes', plante)).sort();
+
+  async function livrerAvec(plante: string, candidats: string[]) {
+    await deposer(plante, `/img/${plante}.png`);
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      graine: 7, accepte: true, glb: `/content/x/${plante}.glb`,
+      apercus: [`/content/x/apercu_000.png`],
+      candidats_pot: candidats.map((v) => ({ voie: v, fichier: `/content/x/sanspot_${v}.glb` })),
+    });
+  }
+
+  beforeEach(() => reinitialiser());
+
+  it('ne garde que la coupe retenue, et jamais les aperçus', async () => {
+    poser('monstera', ['monstera.glb', 'sanspot_geometrie.glb', 'sanspot_couleur.glb',
+                       'apercu_000.png', 'apercu_090.png']);
+    await livrerAvec('monstera', ['geometrie', 'couleur']);
+
+    await trancher('monstera', true, 'sanspot_geometrie.glb');
+
+    expect(restants('monstera')).toEqual(
+      ['apercu_000.png', 'apercu_090.png', 'sanspot_geometrie.glb']);
+    const p = lire().plantes.monstera;
+    expect(p.purge?.fichiers).toBe(2);
+    expect(p.purge?.octets).toBe(2 * GLB.length);
+    expect(p.purge?.garde).toBe('sanspot_geometrie.glb');
+  });
+
+  /** Validée sans retrait : c'est le maillage complet qui est livrable. */
+  it('garde le maillage complet quand aucune coupe n est retenue', async () => {
+    poser('cactus', ['cactus.glb', 'apercu_000.png']);
+    await livrerAvec('cactus', []);
+
+    await trancher('cactus', true);
+
+    expect(restants('cactus')).toEqual(['apercu_000.png', 'cactus.glb']);
+    expect(lire().plantes.cactus.purge?.fichiers).toBe(0);
+  });
+
+  it('efface tout à l invalidation : le maillage est rejeté', async () => {
+    poser('rate', ['rate.glb', 'sanspot_geometrie.glb', 'apercu_000.png']);
+    await livrerAvec('rate', ['geometrie']);
+
+    await trancher('rate', false);
+
+    expect(restants('rate')).toEqual(['apercu_000.png']);
+    expect(lire().plantes.rate.purge?.fichiers).toBe(2);
+  });
+
+  /**
+   * LE cas qui compte. Si le nom à conserver ne correspond à aucun fichier,
+   * purger quand même effacerait la coupe retenue par-dessus le marché : 180 Mo
+   * de GPU perdus sur une erreur de nom. On s'abstient, et on le consigne.
+   */
+  it('ne purge RIEN si le fichier à conserver est introuvable', async () => {
+    poser('prudente', ['prudente.glb', 'sanspot_geometrie.glb', 'apercu_000.png']);
+    await livrerAvec('prudente', ['geometrie']);
+
+    await trancher('prudente', true, 'sanspot_inexistant.glb');
+
+    expect(restants('prudente')).toEqual(
+      ['apercu_000.png', 'prudente.glb', 'sanspot_geometrie.glb']);
+    const p = lire().plantes.prudente;
+    expect(p.purge?.fichiers).toBe(0);
+    expect(p.purge?.raison).toContain('introuvable');
+    // Le verdict, lui, est bien enregistré : une purge empêchée ne doit pas
+    // empêcher la seule chose irremplaçable.
+    expect(p.verdict).toBe('validee');
+  });
+
+  it('refuse un nom de coupe qui tenterait de sortir du dossier', async () => {
+    poser('hostile', ['hostile.glb', 'apercu_000.png']);
+    await livrerAvec('hostile', []);
+    await trancher('hostile', true, '../../etc/passwd');
+    // `nomFichier` rejette, on retombe sur le maillage complet, qui est gardé.
+    expect(restants('hostile')).toEqual(['apercu_000.png', 'hostile.glb']);
+  });
+
+  it('un dossier absent ne fait pas échouer le verdict', async () => {
+    await deposer('fantome', '/f.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, { graine: 1, accepte: true });
+    await expect(trancher('fantome', false)).resolves.toBe('invalidee');
+  });
+
+  it('purger ne touche jamais aux aperçus', () => {
+    poser('images', ['a.glb', 'b.glb', 'apercu_000.png', 'sanspot_geometrie_000.png']);
+    const r = purger('images', []);
+    expect(r.supprimes.sort()).toEqual(['a.glb', 'b.glb']);
+    expect(restants('images')).toEqual(['apercu_000.png', 'sanspot_geometrie_000.png']);
+  });
+
+  it('le bilan cumule la place reprise', async () => {
+    poser('p1', ['p1.glb', 'sanspot_geometrie.glb', 'apercu_000.png']);
+    await livrerAvec('p1', ['geometrie']);
+    await trancher('p1', true, 'sanspot_geometrie.glb');
+    expect(bilan().octetsLiberes).toBe(GLB.length);
   });
 });
 

@@ -9,7 +9,7 @@
 //
 // Le jour où R2 prendra les GLB, c'est `cheminArtefact` qui changera, et elle
 // seule : rien d'autre ne manipule d'octets.
-import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export type EtatTache = 'en_attente' | 'en_cours' | 'livree' | 'echec';
@@ -30,9 +30,24 @@ export type Tache = {
   erreur?: string;
 };
 
+/** Ce qu'une purge a libéré, ou pourquoi elle ne s'est pas faite. */
+export type Purge = {
+  quand: number;
+  fichiers: number;
+  octets: number;
+  garde?: string;
+  /** Renseignée quand rien n'a été effacé alors qu'on s'y attendait. */
+  raison?: string;
+};
+
 export type Etat = {
   taches: Tache[];
-  plantes: Record<string, { graines: number[]; verdict?: 'validee' | 'invalidee'; coupe?: string }>;
+  plantes: Record<string, {
+    graines: number[];
+    verdict?: 'validee' | 'invalidee';
+    coupe?: string;
+    purge?: Purge;
+  }>;
 };
 
 const VIDE: Etat = { taches: [], plantes: {} };
@@ -78,6 +93,48 @@ export function tailleArtefact(plante: string, fichier: string): number | null {
   } catch {
     return null;
   }
+}
+
+/** Les GLB présents dans le dossier d'une plante. */
+function glbPresents(plante: string): string[] {
+  try {
+    return readdirSync(join(racine(), 'plantes', plante))
+      .filter((f) => f.toLowerCase().endsWith('.glb'));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Efface les maillages devenus inutiles, en gardant celui qui est nommé.
+ *
+ * Les GLB de l'atelier sont de la sciure : 150 Mo par plante, et 37 Go pour le
+ * catalogue de 246 — davantage que le disque entier du VPS. Une fois le verdict
+ * rendu, le maillage brut de 1,7 million de triangles et le candidat rejeté
+ * n'ont plus d'usage. Les aperçus, eux, restent : 1,4 Mo par plante, et ce sont
+ * eux qui disent ce qui a été jugé.
+ *
+ * Ne touche QU'AUX `.glb`, et jamais à un fichier nommé dans `garder`.
+ * N'échoue jamais : une purge ratée ne doit pas empêcher d'enregistrer un
+ * verdict, qui est la seule chose irremplaçable ici.
+ */
+export function purger(plante: string, garder: string[]): { supprimes: string[]; octets: number } {
+  const garde = new Set(garder.filter((g): g is string => Boolean(g)));
+  const supprimes: string[] = [];
+  let octets = 0;
+  for (const f of glbPresents(plante)) {
+    if (garde.has(f)) continue;
+    try {
+      const chemin = cheminArtefact(plante, f);
+      octets += statSync(chemin).size;
+      unlinkSync(chemin);
+      supprimes.push(f);
+    } catch {
+      // Un fichier déjà parti, ou un nom que `cheminArtefact` refuse : on
+      // passe. Rien ici ne justifie d'interrompre le verdict.
+    }
+  }
+  return { supprimes, octets };
 }
 
 export function lire(): Etat {
@@ -344,6 +401,7 @@ export function bilan() {
     validees: plantes.filter(([, p]) => p.verdict === 'validee').length,
     invalidees: plantes.filter(([, p]) => p.verdict === 'invalidee').length,
     grainesBrulees: plantes.reduce((n, [, p]) => n + p.graines.length, 0),
+    octetsLiberes: plantes.reduce((n, [, p]) => n + (p.purge?.octets ?? 0), 0),
   };
 }
 
@@ -365,6 +423,33 @@ export function trancher(plante: string, valide: boolean, coupe?: string) {
         etat: 'en_attente', depose: Date.now(),
       });
     }
+
+    // ── Purge des maillages devenus inutiles ──────────────────────────────
+    //
+    // Validée : on ne garde que ce qui sera livré — la coupe retenue, ou le
+    // maillage complet quand aucun retrait n'a été proposé.
+    // Invalidée : rien n'est gardé, le maillage est rejeté.
+    const livree = etat.taches.filter((t) => t.plante === plante && t.etat === 'livree').at(-1);
+    const complet = nomFichier(livree?.resultat?.glb);
+    const aGarder = valide ? (nomFichier(coupe) ?? complet) : null;
+
+    if (valide && !aGarder) {
+      // Rien d'identifiable à conserver : on ne purge PAS. Effacer ici
+      // supprimerait le seul maillage livrable de la plante.
+      p.purge = { quand: Date.now(), fichiers: 0, octets: 0,
+                  raison: 'aucun fichier à conserver identifié' };
+    } else if (valide && !glbPresents(plante).includes(aGarder!)) {
+      // Le fichier nommé n'est pas sur le disque. Purger quand même
+      // effacerait la coupe retenue par-dessus le marché : 180 Mo de GPU
+      // perdus sur une erreur de nom. On s'abstient et on le dit.
+      p.purge = { quand: Date.now(), fichiers: 0, octets: 0, garde: aGarder!,
+                  raison: `fichier à conserver introuvable : ${aGarder}` };
+    } else {
+      const purge = purger(plante, aGarder ? [aGarder] : []);
+      p.purge = { quand: Date.now(), fichiers: purge.supprimes.length,
+                  octets: purge.octets, garde: aGarder ?? undefined };
+    }
+
     return p.verdict;
   });
 }

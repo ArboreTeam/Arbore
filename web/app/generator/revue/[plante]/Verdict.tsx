@@ -106,7 +106,9 @@ export default function Verdict({ plante, coupe, choixManquant }: Props) {
       */}
       <p className="mt-3 text-xs text-[#6E746B]">
         Invalider redépose une tâche sans graine imposée. La graine refusée reste
-        brûlée : elle ne sera pas rejouée.
+        brûlée : elle ne sera pas rejouée. Dans les deux cas, les maillages
+        devenus inutiles sont effacés et les aperçus conservés : 150 Mo par
+        plante, et le disque du VPS n&apos;en tient pas 120.
       </p>
     </div>
   );

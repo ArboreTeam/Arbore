@@ -56,6 +56,13 @@ export default function Atelier() {
           <Compteur valeur={b.grainesBrulees} libelle="graines brûlées" />
         </section>
 
+        {b.octetsLiberes > 0 && (
+          <p className="mt-3 text-xs text-[#6E746B]">
+            {(b.octetsLiberes / 1e9).toFixed(1)} Go de maillages effacés après verdict.
+            Les aperçus sont conservés.
+          </p>
+        )}
+
         <section className="mt-10">
           <h2 className="font-semibold text-[#1B1F1A]">À revoir</h2>
 

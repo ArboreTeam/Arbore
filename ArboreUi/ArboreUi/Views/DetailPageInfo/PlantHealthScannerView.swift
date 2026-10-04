@@ -252,6 +252,8 @@ struct PlantHealthScannerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showResultAnimation = false
     @State private var pulseCorners = false
+    /// Divulgation à présenter avant le tout premier envoi (#607).
+    @State private var divulgationPresentee = false
 
     var body: some View {
         ZStack {
@@ -282,6 +284,17 @@ struct PlantHealthScannerView: View {
         .onDisappear { camera.stop() }
         .onChange(of: camera.capturedImage) { _, newImage in
             if let image = newImage { Task { await scanner.analyze(image: image) } }
+        }
+        .sheet(isPresented: $divulgationPresentee) {
+            // La réponse est enregistrée par la feuille ; ici on ne fait que
+            // reprendre la capture interrompue. Un refus la reprend aussi : le
+            // scan se dégrade en colorimétrie locale au lieu de disparaître,
+            // et `PlantHealthScanner` s'en charge seul en relisant la préférence.
+            AIDisclosureSheet { _ in
+                guard scanner.phase == .preview else { return }
+                scanner.phase = .capturing
+                camera.capturePhoto()
+            }
         }
         .statusBarHidden()
     }
@@ -397,6 +410,14 @@ struct PlantHealthScannerView: View {
         VStack(spacing: 14) {
             Button(action: {
                 guard scanner.phase == .preview else { return }
+                // Première utilisation : on dit ce qui part et à qui, puis on
+                // demande, AVANT de déclencher quoi que ce soit (5.1.1(i)). Le
+                // scan a lieu dans les deux cas — avec diagnostic distant si
+                // l'utilisateur accepte, en colorimétrie locale sinon.
+                guard AIProcessingPreference.divulgationFaite else {
+                    divulgationPresentee = true
+                    return
+                }
                 scanner.phase = .capturing
                 camera.capturePhoto()
             }) {

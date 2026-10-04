@@ -46,6 +46,9 @@ env:
   # version réellement utilisée n'était pas celle affichée (audit #338 constat 6).
   GO_VERSION: "1.25.14"
   PYTHON_VERSION: "3.11"
+  # Alignée sur web/Dockerfile (node:24-alpine). Tester sur une version autre
+  # que celle de l'image publiée, c'est tester autre chose que ce qui tourne.
+  NODE_VERSION: "24"
   # latest-stable : chaque runner prend son Xcode le plus récent.
   # ios_ui tourne sur macos-15 → Xcode 26 (SDK iOS 26 requis pour Liquid Glass,
   # ex. .buttonStyle(.glass)). ios_ar reste sur macos-14 → Xcode 16.x.
@@ -59,6 +62,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       ios_ui: ${{ steps.filter.outputs.ios_ui }}
       ios_ar: ${{ steps.filter.outputs.ios_ar }}
+      web: ${{ steps.filter.outputs.web }}
     steps:
       - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v2
@@ -75,6 +79,9 @@ jobs:
               - '.github/workflows/ci.yml'
             ios_ar:
               - 'ArboreARkit/**'
+              - '.github/workflows/ci.yml'
+            web:
+              - 'web/**'
               - '.github/workflows/ci.yml'
 
   # Backend Go - Tests et Build
@@ -531,6 +538,59 @@ jobs:
           retention-days: 7
 
   # Security scanning
+  # ─────────────────────────────────────────────────────────────────────────
+  # Web Next.js — Tests, lint et build
+  #
+  # Ce job manquait. Le dépôt publiait une image web à chaque push sur main ou
+  # dev (deploy.yml), et aucun test n'avait jamais été exécuté par la CI : le
+  # `build (web)` qu'on voyait passer est le build de l'IMAGE, qui lance
+  # `next build` et rien d'autre. Vitest n'était joué qu'à la main, en local.
+  #
+  # Le typage est contrôlé à part de `next build`. Les deux ne voient pas la
+  # même chose : `next build` type-vérifie avec sa propre réécriture du
+  # tsconfig, et un fichier de test hors du graphe de l'application peut passer
+  # l'un et casser l'autre — c'est arrivé sur les routes de l'atelier (#610).
+  # ─────────────────────────────────────────────────────────────────────────
+  web:
+    name: 🌱 Web (Next.js)
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./web
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+
+      - name: 🔧 Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: 📦 Install dependencies
+        # `npm ci` et non `npm install` : il installe le lockfile à la lettre et
+        # échoue si package.json s'en écarte. `install` le réécrirait, et la CI
+        # testerait alors un arbre de dépendances que personne n'a validé.
+        run: npm ci
+
+      - name: 🔍 Typecheck
+        run: npm run typecheck
+
+      - name: 🧹 Lint
+        run: npm run lint
+
+      - name: 🧪 Tests unitaires et d'intégration
+        run: npm run test
+
+      - name: 🏗️ Build
+        # Sans secret : le build doit aboutir sur un checkout nu, sinon il ne
+        # pourrait pas aboutir sur le runner de deploy.yml non plus.
+        run: npm run build
+
   security:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
@@ -575,7 +635,7 @@ jobs:
 
   # Job de résumé final
   build_summary:
-    needs: [changes, backend, ios_ui, ios_ar]
+    needs: [changes, backend, ios_ui, ios_ar, web]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -617,6 +677,7 @@ jobs:
           echo "Backend (Go):        ${{ needs.backend.result || 'skipped' }}"
           echo "iOS UI:              ${{ needs.ios_ui.result || 'skipped' }}"
           echo "iOS AR Kit:          ${{ needs.ios_ar.result || 'skipped' }}"
+          echo "Web (Next.js):       ${{ needs.web.result || 'skipped' }}"
           echo "================================"
 
           # Afficher les résultats des tests iOS en console
@@ -632,7 +693,8 @@ jobs:
           # Échec si un job requis a échoué
           if [[ "${{ needs.backend.result }}" == "failure" ]] || \
              [[ "${{ needs.ios_ui.result }}" == "failure" ]] || \
-             [[ "${{ needs.ios_ar.result }}" == "failure" ]]; then
+             [[ "${{ needs.ios_ar.result }}" == "failure" ]] || \
+             [[ "${{ needs.web.result }}" == "failure" ]]; then
             echo "❌ Un ou plusieurs builds ont échoué"
             echo "## ❌ Build Failed" >> $GITHUB_STEP_SUMMARY
             exit 1

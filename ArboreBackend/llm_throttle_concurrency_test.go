@@ -191,18 +191,21 @@ func TestInitLLMProvider_MistralEstEtrangle(t *testing.T) {
 	}
 }
 
-// Une valeur vide vaut Gemini — c'est ce qui maintient la production en place
-// tant que personne ne bascule sciemment.
-func TestInitLLMProvider_ValeurVideVautGemini(t *testing.T) {
+// Une valeur vide vaut Mistral, comme le déploiement. Ce test garde l'alignement
+// des deux défauts : tant qu'il passe, perdre AI_PROVIDER ne peut pas déplacer
+// les photos des utilisateurs hors de l'UE ni contredire ce que la politique de
+// confidentialité leur annonce.
+func TestInitLLMProvider_ValeurVideVautMistral(t *testing.T) {
 	prev := activeLLMProvider
 	t.Cleanup(func() { activeLLMProvider = prev })
 
 	t.Setenv("AI_PROVIDER", "")
+	t.Setenv("MISTRAL_RPS", "")
 	if err := initLLMProvider(); err != nil {
 		t.Fatalf("erreur inattendue: %v", err)
 	}
-	if providerName() != "gemini" {
-		t.Fatalf(`"" doit retenir gemini, obtenu %q`, providerName())
+	if providerName() != "mistral" {
+		t.Fatalf(`"" doit retenir mistral, obtenu %q`, providerName())
 	}
 }
 

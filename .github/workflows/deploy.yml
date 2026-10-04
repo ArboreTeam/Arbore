@@ -42,7 +42,53 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Barrière avant publication.
+  #
+  # `ci.yml` ne tourne PAS sur un push vers `dev` — par économie : l'événement
+  # `pull_request` a déjà testé le commit de merge. Mais ce workflow-ci, lui,
+  # publie sur `dev`. Une image partait donc vers ghcr, et de là vers le VPS au
+  # prochain `deploy.sh`, sans qu'aucun test n'ait été exécuté sur ce chemin.
+  #
+  # Le gain de #425 était de ne plus bâtir sur le VPS. Il ne doit pas se payer
+  # par la publication d'un arbre rouge.
+  #
+  # Pourquoi la suite web et pas celle du backend : elle coûte deux secondes,
+  # là où les tests Go en coûtent cinq minutes à chaque publication. Le backend
+  # reste couvert par `ci.yml`, qui tourne sur toutes les PR. Si cette barrière
+  # échoue, AUCUNE image n'est publiée — y compris celle du backend : un arbre
+  # rouge ne se déploie pas à moitié.
+  # ───────────────────────────────────────────────────────────────────────────
+  verifier:
+    name: 🧪 Tests avant publication
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Alignée sur web/Dockerfile (node:24-alpine) : tester sur une autre
+          # version que celle de l'image publiée, c'est tester autre chose.
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm run test
+
   build:
+    needs: verifier
     runs-on: ubuntu-latest
     permissions:
       contents: read

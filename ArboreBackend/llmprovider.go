@@ -65,13 +65,21 @@ type LLMProvider interface {
 // démarrage ; les tests l'injectent directement.
 var activeLLMProvider LLMProvider
 
-// initLLMProvider sélectionne le fournisseur selon AI_PROVIDER (défaut : gemini)
+// initLLMProvider sélectionne le fournisseur selon AI_PROVIDER (défaut : mistral)
 // et le pose dans activeLLMProvider. Appelé une fois au démarrage.
+//
+// Le défaut du CODE et celui du DÉPLOIEMENT valent tous deux `mistral` depuis
+// qu'ils ont été réalignés. Ils divergeaient — `gemini` ici, `mistral` dans
+// docker-compose.yml — et cet écart était un piège : une variable d'environnement
+// perdue suffisait à envoyer les photos des utilisateurs chez Google, hors UE,
+// sans qu'aucune erreur ne le signale et alors que l'app comme la politique de
+// confidentialité nomment Mistral. Un repli silencieux ne doit jamais changer le
+// destinataire de données personnelles.
 func initLLMProvider() error {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("AI_PROVIDER"))) {
-	case "", "gemini":
+	case "gemini":
 		activeLLMProvider = newGeminiProvider()
-	case "mistral":
+	case "", "mistral":
 		// ⚠️ DEUX réglages à vérifier sur https://admin.mistral.ai/plateforme/privacy
 		// AVANT d'envoyer la moindre photo d'utilisateur ici (#555) :
 		//

@@ -2,7 +2,7 @@
 
 Le scan de santé permet à l'utilisateur de photographier une plante pour obtenir un **diagnostic phytopathologique** : espèce probable, état de santé global, maladies détectées et recommandations. Le pipeline combine des **pré-vérifications on-device** (qualité, détection, colorimétrie) et une **analyse par le fournisseur d'IA** (proxy backend), avec un **repli local** basé sur la seule colorimétrie.
 
-Code : `PlantHealthScanner.swift` (orchestrateur + étapes) ; vue : `PlantHealthScannerView.swift`. Le diagnostic IA passe par le backend `POST /diagnose` (cf. [`../architecture/03-components-backend.md`](../architecture/03-components-backend.md)). **Le nom du fournisseur n'apparaît nulle part côté app** : c'est le backend qui choisit (`AI_PROVIDER`), et il a déjà changé une fois.
+Code : `PlantHealthScanner.swift` (orchestrateur + étapes) ; vue : `PlantHealthScannerView.swift`. Le diagnostic IA passe par le backend `POST /diagnose` (cf. [`../architecture/03-components-backend.md`](../architecture/03-components-backend.md)). Le backend choisit le fournisseur (`AI_PROVIDER`) et il a déjà changé une fois, mais **son nom est bien dit à l'utilisateur** : le réglage « Diagnostic et assistant par IA » et la divulgation affichée avant le premier envoi nomment Mistral AI (UE), comme la politique de confidentialité. Le nommer est une exigence de l'App Store (5.1.1(i)), pas une option ; changer de fournisseur impose donc de reprendre ces textes dans les quatre langues.
 
 ## Pipeline
 
@@ -54,8 +54,28 @@ C'est une **préférence de fonctionnalité**, pas un consentement RGPD : le dia
 
 | Réglage | Scan de santé | Assistant |
 |---|---|---|
-| Activé (défaut) | Diagnostic IA complet, fusionné avec la colorimétrie | Disponible |
-| Éteint | `colorimetryOnly` + warning `SCAN_WARNING_AI_DISABLED` — **la photo ne quitte pas l'appareil** | Indisponible, message explicite |
+| Activé | Diagnostic IA complet, fusionné avec la colorimétrie | Disponible |
+| Éteint (défaut) | `colorimetryOnly` + warning `SCAN_WARNING_AI_DISABLED` — **la photo ne quitte pas l'appareil** | Indisponible, message explicite |
+
+## Divulgation préalable (#607)
+
+App Review a refusé la 1.0.0 (2) au titre des directives 5.1.1(i) et 5.1.2(i) : l'app envoyait la photo à un service d'IA tiers alors que le réglage était **allumé à l'installation**, donc sans avoir rien dit ni rien demandé. Apple énumère quatre exigences ; la politique de confidentialité couvrait déjà les trois premières, mais Apple précise qu'une politique **ne suffit pas** — il faut le dire au point d'usage, et demander.
+
+`AIDisclosureSheet` tient ce rôle. Elle est présentée **avant** la capture du scan et **avant** l'insertion du message de l'assistant, une seule fois par version de divulgation, et énonce dans l'ordre d'Apple : quelles données, à qui (Mistral AI, UE), pour quoi, et qu'aucun contenu ne sert à entraîner de modèle.
+
+| Mécanisme | Où |
+|---|---|
+| `AIProcessingPreference.divulgationFaite` | garde lue par les deux points d'envoi, en amont du réglage |
+| `privacy_ai_divulgation` (`Int`) | version à laquelle l'utilisateur a répondu ; absente ⇒ rien ne part |
+| `AIProcessingPreference.versionDivulgation` | version en vigueur du texte |
+
+Trois conséquences à connaître :
+
+- **`estAutorise` est fermé sans divulgation**, et le défaut `ConsentDefaults.ai` n'est alors même pas consulté — un défaut ne vaut autorisation de rien. C'est aussi pourquoi ce défaut est passé à `false` : il ne gouverne plus l'envoi, mais l'affichage de la ligne, qui doit être exact.
+- **Changer de fournisseur, de pays d'hébergement ou de catégorie de données impose d'incrémenter `versionDivulgation`.** L'accord de l'utilisateur portait sur l'ancien texte. L'incrémenter re-demande l'autorisation à tout le monde, ce qui est l'effet voulu.
+- **Allumer le réglage depuis l'écran Confidentialité vaut autorisation informée** : cette ligne nomme déjà les données et le destinataire, donc elle marque la divulgation comme répondue (`marquerDivulgationRepondue`) au lieu de présenter la feuille ensuite.
+
+Un refus reste un vrai choix : le scan se rabat sur la colorimétrie locale, l'assistant s'annonce indisponible et le texte saisi n'est pas perdu. Une demande dont le refus casserait l'app n'en serait pas une.
 
 ## Ancrage sur le catalogue (#554)
 

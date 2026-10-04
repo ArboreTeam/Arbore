@@ -42,7 +42,18 @@ final class LocalizationCoverageTests: XCTestCase {
         // Avertissements IA (#585) : ils doivent atteindre l'utilisateur dans
         // SA langue, sans quoi l'avertissement n'en est pas un.
         "AI_DISCLAIMER", "AI_DISCLAIMER_SCAN",
-        "CHATBOT_INPUT_PLACEHOLDER", "CHATBOT_RENAME_PLACEHOLDER"
+        "CHATBOT_INPUT_PLACEHOLDER", "CHATBOT_RENAME_PLACEHOLDER",
+        // Divulgation préalable (#607). Celles-ci comptent double : une
+        // divulgation affichée dans une langue que l'utilisateur ne lit pas ne
+        // divulgue rien, et c'est précisément l'exigence qu'App Review a jugée
+        // non tenue. Le testeur d'Apple, lui, n'était pas en français.
+        "AIDISCLOSURE_TITLE", "AIDISCLOSURE_SUBTITLE",
+        "AIDISCLOSURE_WHAT_TITLE", "AIDISCLOSURE_WHAT_TEXT",
+        "AIDISCLOSURE_WHO_TITLE", "AIDISCLOSURE_WHO_TEXT",
+        "AIDISCLOSURE_WHY_TITLE", "AIDISCLOSURE_WHY_TEXT",
+        "AIDISCLOSURE_TRAINING_TITLE", "AIDISCLOSURE_TRAINING_TEXT",
+        "AIDISCLOSURE_DECLINE_NOTE", "AIDISCLOSURE_REVERSIBLE",
+        "AIDISCLOSURE_READ_POLICY", "AIDISCLOSURE_ACCEPT", "AIDISCLOSURE_DECLINE"
     ]
 
     private func bundle(_ langue: String) -> Bundle? {

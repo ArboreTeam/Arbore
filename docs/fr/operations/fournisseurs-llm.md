@@ -14,7 +14,7 @@ que le code devrait apprendre à faire pour basculer d'un fournisseur à l'autre
 | Fournisseur en service | **Mistral AI** depuis le 2026-09-20 (#555) | `AI_PROVIDER=mistral` en prod |
 | Modèle | `gemini-2.5-flash`, surchargeable par `GEMINI_MODEL` | `defaultGeminiModel` |
 | Modèle Mistral | `ministral-8b-2512` — **seule la famille Ministral est accordée** | `defaultMistralModel` |
-| Sélection | `AI_PROVIDER` lu **une fois au démarrage** | `initLLMProvider()` |
+| Sélection | `AI_PROVIDER` lu **une fois au démarrage**, défaut `mistral` | `initLLMProvider()` |
 | Clé | **une seule, partagée par tous les utilisateurs** | `MISTRAL_API_KEY` / `GEMINI_API_KEY` |
 | Débit vers le fournisseur | étranglé globalement, 3 req/s par défaut | `llm_throttle.go`, `MISTRAL_RPS` |
 | Ancrage catalogue | **oui** depuis #554 | `catalog_context.go` |
@@ -260,6 +260,33 @@ Trois évolutions distinctes, dans l'ordre où elles se tiennent :
 3. **Basculer sur épuisement.** Sur `429` ou sur quota local dépassé, essayer le
    fournisseur suivant de la liste. Demande de savoir reconnaître un refus pour
    quota — chaque API le signale à sa façon — et d'éviter de réessayer en boucle.
+
+## Changer de fournisseur touche l'app, pas seulement le backend
+
+Le nom du fournisseur a longtemps été présenté comme un détail d'exploitation
+confiné au serveur. Ce n'est plus vrai depuis le refus d'App Review de la
+1.0.0 (2) : la directive 5.1.1(i) impose de **nommer** le tiers qui reçoit les
+données, et l'app le nomme donc, dans quatre langues et à deux endroits.
+
+Une bascule de fournisseur est par conséquent un changement **traversant**, et
+poser `AI_PROVIDER` ne suffit plus. Il faut aussi :
+
+| À reprendre | Où |
+|---|---|
+| Le nom du destinataire dans la divulgation | `AIDISCLOSURE_WHO_TEXT`, dans `fr`, `en`, `es`, `de` |
+| Le nom dans le réglage Confidentialité | `PRIVACYSETTINGS_AI_SUB`, mêmes quatre langues |
+| La version de divulgation | `AIProcessingPreference.versionDivulgation`, à **incrémenter** |
+| La politique de confidentialité | chaînes `PRIVACY_SECTION_*` et le site vitrine (deux dépôts) |
+
+Incrémenter la version n'est pas une formalité : elle re-demande l'autorisation
+à tous les utilisateurs. C'est voulu — leur accord portait sur l'ancien
+destinataire, et le reconduire en silence vers un nouveau serait exactement ce
+que la directive interdit. Un oubli, à l'inverse, produit une app qui annonce un
+fournisseur et en utilise un autre : c'est un motif de refus, et c'est faux.
+
+Corollaire sur les deux défauts : celui du code (`initLLMProvider`) et celui du
+déploiement (`docker-compose.yml`) valent tous deux `mistral` et doivent rester
+alignés. `TestInitLLMProvider_ValeurVideVautMistral` garde cet alignement.
 
 ## Une clé par utilisateur ?
 

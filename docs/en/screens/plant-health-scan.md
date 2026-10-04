@@ -2,7 +2,7 @@
 
 The health scan lets the user photograph a plant to get a **phytopathological diagnosis**: probable species, overall health, detected diseases, and recommendations. The pipeline combines **on-device pre-checks** (quality, detection, colorimetry) with an **AI analysis by the provider** (backend proxy), plus a **local fallback** based on colorimetry alone.
 
-Code: `PlantHealthScanner.swift` (orchestrator + steps); view: `PlantHealthScannerView.swift`. The AI diagnosis goes through the backend `POST /diagnose` (see [`../architecture/03-components-backend.md`](../architecture/03-components-backend.md)). **The provider's name appears nowhere in the app**: the backend picks it (`AI_PROVIDER`), and it has changed once already.
+Code: `PlantHealthScanner.swift` (orchestrator + steps); view: `PlantHealthScannerView.swift`. The AI diagnosis goes through the backend `POST /diagnose` (see [`../architecture/03-components-backend.md`](../architecture/03-components-backend.md)). The backend picks the provider (`AI_PROVIDER`) and it has changed once already, but **its name is stated to the user**: the "AI diagnosis and assistant" setting and the disclosure shown before the first send both name Mistral AI (EU), as does the privacy policy. Naming it is an App Store requirement (5.1.1(i)), not an option; switching provider therefore means revising those strings in all four languages.
 
 ## Pipeline
 
@@ -54,8 +54,28 @@ It is a **feature preference, not GDPR consent**: the diagnosis rests on the con
 
 | Setting | Health scan | Assistant |
 |---|---|---|
-| On (default) | Full AI diagnosis, merged with colorimetry | Available |
-| Off | `colorimetryOnly` + `SCAN_WARNING_AI_DISABLED` warning — **the photo never leaves the device** | Unavailable, with an explicit message |
+| On | Full AI diagnosis, merged with colorimetry | Available |
+| Off (default) | `colorimetryOnly` + `SCAN_WARNING_AI_DISABLED` warning — **the photo never leaves the device** | Unavailable, with an explicit message |
+
+## Prior disclosure (#607)
+
+App Review rejected 1.0.0 (2) under guidelines 5.1.1(i) and 5.1.2(i): the app sent the photo to a third-party AI service while the setting was **on at install time**, so without stating anything or asking. Apple lists four requirements; the privacy policy already covered the first three, but Apple states that a policy **is not sufficient** — it has to be said at the point of use, and permission has to be asked.
+
+`AIDisclosureSheet` fills that role. It is presented **before** the scan capture and **before** the assistant's message is inserted, once per disclosure version, and states them in Apple's order: what data, to whom (Mistral AI, EU), what for, and that no content is used to train any model.
+
+| Mechanism | Where |
+|---|---|
+| `AIProcessingPreference.divulgationFaite` | guard read by both send sites, ahead of the setting |
+| `privacy_ai_divulgation` (`Int`) | version the user answered; absent ⇒ nothing leaves |
+| `AIProcessingPreference.versionDivulgation` | current version of the text |
+
+Three consequences worth knowing:
+
+- **`estAutorise` is closed without a disclosure**, and `ConsentDefaults.ai` is not even consulted then — a default authorises nothing. That is also why the default flipped to `false`: it no longer governs sending, but the display of the row, which has to be accurate.
+- **Changing provider, hosting country or data category means incrementing `versionDivulgation`.** The user agreed to the old text. Incrementing re-asks everyone, which is the intended effect.
+- **Turning the setting on from the Privacy screen counts as informed permission**: that row already names the data and the recipient, so it marks the disclosure as answered (`marquerDivulgationRepondue`) instead of presenting the sheet afterwards.
+
+Declining stays a real choice: the scan falls back to local colorimetry, the assistant reports itself unavailable, and typed text is not lost. A request whose refusal would break the app would not be a request.
 
 ## Catalogue grounding (#554)
 

@@ -48,9 +48,17 @@ export default function Arbitrage({ plante, candidats }: Props) {
   // une question. Avec deux, aucun n'est choisi d'avance — proposer un défaut
   // reviendrait à répondre à la place de l'opérateur, sur l'écart même que la
   // machine n'a pas su trancher.
+  //
+  // `AUCUN` est un choix À PART ENTIÈRE, et pas l'absence de choix. Sans lui,
+  // une plante dont les deux candidats sont mauvais n'avait pas d'issue : il
+  // fallait retenir une coupe fausse, ou invalider un maillage correct — ce qui
+  // brûle une graine et relance 165 s de GPU pour rien. Le cas se présente
+  // d'emblée avec les pots suspendus, que le détecteur ne sait pas lire : il
+  // cherche le pot dans le bas du maillage, où ne pend que du feuillage.
+  const AUCUN = -1;
   const [choisi, setChoisi] = useState<number | null>(candidats.length === 1 ? 0 : null);
 
-  const retenu = choisi === null ? null : candidats[choisi];
+  const retenu = choisi === null || choisi === AUCUN ? null : candidats[choisi];
 
   return (
     <>
@@ -147,12 +155,27 @@ export default function Arbitrage({ plante, candidats }: Props) {
             })}
           </div>
         )}
+        {candidats.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setChoisi(AUCUN)}
+            className={`mt-4 w-full rounded-xl border px-4 py-3 text-sm ${
+              choisi === AUCUN
+                ? 'border-[#234632] bg-[#E7EDE6] font-medium text-[#234632]'
+                : 'border-[#DDD8CF] bg-white text-[#6E746B] hover:border-[#234632]'
+            }`}
+          >
+            {choisi === AUCUN
+              ? 'Aucun retrait : le pot est conservé'
+              : 'Aucune de ces coupes ne convient, garder le pot'}
+          </button>
+        )}
       </section>
 
       <Verdict
         plante={plante}
         coupe={retenu?.fichier ?? null}
-        choixManquant={candidats.length > 0 && retenu === null}
+        choixManquant={candidats.length > 0 && choisi === null}
       />
     </>
   );

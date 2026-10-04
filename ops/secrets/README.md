@@ -17,7 +17,7 @@ C'est cette propriété qui rend tenable le critère de #401 : **une machine neu
 
 | Fichier | Versionné | Contenu |
 |---|---|---|
-| `env.template` | ✅ | inventaire des 24 variables, aucune valeur |
+| `env.template` | ✅ | inventaire des variables, aucune valeur — la référence de ce qu'une machine neuve attend |
 | `prod.enc.env` | ✅ | valeurs de production, **chiffrées** |
 | `dev.enc.env` | ✅ | valeurs de dev, **chiffrées** |
 | clé privée `age` | ❌ **jamais** | le seul secret à poser à la main |
@@ -142,6 +142,23 @@ sops ops/secrets/prod.enc.env               # éditer (déchiffre, rouvre, rechi
 sops --decrypt ops/secrets/prod.enc.env     # afficher en clair
 ```
 
+⚠️ **Éditer en place, pas par `--decrypt` puis `--encrypt`.** Les deux
+aboutissent, mais pas au même diff : `--encrypt` produit une nouvelle clé de
+données, donc **toutes** les lignes du fichier changent. Ajouter quatre
+variables donne alors 348 lignes de diff, où l'édition en place en donne
+quatre. Le chiffrement reste correct dans les deux cas — ce qu'on perd, c'est
+la lecture en revue.
+
+L'édition en place ne dépose jamais de copie claire que l'on doive penser à
+effacer : SOPS gère son fichier temporaire. Le détour par `--decrypt` oblige à
+écrire le clair sur le disque, et donc à ne pas se tromper sur son effacement.
+
+Pour une édition non interactive, `$EDITOR` peut être un script :
+
+```bash
+EDITOR='python3 ajouter_bloc.py' sops ops/secrets/prod.enc.env
+```
+
 ## Le problème d'amorçage, irréductible
 
 Il reste à poser la clé privée sur une machine neuve. **Aucun système n'y échappe** — Vault a son jeton de descellement, AWS son rôle d'instance.
@@ -151,6 +168,16 @@ Mais on passe de **24 valeurs à poser à la main à une seule**. C'est le minim
 ## ⚠️ Deux pièges
 
 **Ne jamais déchiffrer `MASTER_ENCRYPTION_KEY` vers l'environnement.** Le code préfère déjà `MASTER_ENCRYPTION_KEY_PATH` parce qu'une variable est lisible par `docker inspect` et `/proc/<pid>/environ` — or cette clé déchiffre les refresh tokens Apple (audit #338 constat 4). Le déploiement doit écrire un **fichier**.
+
+**`GENERATOR_KEY_HASH` ne contient qu'une empreinte, pas la clé.** SHA-256 est
+à sens unique : la clé d'accès de l'atelier n'est récupérable **nulle part**,
+ni ici, ni avec la clé age. C'est voulu — `deploy.sh` écrit un `.env` en clair
+sur la machine, et si la clé y figurait, lire ce fichier suffirait pour entrer.
+La clé en clair ne vit donc que dans le gestionnaire de mots de passe et dans
+les secrets Colab. Perdue, elle ne se retrouve pas : il faut en générer une
+autre et remplacer l'empreinte. À ne pas confondre avec
+`GENERATOR_SESSION_SECRET`, qui est stocké comme valeur et donc relisible — le
+serveur en a besoin pour signer les sessions.
 
 **Un projet Firebase par environnement.** Le job de réconciliation (#393) tourne chaque dimanche avec `--apply` et compare les uid Firebase à une base Mongo. Pointé vers le mauvais couple, **il vide la mauvaise base**. Aucune de ses quatre gardes ne couvre ce cas.
 
@@ -175,9 +202,18 @@ Trois garanties, vérifiées en bac à sable :
 - les fichiers sont écrits en **0600**, sous `umask 077` ;
 - l'écriture n'a lieu que si le contenu **diffère** ; la version précédente est sauvegardée dans `logs/`.
 
-## État au 2026-09-07
+## État au 2026-10-04
 
-**Le mécanisme est éprouvé de bout en bout** sur des données factices :
+Les valeurs réelles **sont** chiffrées, pour les deux environnements, et
+`deploy.sh` les déchiffre à l'étape 2/7 (cf. « Déploiement » ci-dessus). Les
+quatre variables de l'atelier de génération 3D (#610) y ont été ajoutées le
+2026-10-04, clés et chemins de données distincts entre `prod` et `dev`.
+
+Les deux sections qui suivent sont l'historique de la mise en place.
+
+### Mécanisme, éprouvé de bout en bout le 2026-09-07
+
+Sur des données factices :
 
 ```
 chiffrement        ✅
@@ -191,7 +227,12 @@ Les paires de clés `prod` et `dev` sont générées, `.sops.yaml` est renseign�
 
 > La clé `prod` a été **renouvelée** le 2026-09-07 : la précédente avait été exposée dans une sortie de commande et devait être tenue pour compromise. Rotation par `sops updatekeys`, qui rechiffre la clé de données sans jamais écrire les secrets en clair. Vérifié : la nouvelle clé déchiffre les 4 fichiers, l'ancienne est refusée.
 
-**Aucune valeur réelle n'est encore chiffrée** : l'étape 4 reste à faire depuis le VPS. L'intégration à `deploy.sh` viendra après — elle ne peut être ni écrite ni testée avant qu'un fichier chiffré existe.
+> Cette section affirmait jusqu'au 2026-10-04 qu'aucune valeur réelle n'était
+> chiffrée et que l'intégration à `deploy.sh` viendrait plus tard. Les deux
+> étaient devenus faux, et la page se contredisait elle-même : la section
+> « Déploiement » décrit cette intégration. Une doc qui dit à la personne
+> suivante que l'étape 4 reste à faire l'invite à la refaire — et à écraser ce
+> qui est en place.
 
 ## Références
 

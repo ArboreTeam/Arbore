@@ -234,8 +234,46 @@ services:
       - NEXT_PUBLIC_SENTRY_ENV=${NEXT_PUBLIC_SENTRY_ENV:-production}
       - NEXT_PUBLIC_APP_VERSION=${NEXT_PUBLIC_APP_VERSION:-1.0.0}
       - PORT=3000
+      # ── Atelier de génération 3D — generator.arbore.app (#610) ───────────
+      #
+      # Même image que le site public : c'est l'HÔTE qui décide de ce qui est
+      # servi, et le middleware rend 404 sur /generator* dès que la requête
+      # n'arrive pas par ce nom. Une erreur de configuration nginx ne peut donc
+      # pas exposer la file de travail sur web.arbore.app.
+      - GENERATOR_HOST=${GENERATOR_HOST:-generator.arbore.app}
+      # Empreinte SHA-256 de la clé d'accès, jamais la clé. Variante _PATH
+      # préférée, même mécanique que les secrets du backend (#338 constat 4) :
+      # une variable d'environnement est lisible par `docker inspect` et dans
+      # /proc/<pid>/environ, un fichier monté ne l'est pas.
+      - GENERATOR_KEY_HASH=${GENERATOR_KEY_HASH:-}
+      - GENERATOR_KEY_HASH_PATH=${GENERATOR_KEY_HASH_PATH:-}
+      # Secret de signature des cookies de session. Le changer déconnecte tout
+      # le monde — c'est le levier d'urgence si une session fuit.
+      #
+      # Lu aussi par le middleware, qui tourne sur le runtime Edge : la
+      # variante _PATH n'y est PAS disponible (`node:fs` n'existe pas là-bas),
+      # donc ce secret-ci doit rester une variable.
+      - GENERATOR_SESSION_SECRET=${GENERATOR_SESSION_SECRET:-}
+      # Racine des artefacts. Sans les deux variables ci-dessus l'atelier
+      # répond 503 et n'écrit rien : une installation qui ne configure pas
+      # l'atelier démarre exactement comme avant.
+      - GENERATOR_DATA_DIR=/data/generator
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-3000}:3000"
+    volumes:
+      # GLB, aperçus et file de travail de l'atelier (#610).
+      #
+      # Le conteneur est `read_only: true` ; un montage reste inscriptible, et
+      # c'est le seul chemin où le service écrit. L'écriture de la file est
+      # atomique (fichier temporaire puis renommage) et le temporaire est créé
+      # DANS ce dossier : un renommage n'est atomique que sur le même système
+      # de fichiers.
+      #
+      # Montage hôte et non volume nommé, comme tout ce qui persiste déjà dans
+      # ce fichier : les GLB arrivent de Colab, et un chemin hôte se remplit au
+      # `scp` sans passer par `docker cp`. R2 plus tard, quand le flux sera
+      # établi — ce dossier restera alors le cache local.
+      - ${GENERATOR_DATA_HOST_PATH:-./data/generator}:/data/generator
     depends_on:
       backend:
         condition: service_healthy

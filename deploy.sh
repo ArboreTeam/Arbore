@@ -746,9 +746,38 @@ drop_legacy_containers() {
     fi
 }
 
+# Dossier des artefacts de l'atelier de génération 3D (#610).
+#
+# Le service web tourne en `read_only`, sous l'utilisateur `nextjs` (uid 1001,
+# cf. web/Dockerfile). Un montage hôte dont le dossier n'existe pas est créé
+# par le démon Docker en `root:root` : le conteneur ne peut alors pas y écrire,
+# et chaque mutation de la file échoue en EACCES — sur un service qui démarre,
+# répond, et dit simplement « 503 » sans que la cause saute aux yeux.
+#
+# Idempotent, et sans effet si le dossier est déjà au bon propriétaire.
+prepare_generator_dir() {
+    # Lu dans le fichier d'environnement, pas dans le nôtre : le script ne
+    # source jamais `.env`, il le passe à compose. Même mécanique que
+    # MONGODB_URI plus haut. Le défaut suit celui de docker-compose.yml, où
+    # `./data/generator` est relatif au répertoire du fichier compose.
+    local dir
+    dir="$(grep '^GENERATOR_DATA_HOST_PATH=' "$ENV_FILE" 2>/dev/null \
+           | sed 's/^GENERATOR_DATA_HOST_PATH=//' || true)"
+    [ -n "$dir" ] || dir="$SCRIPT_DIR/data/generator"
+
+    [ -d "$dir" ] || "${DOCKER_PRIVILEGE[@]}" mkdir -p "$dir"
+    local owner
+    owner="$(stat -c '%u:%g' "$dir" 2>/dev/null || echo unknown)"
+    if [ "$owner" != "1001:1001" ]; then
+        "${DOCKER_PRIVILEGE[@]}" chown -R 1001:1001 "$dir"
+        ok "Dossier de l'atelier préparé ($dir, uid 1001)"
+    fi
+}
+
 do_docker_up() {
     step 5 "Redémarrage des containers..."
     drop_legacy_containers
+    prepare_generator_dir
     if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" ARBORE_IMAGE_TAG="$IMAGE_TAG" \
         docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" up -d backend web; then
         fail "docker compose up a échoué"

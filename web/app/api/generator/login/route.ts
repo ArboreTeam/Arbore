@@ -69,7 +69,10 @@ export async function POST(req: NextRequest) {
   const reponse = NextResponse.json({ ok: true });
   reponse.cookies.set(COOKIE_SESSION, await emettre(secret), {
     httpOnly: true,     // hors de portée du JavaScript de la page
-    secure: true,       // jamais en clair
+    // Jamais en clair — sauf sur `next dev`, où il n'y a pas de TLS et où le
+    // drapeau rendrait l'atelier impossible à faire tourner en local. En
+    // production le serveur est derrière Cloudflare, donc toujours en HTTPS.
+    secure: process.env.NODE_ENV !== 'development',
     sameSite: 'strict', // aucune requête inter-site ne porte la session
     path: '/',
     maxAge: DUREE_SESSION_S,

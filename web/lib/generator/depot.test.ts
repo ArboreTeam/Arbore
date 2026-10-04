@@ -10,7 +10,8 @@ import { mkdirSync, writeFileSync, readdirSync } from 'node:fs';
 
 import {
   EXPIRATION_MS, aRevoir, bilan, cheminArtefact, deposer, echouer, historique,
-  lire, livrer, nomFichier, noterGraine, prendre, purger, reinitialiser, trancher,
+  cheminSource, lire, livrer, nomFichier, noterGraine, planteDe, prendre, purger,
+  reinitialiser, sources, supprimerSource, trancher,
 } from './depot';
 
 afterAll(() => rmSync(BAC, { recursive: true, force: true }));
@@ -471,6 +472,106 @@ describe('dépôt — purge des maillages après verdict', () => {
     await livrerAvec('p1', ['geometrie']);
     await trancher('p1', true, 'sanspot_geometrie.glb');
     expect(bilan().octetsLiberes).toBe(GLB.length);
+  });
+});
+
+describe('dépôt — images sources', () => {
+  /**
+   * Elles vivaient sur Drive pendant le spike, et `tache.image` portait un
+   * chemin Colab : l'atelier ne pouvait pas déposer de tâche, il aurait écrit
+   * un chemin qu'il ne pouvait ni voir ni vérifier. Sur le volume, il le peut.
+   */
+  const IMG = Buffer.alloc(64, 9);
+
+  function poserSource(fichier: string) {
+    mkdirSync(join(BAC, 'sources'), { recursive: true });
+    writeFileSync(join(BAC, 'sources', fichier), IMG);
+  }
+
+  beforeEach(() => {
+    reinitialiser();
+    rmSync(join(BAC, 'sources'), { recursive: true, force: true });
+  });
+
+  it('accepte les formats d image attendus', () => {
+    for (const bon of ['nephrolepis.png', 'Acer_Palmatum.jpg', 'a-b_1.jpeg', 'x.webp']) {
+      expect(() => cheminSource(bon), bon).not.toThrow();
+    }
+  });
+
+  it('refuse tout le reste', () => {
+    for (const mauvais of [
+      'x.glb', 'x.svg', 'x.json', 'x.php', 'x.png.sh', 'sans_extension',
+      '../evade.png', 'a/b.png', 'a\\b.png', '..png', '.png', 'é.png', 'a b.png',
+    ]) {
+      expect(() => cheminSource(mauvais), mauvais).toThrow();
+    }
+  });
+
+  it('le nom du fichier porte le nom de la plante', () => {
+    expect(planteDe('nephrolepis.png')).toBe('nephrolepis');
+    expect(planteDe('Acer_Palmatum.jpg')).toBe('Acer_Palmatum');
+  });
+
+  it('liste ce qui est là, trié, en ignorant les intrus', () => {
+    poserSource('monstera.png');
+    poserSource('acer.jpg');
+    writeFileSync(join(BAC, 'sources', 'notes.txt'), 'x');
+    const l = sources();
+    expect(l.map((s) => s.plante)).toEqual(['acer', 'monstera']);
+    expect(l[0].octets).toBe(IMG.length);
+  });
+
+  it('rend une liste vide quand le dossier n existe pas', () => {
+    expect(sources()).toEqual([]);
+  });
+
+  /**
+   * Le croisement qui évite de déposer deux fois la même plante. Il se fait
+   * ici et pas dans la page : c'est au dépôt de savoir ce qu'il a déjà en vol.
+   */
+  it('dit ce que l état sait de chaque plante', async () => {
+    poserSource('enattente.png');
+    poserSource('encours.png');
+    poserSource('tranchee.png');
+    poserSource('neuve.png');
+
+    // `prendre` sert la plus ANCIENNE : l'ordre de dépôt décide de ce qui part.
+    // On traite donc une plante à la fois pour obtenir les quatre états voulus.
+    await deposer('tranchee', 'tranchee.png');
+    const t = await prendre();
+    expect(t!.plante).toBe('tranchee');
+    await livrer(t!.id, t!.reservation!, { graine: 1, accepte: true });
+    await trancher('tranchee', true);
+
+    await deposer('encours', 'encours.png');
+    const u = await prendre();
+    expect(u!.plante).toBe('encours');
+
+    await deposer('enattente', 'enattente.png');
+
+    const par = Object.fromEntries(sources().map((s) => [s.plante, s]));
+    expect(par.enattente.enFile).toBe(true);
+    expect(par.encours.enFile).toBe(true);
+    expect(par.neuve.enFile).toBe(false);
+    // Tranchée : plus en file, et le verdict est rendu.
+    expect(par.tranchee.enFile).toBe(false);
+    expect(par.tranchee.verdict).toBe('validee');
+  });
+
+  it('supprime une source sans toucher aux artefacts', () => {
+    poserSource('partante.png');
+    mkdirSync(join(BAC, 'plantes', 'partante'), { recursive: true });
+    writeFileSync(cheminArtefact('partante', 'apercu_000.png'), IMG);
+
+    expect(supprimerSource('partante.png')).toBe(true);
+    expect(sources()).toEqual([]);
+    expect(readdirSync(join(BAC, 'plantes', 'partante'))).toEqual(['apercu_000.png']);
+  });
+
+  it('supprimer une source absente ne lève pas', () => {
+    expect(supprimerSource('fantome.png')).toBe(false);
+    expect(supprimerSource('../evade.png')).toBe(false);
   });
 });
 

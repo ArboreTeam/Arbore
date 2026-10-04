@@ -137,6 +137,95 @@ export function purger(plante: string, garder: string[]): { supprimes: string[];
   return { supprimes, octets };
 }
 
+// ── Images sources ─────────────────────────────────────────────────────────
+//
+// Elles vivaient sur Drive pendant le spike, et `tache.image` portait un chemin
+// Colab. L'atelier ne pouvait alors pas déposer de tâche : il aurait écrit un
+// chemin qu'il ne pouvait ni voir ni vérifier. Sur le volume, il le peut.
+//
+// Une source par plante, nommée par elle : c'est le nom de la plante qui fait
+// l'identité dans tout l'atelier, de la file aux artefacts.
+
+const EXT_SOURCE = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+
+/** Dossier des sources. Frère de `plantes/`, pas dedans : ce n'est pas un artefact. */
+export function cheminSource(fichier: string): string {
+  if (fichier.includes('/') || fichier.includes('\\') || fichier.includes('..')) {
+    throw new Error('chemin refusé');
+  }
+  const ext = fichier.slice(fichier.lastIndexOf('.')).toLowerCase();
+  if (!EXT_SOURCE.has(ext) || !/^[a-z0-9_-]+\.[a-z]+$/i.test(fichier)) {
+    throw new Error('nom de source refusé');
+  }
+  return join(racine(), 'sources', fichier);
+}
+
+/** Nom de plante porté par un fichier source. */
+export function planteDe(fichier: string): string {
+  return fichier.slice(0, fichier.lastIndexOf('.'));
+}
+
+export type Source = {
+  plante: string;
+  fichier: string;
+  octets: number;
+  modifie: number;
+  /** Une tâche non terminée existe déjà pour cette plante. */
+  enFile: boolean;
+  verdict?: 'validee' | 'invalidee';
+};
+
+/**
+ * Les sources présentes, avec ce que l'état sait de chacune.
+ *
+ * Le croisement se fait ici et pas dans la page : savoir qu'une plante est déjà
+ * en file est ce qui évite de la déposer deux fois, et c'est au dépôt de le
+ * savoir, pas à l'écran.
+ */
+export function sources(): Source[] {
+  const etat = lire();
+  let fichiers: string[];
+  try {
+    fichiers = readdirSync(join(racine(), 'sources'));
+  } catch {
+    return [];
+  }
+  const vivantes = new Set(
+    etat.taches.filter((t) => t.etat === 'en_attente' || t.etat === 'en_cours').map((t) => t.plante),
+  );
+  return fichiers
+    .filter((f) => EXT_SOURCE.has(f.slice(f.lastIndexOf('.')).toLowerCase()))
+    .map((fichier) => {
+      const plante = planteDe(fichier);
+      let octets = 0;
+      let modifie = 0;
+      try {
+        const st = statSync(join(racine(), 'sources', fichier));
+        octets = st.size;
+        modifie = st.mtimeMs;
+      } catch {
+        // Fichier disparu entre le listage et la mesure : on le rend quand même,
+        // la page affichera une taille nulle plutôt que de tout perdre.
+      }
+      return {
+        plante, fichier, octets, modifie,
+        enFile: vivantes.has(plante),
+        verdict: etat.plantes[plante]?.verdict,
+      };
+    })
+    .sort((a, b) => a.plante.localeCompare(b.plante, 'fr'));
+}
+
+/** Supprime une source. Les artefacts déjà produits ne sont pas touchés. */
+export function supprimerSource(fichier: string): boolean {
+  try {
+    unlinkSync(cheminSource(fichier));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function lire(): Etat {
   try {
     const brut = JSON.parse(readFileSync(cheminEtat(), 'utf8'));

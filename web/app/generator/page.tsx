@@ -39,11 +39,19 @@ export default function Atelier() {
               File de génération et revue des modèles.
             </p>
           </div>
-          <form action="/api/generator/logout" method="post">
-            <button className="rounded-lg border border-[#DDD8CF] bg-white px-3 py-2 text-sm text-[#6E746B] hover:bg-[#F0EEEA]">
-              Quitter
-            </button>
-          </form>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/generator/sources"
+              className="rounded-lg border border-[#DDD8CF] bg-white px-3 py-2 text-sm text-[#1B1F1A] hover:border-[#234632]"
+            >
+              Images d&apos;entrée
+            </Link>
+            <form action="/api/generator/logout" method="post">
+              <button className="rounded-lg border border-[#DDD8CF] bg-white px-3 py-2 text-sm text-[#6E746B] hover:bg-[#F0EEEA]">
+                Quitter
+              </button>
+            </form>
+          </div>
         </header>
 
         <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">

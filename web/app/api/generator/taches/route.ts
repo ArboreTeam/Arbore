@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { deposer, lire } from '@/lib/generator/depot';
+import { deposer, lire, sources } from '@/lib/generator/depot';
 import { bonHote, corps, introuvable } from '@/lib/generator/http';
 
 export const dynamic = 'force-dynamic';
@@ -22,13 +22,33 @@ export async function GET(req: NextRequest) {
   });
 }
 
-/** Dépose une tâche. */
+/**
+ * Dépose une tâche.
+ *
+ * `image` est facultative : sans elle, le serveur retrouve la source de la
+ * plante sur le volume. C'est le chemin normal depuis l'atelier, et il garantit
+ * qu'aucun client ne fabrique un chemin de fichier. Une image nommée mais
+ * absente est refusée ICI plutôt que découverte par l'ouvrier 165 s de GPU plus
+ * tard.
+ */
 export async function POST(req: NextRequest) {
   if (!bonHote(req)) return introuvable();
   const c = await corps<{ plante?: string; image?: string; raison?: string; graine?: number }>(req);
-  if (!c?.plante || !c?.image) {
-    return NextResponse.json({ error: 'plante et image requises' }, { status: 400 });
+  if (!c?.plante) {
+    return NextResponse.json({ error: 'plante requise' }, { status: 400 });
   }
-  const tache = await deposer(c.plante, c.image, c.raison ?? 'initiale', c.graine ?? null);
+
+  const dispo = sources();
+  const source = c.image
+    ? dispo.find((s) => s.fichier === c.image)
+    : dispo.find((s) => s.plante === c.plante);
+  if (!source) {
+    return NextResponse.json(
+      { error: c.image ? 'source introuvable' : `aucune image pour ${c.plante}` },
+      { status: 400 },
+    );
+  }
+
+  const tache = await deposer(c.plante, source.fichier, c.raison ?? 'initiale', c.graine ?? null);
   return NextResponse.json(tache, { status: 201 });
 }

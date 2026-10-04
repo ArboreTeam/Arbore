@@ -93,7 +93,7 @@ export default function Verdict({ plante, coupe, choixManquant }: Props) {
             onClick={() => setConfirmer(true)}
             className="flex-1 rounded-xl border border-[#DDD8CF] bg-white px-4 py-3 font-medium text-[#8A1B1B] disabled:text-[#B5BDB4]"
           >
-            Invalider — relancer sur une graine neuve
+            Invalider et relancer sur une graine neuve
           </button>
         )}
       </div>

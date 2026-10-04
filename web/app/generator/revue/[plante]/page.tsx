@@ -66,7 +66,7 @@ export default async function RevuePlante({ params }: { params: Promise<{ plante
         {!vue.accepte && (
           <p className="mt-4 rounded-xl bg-[#FBE9D0] px-4 py-3 text-sm text-[#8A5A1B]">
             Le portillon a rejeté toutes les tentatives. Ce maillage est le
-            dernier essai, livré faute de mieux — il porte probablement le
+            dernier essai, livré faute de mieux : il porte probablement le
             défaut que les mesures ci-dessous signalent.
           </p>
         )}

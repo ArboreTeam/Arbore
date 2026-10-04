@@ -36,7 +36,7 @@ const EXPLICATION: Record<string, string> = {
   geometrie:
     'Paroi de révolution : normales horizontales et radiales, rayon régulier. Aveugle à un pot froissé, qui n’est plus une révolution.',
   couleur:
-    'Un pot n’est pas vert. Voit le pot froissé, mais avale les parties non vertes de la plante — caudex beige, pétioles magenta.',
+    'Un pot n’est pas vert. Voit le pot froissé, mais avale les parties non vertes de la plante : caudex beige, pétioles magenta.',
 };
 
 function pourcent(v: number | null): string {
@@ -59,7 +59,7 @@ export default function Arbitrage({ plante, candidats }: Props) {
           <h2 className="font-semibold text-[#1B1F1A]">Retrait du pot</h2>
           {candidats.length > 1 && (
             <span className="text-xs text-[#8A5A1B]">
-              deux candidats — à toi de trancher
+              deux candidats, à toi de trancher
             </span>
           )}
         </div>
@@ -68,10 +68,10 @@ export default function Arbitrage({ plante, candidats }: Props) {
           <p className="mt-3 rounded-2xl border border-dashed border-[#DDD8CF] bg-white/60 px-6 py-8 text-center text-sm text-[#6E746B]">
             Aucun retrait plausible proposé. Soit la plante n&apos;a pas de pot
             détectable, soit les deux voies sortaient des bornes de
-            vraisemblance — on ne propose pas une coupe invraisemblable.
+            vraisemblance : on ne propose pas une coupe invraisemblable.
           </p>
         ) : (
-          <div className={`mt-3 grid gap-4 ${candidats.length > 1 ? 'lg:grid-cols-2' : ''}`}>
+          <div className={`mt-3 grid items-start gap-4 ${candidats.length > 1 ? 'lg:grid-cols-2' : ''}`}>
             {candidats.map((c, i) => {
               const actif = choisi === i;
               return (
@@ -109,8 +109,8 @@ export default function Arbitrage({ plante, candidats }: Props) {
                   ) : (
                     <p className="mt-3 rounded-lg bg-[#F7F6F3] px-3 py-4 text-center text-xs text-[#6E746B]">
                       Aucun aperçu rendu pour ce candidat. Les générations
-                      antérieures au rendu des coupes n&apos;en ont pas — la 3D
-                      ci-dessous reste le seul regard possible.
+                      antérieures au rendu des coupes n&apos;en ont pas, et la 3D
+                      ci-dessous reste alors le seul regard possible.
                     </p>
                   )}
 

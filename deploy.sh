@@ -765,12 +765,26 @@ prepare_generator_dir() {
            | sed 's/^GENERATOR_DATA_HOST_PATH=//' || true)"
     [ -n "$dir" ] || dir="$SCRIPT_DIR/data/generator"
 
-    [ -d "$dir" ] || "${DOCKER_PRIVILEGE[@]}" mkdir -p "$dir"
-    local owner
-    owner="$(stat -c '%u:%g' "$dir" 2>/dev/null || echo unknown)"
-    if [ "$owner" != "1001:1001" ]; then
-        "${DOCKER_PRIVILEGE[@]}" chown -R 1001:1001 "$dir"
-        ok "Dossier de l'atelier préparé ($dir, uid 1001)"
+    # `apply_secrets` a posé `umask 077` à l'étape 2 et il tient toujours :
+    # sans le neutraliser ici, le dossier naît en 0700, et déposer un GLB au
+    # `scp` demande alors sudo — or c'est le flux prévu depuis Colab.
+    [ -d "$dir" ] || ( umask 022; "${DOCKER_PRIVILEGE[@]}" mkdir -p "$dir" )
+
+    # uid 1001 = `nextjs` dans web/Dockerfile. Le GROUPE reste celui de
+    # l'utilisateur de déploiement et le bit setgid le conserve sur les
+    # fichiers déposés ensuite : le conteneur écrit par l'uid, l'humain par le
+    # groupe, et aucun des deux n'a besoin de sudo.
+    local grp etat attendu
+    grp="$(id -gn)"
+    attendu="1001:$grp:2775"
+    etat="$("${DOCKER_PRIVILEGE[@]}" stat -c '%u:%G:%a' "$dir" 2>/dev/null || echo inconnu)"
+    if [ "$etat" != "$attendu" ]; then
+        "${DOCKER_PRIVILEGE[@]}" chown -R "1001:$grp" "$dir"
+        "${DOCKER_PRIVILEGE[@]}" chmod 2775 "$dir"
+        # Le parent doit rester traversable, sinon le chemin est inatteignable
+        # quelles que soient les permissions du dossier lui-même.
+        "${DOCKER_PRIVILEGE[@]}" chmod o+rx "$(dirname "$dir")"
+        ok "Dossier de l'atelier préparé ($dir, uid 1001, groupe $grp)"
     fi
 }
 

@@ -44,6 +44,12 @@ export default function Atelier() {
           <div className="flex items-center gap-3">
             <Rafraichir />
             <Link
+              href="/generator/pots"
+              className="rounded-lg border border-[#DDD8CF] bg-white px-3 py-2 text-sm text-[#1B1F1A] hover:border-[#234632]"
+            >
+              Pots
+            </Link>
+            <Link
               href="/generator/sources"
               className="rounded-lg border border-[#DDD8CF] bg-white px-3 py-2 text-sm text-[#1B1F1A] hover:border-[#234632]"
             >

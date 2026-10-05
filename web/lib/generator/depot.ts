@@ -587,6 +587,50 @@ export function aRevoir(): AVoir[] {
     });
 }
 
+/** Une plante sur laquelle on peut essayer un pot. */
+export type Posable = {
+  plante: string;
+  /** GLB à charger : la coupe retenue, ou le premier candidat si rien n'est tranché. */
+  fichier: string;
+  socle: Socle;
+  verdict?: 'validee' | 'invalidee';
+};
+
+/**
+ * Les plantes auxquelles on peut poser un pot.
+ *
+ * Il en faut deux choses : un maillage SANS son pot, et un socle qui dise où
+ * poser le nouveau. Une plante validée sans retrait n'entre donc pas — elle a
+ * gardé son pot d'origine, il n'y a pas de place pour un autre.
+ *
+ * Les plantes encore en revue sont incluses : on veut pouvoir essayer un pot
+ * AVANT de trancher, puisque c'est parfois ce qui décide de la coupe à retenir.
+ */
+export function posables(): Posable[] {
+  const etat = lire();
+  const sorties: Posable[] = [];
+  for (const t of etat.taches) {
+    if (t.etat !== 'livree') continue;
+    const p = etat.plantes[t.plante];
+    if (p?.verdict === 'invalidee') continue;
+
+    const bruts = Array.isArray(t.resultat?.candidats_pot) ? t.resultat.candidats_pot : [];
+    const candidats = bruts.map(candidat).filter((c) => c.fichier && c.socle);
+    if (candidats.length === 0) continue;
+
+    // La coupe retenue prime : c'est elle qui sera livrée. Sinon le premier
+    // candidat, pour pouvoir essayer avant de trancher.
+    const retenu = candidats.find((c) => c.fichier === p?.coupe) ?? candidats[0];
+    sorties.push({
+      plante: t.plante,
+      fichier: retenu.fichier!,
+      socle: retenu.socle!,
+      verdict: p?.verdict,
+    });
+  }
+  return sorties.sort((a, b) => a.plante.localeCompare(b.plante, 'fr'));
+}
+
 /** Compteurs du tableau de bord. */
 export function bilan() {
   const etat = lire();

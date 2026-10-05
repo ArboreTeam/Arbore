@@ -176,6 +176,24 @@ describe('bibliothèque de pots', () => {
       .toBe(404);
   });
 
+  /**
+   * Un dépassement de taille et une coupure de lien se corrigent très
+   * différemment : réduire le fichier, ou réessayer.
+   */
+  it('distingue un fichier trop lourd d une coupure', async () => {
+    const trop = new NextRequest(
+      `https://${HOTE}/api/generator/pots/gros.glb?position=0&final=1`,
+      {
+        method: 'PUT', headers: { host: HOTE }, duplex: 'half',
+        body: new Uint8Array(70 * 1024 * 1024) as unknown as BodyInit,
+      },
+    );
+    const r = await PUT(trop, params('gros.glb'));
+    expect(r.status).toBe(413);
+    expect((await r.json()).error).toContain('trop lourd');
+    expect(existsSync(join(BAC, 'pots', 'gros.glb'))).toBe(false);
+  });
+
   it('n existe pas depuis le site public', async () => {
     const pub = 'web.arbore.app';
     expect((await liste(req('/api/generator/pots', pub))).status).toBe(404);

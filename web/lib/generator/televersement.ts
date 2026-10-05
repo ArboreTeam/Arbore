@@ -21,6 +21,8 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { NextRequest, NextResponse } from 'next/server';
 
+const TROP_LOURD = 'fichier trop lourd';
+
 /** Nom du fichier d'assemblage. Préfixé d'un point : rien ne le liste. */
 function cheminPartiel(chemin: string): string {
   return join(dirname(chemin), `.${chemin.split('/').pop()}.partiel`);
@@ -71,7 +73,7 @@ export async function recevoirMorceau(
     const compteur = new TransformStream<Uint8Array, Uint8Array>({
       transform(bloc, ctrl) {
         recus += bloc.byteLength;
-        if (recus > maxOctets) throw new Error('fichier trop lourd');
+        if (recus > maxOctets) throw new Error(TROP_LOURD);
         ctrl.enqueue(bloc);
       },
     });
@@ -88,12 +90,24 @@ export async function recevoirMorceau(
     // fichiers.
     renameSync(partiel, chemin);
     return NextResponse.json({ ok: true, octets: recus }, { status: 201 });
-  } catch {
+  } catch (e) {
     try {
       unlinkSync(partiel);
     } catch {
       // Le temporaire a pu ne jamais être créé.
     }
-    return NextResponse.json({ error: 'téléversement interrompu' }, { status: 400 });
+    // Un dépassement de taille et une coupure de lien se corrigent très
+    // différemment : réduire le fichier, ou réessayer. Les confondre sous un
+    // seul message envoie chercher du côté du réseau un problème qui n'y est
+    // pas.
+    const trop = e instanceof Error && e.message === TROP_LOURD;
+    return NextResponse.json(
+      {
+        error: trop
+          ? `fichier trop lourd : maximum ${Math.round(maxOctets / 1e6)} Mo`
+          : 'téléversement interrompu',
+      },
+      { status: trop ? 413 : 400 },
+    );
   }
 }

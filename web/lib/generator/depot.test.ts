@@ -10,8 +10,8 @@ import { mkdirSync, writeFileSync, readdirSync } from 'node:fs';
 
 import {
   EXPIRATION_MS, aRevoir, bilan, cheminArtefact, deposer, echouer, historique,
-  cheminSource, lire, livrer, nomFichier, noterGraine, planteDe, prendre, purger,
-  reinitialiser, sources, supprimerSource, trancher,
+  cheminSource, lire, livrer, marquerSansPot, nomFichier, noterGraine, planteDe,
+  posables, prendre, purger, reinitialiser, sources, supprimerSource, trancher,
 } from './depot';
 
 afterAll(() => rmSync(BAC, { recursive: true, force: true }));
@@ -181,14 +181,14 @@ describe('dépôt — revue', () => {
 
   it('une validation sort la plante de la file de revue', async () => {
     await livrerUne('ok', false);
-    await trancher('ok', true, 'geometrie');
+    await trancher('ok', 'validee', 'geometrie');
     expect(aRevoir()).toHaveLength(0);
     expect(lire().plantes.ok.coupe).toBe('geometrie');
   });
 
   it('une invalidation redépose une tâche, seul chemin qui remonte au GPU', async () => {
     await livrerUne('ratee', false);
-    await trancher('ratee', false);
+    await trancher('ratee', 'invalidee');
     const taches = lire().taches.filter((t) => t.etat === 'en_attente');
     expect(taches).toHaveLength(1);
     expect(taches[0].raison).toBe('invalidee_revue');
@@ -375,6 +375,59 @@ describe('dépôt — le socle, pour poser un pot', () => {
   });
 });
 
+describe('dépôt — écarter une plante', () => {
+  beforeEach(() => reinitialiser());
+
+  async function livrer_une(plante: string) {
+    await deposer(plante, `/${plante}.png`);
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, { graine: 7, accepte: true });
+  }
+
+  /**
+   * Invalider veut dire « refais-la », écarter veut dire « n'y reviens pas ».
+   * Quand le défaut vient de la SOURCE — image dans l'image, étagère modélisée —
+   * une graine neuve ne peut que le reproduire.
+   */
+  it('ne redépose pas, contrairement à l invalidation', async () => {
+    await livrer_une('ratee');
+    await trancher('ratee', 'ecartee', undefined, 'étagère modélisée sous le pot');
+    expect(lire().taches.filter((t) => t.etat === 'en_attente')).toEqual([]);
+    expect(lire().plantes.ratee.verdict).toBe('ecartee');
+    expect(lire().plantes.ratee.raison).toContain('étagère');
+
+    await livrer_une('refaire');
+    await trancher('refaire', 'invalidee');
+    expect(lire().taches.filter((t) => t.etat === 'en_attente')).toHaveLength(1);
+  });
+
+  it('sort de la revue et des posables', async () => {
+    await deposer('sortie', '/s.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      graine: 1, accepte: true,
+      candidats_pot: [{ voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb',
+                        socle: { x: 0, z: 0, y: 0, rayon: 0.1, hauteur_modele: 1 } }],
+    });
+    expect(posables()).toHaveLength(1);
+    await trancher('sortie', 'ecartee');
+    expect(aRevoir()).toEqual([]);
+    expect(posables()).toEqual([]);
+  });
+
+  it('ne garde aucun maillage, comme une invalidation', async () => {
+    mkdirSync(join(BAC, 'plantes', 'nette'), { recursive: true });
+    writeFileSync(cheminArtefact('nette', 'nette.glb'), Buffer.alloc(512));
+    writeFileSync(cheminArtefact('nette', 'apercu_000.png'), Buffer.alloc(64));
+    await deposer('nette', '/n.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, { graine: 1, accepte: true, glb: '/x/nette.glb' });
+
+    await trancher('nette', 'ecartee');
+    expect(readdirSync(join(BAC, 'plantes', 'nette'))).toEqual(['apercu_000.png']);
+  });
+});
+
 describe('dépôt — bilan', () => {
   beforeEach(() => reinitialiser());
 
@@ -395,7 +448,7 @@ describe('dépôt — bilan', () => {
     await echouer(u!.id, u!.reservation!, 'panne');
     expect(bilan().echecs).toBe(1);
 
-    await trancher('a', true, 'y=0.3');
+    await trancher('a', 'validee', 'y=0.3');
     expect(bilan()).toMatchObject({ validees: 1, invalidees: 0 });
   });
 
@@ -405,7 +458,7 @@ describe('dépôt — bilan', () => {
     const t = await prendre();
     await livrer(t!.id, t!.reservation!, { graine: 9, accepte: true });
     expect(bilan().enAttente).toBe(0);
-    await trancher('c', false);
+    await trancher('c', 'invalidee');
     expect(bilan()).toMatchObject({ enAttente: 1, invalidees: 1 });
   });
 });
@@ -445,7 +498,7 @@ describe('dépôt — purge des maillages après verdict', () => {
                        'apercu_000.png', 'apercu_090.png']);
     await livrerAvec('monstera', ['geometrie', 'couleur']);
 
-    await trancher('monstera', true, 'sanspot_geometrie.glb');
+    await trancher('monstera', 'validee', 'sanspot_geometrie.glb');
 
     expect(restants('monstera')).toEqual(
       ['apercu_000.png', 'apercu_090.png', 'sanspot_geometrie.glb']);
@@ -460,7 +513,7 @@ describe('dépôt — purge des maillages après verdict', () => {
     poser('cactus', ['cactus.glb', 'apercu_000.png']);
     await livrerAvec('cactus', []);
 
-    await trancher('cactus', true);
+    await trancher('cactus', 'validee');
 
     expect(restants('cactus')).toEqual(['apercu_000.png', 'cactus.glb']);
     expect(lire().plantes.cactus.purge?.fichiers).toBe(0);
@@ -470,7 +523,7 @@ describe('dépôt — purge des maillages après verdict', () => {
     poser('rate', ['rate.glb', 'sanspot_geometrie.glb', 'apercu_000.png']);
     await livrerAvec('rate', ['geometrie']);
 
-    await trancher('rate', false);
+    await trancher('rate', 'invalidee');
 
     expect(restants('rate')).toEqual(['apercu_000.png']);
     expect(lire().plantes.rate.purge?.fichiers).toBe(2);
@@ -485,7 +538,7 @@ describe('dépôt — purge des maillages après verdict', () => {
     poser('prudente', ['prudente.glb', 'sanspot_geometrie.glb', 'apercu_000.png']);
     await livrerAvec('prudente', ['geometrie']);
 
-    await trancher('prudente', true, 'sanspot_inexistant.glb');
+    await trancher('prudente', 'validee', 'sanspot_inexistant.glb');
 
     expect(restants('prudente')).toEqual(
       ['apercu_000.png', 'prudente.glb', 'sanspot_geometrie.glb']);
@@ -500,7 +553,7 @@ describe('dépôt — purge des maillages après verdict', () => {
   it('refuse un nom de coupe qui tenterait de sortir du dossier', async () => {
     poser('hostile', ['hostile.glb', 'apercu_000.png']);
     await livrerAvec('hostile', []);
-    await trancher('hostile', true, '../../etc/passwd');
+    await trancher('hostile', 'validee', '../../etc/passwd');
     // `nomFichier` rejette, on retombe sur le maillage complet, qui est gardé.
     expect(restants('hostile')).toEqual(['apercu_000.png', 'hostile.glb']);
   });
@@ -509,7 +562,7 @@ describe('dépôt — purge des maillages après verdict', () => {
     await deposer('fantome', '/f.png');
     const t = await prendre();
     await livrer(t!.id, t!.reservation!, { graine: 1, accepte: true });
-    await expect(trancher('fantome', false)).resolves.toBe('invalidee');
+    await expect(trancher('fantome', 'invalidee')).resolves.toBe('invalidee');
   });
 
   it('purger ne touche jamais aux aperçus', () => {
@@ -522,7 +575,7 @@ describe('dépôt — purge des maillages après verdict', () => {
   it('le bilan cumule la place reprise', async () => {
     poser('p1', ['p1.glb', 'sanspot_geometrie.glb', 'apercu_000.png']);
     await livrerAvec('p1', ['geometrie']);
-    await trancher('p1', true, 'sanspot_geometrie.glb');
+    await trancher('p1', 'validee', 'sanspot_geometrie.glb');
     expect(bilan().octetsLiberes).toBe(GLB.length);
   });
 });
@@ -594,7 +647,7 @@ describe('dépôt — images sources', () => {
     const t = await prendre();
     expect(t!.plante).toBe('tranchee');
     await livrer(t!.id, t!.reservation!, { graine: 1, accepte: true });
-    await trancher('tranchee', true);
+    await trancher('tranchee', 'validee');
 
     await deposer('encours', 'encours.png');
     const u = await prendre();
@@ -611,19 +664,56 @@ describe('dépôt — images sources', () => {
     expect(par.tranchee.verdict).toBe('validee');
   });
 
-  it('supprime une source sans toucher aux artefacts', () => {
+  it('supprime une source sans toucher aux artefacts', async () => {
     poserSource('partante.png');
     mkdirSync(join(BAC, 'plantes', 'partante'), { recursive: true });
     writeFileSync(cheminArtefact('partante', 'apercu_000.png'), IMG);
 
-    expect(supprimerSource('partante.png')).toBe(true);
+    expect(await supprimerSource('partante.png')).toEqual({ ok: true, tachesRetirees: 0 });
     expect(sources()).toEqual([]);
+    // Les artefacts restent : ils sont la trace de ce qui a été jugé.
     expect(readdirSync(join(BAC, 'plantes', 'partante'))).toEqual(['apercu_000.png']);
   });
 
-  it('supprimer une source absente ne lève pas', () => {
-    expect(supprimerSource('fantome.png')).toBe(false);
-    expect(supprimerSource('../evade.png')).toBe(false);
+  /**
+   * Les laisser derrière soi n'était pas neutre : l'ouvrier les prenait et
+   * échouait sur `image introuvable`, tardivement et par un échec plutôt que
+   * par une décision. Constaté sur deux plantes du premier lot.
+   */
+  it('emporte les tâches en attente de la plante', async () => {
+    poserSource('avecfile.png');
+    poserSource('autre.png');
+    await deposer('avecfile', 'avecfile.png');
+    await deposer('avecfile', 'avecfile.png', 'relance');
+    await deposer('autre', 'autre.png');
+
+    expect(await supprimerSource('avecfile.png')).toEqual({ ok: true, tachesRetirees: 2 });
+    expect(lire().taches.map((t) => t.plante)).toEqual(['autre']);
+  });
+
+  /** On ne tire pas le tapis sous les pieds d'un ouvrier qui a engagé le GPU. */
+  it('refuse tant qu une tâche est en cours', async () => {
+    poserSource('occupee.png');
+    await deposer('occupee', 'occupee.png');
+    await prendre();
+
+    expect(await supprimerSource('occupee.png'))
+      .toEqual({ ok: false, raison: 'tache_en_cours' });
+    expect(sources().map((s) => s.plante)).toEqual(['occupee']);
+  });
+
+  it('supprimer une source absente ne lève pas', async () => {
+    expect(await supprimerSource('fantome.png')).toMatchObject({ ok: false, raison: 'introuvable' });
+    expect(await supprimerSource('../evade.png')).toMatchObject({ ok: false });
+  });
+
+  it('marque et démarque une source sans pot', async () => {
+    poserSource('palmier.png');
+    expect(sources()[0].sansPot).toBe(false);
+    await marquerSansPot('palmier.png', true);
+    expect(sources()[0].sansPot).toBe(true);
+    await marquerSansPot('palmier.png', false);
+    expect(sources()[0].sansPot).toBe(false);
   });
 });
 

@@ -10,6 +10,8 @@ import { useRouter } from 'next/navigation';
 // ses tests. Un composant serveur aurait pu écrire en direct, au prix d'un
 // second chemin d'écriture à garder cohérent.
 
+type Verdict = 'validee' | 'invalidee' | 'ecartee';
+
 type Props = {
   plante: string;
   /** Nom du GLB coupé retenu. `null` = valider sans retrait de pot. */
@@ -20,18 +22,20 @@ type Props = {
 
 export default function Verdict({ plante, coupe, choixManquant }: Props) {
   const router = useRouter();
-  const [enCours, setEnCours] = useState<'valider' | 'invalider' | null>(null);
+  const [enCours, setEnCours] = useState<Verdict | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
-  const [confirmer, setConfirmer] = useState(false);
+  const [confirmer, setConfirmer] = useState<'invalidee' | 'ecartee' | null>(null);
 
-  async function trancher(valide: boolean) {
-    setEnCours(valide ? 'valider' : 'invalider');
+  async function trancher(verdict: Verdict) {
+    setEnCours(verdict);
     setErreur(null);
     try {
       const r = await fetch(`/api/generator/revue/${encodeURIComponent(plante)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(valide ? { valide: true, coupe: coupe ?? undefined } : { valide: false }),
+        body: JSON.stringify(
+          verdict === 'validee' ? { verdict, coupe: coupe ?? undefined } : { verdict },
+        ),
       });
       if (!r.ok) {
         setErreur(`le verdict n'a pas été enregistré (${r.status})`);
@@ -56,10 +60,10 @@ export default function Verdict({ plante, coupe, choixManquant }: Props) {
         <button
           type="button"
           disabled={enCours !== null || choixManquant}
-          onClick={() => trancher(true)}
+          onClick={() => trancher('validee')}
           className="flex-1 rounded-xl bg-[#234632] px-4 py-3 font-medium text-white disabled:cursor-not-allowed disabled:bg-[#B5BDB4]"
         >
-          {enCours === 'valider'
+          {enCours === 'validee'
             ? 'enregistrement…'
             : choixManquant
               ? 'Choisir une coupe pour valider'
@@ -73,28 +77,46 @@ export default function Verdict({ plante, coupe, choixManquant }: Props) {
             <button
               type="button"
               disabled={enCours !== null}
-              onClick={() => trancher(false)}
+              onClick={() => trancher(confirmer)}
               className="flex-1 rounded-xl bg-[#8A1B1B] px-4 py-3 font-medium text-white disabled:bg-[#B5BDB4]"
             >
-              {enCours === 'invalider' ? 'enregistrement…' : 'Confirmer : relancer'}
+              {enCours
+                ? 'enregistrement…'
+                : confirmer === 'invalidee' ? 'Confirmer : relancer' : 'Confirmer : écarter'}
             </button>
             <button
               type="button"
-              onClick={() => setConfirmer(false)}
+              onClick={() => setConfirmer(null)}
               className="rounded-xl border border-[#DDD8CF] bg-white px-4 py-3 text-sm text-[#6E746B]"
             >
               Annuler
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            disabled={enCours !== null}
-            onClick={() => setConfirmer(true)}
-            className="flex-1 rounded-xl border border-[#DDD8CF] bg-white px-4 py-3 font-medium text-[#8A1B1B] disabled:text-[#B5BDB4]"
-          >
-            Invalider et relancer sur une graine neuve
-          </button>
+          <>
+            <button
+              type="button"
+              disabled={enCours !== null}
+              onClick={() => setConfirmer('invalidee')}
+              className="flex-1 rounded-xl border border-[#DDD8CF] bg-white px-4 py-3 font-medium text-[#8A1B1B] disabled:text-[#B5BDB4]"
+            >
+              Invalider et relancer sur une graine neuve
+            </button>
+            {/*
+              Le troisième verdict. Quand le défaut vient de la SOURCE — une
+              image dans l'image, une étagère sous le pot qui s'est modélisée —
+              relancer ne peut que le reproduire, et sans cette issue la plante
+              restait indéfiniment en revue.
+            */}
+            <button
+              type="button"
+              disabled={enCours !== null}
+              onClick={() => setConfirmer('ecartee')}
+              className="rounded-xl border border-[#DDD8CF] bg-white px-4 py-3 text-sm text-[#6E746B] disabled:text-[#B5BDB4]"
+            >
+              Écarter
+            </button>
+          </>
         )}
       </div>
 
@@ -105,10 +127,14 @@ export default function Verdict({ plante, coupe, choixManquant }: Props) {
         validation posée par erreur se corrige en redéposant une tâche.
       */}
       <p className="mt-3 text-xs text-[#6E746B]">
-        Invalider redépose une tâche sans graine imposée. La graine refusée reste
-        brûlée : elle ne sera pas rejouée. Dans les deux cas, les maillages
-        devenus inutiles sont effacés et les aperçus conservés : 150 Mo par
-        plante, et le disque du VPS n&apos;en tient pas 120.
+        <strong className="font-medium">Invalider</strong> redépose une tâche sans
+        graine imposée : à réserver au défaut de génération, puisque la graine
+        refusée reste brûlée.{' '}
+        <strong className="font-medium">Écarter</strong> ne redépose pas, et sert
+        quand le défaut vient de l&apos;image source — une image dans
+        l&apos;image, une étagère modélisée : une graine neuve ne ferait que le
+        reproduire. Dans les deux cas les maillages sont effacés et les aperçus
+        conservés.
       </p>
     </div>
   );

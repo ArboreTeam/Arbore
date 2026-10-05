@@ -398,6 +398,22 @@ export function nomFichier(chemin: unknown): string | null {
   return /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(nom) && !nom.includes('..') ? nom : null;
 }
 
+/**
+ * Où poser un pot sous cette plante, en unités du modèle.
+ *
+ * C'est ce qui rendra possible une fonction de pot personnalisé : un pot de la
+ * bibliothèque se met à l'échelle sur `rayon`, se centre sur (x, z) et pose son
+ * rebord à `y`. Sans ces valeurs, il faudrait les redécouvrir à l'exécution,
+ * sur un maillage d'un million de triangles, dans l'app.
+ */
+export type Socle = {
+  x: number;
+  z: number;
+  y: number;
+  rayon: number;
+  hauteurModele: number;
+};
+
 export type Candidat = {
   voie: string;
   sommet: number | null;
@@ -407,6 +423,8 @@ export type Candidat = {
   fichier: string | null;
   /** Aperçus de CE candidat, rendus par l'ouvrier. */
   apercus: string[];
+  /** `null` tant que la plante date d'avant la mesure du socle. */
+  socle: Socle | null;
 };
 
 export type AVoir = {
@@ -431,6 +449,25 @@ function nombre(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
+/**
+ * Le socle, ou `null`.
+ *
+ * Tout ou rien : un socle amputé d'une coordonnée poserait un pot de travers,
+ * ce qui est pire qu'un pot absent. Les plantes générées avant cette mesure
+ * n'en ont pas, et c'est un cas normal, pas une erreur.
+ */
+function socle(brut: unknown): Socle | null {
+  const s = (brut ?? {}) as Record<string, unknown>;
+  const champs = ['x', 'z', 'y', 'rayon', 'hauteur_modele'] as const;
+  const lus = champs.map((k) => nombre(s[k]));
+  if (lus.some((v) => v === null)) return null;
+  const [x, z, y, rayon, hauteurModele] = lus as number[];
+  // Un rayon nul ou négatif ne décrit aucun pot : la voie couleur ne mesure
+  // aucune révolution et rend 0. Mieux vaut pas de socle qu'un socle faux.
+  if (rayon <= 0) return null;
+  return { x, z, y, rayon, hauteurModele };
+}
+
 function candidat(brut: unknown): Candidat {
   const c = (brut ?? {}) as Record<string, unknown>;
   return {
@@ -440,6 +477,7 @@ function candidat(brut: unknown): Candidat {
     confianceParoi: nombre(c.confiance_paroi),
     fichier: nomFichier(c.fichier),
     apercus: (Array.isArray(c.apercus) ? c.apercus : []).map(nomFichier).filter((n): n is string => n !== null),
+    socle: socle(c.socle),
   };
 }
 

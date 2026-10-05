@@ -323,6 +323,58 @@ describe('dépôt — ce que la revue reçoit', () => {
   });
 });
 
+describe('dépôt — le socle, pour poser un pot', () => {
+  beforeEach(() => reinitialiser());
+
+  async function livrerAvecSocle(plante: string, socle: unknown) {
+    await deposer(plante, `/${plante}.png`);
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      graine: 1, accepte: true,
+      candidats_pot: [{ voie: 'geometrie', fichier: `/x/sanspot_geometrie.glb`, socle }],
+    });
+    return aRevoir()[0].candidats[0];
+  }
+
+  it('traverse l API quand il est complet', async () => {
+    const c = await livrerAvecSocle('bonne', {
+      x: -0.0002, z: -0.0876, y: -0.147, rayon: 0.15226, hauteur_modele: 0.92103,
+    });
+    expect(c.socle).toEqual({
+      x: -0.0002, z: -0.0876, y: -0.147, rayon: 0.15226, hauteurModele: 0.92103,
+    });
+  });
+
+  /**
+   * Tout ou rien : un socle amputé d'une coordonnée poserait un pot de
+   * travers, ce qui est pire qu'un pot absent.
+   */
+  it('est refusé en entier dès qu une valeur manque', async () => {
+    for (const partiel of [
+      { x: 0, z: 0, y: 0, rayon: 0.1 },
+      { x: 0, z: 0, rayon: 0.1, hauteur_modele: 1 },
+      { x: 'zéro', z: 0, y: 0, rayon: 0.1, hauteur_modele: 1 },
+      { x: 0, z: 0, y: 0, rayon: Number.NaN, hauteur_modele: 1 },
+    ]) {
+      const c = await livrerAvecSocle(`p${Math.random().toString(36).slice(2, 7)}`, partiel);
+      expect(c.socle, JSON.stringify(partiel)).toBeNull();
+    }
+  });
+
+  /** La voie couleur ne mesure aucune révolution et rend un rayon nul. */
+  it('refuse un rayon nul ou négatif', async () => {
+    expect((await livrerAvecSocle('nulle', { x: 0, z: 0, y: 0, rayon: 0, hauteur_modele: 1 })).socle)
+      .toBeNull();
+    expect((await livrerAvecSocle('negative', { x: 0, z: 0, y: 0, rayon: -1, hauteur_modele: 1 })).socle)
+      .toBeNull();
+  });
+
+  /** Les plantes d avant la mesure : cas normal, pas une erreur. */
+  it('vaut null quand l ouvrier n en envoie pas', async () => {
+    expect((await livrerAvecSocle('ancienne', undefined)).socle).toBeNull();
+  });
+});
+
 describe('dépôt — bilan', () => {
   beforeEach(() => reinitialiser());
 

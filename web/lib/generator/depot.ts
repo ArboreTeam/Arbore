@@ -40,8 +40,23 @@ export type Purge = {
   raison?: string;
 };
 
+/** Un pot de la bibliothèque, avec le rebord mesuré à l'ingestion. */
+export type Pot = {
+  fichier: string;
+  rayon: number;
+  y: number;
+  x: number;
+  z: number;
+  hauteur: number;
+  triangles: number;
+  octets: number;
+  depose: number;
+};
+
 export type Etat = {
   taches: Tache[];
+  /** Bibliothèque de pots, indexée par nom de fichier. */
+  pots?: Record<string, Pot>;
   plantes: Record<string, {
     graines: number[];
     verdict?: 'validee' | 'invalidee';
@@ -137,6 +152,63 @@ export function purger(plante: string, garder: string[]): { supprimes: string[];
   return { supprimes, octets };
 }
 
+// ── Bibliothèque de pots ───────────────────────────────────────────────────
+//
+// Dossier frère de `sources/` et `plantes/`. Un pot n'appartient à aucune
+// plante : c'est tout l'objet de la fonction, pouvoir le poser sous n'importe
+// laquelle.
+
+/** Dossier des pots. Mêmes gardes que les sources, extension GLB seule. */
+export function cheminPot(fichier: string): string {
+  if (fichier.includes('/') || fichier.includes('\\') || fichier.includes('..')) {
+    throw new Error('chemin refusé');
+  }
+  if (!/^[a-z0-9_-]+\.glb$/i.test(fichier)) {
+    throw new Error('nom de pot refusé');
+  }
+  return join(racine(), 'pots', fichier);
+}
+
+export function pots(): Pot[] {
+  const etat = lire();
+  let presents: string[];
+  try {
+    presents = readdirSync(join(racine(), 'pots'))
+      .filter((f) => f.toLowerCase().endsWith('.glb'));
+  } catch {
+    return [];
+  }
+  // On n'annonce que ce qui est À LA FOIS sur le disque ET mesuré. Un fichier
+  // sans mesure ne serait pas posable, et une mesure sans fichier ne serait
+  // pas chargeable : dans les deux cas l'écran montrerait un pot qui ne
+  // marche pas.
+  return presents
+    .map((f) => etat.pots?.[f])
+    .filter((p): p is Pot => Boolean(p))
+    .sort((a, b) => a.fichier.localeCompare(b.fichier, 'fr'));
+}
+
+/** Range un pot mesuré. Remplace la mesure précédente s'il en avait une. */
+export function noterPot(pot: Pot) {
+  return muter((etat) => {
+    (etat.pots ??= {})[pot.fichier] = pot;
+    return pot;
+  });
+}
+
+export function supprimerPot(fichier: string) {
+  return muter((etat) => {
+    try {
+      unlinkSync(cheminPot(fichier));
+    } catch {
+      // Déjà parti : on nettoie quand même la mesure, qui ne sert plus.
+    }
+    if (!etat.pots?.[fichier]) return false;
+    delete etat.pots[fichier];
+    return true;
+  });
+}
+
 // ── Images sources ─────────────────────────────────────────────────────────
 //
 // Elles vivaient sur Drive pendant le spike, et `tache.image` portait un chemin
@@ -229,7 +301,7 @@ export function supprimerSource(fichier: string): boolean {
 export function lire(): Etat {
   try {
     const brut = JSON.parse(readFileSync(cheminEtat(), 'utf8'));
-    return { taches: brut.taches ?? [], plantes: brut.plantes ?? {} };
+    return { taches: brut.taches ?? [], plantes: brut.plantes ?? {}, pots: brut.pots ?? {} };
   } catch {
     return structuredClone(VIDE);
   }
@@ -398,6 +470,22 @@ export function nomFichier(chemin: unknown): string | null {
   return /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(nom) && !nom.includes('..') ? nom : null;
 }
 
+/**
+ * Où poser un pot sous cette plante, en unités du modèle.
+ *
+ * C'est ce qui rendra possible une fonction de pot personnalisé : un pot de la
+ * bibliothèque se met à l'échelle sur `rayon`, se centre sur (x, z) et pose son
+ * rebord à `y`. Sans ces valeurs, il faudrait les redécouvrir à l'exécution,
+ * sur un maillage d'un million de triangles, dans l'app.
+ */
+export type Socle = {
+  x: number;
+  z: number;
+  y: number;
+  rayon: number;
+  hauteurModele: number;
+};
+
 export type Candidat = {
   voie: string;
   sommet: number | null;
@@ -407,6 +495,8 @@ export type Candidat = {
   fichier: string | null;
   /** Aperçus de CE candidat, rendus par l'ouvrier. */
   apercus: string[];
+  /** `null` tant que la plante date d'avant la mesure du socle. */
+  socle: Socle | null;
 };
 
 export type AVoir = {
@@ -431,6 +521,25 @@ function nombre(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }
 
+/**
+ * Le socle, ou `null`.
+ *
+ * Tout ou rien : un socle amputé d'une coordonnée poserait un pot de travers,
+ * ce qui est pire qu'un pot absent. Les plantes générées avant cette mesure
+ * n'en ont pas, et c'est un cas normal, pas une erreur.
+ */
+function socle(brut: unknown): Socle | null {
+  const s = (brut ?? {}) as Record<string, unknown>;
+  const champs = ['x', 'z', 'y', 'rayon', 'hauteur_modele'] as const;
+  const lus = champs.map((k) => nombre(s[k]));
+  if (lus.some((v) => v === null)) return null;
+  const [x, z, y, rayon, hauteurModele] = lus as number[];
+  // Un rayon nul ou négatif ne décrit aucun pot : la voie couleur ne mesure
+  // aucune révolution et rend 0. Mieux vaut pas de socle qu'un socle faux.
+  if (rayon <= 0) return null;
+  return { x, z, y, rayon, hauteurModele };
+}
+
 function candidat(brut: unknown): Candidat {
   const c = (brut ?? {}) as Record<string, unknown>;
   return {
@@ -440,6 +549,7 @@ function candidat(brut: unknown): Candidat {
     confianceParoi: nombre(c.confiance_paroi),
     fichier: nomFichier(c.fichier),
     apercus: (Array.isArray(c.apercus) ? c.apercus : []).map(nomFichier).filter((n): n is string => n !== null),
+    socle: socle(c.socle),
   };
 }
 
@@ -475,6 +585,50 @@ export function aRevoir(): AVoir[] {
         livre: nombre(t.livre),
       };
     });
+}
+
+/** Une plante sur laquelle on peut essayer un pot. */
+export type Posable = {
+  plante: string;
+  /** GLB à charger : la coupe retenue, ou le premier candidat si rien n'est tranché. */
+  fichier: string;
+  socle: Socle;
+  verdict?: 'validee' | 'invalidee';
+};
+
+/**
+ * Les plantes auxquelles on peut poser un pot.
+ *
+ * Il en faut deux choses : un maillage SANS son pot, et un socle qui dise où
+ * poser le nouveau. Une plante validée sans retrait n'entre donc pas — elle a
+ * gardé son pot d'origine, il n'y a pas de place pour un autre.
+ *
+ * Les plantes encore en revue sont incluses : on veut pouvoir essayer un pot
+ * AVANT de trancher, puisque c'est parfois ce qui décide de la coupe à retenir.
+ */
+export function posables(): Posable[] {
+  const etat = lire();
+  const sorties: Posable[] = [];
+  for (const t of etat.taches) {
+    if (t.etat !== 'livree') continue;
+    const p = etat.plantes[t.plante];
+    if (p?.verdict === 'invalidee') continue;
+
+    const bruts = Array.isArray(t.resultat?.candidats_pot) ? t.resultat.candidats_pot : [];
+    const candidats = bruts.map(candidat).filter((c) => c.fichier && c.socle);
+    if (candidats.length === 0) continue;
+
+    // La coupe retenue prime : c'est elle qui sera livrée. Sinon le premier
+    // candidat, pour pouvoir essayer avant de trancher.
+    const retenu = candidats.find((c) => c.fichier === p?.coupe) ?? candidats[0];
+    sorties.push({
+      plante: t.plante,
+      fichier: retenu.fichier!,
+      socle: retenu.socle!,
+      verdict: p?.verdict,
+    });
+  }
+  return sorties.sort((a, b) => a.plante.localeCompare(b.plante, 'fr'));
 }
 
 /** Compteurs du tableau de bord. */

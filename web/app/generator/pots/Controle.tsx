@@ -38,6 +38,8 @@ export type PlanteControlee = {
   fichier: string;
   verdict?: string;
   hauteur: number;
+  /** La mesure vient-elle de l'ouvrier, qui sépare le vert ? */
+  couleur: boolean;
   jugement: Jugement;
   poses: Pose[];
 };
@@ -122,12 +124,14 @@ export default function Controle({ onChoisir }: Props) {
             {signalees.length} plante(s) à regarder de près
           </h3>
           <p className="mt-1 text-xs text-[#6E746B]">
-            De la matière dépasse le rayon de leur ancien rebord. Ou bien
-            c&apos;est un reste de pot, et il faut reprendre la coupe ; ou bien
-            c&apos;est du feuillage qui retombe, et il doit pendre hors du pot.
-            La mesure lit les positions du maillage, pas sa couleur, et ne
-            tranche pas entre les deux — leurs paires sont donc contrôlées comme
-            les autres.
+            De la matière dépasse le rayon de leur ancien rebord. Sur les
+            plantes marquées <strong>couleur</strong>, c&apos;est l&apos;ouvrier
+            qui a mesuré, en excluant le vert : il s&apos;agit donc bien
+            d&apos;un reste de pot, et c&apos;est la coupe qu&apos;il faut
+            reprendre. Sur les autres, la mesure vient d&apos;ici, qui lit les
+            positions du maillage et non sa couleur : ce peut tout aussi bien
+            être du feuillage qui retombe, et qui a le droit de pendre hors du
+            pot. Leurs paires sont contrôlées comme les autres.
           </p>
           <ul className="mt-2 divide-y divide-[#DDD8CF] rounded-xl border border-[#DDD8CF]">
             {signalees.map((p) => (
@@ -140,6 +144,11 @@ export default function Controle({ onChoisir }: Props) {
                   {p.plante}
                 </button>
                 <span className="text-xs text-[#6E746B]">
+                  {p.couleur && (
+                    <span className="mr-2 rounded-full bg-[#E7EDE6] px-2 py-0.5 text-[10px] text-[#234632]">
+                      couleur
+                    </span>
+                  )}
                   ×{p.jugement.largeur.toFixed(2)} du rebord, sur{' '}
                   {(p.jugement.profondeur * 100).toFixed(0)} % de la hauteur
                   {p.jugement.creux ? ` · fond isolé sur ${p.jugement.vide} bandes` : ''}

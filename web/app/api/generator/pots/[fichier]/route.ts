@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cheminPot, noterPot, supprimerPot } from '@/lib/generator/depot';
 import { bonHote, introuvable } from '@/lib/generator/http';
 import { mesurerRebord } from '@/lib/generator/pot';
+import { profilerPot } from '@/lib/generator/profil';
 import { recevoirMorceau } from '@/lib/generator/televersement';
 
 export const dynamic = 'force-dynamic';
@@ -84,8 +85,12 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ fichier: st
     );
   }
 
+  // Le profil radial se prend dans la même lecture logique que le rebord : il
+  // sert au contrôle de pose, et le mesurer ici évite que le premier affichage
+  // de la bibliothèque ait à relire tous les GLB pour rattraper son retard.
   const pot = await noterPot({
     fichier: nom, ...rebord,
+    profil: profilerPot(chemin, rebord) ?? undefined,
     octets: statSync(chemin).size,
     depose: Date.now(),
   });

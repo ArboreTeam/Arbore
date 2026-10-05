@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import Controle from './Controle';
 import Essayage, { type Plante, type Pot } from './Essayage';
 
 // La bibliothèque de pots, et l'essayage.
@@ -117,6 +118,18 @@ export default function Bibliotheque() {
     }
   }, [plantes, planteChoisie]);
 
+  /**
+   * Amener une paire désignée par le contrôle sous les yeux.
+   *
+   * Le contrôle remplace l'inspection systématique, pas la possibilité de
+   * regarder : une paire signalée doit pouvoir être vérifiée d'un clic, sinon
+   * on ne lui fait pas confiance et on recommence tout à la main.
+   */
+  const montrer = useCallback((plante: string, pot: string | null) => {
+    setPlanteChoisie(plantes.find((x) => x.plante === plante) ?? null);
+    setPotChoisi(pot ? (pots ?? []).find((x) => x.fichier === pot) ?? null : null);
+  }, [plantes, pots]);
+
   async function supprimer(p: Pot) {
     await fetch(`/api/generator/pots/${encodeURIComponent(p.fichier)}`, { method: 'DELETE' });
     if (potChoisi?.fichier === p.fichier) setPotChoisi(null);
@@ -152,6 +165,8 @@ export default function Bibliotheque() {
       {erreur && (
         <p className="mt-4 rounded-lg bg-[#F8D7D7] px-3 py-2 text-sm text-[#8A1B1B]">{erreur}</p>
       )}
+
+      <Controle onChoisir={montrer} />
 
       <section className="mt-8 grid gap-6 lg:grid-cols-[1fr_380px]">
         <div>

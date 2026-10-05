@@ -20,6 +20,14 @@ export type Tache = {
   image: string;
   graine: number | null;
   raison: string;
+  /**
+   * Cette plante n'a pas de pot : l'ouvrier saute la détection.
+   *
+   * Porté par la TÂCHE et non relu depuis la source au moment où l'ouvrier la
+   * prend : le drapeau doit valoir ce qu'il valait au dépôt, sinon une tâche
+   * déposée hier changerait de sens parce qu'on a coché une case ce matin.
+   */
+  sansPot?: boolean;
   etat: EtatTache;
   depose: number;
   pris?: number;
@@ -59,10 +67,20 @@ export type Etat = {
   pots?: Record<string, Pot>;
   plantes: Record<string, {
     graines: number[];
-    verdict?: 'validee' | 'invalidee';
+    /**
+     * `ecartee` est un verdict à part entière, et non une invalidation muette.
+     * Invalider veut dire « refais-la » ; écarter veut dire « n'y reviens
+     * pas ». Quand le défaut vient de la SOURCE — une image dans l'image, une
+     * étagère modélisée — relancer sur une graine neuve ne peut que reproduire
+     * le défaut, et c'était pourtant la seule issue offerte.
+     */
+    verdict?: 'validee' | 'invalidee' | 'ecartee';
     coupe?: string;
+    raison?: string;
     purge?: Purge;
   }>;
+  /** Ce qu'on sait d'une source au-delà de son fichier. */
+  sources?: Record<string, { sansPot?: boolean }>;
 };
 
 const VIDE: Etat = { taches: [], plantes: {} };
@@ -244,7 +262,9 @@ export type Source = {
   modifie: number;
   /** Une tâche non terminée existe déjà pour cette plante. */
   enFile: boolean;
-  verdict?: 'validee' | 'invalidee';
+  verdict?: 'validee' | 'invalidee' | 'ecartee';
+  /** Cette plante n'a pas de pot : on ne cherchera pas à lui en retirer un. */
+  sansPot: boolean;
 };
 
 /**
@@ -283,25 +303,72 @@ export function sources(): Source[] {
         plante, fichier, octets, modifie,
         enFile: vivantes.has(plante),
         verdict: etat.plantes[plante]?.verdict,
+        sansPot: Boolean(etat.sources?.[fichier]?.sansPot),
       };
     })
     .sort((a, b) => a.plante.localeCompare(b.plante, 'fr'));
 }
 
-/** Supprime une source. Les artefacts déjà produits ne sont pas touchés. */
-export function supprimerSource(fichier: string): boolean {
-  try {
-    unlinkSync(cheminSource(fichier));
-    return true;
-  } catch {
-    return false;
-  }
+/**
+ * Marque une source comme étant sans pot, ou le défait.
+ *
+ * L'ouvrier saute alors la détection, et la plante n'entre pas dans le
+ * périmètre des pots personnalisés. Un palmier hors pot a reçu une proposition
+ * de coupe sur le premier lot : la question n'aurait pas dû être posée.
+ */
+export function marquerSansPot(fichier: string, sansPot: boolean) {
+  return muter((etat) => {
+    const s = (etat.sources ??= {});
+    if (sansPot) (s[fichier] ??= {}).sansPot = true;
+    else delete s[fichier];
+    return sansPot;
+  });
+}
+
+export type RetraitSource =
+  | { ok: true; tachesRetirees: number }
+  | { ok: false; raison: 'introuvable' | 'tache_en_cours' };
+
+/**
+ * Retire une source ET ses tâches en attente.
+ *
+ * Les laisser derrière soi n'était pas neutre : l'ouvrier les prenait et
+ * échouait sur `image introuvable`, tardivement et par un échec plutôt que par
+ * une décision. Constaté sur `Haworthia_Mix` et `Maranta_Leuconeura_Vert`.
+ *
+ * Refusé tant qu'une tâche est EN COURS : on ne tire pas le tapis sous les
+ * pieds d'un ouvrier qui a déjà engagé le GPU dessus.
+ *
+ * Les artefacts déjà produits ne sont pas touchés : ils restent la trace de ce
+ * qui a été jugé.
+ */
+export function supprimerSource(fichier: string): Promise<RetraitSource> {
+  return muter((etat): RetraitSource => {
+    const plante = planteDe(fichier);
+    if (etat.taches.some((t) => t.plante === plante && t.etat === 'en_cours')) {
+      return { ok: false, raison: 'tache_en_cours' };
+    }
+    try {
+      unlinkSync(cheminSource(fichier));
+    } catch {
+      return { ok: false, raison: 'introuvable' };
+    }
+    const avant = etat.taches.length;
+    etat.taches = etat.taches.filter(
+      (t) => !(t.plante === plante && t.etat === 'en_attente'),
+    );
+    delete etat.sources?.[fichier];
+    return { ok: true, tachesRetirees: avant - etat.taches.length };
+  });
 }
 
 export function lire(): Etat {
   try {
     const brut = JSON.parse(readFileSync(cheminEtat(), 'utf8'));
-    return { taches: brut.taches ?? [], plantes: brut.plantes ?? {}, pots: brut.pots ?? {} };
+    return {
+      taches: brut.taches ?? [], plantes: brut.plantes ?? {},
+      pots: brut.pots ?? {}, sources: brut.sources ?? {},
+    };
   } catch {
     return structuredClone(VIDE);
   }
@@ -349,10 +416,14 @@ function identifiant(): string {
   return Math.random().toString(16).slice(2, 10) + Date.now().toString(16).slice(-4);
 }
 
-export function deposer(plante: string, image: string, raison = 'initiale', graine: number | null = null) {
+export function deposer(
+  plante: string, image: string, raison = 'initiale',
+  graine: number | null = null, sansPot = false,
+) {
   return muter((etat) => {
     const tache: Tache = {
       id: identifiant(), plante, image, graine, raison,
+      ...(sansPot ? { sansPot: true } : {}),
       etat: 'en_attente', depose: Date.now(),
     };
     etat.taches.push(tache);
@@ -593,7 +664,7 @@ export type Posable = {
   /** GLB à charger : la coupe retenue, ou le premier candidat si rien n'est tranché. */
   fichier: string;
   socle: Socle;
-  verdict?: 'validee' | 'invalidee';
+  verdict?: 'validee' | 'invalidee' | 'ecartee';
 };
 
 /**
@@ -612,7 +683,9 @@ export function posables(): Posable[] {
   for (const t of etat.taches) {
     if (t.etat !== 'livree') continue;
     const p = etat.plantes[t.plante];
-    if (p?.verdict === 'invalidee') continue;
+    // Invalidée : une autre génération viendra. Écartée : on n'y revient pas.
+    // Dans les deux cas, pas de pot à lui poser.
+    if (p?.verdict === 'invalidee' || p?.verdict === 'ecartee') continue;
 
     const bruts = Array.isArray(t.resultat?.candidats_pot) ? t.resultat.candidats_pot : [];
     const candidats = bruts.map(candidat).filter((c) => c.fichier && c.socle);
@@ -653,16 +726,24 @@ export function bilan() {
  * seul chemin qui remonte vers le GPU, et il ne sert qu'au défaut qu'aucune
  * métrique ne voit — la géométrie inventée mais plausible.
  */
-export function trancher(plante: string, valide: boolean, coupe?: string) {
+export type Verdict = 'validee' | 'invalidee' | 'ecartee';
+
+export function trancher(plante: string, verdict: Verdict, coupe?: string, raison?: string) {
   return muter((etat) => {
     const p = (etat.plantes[plante] ??= { graines: [] });
-    p.verdict = valide ? 'validee' : 'invalidee';
+    const valide = verdict === 'validee';
+    p.verdict = verdict;
     if (valide && coupe) p.coupe = coupe;
-    if (!valide) {
+    if (raison) p.raison = raison.slice(0, 300);
+    // Seule l'invalidation redépose. Écarter veut dire « n'y reviens pas » :
+    // le défaut est dans la source, et une graine neuve le reproduirait.
+    if (verdict === 'invalidee') {
       const source = etat.taches.filter((t) => t.plante === plante).at(-1);
       etat.taches.push({
         id: identifiant(), plante, image: source?.image ?? '',
         graine: null, raison: 'invalidee_revue',
+        // Le drapeau suit la relance : une plante sans pot le reste.
+        ...(source?.sansPot ? { sansPot: true } : {}),
         etat: 'en_attente', depose: Date.now(),
       });
     }
@@ -674,6 +755,8 @@ export function trancher(plante: string, valide: boolean, coupe?: string) {
     // Invalidée : rien n'est gardé, le maillage est rejeté.
     const livree = etat.taches.filter((t) => t.plante === plante && t.etat === 'livree').at(-1);
     const complet = nomFichier(livree?.resultat?.glb);
+    // Écartée comme invalidée : rien à conserver. Le maillage ne sera livré ni
+    // maintenant ni plus tard.
     const aGarder = valide ? (nomFichier(coupe) ?? complet) : null;
 
     if (valide && !aGarder) {

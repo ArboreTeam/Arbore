@@ -18,7 +18,8 @@ type Source = {
   octets: number;
   modifie: number;
   enFile: boolean;
-  verdict?: 'validee' | 'invalidee';
+  verdict?: 'validee' | 'invalidee' | 'ecartee';
+  sansPot: boolean;
 };
 
 // Même taille que côté ouvrier, et pour la même raison : Next tronque à 10 Mo
@@ -51,6 +52,7 @@ function poids(o: number): string {
 export default function Sources() {
   const [liste, setListe] = useState<Source[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [envoi, setEnvoi] = useState<{ nom: string; part: number } | null>(null);
   const [occupe, setOccupe] = useState<string | null>(null);
   const champ = useRef<HTMLInputElement>(null);
@@ -117,7 +119,36 @@ export default function Sources() {
 
   async function supprimer(s: Source) {
     setOccupe(s.plante);
-    await fetch(`/api/generator/sources/${encodeURIComponent(s.fichier)}`, { method: 'DELETE' });
+    const r = await fetch(`/api/generator/sources/${encodeURIComponent(s.fichier)}`,
+                          { method: 'DELETE' });
+    if (!r.ok) {
+      // 409 : une génération est en cours. On ne tire pas le tapis sous les
+      // pieds de l'ouvrier, et réessayer plus tard marchera.
+      const d = await r.json().catch(() => ({}));
+      setErreur(`${s.plante} : ${d.error ?? `retrait refusé (${r.status})`}`);
+    } else {
+      const d = await r.json().catch(() => ({}));
+      if (d.tachesRetirees) {
+        setErreur(null);
+        setInfo(`${s.plante} retirée, avec ${d.tachesRetirees} tâche(s) en attente`);
+      }
+    }
+    setOccupe(null);
+    await recharger();
+  }
+
+  /**
+   * Une plante sans pot : l'ouvrier saute la détection, et elle n'entre pas
+   * dans le périmètre des pots personnalisés. Un palmier hors pot a reçu une
+   * proposition de coupe sur le premier lot ; la question n'avait pas lieu.
+   */
+  async function basculerSansPot(s: Source) {
+    setOccupe(s.plante);
+    await fetch(`/api/generator/sources/${encodeURIComponent(s.fichier)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sansPot: !s.sansPot }),
+    });
     setOccupe(null);
     await recharger();
   }
@@ -158,6 +189,9 @@ export default function Sources() {
       {erreur && (
         <p className="mt-4 rounded-lg bg-[#F8D7D7] px-3 py-2 text-sm text-[#8A1B1B]">{erreur}</p>
       )}
+      {info && (
+        <p className="mt-4 rounded-lg bg-[#E7EDE6] px-3 py-2 text-sm text-[#234632]">{info}</p>
+      )}
 
       {aDeposer.length > 1 && (
         <button
@@ -196,6 +230,20 @@ export default function Sources() {
                     {s.plante}
                   </div>
                   <div className="mt-0.5 text-xs text-[#6E746B]">{poids(s.octets)}</div>
+
+                  <button
+                    type="button"
+                    disabled={occupe === s.plante}
+                    onClick={() => void basculerSansPot(s)}
+                    title="L'ouvrier ne cherchera pas de pot à retirer"
+                    className={`mt-2 w-full rounded-lg px-2 py-1 text-[11px] ${
+                      s.sansPot
+                        ? 'bg-[#E7EDE6] text-[#234632]'
+                        : 'border border-[#DDD8CF] text-[#6E746B] hover:border-[#234632]'
+                    }`}
+                  >
+                    {s.sansPot ? 'sans pot ✓' : 'marquer sans pot'}
+                  </button>
 
                   <div className="mt-3 flex gap-2">
                     {s.enFile ? (

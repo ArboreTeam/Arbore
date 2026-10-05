@@ -40,8 +40,23 @@ export type Purge = {
   raison?: string;
 };
 
+/** Un pot de la bibliothèque, avec le rebord mesuré à l'ingestion. */
+export type Pot = {
+  fichier: string;
+  rayon: number;
+  y: number;
+  x: number;
+  z: number;
+  hauteur: number;
+  triangles: number;
+  octets: number;
+  depose: number;
+};
+
 export type Etat = {
   taches: Tache[];
+  /** Bibliothèque de pots, indexée par nom de fichier. */
+  pots?: Record<string, Pot>;
   plantes: Record<string, {
     graines: number[];
     verdict?: 'validee' | 'invalidee';
@@ -137,6 +152,63 @@ export function purger(plante: string, garder: string[]): { supprimes: string[];
   return { supprimes, octets };
 }
 
+// ── Bibliothèque de pots ───────────────────────────────────────────────────
+//
+// Dossier frère de `sources/` et `plantes/`. Un pot n'appartient à aucune
+// plante : c'est tout l'objet de la fonction, pouvoir le poser sous n'importe
+// laquelle.
+
+/** Dossier des pots. Mêmes gardes que les sources, extension GLB seule. */
+export function cheminPot(fichier: string): string {
+  if (fichier.includes('/') || fichier.includes('\\') || fichier.includes('..')) {
+    throw new Error('chemin refusé');
+  }
+  if (!/^[a-z0-9_-]+\.glb$/i.test(fichier)) {
+    throw new Error('nom de pot refusé');
+  }
+  return join(racine(), 'pots', fichier);
+}
+
+export function pots(): Pot[] {
+  const etat = lire();
+  let presents: string[];
+  try {
+    presents = readdirSync(join(racine(), 'pots'))
+      .filter((f) => f.toLowerCase().endsWith('.glb'));
+  } catch {
+    return [];
+  }
+  // On n'annonce que ce qui est À LA FOIS sur le disque ET mesuré. Un fichier
+  // sans mesure ne serait pas posable, et une mesure sans fichier ne serait
+  // pas chargeable : dans les deux cas l'écran montrerait un pot qui ne
+  // marche pas.
+  return presents
+    .map((f) => etat.pots?.[f])
+    .filter((p): p is Pot => Boolean(p))
+    .sort((a, b) => a.fichier.localeCompare(b.fichier, 'fr'));
+}
+
+/** Range un pot mesuré. Remplace la mesure précédente s'il en avait une. */
+export function noterPot(pot: Pot) {
+  return muter((etat) => {
+    (etat.pots ??= {})[pot.fichier] = pot;
+    return pot;
+  });
+}
+
+export function supprimerPot(fichier: string) {
+  return muter((etat) => {
+    try {
+      unlinkSync(cheminPot(fichier));
+    } catch {
+      // Déjà parti : on nettoie quand même la mesure, qui ne sert plus.
+    }
+    if (!etat.pots?.[fichier]) return false;
+    delete etat.pots[fichier];
+    return true;
+  });
+}
+
 // ── Images sources ─────────────────────────────────────────────────────────
 //
 // Elles vivaient sur Drive pendant le spike, et `tache.image` portait un chemin
@@ -229,7 +301,7 @@ export function supprimerSource(fichier: string): boolean {
 export function lire(): Etat {
   try {
     const brut = JSON.parse(readFileSync(cheminEtat(), 'utf8'));
-    return { taches: brut.taches ?? [], plantes: brut.plantes ?? {} };
+    return { taches: brut.taches ?? [], plantes: brut.plantes ?? {}, pots: brut.pots ?? {} };
   } catch {
     return structuredClone(VIDE);
   }

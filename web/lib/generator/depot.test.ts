@@ -9,9 +9,10 @@ process.env.GENERATOR_DATA_DIR = BAC;
 import { mkdirSync, writeFileSync, readdirSync } from 'node:fs';
 
 import {
-  EXPIRATION_MS, aRevoir, bilan, cheminArtefact, deposer, echouer, historique,
-  cheminSource, lire, livrer, marquerSansPot, nomFichier, noterGraine, planteDe,
-  posables, prendre, purger, reinitialiser, sources, supprimerSource, trancher,
+  EXPIRATION_MS, aRevoir, bilan, cheminArtefact, cleEmpreinte, deposer, echouer,
+  empreinteRangee, historique, cheminSource, lire, livrer, marquerSansPot,
+  nomFichier, noterEmpreinte, noterGraine, planteDe, posables, prendre, purger,
+  reinitialiser, sources, supprimerSource, trancher,
 } from './depot';
 
 afterAll(() => rmSync(BAC, { recursive: true, force: true }));
@@ -727,5 +728,45 @@ describe('dépôt — chemins d artefacts', () => {
 
   it('accepte un nom de plante normal', () => {
     expect(cheminArtefact('nephrolepis', 'apercu_000.png')).toContain('nephrolepis');
+  });
+});
+
+describe('dépôt — empreintes mises en cache', () => {
+  beforeEach(() => reinitialiser());
+
+  const residu = { rayons: new Array<number>(24).fill(0.09), profondeur: 0.2 };
+
+  it('rend l empreinte rangée quand la taille du fichier concorde', async () => {
+    await noterEmpreinte('ficus', 'sanspot_geometrie.glb',
+                         { residu, hauteur: 1, octets: 1234, mesure: 1 });
+    const e = empreinteRangee('ficus', 'sanspot_geometrie.glb', 1234);
+    expect(e).not.toBeNull();
+    expect(e!.hauteur).toBe(1);
+  });
+
+  /**
+   * La fraîcheur par la TAILLE, et c'est ce qui compte : une régénération sous
+   * une autre graine réécrit le GLB sous le même nom. Sans ce contrôle,
+   * l'atelier jugerait la plante neuve sur l'empreinte de l'ancienne, et
+   * personne ne verrait l'erreur puisque les deux mesures sont plausibles.
+   */
+  it('ignore l empreinte quand le maillage a changé de taille', async () => {
+    await noterEmpreinte('ficus', 'sanspot_geometrie.glb',
+                         { residu, hauteur: 1, octets: 1234, mesure: 1 });
+    expect(empreinteRangee('ficus', 'sanspot_geometrie.glb', 9999)).toBeNull();
+  });
+
+  it('ne confond pas deux coupes d une même plante', async () => {
+    await noterEmpreinte('ficus', 'sanspot_geometrie.glb',
+                         { residu, hauteur: 1, octets: 10, mesure: 1 });
+    await noterEmpreinte('ficus', 'sanspot_couleur.glb',
+                         { residu, hauteur: 2, octets: 10, mesure: 1 });
+    expect(empreinteRangee('ficus', 'sanspot_geometrie.glb', 10)!.hauteur).toBe(1);
+    expect(empreinteRangee('ficus', 'sanspot_couleur.glb', 10)!.hauteur).toBe(2);
+    expect(cleEmpreinte('ficus', 'a.glb')).toBe('ficus/a.glb');
+  });
+
+  it('rend null quand rien n a été mesuré', () => {
+    expect(empreinteRangee('inconnue', 'x.glb', 1)).toBeNull();
   });
 });

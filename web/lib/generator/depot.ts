@@ -11,6 +11,7 @@
 // seule : rien d'autre ne manipule d'octets.
 import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Empreinte, Profil } from './profil';
 
 export type EtatTache = 'en_attente' | 'en_cours' | 'livree' | 'echec';
 
@@ -59,6 +60,26 @@ export type Pot = {
   triangles: number;
   octets: number;
   depose: number;
+  /**
+   * Profil radial de la lèvre au fond.
+   *
+   * Absent sur les pots rangés avant le contrôle de pose : il est alors
+   * remesuré à la demande, car relire un GLB à chaque affichage de la
+   * bibliothèque coûterait plus que tout le reste de la page.
+   */
+  profil?: Profil;
+};
+
+/**
+ * Empreinte d'une plante coupée, mise en cache.
+ *
+ * La mesurer demande de relire un maillage de soixante mégaoctets. Faite à
+ * chaque affichage, et pour chaque plante, elle rendrait l'écran inutilisable ;
+ * `octets` sert de clé de fraîcheur, pour qu'une régénération la refasse.
+ */
+export type EmpreinteRangee = Empreinte & {
+  octets: number;
+  mesure: number;
 };
 
 export type Etat = {
@@ -81,6 +102,8 @@ export type Etat = {
   }>;
   /** Ce qu'on sait d'une source au-delà de son fichier. */
   sources?: Record<string, { sansPot?: boolean }>;
+  /** Empreintes mesurées, indexées par « plante/fichier ». */
+  empreintes?: Record<string, EmpreinteRangee>;
 };
 
 const VIDE: Etat = { taches: [], plantes: {} };
@@ -211,6 +234,31 @@ export function noterPot(pot: Pot) {
   return muter((etat) => {
     (etat.pots ??= {})[pot.fichier] = pot;
     return pot;
+  });
+}
+
+// ── Empreintes des plantes ─────────────────────────────────────────────────
+
+/** Clé de cache d'une empreinte : la plante et le GLB coupé qui la porte. */
+export function cleEmpreinte(plante: string, fichier: string): string {
+  return `${plante}/${fichier}`;
+}
+
+export function empreinteRangee(
+  plante: string, fichier: string, octets: number,
+): EmpreinteRangee | null {
+  const e = lire().empreintes?.[cleEmpreinte(plante, fichier)];
+  // La taille du fichier fait foi : une régénération sous une autre graine
+  // rend l'empreinte précédente fausse, et rien d'autre ne le signalerait.
+  return e && e.octets === octets ? e : null;
+}
+
+export function noterEmpreinte(
+  plante: string, fichier: string, empreinte: EmpreinteRangee,
+) {
+  return muter((etat) => {
+    (etat.empreintes ??= {})[cleEmpreinte(plante, fichier)] = empreinte;
+    return empreinte;
   });
 }
 
@@ -368,6 +416,7 @@ export function lire(): Etat {
     return {
       taches: brut.taches ?? [], plantes: brut.plantes ?? {},
       pots: brut.pots ?? {}, sources: brut.sources ?? {},
+      empreintes: brut.empreintes ?? {},
     };
   } catch {
     return structuredClone(VIDE);

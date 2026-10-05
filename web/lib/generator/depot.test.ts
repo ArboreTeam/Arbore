@@ -770,3 +770,55 @@ describe('dépôt — empreintes mises en cache', () => {
     expect(empreinteRangee('inconnue', 'x.glb', 1)).toBeNull();
   });
 });
+
+describe('dépôt — le résidu mesuré par l ouvrier', () => {
+  beforeEach(() => reinitialiser());
+
+  const bandes = (v: number) => new Array<number>(24).fill(v);
+
+  async function livrerAvecResidu(plante: string, residu: unknown) {
+    await deposer(plante, `/${plante}.png`);
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      graine: 1, accepte: true,
+      candidats_pot: [{
+        voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb',
+        socle: { x: 0, z: 0, y: -0.2, rayon: 0.1, hauteur_modele: 1 },
+        residu,
+      }],
+    });
+    return aRevoir()[0].candidats[0];
+  }
+
+  it('traverse l API quand il est complet', async () => {
+    const c = await livrerAvecResidu('bonne', {
+      profondeur: 0.22, hauteur: 0.78, pot: bandes(0), vert: bandes(0.11),
+    });
+    expect(c.residu).not.toBeNull();
+    expect(c.residu!.profondeur).toBe(0.22);
+    expect(c.residu!.hauteur).toBe(0.78);
+    expect(c.residu!.vert[0]).toBe(0.11);
+    expect(posables()[0].residu).not.toBeNull();
+  });
+
+  /**
+   * Tout ou rien, comme le socle : un profil amputé d'une bande ferait juger la
+   * plante sur une mesure trompeuse, ce qui est pire que de ne pas la juger.
+   * L'atelier retombe alors sur sa propre mesure.
+   */
+  it('refuse un résidu incomplet ou absurde', async () => {
+    const mauvais: unknown[] = [
+      undefined,
+      { profondeur: 0.2, hauteur: 0.8, pot: bandes(0) },               // pas de vert
+      { profondeur: 0.2, hauteur: 0.8, pot: [0, 0], vert: bandes(0) }, // trop court
+      { profondeur: 0.2, hauteur: 0, pot: bandes(0), vert: bandes(0) },// hauteur nulle
+      { profondeur: -1, hauteur: 0.8, pot: bandes(0), vert: bandes(0) },
+      { profondeur: 0.2, hauteur: 0.8, pot: bandes(-0.1), vert: bandes(0) },
+      { profondeur: 0.2, hauteur: 0.8, pot: bandes(Infinity), vert: bandes(0) },
+    ];
+    for (let i = 0; i < mauvais.length; i += 1) {
+      const c = await livrerAvecResidu(`mauvaise_${i}`, mauvais[i]);
+      expect(c.residu, `cas ${i}`).toBeNull();
+    }
+  });
+});

@@ -11,7 +11,7 @@
 // seule : rien d'autre ne manipule d'octets.
 import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Empreinte, Profil } from './profil';
+import { BANDES, type Empreinte, type Profil } from './profil';
 
 export type EtatTache = 'en_attente' | 'en_cours' | 'livree' | 'echec';
 
@@ -606,6 +606,25 @@ export type Socle = {
   hauteurModele: number;
 };
 
+/**
+ * Le résidu tel que l'ouvrier l'a mesuré, le vert à part.
+ *
+ * Mesuré là-bas et pas ici, parce que là-bas seulement on connaît la couleur :
+ * l'atelier ne lit que les positions du GLB et ne sait pas distinguer un reste
+ * de pot d'un feuillage qui retombe. Absent sur les plantes livrées avant
+ * cette mesure, et l'atelier retombe alors sur la sienne, aveugle à la
+ * couleur.
+ */
+export type ResiduLivre = {
+  profondeur: number;
+  /** Hauteur du maillage GARDÉ, pour juger de la proportion du pot posé. */
+  hauteur: number;
+  /** Rayons par bande de ce qui n'est pas vert : les restes de pot. */
+  pot: number[];
+  /** Rayons par bande du vert : du feuillage, qui pend hors du pot. */
+  vert: number[];
+};
+
 export type Candidat = {
   voie: string;
   sommet: number | null;
@@ -617,6 +636,8 @@ export type Candidat = {
   apercus: string[];
   /** `null` tant que la plante date d'avant la mesure du socle. */
   socle: Socle | null;
+  /** `null` tant que la plante date d'avant la mesure du résidu. */
+  residu: ResiduLivre | null;
 };
 
 export type AVoir = {
@@ -660,6 +681,28 @@ function socle(brut: unknown): Socle | null {
   return { x, z, y, rayon, hauteurModele };
 }
 
+/**
+ * Le résidu livré, ou `null`.
+ *
+ * Tout ou rien, comme le socle : un profil amputé d'une bande ferait juger la
+ * plante sur une mesure trompeuse, ce qui est pire que de ne pas la juger.
+ */
+function residuLivre(brut: unknown, bandes: number): ResiduLivre | null {
+  const d = (brut ?? {}) as Record<string, unknown>;
+  const prof = nombre(d.profondeur);
+  const haut = nombre(d.hauteur);
+  if (prof === null || haut === null || prof < 0 || haut <= 0) return null;
+  const bande = (v: unknown): number[] | null => {
+    if (!Array.isArray(v) || v.length !== bandes) return null;
+    const lus = v.map(nombre);
+    return lus.some((x) => x === null || x < 0) ? null : (lus as number[]);
+  };
+  const pot = bande(d.pot);
+  const vert = bande(d.vert);
+  if (!pot || !vert) return null;
+  return { profondeur: prof, hauteur: haut, pot, vert };
+}
+
 function candidat(brut: unknown): Candidat {
   const c = (brut ?? {}) as Record<string, unknown>;
   return {
@@ -670,6 +713,7 @@ function candidat(brut: unknown): Candidat {
     fichier: nomFichier(c.fichier),
     apercus: (Array.isArray(c.apercus) ? c.apercus : []).map(nomFichier).filter((n): n is string => n !== null),
     socle: socle(c.socle),
+    residu: residuLivre(c.residu, BANDES),
   };
 }
 
@@ -713,6 +757,8 @@ export type Posable = {
   /** GLB à charger : la coupe retenue, ou le premier candidat si rien n'est tranché. */
   fichier: string;
   socle: Socle;
+  /** Le résidu mesuré par l'ouvrier, quand la plante en porte un. */
+  residu: ResiduLivre | null;
   verdict?: 'validee' | 'invalidee' | 'ecartee';
 };
 
@@ -747,6 +793,7 @@ export function posables(): Posable[] {
       plante: t.plante,
       fichier: retenu.fichier!,
       socle: retenu.socle!,
+      residu: retenu.residu,
       verdict: p?.verdict,
     });
   }

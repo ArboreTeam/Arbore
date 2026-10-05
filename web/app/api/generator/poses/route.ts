@@ -89,10 +89,12 @@ export async function GET(req: NextRequest) {
       socle: p.socle,
       hauteur: empreinte.hauteur,
       jugement,
-      // Une plante dont le résidu dépasse son propre rebord ne tient dans
-      // aucun pot : contrôler les paires une à une n'apprendrait rien de plus,
-      // et noierait la vraie cause sous dix lignes identiques.
-      poses: jugement.defauts.length > 0 ? [] : bibliotheque.map((pot) => ({
+      // Les paires sont contrôlées même quand la plante porte un signal : ce
+      // signal ne sait pas distinguer un reste de pot d'un feuillage
+      // retombant, et sauter le contrôle priverait d'une réponse les plantes
+      // qu'il désigne à tort. Mesuré sur le premier lot, il en désigne 40
+      // sur 48 — en sauter 40 ne laisserait rien à l'écran.
+      poses: bibliotheque.map((pot) => ({
         pot: pot.fichier,
         ...controlerPose(p.socle, pot, empreinte!, pot.profil!),
       })),

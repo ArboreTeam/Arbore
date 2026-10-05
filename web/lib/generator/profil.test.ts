@@ -182,13 +182,14 @@ describe('jugement d une plante, pot indépendant', () => {
   });
 
   /**
-   * Le cas qui décide : le rebord du pot est mis à l'échelle du rayon du socle,
-   * donc un résidu plus large que ce rayon dépasse de TOUT pot. Le dire une
-   * fois évite de l'essayer cent fois.
+   * Le signal, et non un verdict : faute de couleur, la mesure ne sépare pas un
+   * reste de pot d'un feuillage qui retombe, et le second a le droit de pendre
+   * hors du pot. Mesuré en séparant le vert hors de l'application, le feuillage
+   * seul suffit à franchir le seuil sur l'Alocasia Zebrina.
    */
-  it('condamne un résidu plus large que le rayon du socle', () => {
+  it('signale la matière plus large que le rayon du socle', () => {
     const j = jugerEmpreinte(socle, empreinte([0.27, 0.12, 0.10], 0.24, 1.0));
-    expect(j.defauts).toContain('residu_large');
+    expect(j.defauts).toContain('matiere_large');
     expect(j.largeur).toBeCloseTo(2.7, 2);
   });
 

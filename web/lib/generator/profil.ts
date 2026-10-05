@@ -183,13 +183,26 @@ export function profilerPlante(
  */
 export const SEUILS = {
   /**
-   * Largeur du résidu au-delà de laquelle aucun pot ne peut le cacher.
+   * Largeur, en multiples du rayon du socle, au-delà de laquelle la matière
+   * sous la coupe mérite un regard.
    *
-   * Le rebord du pot est mis à l'échelle du rayon du socle : un résidu plus
-   * large que ce rayon dépasse donc de TOUT pot, quelle que soit sa forme.
-   * Mesuré sur le premier lot : largeur médiane 1,25 et seulement 8 plantes
-   * sur 48 sous 1,05 — la marge de 5 % absorbe le bruit du 95e centile, et les
-   * 8 qui passent vont de 0,81 à 1,04, sans cas limite à départager.
+   * Un SIGNAL, pas un verdict, et la nuance a été payée : mesuré d'abord comme
+   * « aucun pot ne peut la cacher », puisque le rebord de tout pot est mis à
+   * l'échelle du rayon du socle. C'est juste pour un reste de pot, et faux pour
+   * du feuillage qui retombe sous la ligne du rebord — celui-là pend à
+   * l'extérieur du pot, ce qui est exactement ce qu'il doit faire.
+   *
+   * Or cette mesure est AVEUGLE À LA COULEUR : elle lit les positions du GLB,
+   * pas sa texture, et ne sait pas distinguer les deux. Mesuré en séparant le
+   * vert, hors de l'application, sur trois plantes recoupées : l'Alocasia
+   * Zebrina garde 14 591 triangles non verts à 1,23 rayon mais sur 0,036
+   * d'épaisseur seulement — la lèvre de l'ancien pot — et 2 594 triangles verts
+   * qui descendent à 0,22, dont le plus large atteint 1,22. Le feuillage seul
+   * suffit donc à franchir le seuil.
+   *
+   * Sur le premier lot, 40 plantes sur 48 le franchissent ; combien sont de
+   * vrais restes de pot reste à établir, et c'est l'ouvrier qui le dira,
+   * puisque lui connaît la couleur.
    */
   largeur: 1.05,
   /** Débordement toléré hors de la paroi, en fraction du rayon du socle. */
@@ -207,7 +220,7 @@ export const SEUILS = {
 
 // ── Jugement d'une plante, pot indépendant ─────────────────────────────────
 
-export type DefautPlante = 'residu_large';
+export type DefautPlante = 'matiere_large';
 
 /**
  * Nombre de bandes vides consécutives à partir duquel on parle de creux.
@@ -240,10 +253,10 @@ export type Jugement = {
 /**
  * Ce qu'on peut dire d'une plante sans choisir de pot.
  *
- * La distinction compte : un résidu plus large que le rebord d'origine rend la
- * plante inutilisable avec N'IMPORTE QUEL pot, et le dire une fois vaut mieux
- * que de le redécouvrir pot après pot. C'est le nettoyage du résidu qu'il faut
- * alors reprendre, pas le choix du pot.
+ * À lire comme un signal à vérifier et non comme un verdict : faute de
+ * couleur, cette mesure ne sépare pas un reste de pot d'un feuillage
+ * retombant. Elle ne dispense donc pas de contrôler les paires — voir le
+ * commentaire de `SEUILS.largeur`.
  */
 export function jugerEmpreinte(
   socle: { rayon: number }, empreinte: Empreinte, seuils = SEUILS,
@@ -277,7 +290,7 @@ export function jugerEmpreinte(
   if (courant > vide) vide = courant;
 
   const defauts: DefautPlante[] = [];
-  if (largeur > seuils.largeur) defauts.push('residu_large');
+  if (largeur > seuils.largeur) defauts.push('matiere_large');
 
   return {
     largeur: Number(largeur.toFixed(4)),

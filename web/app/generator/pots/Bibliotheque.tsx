@@ -38,14 +38,26 @@ export default function Bibliotheque() {
   const [envoi, setEnvoi] = useState<string | null>(null);
   const champ = useRef<HTMLInputElement>(null);
 
+  /**
+   * Remplace une liste SEULEMENT si son contenu a changé.
+   *
+   * Sans ce contrôle, chaque rafraîchissement rendrait des objets neufs, la
+   * sélection changerait d'identité, et la visionneuse rechargerait un GLB de
+   * cinquante mégaoctets sous les yeux de qui est en train de le regarder.
+   */
+  function remplacerSiChange<T>(ancien: T[] | null, neuf: T[]): T[] {
+    return ancien && JSON.stringify(ancien) === JSON.stringify(neuf) ? ancien : neuf;
+  }
+
   const recharger = useCallback(async () => {
     try {
       const [p, q] = await Promise.all([
         fetch('/api/generator/pots').then((r) => r.json()),
         fetch('/api/generator/plantes').then((r) => r.json()),
       ]);
-      setPots(p.pots ?? []);
-      setPlantes(q.plantes ?? []);
+      setPots((v) => remplacerSiChange(v, p.pots ?? []));
+      setPlantes((v) => remplacerSiChange(v, q.plantes ?? []));
+      setErreur(null);
     } catch {
       setErreur('liste indisponible');
     }
@@ -53,6 +65,13 @@ export default function Bibliotheque() {
 
   useEffect(() => {
     void recharger();
+    // Les plantes arrivent au fil des validations, et les lots durent des
+    // heures : recharger à la main pour voir la liste grandir décourage de
+    // s'en servir. Rien ne part quand l'onglet est en arrière-plan.
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') void recharger();
+    }, 30_000);
+    return () => clearInterval(t);
   }, [recharger]);
 
   async function televerser(fichier: File) {
@@ -78,6 +97,25 @@ export default function Bibliotheque() {
     setEnvoi(null);
     await recharger();
   }
+
+  // La sélection suit le contenu, pas l'identité : si la liste est remplacée,
+  // on retrouve le même pot et la même plante par leur nom plutôt que de
+  // perdre ce qui est affiché.
+  useEffect(() => {
+    if (potChoisi && pots) {
+      const a = pots.find((x) => x.fichier === potChoisi.fichier);
+      if (!a) setPotChoisi(null);
+      else if (a !== potChoisi) setPotChoisi(a);
+    }
+  }, [pots, potChoisi]);
+
+  useEffect(() => {
+    if (planteChoisie) {
+      const a = plantes.find((x) => x.plante === planteChoisie.plante);
+      if (!a) setPlanteChoisie(null);
+      else if (a !== planteChoisie) setPlanteChoisie(a);
+    }
+  }, [plantes, planteChoisie]);
 
   async function supprimer(p: Pot) {
     await fetch(`/api/generator/pots/${encodeURIComponent(p.fichier)}`, { method: 'DELETE' });

@@ -49,6 +49,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const tache = await deposer(c.plante, source.fichier, c.raison ?? 'initiale', c.graine ?? null);
+  const tache = await deposer(
+    c.plante, source.fichier, c.raison ?? 'initiale', c.graine ?? null, source.sansPot,
+  );
   return NextResponse.json(tache, { status: 201 });
 }

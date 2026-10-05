@@ -10,8 +10,8 @@ import { createReadStream, statSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { cheminSource, supprimerSource } from '@/lib/generator/depot';
-import { bonHote, introuvable } from '@/lib/generator/http';
+import { cheminSource, marquerSansPot, supprimerSource } from '@/lib/generator/depot';
+import { bonHote, corps, introuvable } from '@/lib/generator/http';
 import { recevoirMorceau } from '@/lib/generator/televersement';
 
 export const dynamic = 'force-dynamic';
@@ -77,14 +77,48 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ fichier: st
 }
 
 /**
- * Retire une source. Les artefacts déjà produits ne sont PAS touchés : une
- * plante dont on retire l'image garde ses aperçus et son verdict, qui restent
- * la trace de ce qui a été jugé.
+ * Retire une source ET ses tâches en attente.
+ *
+ * Les artefacts déjà produits ne sont PAS touchés : une plante dont on retire
+ * l'image garde ses aperçus et son verdict, qui restent la trace de ce qui a
+ * été jugé.
+ *
+ * Refusé tant qu'une tâche est en cours — 409 et non 404 : la source existe,
+ * c'est le moment qui ne convient pas, et réessayer plus tard marchera.
  */
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ fichier: string }> }) {
   if (!bonHote(req)) return introuvable();
   const { fichier } = await ctx.params;
-  return supprimerSource(decodeURIComponent(fichier))
-    ? NextResponse.json({ ok: true })
-    : introuvable();
+  const r = await supprimerSource(decodeURIComponent(fichier));
+  if (r.ok) return NextResponse.json({ ok: true, tachesRetirees: r.tachesRetirees });
+  if (r.raison === 'tache_en_cours') {
+    return NextResponse.json(
+      { error: 'une génération est en cours sur cette plante' }, { status: 409 },
+    );
+  }
+  return introuvable();
+}
+
+/**
+ * Marque la source comme étant sans pot, ou le défait.
+ *
+ * L'ouvrier saute alors la détection — quelques secondes de CPU par plante — et
+ * la plante n'entre pas dans le périmètre des pots personnalisés. Un palmier
+ * hors pot a reçu une proposition de coupe sur le premier lot : la question
+ * n'aurait pas dû être posée.
+ */
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ fichier: string }> }) {
+  if (!bonHote(req)) return introuvable();
+  const nom = decodeURIComponent((await ctx.params).fichier);
+  try {
+    cheminSource(nom);
+  } catch {
+    return introuvable();
+  }
+  const c = await corps<{ sansPot?: boolean }>(req);
+  if (typeof c?.sansPot !== 'boolean') {
+    return NextResponse.json({ error: 'sansPot requis' }, { status: 400 });
+  }
+  await marquerSansPot(nom, c.sansPot);
+  return NextResponse.json({ ok: true, sansPot: c.sansPot });
 }

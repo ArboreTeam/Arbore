@@ -20,6 +20,7 @@ import { bonHote, introuvable } from '@/lib/generator/http';
 import { mesurerRebord } from '@/lib/generator/pot';
 import {
   controlerPose, jugerEmpreinte, profilerPlante, profilerPot, SEUILS,
+  type Empreinte,
 } from '@/lib/generator/profil';
 
 export const dynamic = 'force-dynamic';
@@ -68,7 +69,16 @@ export async function GET(req: NextRequest) {
       continue;
     }
 
-    let empreinte = empreinteRangee(p.plante, p.fichier, octets);
+    // Le résidu de l'ouvrier d'abord : il connaît la couleur, donc il sépare
+    // un reste de pot d'un feuillage qui retombe — ce que la mesure d'ici ne
+    // sait pas faire. Et il évite de relire soixante mégaoctets.
+    let empreinte: Empreinte | null = p.residu
+      ? { residu: { rayons: p.residu.pot, profondeur: p.residu.profondeur },
+          hauteur: p.residu.hauteur }
+      : null;
+    const livre = empreinte !== null;
+
+    if (!empreinte) empreinte = empreinteRangee(p.plante, p.fichier, octets);
     if (!empreinte) {
       if (Date.now() - debut > BUDGET_MS) {
         restant += 1;
@@ -88,6 +98,10 @@ export async function GET(req: NextRequest) {
       verdict: p.verdict,
       socle: p.socle,
       hauteur: empreinte.hauteur,
+      // L'écran doit pouvoir dire sur quoi il se prononce : un jugement rendu
+      // sur la mesure aveugle à la couleur n'a pas la même portée que celui
+      // rendu sur le résidu livré, qui exclut le feuillage.
+      couleur: livre,
       jugement,
       // Les paires sont contrôlées même quand la plante porte un signal : ce
       // signal ne sait pas distinguer un reste de pot d'un feuillage

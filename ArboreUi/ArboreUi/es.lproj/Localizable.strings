@@ -1997,6 +1997,14 @@
 "CHATBOT_ASK_SUBTITLE" = "Puedo ayudarte con jardinería,\nplantas, cuidados y mucho más.";
 "CHATBOT_PHOTO_SELECTED" = "Foto seleccionada";
 "CHATBOT_PHOTO_HINT" = "Pulsa enviar para analizar";
+
+/* Assistant — suggestions, titres et libellés de ChatBotView. */
+"CHATBOT_SUGGESTION_WATERING" = "🌱 ¿Cómo riego mis tomates?";
+"CHATBOT_SUGGESTION_DIAGNOSE" = "🌿 Identificar una planta enferma";
+"CHATBOT_SUGGESTION_BALCONY" = "☀️ ¿Qué plantas para un balcón al sur?";
+"CHATBOT_CLOSE" = "Cerrar el chat";
+"CHATBOT_RENAME_TITLE" = "Renombrar la conversación";
+"CHATBOT_MESSAGE_COUNT_FORMAT" = "%d mensajes";
 "SCAN_CAMERA_REQUIRED" = "Se requiere acceso a la cámara";
 "SCAN_OPEN_SETTINGS" = "Abrir Ajustes";
 "SCAN_ANALYSING" = "Analizando…";

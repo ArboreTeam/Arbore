@@ -28,6 +28,7 @@ import * as taches from './taches/route';
 import * as prendreRoute from './taches/prendre/route';
 import * as resultat from './taches/[id]/resultat/route';
 import * as echec from './taches/[id]/echec/route';
+import * as recoupe from './taches/[id]/recoupe/route';
 import * as graines from './plantes/[plante]/graines/route';
 import * as revue from './revue/route';
 import * as verdict from './revue/[plante]/route';
@@ -288,6 +289,70 @@ describe('routes de la file — revue', () => {
  * Ceci est une ceinture de plus : une route qui échapperait un jour au matcher
  * ne serait pas pour autant ouverte sur web.arbore.app.
  */
+/**
+ * La recoupe est le seul écrit qui porte sur une tâche CLOSE, et sans jeton de
+ * réservation : son contrat mérite d'être tenu à l'œil, car une erreur ici
+ * efface les candidats d'une plante déjà validée.
+ */
+describe('routes de la file — recoupe', () => {
+  beforeEach(() => {
+    reinitialiser();
+    rmSync(join(BAC, 'sources'), { recursive: true, force: true });
+  });
+
+  const candidat = {
+    voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb',
+    socle: { x: 0, z: 0, y: -0.2, rayon: 0.1, hauteur_modele: 1 },
+  };
+
+  async function livrerUne(plante: string) {
+    poserSource(plante);
+    await taches.POST(req('/api/generator/taches', { plante }));
+    const t = await prendre();
+    await resultat.POST(
+      req(`/api/generator/taches/${t!.id}/resultat`,
+          { reservation: t!.reservation, graine: 1, accepte: true,
+            candidats_pot: [candidat] }),
+      params({ id: t!.id }));
+    return t!.id;
+  }
+
+  it('remplace les candidats d une tâche livrée', async () => {
+    const id = await livrerUne('ficus');
+    const r = await recoupe.POST(
+      req(`/api/generator/taches/${id}/recoupe`, { candidats: [candidat, candidat] }),
+      params({ id }));
+    expect(r.status).toBe(200);
+    expect((await r.json()).candidats).toBe(2);
+  });
+
+  it('refuse un corps sans candidats, et un tableau vide', async () => {
+    const id = await livrerUne('ficus');
+    for (const corps of [{}, { candidats: 'non' }, { candidats: [] }]) {
+      const r = await recoupe.POST(
+        req(`/api/generator/taches/${id}/recoupe`, corps), params({ id }));
+      expect(r.status, JSON.stringify(corps)).toBe(400);
+    }
+    // Les candidats d'origine sont intacts.
+    expect(lire().taches[0].resultat!.candidats_pot).toHaveLength(1);
+  });
+
+  it('distingue la tâche inconnue de la tâche non livrée', async () => {
+    const absente = await recoupe.POST(
+      req('/api/generator/taches/zzz/recoupe', { candidats: [candidat] }),
+      params({ id: 'zzz' }));
+    expect(absente.status).toBe(404);
+
+    poserSource('attente');
+    await taches.POST(req('/api/generator/taches', { plante: 'attente' }));
+    const id = lire().taches[0].id;
+    const pasLivree = await recoupe.POST(
+      req(`/api/generator/taches/${id}/recoupe`, { candidats: [candidat] }),
+      params({ id }));
+    expect(pasLivree.status).toBe(409);
+  });
+});
+
 describe('routes de la file — hors de l hôte de l atelier', () => {
   beforeEach(() => {
     reinitialiser();
@@ -304,6 +369,9 @@ describe('routes de la file — hors de l hôte de l atelier', () => {
         req('/api/generator/taches/x/resultat', { reservation: 'r' }, autre), params({ id: 'x' }))],
       ['echec', echec.POST(
         req('/api/generator/taches/x/echec', { reservation: 'r' }, autre), params({ id: 'x' }))],
+      ['recoupe', recoupe.POST(
+        req('/api/generator/taches/x/recoupe', { candidats: [{ voie: 'g' }] }, autre),
+        params({ id: 'x' }))],
       ['graines GET', Promise.resolve(graines.GET(
         req('/api/generator/plantes/a/graines', undefined, autre), params({ plante: 'a' })))],
       ['graines POST', graines.POST(

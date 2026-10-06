@@ -12,7 +12,7 @@ import {
   EXPIRATION_MS, aRevoir, bilan, cheminArtefact, cleEmpreinte, deposer, echouer,
   empreinteRangee, historique, cheminSource, lire, livrer, marquerSansPot,
   nomFichier, noterEmpreinte, noterGraine, planteDe, posables, prendre, purger,
-  reinitialiser, sources, supprimerSource, trancher,
+  recouper, reinitialiser, sources, supprimerSource, trancher,
 } from './depot';
 
 afterAll(() => rmSync(BAC, { recursive: true, force: true }));
@@ -820,5 +820,95 @@ describe('dépôt — le résidu mesuré par l ouvrier', () => {
       const c = await livrerAvecResidu(`mauvaise_${i}`, mauvais[i]);
       expect(c.residu, `cas ${i}`).toBeNull();
     }
+  });
+});
+
+describe('dépôt — recoupe d une plante déjà livrée', () => {
+  beforeEach(() => reinitialiser());
+
+  const socle = { x: 0, z: 0, y: -0.2, rayon: 0.1, hauteur_modele: 1 };
+  const candidat = (voie: string) => ({
+    voie, fichier: `/content/x/sanspot_${voie}.glb`, socle,
+  });
+
+  async function livrerUne(plante: string) {
+    await deposer(plante, `/${plante}.png`);
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      graine: 1, accepte: true, candidats_pot: [candidat('geometrie')],
+    });
+    return t!.id;
+  }
+
+  it('remplace les candidats sans toucher au verdict ni aux graines', async () => {
+    const id = await livrerUne('ficus');
+    await trancher('ficus', 'validee', 'sanspot_geometrie.glb');
+
+    const r = await recouper(id, [candidat('geometrie'), candidat('couleur')]);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.candidats).toBe(2);
+      expect(r.coupePerdue).toBe(false);
+    }
+    const etat = lire();
+    expect(etat.plantes.ficus.verdict).toBe('validee');
+    expect(etat.plantes.ficus.coupe).toBe('sanspot_geometrie.glb');
+    expect(etat.plantes.ficus.graines).toEqual([1]);
+    expect(etat.taches[0].resultat!.candidats_pot).toHaveLength(2);
+  });
+
+  /**
+   * Les empreintes décrivaient les ANCIENNES coupes. La recoupe réécrit le GLB
+   * sous le même nom et peut tomber sur la même taille : on ne parie pas sur un
+   * octet de différence, on les retire.
+   */
+  it('vide les empreintes de la plante, et d elle seule', async () => {
+    const id = await livrerUne('ficus');
+    await deposer('voisine', '/v.png');
+    const residu = { rayons: new Array<number>(24).fill(0.09), profondeur: 0.2 };
+    await noterEmpreinte('ficus', 'sanspot_geometrie.glb',
+                         { residu, hauteur: 1, octets: 10, mesure: 1 });
+    await noterEmpreinte('voisine', 'sanspot_geometrie.glb',
+                         { residu, hauteur: 1, octets: 10, mesure: 1 });
+
+    const r = await recouper(id, [candidat('geometrie')]);
+    expect(r.ok && r.empreintes).toBe(1);
+    expect(empreinteRangee('ficus', 'sanspot_geometrie.glb', 10)).toBeNull();
+    expect(empreinteRangee('voisine', 'sanspot_geometrie.glb', 10)).not.toBeNull();
+  });
+
+  /**
+   * La nouvelle détection retire davantage, et la fenêtre de vraisemblance peut
+   * écarter une voie qu'elle acceptait. L'atelier retomberait alors sans bruit
+   * sur le premier candidat : mieux vaut que l'ouvrier l'apprenne.
+   */
+  it('signale quand la coupe retenue ne figure plus parmi les candidats', async () => {
+    const id = await livrerUne('ficus');
+    await trancher('ficus', 'validee', 'sanspot_geometrie.glb');
+    const r = await recouper(id, [candidat('couleur')]);
+    expect(r.ok && r.coupePerdue).toBe(true);
+  });
+
+  it('refuse une tâche inconnue ou non livrée', async () => {
+    expect(await recouper('inexistante', [candidat('geometrie')]))
+      .toEqual({ ok: false, raison: 'introuvable' });
+
+    await deposer('en_attente', '/a.png');
+    const attente = lire().taches[0];
+    expect(await recouper(attente.id, [candidat('geometrie')]))
+      .toEqual({ ok: false, raison: 'pas_livree' });
+
+    const t = await prendre();
+    expect(await recouper(t!.id, [candidat('geometrie')]))
+      .toEqual({ ok: false, raison: 'pas_livree' });
+  });
+
+  it('rend la plante posable sur les nouveaux candidats', async () => {
+    const id = await livrerUne('ficus');
+    await recouper(id, [{
+      voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb',
+      socle: { ...socle, rayon: 0.2 },
+    }]);
+    expect(posables()[0].socle.rayon).toBe(0.2);
   });
 });

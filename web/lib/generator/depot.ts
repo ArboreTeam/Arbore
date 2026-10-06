@@ -237,6 +237,56 @@ export function noterPot(pot: Pot) {
   });
 }
 
+// ── Recoupe d'une plante déjà livrée ───────────────────────────────────────
+//
+// La coupe part d'un GLB déjà généré : elle se reprend donc sans une seconde
+// de GPU, et les GLB coupés portent tous leur liste de triangles d'origine, si
+// bien que le maillage complet est reconstructible même après la purge. Quand
+// la détection s'améliore, on repasse sur le lot au lieu de le régénérer.
+//
+// Ce qui change : les candidats, rien d'autre. Pas le verdict, que l'opérateur
+// a rendu ; pas les graines, qui restent brûlées.
+
+export type Recoupe =
+  | { ok: true; candidats: number; empreintes: number; coupePerdue: boolean }
+  | { ok: false; raison: 'introuvable' | 'pas_livree' };
+
+export function recouper(id: string, candidats: unknown[]): Promise<Recoupe> {
+  return muter((etat) => {
+    const t = etat.taches.find((x) => x.id === id);
+    if (!t) return { ok: false, raison: 'introuvable' } as Recoupe;
+    // Une tâche en cours ou en échec n'a pas de maillage à recouper, et une
+    // tâche en attente n'en a pas encore.
+    if (t.etat !== 'livree') return { ok: false, raison: 'pas_livree' } as Recoupe;
+
+    (t.resultat ??= {}).candidats_pot = candidats;
+
+    // Les empreintes mises en cache décrivent les ANCIENNES coupes. La taille
+    // du fichier suffirait à les périmer, mais la recoupe réécrit le GLB sous
+    // le même nom et peut tomber sur la même taille : on les retire donc
+    // franchement, plutôt que de parier sur un octet de différence.
+    let empreintes = 0;
+    for (const cle of Object.keys(etat.empreintes ?? {})) {
+      if (cle.startsWith(`${t.plante}/`)) {
+        delete etat.empreintes![cle];
+        empreintes += 1;
+      }
+    }
+
+    // La coupe retenue à la revue peut ne plus figurer parmi les candidats :
+    // la nouvelle détection retire davantage, et la fenêtre de vraisemblance
+    // peut écarter une voie qu'elle acceptait. Le dire plutôt que de laisser
+    // l'atelier retomber silencieusement sur le premier candidat.
+    const noms = new Set(candidats.map(
+      (c) => nomFichier((c as Record<string, unknown>)?.fichier)));
+    const coupe = etat.plantes[t.plante]?.coupe;
+    return {
+      ok: true, candidats: candidats.length, empreintes,
+      coupePerdue: Boolean(coupe) && !noms.has(coupe!),
+    } as Recoupe;
+  });
+}
+
 // ── Empreintes des plantes ─────────────────────────────────────────────────
 
 /** Clé de cache d'une empreinte : la plante et le GLB coupé qui la porte. */

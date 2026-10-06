@@ -43,6 +43,13 @@ final class LocalizationCoverageTests: XCTestCase {
         // SA langue, sans quoi l'avertissement n'en est pas un.
         "AI_DISCLAIMER", "AI_DISCLAIMER_SCAN",
         "CHATBOT_INPUT_PLACEHOLDER", "CHATBOT_RENAME_PLACEHOLDER",
+        // #634 : ces six-là étaient encore des littéraux français dans
+        // `ChatBotView`, au milieu d'un écran par ailleurs traduit. Les trois
+        // suggestions sont la première chose qu'on touche dans une
+        // conversation neuve.
+        "CHATBOT_SUGGESTION_WATERING", "CHATBOT_SUGGESTION_DIAGNOSE",
+        "CHATBOT_SUGGESTION_BALCONY", "CHATBOT_CLOSE",
+        "CHATBOT_RENAME_TITLE", "CHATBOT_MESSAGE_COUNT_FORMAT",
         // Divulgation préalable (#607). Celles-ci comptent double : une
         // divulgation affichée dans une langue que l'utilisateur ne lit pas ne
         // divulgue rien, et c'est précisément l'exigence qu'App Review a jugée
@@ -91,8 +98,9 @@ final class LocalizationCoverageTests: XCTestCase {
     /// botaniques latins, unités.
     func testLesTraductionsNeSontPasDeSimplesCopiesDuFrancais() {
         let identiquesAdmis: Set<String> = [
-            "SCAN_METRIC_CHLOROSIS",   // « Chlorose » en FR et DE
-            "CHATBOT_TITLE"            // « Chat » dans les quatre langues
+            "SCAN_METRIC_CHLOROSIS",        // « Chlorose » en FR et DE
+            "CHATBOT_TITLE",                // « Chat » dans les quatre langues
+            "CHATBOT_MESSAGE_COUNT_FORMAT"  // « messages » en FR et EN
         ]
         guard let fr = bundle("fr") else { return XCTFail("fr.lproj introuvable") }
 

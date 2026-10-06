@@ -2044,6 +2044,14 @@
 "CHATBOT_ASK_SUBTITLE" = "Je peux vous aider sur le jardinage,\nles plantes, l'entretien, et plus encore.";
 "CHATBOT_PHOTO_SELECTED" = "Photo sélectionnée";
 "CHATBOT_PHOTO_HINT" = "Appuyez sur envoyer pour analyser";
+
+/* Assistant — suggestions, titres et libellés de ChatBotView. */
+"CHATBOT_SUGGESTION_WATERING" = "🌱 Comment arroser mes tomates ?";
+"CHATBOT_SUGGESTION_DIAGNOSE" = "🌿 Identifier une plante malade";
+"CHATBOT_SUGGESTION_BALCONY" = "☀️ Quelles plantes pour un balcon sud ?";
+"CHATBOT_CLOSE" = "Fermer le chat";
+"CHATBOT_RENAME_TITLE" = "Renommer la discussion";
+"CHATBOT_MESSAGE_COUNT_FORMAT" = "%d messages";
 "SCAN_CAMERA_REQUIRED" = "Accès caméra requis";
 "SCAN_OPEN_SETTINGS" = "Ouvrir les Réglages";
 "SCAN_ANALYSING" = "Analyse en cours…";

@@ -247,6 +247,57 @@ export function noterPot(pot: Pot) {
 // Ce qui change : les candidats, rien d'autre. Pas le verdict, que l'opérateur
 // a rendu ; pas les graines, qui restent brûlées.
 
+/** Une plante sur laquelle la coupe peut être reprise. */
+export type Recoupable = {
+  id: string;
+  plante: string;
+  /** Candidats livrés, par NOM de fichier : la disposition du volume ne sort pas. */
+  candidats: Array<{ voie: string; fichier: string; aireRetiree: number | null }>;
+  /** Les candidats portent-ils déjà une mesure de résidu, donc la coupe récente ? */
+  mesure: boolean;
+};
+
+/**
+ * Ce que la passe de recoupe a de quoi reprendre.
+ *
+ * Une liste à part de `/taches`, qui retire volontairement `resultat` pour ne
+ * pas diffuser les chemins d'artefacts. L'ouvrier a besoin des NOMS de
+ * fichiers pour redescendre un maillage ; il n'a pas besoin de savoir où le
+ * volume les range, et ne l'apprend pas ici non plus.
+ *
+ * Tout ce qui est livré avec au moins un fichier, verdict compris : une coupe
+ * validée se reprend aussi, puisque c'est la coupe qui s'est améliorée et non
+ * le jugement qui a changé. Les plantes dont la détection n'avait rien trouvé
+ * sont incluses sans l'être — elles n'ont pas de fichier, donc rien d'où
+ * repartir, et c'est une régénération qu'il leur faudrait.
+ */
+export function recoupables(): Recoupable[] {
+  const etat = lire();
+  const sorties: Recoupable[] = [];
+  for (const t of etat.taches) {
+    if (t.etat !== 'livree') continue;
+    const bruts = Array.isArray(t.resultat?.candidats_pot) ? t.resultat.candidats_pot : [];
+    if (bruts.length === 0) continue;
+    const candidats = bruts
+      .map((b) => {
+        const c = (b ?? {}) as Record<string, unknown>;
+        return {
+          voie: typeof c.voie === 'string' ? c.voie : 'inconnue',
+          fichier: nomFichier(c.fichier),
+          aireRetiree: nombre(c.aire_retiree),
+        };
+      })
+      .filter((c): c is { voie: string; fichier: string; aireRetiree: number | null } =>
+        c.fichier !== null);
+    if (candidats.length === 0) continue;
+    sorties.push({
+      id: t.id, plante: t.plante, candidats,
+      mesure: bruts.every((b) => Boolean((b as Record<string, unknown>)?.residu)),
+    });
+  }
+  return sorties;
+}
+
 export type Recoupe =
   | { ok: true; candidats: number; empreintes: number; coupePerdue: boolean }
   | { ok: false; raison: 'introuvable' | 'pas_livree' };

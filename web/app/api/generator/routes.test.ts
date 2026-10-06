@@ -29,6 +29,7 @@ import * as prendreRoute from './taches/prendre/route';
 import * as resultat from './taches/[id]/resultat/route';
 import * as echec from './taches/[id]/echec/route';
 import * as recoupe from './taches/[id]/recoupe/route';
+import * as recoupables from './recoupe/route';
 import * as graines from './plantes/[plante]/graines/route';
 import * as revue from './revue/route';
 import * as verdict from './revue/[plante]/route';
@@ -337,6 +338,19 @@ describe('routes de la file — recoupe', () => {
     expect(lire().taches[0].resultat!.candidats_pot).toHaveLength(1);
   });
 
+  /**
+   * Le contrat que la passe consomme. Au premier essai elle lisait `/taches`,
+   * qui retire `resultat` à dessein : elle a sauté les 79 plantes sans qu'une
+   * seule erreur ne soit levée. Un silence pareil mérite son test.
+   */
+  it('liste ce qui peut être recoupé, par noms de fichiers', async () => {
+    await livrerUne('ficus');
+    const d = await (await recoupables.GET(req('/api/generator/recoupe'))).json();
+    expect(d.aRecouper).toBe(1);
+    expect(d.plantes[0].candidats[0].fichier).toBe('sanspot_geometrie.glb');
+    expect(JSON.stringify(d)).not.toContain('/content');
+  });
+
   it('distingue la tâche inconnue de la tâche non livrée', async () => {
     const absente = await recoupe.POST(
       req('/api/generator/taches/zzz/recoupe', { candidats: [candidat] }),
@@ -372,6 +386,7 @@ describe('routes de la file — hors de l hôte de l atelier', () => {
       ['recoupe', recoupe.POST(
         req('/api/generator/taches/x/recoupe', { candidats: [{ voie: 'g' }] }, autre),
         params({ id: 'x' }))],
+      ['recoupables', recoupables.GET(req('/api/generator/recoupe', undefined, autre))],
       ['graines GET', Promise.resolve(graines.GET(
         req('/api/generator/plantes/a/graines', undefined, autre), params({ plante: 'a' })))],
       ['graines POST', graines.POST(

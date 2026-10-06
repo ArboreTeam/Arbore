@@ -12,7 +12,7 @@ import {
   EXPIRATION_MS, aRevoir, bilan, cheminArtefact, cleEmpreinte, deposer, echouer,
   empreinteRangee, historique, cheminSource, lire, livrer, marquerSansPot,
   nomFichier, noterEmpreinte, noterGraine, planteDe, posables, prendre, purger,
-  recouper, reinitialiser, sources, supprimerSource, trancher,
+  recoupables, recouper, reinitialiser, sources, supprimerSource, trancher,
 } from './depot';
 
 afterAll(() => rmSync(BAC, { recursive: true, force: true }));
@@ -910,5 +910,69 @@ describe('dépôt — recoupe d une plante déjà livrée', () => {
       socle: { ...socle, rayon: 0.2 },
     }]);
     expect(posables()[0].socle.rayon).toBe(0.2);
+  });
+});
+
+/**
+ * La liste que lit la passe de recoupe. Elle existe parce que `/taches` retire
+ * `resultat` à dessein — et c'est cet oubli qui a fait sauter les 79 plantes
+ * au premier essai de la passe, sans qu'aucune erreur ne soit levée.
+ */
+describe('dépôt — ce qui peut être recoupé', () => {
+  beforeEach(() => reinitialiser());
+
+  const socle = { x: 0, z: 0, y: -0.2, rayon: 0.1, hauteur_modele: 1 };
+
+  async function livrer_(plante: string, candidats: unknown[]) {
+    await deposer(plante, `/${plante}.png`);
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!,
+                 { graine: 1, accepte: true, candidats_pot: candidats });
+    return t!.id;
+  }
+
+  it('rend les noms de fichiers, jamais les chemins du volume', async () => {
+    await livrer_('ficus', [{
+      voie: 'geometrie', aire_retiree: 0.332, socle,
+      fichier: '/content/pipeline/resultats/ficus/sanspot_geometrie.glb',
+    }]);
+    const r = recoupables();
+    expect(r).toHaveLength(1);
+    expect(r[0].candidats[0].fichier).toBe('sanspot_geometrie.glb');
+    expect(r[0].candidats[0].aireRetiree).toBe(0.332);
+    expect(JSON.stringify(r)).not.toContain('/content');
+  });
+
+  it('distingue ce qui porte déjà une mesure de résidu', async () => {
+    const residu = { profondeur: 0.2, hauteur: 0.8, pot: [], vert: [] };
+    await livrer_('neuve', [{ voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb', socle, residu }]);
+    await livrer_('ancienne', [{ voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb', socle }]);
+    const par = Object.fromEntries(recoupables().map((p) => [p.plante, p.mesure]));
+    expect(par).toEqual({ neuve: true, ancienne: false });
+  });
+
+  /** Une plante sans fichier n'a rien d'où repartir : il lui faut une régénération. */
+  it('écarte ce qui n a aucun maillage coupé', async () => {
+    await livrer_('sans_candidat', []);
+    await livrer_('sans_fichier', [{ voie: 'geometrie', socle }]);
+    expect(recoupables()).toHaveLength(0);
+  });
+
+  /** Une coupe validée se reprend : c'est la coupe qui s'améliore, pas le jugement. */
+  it('inclut les plantes déjà tranchées', async () => {
+    await livrer_('validee', [{ voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb', socle }]);
+    await trancher('validee', 'validee', 'sanspot_geometrie.glb');
+    await livrer_('ecartee', [{ voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb', socle }]);
+    await trancher('ecartee', 'ecartee');
+    expect(recoupables().map((p) => p.plante).sort()).toEqual(['ecartee', 'validee']);
+  });
+
+  it('ignore ce qui n est pas livré', async () => {
+    await deposer('en_attente', '/a.png');
+    expect(recoupables()).toHaveLength(0);
+    const t = await prendre();
+    expect(recoupables()).toHaveLength(0);
+    await echouer(t!.id, t!.reservation!, 'cassé');
+    expect(recoupables()).toHaveLength(0);
   });
 });

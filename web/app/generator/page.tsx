@@ -25,6 +25,14 @@ function Compteur({ valeur, libelle, accent }: { valeur: number; libelle: string
   );
 }
 
+// Ce que l'opérateur avait tranché AVANT que la coupe soit refaite. On le
+// rappelle plutôt que de reproposer la plante sans dire pourquoi elle revient.
+const LIBELLE: Record<'validee' | 'invalidee' | 'ecartee', string> = {
+  validee: 'validée',
+  invalidee: 'invalidée',
+  ecartee: 'écartée',
+};
+
 export default function Atelier() {
   const b = bilan();
   const file = aRevoir();
@@ -112,16 +120,24 @@ export default function Atelier() {
                     <div className="border-t border-[#DDD8CF] px-4 py-3">
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-[#1B1F1A]">{p.plante}</span>
-                        {p.arbitrage && (
-                          <span className="rounded-full bg-[#FBE9D0] px-2 py-0.5 text-[11px] text-[#8A5A1B]">
-                            arbitrage
-                          </span>
-                        )}
+                        <span className="flex gap-1">
+                          {p.jugee && (
+                            <span className="rounded-full bg-[#E4EAF4] px-2 py-0.5 text-[11px] text-[#2F4B7C]">
+                              recoupée
+                            </span>
+                          )}
+                          {p.arbitrage && (
+                            <span className="rounded-full bg-[#FBE9D0] px-2 py-0.5 text-[11px] text-[#8A5A1B]">
+                              arbitrage
+                            </span>
+                          )}
+                        </span>
                       </div>
                       <div className="mt-1 text-xs text-[#6E746B]">
                         graine {p.graine ?? '—'}
                         {p.essai && p.essai > 1 ? ` · essai ${p.essai}` : ''}
                         {!p.accepte ? ' · portillon rejeté' : ''}
+                        {p.jugee ? ` · ${LIBELLE[p.jugee.verdict]} avant recoupe` : ''}
                       </div>
                     </div>
                   </Link>

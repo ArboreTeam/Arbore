@@ -96,6 +96,20 @@ export type Etat = {
      * le défaut, et c'était pourtant la seule issue offerte.
      */
     verdict?: 'validee' | 'invalidee' | 'ecartee';
+    /**
+     * Quand la coupe a été refaite APRÈS le verdict.
+     *
+     * Le verdict porte sur une coupe précise ; une recoupe la remplace, et le
+     * jugement rendu ne s'applique donc plus à ce qu'on sert. On ne l'efface
+     * pas pour autant — c'est un jugement humain, et `ecartee` vise la source,
+     * pas la coupe. On note seulement que la coupe a changé depuis, pour que la
+     * revue puisse le proposer sans rien détruire.
+     *
+     * Sans ce champ, une passe de recoupe est invisible : mesuré le 2026-10-07,
+     * 76 plantes sur 78 portaient un verdict, donc la liste à revoir était vide
+     * alors que 58 coupes venaient d'être refaites.
+     */
+    recoupee?: number;
     coupe?: string;
     raison?: string;
     purge?: Purge;
@@ -299,7 +313,9 @@ export function recoupables(): Recoupable[] {
 }
 
 export type Recoupe =
-  | { ok: true; candidats: number; empreintes: number; coupePerdue: boolean }
+  | { ok: true; candidats: number; empreintes: number; coupePerdue: boolean;
+      /** La plante portait un verdict : il ne juge plus la coupe en service. */
+      aRejuger: boolean }
   | { ok: false; raison: 'introuvable' | 'pas_livree' };
 
 export function recouper(id: string, candidats: unknown[]): Promise<Recoupe> {
@@ -330,10 +346,18 @@ export function recouper(id: string, candidats: unknown[]): Promise<Recoupe> {
     // l'atelier retomber silencieusement sur le premier candidat.
     const noms = new Set(candidats.map(
       (c) => nomFichier((c as Record<string, unknown>)?.fichier)));
-    const coupe = etat.plantes[t.plante]?.coupe;
+    const p = etat.plantes[t.plante];
+    const coupe = p?.coupe;
+
+    // Le verdict reste, la coupe qu'il jugeait n'est plus là. On le dit, au
+    // lieu de laisser la plante disparaître de la revue avec une coupe que
+    // personne n'a vue.
+    if (p?.verdict) p.recoupee = Date.now();
+
     return {
       ok: true, candidats: candidats.length, empreintes,
       coupePerdue: Boolean(coupe) && !noms.has(coupe!),
+      aRejuger: Boolean(p?.verdict),
     } as Recoupe;
   });
 }
@@ -757,6 +781,14 @@ export type AVoir = {
   candidats: Candidat[];
   arbitrage: boolean;
   livre: number | null;
+  /**
+   * Le verdict déjà rendu, quand la coupe a été refaite depuis.
+   *
+   * `undefined` pour une plante jamais jugée — le cas ordinaire de la revue.
+   * Renseigné, il dit que l'opérateur a déjà tranché, mais sur une coupe qui
+   * n'est plus celle qu'on sert.
+   */
+  jugee?: { verdict: 'validee' | 'invalidee' | 'ecartee'; recoupee: number };
 };
 
 function nombre(v: unknown): number | null {
@@ -828,9 +860,16 @@ function candidat(brut: unknown): Candidat {
 export function aRevoir(): AVoir[] {
   const etat = lire();
   return etat.taches
-    .filter((t) => t.etat === 'livree' && !etat.plantes[t.plante]?.verdict)
+    .filter((t) => {
+      if (t.etat !== 'livree') return false;
+      const p = etat.plantes[t.plante];
+      // Jamais jugée : c'est le cas ordinaire. Jugée mais recoupée depuis : le
+      // verdict ne porte plus sur la coupe en service, on la repropose.
+      return !p?.verdict || Boolean(p.recoupee);
+    })
     .map((t) => {
       const r = t.resultat ?? {};
+      const p = etat.plantes[t.plante];
       return {
         plante: t.plante,
         graine: nombre(r.graine),
@@ -848,6 +887,9 @@ export function aRevoir(): AVoir[] {
         candidats: (Array.isArray(r.candidats_pot) ? r.candidats_pot : []).map(candidat),
         arbitrage: Boolean(r.arbitrage_requis),
         livre: nombre(t.livre),
+        ...(p?.verdict && p.recoupee
+          ? { jugee: { verdict: p.verdict, recoupee: p.recoupee } }
+          : {}),
       };
     });
 }
@@ -930,6 +972,9 @@ export function trancher(plante: string, verdict: Verdict, coupe?: string, raiso
     const p = (etat.plantes[plante] ??= { graines: [] });
     const valide = verdict === 'validee';
     p.verdict = verdict;
+    // Le verdict qu'on vient de rendre porte sur la coupe en service : la
+    // plante n'est plus en attente de re-jugement.
+    delete p.recoupee;
     if (valide && coupe) p.coupe = coupe;
     if (raison) p.raison = raison.slice(0, 300);
     // Seule l'invalidation redépose. Écarter veut dire « n'y reviens pas » :

@@ -12,6 +12,7 @@ import {
   EXPIRATION_MS, aRevoir, bilan, cheminArtefact, cleEmpreinte, deposer, echouer,
   empreinteRangee, historique, cheminSource, lire, livrer, marquerSansPot,
   nomFichier, noterEmpreinte, noterGraine, planteDe, posables, prendre, purger,
+  mesurables, noterTaille,
   recoupables, recouper, reinitialiser, sources, supprimerSource, trancher,
 } from './depot';
 
@@ -889,6 +890,67 @@ describe('dépôt — recoupe d une plante déjà livrée', () => {
     expect(r.ok && r.coupePerdue).toBe(true);
   });
 
+  /**
+   * Le défaut qui rendait une passe entière invisible : mesuré sur le lot de
+   * production, 76 plantes sur 78 portaient un verdict, donc la liste à revoir
+   * était VIDE alors que 58 coupes venaient d'être refaites. Le verdict jugeait
+   * une coupe qui n'existait plus.
+   *
+   * On ne l'efface pas — c'est un jugement humain, et `ecartee` vise la source,
+   * pas la coupe. On note que la coupe a changé depuis, et la revue repropose.
+   */
+  it('repropose à la revue une plante jugée dont la coupe a été refaite', async () => {
+    const id = await livrerUne('ficus');
+    await trancher('ficus', 'validee', 'sanspot_geometrie.glb');
+    expect(aRevoir()).toHaveLength(0);
+
+    const r = await recouper(id, [candidat('geometrie')]);
+    expect(r.ok && r.aRejuger).toBe(true);
+    expect(lire().plantes.ficus.verdict).toBe('validee');   // rien n'est détruit
+
+    const [v] = aRevoir();
+    expect(v.plante).toBe('ficus');
+    expect(v.jugee?.verdict).toBe('validee');
+    expect(v.jugee?.recoupee).toBeGreaterThan(0);
+  });
+
+  /** Une plante jamais jugée est déjà dans la revue : rien à signaler. */
+  it('ne marque rien quand la plante n a pas encore de verdict', async () => {
+    const id = await livrerUne('ficus');
+    const r = await recouper(id, [candidat('geometrie')]);
+    expect(r.ok && r.aRejuger).toBe(false);
+    expect(lire().plantes.ficus?.recoupee).toBeUndefined();
+    expect(aRevoir()[0].jugee).toBeUndefined();
+  });
+
+  /** Le nouveau verdict porte sur la coupe en service : la marque s'efface. */
+  it('referme la marque quand l opérateur tranche à nouveau', async () => {
+    const id = await livrerUne('ficus');
+    await trancher('ficus', 'validee', 'sanspot_geometrie.glb');
+    await recouper(id, [candidat('geometrie')]);
+    expect(aRevoir()).toHaveLength(1);
+
+    await trancher('ficus', 'validee', 'sanspot_geometrie.glb');
+    expect(lire().plantes.ficus.recoupee).toBeUndefined();
+    expect(aRevoir()).toHaveLength(0);
+  });
+
+  /**
+   * Le normaliseur d'état avait déjà jeté `empreintes` en silence parce qu'il
+   * ne le recopiait pas. On vérifie donc que la marque SURVIT à l'aller-retour
+   * sur disque, et pas seulement qu'elle est posée en mémoire.
+   */
+  it('garde la marque à travers une relecture de l état', async () => {
+    const id = await livrerUne('ficus');
+    await trancher('ficus', 'ecartee');
+    await recouper(id, [candidat('geometrie')]);
+
+    const relu = lire();                       // relit le fichier, pas le cache
+    expect(relu.plantes.ficus.recoupee).toBeGreaterThan(0);
+    expect(relu.plantes.ficus.verdict).toBe('ecartee');
+    expect(aRevoir().map((v) => v.plante)).toEqual(['ficus']);
+  });
+
   it('refuse une tâche inconnue ou non livrée', async () => {
     expect(await recouper('inexistante', [candidat('geometrie')]))
       .toEqual({ ok: false, raison: 'introuvable' });
@@ -974,5 +1036,132 @@ describe('dépôt — ce qui peut être recoupé', () => {
     expect(recoupables()).toHaveLength(0);
     await echouer(t!.id, t!.reservation!, 'cassé');
     expect(recoupables()).toHaveLength(0);
+  });
+});
+
+describe('dépôt — taille réelle d une plante', () => {
+  beforeEach(() => reinitialiser());
+
+  const socle = (rayon: number, hauteur: number) => ({
+    x: 0, z: 0, y: -0.2, rayon, hauteur_modele: hauteur,
+  });
+
+  async function livrer_avec(plante: string, candidats: unknown[]) {
+    await deposer(plante, `/${plante}.png`);
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, { graine: 1, accepte: true, candidats_pot: candidats });
+    return t!.id;
+  }
+
+  /**
+   * Le pot est une règle graduée : son rayon est mesuré au millième, et une
+   * seule valeur — son diamètre réel — suffit à tout mettre à l'échelle.
+   */
+  it('rend de quoi mettre une plante à l échelle', async () => {
+    await livrer_avec('ficus', [{
+      voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb',
+      sommet: 0.25, socle: { ...socle(0.1, 1.0), hauteur_vegetal: 0.7 },
+    }]);
+    const [m] = mesurables();
+    expect(m.plante).toBe('ficus');
+    expect(m.rayon).toBeCloseTo(0.1, 5);
+    expect(m.hauteurVegetal).toBeCloseTo(0.7, 5);
+    // hauteur du pot / diamètre = (0,25 × 1,0) / (2 × 0,1)
+    expect(m.rapportHD).toBeCloseTo(1.25, 5);
+  });
+
+  /**
+   * Un pot d'horticulture est à peu près aussi haut que large. Hors de cette
+   * bande, ce qu'on a mesuré n'est probablement pas un pot : un Washingtonia
+   * de production sort à 2,94, et c'est son tronc qui a été pris pour un pot.
+   */
+  it('signale un rebord qui ne ressemble pas à un pot', async () => {
+    await livrer_avec('palmier', [{
+      voie: 'geometrie', fichier: '/x/a.glb',
+      sommet: 0.33, socle: socle(0.055, 0.98),
+    }]);
+    const [m] = mesurables();
+    expect(m.rapportHD).toBeGreaterThan(2.9);
+    expect(m.potPlausible).toBe(false);
+  });
+
+  it('tient un pot plausible pour plausible', async () => {
+    await livrer_avec('ficus', [{
+      voie: 'geometrie', fichier: '/x/a.glb',
+      sommet: 0.2, socle: socle(0.1, 1.0),
+    }]);
+    expect(mesurables()[0].potPlausible).toBe(true);
+  });
+
+  /** La voie couleur ne mesure aucune révolution : son rayon ne peut servir. */
+  it('ignore la voie couleur, qui ne mesure pas de pot', async () => {
+    await livrer_avec('fougere', [{
+      voie: 'couleur', fichier: '/x/sanspot_couleur.glb',
+      sommet: 0.3, socle: socle(0, 1.0),
+    }]);
+    const [m] = mesurables();
+    expect(m.rayon).toBeNull();
+    expect(m.rapportHD).toBeNull();
+    expect(m.potPlausible).toBe(false);
+  });
+
+  it('pose, relit et retire une taille', async () => {
+    await livrer_avec('ficus', [{
+      voie: 'geometrie', fichier: '/x/a.glb', sommet: 0.2, socle: socle(0.1, 1.0),
+    }]);
+    const r = await noterTaille('ficus', { hauteurCm: 92.4, stade: 'adulte', diametrePotCm: 19 });
+    expect(r.ok).toBe(true);
+
+    const [m] = mesurables();
+    expect(m.taille).toMatchObject({ hauteurCm: 92.4, stade: 'adulte', diametrePotCm: 19 });
+    expect(m.taille!.pose).toBeGreaterThan(0);
+
+    await noterTaille('ficus', null);
+    expect(mesurables()[0].taille).toBeNull();
+  });
+
+  /**
+   * Une valeur fausse posée en base coûte plus cher qu'un refus : une plante
+   * d'intérieur ne fait ni deux centimètres ni cinq mètres.
+   */
+  it('refuse une hauteur invraisemblable et un stade inconnu', async () => {
+    await livrer_avec('ficus', [{
+      voie: 'geometrie', fichier: '/x/a.glb', sommet: 0.2, socle: socle(0.1, 1.0),
+    }]);
+    expect(await noterTaille('ficus', { hauteurCm: 2, stade: 'adulte' }))
+      .toEqual({ ok: false, raison: 'hauteur_invraisemblable' });
+    expect(await noterTaille('ficus', { hauteurCm: 900, stade: 'adulte' }))
+      .toEqual({ ok: false, raison: 'hauteur_invraisemblable' });
+    expect(await noterTaille('ficus', { hauteurCm: NaN, stade: 'adulte' }))
+      .toEqual({ ok: false, raison: 'hauteur_invraisemblable' });
+    expect(await noterTaille('ficus', { hauteurCm: 50, stade: 'mature' as never }))
+      .toEqual({ ok: false, raison: 'stade_inconnu' });
+    expect(mesurables()[0].taille).toBeNull();
+  });
+
+  /**
+   * Trois plantes de production portent deux tâches livrées (#639). C'est la
+   * DERNIÈRE qui décrit ce qui est servi ; en rendre deux ferait saisir la
+   * taille deux fois, pour un seul modèle.
+   */
+  it('ne rend qu une ligne quand une plante a deux tâches livrées', async () => {
+    await livrer_avec('ficus', [{
+      voie: 'geometrie', fichier: '/x/a.glb', sommet: 0.2, socle: socle(0.1, 1.0),
+    }]);
+    await livrer_avec('ficus', [{
+      voie: 'geometrie', fichier: '/x/b.glb', sommet: 0.3, socle: socle(0.2, 1.0),
+    }]);
+    const m = mesurables();
+    expect(m).toHaveLength(1);
+    expect(m[0].rayon).toBeCloseTo(0.2, 5);   // la dernière livrée
+  });
+
+  /** La taille survit à l aller-retour sur disque, pas seulement en mémoire. */
+  it('garde la taille à travers une relecture de l état', async () => {
+    await livrer_avec('ficus', [{
+      voie: 'geometrie', fichier: '/x/a.glb', sommet: 0.2, socle: socle(0.1, 1.0),
+    }]);
+    await noterTaille('ficus', { hauteurCm: 60, stade: 'jeune' });
+    expect(lire().plantes.ficus.taille).toMatchObject({ hauteurCm: 60, stade: 'jeune' });
   });
 });

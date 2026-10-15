@@ -40,6 +40,37 @@ struct ChatBotView: View {
                 }
             }
             .animation(.spring(response: 0.4, dampingFraction: 0.8), value: activeConversationId)
+            // Sur la racine, et non sur l'une des deux vues que ce `ZStack`
+            // échange : seule celle qui est affichée est montée, donc une feuille
+            // accrochée à `historyView` ne peut pas s'ouvrir pendant qu'une
+            // conversation est à l'écran. `sendMessage` lèverait bien
+            // `divulgationPresentee`, et il ne se passerait rien.
+            .sheet(isPresented: $divulgationPresentee) {
+                AIDisclosureSheet { autorise in
+                    let attente = envoiEnAttente
+                    envoiEnAttente = nil
+                    guard let attente else { return }
+                    if autorise {
+                        // La préférence vient d'être écrite par la feuille : le même
+                        // appel repasse maintenant la garde.
+                        sendMessage(attente.texte, imageData: attente.image)
+                    } else {
+                        // Refus : l'assistant n'a pas d'équivalent local, donc rien
+                        // n'est inséré et l'indisponibilité est dite. Le bandeau
+                        // vit dans `chatView`, donc le message se lit dans la
+                        // conversation où l'envoi a été tenté.
+                        //
+                        // Le champ de saisie n'est PAS retouché : `sendMessage` est
+                        // sorti avant de le vider, le texte y est donc toujours. La
+                        // photo, elle, doit être remise — c'est le bouton d'envoi qui
+                        // la met à nil juste après l'appel, sans savoir que l'envoi
+                        // n'a pas eu lieu. Sans cette ligne, refuser coûterait à
+                        // l'utilisateur la pièce jointe qu'il venait de choisir.
+                        pendingImageData = attente.image
+                        apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_AI_DISABLED", comment: "")
+                    }
+                }
+            }
         }
     }
 
@@ -62,7 +93,7 @@ struct ChatBotView: View {
                                 .clipShape(Circle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("Fermer le Chat")
+                        .accessibilityLabel(NSLocalizedString("CHATBOT_CLOSE", comment: ""))
                     }
 
                     VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
@@ -104,7 +135,7 @@ struct ChatBotView: View {
             }
         }
         .navigationBarHidden(true)
-        .alert("Renommer la conversation", isPresented: .init(get: {
+        .alert(NSLocalizedString("CHATBOT_RENAME_TITLE", comment: ""), isPresented: .init(get: {
             conversationToRename != nil
         }, set: { newValue in
             if !newValue { conversationToRename = nil }
@@ -122,30 +153,6 @@ struct ChatBotView: View {
             }
         } message: {
             Text(NSLocalizedString("CHATBOT_RENAME_PROMPT", comment: ""))
-        }
-        .sheet(isPresented: $divulgationPresentee) {
-            AIDisclosureSheet { autorise in
-                let attente = envoiEnAttente
-                envoiEnAttente = nil
-                guard let attente else { return }
-                if autorise {
-                    // La préférence vient d'être écrite par la feuille : le même
-                    // appel repasse maintenant la garde.
-                    sendMessage(attente.texte, imageData: attente.image)
-                } else {
-                    // Refus : l'assistant n'a pas d'équivalent local, donc rien
-                    // n'est inséré et l'indisponibilité est dite.
-                    //
-                    // Le champ de saisie n'est PAS retouché : `sendMessage` est
-                    // sorti avant de le vider, le texte y est donc toujours. La
-                    // photo, elle, doit être remise — c'est le bouton d'envoi qui
-                    // la met à nil juste après l'appel, sans savoir que l'envoi
-                    // n'a pas eu lieu. Sans cette ligne, refuser coûterait à
-                    // l'utilisateur la pièce jointe qu'il venait de choisir.
-                    pendingImageData = attente.image
-                    apiErrorMessage = NSLocalizedString("CHATBOT_ERROR_AI_DISABLED", comment: "")
-                }
-            }
         }
     }
 
@@ -223,7 +230,7 @@ struct ChatBotView: View {
                                     .lineLimit(1)
 
                                 HStack(spacing: ArboreDesign.Spacing.xs) {
-                                    Text("\(conv.messages.count) messages")
+                                    Text(String(format: NSLocalizedString("CHATBOT_MESSAGE_COUNT_FORMAT", comment: ""), conv.messages.count))
                                         .font(ArboreDesign.Typography.caption)
                                         .foregroundColor(ArboreDesign.Colors.textSecondary)
 
@@ -380,9 +387,9 @@ struct ChatBotView: View {
 
             // Suggestion chips
             VStack(spacing: ArboreDesign.Spacing.xs) {
-                suggestionChip("🌱 Comment arroser mes tomates ?")
-                suggestionChip("🌿 Identifier une plante malade")
-                suggestionChip("☀️ Quelles plantes pour un balcon sud ?")
+                suggestionChip(NSLocalizedString("CHATBOT_SUGGESTION_WATERING", comment: ""))
+                suggestionChip(NSLocalizedString("CHATBOT_SUGGESTION_DIAGNOSE", comment: ""))
+                suggestionChip(NSLocalizedString("CHATBOT_SUGGESTION_BALCONY", comment: ""))
             }
             .padding(.top, ArboreDesign.Spacing.sm)
 

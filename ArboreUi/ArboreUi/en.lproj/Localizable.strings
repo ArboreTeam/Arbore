@@ -2017,6 +2017,14 @@
 "CHATBOT_ASK_SUBTITLE" = "I can help with gardening,\nplants, plant care and more.";
 "CHATBOT_PHOTO_SELECTED" = "Photo selected";
 "CHATBOT_PHOTO_HINT" = "Tap send to analyse";
+
+/* Assistant — suggestions, titres et libellés de ChatBotView. */
+"CHATBOT_SUGGESTION_WATERING" = "🌱 How do I water my tomatoes?";
+"CHATBOT_SUGGESTION_DIAGNOSE" = "🌿 Identify a sick plant";
+"CHATBOT_SUGGESTION_BALCONY" = "☀️ Which plants for a south-facing balcony?";
+"CHATBOT_CLOSE" = "Close chat";
+"CHATBOT_RENAME_TITLE" = "Rename conversation";
+"CHATBOT_MESSAGE_COUNT_FORMAT" = "%d messages";
 "SCAN_CAMERA_REQUIRED" = "Camera access required";
 "SCAN_OPEN_SETTINGS" = "Open Settings";
 "SCAN_ANALYSING" = "Analysing…";

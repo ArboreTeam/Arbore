@@ -96,6 +96,39 @@ export type Etat = {
      * le défaut, et c'était pourtant la seule issue offerte.
      */
     verdict?: 'validee' | 'invalidee' | 'ecartee';
+    /**
+     * Quand la coupe a été refaite APRÈS le verdict.
+     *
+     * Le verdict porte sur une coupe précise ; une recoupe la remplace, et le
+     * jugement rendu ne s'applique donc plus à ce qu'on sert. On ne l'efface
+     * pas pour autant — c'est un jugement humain, et `ecartee` vise la source,
+     * pas la coupe. On note seulement que la coupe a changé depuis, pour que la
+     * revue puisse le proposer sans rien détruire.
+     *
+     * Sans ce champ, une passe de recoupe est invisible : mesuré le 2026-10-07,
+     * 76 plantes sur 78 portaient un verdict, donc la liste à revoir était vide
+     * alors que 58 coupes venaient d'être refaites.
+     */
+    recoupee?: number;
+    /**
+     * La taille réelle de l'exemplaire, et son stade.
+     *
+     * Une plante n'est pas redimensionnable : elle a la taille qu'elle a.
+     * `hauteurCm` est donc mesurée DEPUIS LA TERRE, pas depuis le bas du pot —
+     * le pot change, la plante non, et c'est la plante qu'on pose.
+     *
+     * Le stade ne vaut que deux valeurs. Pour une plante d'intérieur, qui
+     * n'atteint presque jamais sa taille de pleine terre, « adulte » et
+     * « mature » se confondent en pratique et un troisième terme ne se
+     * remplirait pas de façon fiable.
+     */
+    taille?: {
+      hauteurCm: number;
+      stade: 'jeune' | 'adulte';
+      /** Le diamètre de pot qui a servi d'étalon, quand la hauteur en vient. */
+      diametrePotCm?: number;
+      pose: number;
+    };
     coupe?: string;
     raison?: string;
     purge?: Purge;
@@ -299,7 +332,9 @@ export function recoupables(): Recoupable[] {
 }
 
 export type Recoupe =
-  | { ok: true; candidats: number; empreintes: number; coupePerdue: boolean }
+  | { ok: true; candidats: number; empreintes: number; coupePerdue: boolean;
+      /** La plante portait un verdict : il ne juge plus la coupe en service. */
+      aRejuger: boolean }
   | { ok: false; raison: 'introuvable' | 'pas_livree' };
 
 export function recouper(id: string, candidats: unknown[]): Promise<Recoupe> {
@@ -330,10 +365,18 @@ export function recouper(id: string, candidats: unknown[]): Promise<Recoupe> {
     // l'atelier retomber silencieusement sur le premier candidat.
     const noms = new Set(candidats.map(
       (c) => nomFichier((c as Record<string, unknown>)?.fichier)));
-    const coupe = etat.plantes[t.plante]?.coupe;
+    const p = etat.plantes[t.plante];
+    const coupe = p?.coupe;
+
+    // Le verdict reste, la coupe qu'il jugeait n'est plus là. On le dit, au
+    // lieu de laisser la plante disparaître de la revue avec une coupe que
+    // personne n'a vue.
+    if (p?.verdict) p.recoupee = Date.now();
+
     return {
       ok: true, candidats: candidats.length, empreintes,
       coupePerdue: Boolean(coupe) && !noms.has(coupe!),
+      aRejuger: Boolean(p?.verdict),
     } as Recoupe;
   });
 }
@@ -757,6 +800,14 @@ export type AVoir = {
   candidats: Candidat[];
   arbitrage: boolean;
   livre: number | null;
+  /**
+   * Le verdict déjà rendu, quand la coupe a été refaite depuis.
+   *
+   * `undefined` pour une plante jamais jugée — le cas ordinaire de la revue.
+   * Renseigné, il dit que l'opérateur a déjà tranché, mais sur une coupe qui
+   * n'est plus celle qu'on sert.
+   */
+  jugee?: { verdict: 'validee' | 'invalidee' | 'ecartee'; recoupee: number };
 };
 
 function nombre(v: unknown): number | null {
@@ -828,9 +879,16 @@ function candidat(brut: unknown): Candidat {
 export function aRevoir(): AVoir[] {
   const etat = lire();
   return etat.taches
-    .filter((t) => t.etat === 'livree' && !etat.plantes[t.plante]?.verdict)
+    .filter((t) => {
+      if (t.etat !== 'livree') return false;
+      const p = etat.plantes[t.plante];
+      // Jamais jugée : c'est le cas ordinaire. Jugée mais recoupée depuis : le
+      // verdict ne porte plus sur la coupe en service, on la repropose.
+      return !p?.verdict || Boolean(p.recoupee);
+    })
     .map((t) => {
       const r = t.resultat ?? {};
+      const p = etat.plantes[t.plante];
       return {
         plante: t.plante,
         graine: nombre(r.graine),
@@ -848,6 +906,9 @@ export function aRevoir(): AVoir[] {
         candidats: (Array.isArray(r.candidats_pot) ? r.candidats_pot : []).map(candidat),
         arbitrage: Boolean(r.arbitrage_requis),
         livre: nombre(t.livre),
+        ...(p?.verdict && p.recoupee
+          ? { jugee: { verdict: p.verdict, recoupee: p.recoupee } }
+          : {}),
       };
     });
 }
@@ -930,6 +991,9 @@ export function trancher(plante: string, verdict: Verdict, coupe?: string, raiso
     const p = (etat.plantes[plante] ??= { graines: [] });
     const valide = verdict === 'validee';
     p.verdict = verdict;
+    // Le verdict qu'on vient de rendre porte sur la coupe en service : la
+    // plante n'est plus en attente de re-jugement.
+    delete p.recoupee;
     if (valide && coupe) p.coupe = coupe;
     if (raison) p.raison = raison.slice(0, 300);
     // Seule l'invalidation redépose. Écarter veut dire « n'y reviens pas » :
@@ -985,4 +1049,142 @@ export function reinitialiser() {
   // dynamique — il tracait alors tout le projet, `public/` compris, dans la
   // sortie serveur.
   ecrire(structuredClone(VIDE));
+}
+
+// ── Taille réelle d'une plante ─────────────────────────────────────────────
+//
+// Une plante n'est pas redimensionnable : elle a la taille qu'elle a, et
+// l'application doit la poser à cette taille-là. Reste à la connaître.
+//
+// LE POT EST UNE RÈGLE GRADUÉE. La coupe mesure le rayon de son rebord au
+// millième, et les pots d'horticulture n'ont qu'une poignée de diamètres. Une
+// seule valeur à fournir par plante — le diamètre réel — et l'échelle suit :
+//
+//     échelle = diamètre_pot_cm / (2 × rayon)
+//
+// Validé sur une plante dont la fiche donne hauteur ET diamètre : 3,7 %
+// d'erreur sur la hauteur totale.
+//
+// LE RAPPORT HAUTEUR/DIAMÈTRE DU POT dit, lui, si ce qu'on a mesuré EST un
+// pot. Un pot d'horticulture est à peu près aussi haut que large ; mesuré sur
+// 59 plantes, la médiane est à 0,99 et 85 % tombent entre 0,70 et 1,15. Les
+// aberrantes dénoncent les détections ratées : un Washingtonia à 2,94, c'est
+// le tronc qui a été pris pour un pot ; un Pilea à 0,13, c'est l'étalement du
+// feuillage.
+//
+// Les deux mesures sont indépendantes et se contrôlent l'une l'autre.
+
+/** Diamètres de pots d'horticulture courants, en centimètres. */
+export const DIAMETRES_POT = [10, 12, 14, 15, 17, 19, 21, 24, 27, 30] as const;
+
+/**
+ * Bande dans laquelle le rapport hauteur/diamètre décrit un vrai pot.
+ *
+ * Volontairement large : hors d'elle, on ne conclut pas que la mesure est
+ * fausse, on signale qu'elle demande un œil.
+ */
+export const HD_POT = { min: 0.70, max: 1.15 } as const;
+
+export type Mesurable = {
+  plante: string;
+  /** Rayon du rebord, en unités du modèle. `null` si aucune voie ne l'a mesuré. */
+  rayon: number | null;
+  hauteurModele: number | null;
+  /** Part de la hauteur occupée par le pot, de 0 à 1. */
+  sommet: number | null;
+  /** Hauteur du végétal au-dessus de la terre, quand la coupe l'a mesurée. */
+  hauteurVegetal: number | null;
+  /** Rapport hauteur/diamètre du pot, et s'il décrit un pot plausible. */
+  rapportHD: number | null;
+  potPlausible: boolean;
+  taille: {
+    hauteurCm: number; stade: 'jeune' | 'adulte';
+    diametrePotCm?: number; pose: number;
+  } | null;
+};
+
+/**
+ * Les plantes livrées, avec de quoi leur attribuer une taille.
+ *
+ * On ne rend que des grandeurs du modèle : la conversion en centimètres a
+ * besoin du diamètre de pot, que seul l'opérateur connaît.
+ */
+export function mesurables(): Mesurable[] {
+  const etat = lire();
+  const vus = new Set<string>();
+  const sorties: Mesurable[] = [];
+  // À l'envers : quand une plante porte deux tâches livrées — ça arrive, cf.
+  // #639 — c'est la DERNIÈRE qui décrit ce qui est servi.
+  for (let i = etat.taches.length - 1; i >= 0; i -= 1) {
+    const t = etat.taches[i];
+    if (t.etat !== 'livree' || vus.has(t.plante)) continue;
+    vus.add(t.plante);
+
+    const bruts = Array.isArray(t.resultat?.candidats_pot) ? t.resultat.candidats_pot : [];
+    // La voie géométrie seule mesure une révolution ; la voie couleur rend un
+    // rayon nul, qui ne peut servir d'étalon.
+    const geo = bruts
+      .map((b) => (b ?? {}) as Record<string, unknown>)
+      .find((c) => c.voie === 'geometrie');
+    const socle = (geo?.socle ?? {}) as Record<string, unknown>;
+    const rayon = nombre(socle.rayon);
+    const hauteurModele = nombre(socle.hauteur_modele);
+    const sommet = nombre(geo?.sommet);
+    const rapportHD = rayon && hauteurModele && sommet
+      ? (sommet * hauteurModele) / (2 * rayon)
+      : null;
+
+    sorties.push({
+      plante: t.plante,
+      rayon: rayon && rayon > 0 ? rayon : null,
+      hauteurModele,
+      sommet,
+      hauteurVegetal: nombre(socle.hauteur_vegetal),
+      rapportHD,
+      potPlausible: rapportHD !== null
+        && rapportHD >= HD_POT.min && rapportHD <= HD_POT.max,
+      taille: etat.plantes[t.plante]?.taille ?? null,
+    });
+  }
+  return sorties.sort((a, b) => a.plante.localeCompare(b.plante, 'fr'));
+}
+
+export type Taille = {
+  hauteurCm: number;
+  stade: 'jeune' | 'adulte';
+  diametrePotCm?: number;
+};
+
+/**
+ * Attribue — ou retire — la taille d'une plante.
+ *
+ * Refuse une hauteur absurde plutôt que de l'enregistrer : une plante
+ * d'intérieur ne fait ni deux centimètres ni cinq mètres, et une valeur fausse
+ * posée en base est plus coûteuse qu'un refus.
+ */
+export function noterTaille(plante: string, taille: Taille | null) {
+  return muter((etat) => {
+    const p = (etat.plantes[plante] ??= { graines: [] });
+    if (taille === null) {
+      delete p.taille;
+      return { ok: true as const, taille: null };
+    }
+    const h = Number(taille.hauteurCm);
+    if (!Number.isFinite(h) || h < 3 || h > 400) {
+      return { ok: false as const, raison: 'hauteur_invraisemblable' };
+    }
+    if (taille.stade !== 'jeune' && taille.stade !== 'adulte') {
+      return { ok: false as const, raison: 'stade_inconnu' };
+    }
+    const d = taille.diametrePotCm;
+    p.taille = {
+      hauteurCm: Math.round(h * 10) / 10,
+      stade: taille.stade,
+      ...(Number.isFinite(d) && (d as number) > 0
+        ? { diametrePotCm: Math.round((d as number) * 10) / 10 }
+        : {}),
+      pose: Date.now(),
+    };
+    return { ok: true as const, taille: p.taille };
+  });
 }

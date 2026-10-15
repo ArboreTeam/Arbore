@@ -58,6 +58,12 @@ export default function Atelier() {
               Pots
             </Link>
             <Link
+              href="/generator/tailles"
+              className="rounded-lg border border-[#DDD8CF] bg-white px-3 py-2 text-sm text-[#1B1F1A] hover:border-[#234632]"
+            >
+              Tailles
+            </Link>
+            <Link
               href="/generator/sources"
               className="rounded-lg border border-[#DDD8CF] bg-white px-3 py-2 text-sm text-[#1B1F1A] hover:border-[#234632]"
             >

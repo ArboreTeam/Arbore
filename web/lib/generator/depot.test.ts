@@ -889,6 +889,67 @@ describe('dépôt — recoupe d une plante déjà livrée', () => {
     expect(r.ok && r.coupePerdue).toBe(true);
   });
 
+  /**
+   * Le défaut qui rendait une passe entière invisible : mesuré sur le lot de
+   * production, 76 plantes sur 78 portaient un verdict, donc la liste à revoir
+   * était VIDE alors que 58 coupes venaient d'être refaites. Le verdict jugeait
+   * une coupe qui n'existait plus.
+   *
+   * On ne l'efface pas — c'est un jugement humain, et `ecartee` vise la source,
+   * pas la coupe. On note que la coupe a changé depuis, et la revue repropose.
+   */
+  it('repropose à la revue une plante jugée dont la coupe a été refaite', async () => {
+    const id = await livrerUne('ficus');
+    await trancher('ficus', 'validee', 'sanspot_geometrie.glb');
+    expect(aRevoir()).toHaveLength(0);
+
+    const r = await recouper(id, [candidat('geometrie')]);
+    expect(r.ok && r.aRejuger).toBe(true);
+    expect(lire().plantes.ficus.verdict).toBe('validee');   // rien n'est détruit
+
+    const [v] = aRevoir();
+    expect(v.plante).toBe('ficus');
+    expect(v.jugee?.verdict).toBe('validee');
+    expect(v.jugee?.recoupee).toBeGreaterThan(0);
+  });
+
+  /** Une plante jamais jugée est déjà dans la revue : rien à signaler. */
+  it('ne marque rien quand la plante n a pas encore de verdict', async () => {
+    const id = await livrerUne('ficus');
+    const r = await recouper(id, [candidat('geometrie')]);
+    expect(r.ok && r.aRejuger).toBe(false);
+    expect(lire().plantes.ficus?.recoupee).toBeUndefined();
+    expect(aRevoir()[0].jugee).toBeUndefined();
+  });
+
+  /** Le nouveau verdict porte sur la coupe en service : la marque s'efface. */
+  it('referme la marque quand l opérateur tranche à nouveau', async () => {
+    const id = await livrerUne('ficus');
+    await trancher('ficus', 'validee', 'sanspot_geometrie.glb');
+    await recouper(id, [candidat('geometrie')]);
+    expect(aRevoir()).toHaveLength(1);
+
+    await trancher('ficus', 'validee', 'sanspot_geometrie.glb');
+    expect(lire().plantes.ficus.recoupee).toBeUndefined();
+    expect(aRevoir()).toHaveLength(0);
+  });
+
+  /**
+   * Le normaliseur d'état avait déjà jeté `empreintes` en silence parce qu'il
+   * ne le recopiait pas. On vérifie donc que la marque SURVIT à l'aller-retour
+   * sur disque, et pas seulement qu'elle est posée en mémoire.
+   */
+  it('garde la marque à travers une relecture de l état', async () => {
+    const id = await livrerUne('ficus');
+    await trancher('ficus', 'ecartee');
+    await recouper(id, [candidat('geometrie')]);
+
+    const relu = lire();                       // relit le fichier, pas le cache
+    expect(relu.plantes.ficus.recoupee).toBeGreaterThan(0);
+    expect(relu.plantes.ficus.verdict).toBe('ecartee');
+    expect(aRevoir().map((v) => v.plante)).toEqual(['ficus']);
+  });
+
   it('refuse une tâche inconnue ou non livrée', async () => {
     expect(await recouper('inexistante', [candidat('geometrie')]))
       .toEqual({ ok: false, raison: 'introuvable' });

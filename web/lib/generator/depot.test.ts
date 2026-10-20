@@ -1062,6 +1062,39 @@ describe('dépôt — recoupe d une plante déjà livrée', () => {
       .toEqual({ ok: false, raison: 'pas_livree' });
   });
 
+  /**
+   * Le cas des 12 plantes du lot livrées sans candidat : la recoupe part de
+   * leur maillage complet, et `recouper` n'a rien de particulier à y faire —
+   * il pose `candidats_pot`, quelle qu'en soit l'origine, et la plante quitte
+   * la file avec une source de candidat comme les autres.
+   */
+  it('installe les candidats d une plante recoupée depuis le maillage complet', async () => {
+    // Le maillage complet d'où elle repart, puis la coupe que la passe vient
+    // d'écrire : la file ne nomme que des fichiers présents sur le volume.
+    mkdirSync(join(BAC, 'plantes', 'haworthia'), { recursive: true });
+    for (const f of ['haworthia.glb', 'sanspot_geometrie.glb']) {
+      writeFileSync(cheminArtefact('haworthia', f), Buffer.alloc(1024, 5));
+    }
+    await deposer('haworthia', '/haworthia.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      graine: 1, accepte: true, candidats_pot: [], glb: '/content/x/haworthia.glb',
+    });
+
+    const r = await recouper(t!.id, [candidat('geometrie')]);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.candidats).toBe(1);
+      expect(r.coupePerdue).toBe(false);     // aucune coupe retenue à perdre
+      expect(r.aRejuger).toBe(false);        // ni verdict rendu sur l'ancienne
+    }
+    expect(lire().taches[0].resultat!.candidats_pot).toHaveLength(1);
+    const [apres] = recoupables();
+    expect(apres.source).toBe('sanspot_geometrie.glb');
+    expect(apres.sourceEntiere).toBe(false);
+    expect(posables()[0].plante).toBe('haworthia');
+  });
+
   it('rend la plante posable sur les nouveaux candidats', async () => {
     const id = await livrerUne('ficus');
     await recouper(id, [{
@@ -1082,15 +1115,23 @@ describe('dépôt — ce qui peut être recoupé', () => {
 
   const socle = { x: 0, z: 0, y: -0.2, rayon: 0.1, hauteur_modele: 1 };
 
-  async function livrer_(plante: string, candidats: unknown[]) {
+  /** Pose un maillage sur le volume, là où l'ouvrier l'a laissé. */
+  function poser(plante: string, fichier: string) {
+    mkdirSync(join(BAC, 'plantes', plante), { recursive: true });
+    writeFileSync(cheminArtefact(plante, fichier), Buffer.alloc(1024, 5));
+  }
+
+  async function livrer_(plante: string, candidats: unknown[], glb?: string) {
     await deposer(plante, `/${plante}.png`);
     const t = await prendre();
-    await livrer(t!.id, t!.reservation!,
-                 { graine: 1, accepte: true, candidats_pot: candidats });
+    await livrer(t!.id, t!.reservation!, {
+      graine: 1, accepte: true, candidats_pot: candidats, ...(glb ? { glb } : {}),
+    });
     return t!.id;
   }
 
   it('rend les noms de fichiers, jamais les chemins du volume', async () => {
+    poser('ficus', 'sanspot_geometrie.glb');
     await livrer_('ficus', [{
       voie: 'geometrie', aire_retiree: 0.332, socle,
       fichier: '/content/pipeline/resultats/ficus/sanspot_geometrie.glb',
@@ -1102,16 +1143,126 @@ describe('dépôt — ce qui peut être recoupé', () => {
     expect(JSON.stringify(r)).not.toContain('/content');
   });
 
+  /**
+   * La non-régression qui compte : 56 plantes du lot sont servies par leur
+   * premier candidat, et elles doivent garder exactement cette source. Un
+   * candidat présent suffit à retrouver l'entier — les GLB coupés portent leur
+   * liste de triangles d'origine — et il prime donc sur le maillage complet,
+   * même quand celui-ci est encore là.
+   */
+  it('nomme le premier candidat présent, et non le maillage complet', async () => {
+    poser('cordyline', 'cordyline.glb');
+    poser('cordyline', 'sanspot_geometrie.glb');
+    await livrer_(
+      'cordyline',
+      [{ voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', socle },
+       { voie: 'couleur', fichier: '/content/x/sanspot_couleur.glb', socle }],
+      '/content/x/cordyline.glb',
+    );
+    const [r] = recoupables();
+    expect(r.source).toBe('sanspot_geometrie.glb');
+    expect(r.sourceEntiere).toBe(false);
+    // Le journal de la passe reste fidèle : le candidat couleur a été livré,
+    // même si la purge l'a emporté depuis.
+    expect(r.candidats.map((c) => c.fichier))
+      .toEqual(['sanspot_geometrie.glb', 'sanspot_couleur.glb']);
+  });
+
+  /**
+   * Anthurium White Champion, mesurée le 2026-10-20 : son premier candidat a
+   * été purgé, `sanspot_geometrie.glb` est resté. Prendre le premier candidat
+   * PRÉSENT, et non le premier tout court, la sauve sans une seconde de GPU.
+   */
+  it('passe au candidat suivant quand le premier a été purgé', async () => {
+    poser('anthurium', 'sanspot_geometrie.glb');
+    await livrer_('anthurium', [
+      { voie: 'couleur', fichier: '/content/x/sanspot_couleur.glb', socle },
+      { voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', socle },
+    ]);
+    const [r] = recoupables();
+    expect(r.source).toBe('sanspot_geometrie.glb');
+    expect(r.sourceEntiere).toBe(false);
+    expect(r.candidats).toHaveLength(2);        // l'absent reste au journal
+  });
+
+  /**
+   * Fougère vivace, même mesure : tous ses candidats ont disparu, son maillage
+   * complet est là. Le repli doit donc jouer dès qu'aucun candidat n'est
+   * PRÉSENT, et pas seulement quand l'état n'en annonce aucun.
+   */
+  it('replie sur le maillage complet quand tous les candidats ont été purgés', async () => {
+    poser('fougere', 'fougere.glb');
+    await livrer_(
+      'fougere',
+      [{ voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', socle }],
+      '/content/x/fougere.glb',
+    );
+    const [r] = recoupables();
+    expect(r.source).toBe('fougere.glb');
+    expect(r.sourceEntiere).toBe(true);
+    expect(r.candidats).toHaveLength(1);        // l'absent reste au journal
+  });
+
+  /**
+   * Haworthia Mix, Phalaenopsis Arceau et Philodendron Minima : candidats
+   * annoncés, plus rien sur le disque. Les annoncer faisait télécharger dans le
+   * vide, et l'ouvrier les comptait en `sautees` sans que personne ne sache
+   * pourquoi. Celles-là demandent une régénération.
+   */
+  it('écarte une plante dont tout a été purgé, candidats et maillage', async () => {
+    await livrer_(
+      'phalaenopsis',
+      [{ voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', socle }],
+      '/content/x/phalaenopsis.glb',
+    );
+    expect(recoupables()).toHaveLength(0);
+  });
+
+  /**
+   * Le défaut soldé par #649. Mesuré le 2026-10-20 : 12 plantes du lot de 68
+   * livrent `candidats_pot: []`, et les 12 gardent leur maillage complet sur le
+   * volume, de 42 à 65 Mo. Les écarter réclamait une régénération GPU pour un
+   * fichier déjà là.
+   */
+  it('repart du maillage complet quand la détection n a rien proposé', async () => {
+    poser('aglaonema', 'aglaonema.glb');
+    await livrer_('aglaonema', [], '/content/pipeline/resultats/aglaonema/aglaonema.glb');
+
+    const [r] = recoupables();
+    expect(r.plante).toBe('aglaonema');
+    expect(r.source).toBe('aglaonema.glb');
+    expect(r.sourceEntiere).toBe(true);
+    expect(r.candidats).toEqual([]);
+    // Elle est justement celle qui reste à recouper : `[].every` ne doit pas la
+    // faire passer pour déjà mesurée, sinon elle sort du compte `aRecouper`.
+    expect(r.mesure).toBe(false);
+    expect(JSON.stringify(r)).not.toContain('/content');
+  });
+
+  /**
+   * L'état dit ce que l'ouvrier a livré, et la purge passe après lui : un nom
+   * sans fichier ne se redescend pas.
+   */
+  it('écarte un maillage complet annoncé mais absent du volume', async () => {
+    await livrer_('fantome', [], '/content/x/fantome.glb');
+    expect(recoupables()).toHaveLength(0);
+  });
+
   it('distingue ce qui porte déjà une mesure de résidu', async () => {
     const residu = { profondeur: 0.2, hauteur: 0.8, pot: [], vert: [] };
+    poser('neuve', 'sanspot_geometrie.glb');
+    poser('ancienne', 'sanspot_geometrie.glb');
     await livrer_('neuve', [{ voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb', socle, residu }]);
     await livrer_('ancienne', [{ voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb', socle }]);
     const par = Object.fromEntries(recoupables().map((p) => [p.plante, p.mesure]));
     expect(par).toEqual({ neuve: true, ancienne: false });
   });
 
-  /** Une plante sans fichier n'a rien d'où repartir : il lui faut une régénération. */
-  it('écarte ce qui n a aucun maillage coupé', async () => {
+  /**
+   * Ni candidat, ni maillage complet : là, et là seulement, il n'y a rien d'où
+   * repartir et c'est une régénération qu'il faudrait.
+   */
+  it('écarte ce qui n a aucun maillage du tout', async () => {
     await livrer_('sans_candidat', []);
     await livrer_('sans_fichier', [{ voie: 'geometrie', socle }]);
     expect(recoupables()).toHaveLength(0);
@@ -1123,6 +1274,11 @@ describe('dépôt — ce qui peut être recoupé', () => {
     await trancher('validee', 'validee', 'sanspot_geometrie.glb');
     await livrer_('ecartee', [{ voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb', socle }]);
     await trancher('ecartee', 'ecartee');
+    // Les maillages sont posés APRÈS le verdict : la purge d'une écartée
+    // n'épargne rien, et ce qui se joue ici est qu'un verdict rendu n'interdit
+    // pas de reprendre la coupe d'un maillage encore présent.
+    poser('validee', 'sanspot_geometrie.glb');
+    poser('ecartee', 'sanspot_geometrie.glb');
     expect(recoupables().map((p) => p.plante).sort()).toEqual(['ecartee', 'validee']);
   });
 

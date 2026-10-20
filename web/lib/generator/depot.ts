@@ -297,8 +297,30 @@ export function noterPot(pot: Pot) {
 export type Recoupable = {
   id: string;
   plante: string;
-  /** Candidats livrés, par NOM de fichier : la disposition du volume ne sort pas. */
+  /**
+   * Candidats livrés, par NOM de fichier : la disposition du volume ne sort pas.
+   *
+   * Ce que l'ouvrier a LIVRÉ, y compris les fichiers que la purge a depuis
+   * emportés : c'est le journal de la passe, et il doit rester fidèle à ce qui
+   * a été proposé. Seule `source` est garantie présente.
+   */
   candidats: Array<{ voie: string; fichier: string; aireRetiree: number | null }>;
+  /**
+   * Le maillage à redescendre pour refaire la coupe, par NOM de fichier.
+   *
+   * Garanti SUR LE VOLUME au moment du relevé. Le premier candidat qui y est
+   * encore quand il en reste un — les GLB coupés portent tous leur liste de
+   * triangles d'origine, donc n'importe lequel suffit à retrouver l'entier —,
+   * le maillage complet sinon.
+   */
+  source: string;
+  /**
+   * `source` est le maillage complet, et non un candidat.
+   *
+   * L'ouvrier doit le savoir, parce que le traitement n'est pas le même : il
+   * n'y a aucune coupe antérieure à défaire avant de chercher le pot.
+   */
+  sourceEntiere: boolean;
   /** Les candidats portent-ils déjà une mesure de résidu, donc la coupe récente ? */
   mesure: boolean;
 };
@@ -311,11 +333,31 @@ export type Recoupable = {
  * fichiers pour redescendre un maillage ; il n'a pas besoin de savoir où le
  * volume les range, et ne l'apprend pas ici non plus.
  *
- * Tout ce qui est livré avec au moins un fichier, verdict compris : une coupe
+ * Tout ce qui est livré avec au moins un maillage, verdict compris : une coupe
  * validée se reprend aussi, puisque c'est la coupe qui s'est améliorée et non
- * le jugement qui a changé. Les plantes dont la détection n'avait rien trouvé
- * sont incluses sans l'être — elles n'ont pas de fichier, donc rien d'où
- * repartir, et c'est une régénération qu'il leur faudrait.
+ * le jugement qui a changé.
+ *
+ * Les plantes dont la détection n'a rien trouvé en sont. La source d'une
+ * recoupe est un MAILLAGE, et le maillage complet en est un — c'est même celui
+ * dont les candidats sont dérivés, donc la meilleure source possible. Mesuré
+ * le 2026-10-20 sur le lot de 68 : les 12 plantes livrées avec
+ * `candidats_pot: []` gardent toutes leur GLB complet, 42 à 65 Mo et près d'un
+ * million de triangles. La purge n'avait rien à effacer chez elles, puisqu'il
+ * n'y avait qu'un maillage à garder. Les écarter réclamait une régénération
+ * GPU — 165 s et une graine brûlée — pour un fichier déjà sur le volume.
+ *
+ * C'EST LE VOLUME QUI TRANCHE, et non l'état. `trancher` ne conserve que la
+ * coupe retenue et laisse les noms des autres candidats dans l'état : celui-ci
+ * décrit ce qui a été livré, jamais ce qui reste. Mesuré le 2026-10-20 sur les
+ * 64 tâches livrées avec candidat, 5 annonçaient un premier candidat absent du
+ * volume — et les trois populations ne se traitent pas de la même façon :
+ *
+ * - un autre candidat était là (1 plante) : c'est lui la source ;
+ * - tous les candidats avaient disparu mais le maillage complet était là
+ *   (1 plante) : le repli joue, même si l'état annonce des candidats ;
+ * - plus rien sur le disque (3 plantes) : la tâche est écartée. Les annoncer
+ *   faisait télécharger dans le vide, et l'ouvrier les comptait en `sautees`
+ *   sans que personne ne sache pourquoi. Celles-là demandent une régénération.
  */
 export function recoupables(): Recoupable[] {
   const etat = lire();
@@ -323,7 +365,6 @@ export function recoupables(): Recoupable[] {
   for (const t of etat.taches) {
     if (t.etat !== 'livree') continue;
     const bruts = Array.isArray(t.resultat?.candidats_pot) ? t.resultat.candidats_pot : [];
-    if (bruts.length === 0) continue;
     const candidats = bruts
       .map((b) => {
         const c = (b ?? {}) as Record<string, unknown>;
@@ -335,10 +376,25 @@ export function recoupables(): Recoupable[] {
       })
       .filter((c): c is { voie: string; fichier: string; aireRetiree: number | null } =>
         c.fichier !== null);
-    if (candidats.length === 0) continue;
+
+    // Un seul relevé du dossier par tâche : les noms viennent de l'état, la
+    // présence du disque, et on ne nomme à l'ouvrier qu'un fichier qu'il
+    // pourra réellement redescendre.
+    const presents = new Set(glbPresents(t.plante));
+    const coupe = candidats.find((c) => presents.has(c.fichier));
+    const complet = coupe ? null : nomFichier(t.resultat?.glb);
+    const entier = complet !== null && presents.has(complet);
+    if (!coupe && !entier) continue;
+
     sorties.push({
       id: t.id, plante: t.plante, candidats,
-      mesure: bruts.every((b) => Boolean((b as Record<string, unknown>)?.residu)),
+      source: coupe ? coupe.fichier : complet!,
+      sourceEntiere: entier,
+      // `[].every` vaut `true` : sans la garde sur le nombre, une plante sans
+      // candidat s'annoncerait déjà mesurée, donc hors du compte `aRecouper`,
+      // alors qu'elle est précisément celle qui reste à recouper.
+      mesure: candidats.length > 0
+        && bruts.every((b) => Boolean((b as Record<string, unknown>)?.residu)),
     });
   }
   return sorties;

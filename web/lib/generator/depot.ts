@@ -130,6 +130,19 @@ export type Etat = {
       pose: number;
     };
     coupe?: string;
+    /**
+     * L'opérateur a REGARDÉ les candidats et n'en veut aucun.
+     *
+     * Sans ce champ, « j'ai tranché pour le maillage entier » et « on ne m'a
+     * rien proposé » s'écrivent pareil : une plante validée sans `coupe`. Le
+     * seul indice était le motif de purge, qui n'était pas fait pour ça.
+     *
+     * Mesuré le 2026-10-20 : 6 plantes validées portaient un candidat
+     * exploitable sans coupe retenue, et rien ne disait si c'était un choix.
+     * Aucun écran ne permettait d'y revenir, `aRevoir` écartant toute plante
+     * déjà jugée.
+     */
+    sansCoupe?: boolean;
     raison?: string;
     purge?: Purge;
   }>;
@@ -284,8 +297,30 @@ export function noterPot(pot: Pot) {
 export type Recoupable = {
   id: string;
   plante: string;
-  /** Candidats livrés, par NOM de fichier : la disposition du volume ne sort pas. */
+  /**
+   * Candidats livrés, par NOM de fichier : la disposition du volume ne sort pas.
+   *
+   * Ce que l'ouvrier a LIVRÉ, y compris les fichiers que la purge a depuis
+   * emportés : c'est le journal de la passe, et il doit rester fidèle à ce qui
+   * a été proposé. Seule `source` est garantie présente.
+   */
   candidats: Array<{ voie: string; fichier: string; aireRetiree: number | null }>;
+  /**
+   * Le maillage à redescendre pour refaire la coupe, par NOM de fichier.
+   *
+   * Garanti SUR LE VOLUME au moment du relevé. Le premier candidat qui y est
+   * encore quand il en reste un — les GLB coupés portent tous leur liste de
+   * triangles d'origine, donc n'importe lequel suffit à retrouver l'entier —,
+   * le maillage complet sinon.
+   */
+  source: string;
+  /**
+   * `source` est le maillage complet, et non un candidat.
+   *
+   * L'ouvrier doit le savoir, parce que le traitement n'est pas le même : il
+   * n'y a aucune coupe antérieure à défaire avant de chercher le pot.
+   */
+  sourceEntiere: boolean;
   /** Les candidats portent-ils déjà une mesure de résidu, donc la coupe récente ? */
   mesure: boolean;
 };
@@ -298,11 +333,31 @@ export type Recoupable = {
  * fichiers pour redescendre un maillage ; il n'a pas besoin de savoir où le
  * volume les range, et ne l'apprend pas ici non plus.
  *
- * Tout ce qui est livré avec au moins un fichier, verdict compris : une coupe
+ * Tout ce qui est livré avec au moins un maillage, verdict compris : une coupe
  * validée se reprend aussi, puisque c'est la coupe qui s'est améliorée et non
- * le jugement qui a changé. Les plantes dont la détection n'avait rien trouvé
- * sont incluses sans l'être — elles n'ont pas de fichier, donc rien d'où
- * repartir, et c'est une régénération qu'il leur faudrait.
+ * le jugement qui a changé.
+ *
+ * Les plantes dont la détection n'a rien trouvé en sont. La source d'une
+ * recoupe est un MAILLAGE, et le maillage complet en est un — c'est même celui
+ * dont les candidats sont dérivés, donc la meilleure source possible. Mesuré
+ * le 2026-10-20 sur le lot de 68 : les 12 plantes livrées avec
+ * `candidats_pot: []` gardent toutes leur GLB complet, 42 à 65 Mo et près d'un
+ * million de triangles. La purge n'avait rien à effacer chez elles, puisqu'il
+ * n'y avait qu'un maillage à garder. Les écarter réclamait une régénération
+ * GPU — 165 s et une graine brûlée — pour un fichier déjà sur le volume.
+ *
+ * C'EST LE VOLUME QUI TRANCHE, et non l'état. `trancher` ne conserve que la
+ * coupe retenue et laisse les noms des autres candidats dans l'état : celui-ci
+ * décrit ce qui a été livré, jamais ce qui reste. Mesuré le 2026-10-20 sur les
+ * 64 tâches livrées avec candidat, 5 annonçaient un premier candidat absent du
+ * volume — et les trois populations ne se traitent pas de la même façon :
+ *
+ * - un autre candidat était là (1 plante) : c'est lui la source ;
+ * - tous les candidats avaient disparu mais le maillage complet était là
+ *   (1 plante) : le repli joue, même si l'état annonce des candidats ;
+ * - plus rien sur le disque (3 plantes) : la tâche est écartée. Les annoncer
+ *   faisait télécharger dans le vide, et l'ouvrier les comptait en `sautees`
+ *   sans que personne ne sache pourquoi. Celles-là demandent une régénération.
  */
 export function recoupables(): Recoupable[] {
   const etat = lire();
@@ -310,7 +365,6 @@ export function recoupables(): Recoupable[] {
   for (const t of etat.taches) {
     if (t.etat !== 'livree') continue;
     const bruts = Array.isArray(t.resultat?.candidats_pot) ? t.resultat.candidats_pot : [];
-    if (bruts.length === 0) continue;
     const candidats = bruts
       .map((b) => {
         const c = (b ?? {}) as Record<string, unknown>;
@@ -322,10 +376,25 @@ export function recoupables(): Recoupable[] {
       })
       .filter((c): c is { voie: string; fichier: string; aireRetiree: number | null } =>
         c.fichier !== null);
-    if (candidats.length === 0) continue;
+
+    // Un seul relevé du dossier par tâche : les noms viennent de l'état, la
+    // présence du disque, et on ne nomme à l'ouvrier qu'un fichier qu'il
+    // pourra réellement redescendre.
+    const presents = new Set(glbPresents(t.plante));
+    const coupe = candidats.find((c) => presents.has(c.fichier));
+    const complet = coupe ? null : nomFichier(t.resultat?.glb);
+    const entier = complet !== null && presents.has(complet);
+    if (!coupe && !entier) continue;
+
     sorties.push({
       id: t.id, plante: t.plante, candidats,
-      mesure: bruts.every((b) => Boolean((b as Record<string, unknown>)?.residu)),
+      source: coupe ? coupe.fichier : complet!,
+      sourceEntiere: entier,
+      // `[].every` vaut `true` : sans la garde sur le nombre, une plante sans
+      // candidat s'annoncerait déjà mesurée, donc hors du compte `aRecouper`,
+      // alors qu'elle est précisément celle qui reste à recouper.
+      mesure: candidats.length > 0
+        && bruts.every((b) => Boolean((b as Record<string, unknown>)?.residu)),
     });
   }
   return sorties;
@@ -870,12 +939,38 @@ function candidat(brut: unknown): Candidat {
 }
 
 /**
- * Plantes livrées dont le verdict reste à rendre.
+ * Ce que la revue affiche d'une tâche livrée.
  *
- * Rend tout ce que la revue affiche, mesures comprises : c'est le dépôt qui
- * connaît la disposition des artefacts, pas la page. Celle-ci ne voit que des
- * noms de fichiers, qu'elle passe à la route de service.
+ * C'est le dépôt qui connaît la disposition des artefacts, pas la page. Celle-ci
+ * ne voit que des noms de fichiers, qu'elle passe à la route de service.
  */
+function vueDe(etat: Etat, t: Tache): AVoir {
+  const r = t.resultat ?? {};
+  const p = etat.plantes[t.plante];
+  return {
+    plante: t.plante,
+    graine: nombre(r.graine),
+    accepte: Boolean(r.accepte),
+    essai: nombre(r.essai),
+    secondes: nombre(r.secondes),
+    triangles: nombre(r.triangles),
+    octets: nombre(r.octets),
+    dominante: nombre(r.dominante),
+    grosses: nombre(r.grosses),
+    plans: nombre(r.plans),
+    apercus: (Array.isArray(r.apercus) ? r.apercus : [])
+      .map(nomFichier).filter((n): n is string => n !== null),
+    glb: nomFichier(r.glb),
+    candidats: (Array.isArray(r.candidats_pot) ? r.candidats_pot : []).map(candidat),
+    arbitrage: Boolean(r.arbitrage_requis),
+    livre: nombre(t.livre),
+    ...(p?.verdict && p.recoupee
+      ? { jugee: { verdict: p.verdict, recoupee: p.recoupee } }
+      : {}),
+  };
+}
+
+/** Plantes livrées dont le verdict reste à rendre. */
 export function aRevoir(): AVoir[] {
   const etat = lire();
   return etat.taches
@@ -886,31 +981,47 @@ export function aRevoir(): AVoir[] {
       // verdict ne porte plus sur la coupe en service, on la repropose.
       return !p?.verdict || Boolean(p.recoupee);
     })
-    .map((t) => {
-      const r = t.resultat ?? {};
+    .map((t) => vueDe(etat, t));
+}
+
+/**
+ * Plantes validées auxquelles aucune coupe n'a été retenue, alors qu'un
+ * candidat exploitable existe encore sur le volume.
+ *
+ * Ce n'est pas une erreur : `AUCUN` est un choix à part entière dans l'écran
+ * d'arbitrage, et retenir le maillage entier avec son pot d'origine est parfois
+ * la bonne décision. Mais `trancher` ne consigne pas la différence entre « j'ai
+ * regardé et je n'en veux aucun » et « on ne m'a rien proposé » : dans les deux
+ * cas la plante ressort sans `coupe`. Le seul indice est le motif de purge, qui
+ * dit avoir voulu garder le maillage entier.
+ *
+ * Donc on les repropose au lieu de les laisser dans un état qu'on ne sait plus
+ * relire. Le verdict n'est PAS remis en cause — la plante reste validée ; seule
+ * la coupe est en question.
+ *
+ * Elles sont exclues de `aRevoir`, qui écarte toute plante déjà jugée : sans
+ * cette seconde file, l'écran de revue leur répond 404 et il n'existe aucun
+ * chemin pour retenir une coupe après coup.
+ */
+export function coupeNonRetenue(): AVoir[] {
+  const etat = lire();
+  const presents = new Map<string, string[]>();
+  return etat.taches
+    .filter((t) => {
+      if (t.etat !== 'livree') return false;
       const p = etat.plantes[t.plante];
-      return {
-        plante: t.plante,
-        graine: nombre(r.graine),
-        accepte: Boolean(r.accepte),
-        essai: nombre(r.essai),
-        secondes: nombre(r.secondes),
-        triangles: nombre(r.triangles),
-        octets: nombre(r.octets),
-        dominante: nombre(r.dominante),
-        grosses: nombre(r.grosses),
-        plans: nombre(r.plans),
-        apercus: (Array.isArray(r.apercus) ? r.apercus : [])
-          .map(nomFichier).filter((n): n is string => n !== null),
-        glb: nomFichier(r.glb),
-        candidats: (Array.isArray(r.candidats_pot) ? r.candidats_pot : []).map(candidat),
-        arbitrage: Boolean(r.arbitrage_requis),
-        livre: nombre(t.livre),
-        ...(p?.verdict && p.recoupee
-          ? { jugee: { verdict: p.verdict, recoupee: p.recoupee } }
-          : {}),
-      };
-    });
+      if (p?.verdict !== 'validee' || p.coupe || p.sansCoupe || p.recoupee) return false;
+      // Un candidat dont le fichier a été purgé ne se retient plus : le
+      // proposer mènerait à une visionneuse vide. On relit le volume, parce
+      // que l'état annonce ce que l'ouvrier a livré, pas ce qui reste.
+      const bruts = Array.isArray(t.resultat?.candidats_pot) ? t.resultat.candidats_pot : [];
+      if (!presents.has(t.plante)) presents.set(t.plante, glbPresents(t.plante));
+      const surDisque = presents.get(t.plante)!;
+      return bruts.map(candidat).some(
+        (c) => c.fichier !== null && c.socle !== null && surDisque.includes(c.fichier),
+      );
+    })
+    .map((t) => vueDe(etat, t));
 }
 
 /** Une plante sur laquelle on peut essayer un pot. */
@@ -1038,6 +1149,58 @@ export function trancher(plante: string, verdict: Verdict, coupe?: string, raiso
     }
 
     return p.verdict;
+  });
+}
+
+export type Retenue =
+  | { ok: true; coupe: string | null }
+  | { ok: false; motif: 'non_validee' | 'candidat_inconnu' | 'candidat_absent' };
+
+/**
+ * Retient une coupe sur une plante DÉJÀ validée, sans toucher au verdict.
+ *
+ * `trancher` ne sait pas faire ça : il remet un verdict, et sur une plante
+ * validée il n'y a rien à remettre. Passer par lui obligerait à rejouer le
+ * jugement humain pour corriger une donnée qui n'en fait pas partie.
+ *
+ * `coupe` à `null` consigne le choix inverse — le maillage entier, avec son pot
+ * d'origine — et retire la plante de la file, pour qu'elle n'y revienne pas
+ * indéfiniment faute de savoir si quelqu'un a regardé.
+ *
+ * Aucune purge quand on retient `null`. Les 6 plantes concernées au moment où
+ * ce chemin est écrit ne portent PLUS leur maillage entier sur le volume : seuls
+ * les candidats coupés restent. Purger « tout sauf le maillage entier »
+ * effacerait donc le seul maillage livrable de la plante. C'est la même raison
+ * qui a fait s'abstenir la garde de `trancher`, et c'est ce qui a sauvé ces
+ * fichiers.
+ */
+export function retenirCoupe(plante: string, coupe: string | null): Promise<Retenue> {
+  return muter((etat) => {
+    const p = etat.plantes[plante];
+    if (p?.verdict !== 'validee') return { ok: false, motif: 'non_validee' } as const;
+
+    if (coupe === null) {
+      delete p.coupe;
+      p.sansCoupe = true;
+      return { ok: true, coupe: null } as const;
+    }
+
+    const nom = nomFichier(coupe);
+    // Seul un candidat réellement livré par l'ouvrier peut être retenu. Sans
+    // cette garde, un nom quelconque passerait et la purge garderait un
+    // fichier qui n'est la coupe de rien.
+    const livree = etat.taches.filter((t) => t.plante === plante && t.etat === 'livree').at(-1);
+    const bruts = Array.isArray(livree?.resultat?.candidats_pot) ? livree.resultat.candidats_pot : [];
+    const connu = bruts.map(candidat).some((c) => c.fichier === nom);
+    if (!nom || !connu) return { ok: false, motif: 'candidat_inconnu' } as const;
+    if (!glbPresents(plante).includes(nom)) return { ok: false, motif: 'candidat_absent' } as const;
+
+    p.coupe = nom;
+    delete p.sansCoupe;
+    const purge = purger(plante, [nom]);
+    p.purge = { quand: Date.now(), fichiers: purge.supprimes.length,
+                octets: purge.octets, garde: nom };
+    return { ok: true, coupe: nom } as const;
   });
 }
 

@@ -345,9 +345,18 @@ describe('routes de la file — recoupe', () => {
    */
   it('liste ce qui peut être recoupé, par noms de fichiers', async () => {
     await livrerUne('ficus');
+    // La file ne nomme que des maillages présents : c'est le volume qui dit ce
+    // qui reste après purge, pas l'état.
+    mkdirSync(join(BAC, 'plantes', 'ficus'), { recursive: true });
+    writeFileSync(join(BAC, 'plantes', 'ficus', 'sanspot_geometrie.glb'),
+                  Buffer.alloc(64, 2));
     const d = await (await recoupables.GET(req('/api/generator/recoupe'))).json();
     expect(d.aRecouper).toBe(1);
     expect(d.plantes[0].candidats[0].fichier).toBe('sanspot_geometrie.glb');
+    // La source à redescendre traverse aussi : la route rend la liste telle
+    // quelle, et c'est ce qui dit à l'ouvrier d'où repartir.
+    expect(d.plantes[0].source).toBe('sanspot_geometrie.glb');
+    expect(d.plantes[0].sourceEntiere).toBe(false);
     expect(JSON.stringify(d)).not.toContain('/content');
   });
 

@@ -286,6 +286,21 @@ export type Recoupable = {
   plante: string;
   /** Candidats livrés, par NOM de fichier : la disposition du volume ne sort pas. */
   candidats: Array<{ voie: string; fichier: string; aireRetiree: number | null }>;
+  /**
+   * Le maillage à redescendre pour refaire la coupe, par NOM de fichier.
+   *
+   * Un candidat quand la détection en avait proposé un : les GLB coupés
+   * portent tous leur liste de triangles d'origine, donc n'importe lequel
+   * suffit à retrouver l'entier. Le maillage complet sinon.
+   */
+  source: string;
+  /**
+   * `source` est le maillage complet, et non un candidat.
+   *
+   * L'ouvrier doit le savoir, parce que le traitement n'est pas le même : il
+   * n'y a aucune coupe antérieure à défaire avant de chercher le pot.
+   */
+  sourceEntiere: boolean;
   /** Les candidats portent-ils déjà une mesure de résidu, donc la coupe récente ? */
   mesure: boolean;
 };
@@ -298,11 +313,21 @@ export type Recoupable = {
  * fichiers pour redescendre un maillage ; il n'a pas besoin de savoir où le
  * volume les range, et ne l'apprend pas ici non plus.
  *
- * Tout ce qui est livré avec au moins un fichier, verdict compris : une coupe
+ * Tout ce qui est livré avec au moins un maillage, verdict compris : une coupe
  * validée se reprend aussi, puisque c'est la coupe qui s'est améliorée et non
- * le jugement qui a changé. Les plantes dont la détection n'avait rien trouvé
- * sont incluses sans l'être — elles n'ont pas de fichier, donc rien d'où
- * repartir, et c'est une régénération qu'il leur faudrait.
+ * le jugement qui a changé.
+ *
+ * Les plantes dont la détection n'a rien trouvé en sont. La source d'une
+ * recoupe est un MAILLAGE, et le maillage complet en est un — c'est même celui
+ * dont les candidats sont dérivés, donc la meilleure source possible. Mesuré
+ * le 2026-10-20 sur le lot de 68 : les 12 plantes livrées avec
+ * `candidats_pot: []` gardent toutes leur GLB complet, 42 à 65 Mo et près d'un
+ * million de triangles. La purge n'avait rien à effacer chez elles, puisqu'il
+ * n'y avait qu'un maillage à garder. Les écarter réclamait une régénération
+ * GPU — 165 s et une graine brûlée — pour un fichier déjà sur le volume.
+ *
+ * C'est le VOLUME qui tranche, et non l'état : l'état dit ce que l'ouvrier a
+ * livré, la purge passe après lui, et un nom sans fichier ne se redescend pas.
  */
 export function recoupables(): Recoupable[] {
   const etat = lire();
@@ -310,7 +335,6 @@ export function recoupables(): Recoupable[] {
   for (const t of etat.taches) {
     if (t.etat !== 'livree') continue;
     const bruts = Array.isArray(t.resultat?.candidats_pot) ? t.resultat.candidats_pot : [];
-    if (bruts.length === 0) continue;
     const candidats = bruts
       .map((b) => {
         const c = (b ?? {}) as Record<string, unknown>;
@@ -322,10 +346,23 @@ export function recoupables(): Recoupable[] {
       })
       .filter((c): c is { voie: string; fichier: string; aireRetiree: number | null } =>
         c.fichier !== null);
-    if (candidats.length === 0) continue;
+
+    // Aucun candidat exploitable : le maillage complet fait source. Son nom
+    // vient de l'état, sa présence du disque — on ne nomme à l'ouvrier que des
+    // fichiers qu'il pourra réellement redescendre.
+    const complet = candidats.length === 0 ? nomFichier(t.resultat?.glb) : null;
+    const entier = complet !== null && glbPresents(t.plante).includes(complet);
+    if (candidats.length === 0 && !entier) continue;
+
     sorties.push({
       id: t.id, plante: t.plante, candidats,
-      mesure: bruts.every((b) => Boolean((b as Record<string, unknown>)?.residu)),
+      source: entier ? complet! : candidats[0].fichier,
+      sourceEntiere: entier,
+      // `[].every` vaut `true` : sans la garde sur le nombre, une plante sans
+      // candidat s'annoncerait déjà mesurée, donc hors du compte `aRecouper`,
+      // alors qu'elle est précisément celle qui reste à recouper.
+      mesure: candidats.length > 0
+        && bruts.every((b) => Boolean((b as Record<string, unknown>)?.residu)),
     });
   }
   return sorties;

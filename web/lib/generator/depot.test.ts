@@ -965,6 +965,33 @@ describe('dépôt — recoupe d une plante déjà livrée', () => {
       .toEqual({ ok: false, raison: 'pas_livree' });
   });
 
+  /**
+   * Le cas des 12 plantes du lot livrées sans candidat : la recoupe part de
+   * leur maillage complet, et `recouper` n'a rien de particulier à y faire —
+   * il pose `candidats_pot`, quelle qu'en soit l'origine, et la plante quitte
+   * la file avec une source de candidat comme les autres.
+   */
+  it('installe les candidats d une plante recoupée depuis le maillage complet', async () => {
+    await deposer('haworthia', '/haworthia.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      graine: 1, accepte: true, candidats_pot: [], glb: '/content/x/haworthia.glb',
+    });
+
+    const r = await recouper(t!.id, [candidat('geometrie')]);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.candidats).toBe(1);
+      expect(r.coupePerdue).toBe(false);     // aucune coupe retenue à perdre
+      expect(r.aRejuger).toBe(false);        // ni verdict rendu sur l'ancienne
+    }
+    expect(lire().taches[0].resultat!.candidats_pot).toHaveLength(1);
+    const [apres] = recoupables();
+    expect(apres.source).toBe('sanspot_geometrie.glb');
+    expect(apres.sourceEntiere).toBe(false);
+    expect(posables()[0].plante).toBe('haworthia');
+  });
+
   it('rend la plante posable sur les nouveaux candidats', async () => {
     const id = await livrerUne('ficus');
     await recouper(id, [{
@@ -985,11 +1012,18 @@ describe('dépôt — ce qui peut être recoupé', () => {
 
   const socle = { x: 0, z: 0, y: -0.2, rayon: 0.1, hauteur_modele: 1 };
 
-  async function livrer_(plante: string, candidats: unknown[]) {
+  /** Pose un maillage sur le volume, là où l'ouvrier l'a laissé. */
+  function poser(plante: string, fichier: string) {
+    mkdirSync(join(BAC, 'plantes', plante), { recursive: true });
+    writeFileSync(cheminArtefact(plante, fichier), Buffer.alloc(1024, 5));
+  }
+
+  async function livrer_(plante: string, candidats: unknown[], glb?: string) {
     await deposer(plante, `/${plante}.png`);
     const t = await prendre();
-    await livrer(t!.id, t!.reservation!,
-                 { graine: 1, accepte: true, candidats_pot: candidats });
+    await livrer(t!.id, t!.reservation!, {
+      graine: 1, accepte: true, candidats_pot: candidats, ...(glb ? { glb } : {}),
+    });
     return t!.id;
   }
 
@@ -1005,6 +1039,53 @@ describe('dépôt — ce qui peut être recoupé', () => {
     expect(JSON.stringify(r)).not.toContain('/content');
   });
 
+  /**
+   * Un candidat suffit à retrouver l'entier — les GLB coupés portent leur liste
+   * de triangles d'origine. Tant qu'il y en a un, c'est lui la source, et
+   * l'ouvrier a une coupe antérieure à défaire.
+   */
+  it('nomme un candidat comme source quand la détection en a proposé', async () => {
+    poser('cordyline', 'cordyline.glb');
+    await livrer_(
+      'cordyline',
+      [{ voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', socle }],
+      '/content/x/cordyline.glb',
+    );
+    const [r] = recoupables();
+    expect(r.source).toBe('sanspot_geometrie.glb');
+    expect(r.sourceEntiere).toBe(false);
+  });
+
+  /**
+   * Le défaut soldé par #649. Mesuré le 2026-10-20 : 12 plantes du lot de 68
+   * livrent `candidats_pot: []`, et les 12 gardent leur maillage complet sur le
+   * volume, de 42 à 65 Mo. Les écarter réclamait une régénération GPU pour un
+   * fichier déjà là.
+   */
+  it('repart du maillage complet quand la détection n a rien proposé', async () => {
+    poser('aglaonema', 'aglaonema.glb');
+    await livrer_('aglaonema', [], '/content/pipeline/resultats/aglaonema/aglaonema.glb');
+
+    const [r] = recoupables();
+    expect(r.plante).toBe('aglaonema');
+    expect(r.source).toBe('aglaonema.glb');
+    expect(r.sourceEntiere).toBe(true);
+    expect(r.candidats).toEqual([]);
+    // Elle est justement celle qui reste à recouper : `[].every` ne doit pas la
+    // faire passer pour déjà mesurée, sinon elle sort du compte `aRecouper`.
+    expect(r.mesure).toBe(false);
+    expect(JSON.stringify(r)).not.toContain('/content');
+  });
+
+  /**
+   * L'état dit ce que l'ouvrier a livré, et la purge passe après lui : un nom
+   * sans fichier ne se redescend pas.
+   */
+  it('écarte un maillage complet annoncé mais absent du volume', async () => {
+    await livrer_('fantome', [], '/content/x/fantome.glb');
+    expect(recoupables()).toHaveLength(0);
+  });
+
   it('distingue ce qui porte déjà une mesure de résidu', async () => {
     const residu = { profondeur: 0.2, hauteur: 0.8, pot: [], vert: [] };
     await livrer_('neuve', [{ voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb', socle, residu }]);
@@ -1013,8 +1094,11 @@ describe('dépôt — ce qui peut être recoupé', () => {
     expect(par).toEqual({ neuve: true, ancienne: false });
   });
 
-  /** Une plante sans fichier n'a rien d'où repartir : il lui faut une régénération. */
-  it('écarte ce qui n a aucun maillage coupé', async () => {
+  /**
+   * Ni candidat, ni maillage complet : là, et là seulement, il n'y a rien d'où
+   * repartir et c'est une régénération qu'il faudrait.
+   */
+  it('écarte ce qui n a aucun maillage du tout', async () => {
     await livrer_('sans_candidat', []);
     await livrer_('sans_fichier', [{ voie: 'geometrie', socle }]);
     expect(recoupables()).toHaveLength(0);

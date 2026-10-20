@@ -348,6 +348,10 @@ describe('routes de la file — recoupe', () => {
     const d = await (await recoupables.GET(req('/api/generator/recoupe'))).json();
     expect(d.aRecouper).toBe(1);
     expect(d.plantes[0].candidats[0].fichier).toBe('sanspot_geometrie.glb');
+    // La source à redescendre traverse aussi : la route rend la liste telle
+    // quelle, et c'est ce qui dit à l'ouvrier d'où repartir.
+    expect(d.plantes[0].source).toBe('sanspot_geometrie.glb');
+    expect(d.plantes[0].sourceEntiere).toBe(false);
     expect(JSON.stringify(d)).not.toContain('/content');
   });
 

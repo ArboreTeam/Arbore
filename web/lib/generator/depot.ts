@@ -284,14 +284,21 @@ export function noterPot(pot: Pot) {
 export type Recoupable = {
   id: string;
   plante: string;
-  /** Candidats livrés, par NOM de fichier : la disposition du volume ne sort pas. */
+  /**
+   * Candidats livrés, par NOM de fichier : la disposition du volume ne sort pas.
+   *
+   * Ce que l'ouvrier a LIVRÉ, y compris les fichiers que la purge a depuis
+   * emportés : c'est le journal de la passe, et il doit rester fidèle à ce qui
+   * a été proposé. Seule `source` est garantie présente.
+   */
   candidats: Array<{ voie: string; fichier: string; aireRetiree: number | null }>;
   /**
    * Le maillage à redescendre pour refaire la coupe, par NOM de fichier.
    *
-   * Un candidat quand la détection en avait proposé un : les GLB coupés
-   * portent tous leur liste de triangles d'origine, donc n'importe lequel
-   * suffit à retrouver l'entier. Le maillage complet sinon.
+   * Garanti SUR LE VOLUME au moment du relevé. Le premier candidat qui y est
+   * encore quand il en reste un — les GLB coupés portent tous leur liste de
+   * triangles d'origine, donc n'importe lequel suffit à retrouver l'entier —,
+   * le maillage complet sinon.
    */
   source: string;
   /**
@@ -326,8 +333,18 @@ export type Recoupable = {
  * n'y avait qu'un maillage à garder. Les écarter réclamait une régénération
  * GPU — 165 s et une graine brûlée — pour un fichier déjà sur le volume.
  *
- * C'est le VOLUME qui tranche, et non l'état : l'état dit ce que l'ouvrier a
- * livré, la purge passe après lui, et un nom sans fichier ne se redescend pas.
+ * C'EST LE VOLUME QUI TRANCHE, et non l'état. `trancher` ne conserve que la
+ * coupe retenue et laisse les noms des autres candidats dans l'état : celui-ci
+ * décrit ce qui a été livré, jamais ce qui reste. Mesuré le 2026-10-20 sur les
+ * 64 tâches livrées avec candidat, 5 annonçaient un premier candidat absent du
+ * volume — et les trois populations ne se traitent pas de la même façon :
+ *
+ * - un autre candidat était là (1 plante) : c'est lui la source ;
+ * - tous les candidats avaient disparu mais le maillage complet était là
+ *   (1 plante) : le repli joue, même si l'état annonce des candidats ;
+ * - plus rien sur le disque (3 plantes) : la tâche est écartée. Les annoncer
+ *   faisait télécharger dans le vide, et l'ouvrier les comptait en `sautees`
+ *   sans que personne ne sache pourquoi. Celles-là demandent une régénération.
  */
 export function recoupables(): Recoupable[] {
   const etat = lire();
@@ -347,16 +364,18 @@ export function recoupables(): Recoupable[] {
       .filter((c): c is { voie: string; fichier: string; aireRetiree: number | null } =>
         c.fichier !== null);
 
-    // Aucun candidat exploitable : le maillage complet fait source. Son nom
-    // vient de l'état, sa présence du disque — on ne nomme à l'ouvrier que des
-    // fichiers qu'il pourra réellement redescendre.
-    const complet = candidats.length === 0 ? nomFichier(t.resultat?.glb) : null;
-    const entier = complet !== null && glbPresents(t.plante).includes(complet);
-    if (candidats.length === 0 && !entier) continue;
+    // Un seul relevé du dossier par tâche : les noms viennent de l'état, la
+    // présence du disque, et on ne nomme à l'ouvrier qu'un fichier qu'il
+    // pourra réellement redescendre.
+    const presents = new Set(glbPresents(t.plante));
+    const coupe = candidats.find((c) => presents.has(c.fichier));
+    const complet = coupe ? null : nomFichier(t.resultat?.glb);
+    const entier = complet !== null && presents.has(complet);
+    if (!coupe && !entier) continue;
 
     sorties.push({
       id: t.id, plante: t.plante, candidats,
-      source: entier ? complet! : candidats[0].fichier,
+      source: coupe ? coupe.fichier : complet!,
       sourceEntiere: entier,
       // `[].every` vaut `true` : sans la garde sur le nombre, une plante sans
       // candidat s'annoncerait déjà mesurée, donc hors du compte `aRecouper`,

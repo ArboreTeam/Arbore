@@ -972,6 +972,12 @@ describe('dépôt — recoupe d une plante déjà livrée', () => {
    * la file avec une source de candidat comme les autres.
    */
   it('installe les candidats d une plante recoupée depuis le maillage complet', async () => {
+    // Le maillage complet d'où elle repart, puis la coupe que la passe vient
+    // d'écrire : la file ne nomme que des fichiers présents sur le volume.
+    mkdirSync(join(BAC, 'plantes', 'haworthia'), { recursive: true });
+    for (const f of ['haworthia.glb', 'sanspot_geometrie.glb']) {
+      writeFileSync(cheminArtefact('haworthia', f), Buffer.alloc(1024, 5));
+    }
     await deposer('haworthia', '/haworthia.png');
     const t = await prendre();
     await livrer(t!.id, t!.reservation!, {
@@ -1028,6 +1034,7 @@ describe('dépôt — ce qui peut être recoupé', () => {
   }
 
   it('rend les noms de fichiers, jamais les chemins du volume', async () => {
+    poser('ficus', 'sanspot_geometrie.glb');
     await livrer_('ficus', [{
       voie: 'geometrie', aire_retiree: 0.332, socle,
       fichier: '/content/pipeline/resultats/ficus/sanspot_geometrie.glb',
@@ -1040,20 +1047,78 @@ describe('dépôt — ce qui peut être recoupé', () => {
   });
 
   /**
-   * Un candidat suffit à retrouver l'entier — les GLB coupés portent leur liste
-   * de triangles d'origine. Tant qu'il y en a un, c'est lui la source, et
-   * l'ouvrier a une coupe antérieure à défaire.
+   * La non-régression qui compte : 56 plantes du lot sont servies par leur
+   * premier candidat, et elles doivent garder exactement cette source. Un
+   * candidat présent suffit à retrouver l'entier — les GLB coupés portent leur
+   * liste de triangles d'origine — et il prime donc sur le maillage complet,
+   * même quand celui-ci est encore là.
    */
-  it('nomme un candidat comme source quand la détection en a proposé', async () => {
+  it('nomme le premier candidat présent, et non le maillage complet', async () => {
     poser('cordyline', 'cordyline.glb');
+    poser('cordyline', 'sanspot_geometrie.glb');
     await livrer_(
       'cordyline',
-      [{ voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', socle }],
+      [{ voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', socle },
+       { voie: 'couleur', fichier: '/content/x/sanspot_couleur.glb', socle }],
       '/content/x/cordyline.glb',
     );
     const [r] = recoupables();
     expect(r.source).toBe('sanspot_geometrie.glb');
     expect(r.sourceEntiere).toBe(false);
+    // Le journal de la passe reste fidèle : le candidat couleur a été livré,
+    // même si la purge l'a emporté depuis.
+    expect(r.candidats.map((c) => c.fichier))
+      .toEqual(['sanspot_geometrie.glb', 'sanspot_couleur.glb']);
+  });
+
+  /**
+   * Anthurium White Champion, mesurée le 2026-10-20 : son premier candidat a
+   * été purgé, `sanspot_geometrie.glb` est resté. Prendre le premier candidat
+   * PRÉSENT, et non le premier tout court, la sauve sans une seconde de GPU.
+   */
+  it('passe au candidat suivant quand le premier a été purgé', async () => {
+    poser('anthurium', 'sanspot_geometrie.glb');
+    await livrer_('anthurium', [
+      { voie: 'couleur', fichier: '/content/x/sanspot_couleur.glb', socle },
+      { voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', socle },
+    ]);
+    const [r] = recoupables();
+    expect(r.source).toBe('sanspot_geometrie.glb');
+    expect(r.sourceEntiere).toBe(false);
+    expect(r.candidats).toHaveLength(2);        // l'absent reste au journal
+  });
+
+  /**
+   * Fougère vivace, même mesure : tous ses candidats ont disparu, son maillage
+   * complet est là. Le repli doit donc jouer dès qu'aucun candidat n'est
+   * PRÉSENT, et pas seulement quand l'état n'en annonce aucun.
+   */
+  it('replie sur le maillage complet quand tous les candidats ont été purgés', async () => {
+    poser('fougere', 'fougere.glb');
+    await livrer_(
+      'fougere',
+      [{ voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', socle }],
+      '/content/x/fougere.glb',
+    );
+    const [r] = recoupables();
+    expect(r.source).toBe('fougere.glb');
+    expect(r.sourceEntiere).toBe(true);
+    expect(r.candidats).toHaveLength(1);        // l'absent reste au journal
+  });
+
+  /**
+   * Haworthia Mix, Phalaenopsis Arceau et Philodendron Minima : candidats
+   * annoncés, plus rien sur le disque. Les annoncer faisait télécharger dans le
+   * vide, et l'ouvrier les comptait en `sautees` sans que personne ne sache
+   * pourquoi. Celles-là demandent une régénération.
+   */
+  it('écarte une plante dont tout a été purgé, candidats et maillage', async () => {
+    await livrer_(
+      'phalaenopsis',
+      [{ voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', socle }],
+      '/content/x/phalaenopsis.glb',
+    );
+    expect(recoupables()).toHaveLength(0);
   });
 
   /**
@@ -1088,6 +1153,8 @@ describe('dépôt — ce qui peut être recoupé', () => {
 
   it('distingue ce qui porte déjà une mesure de résidu', async () => {
     const residu = { profondeur: 0.2, hauteur: 0.8, pot: [], vert: [] };
+    poser('neuve', 'sanspot_geometrie.glb');
+    poser('ancienne', 'sanspot_geometrie.glb');
     await livrer_('neuve', [{ voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb', socle, residu }]);
     await livrer_('ancienne', [{ voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb', socle }]);
     const par = Object.fromEntries(recoupables().map((p) => [p.plante, p.mesure]));
@@ -1110,6 +1177,11 @@ describe('dépôt — ce qui peut être recoupé', () => {
     await trancher('validee', 'validee', 'sanspot_geometrie.glb');
     await livrer_('ecartee', [{ voie: 'geometrie', fichier: '/x/sanspot_geometrie.glb', socle }]);
     await trancher('ecartee', 'ecartee');
+    // Les maillages sont posés APRÈS le verdict : la purge d'une écartée
+    // n'épargne rien, et ce qui se joue ici est qu'un verdict rendu n'interdit
+    // pas de reprendre la coupe d'un maillage encore présent.
+    poser('validee', 'sanspot_geometrie.glb');
+    poser('ecartee', 'sanspot_geometrie.glb');
     expect(recoupables().map((p) => p.plante).sort()).toEqual(['ecartee', 'validee']);
   });
 

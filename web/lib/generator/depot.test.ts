@@ -13,7 +13,8 @@ import {
   empreinteRangee, historique, cheminSource, lire, livrer, marquerSansPot,
   nomFichier, noterEmpreinte, noterGraine, planteDe, posables, prendre, purger,
   mesurables, noterTaille,
-  recoupables, recouper, reinitialiser, sources, supprimerSource, trancher,
+  recoupables, recouper, reinitialiser, retenirCoupe, coupeNonRetenue,
+  sources, supprimerSource, trancher,
 } from './depot';
 
 afterAll(() => rmSync(BAC, { recursive: true, force: true }));
@@ -195,6 +196,102 @@ describe('dépôt — revue', () => {
     expect(taches).toHaveLength(1);
     expect(taches[0].raison).toBe('invalidee_revue');
     expect(taches[0].graine).toBeNull();   // une graine neuve sera tirée
+  });
+});
+
+/**
+ * Une plante validée dont la coupe n'a jamais été nommée.
+ *
+ * Mesuré le 2026-10-20 : 6 des 68 plantes validées étaient dans cet état, avec
+ * leur candidat toujours sur le volume. Elles n'apparaissaient nulle part —
+ * `aRevoir` écarte toute plante jugée — et l'écran de revue leur répondait 404.
+ */
+describe('dépôt — coupe à retenir après le verdict', () => {
+  beforeEach(() => reinitialiser());
+
+  const SOCLE = { x: 0, z: 0, y: -0.2, rayon: 0.1, hauteur_modele: 1 };
+
+  async function livreeAvecCandidats(plante: string, voies: string[]) {
+    mkdirSync(join(BAC, 'plantes', plante), { recursive: true });
+    for (const v of voies) {
+      writeFileSync(cheminArtefact(plante, `sanspot_${v}.glb`), Buffer.alloc(1024, 4));
+    }
+    await deposer(plante, `/img/${plante}.png`);
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      graine: 11, accepte: true, glb: `/content/x/${plante}.glb`,
+      apercus: ['/content/x/apercu_000.png'],
+      candidats_pot: voies.map((v) => ({
+        voie: v, fichier: `/content/x/sanspot_${v}.glb`, socle: SOCLE,
+      })),
+    });
+  }
+
+  it('relève une plante validée sans coupe, que la revue ne montre plus', async () => {
+    await livreeAvecCandidats('oubliee', ['geometrie']);
+    await trancher('oubliee', 'validee');          // validée SANS coupe
+    expect(aRevoir()).toHaveLength(0);
+    expect(coupeNonRetenue().map((p) => p.plante)).toEqual(['oubliee']);
+  });
+
+  it('ignore une plante dont la coupe est retenue', async () => {
+    await livreeAvecCandidats('rangee', ['geometrie']);
+    await trancher('rangee', 'validee', 'sanspot_geometrie.glb');
+    expect(coupeNonRetenue()).toEqual([]);
+  });
+
+  it('ignore une plante dont le candidat n est plus sur le volume', async () => {
+    await livreeAvecCandidats('purgee', ['geometrie']);
+    await trancher('purgee', 'validee');
+    rmSync(cheminArtefact('purgee', 'sanspot_geometrie.glb'));
+    // Le candidat est toujours annoncé par l'état : c'est le volume qui tranche.
+    expect(coupeNonRetenue()).toEqual([]);
+  });
+
+  it('retenir une coupe la consigne et purge le reste, sans toucher au verdict', async () => {
+    await livreeAvecCandidats('deux', ['geometrie', 'couleur']);
+    await trancher('deux', 'validee');
+    const r = await retenirCoupe('deux', 'sanspot_couleur.glb');
+    expect(r).toEqual({ ok: true, coupe: 'sanspot_couleur.glb' });
+    const p = lire().plantes.deux;
+    expect(p.verdict).toBe('validee');
+    expect(p.coupe).toBe('sanspot_couleur.glb');
+    expect(readdirSync(join(BAC, 'plantes', 'deux'))).toEqual(['sanspot_couleur.glb']);
+    expect(coupeNonRetenue()).toEqual([]);
+  });
+
+  /**
+   * `null` est un choix, pas une absence de choix — et il n'efface rien.
+   *
+   * Les plantes concernées ne portent PLUS leur maillage entier : purger « tout
+   * sauf le maillage entier » supprimerait le seul maillage livrable.
+   */
+  it('garder le maillage entier sort de la liste sans effacer de fichier', async () => {
+    await livreeAvecCandidats('entiere', ['geometrie']);
+    await trancher('entiere', 'validee');
+    expect(await retenirCoupe('entiere', null)).toEqual({ ok: true, coupe: null });
+    expect(lire().plantes.entiere.sansCoupe).toBe(true);
+    expect(lire().plantes.entiere.verdict).toBe('validee');
+    expect(readdirSync(join(BAC, 'plantes', 'entiere'))).toContain('sanspot_geometrie.glb');
+    expect(coupeNonRetenue()).toEqual([]);
+  });
+
+  it('refuse un nom que l ouvrier n a jamais livré', async () => {
+    await livreeAvecCandidats('gardee', ['geometrie']);
+    await trancher('gardee', 'validee');
+    writeFileSync(cheminArtefact('gardee', 'intrus.glb'), Buffer.alloc(64));
+    expect(await retenirCoupe('gardee', 'intrus.glb'))
+      .toEqual({ ok: false, motif: 'candidat_inconnu' });
+    expect(lire().plantes.gardee.coupe).toBeUndefined();
+  });
+
+  it('refuse sur une plante qui n est pas validée', async () => {
+    await livreeAvecCandidats('encours', ['geometrie']);
+    expect(await retenirCoupe('encours', 'sanspot_geometrie.glb'))
+      .toEqual({ ok: false, motif: 'non_validee' });
+    await trancher('encours', 'ecartee');
+    expect(await retenirCoupe('encours', 'sanspot_geometrie.glb'))
+      .toEqual({ ok: false, motif: 'non_validee' });
   });
 });
 

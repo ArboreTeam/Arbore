@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 
+import RetenirCoupe from './RetenirCoupe';
 import Verdict from './Verdict';
 import Visionneuse from './Visionneuse';
 
@@ -25,7 +26,16 @@ export type CandidatVu = {
   octets: number | null;
 };
 
-type Props = { plante: string; candidats: CandidatVu[] };
+type Props = {
+  plante: string;
+  candidats: CandidatVu[];
+  /**
+   * La plante est déjà validée et il ne manque que sa coupe.
+   *
+   * Le verdict n'est alors pas en jeu : seule la coupe du pot est en question.
+   */
+  dejaValidee?: boolean;
+};
 
 const LIBELLE: Record<string, string> = {
   geometrie: 'Géométrie',
@@ -43,7 +53,7 @@ function pourcent(v: number | null): string {
   return v === null ? '—' : `${(v * 100).toFixed(1)} %`;
 }
 
-export default function Arbitrage({ plante, candidats }: Props) {
+export default function Arbitrage({ plante, candidats, dejaValidee = false }: Props) {
   // Présélection quand il n'y a rien à arbitrer : un seul candidat n'est pas
   // une question. Avec deux, aucun n'est choisi d'avance — proposer un défaut
   // reviendrait à répondre à la place de l'opérateur, sur l'écart même que la
@@ -172,11 +182,25 @@ export default function Arbitrage({ plante, candidats }: Props) {
         )}
       </section>
 
-      <Verdict
-        plante={plante}
-        coupe={retenu?.fichier ?? null}
-        choixManquant={candidats.length > 0 && choisi === null}
-      />
+      {/*
+        Deux barres d'action pour deux situations. Une plante jamais jugée a
+        trois issues ; une plante déjà validée n'a plus que sa coupe à nommer,
+        et lui réoffrir « invalider » inviterait à brûler une graine pour
+        corriger une donnée qui ne tient pas au verdict.
+      */}
+      {dejaValidee ? (
+        <RetenirCoupe
+          plante={plante}
+          coupe={retenu?.fichier ?? null}
+          choixManquant={candidats.length > 1 && choisi === null}
+        />
+      ) : (
+        <Verdict
+          plante={plante}
+          coupe={retenu?.fichier ?? null}
+          choixManquant={candidats.length > 0 && choisi === null}
+        />
+      )}
     </>
   );
 }

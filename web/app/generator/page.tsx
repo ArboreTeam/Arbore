@@ -10,7 +10,7 @@ import Link from 'next/link';
 
 import Rafraichir from './Rafraichir';
 
-import { aRevoir, bilan, lire } from '@/lib/generator/depot';
+import { aRevoir, bilan, coupeNonRetenue, lire } from '@/lib/generator/depot';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +36,7 @@ const LIBELLE: Record<'validee' | 'invalidee' | 'ecartee', string> = {
 export default function Atelier() {
   const b = bilan();
   const file = aRevoir();
+  const coupes = coupeNonRetenue();
   const etat = lire();
   const echecs = etat.taches.filter((t) => t.etat === 'echec').slice(-5).reverse();
 
@@ -77,10 +78,11 @@ export default function Atelier() {
           </div>
         </header>
 
-        <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+        <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
           <Compteur valeur={b.enAttente} libelle="en attente" />
           <Compteur valeur={b.enCours} libelle="en cours" />
           <Compteur valeur={file.length} libelle="à revoir" accent />
+          <Compteur valeur={coupes.length} libelle="coupe à retenir" accent />
           <Compteur valeur={b.validees} libelle="validées" />
           <Compteur valeur={b.invalidees} libelle="invalidées" />
           <Compteur valeur={b.echecs} libelle="échecs" />
@@ -152,6 +154,68 @@ export default function Atelier() {
             </ul>
           )}
         </section>
+
+        {/*
+          Validées, mais sans coupe retenue alors qu'un candidat exploitable est
+          toujours sur le volume. Elles n'apparaissent pas dans « à revoir », qui
+          écarte toute plante jugée : sans cette liste, il n'existe aucun chemin
+          pour nommer la coupe après le verdict.
+        */}
+        {coupes.length > 0 && (
+          <section className="mt-10">
+            <h2 className="font-semibold text-[#1B1F1A]">Coupe à retenir</h2>
+            <p className="mt-1 text-sm text-[#6E746B]">
+              Déjà validées, donc hors de la file de revue. Le verdict tient ; il
+              manque seulement de dire quelle coupe du pot on sert.
+            </p>
+            <ul className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {coupes.map((p) => {
+                const apercu = p.candidats.find((c) => c.apercus.length > 0)?.apercus[0]
+                  ?? p.apercus[0];
+                return (
+                  <li key={p.plante}>
+                    <Link
+                      href={`/generator/revue/${p.plante}`}
+                      className="block overflow-hidden rounded-2xl border border-[#DDD8CF] bg-white transition hover:border-[#234632]"
+                    >
+                      <div className="aspect-square bg-[#F7F6F3]">
+                        {apercu ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={`/api/generator/artefacts/${p.plante}/${apercu}`}
+                            alt={`Aperçu de ${p.plante}`}
+                            className="h-full w-full object-contain"
+                          />
+                        ) : (
+                          <div className="flex h-full items-center justify-center text-xs text-[#6E746B]">
+                            aucun aperçu
+                          </div>
+                        )}
+                      </div>
+                      <div className="border-t border-[#DDD8CF] px-4 py-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-[#1B1F1A]">{p.plante}</span>
+                          <span className="rounded-full bg-[#E7EDE6] px-2 py-0.5 text-[11px] text-[#234632]">
+                            validée
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-[#6E746B]">
+                          {p.candidats.length === 1
+                            ? `1 candidat · ${p.candidats[0].voie}`
+                            : `${p.candidats.length} candidats, à arbitrer`}
+                          {p.candidats[0]?.confianceParoi !== null
+                            && p.candidats[0]?.confianceParoi !== undefined
+                            ? ` · paroi ${(p.candidats[0].confianceParoi * 100).toFixed(0)} %`
+                            : ''}
+                        </div>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
         {echecs.length > 0 && (
           <section className="mt-10">

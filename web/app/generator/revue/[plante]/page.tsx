@@ -8,7 +8,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { aRevoir, tailleArtefact } from '@/lib/generator/depot';
+import { aRevoir, coupeNonRetenue, tailleArtefact } from '@/lib/generator/depot';
 
 import Arbitrage, { type CandidatVu } from './Arbitrage';
 
@@ -32,12 +32,18 @@ export default async function RevuePlante({ params }: { params: Promise<{ plante
   const { plante } = await params;
   const vue = aRevoir().find((p) => p.plante === plante);
 
-  // Déjà tranchée, ou jamais livrée : dans les deux cas il n'y a rien à revoir.
-  // Un 404 plutôt qu'un écran vide — revenir en arrière après un verdict ne
-  // doit pas donner l'impression qu'on peut le reprendre.
-  if (!vue) notFound();
+  // Validée sans qu'aucune coupe ait été retenue, alors qu'un candidat existe
+  // encore. `aRevoir` l'écarte — elle est jugée — et l'écran répondait donc 404
+  // sans qu'aucun chemin ne permette de nommer la coupe après coup.
+  const sansCoupe = vue ? undefined : coupeNonRetenue().find((p) => p.plante === plante);
+  const sujet = vue ?? sansCoupe;
 
-  const candidats: CandidatVu[] = vue.candidats.map((c) => ({
+  // Déjà tranchée de part en part, ou jamais livrée : dans les deux cas il n'y
+  // a rien à revoir. Un 404 plutôt qu'un écran vide — revenir en arrière après
+  // un verdict ne doit pas donner l'impression qu'on peut le reprendre.
+  if (!sujet) notFound();
+
+  const candidats: CandidatVu[] = sujet.candidats.map((c) => ({
     voie: c.voie,
     aireRetiree: c.aireRetiree,
     confianceParoi: c.confianceParoi,
@@ -55,15 +61,24 @@ export default async function RevuePlante({ params }: { params: Promise<{ plante
         </Link>
 
         <header className="mt-3 flex flex-wrap items-baseline justify-between gap-2">
-          <h1 className="text-3xl font-bold text-[#1B1F1A]">{vue.plante}</h1>
+          <h1 className="text-3xl font-bold text-[#1B1F1A]">{sujet.plante}</h1>
           <div className="text-sm text-[#6E746B]">
-            graine {vue.graine ?? '—'}
-            {vue.essai && vue.essai > 1 ? ` · essai ${vue.essai}` : ''}
-            {vue.secondes ? ` · ${vue.secondes.toFixed(0)} s` : ''}
+            graine {sujet.graine ?? '—'}
+            {sujet.essai && sujet.essai > 1 ? ` · essai ${sujet.essai}` : ''}
+            {sujet.secondes ? ` · ${sujet.secondes.toFixed(0)} s` : ''}
           </div>
         </header>
 
-        {!vue.accepte && (
+        {sansCoupe && (
+          <p className="mt-4 rounded-xl bg-[#E4EAF4] px-4 py-3 text-sm text-[#2F4B7C]">
+            Cette plante est <strong className="font-medium">déjà validée</strong> :
+            le maillage a été jugé bon, et le verdict n&apos;est pas remis en
+            question ici. Il lui manque seulement une coupe du pot, alors
+            qu&apos;un candidat est toujours sur le volume.
+          </p>
+        )}
+
+        {!sujet.accepte && (
           <p className="mt-4 rounded-xl bg-[#FBE9D0] px-4 py-3 text-sm text-[#8A5A1B]">
             Le portillon a rejeté toutes les tentatives. Ce maillage est le
             dernier essai, livré faute de mieux : il porte probablement le
@@ -74,28 +89,28 @@ export default async function RevuePlante({ params }: { params: Promise<{ plante
         <section className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           <Mesure
             libelle="composante dominante"
-            valeur={vue.dominante === null ? '—' : `${(vue.dominante * 100).toFixed(1)} %`}
+            valeur={sujet.dominante === null ? '—' : `${(sujet.dominante * 100).toFixed(1)} %`}
             detail="100 % = d'un seul tenant"
           />
           <Mesure
             libelle="grosses composantes"
-            valeur={vue.grosses === null ? '—' : String(vue.grosses)}
+            valeur={sujet.grosses === null ? '—' : String(sujet.grosses)}
             detail="au-delà de 1 : morceau détaché"
-            alerte={(vue.grosses ?? 0) > 1}
+            alerte={(sujet.grosses ?? 0) > 1}
           />
           <Mesure
             libelle="aire dans 3 plans"
-            valeur={vue.plans === null ? '—' : `${(vue.plans * 100).toFixed(1)} %`}
+            valeur={sujet.plans === null ? '—' : `${(sujet.plans * 100).toFixed(1)} %`}
             detail="élevé = cube ou dalle"
-            alerte={(vue.plans ?? 0) > 0.2}
+            alerte={(sujet.plans ?? 0) > 0.2}
           />
           <Mesure
             libelle="triangles"
-            valeur={vue.triangles === null ? '—' : vue.triangles.toLocaleString('fr-FR')}
+            valeur={sujet.triangles === null ? '—' : sujet.triangles.toLocaleString('fr-FR')}
           />
           <Mesure
             libelle="poids"
-            valeur={vue.octets === null ? '—' : `${(vue.octets / 1e6).toFixed(0)} Mo`}
+            valeur={sujet.octets === null ? '—' : `${(sujet.octets / 1e6).toFixed(0)} Mo`}
           />
         </section>
 
@@ -105,13 +120,13 @@ export default async function RevuePlante({ params }: { params: Promise<{ plante
             Quatre azimuts. Ce qu&apos;aucune mesure ne voit : une feuille
             inventée, une tige qui part de nulle part, une symétrie trop propre.
           </p>
-          {vue.apercus.length === 0 ? (
+          {sujet.apercus.length === 0 ? (
             <p className="mt-3 rounded-2xl border border-dashed border-[#DDD8CF] bg-white/60 px-6 py-10 text-center text-sm text-[#6E746B]">
               Aucun aperçu livré pour cette plante.
             </p>
           ) : (
             <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              {vue.apercus.map((a) => (
+              {sujet.apercus.map((a) => (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   key={a}
@@ -124,7 +139,7 @@ export default async function RevuePlante({ params }: { params: Promise<{ plante
           )}
         </section>
 
-        <Arbitrage plante={plante} candidats={candidats} />
+        <Arbitrage plante={plante} candidats={candidats} dejaValidee={sansCoupe !== undefined} />
       </div>
     </main>
   );

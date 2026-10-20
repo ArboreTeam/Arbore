@@ -1169,6 +1169,53 @@ describe('dépôt — ce qui peut être recoupé', () => {
   });
 
   /**
+   * Yucca Rostrata, mesuré le 2026-10-20 : son image d'entrée n'a pas de pot.
+   * La passe redescendait pourtant ses 55 Mo pour faire tourner une détection
+   * dont la réponse ne pouvait être qu'absurde.
+   */
+  it('écarte une plante dont la source est marquée sans pot', async () => {
+    poser('yucca', 'sanspot_geometrie.glb');
+    await livrer_('yucca', [
+      { voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', socle },
+    ]);
+    expect(recoupables().map((r) => r.plante)).toEqual(['yucca']);
+
+    await marquerSansPot('yucca.png', true);
+    expect(recoupables()).toEqual([]);
+  });
+
+  /**
+   * La source est relue MAINTENANT, à l'inverse du drapeau de la tâche qui est
+   * gelé au dépôt. Décocher doit donc remettre la plante dans la file, sans
+   * quoi une erreur de clic serait irréversible.
+   */
+  it('la remet dans la file si on décoche la source', async () => {
+    poser('retour', 'sanspot_geometrie.glb');
+    await livrer_('retour', [
+      { voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', socle },
+    ]);
+    await marquerSansPot('retour.png', true);
+    expect(recoupables()).toEqual([]);
+
+    await marquerSansPot('retour.png', false);
+    expect(recoupables().map((r) => r.plante)).toEqual(['retour']);
+  });
+
+  /** Le drapeau porté par la tâche suffit, même sans entrée dans `sources`. */
+  it('écarte une tâche déposée comme sans pot', async () => {
+    poser('declaree', 'sanspot_geometrie.glb');
+    await deposer('declaree', '/declaree.png', 'initiale', null, true);
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, {
+      graine: 7, accepte: true, glb: '/content/x/declaree.glb',
+      candidats_pot: [
+        { voie: 'geometrie', fichier: '/content/x/sanspot_geometrie.glb', socle },
+      ],
+    });
+    expect(recoupables()).toEqual([]);
+  });
+
+  /**
    * Anthurium White Champion, mesurée le 2026-10-20 : son premier candidat a
    * été purgé, `sanspot_geometrie.glb` est resté. Prendre le premier candidat
    * PRÉSENT, et non le premier tout court, la sauve sans une seconde de GPU.

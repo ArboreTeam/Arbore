@@ -364,6 +364,23 @@ export function recoupables(): Recoupable[] {
   const sorties: Recoupable[] = [];
   for (const t of etat.taches) {
     if (t.etat !== 'livree') continue;
+    // Pas de pot : rien à retirer, donc rien à reprendre.
+    //
+    // La source est relue MAINTENANT, contrairement au drapeau de la tâche qui
+    // vaut ce qu'il valait au dépôt (voir `Tache.sansPot`). Les deux règles ne
+    // se contredisent pas : geler le drapeau protège la reproductibilité d'une
+    // GÉNÉRATION, alors qu'une recoupe est une décision prise aujourd'hui, avec
+    // ce qu'on sait aujourd'hui. Cocher la case ce matin doit donc sortir la
+    // plante de la file ce matin.
+    //
+    // Sans cette garde, l'ouvrier redescend le maillage — 55 Mo mesurés sur le
+    // Yucca Rostrata — et fait tourner une détection dont la réponse ne peut
+    // être qu'absurde. La boucle de livraison évitait déjà ce travail inutile ;
+    // la passe de recoupe, non.
+    // `nomFichier` et non `t.image` tel quel : `deposer` enregistre l'image
+    // telle qu'on la lui donne, alors que `sources` est indexé par nom nu.
+    const image = nomFichier(t.image);
+    if (t.sansPot || (image && etat.sources?.[image]?.sansPot)) continue;
     const bruts = Array.isArray(t.resultat?.candidats_pot) ? t.resultat.candidats_pot : [];
     const candidats = bruts
       .map((b) => {

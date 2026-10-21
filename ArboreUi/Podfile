@@ -9,6 +9,21 @@ platform :ios, '13.0'
 use_frameworks!
 inhibit_all_warnings!
 
+# La configuration « Dev » (#456) doit être DÉCLARÉE ici, sinon CocoaPods ne
+# crée pas de configuration correspondante dans le projet Pods : ses cibles se
+# construisent alors ailleurs que dans `Dev-iphoneos`, et le link échoue sur
+#
+#     ld: framework 'Pods_ArboreUi' not found
+#
+# Inclure `Pods-ArboreUi.debug.xcconfig` depuis `Dev.xcconfig` ne suffit pas :
+# un xcconfig décrit comment compiler, il ne fait pas construire les CIBLES de
+# Pods pour une configuration qu'elles n'ont pas.
+#
+# `=> :debug` dit à CocoaPods de traiter « Dev » comme Debug — mêmes symboles,
+# mêmes optimisations désactivées. C'est exactement ce que `Dev.xcconfig`
+# annonce de son côté.
+project 'ArboreUi.xcodeproj', 'Dev' => :debug
+
 target 'ArboreUi' do
   # Firebase et GoogleSignIn sont gérés via Swift Package Manager (voir project.pbxproj).
   #

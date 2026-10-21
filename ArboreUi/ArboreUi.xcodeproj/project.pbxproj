@@ -49,6 +49,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		030C6AB83006FD3DB48D715E /* Pods-ArboreUi.dev.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUi.dev.xcconfig"; path = "Target Support Files/Pods-ArboreUi/Pods-ArboreUi.dev.xcconfig"; sourceTree = "<group>"; };
 		3F862A6CC5CF6C38133DDCA2 /* Pods-ArboreUi.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUi.debug.xcconfig"; path = "Target Support Files/Pods-ArboreUi/Pods-ArboreUi.debug.xcconfig"; sourceTree = "<group>"; };
 		77017A0C2FA0DF7E0092B63A /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		77017A0D2FA0DF9C0092B63A /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
@@ -79,6 +80,8 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		774C3B512ED1FFB100324E07 /* scanRoom */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = scanRoom;
 			sourceTree = "<group>";
 		};
@@ -92,11 +95,15 @@
 		};
 		77DD7AF02D84270800A6F6F1 /* ArboreUiTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = ArboreUiTests;
 			sourceTree = "<group>";
 		};
 		77DD7AFA2D84270800A6F6F1 /* ArboreUiUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = ArboreUiUITests;
 			sourceTree = "<group>";
 		};
@@ -181,6 +188,7 @@
 			children = (
 				3F862A6CC5CF6C38133DDCA2 /* Pods-ArboreUi.debug.xcconfig */,
 				8A86C1D02FDE68088598D900 /* Pods-ArboreUi.release.xcconfig */,
+				030C6AB83006FD3DB48D715E /* Pods-ArboreUi.dev.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";

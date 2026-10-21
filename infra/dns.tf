@@ -45,12 +45,16 @@ resource "cloudflare_dns_record" "web" {
 #
 # Ce qui appartient VRAIMENT à un environnement — son bucket, son cluster —
 # justifiera un state séparé le jour où il existera.
+# `dev_origin_ip` quand elle est renseignée, `origin_ip` sinon : dev suit la
+# production par défaut, et peut en être détaché le temps d'une migration.
+# C'est ce qui permet d'éprouver une machine neuve derrière Cloudflare sans
+# déplacer le trafic réel (#652).
 resource "cloudflare_dns_record" "api_dev" {
   count   = var.enable_dev_hostnames ? 1 : 0
   zone_id = var.cloudflare_zone_id
   name    = "api-dev.${var.domain}"
   type    = "A"
-  content = var.origin_ip
+  content = var.dev_origin_ip != "" ? var.dev_origin_ip : var.origin_ip
   proxied = true
   ttl     = 1
 }

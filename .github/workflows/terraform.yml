@@ -1,14 +1,29 @@
 name: 🏗️ Terraform
 
-# Valide la déclaration d'infrastructure à chaque PR qui y touche.
+# Valide la déclaration d'infrastructure, puis en planifie les effets sur les
+# PR qui y touchent.
 #
-# Ne fait PAS d'`apply`, et ne fait pas encore de `plan` : le plan exige un
-# jeton Cloudflare, absent des secrets tant que l'étape manuelle n'est pas
-# faite (#401). En attendant, `validate` attrape déjà ce qui casse le plus
-# souvent — syntaxe, attributs inconnus, références mortes.
+# Trois jobs, trois niveaux de privilège :
 #
-# Une fois CLOUDFLARE_API_TOKEN en place, ajouter ici un job `plan` qui commente
-# la PR, puis un job `apply` déclenché au merge. Jamais d'apply depuis un poste.
+#   validate  aucun secret, aucun accès au state. Tourne aussi sur les forks.
+#   plan      lecture du state + API Cloudflare. Commente la PR.
+#   apply     écriture. À LA MAIN uniquement, jamais sur un push.
+#
+# `plan` et `apply` restent INERTES tant que les secrets ne sont pas posés :
+# ils l'annoncent et sortent en succès, au lieu d'échouer en rouge sur chaque
+# PR. Les cinq secrets attendus sont listés dans infra/README.md.
+#
+# `apply` n'est pas déclenché par un merge, et c'est le point central :
+# « apply au merge » applique sans que personne n'ait lu le plan, et une erreur
+# sur les enregistrements MX ne produit aucune erreur visible — le courrier
+# cesse simplement d'arriver. Ici l'apply demande trois choses :
+#
+#   1. un déclenchement humain explicite (`workflow_dispatch`) ;
+#   2. le mot `appliquer` tapé dans le champ de confirmation ;
+#   3. pour un plan qui DÉTRUIT, une seconde autorisation, sinon il refuse.
+#
+# Et il applique un plan FIGÉ, calculé dans le même job : ce qui est appliqué
+# est exactement ce qui a été affiché, pas un plan recalculé entre-temps.
 
 on:
   pull_request:
@@ -16,6 +31,17 @@ on:
       - "infra/**"
       - ".github/workflows/terraform.yml"
   workflow_dispatch:
+    inputs:
+      appliquer:
+        description: "Taper « appliquer » pour exécuter un apply. Vide = plan seul."
+        required: false
+        default: ""
+        type: string
+      autoriser_destruction:
+        description: "Autoriser un plan qui détruit des ressources. À laisser décoché."
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -47,3 +73,293 @@ jobs:
 
       - name: Validate
         run: terraform validate -no-color
+
+  plan:
+    needs: validate
+    runs-on: ubuntu-latest
+    # Les secrets ne sont pas servis aux PR de forks : le job échouerait sans
+    # rien apprendre. `validate` couvre déjà ces PR.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: infra
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Secrets présents ?
+        id: gate
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          R2_KEY: ${{ secrets.TFSTATE_S3_ACCESS_KEY }}
+          R2_SECRET: ${{ secrets.TFSTATE_S3_SECRET_KEY }}
+        run: |
+          manquants=""
+          for n in TOKEN ACCOUNT ZONE R2_KEY R2_SECRET; do
+            [ -n "${!n}" ] || manquants="$manquants $n"
+          done
+          if [ -n "$manquants" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Plan Terraform non joué"
+              echo
+              echo "Secrets absents du dépôt :\`$manquants\`"
+              echo
+              echo "Voir \`infra/README.md\`. Ce job reste inerte jusqu'à ce qu'ils soient posés."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: hashicorp/setup-terraform@v3
+        if: steps.gate.outputs.skip == 'false'
+        with:
+          terraform_version: "1.10.5"
+
+      # Le backend.hcl réel est gitignoré : son endpoint porte l'identifiant de
+      # compte. On le reconstruit depuis le modèle versionné, qui en décrit la
+      # forme exacte.
+      - name: Backend
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: sed "s|<account_id>|$ACCOUNT|" envs/prod.backend.hcl.example > envs/ci.backend.hcl
+
+      - name: Init
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TFSTATE_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TFSTATE_S3_SECRET_KEY }}
+        run: terraform init -input=false -backend-config=envs/ci.backend.hcl
+
+      # Le plan figé embarque les VALEURS de toutes les variables, jeton
+      # compris — c'est ce qu'a appris cc3aef8. Il ne quitte JAMAIS le runner :
+      # aucun artefact, et le dépôt étant public, aucune sortie brute dans les
+      # logs. Seuls les noms de ressources et les actions sont publiés, et ils
+      # sont déjà dans le dépôt.
+      - name: Plan
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TFSTATE_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TFSTATE_S3_SECRET_KEY }}
+        run: |
+          set +e
+          terraform plan -input=false -no-color -lock-timeout=120s \
+            -var-file=envs/prod.ci.tfvars -out=tfplan > plan.txt 2>&1
+          code=$?
+          set -e
+          if [ $code -ne 0 ]; then
+            echo "::error::terraform plan a échoué (code $code)"
+            # Seules les lignes d'erreur : pas le diff, qui porte les valeurs.
+            grep -E '^(Error|│|╷|╵)' plan.txt | head -40 || true
+            exit $code
+          fi
+          terraform show -json tfplan > plan.json
+          rm -f tfplan plan.txt
+
+      - name: Résumé
+        id: resume
+        if: steps.gate.outputs.skip == 'false'
+        run: |
+          jq -r '
+            [.resource_changes[]? | select(.change.actions != ["no-op"])] as $c
+            | "nb=\($c | length)",
+              "destroy=\([$c[] | select(.change.actions | index("delete"))] | length)"
+          ' plan.json >> "$GITHUB_OUTPUT"
+          {
+            echo "### Plan Terraform"
+            echo
+            jq -r '
+              [.resource_changes[]? | select(.change.actions != ["no-op"])] as $c
+              | if ($c | length) == 0 then
+                  "**Aucun changement.** La déclaration décrit fidèlement l’existant."
+                else
+                  "| ressource | action |", "|---|---|",
+                  ($c[] | "| `\(.address)` | \(.change.actions | join(" + ")) |")
+                end
+            ' plan.json
+            echo
+            echo "_Valeurs non affichées : le dépôt est public, et un plan porte les valeurs de toutes les variables._"
+          } > resume.md
+          cat resume.md >> "$GITHUB_STEP_SUMMARY"
+
+      # Un `destroy` sur un enregistrement DNS coupe le service ; sur les MX, il
+      # fait simplement cesser l'arrivée du courrier, sans erreur visible
+      # (infra/README.md). Le signaler fort, sans faire échouer : c'est parfois
+      # voulu, mais jamais à appliquer sans l'avoir lu.
+      - name: Alerte destruction
+        if: steps.gate.outputs.skip == 'false' && steps.resume.outputs.destroy != '0'
+        run: |
+          echo "::warning::Ce plan DÉTRUIT ${{ steps.resume.outputs.destroy }} ressource(s). À ne pas appliquer sans relecture."
+          echo "> ⚠️ **Ce plan détruit ${{ steps.resume.outputs.destroy }} ressource(s).**" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Commenter la PR
+        if: steps.gate.outputs.skip == 'false' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --body-file resume.md --edit-last --create-if-none
+
+  apply:
+    needs: plan
+    # Jamais sur un push ni une PR. Et seulement si le mot de confirmation est
+    # tapé : un `workflow_dispatch` lancé par curiosité ne doit rien appliquer.
+    if: github.event_name == 'workflow_dispatch' && inputs.appliquer == 'appliquer'
+    runs-on: ubuntu-latest
+    # Poser des relecteurs requis sur cet environnement ajoute une approbation
+    # humaine supplémentaire, sans toucher à ce fichier.
+    environment: infra-prod
+    defaults:
+      run:
+        working-directory: infra
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Secrets présents ?
+        id: gate
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ZONE: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          R2_KEY: ${{ secrets.TFSTATE_S3_ACCESS_KEY }}
+          R2_SECRET: ${{ secrets.TFSTATE_S3_SECRET_KEY }}
+        run: |
+          manquants=""
+          for n in TOKEN ACCOUNT ZONE R2_KEY R2_SECRET; do
+            [ -n "${!n}" ] || manquants="$manquants $n"
+          done
+          if [ -n "$manquants" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "### Apply non joué — secrets absents :\`$manquants\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: hashicorp/setup-terraform@v3
+        if: steps.gate.outputs.skip == 'false'
+        with:
+          terraform_version: "1.10.5"
+
+      - name: Backend
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: sed "s|<account_id>|$ACCOUNT|" envs/prod.backend.hcl.example > envs/ci.backend.hcl
+
+      - name: Init
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.TFSTATE_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TFSTATE_S3_SECRET_KEY }}
+        run: terraform init -input=false -backend-config=envs/ci.backend.hcl
+
+      # Le plan est calculé ICI et figé. L'apply plus bas consomme ce fichier,
+      # donc il applique exactement ce qui vient d'être affiché — et non un plan
+      # recalculé, qui pourrait différer si la zone a bougé entre-temps.
+      - name: Plan
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TFSTATE_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TFSTATE_S3_SECRET_KEY }}
+        run: |
+          set +e
+          terraform plan -input=false -no-color -lock-timeout=120s \
+            -var-file=envs/prod.ci.tfvars -out=tfplan > plan.txt 2>&1
+          code=$?
+          set -e
+          if [ $code -ne 0 ]; then
+            echo "::error::terraform plan a échoué (code $code)"
+            grep -E '^(Error|│|╷|╵)' plan.txt | head -40 || true
+            exit $code
+          fi
+          terraform show -json tfplan > plan.json
+          rm -f plan.txt
+
+      - name: Ce qui va être appliqué
+        id: resume
+        if: steps.gate.outputs.skip == 'false'
+        run: |
+          jq -r '
+            [.resource_changes[]? | select(.change.actions != ["no-op"])] as $c
+            | "nb=\($c | length)",
+              "destroy=\([$c[] | select(.change.actions | index("delete"))] | length)"
+          ' plan.json >> "$GITHUB_OUTPUT"
+          {
+            echo "### Apply — ce qui va être appliqué"
+            echo
+            jq -r '
+              [.resource_changes[]? | select(.change.actions != ["no-op"])] as $c
+              | if ($c | length) == 0 then
+                  "**Aucun changement.** Rien à appliquer."
+                else
+                  "| ressource | action |", "|---|---|",
+                  ($c[] | "| `\(.address)` | \(.change.actions | join(" + ")) |")
+                end
+            ' plan.json
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Un `destroy` non autorisé ARRÊTE le job. Sur un enregistrement DNS il
+      # coupe le service ; sur les MX, il fait cesser l'arrivée du courrier sans
+      # erreur visible. Le défaut est donc le refus, et lever le garde-fou
+      # demande de cocher une case en connaissance de cause.
+      # La décision est prise dans le shell, et non dans une expression `if:` :
+      # la coercition entre booléen et chaîne des expressions GitHub est trop
+      # subtile pour qu'un garde-fou en dépende. Ici, seule la chaîne exacte
+      # « true » lève le refus — tout le reste, y compris une valeur absente ou
+      # inattendue, refuse.
+      - name: Garde-fou destruction
+        if: steps.gate.outputs.skip == 'false'
+        env:
+          DESTROY: ${{ steps.resume.outputs.destroy }}
+          AUTORISE: ${{ inputs.autoriser_destruction }}
+        run: |
+          if [ "${DESTROY:-0}" = "0" ]; then
+            echo "Aucune destruction au programme."
+            exit 0
+          fi
+          if [ "$AUTORISE" = "true" ]; then
+            echo "::warning::Ce plan détruit $DESTROY ressource(s), autorisées explicitement."
+            echo "> ⚠️ **$DESTROY ressource(s) détruite(s)**, autorisées explicitement." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "::error::Ce plan détruit $DESTROY ressource(s) et « autoriser_destruction » n'est pas coché. Apply refusé."
+          {
+            echo
+            echo "> ⛔ **Apply refusé.** Ce plan détruit $DESTROY ressource(s)."
+            echo ">"
+            echo "> Relire le tableau ci-dessus. Si la destruction est voulue, relancer en cochant « autoriser_destruction »."
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+      - name: Apply
+        if: steps.gate.outputs.skip == 'false' && steps.resume.outputs.nb != '0'
+        env:
+          TF_VAR_cloudflare_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.TFSTATE_S3_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.TFSTATE_S3_SECRET_KEY }}
+        run: |
+          set +e
+          terraform apply -input=false -no-color -lock-timeout=120s tfplan > apply.txt 2>&1
+          code=$?
+          set -e
+          # Pas de sortie brute dans un log public : le diff porte les adresses
+          # IP et les identifiants de zone. La ligne de bilan et les erreurs
+          # suffisent à savoir ce qui s'est passé.
+          grep -E '^(Apply complete|Error|│|╷|╵)' apply.txt | head -40 || true
+          rm -f tfplan apply.txt
+          exit $code

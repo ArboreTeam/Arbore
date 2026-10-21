@@ -16,6 +16,12 @@ web_hostname = "web.arbore.app"
 # d'origine n'accepte que les plages Cloudflare sur :80.
 origin_ip = ""
 
+# Vide = dev suit la production, ce qui est le cas normal. Ne la renseigner que
+# pour détacher `api-dev` le temps d'une migration de VPS (#652) : ça éprouve
+# toute la chaîne Cloudflare contre une machine neuve sans déplacer le trafic
+# réel. À remettre vide une fois la bascule complète faite.
+dev_origin_ip = ""
+
 cloudflare_account_id = ""
 cloudflare_zone_id    = ""
 

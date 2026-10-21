@@ -1586,6 +1586,96 @@ func seedTestDBPlantsIfEmpty() {
 	fmt.Printf("🌱 Seed test DB : %d plantes copiées depuis prod.\n", len(docs))
 }
 
+// seedDevDBPlantsIfEmpty copie le catalogue de plantes du catalogue de
+// référence vers la base COURANTE si celle-ci est vide. Pendant du seed de la
+// base de test, pour l'environnement de dev (#491).
+//
+// Sans lui, `arbore_dev` est vide : un build TestFlight pointé sur l'API de dev
+// affiche une boutique sans plantes, et rien ne peut être essayé.
+//
+// Trois garde-fous, parce que la source est la PRODUCTION et qu'une erreur de
+// sens y écrirait :
+//
+//  1. la fonction ne s'exécute QUE si la base courante diffère du catalogue de
+//     référence. Sur la production, `MONGODB_DB` n'est pas défini, donc
+//     `prodDBName` vaut `arbore` — qui est aussi la source. Les deux étant
+//     égaux, la fonction refuse et ne lit même pas ;
+//  2. la source n'est jamais qu'un `Find`. Aucun chemin de ce code n'écrit
+//     dans le catalogue de référence ;
+//  3. la destination doit être vide. Un catalogue de dev déjà peuplé — ou
+//     retouché à la main — n'est jamais écrasé.
+//
+// Les `ObjectID` sont conservés, pour la même raison que le seed de test : les
+// références `PlacedPlant.plantId` des jardins créés côté dev restent valides.
+// doitSeeder décide si un seed est permis, sur les seuls noms de bases.
+//
+// Isolée du reste pour être éprouvable sans Mongo : c'est elle qui tient la
+// production hors de portée, donc elle mérite des tests qui ne dépendent
+// d'aucun service.
+//
+// Vrai uniquement si la destination est une base DIFFÉRENTE de la source. La
+// production a `arbore` des deux côtés — elle se refuse donc elle-même, sans
+// qu'aucune liste de noms ne soit écrite en dur.
+func doitSeeder(destination, source string) bool {
+	destination = strings.TrimSpace(destination)
+	source = strings.TrimSpace(source)
+	if destination == "" || source == "" {
+		return false
+	}
+	return destination != source
+}
+
+func seedDevDBPlantsIfEmpty() {
+	source := envOrDefault("MONGODB_SEED_FROM", "arbore")
+
+	// Garde-fou 1. C'est ce qui rend la production structurellement hors de
+	// portée : elle EST la source, donc elle se refuse elle-même.
+	if !doitSeeder(prodDBName, source) {
+		return
+	}
+	if client == nil {
+		return
+	}
+
+	cible := client.Database(prodDBName).Collection("plants")
+	count, err := cible.CountDocuments(context.Background(), bson.M{})
+	if err != nil {
+		log.Printf("⚠️  Comptage de %s.plants échoué : %v — seed sauté", prodDBName, err)
+		return
+	}
+	// Garde-fou 3.
+	if count > 0 {
+		fmt.Printf("ℹ️ %s.plants déjà peuplée (%d entrées), pas de seed.\n", prodDBName, count)
+		return
+	}
+
+	// Garde-fou 2 : lecture seule sur la source.
+	cursor, err := client.Database(source).Collection("plants").Find(context.Background(), bson.M{})
+	if err != nil {
+		log.Printf("⚠️  Lecture de %s.plants pour seed échouée : %v", source, err)
+		return
+	}
+	defer func() { _ = cursor.Close(context.Background()) }()
+
+	var docs []interface{}
+	for cursor.Next(context.Background()) {
+		var pl Plant
+		if err := cursor.Decode(&pl); err != nil {
+			continue
+		}
+		docs = append(docs, pl)
+	}
+	if len(docs) == 0 {
+		log.Printf("⚠️  Aucune plante dans %s à copier vers %s.", source, prodDBName)
+		return
+	}
+	if _, err := cible.InsertMany(context.Background(), docs); err != nil {
+		log.Printf("⚠️  Seed de %s.plants échoué : %v", prodDBName, err)
+		return
+	}
+	fmt.Printf("🌱 Seed %s : %d plantes copiées depuis %s.\n", prodDBName, len(docs), source)
+}
+
 // ---------- GEMINI PROXY STRUCTS & HANDLERS ----------
 
 type ChatMessageDTO struct {
@@ -1976,6 +2066,14 @@ func connectMongoDatabases(ctx context.Context) error {
 	}
 	client = productionClient
 	fmt.Println("✅ Connecté à MongoDB (prod, DB " + prodDBName + ") !")
+
+	// Auto-seed du catalogue de dev si sa base est vide (#491). Appelé ici,
+	// et non dans le bloc de test plus bas : l'environnement de dev ne définit
+	// pas `MONGODB_URI_TEST`, donc l'y placer ne l'exécuterait jamais là où il
+	// sert. Sans effet sur la production, qui est sa propre source et se refuse
+	// (cf. garde-fou 1). `client` vient d'être assigné, ce dont cette fonction
+	// dépend.
+	seedDevDBPlantsIfEmpty()
 
 	// Connexion optionnelle pour la DB de test. Permet aux runs CI d'écrire
 	// dans `arbore_test` sans polluer la prod, via une seconde API key

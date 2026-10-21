@@ -1,16 +1,34 @@
 # VPS Bootstrap — Provisionnement d'un serveur Arbore
 
-Procédure pour reconstruire le backend Arbore sur un VPS Fedora vierge.
+Procédure pour reconstruire le backend Arbore sur un VPS vierge.
 
 Ce runbook est conçu pour être exécuté en condition de récupération (la VM
 existante est perdue) ou de migration (passage sur un nouveau provider).
 Chaque étape est idempotente — la re-jouer sur un système déjà configuré
 ne casse rien.
 
-> Hypothèses : Fedora 40 Cloud Edition, utilisateur `fedora` avec
-> `sudo` NOPASSWD, accès SSH par clé publique, IP publique routable.
-> Pour un autre OS (Debian/Ubuntu), adapter `dnf` en `apt` et le repo
-> MongoDB.
+> **Deux systèmes sont couverts**, parce que les deux sont en service pendant
+> la migration (#652) :
+>
+> | | distribution | utilisateur | maison | interface |
+> |---|---|---|---|---|
+> | **ancienne** | Fedora 40 Cloud | `fedora` | `/home/fedora` | `eth0` |
+> | **neuve** | Debian 12 bookworm | `debian` | `/home/debian` | `ens3` |
+>
+> Les commandes d'installation sont données pour les deux. Le reste du runbook
+> est commun.
+>
+> Dans les chemins, **`/home/fedora` est un exemple qui suit l'utilisateur** :
+> sur Debian, lire `/home/debian`. Le code, lui, ne le suppose pas —
+> `deploy.sh` dérive `arbore-data/` du répertoire du checkout, et les
+> `*_HOST_PATH` du `.env` sont explicites.
+>
+> Autres hypothèses : `sudo` NOPASSWD, accès SSH par clé publique, IP publique
+> routable.
+
+> ⚠️ **Fedora 40 est en fin de vie depuis mai 2025** et ne reçoit plus de mise
+> à jour de sécurité. Les commandes `dnf` restent documentées pour la machine
+> encore en service, pas comme un choix à reconduire.
 
 ---
 
@@ -35,6 +53,38 @@ public passe par Nginx sur `:80`/`:443`, eux-mêmes restreints aux IP Cloudflare
 
 ## 1. Préparation système
 
+**Debian 12**
+
+```bash
+sudo apt-get -y update && sudo apt-get -y upgrade
+sudo apt-get -y install \
+    git curl wget jq vim ca-certificates gnupg \
+    cron \
+    nginx \
+    iptables \
+    rsync \
+    python3
+sudo systemctl enable --now cron
+```
+
+`iptables` est explicite : la machine neuve ne l'a pas, et le pare-feu
+d'origine en dépend. Debian 12 le fournit adossé à nftables, ce qui convient.
+
+`gh` n'est pas dans les dépôts Debian ; il est **optionnel**
+(`cleanup-test-db.sh` se replie sur `curl`). Pour l'installer :
+
+```bash
+sudo mkdir -p -m 755 /etc/apt/keyrings
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+  | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+sudo apt-get -y update && sudo apt-get -y install gh
+```
+
+**Fedora 40** — machine encore en service
+
 ```bash
 sudo dnf -y update
 sudo dnf -y install \
@@ -49,16 +99,32 @@ sudo systemctl enable --now crond
 Vérification :
 
 ```bash
-systemctl is-active crond   # active
-gh --version                # 2.x
+systemctl is-active cron    # Debian  — « crond » sur Fedora
+gh --version                # 2.x, si installé
 ```
 
 ---
 
 ## 2. Docker + Compose
 
-Fedora fournit le paquet `moby-engine`, mais le projet utilise les binaires
-officiels Docker (compose v2 inclus) :
+Le projet utilise les binaires officiels Docker, compose v2 inclus, et non
+les paquets de la distribution.
+
+**Debian 12**
+
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/debian/gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get -y update
+sudo apt-get -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo systemctl enable --now docker
+```
+
+**Fedora 40**
 
 ```bash
 sudo dnf -y install dnf-plugins-core
@@ -67,7 +133,7 @@ sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin
 sudo systemctl enable --now docker
 ```
 
-Ajouter `fedora` au groupe `docker` est **optionnel** ; le projet appelle
+Ajouter l'utilisateur au groupe `docker` est **optionnel** ; le projet appelle
 `sudo docker` partout (cf. `deploy.sh`), donc on peut s'en passer si on
 préfère garder la séparation de privilèges.
 
@@ -83,8 +149,21 @@ sudo docker run --rm hello-world # sanity check
 
 ## 3. MongoDB tools (mongosh + mongodump)
 
-`mongodump` vient du paquet `mongodb-database-tools`. `mongosh` n'est pas
-dans les dépôts Fedora — il faut ajouter le dépôt officiel MongoDB.
+`mongodump` vient du paquet `mongodb-database-tools`. Ni lui ni `mongosh` ne
+sont dans les dépôts des deux distributions — il faut ajouter celui de MongoDB.
+
+**Debian 12**
+
+```bash
+curl -fsSL https://pgp.mongodb.com/server-7.0.asc \
+  | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
+echo "deb [signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" \
+  | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list > /dev/null
+sudo apt-get -y update
+sudo apt-get -y install mongodb-database-tools mongodb-mongosh
+```
+
+**Fedora 40**
 
 ```bash
 sudo tee /etc/yum.repos.d/mongodb-org-7.0.repo > /dev/null << 'EOF'
@@ -105,6 +184,10 @@ Vérification :
 mongosh --version       # 2.8.x
 mongodump --version | head -1
 ```
+
+> **Rien n'installe `mongod`, et c'est voulu** : la base est hébergée chez
+> Atlas. Seuls les outils client servent, pour le nettoyage nocturne et les
+> instantanés d'avant déploiement.
 
 ---
 

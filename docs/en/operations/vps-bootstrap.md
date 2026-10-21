@@ -1,16 +1,33 @@
 # VPS Bootstrap — Provisioning an Arbore server
 
-Procedure for rebuilding the Arbore backend on a clean Fedora VPS.
+Procedure for rebuilding the Arbore backend on a clean VPS.
 
 This runbook is designed to be run in recovery mode (the existing VM
 is lost) or migration mode (moving to a new provider).
 Every step is idempotent — re-running it on an already-configured system
 breaks nothing.
 
-> Assumptions: Fedora 40 Cloud Edition, `fedora` user with
-> `sudo` NOPASSWD, SSH access via public key, routable public IP.
-> For a different OS (Debian/Ubuntu), adapt `dnf` to `apt` and the
-> MongoDB repo.
+> **Two systems are covered**, because both are in service during the
+> migration (#652):
+>
+> | | distribution | user | home | interface |
+> |---|---|---|---|---|
+> | **old** | Fedora 40 Cloud | `fedora` | `/home/fedora` | `eth0` |
+> | **new** | Debian 12 bookworm | `debian` | `/home/debian` | `ens3` |
+>
+> Install commands are given for both. The rest of the runbook is shared.
+>
+> In paths, **`/home/fedora` is an example that follows the user**: on Debian,
+> read `/home/debian`. The code itself makes no such assumption — `deploy.sh`
+> derives `arbore-data/` from the checkout directory, and the `*_HOST_PATH`
+> entries in `.env` are explicit.
+>
+> Other assumptions: `sudo` NOPASSWD, SSH access via public key, routable
+> public IP.
+
+> ⚠️ **Fedora 40 reached end of life in May 2025** and no longer receives
+> security updates. The `dnf` commands stay documented for the machine still in
+> service, not as a choice to repeat.
 
 ---
 
@@ -35,6 +52,39 @@ traffic goes through Nginx on `:80`/`:443`, which are themselves restricted to C
 
 ## 1. System preparation
 
+**Debian 12**
+
+```bash
+sudo apt-get -y update && sudo apt-get -y upgrade
+sudo apt-get -y install \
+    git curl wget jq vim ca-certificates gnupg \
+    cron \
+    nginx \
+    iptables \
+    rsync \
+    python3
+sudo systemctl enable --now cron
+```
+
+`iptables` is listed explicitly: the new machine does not ship it, and the
+origin firewall depends on it. Debian 12 provides it on an nftables backend,
+which suits the script.
+
+`gh` is not in the Debian repos; it is **optional** (`cleanup-test-db.sh`
+falls back to `curl`). To install it:
+
+```bash
+sudo mkdir -p -m 755 /etc/apt/keyrings
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+  | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null
+sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+  | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+sudo apt-get -y update && sudo apt-get -y install gh
+```
+
+**Fedora 40** — machine still in service
+
 ```bash
 sudo dnf -y update
 sudo dnf -y install \
@@ -49,16 +99,32 @@ sudo systemctl enable --now crond
 Verification:
 
 ```bash
-systemctl is-active crond   # active
-gh --version                # 2.x
+systemctl is-active cron    # Debian — "crond" on Fedora
+gh --version                # 2.x, if installed
 ```
 
 ---
 
 ## 2. Docker + Compose
 
-Fedora provides the `moby-engine` package, but the project uses the
-official Docker binaries (compose v2 included):
+The project uses the official Docker binaries, compose v2 included, rather
+than the distribution packages.
+
+**Debian 12**
+
+```bash
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/debian/gpg \
+  | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+  | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get -y update
+sudo apt-get -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo systemctl enable --now docker
+```
+
+**Fedora 40**
 
 ```bash
 sudo dnf -y install dnf-plugins-core
@@ -67,9 +133,9 @@ sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin
 sudo systemctl enable --now docker
 ```
 
-Adding `fedora` to the `docker` group is **optional**; the project calls
-`sudo docker` everywhere (see `deploy.sh`), so it can be skipped if you
-prefer to keep privilege separation.
+Adding the user to the `docker` group is **optional**; the project calls
+`sudo docker` everywhere (see `deploy.sh`), so it can be skipped to keep the
+privilege separation.
 
 Verification:
 
@@ -83,8 +149,21 @@ sudo docker run --rm hello-world # sanity check
 
 ## 3. MongoDB tools (mongosh + mongodump)
 
-`mongodump` comes from the `mongodb-database-tools` package. `mongosh` is not
-in the Fedora repos — you need to add the official MongoDB repo.
+`mongodump` comes from the `mongodb-database-tools` package. Neither it nor
+`mongosh` is in either distribution's repos — MongoDB's own must be added.
+
+**Debian 12**
+
+```bash
+curl -fsSL https://pgp.mongodb.com/server-7.0.asc \
+  | sudo gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg
+echo "deb [signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" \
+  | sudo tee /etc/apt/sources.list.d/mongodb-org-7.0.list > /dev/null
+sudo apt-get -y update
+sudo apt-get -y install mongodb-database-tools mongodb-mongosh
+```
+
+**Fedora 40**
 
 ```bash
 sudo tee /etc/yum.repos.d/mongodb-org-7.0.repo > /dev/null << 'EOF'
@@ -105,6 +184,10 @@ Verification:
 mongosh --version       # 2.8.x
 mongodump --version | head -1
 ```
+
+> **Nothing installs `mongod`, and that is deliberate**: the database is hosted
+> on Atlas. Only the client tools are needed, for the nightly cleanup and the
+> pre-deploy snapshots.
 
 ---
 

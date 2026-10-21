@@ -70,6 +70,48 @@ sudo systemctl enable --now cron
 `iptables` est explicite : la machine neuve ne l'a pas, et le pare-feu
 d'origine en dépend. Debian 12 le fournit adossé à nftables, ce qui convient.
 
+> ⚠️ **Le `nginx` des dépôts Debian ne suffit pas.** Bookworm livre 1.22.1 et y
+> restera : la directive `http2 on;` n'existe que depuis 1.25.1, et nos
+> configurations l'utilisent. `nginx -t` échoue sur
+> `unknown directive "http2"`, et `deploy.sh` restaure alors la configuration
+> précédente sans démarrer la pile.
+
+Il faut donc le nginx de l'amont, pour la même raison que Docker plus bas :
+le projet suit les binaires officiels, pas les paquets de la distribution.
+
+```bash
+curl -fsSL https://nginx.org/keys/nginx_signing.key \
+  | sudo gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/debian bookworm nginx" \
+  | sudo tee /etc/apt/sources.list.d/nginx.list > /dev/null
+sudo apt-get -y update
+# --force-confnew : le nginx.conf de l'amont n'inclut que conf.d/, ce que nos
+# configurations attendent, et c'est la disposition de l'ancienne machine.
+sudo DEBIAN_FRONTEND=noninteractive \
+  apt-get -y -o Dpkg::Options::=--force-confnew install nginx
+```
+
+Deux reliquats du paquet Debian restent ensuite à retirer, sinon `conf.d/`
+contient des fichiers que le dépôt ne gère pas :
+
+```bash
+sudo rm -f /etc/nginx/conf.d/default.conf   # page d'accueil de l'amont
+sudo rm -f /etc/nginx/sites-enabled/default # second « listen 80 default_server »
+sudo nginx -t
+```
+
+Le second mérite l'explication : le `nginx.conf` de Debian inclut
+`sites-enabled/`, et son site par défaut déclare `listen 80 default_server`
+— ce que `arbore.conf` déclare aussi. Le `nginx.conf` de l'amont n'inclut que
+`conf.d/`, ce qui rend le lien inerte ; on le retire pour qu'il ne redevienne
+pas actif à la prochaine réinstallation du paquet Debian.
+
+> La mise à jour du paquet **arrête nginx et ne le relance pas.** La
+> configuration reste valide, le site n'est servi par personne, et jusqu'à
+> #652 le déploiement se terminait quand même en vert — ses health checks
+> n'interrogent que les conteneurs. `apply_nginx` démarre désormais nginx
+> quand il le trouve arrêté.
+
 `gh` n'est pas dans les dépôts Debian ; il est **optionnel**
 (`cleanup-test-db.sh` se replie sur `curl`). Pour l'installer :
 

@@ -2067,18 +2067,19 @@ func connectMongoDatabases(ctx context.Context) error {
 	client = productionClient
 	fmt.Println("✅ Connecté à MongoDB (prod, DB " + prodDBName + ") !")
 
+	// Auto-seed du catalogue de dev si sa base est vide (#491). Appelé ici,
+	// et non dans le bloc de test plus bas : l'environnement de dev ne définit
+	// pas `MONGODB_URI_TEST`, donc l'y placer ne l'exécuterait jamais là où il
+	// sert. Sans effet sur la production, qui est sa propre source et se refuse
+	// (cf. garde-fou 1). `client` vient d'être assigné, ce dont cette fonction
+	// dépend.
+	seedDevDBPlantsIfEmpty()
+
 	// Connexion optionnelle pour la DB de test. Permet aux runs CI d'écrire
 	// dans `arbore_test` sans polluer la prod, via une seconde API key
 	// reconnue par APIKeyMiddleware (cf. issue #159 v2). Si MONGODB_URI_TEST
 	// n'est pas défini, le mode test est désactivé et toute requête avec
 	// ARBORE_API_KEY_TEST sera rejetée par le middleware.
-	// Auto-seed du catalogue de dev si sa base est vide (#491). Appelé avant
-	// le bloc de test, et indépendamment de lui : l'environnement de dev ne
-	// définit pas `MONGODB_URI_TEST`, donc le placer dedans ne l'exécuterait
-	// jamais là où il sert. Sans effet sur la production, qui est sa propre
-	// source et se refuse (cf. garde-fou 1).
-	seedDevDBPlantsIfEmpty()
-
 	if testURI := os.Getenv("MONGODB_URI_TEST"); testURI != "" {
 		testClientOptions := options.Client().ApplyURI(testURI)
 		candidate, err := mongo.Connect(ctx, testClientOptions)

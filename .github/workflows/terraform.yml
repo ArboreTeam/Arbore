@@ -171,12 +171,23 @@ jobs:
         run: |
           jq -r '
             [.resource_changes[]? | select(.change.actions != ["no-op"])] as $c
+            | [.resource_changes[]? | select(.change.importing)] as $i
             | "nb=\($c | length)",
+              "imports=\($i | length)",
               "destroy=\([$c[] | select(.change.actions | index("delete"))] | length)"
           ' plan.json >> "$GITHUB_OUTPUT"
           {
             echo "### Plan Terraform"
             echo
+            jq -r '
+              [.resource_changes[]? | select(.change.importing)] as $i
+              | if ($i | length) > 0 then
+                  "**\($i | length) ressource(s) adoptée(s)** par un bloc `import` :",
+                  "", "| ressource | identifiant |", "|---|---|",
+                  ($i[] | "| `\(.address)` | `\(.change.importing.id | split("/") | last)` |"),
+                  ""
+                else empty end
+            ' plan.json
             jq -r '
               [.resource_changes[]? | select(.change.actions != ["no-op"])] as $c
               | if ($c | length) == 0 then
@@ -294,12 +305,23 @@ jobs:
         run: |
           jq -r '
             [.resource_changes[]? | select(.change.actions != ["no-op"])] as $c
+            | [.resource_changes[]? | select(.change.importing)] as $i
             | "nb=\($c | length)",
+              "imports=\($i | length)",
               "destroy=\([$c[] | select(.change.actions | index("delete"))] | length)"
           ' plan.json >> "$GITHUB_OUTPUT"
           {
             echo "### Apply — ce qui va être appliqué"
             echo
+            jq -r '
+              [.resource_changes[]? | select(.change.importing)] as $i
+              | if ($i | length) > 0 then
+                  "**\($i | length) ressource(s) adoptée(s)** par un bloc `import` :",
+                  "", "| ressource | identifiant |", "|---|---|",
+                  ($i[] | "| `\(.address)` | `\(.change.importing.id | split("/") | last)` |"),
+                  ""
+                else empty end
+            ' plan.json
             jq -r '
               [.resource_changes[]? | select(.change.actions != ["no-op"])] as $c
               | if ($c | length) == 0 then

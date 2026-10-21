@@ -19,11 +19,23 @@ l'était du dépôt.
 | Ressource | État |
 |---|---|
 | DNS `api.arbore.app`, `web.arbore.app` | déclaré (par environnement) |
+| DNS `api-dev.arbore.app` | déclaré, sous `enable_dev_hostnames` |
+| DNS **`generator.arbore.app`** | ⚠️ **pas déclaré** — voir ci-dessous |
 | DNS apex, `www`, MX × 2, SPF, apple-domain, DKIM | déclaré (zone, production seule) |
 | Bucket R2 `arbore-assets` | déclaré |
 | Atlas (cluster, users, IP allowlist) | pas encore — déclarer l'allowlist *est* la façon de répondre à la question restée ouverte |
 | Règles de pare-feu Cloudflare, TLS Full strict | pas encore |
 | VPS Epitech | hors de portée : non provisionnable par API, et retiré fin février |
+
+> ⚠️ **`generator.arbore.app` n'est pas dans ce répertoire.** Il n'est ni
+> déclaré ni importé, alors qu'il sert en production — `generator.arbore.app`
+> et `web.arbore.app` sont servis par le même conteneur, distingués par
+> `server_name` dans nginx.
+>
+> Conséquence à connaître avant toute migration : changer `origin_ip`
+> déplacerait `api` et `web`, et **laisserait `generator` sur l'ancienne
+> machine**. L'adopter demande son identifiant d'enregistrement Cloudflare, à
+> lire via l'API, puis un bloc `import` comme les autres. Suivi dans #652.
 
 Les neuf enregistrements de la zone sont déclarés, pas seulement les deux du
 service. En laisser sept dehors aurait fait de ce répertoire une demi-mesure :
@@ -65,6 +77,34 @@ Les commentaires Cloudflare sont **volontairement absents** des ressources : les
 enregistrements existants n'en ont pas, et en ajouter ferait sortir le plan à
 non-zéro, ce qui priverait ce test de son sens. Les ajouter est un changement
 délibéré, à faire séparément une fois la fidélité prouvée.
+
+## Basculer dev seul, pour éprouver une machine neuve
+
+`dev_origin_ip` détache `api-dev` de la production. Vide, dev suit `origin_ip` —
+c'est le cas normal et le défaut.
+
+```hcl
+# envs/prod.tfvars
+origin_ip     = "79.137.92.154"   # api + web : machine en service
+dev_origin_ip = "162.19.13.82"    # api-dev seul : machine neuve
+```
+
+```sh
+terraform plan -var-file=envs/prod.tfvars    # doit montrer UN seul changement
+terraform apply -var-file=envs/prod.tfvars
+```
+
+Le plan ne doit toucher que `cloudflare_dns_record.api_dev[0]`. **S'il propose
+autre chose, ne pas appliquer** : le state a dérivé, ou le mauvais backend est
+initialisé.
+
+Ce que la bascule éprouve, et qu'un essai en local ne peut pas donner : le
+proxy Cloudflare vers l'origine neuve, le certificat d'origine tel que
+Cloudflare le valide en Full (strict), et le pare-feu d'origine vu depuis les
+plages Cloudflare réelles — le tout sans déplacer un seul utilisateur.
+
+Remettre `dev_origin_ip = ""` une fois la bascule complète faite, pour que dev
+retourne suivre la production.
 
 ## Règles de tenue
 

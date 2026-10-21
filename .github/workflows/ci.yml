@@ -40,11 +40,12 @@ concurrency:
 
 env:
   # Doit rester aligné sur la directive `go` de ArboreBackend/go.mod. Elle
-  # indiquait "1.22" alors que go.mod exige 1.25.14 : le mécanisme de toolchain
-  # téléchargeait donc silencieusement la bonne version à chaque run, sans cache,
-  # et la
-  # version réellement utilisée n'était pas celle affichée (audit #338 constat 6).
-  GO_VERSION: "1.25.14"
+  # indiquait "1.22" alors que go.mod exigeait 1.25.14 : le mécanisme de
+  # toolchain téléchargeait donc silencieusement la bonne version à chaque run,
+  # sans cache, et la version réellement utilisée n'était pas celle affichée
+  # (audit #338 constat 6). Trois endroits à tenir ensemble : ici, `go.mod` et
+  # `ArboreBackend/Dockerfile`.
+  GO_VERSION: "1.26.10"
   PYTHON_VERSION: "3.11"
   # Alignée sur web/Dockerfile (node:24-alpine). Tester sur une version autre
   # que celle de l'image publiée, c'est tester autre chose que ce qui tourne.
@@ -142,20 +143,25 @@ jobs:
       # constat 6). BLOQUANT, et volontairement : govulncheck ne signale que les
       # vulnérabilités que le code APPELLE réellement, donc quasi zéro faux
       # positif. Vérifié avant activation : 0 vulnérabilité appelée avec le
-      # toolchain épinglé (go 1.25.14, dernier patch de sa branche).
+      # toolchain épinglé (go 1.26.10, dernier patch de sa branche).
       - name: 🛡️ Check known vulnerabilities (govulncheck)
         run: |
-          # Épinglé, et pas @latest : x/vuln v1.8.0 exige go >= 1.26.0, alors
-          # que la CI fixe go 1.25.14 avec GOTOOLCHAIN=local. `@latest` a donc
-          # cassé tous les jobs backend le 2026-09-17, sans qu'aucune ligne du
-          # projet ne change — l'outil avait simplement publié une version.
+          # Épinglé, et pas @latest : `@latest` a cassé tous les jobs backend
+          # le 2026-09-17 sans qu'aucune ligne du projet ne change — l'outil
+          # avait simplement publié une v1.8.0 qui exigeait go >= 1.26.0, alors
+          # que la CI fixait go 1.25.14 avec GOTOOLCHAIN=local.
           #
-          # v1.7.0 est la dernière compatible (`go 1.25.0` dans son go.mod).
+          # GO_VERSION étant passée en 1.26.10, v1.8.0 est désormais compatible,
+          # et le relèvement annoncé dans ce commentaire est fait. On reste
+          # épinglé pour la même raison qu'avant : une version d'outil ne doit
+          # pas arriver par surprise.
+          #
           # Épingler ne périme pas la détection : la base de vulnérabilités est
-          # récupérée à l'exécution, seule la logique d'analyse est figée.
-          #
-          # À relever quand GO_VERSION passera en 1.26.
-          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+          # récupérée à l'exécution, seule la logique d'analyse est figée. C'est
+          # d'ailleurs cette base qui a bloqué tout le backend le 2026-10-21 —
+          # un lot d'alertes stdlib publié dans la journée, corrigé en 1.26.9
+          # et 1.26.10.
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
           "$(go env GOPATH)/bin/govulncheck" ./...
 
       - name: 🏗️ Build binary (Linux)

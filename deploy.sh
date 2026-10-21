@@ -8,7 +8,7 @@
 #   3. rotation des snapshots > 14 jours
 #   4. tirage des images ghcr (repli : build local)
 #   5. docker compose up -d  (backend + web)
-#   6. health check backend (localhost:8080/health) + web (localhost:3000/)
+#   6. health check backend (/health) + web, sur les ports de $ARBORE_ENV
 #
 # Codes de sortie :
 #   0   succès
@@ -861,16 +861,32 @@ do_show_logs() {
 
 # ───── [7/7] Health check ─────────────────────────────────────────
 #
-# Le backend expose /health en HTTP plain sur :8080 à ce stade
-# (cf. issue #121 pour la migration HTTPS). Le check est bloquant :
-# un health != 200 fait sortir en erreur pour signaler clairement
-# qu'il faut intervenir.
+# Le backend expose /health en HTTP plain sur le port de son
+# environnement (cf. issue #121 pour la migration HTTPS). Le check est
+# bloquant : un health != 200 fait sortir en erreur pour signaler
+# clairement qu'il faut intervenir.
 # La communauté est désactivée avant publication. Un 404 confirme que
 # l'ancienne surface publique n'est plus enregistrée par le backend.
+
+# Ports publies par l'environnement DEPLOYE, et non ceux de la production.
+#
+# `docker-compose.yml` les tient de `PORT` et `WEB_PORT`, qui valent 8080 et
+# 3000 par defaut et 8081 / 3001 cote dev. Les figer ici faisait interroger la
+# pile PRIMAIRE a chaque deploiement non primaire : un `ARBORE_ENV=dev`
+# annoncait « health 200 OK » en ayant mesure la production (#652).
+env_port() {
+    local nom="$1" defaut="$2" valeur=""
+    valeur="$(grep -E "^${nom}=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"'"'"' \r')"
+    case "$valeur" in
+        ''|*[!0-9]*) printf '%s' "$defaut" ;;
+        *)           printf '%s' "$valeur" ;;
+    esac
+}
+
 check_community_disabled() {
     local code
     code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 \
-        http://localhost:8080/api/v1/community/feed || true)"
+        http://localhost:$(env_port PORT 8080)/api/v1/community/feed || true)"
 
     if [ "$code" = "404" ]; then
         ok "Community disabled (404 attendu)"
@@ -884,7 +900,7 @@ check_community_disabled() {
 # pas le déploiement (le routage reverse-proxy / Cloudflare peut être posé après).
 check_web() {
     local code
-    code="$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:3000/ || echo "000")"
+    code="$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:$(env_port WEB_PORT 3000)/ || echo "000")"
     if [ "$code" = "200" ]; then
         ok "Web health 200 OK"
     else
@@ -899,7 +915,7 @@ do_health_check() {
     local http_code=""
 
     while [ "$attempts" -lt "$max_attempts" ]; do
-        http_code="$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:8080/health || echo "000")"
+        http_code="$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:$(env_port PORT 8080)/health || echo "000")"
         if [ "$http_code" = "200" ]; then
             ok "Backend health 200 OK"
             check_community_disabled

@@ -17,7 +17,24 @@
 #    sans erreur ni avertissement (#456).
 set -euo pipefail
 
-EXT_IF="eth0"
+# L'interface externe est DERIVEE de la route par defaut, jamais ecrite en dur.
+#
+# L'ancienne machine la nomme eth0, la neuve ens3 (Debian 12 sur OVH, releve le
+# 2026-10-21). Une valeur figee poserait les regles sur une interface qui
+# n'existe pas : l'origine resterait ouverte sur :80 et :443, sans erreur et
+# sans que le site cesse de fonctionner. C'est le meme mode de defaillance que
+# celui decrit plus haut pour les ports de conteneurs — ce qui protegeait
+# n'etait pas le pare-feu, et rien ne le disait.
+#
+# Pas de repli sur eth0 : il rendrait l'echec silencieux sur toute machine
+# future. Mieux vaut refuser de se poser que se poser a cote.
+EXT_IF="${EXT_IF:-$(ip -o route show default 2>/dev/null | awk '{print $5; exit}')}"
+if [ -z "$EXT_IF" ] || ! ip link show "$EXT_IF" >/dev/null 2>&1; then
+  echo "cf-http-firewall: interface externe introuvable (EXT_IF='$EXT_IF')." >&2
+  echo "  La route par defaut ne designe aucune interface valide." >&2
+  echo "  Poser les regles ailleurs laisserait l'origine ouverte en silence." >&2
+  exit 1
+fi
 RANGES_FILE="/etc/cf-http-firewall/cf-ranges-v4.txt"
 
 # Fallback code en dur : utilise si le fichier manque/est invalide, pour que

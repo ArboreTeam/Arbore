@@ -28,10 +28,15 @@ C'est cette propriété qui rend tenable le critère de #401 : **une machine neu
 
 ```bash
 brew install sops age          # macOS
-sudo dnf install -y age && \
-  curl -sSL https://github.com/getsops/sops/releases/latest/download/sops-v3.x.x.linux.amd64 \
-  -o /usr/local/bin/sops && sudo chmod +x /usr/local/bin/sops   # Fedora / VPS
 ```
+
+Sur un VPS, voir la section « sops + age » de
+[`docs/fr/operations/vps-bootstrap.md`](../../docs/fr/operations/vps-bootstrap.md),
+qui couvre Debian et Fedora.
+
+> La commande qui figurait ici portait `sops-v3.x.x.linux.amd64` — un gabarit,
+> pas un lien : elle renvoyait un 404. La version se dérive de la dernière
+> release, elle ne s'écrit pas en dur.
 
 ### ⚠️ Sauvegarder la clé : une SEULE ligne, pas le fichier
 

@@ -51,29 +51,43 @@ backend (\`ssh fedora@<host>\`, voir \`/home/fedora/Arbore/.env\`).
 
 **Description**: Protocole du backend (http ou https)
 
-**Valeur pour le CI**: `http`
+**Valeur pour le CI**: `https`
 
 **Comment le configurer**:
 1. Allez sur GitHub → Repository Settings → Secrets and variables → Actions
 2. Cliquez sur "New repository secret"
 3. Nom: `ARBORE_BACKEND_PROTOCOL`
-4. Valeur: `http`
+4. Valeur: `https`
 5. Cliquez sur "Add secret"
 
 ---
 
 ### 4. `ARBORE_BACKEND_HOST`
 
-**Description**: Adresse du backend (IP:port ou domaine:port)
+**Description**: Adresse du backend (domaine, et non adresse de machine)
 
-**Valeur pour le CI**: `79.137.92.154:8080`
+**Valeur pour le CI**: `api.arbore.app`
 
 **Comment le configurer**:
 1. Allez sur GitHub → Repository Settings → Secrets and variables → Actions
 2. Cliquez sur "New repository secret"
 3. Nom: `ARBORE_BACKEND_HOST`
-4. Valeur: `79.137.92.154:8080`
+4. Valeur: `api.arbore.app`
 5. Cliquez sur "Add secret"
+
+> ⚠️ **Ce document recommandait `79.137.92.154:8080` jusqu'au 2026-10-21.**
+> Cette valeur était injoignable : le port 8080 n'est pas ouvert sur
+> l'origine, et `:80` comme `:443` n'acceptent que les plages Cloudflare.
+> Mesuré depuis une adresse extérieure, `http://79.137.92.154:8080/health`
+> ne répond pas — pas davantage depuis les runners GitHub.
+>
+> Les tests réseau de l'app ne tournaient donc pas contre la production : ils
+> sautaient, faute de `/health` accessible. Le domaine, lui, passe par
+> Cloudflare et répond de partout.
+>
+> Le domaine a un second avantage : il ne porte pas d'adresse de machine, donc
+> il survit à une migration de VPS (#652). Une adresse en dur demandait de
+> penser à ce secret à chaque changement de machine — et personne n'y pensait.
 
 ---
 

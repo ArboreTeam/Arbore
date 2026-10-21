@@ -19,11 +19,32 @@ what the `StorageProvider` abstraction buys
 
 | `STORAGE_PROVIDER` | Use | Specificity |
 |---|---|---|
-| `filesystem` | default, and the **dev environment** | serves from `MODELS_HOST_PATH` |
-| `r2` / `s3` | **production** | no egress fees with R2 |
+| `filesystem` | **production and dev** | serves from `MODELS_HOST_PATH` |
+| `r2` / `s3` | fallback, still configured | no egress fees with R2 |
 | `minio` | local development | `STORAGE_S3_USE_SSL=false` |
 
-Production therefore serves its models from R2, and dev from disk — deliberately:
+> ⚠️ **Production left R2 on 2026-10-21.** This document long presented R2 as
+> the production choice; that is no longer true. The models will exceed 30 GB
+> and the free tier caps at 10. The migration VPS carries 99 GB (#652), its
+> bandwidth is unmetered, and only machine-creation credits are consumed — so
+> the unpredictable egress bill that R2 avoided has no counterpart here.
+>
+> The S3 credentials stay in the production secret and the bucket is not
+> deleted: that is the fallback, until the disk has served in earnest.
+>
+> One technical consequence to know: with R2 the route answered with a **302**
+> to a signed URL, so downloads never touched the origin. On disk the VPS
+> serves every byte, and Cloudflare caches none of it — `cf-cache-status:
+> DYNAMIC`, on an authenticated route it would not cache by default anyway.
+> With unmetered bandwidth that is not a cost problem; it will be a **load**
+> problem as the catalogue grows.
+>
+> `STORAGE_MAX_OPS_PER_MINUTE` stays at 200 — the code default, set by no
+> secret. It no longer guards a bill on disk, but it keeps us aligned with R2's
+> free tier should we ever go back: a net that is free to keep and costly to
+> rebuild.
+
+Both environments now serve from disk. Dev always did — deliberately:
 giving dev the bucket credentials would have meant a dev age key opens write
 access to production storage.
 

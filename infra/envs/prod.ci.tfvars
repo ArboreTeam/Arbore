@@ -30,7 +30,11 @@ origin_ip = "79.137.92.154"
 
 # Vide = dev suit la production. Renseignée pendant une migration pour
 # éprouver une machine neuve derrière Cloudflare sans déplacer le trafic (#652).
-dev_origin_ip = ""
+#
+# RENSEIGNÉE le 2026-10-21 : `api-dev.arbore.app` passe sur la machine de
+# migration. `api` et `web` restent sur celle en service. À remettre vide une
+# fois la bascule complète faite, pour que dev retourne suivre la production.
+dev_origin_ip = "162.19.13.82"
 
 r2_bucket_name  = "arbore-assets"
 r2_jurisdiction = "eu"

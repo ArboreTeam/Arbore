@@ -377,12 +377,30 @@ apply_nginx() {
     local src_dir="$SCRIPT_DIR/ops/nginx"
     [ -d "$src_dir" ] || return 0
 
-    if ! command -v nginx > /dev/null 2>&1; then
-        warn "nginx absent — configuration non appliquée"
-        return 0
-    fi
+    # `sudo` d'abord : la fonction ne fait RIEN sans lui, et c'est aussi par lui
+    # qu'on détecte nginx — sinon la détection et l'usage ne regardent pas au
+    # même endroit.
     if ! sudo -n true 2>/dev/null; then
         warn "sudo indisponible — configuration nginx non appliquée"
+        return 0
+    fi
+    # Détecté SOUS sudo, et non dans le PATH de l'appelant.
+    #
+    # Sur Debian, `/usr/sbin` n'est pas dans le PATH d'un utilisateur non-root,
+    # contrairement à Fedora. Un `command -v nginx` sans élévation le déclarait
+    # donc absent sur une machine où il tourne — et le reverse proxy n'était
+    # jamais configuré, sans erreur, le script poursuivant son chemin.
+    #
+    # Constaté le 2026-10-21 sur la machine de migration (#652). Même mode de
+    # défaillance que l'interface du pare-feu : ce qui manquait ne se signalait
+    # pas. Les appels qui suivent passent tous par `sudo nginx -t`, donc
+    # détecter autrement qu'eux n'avait pas de sens.
+    # `sh -c` et non `sudo command -v` directement : `command` est une PRIMITIVE
+    # du shell, pas un exécutable. Fedora livre par ailleurs un binaire
+    # `/usr/bin/command`, Debian non — si bien que la forme sans shell
+    # fonctionnait sur l'ancienne machine par accident et échouait sur la neuve.
+    if ! sudo -n sh -c 'command -v nginx' > /dev/null 2>&1; then
+        warn "nginx absent — configuration non appliquée"
         return 0
     fi
 

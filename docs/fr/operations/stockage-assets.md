@@ -19,24 +19,77 @@ champs — c'est ce qu'achète l'abstraction `StorageProvider`
 
 | `STORAGE_PROVIDER` | Usage | Particularité |
 |---|---|---|
-| `filesystem` | défaut, et **environnement de dev** | sert depuis `MODELS_HOST_PATH` |
-| `r2` / `s3` | **production** | aucun frais de sortie chez R2 |
+| `filesystem` | **production et dev** | sert depuis `MODELS_HOST_PATH` |
+| `r2` / `s3` | repli, encore configuré | aucun frais de sortie chez R2 |
 | `minio` | développement local | `STORAGE_S3_USE_SSL=false` |
 
-La production sert donc ses modèles depuis R2, et le dev depuis le disque —
-c'est délibéré : donner au dev les identifiants du seau aurait signifié qu'une
-clé age de dev ouvre l'écriture sur le stockage de production.
+> ⚠️ **La production a quitté R2 le 2026-10-21.** Ce document a longtemps
+> présenté R2 comme le choix de production ; ce n'est plus vrai, et la raison
+> est dans la section suivante.
+
+Les identifiants S3 restent dans le secret de production et le seau n'est pas
+supprimé : c'est le repli de la bascule, tant que le disque n'a pas servi en
+vrai.
 
 L'inventaire complet des variables, avec un exemple par support, est dans
 [`ops/secrets/env.template`](../../../ops/secrets/env.template).
 
-## Pourquoi Cloudflare R2
+## Pourquoi la production a quitté R2
 
-**R2 ne facture jamais la sortie.** Une app mobile qui télécharge des modèles de
-121 Mo rend ce poste imprévisible chez un fournisseur qui le tarife — c'est le
-seul risque financier réel du projet.
+**Les modèles vont dépasser 30 Go. Le palier gratuit de R2 plafonne à 10.**
 
-S'y ajoute le fait que Cloudflare est déjà dans la chaîne : pas de fournisseur
+Au-delà, c'est facturé — et le volume ne va que croître, chaque plante pesant
+une cinquantaine de mégaoctets en haute définition. Le VPS de migration porte
+99 Go (#652).
+
+Le raisonnement qui avait fait choisir R2 ne tient plus dans son principal
+argument :
+
+> R2 ne facture jamais la sortie. Une app mobile qui télécharge des modèles de
+> 121 Mo rend ce poste imprévisible chez un fournisseur qui le tarife — c'est le
+> seul risque financier réel du projet.
+
+Ce risque n'existe pas sur la machine actuelle : **le VPS est fourni par
+Epitech, la bande passante est illimitée, et seuls les crédits de création de
+machine se consomment.** Le poste imprévisible qu'on fuyait n'a pas de
+contrepartie ici.
+
+### Une conséquence technique à connaître
+
+```
+api.arbore.app/models/…usdz   cf-cache-status: DYNAMIC
+```
+
+Avec R2, la route répondait par une **redirection 302** vers une URL signée :
+le téléchargement ne touchait jamais l'origine. Sur disque, le VPS sert chaque
+octet, et Cloudflare **ne met rien en cache** — `DYNAMIC`.
+
+La route est de surcroît authentifiée (`X-API-Key` et jeton Firebase).
+Cloudflare ne met pas en cache une réponse authentifiée par défaut, et le forcer
+poserait une question de sécurité. Ce n'est donc pas un réglage à cocher.
+
+Avec une bande passante illimitée ce n'est pas un problème de coût. C'en sera un
+de **charge** le jour où le catalogue grossira : à savoir, pas à régler
+aujourd'hui.
+
+### `STORAGE_MAX_OPS_PER_MINUTE` reste à 200
+
+La borne était calibrée sur le palier R2 :
+
+```
+200 × 60 × 24 × 30 = 8 640 000 opérations/mois
+palier gratuit R2  = 10 000 000
+```
+
+Sur disque elle ne protège plus d'une facture. **On la garde quand même**, et
+la raison mérite d'être écrite pour qui serait tenté de la relâcher : si l'on
+revenait sur R2, elle nous laisserait d'emblée alignés sur le palier gratuit.
+C'est un filet qu'il serait coûteux de reconstruire après coup, et gratuit à
+conserver. Elle vaut 200 par le défaut du code — aucun secret ne la pose.
+
+## Pourquoi Cloudflare R2 avait été choisi
+
+S'y ajoutait le fait que Cloudflare est déjà dans la chaîne : pas de fournisseur
 supplémentaire à opérer, et un palier gratuit de 10 Go qui ne s'éteint pas.
 
 > ⚠️ **Ne pas choisir la classe de stockage *Infrequent Access*.** Elle réduit

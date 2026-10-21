@@ -36,6 +36,11 @@ origin_ip = "79.137.92.154"
 # fois la bascule complète faite, pour que dev retourne suivre la production.
 dev_origin_ip = "162.19.13.82"
 
+# L'atelier 3D suit les modèles qu'il produit, donc la machine de migration.
+# Ce n'est pas une surface d'utilisateur : l'app mobile ne l'appelle pas, et
+# son état est un fichier sur disque, pas une base (#652).
+generator_origin_ip = "162.19.13.82"
+
 r2_bucket_name  = "arbore-assets"
 r2_jurisdiction = "eu"
 

@@ -20,22 +20,29 @@ l'était du dépôt.
 |---|---|
 | DNS `api.arbore.app`, `web.arbore.app` | déclaré (par environnement) |
 | DNS `api-dev.arbore.app` | déclaré, sous `enable_dev_hostnames` |
-| DNS **`generator.arbore.app`** | ⚠️ **pas déclaré** — voir ci-dessous |
+| DNS `generator.arbore.app` | déclaré, adopté le 2026-10-21 · suit `generator_origin_ip` |
 | DNS apex, `www`, MX × 2, SPF, apple-domain, DKIM | déclaré (zone, production seule) |
 | Bucket R2 `arbore-assets` | déclaré |
 | Atlas (cluster, users, IP allowlist) | pas encore — déclarer l'allowlist *est* la façon de répondre à la question restée ouverte |
 | Règles de pare-feu Cloudflare, TLS Full strict | pas encore |
 | VPS Epitech | hors de portée : non provisionnable par API, et retiré fin février |
 
-> ⚠️ **`generator.arbore.app` n'est pas dans ce répertoire.** Il n'est ni
-> déclaré ni importé, alors qu'il sert en production — `generator.arbore.app`
-> et `web.arbore.app` sont servis par le même conteneur, distingués par
-> `server_name` dans nginx.
+> **`generator.arbore.app` est resté hors de ce répertoire du 2026-09-07 au
+> 2026-10-21**, alors qu'il servait en production. Il est servi par le même
+> conteneur que `web.arbore.app`, distingué par `server_name` dans nginx.
 >
-> Conséquence à connaître avant toute migration : changer `origin_ip`
-> déplacerait `api` et `web`, et **laisserait `generator` sur l'ancienne
-> machine**. L'adopter demande son identifiant d'enregistrement Cloudflare, à
-> lire via l'API, puis un bloc `import` comme les autres. Suivi dans #652.
+> Ce que l'oubli coûtait : changer `origin_ip` aurait déplacé `api` et `web` en
+> **laissant `generator` sur l'ancienne machine**, et le plan n'aurait rien
+> signalé. Avec l'ancienne éteinte, l'atelier 3D tombait.
+>
+> La leçon vaut au-delà de ce cas : **un plan à zéro changement ne prouve que la
+> fidélité de ce qui est déclaré.** Il ne voit pas ce qui manque. Le plan de
+> #427 était exact, et il déclarait neuf enregistrements sur dix.
+>
+> C'est la raison la plus concrète de poser la détection de dérive planifiée des
+> règles de tenue : `terraform plan -detailed-exitcode` compare la réalité à la
+> déclaration, mais seul un inventaire de la zone compare la déclaration à la
+> réalité.
 
 Les neuf enregistrements de la zone sont déclarés, pas seulement les deux du
 service. En laisser sept dehors aurait fait de ce répertoire une demi-mesure :
@@ -175,6 +182,30 @@ zone a bougé entre-temps.
 > `environment: infra-prod` est déclaré sur le job. Y poser des relecteurs
 > requis ajoute une approbation humaine avant tout apply, sans toucher au
 > workflow.
+
+## Trois adresses d'origine, et pourquoi
+
+| variable | enregistrements | sert |
+|---|---|---|
+| `origin_ip` | `api`, `web` | l'app mobile de l'App Store |
+| `dev_origin_ip` | `api-dev` | le développement, via TestFlight |
+| `generator_origin_ip` | `generator` | l'atelier 3D |
+
+Les deux dernières sont vides par défaut : tout suit alors `origin_ip`, ce qui
+reste le cas normal hors migration.
+
+**L'atelier a sa propre variable parce qu'il n'est pas une surface
+d'utilisateur.** L'app mobile ne l'appelle pas. Il doit vivre là où sont les
+modèles qu'il produit, sinon chaque livraison demande un transfert à la main
+entre deux machines.
+
+Le déplacer ne déplace aucune donnée de base : son état est un fichier,
+`/data/generator/etat.json`, et son code n'accède pas à Mongo — seul le disque
+qu'il lit change.
+
+> C'est la troisième occurrence du motif `var.x != "" ? var.x : var.origin_ip`.
+> Si une quatrième apparaît, mieux vaudra une seule variable `map` qu'une par
+> enregistrement.
 
 ## Basculer dev seul, pour éprouver une machine neuve
 

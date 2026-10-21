@@ -83,6 +83,26 @@ variable "enable_dev_hostnames" {
   default     = false
 }
 
+variable "generator_origin_ip" {
+  description = <<-EOT
+    Adresse IPv4 servant l'atelier 3D, quand elle DIFFÈRE de `origin_ip`.
+    Vide = l'atelier suit la production.
+
+    L'atelier est un OUTIL, pas une surface d'utilisateur : il n'est pas
+    appelé par l'app mobile. Il doit vivre là où se trouvent les modèles
+    qu'il produit, sinon chaque livraison demande un transfert à la main
+    entre deux machines (#652).
+
+    Le déplacer ne déplace aucune donnée de base : son état est un fichier,
+    `/data/generator/etat.json`, et son code n'accède pas à Mongo. Ce qui
+    bouge, c'est quel disque il lit.
+
+    Même contrainte que `origin_ip` : l'enregistrement reste proxifié.
+  EOT
+  type        = string
+  default     = ""
+}
+
 variable "dev_origin_ip" {
   description = <<-EOT
     Adresse IPv4 servant l'environnement de dev, quand elle DIFFÈRE de

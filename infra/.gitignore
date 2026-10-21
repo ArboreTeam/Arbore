@@ -16,6 +16,10 @@ plan.out
 # Valeurs réelles. Les modèles (.example) sont versionnés, pas les valeurs.
 *.auto.tfvars
 envs/*.tfvars
+# Exception : ce fichier ne contient QUE des valeurs non sensibles, et la CI ne
+# peut pas lire un fichier absent du dépôt. Les identifiants de compte, de zone
+# et le jeton arrivent par TF_VAR_* depuis les secrets du dépôt.
+!envs/prod.ci.tfvars
 !envs/*.tfvars.example
 envs/*.backend.hcl
 !envs/*.backend.hcl.example

@@ -78,6 +78,80 @@ enregistrements existants n'en ont pas, et en ajouter ferait sortir le plan à
 non-zéro, ce qui priverait ce test de son sens. Les ajouter est un changement
 délibéré, à faire séparément une fois la fidélité prouvée.
 
+## Secrets à poser dans le dépôt
+
+`plan` reste inerte tant que les cinq ne sont pas là : il l'annonce et sort en
+succès, plutôt que d'échouer en rouge sur chaque PR.
+
+| secret | sert à |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | API Cloudflare. Portée `Zone:DNS:Edit` + `Workers R2 Storage:Edit` |
+| `CLOUDFLARE_ACCOUNT_ID` | identifiant de compte ; compose aussi l'endpoint R2 du state |
+| `CLOUDFLARE_ZONE_ID` | identifiant de la zone `arbore.app` |
+| `TFSTATE_S3_ACCESS_KEY` | lecture/écriture du bucket `arbore-tfstate` |
+| `TFSTATE_S3_SECRET_KEY` | idem |
+
+Ce sont des **secrets GitHub Actions**, pas des entrées de `ops/secrets/*.enc.env`.
+Les deux canaux ne se croisent pas : les `.enc` sont déchiffrés *sur la machine*
+par `apply_secrets`, avec la clé age locale, et aucun workflow ne contient
+`sops`.
+
+> Donner la clé age privée à la CI pour qu'elle lise les `.enc` échangerait un
+> périmètre de 5 valeurs contre les 32 de `prod.enc.env` — URI Mongo, clés API,
+> clés des fournisseurs d'IA. C'est la raison de ne pas le faire.
+
+Le jeton R2 peut être restreint au seul bucket `arbore-tfstate` : le state vit
+ailleurs que les assets. Il mérite la même méfiance que ce qu'il protège — le
+state contient les clés R2 et Atlas en clair.
+
+### Pourquoi `envs/prod.ci.tfvars` est versionné
+
+`envs/prod.tfvars` est gitignoré, donc absent du runner, et un `plan` a besoin
+de toutes les variables. `prod.ci.tfvars` porte celles qui ne sont pas
+sensibles ; les trois autres arrivent par `TF_VAR_*`.
+
+`origin_ip` y est délibérément. L'adresse de l'origine n'est pas le contrôle de
+sécurité — le pare-feu l'est, et les enregistrements restent proxifiés. En
+échange, toute bascule de machine devient un **diff relu en PR**.
+
+## Ce que la CI publie, et ce qu'elle retient
+
+Le dépôt est **public** : ses logs d'Actions et ses commentaires de PR le sont
+aussi.
+
+Le job `plan` ne publie donc que les **noms de ressources et les actions** —
+déjà dans le dépôt. Jamais le diff de valeurs, qui porte les adresses IP et les
+identifiants de zone.
+
+> Le plan figé (`-out`) embarque les valeurs de **toutes** les variables, jeton
+> compris : c'est ce qu'a appris `cc3aef8`, où le `.gitignore` couvrait le state
+> mais pas les plans. Ici il ne quitte jamais le runner — aucun artefact, et il
+> est supprimé dès le JSON extrait.
+
+Un plan qui **détruit** une ressource déclenche un avertissement visible sans
+faire échouer le job : c'est parfois voulu, jamais à appliquer sans l'avoir lu.
+
+## Pourquoi il n'y a pas de job `apply`
+
+Les règles de tenue disent « `apply` au merge ». Ce workflow n'en fait pas, et
+c'est un choix à trancher plutôt qu'un oubli :
+
+un apply automatique applique **sans que personne n'ait lu le plan**. Sur les
+enregistrements de messagerie, une erreur ne produit aucune erreur visible — le
+courrier cesse simplement d'arriver. Sur `api` ou `web`, elle coupe le service.
+
+Trois options, par ordre de prudence décroissante :
+
+1. **`workflow_dispatch` sur `main`**, déclenché à la main après avoir lu le
+   plan de la PR. L'apply reste un geste humain, mais joué par la CI, donc avec
+   les bons identifiants et sans poste dans la boucle.
+2. **Au merge, derrière un environnement protégé** (`infra-prod`) avec
+   relecteurs requis. Automatique, mais avec une approbation explicite.
+3. **Au merge, sans garde.** Ce que disent les règles de tenue aujourd'hui.
+
+Tant que rien n'est tranché, l'apply se fait à la main — contrairement à la
+règle, et en le sachant.
+
 ## Basculer dev seul, pour éprouver une machine neuve
 
 `dev_origin_ip` détache `api-dev` de la production. Vide, dev suit `origin_ip` —

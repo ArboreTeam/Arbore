@@ -14,15 +14,15 @@ func TestDoitSeeder(t *testing.T) {
 	}{
 		// La production : `MONGODB_DB` n'y est pas défini, donc `prodDBName`
 		// vaut le même `arbore` que la source. C'est LE cas à refuser.
-		{"production se refuse elle-meme", "arbore", "arbore", false},
+		{"production se refuse elle-même", "arbore", "arbore", false},
 
-		{"dev accepte", "arbore_dev", "arbore", true},
-		{"test accepte", "arbore_test", "arbore", true},
-		{"pre-prod accepte", "arbore_preprod", "arbore", true},
+		{"dev accepté", "arbore_dev", "arbore", true},
+		{"test accepté", "arbore_test", "arbore", true},
+		{"pré-prod accepté", "arbore_preprod", "arbore", true},
 
 		// Une source renommée ne doit pas rouvrir le cas interdit.
-		{"source renommee, destination identique", "catalogue", "catalogue", false},
-		{"source renommee, destination differente", "arbore_dev", "catalogue", true},
+		{"source renommée, destination identique", "catalogue", "catalogue", false},
+		{"source renommée, destination différente", "arbore_dev", "catalogue", true},
 
 		// Valeurs manquantes : refus. Un nom vide viserait la base par défaut
 		// du client, qu'on ne veut jamais deviner.
@@ -31,9 +31,9 @@ func TestDoitSeeder(t *testing.T) {
 		{"les deux vides", "", "", false},
 
 		// Les espaces ne doivent pas faire passer le cas interdit pour deux
-		// noms distincts.
-		{"espaces autour du meme nom", " arbore ", "arbore", false},
-		{"espaces, noms differents", " arbore_dev ", " arbore ", true},
+		// noms différents.
+		{"espaces autour du même nom", " arbore ", "arbore", false},
+		{"espaces, noms différents", " arbore_dev ", " arbore ", true},
 	}
 	for _, c := range cas {
 		t.Run(c.nom, func(t *testing.T) {

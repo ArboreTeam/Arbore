@@ -101,7 +101,16 @@ Verification:
 ```bash
 systemctl is-active cron    # Debian — "crond" on Fedora
 gh --version                # 2.x, if installed
+
+# nginx and iptables live in /usr/sbin, which is NOT on a non-root user's PATH
+# on Debian — unlike Fedora. A `command -v` reports them missing when they are
+# in fact installed. Check with the full path:
+/usr/sbin/nginx -v          # nginx/1.22.1
+/usr/sbin/iptables --version  # v1.8.9 (nf_tables)
 ```
+
+The `(nf_tables)` suffix is expected: Debian 12 ships the `iptables` command
+on an nftables backend, and the origin firewall works with it.
 
 ---
 
@@ -140,9 +149,9 @@ privilege separation.
 Verification:
 
 ```bash
-sudo docker --version            # Docker version 28.x
-sudo docker compose version      # v2.35+
-sudo docker run --rm hello-world # sanity check
+sudo docker --version            # a version prints, not an error
+sudo docker compose version      # compose v2 is wired as a subcommand
+sudo docker run --rm hello-world # the daemon answers and can pull an image
 ```
 
 ---
@@ -188,6 +197,50 @@ mongodump --version | head -1
 > **Nothing installs `mongod`, and that is deliberate**: the database is hosted
 > on Atlas. Only the client tools are needed, for the nightly cleanup and the
 > pre-deploy snapshots.
+
+---
+
+## 3b. sops + age — nothing starts without them
+
+`deploy.sh` produces each `.env` by decrypting `ops/secrets/<env>.enc.env`.
+**Without `sops` and `age`, no environment file is written and no container
+starts.** The runbook did not install them, although they are the first
+prerequisite of a deployment.
+
+**Debian 12**
+
+```bash
+sudo apt-get -y install age
+
+# The version is DERIVED, never hard-coded: a frozen number in a doc goes
+# stale silently and returns a 404 the day you need it.
+SOPS_TAG=$(curl -fsSL https://api.github.com/repos/getsops/sops/releases/latest | jq -r .tag_name)
+curl -fsSL "https://github.com/getsops/sops/releases/download/${SOPS_TAG}/sops-${SOPS_TAG}.linux.amd64" -o /tmp/sops
+sudo install -m 0755 /tmp/sops /usr/local/bin/sops && rm -f /tmp/sops
+```
+
+**Fedora 40**
+
+```bash
+sudo dnf -y install age
+SOPS_TAG=$(curl -fsSL https://api.github.com/repos/getsops/sops/releases/latest | jq -r .tag_name)
+curl -fsSL "https://github.com/getsops/sops/releases/download/${SOPS_TAG}/sops-${SOPS_TAG}.linux.amd64" -o /tmp/sops
+sudo install -m 0755 /tmp/sops /usr/local/bin/sops && rm -f /tmp/sops
+```
+
+Verification:
+
+```bash
+age --version    # 1.1.1
+sops --version   # 3.13.x
+```
+
+> **The private age key is not installed, it is carried over.**
+> `deploy.sh` looks for it in `~/.config/sops/age/arbore-<env>.txt`. It is the
+> only secret to copy from one machine to another — everything else is
+> regenerated from the repository's `*.enc.*` files. See
+> `ops/secrets/README.md`, and its warning about the newlines a password
+> manager silently flattens.
 
 ---
 

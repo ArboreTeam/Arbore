@@ -70,6 +70,47 @@ sudo systemctl enable --now cron
 origin firewall depends on it. Debian 12 provides it on an nftables backend,
 which suits the script.
 
+> ⚠️ **The `nginx` in the Debian repos is not enough.** Bookworm ships 1.22.1
+> and will stay there: the `http2 on;` directive only exists from 1.25.1, and
+> our configurations use it. `nginx -t` fails with
+> `unknown directive "http2"`, and `deploy.sh` then restores the previous
+> configuration without bringing the stack up.
+
+Upstream's nginx is therefore required, for the same reason as Docker below:
+the project follows the official binaries, not the distribution packages.
+
+```bash
+curl -fsSL https://nginx.org/keys/nginx_signing.key \
+  | sudo gpg --dearmor -o /usr/share/keyrings/nginx-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/debian bookworm nginx" \
+  | sudo tee /etc/apt/sources.list.d/nginx.list > /dev/null
+sudo apt-get -y update
+# --force-confnew: upstream's nginx.conf includes only conf.d/, which is what
+# our configurations expect, and it is the old machine's layout.
+sudo DEBIAN_FRONTEND=noninteractive \
+  apt-get -y -o Dpkg::Options::=--force-confnew install nginx
+```
+
+Two leftovers from the Debian package must then be removed, otherwise `conf.d/`
+holds files the repository does not manage:
+
+```bash
+sudo rm -f /etc/nginx/conf.d/default.conf   # upstream's welcome page
+sudo rm -f /etc/nginx/sites-enabled/default # a second "listen 80 default_server"
+sudo nginx -t
+```
+
+The second one deserves the explanation: Debian's `nginx.conf` includes
+`sites-enabled/`, and its default site declares `listen 80 default_server`
+— which `arbore.conf` declares too. Upstream's `nginx.conf` includes only
+`conf.d/`, which makes the symlink inert; it is removed so that it cannot
+become active again if the Debian package is ever reinstalled.
+
+> Upgrading the package **stops nginx and does not start it again.** The
+> configuration stays valid, nothing serves the site, and until #652 the
+> deploy reported success anyway — its health checks only probe the
+> containers. `apply_nginx` now starts nginx when it finds it stopped.
+
 `gh` is not in the Debian repos; it is **optional** (`cleanup-test-db.sh`
 falls back to `curl`). To install it:
 

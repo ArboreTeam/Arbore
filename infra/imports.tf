@@ -24,6 +24,16 @@ import {
   id = "${var.cloudflare_zone_id}/a70033b3c86c39600e33b2ec83b6726d"
 }
 
+# Identifiant relevé le 2026-10-21, par l'API, en préparant la bascule de VPS.
+# Cet enregistrement avait été oublié du relevé du 2026-09-07 : le plan à zéro
+# changement de #427 était fidèle à ce qu'il déclarait, mais il ne déclarait pas
+# tout. C'est l'angle mort qu'un `plan` ne peut pas voir — il ne compare que ce
+# qu'on lui a décrit.
+import {
+  to = cloudflare_dns_record.generator
+  id = "${var.cloudflare_zone_id}/7db8e09262810e48cbeeb9e8d73a1a43"
+}
+
 # ── Enregistrements de zone ───────────────────────────────────────────────
 # Indexés comme les ressources correspondantes : `[0]` pour les `count`,
 # `["01"]` / `["02"]` pour le `for_each` des MX.

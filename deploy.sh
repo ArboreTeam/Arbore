@@ -314,6 +314,13 @@ apply_secrets() {
     # (#401), et celles d'après février n'auront pas cet utilisateur.
     local data_dir="${ARBORE_DATA_DIR:-$(dirname "$SCRIPT_DIR")/arbore-data}"
     local secrets_dir="$data_dir/secrets"
+
+    # Créé ici, parce que rien d'autre ne le crée : sur une machine vierge
+    # `install` échoue faute de répertoire, le repli `sudo install` échoue pour
+    # la même raison, et `set -euo pipefail` tue alors le déploiement à
+    # l'étape 2 — avant même que la pile démarre. Le mode 0700 est délibéré :
+    # ces fichiers naissent en 0600 et personne d'autre n'a à lister le dossier.
+    [ -d "$secrets_dir" ] || mkdir -p -m 700 "$secrets_dir"
     # source_chiffrée:destination
     local mappings=(
         "$enc_dir/$env_name.enc.env:$ENV_FILE"
@@ -425,7 +432,17 @@ apply_nginx() {
     done
 
     if [ "$changed" -eq 0 ]; then
-        ok "nginx déjà conforme"
+        # « Conforme » ne veut pas dire « en service ». Une mise à jour du
+        # paquet nginx l'arrête et ne le relance pas : la configuration reste
+        # juste, le site n'est servi par personne, et comme le health check de
+        # l'étape 7 n'interroge que les conteneurs, le déploiement se termine
+        # en vert. Observé sur la machine de migration (#652).
+        if ! systemctl is-active --quiet nginx; then
+            sudo systemctl start nginx
+            ok "nginx déjà conforme, mais arrêté — démarré"
+        else
+            ok "nginx déjà conforme"
+        fi
         return 0
     fi
 
@@ -442,7 +459,9 @@ apply_nginx() {
         return 1
     fi
 
-    sudo systemctl reload nginx
+    # `reload` échoue sur une unité arrêtée, et `set -e` tuerait le
+    # déploiement juste après avoir installé une configuration valide.
+    sudo systemctl reload-or-restart nginx
     ok "nginx mis à jour et rechargé"
 }
 
@@ -547,10 +566,23 @@ do_apply_ops() {
 
     if [ "$units_changed" -eq 1 ]; then
         sudo systemctl daemon-reload
-        for src in "$SCRIPT_DIR"/ops/systemd/*.service "$SCRIPT_DIR"/ops/systemd/*.timer; do
-            [ -e "$src" ] || continue
-            sudo systemctl enable "$(basename "$src")" > /dev/null 2>&1 || true
-        done
+    fi
+
+    # Activation INCONDITIONNELLE, et non réservée au passage où les unités
+    # changent. Sinon il suffit qu'une étape postérieure échoue ce jour-là
+    # — `apply_nginx` l'a fait sur la machine de migration (#652) — pour que
+    # les unités restent installées et jamais activées : les passages suivants
+    # les voient « déjà conformes » et n'y reviennent plus. Le pare-feu
+    # d'origine tourne alors jusqu'au prochain redémarrage, puis disparaît
+    # sans que rien ne le signale.
+    #
+    # `systemctl enable` est idempotent, donc le rejouer ne coûte rien.
+    for src in "$SCRIPT_DIR"/ops/systemd/*.service "$SCRIPT_DIR"/ops/systemd/*.timer; do
+        [ -e "$src" ] || continue
+        sudo systemctl enable "$(basename "$src")" > /dev/null 2>&1 || true
+    done
+
+    if [ "$units_changed" -eq 1 ]; then
         ok "Unités systemd mises à jour et activées"
     elif [ "$changed" -eq 1 ]; then
         ok "Scripts /usr/local/sbin mis à jour"

@@ -314,6 +314,13 @@ apply_secrets() {
     # (#401), et celles d'après février n'auront pas cet utilisateur.
     local data_dir="${ARBORE_DATA_DIR:-$(dirname "$SCRIPT_DIR")/arbore-data}"
     local secrets_dir="$data_dir/secrets"
+
+    # Créé ici, parce que rien d'autre ne le crée : sur une machine vierge
+    # `install` échouerait faute de répertoire, et comme ce script n'a pas de
+    # `set -e`, le déploiement continuerait en annonçant « 0 appliqué » — avec
+    # une clé de chiffrement maître absente. Le mode 0700 est délibéré : ces
+    # fichiers naissent en 0600 et personne d'autre n'a à lister le dossier.
+    [ -d "$secrets_dir" ] || mkdir -p -m 700 "$secrets_dir"
     # source_chiffrée:destination
     local mappings=(
         "$enc_dir/$env_name.enc.env:$ENV_FILE"

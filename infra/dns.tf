@@ -40,11 +40,16 @@ resource "cloudflare_dns_record" "web" {
 # sert en production. La conséquence n'était pas théorique : changer `origin_ip`
 # aurait déplacé `api` et `web` en le laissant sur l'ancienne machine, et le
 # plan n'aurait rien signalé. Avec l'ancienne éteinte, l'atelier tombait (#652).
+#
+# `generator_origin_ip` quand elle est renseignée, `origin_ip` sinon — même
+# motif que `api_dev` plus bas. Troisième occurrence : si une quatrième
+# apparaît, il sera temps d'y substituer une seule variable `map` plutôt que
+# d'aligner une variable par enregistrement.
 resource "cloudflare_dns_record" "generator" {
   zone_id = var.cloudflare_zone_id
   name    = "generator.${var.domain}"
   type    = "A"
-  content = var.origin_ip
+  content = var.generator_origin_ip != "" ? var.generator_origin_ip : var.origin_ip
   proxied = true
   ttl     = 1
 }

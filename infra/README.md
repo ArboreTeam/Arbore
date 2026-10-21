@@ -20,7 +20,7 @@ l'était du dépôt.
 |---|---|
 | DNS `api.arbore.app`, `web.arbore.app` | déclaré (par environnement) |
 | DNS `api-dev.arbore.app` | déclaré, sous `enable_dev_hostnames` |
-| DNS `generator.arbore.app` | déclaré, adopté le 2026-10-21 |
+| DNS `generator.arbore.app` | déclaré, adopté le 2026-10-21 · suit `generator_origin_ip` |
 | DNS apex, `www`, MX × 2, SPF, apple-domain, DKIM | déclaré (zone, production seule) |
 | Bucket R2 `arbore-assets` | déclaré |
 | Atlas (cluster, users, IP allowlist) | pas encore — déclarer l'allowlist *est* la façon de répondre à la question restée ouverte |
@@ -182,6 +182,30 @@ zone a bougé entre-temps.
 > `environment: infra-prod` est déclaré sur le job. Y poser des relecteurs
 > requis ajoute une approbation humaine avant tout apply, sans toucher au
 > workflow.
+
+## Trois adresses d'origine, et pourquoi
+
+| variable | enregistrements | sert |
+|---|---|---|
+| `origin_ip` | `api`, `web` | l'app mobile de l'App Store |
+| `dev_origin_ip` | `api-dev` | le développement, via TestFlight |
+| `generator_origin_ip` | `generator` | l'atelier 3D |
+
+Les deux dernières sont vides par défaut : tout suit alors `origin_ip`, ce qui
+reste le cas normal hors migration.
+
+**L'atelier a sa propre variable parce qu'il n'est pas une surface
+d'utilisateur.** L'app mobile ne l'appelle pas. Il doit vivre là où sont les
+modèles qu'il produit, sinon chaque livraison demande un transfert à la main
+entre deux machines.
+
+Le déplacer ne déplace aucune donnée de base : son état est un fichier,
+`/data/generator/etat.json`, et son code n'accède pas à Mongo — seul le disque
+qu'il lit change.
+
+> C'est la troisième occurrence du motif `var.x != "" ? var.x : var.origin_ip`.
+> Si une quatrième apparaît, mieux vaudra une seule variable `map` qu'une par
+> enregistrement.
 
 ## Basculer dev seul, pour éprouver une machine neuve
 

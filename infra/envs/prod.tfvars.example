@@ -22,6 +22,10 @@ origin_ip = ""
 # réel. À remettre vide une fois la bascule complète faite.
 dev_origin_ip = ""
 
+# Vide = l'atelier 3D suit la production. À renseigner pour le faire vivre là
+# où sont les modèles qu'il produit — il n'est pas appelé par l'app mobile.
+generator_origin_ip = ""
+
 cloudflare_account_id = ""
 cloudflare_zone_id    = ""
 

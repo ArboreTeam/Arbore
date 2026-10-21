@@ -12,7 +12,7 @@ import {
   EXPIRATION_MS, aRevoir, bilan, cheminArtefact, cleEmpreinte, deposer, echouer,
   empreinteRangee, historique, cheminSource, lire, livrer, marquerSansPot,
   nomFichier, noterEmpreinte, noterGraine, planteDe, posables, prendre, purger,
-  mesurables, noterTaille,
+  mesurables, noterTaille, noterDiametreFiche,
   recoupables, recouper, reinitialiser, retenirCoupe, coupeNonRetenue,
   sources, supprimerSource, trancher,
 } from './depot';
@@ -1463,5 +1463,71 @@ describe('dépôt — taille réelle d une plante', () => {
     }]);
     await noterTaille('ficus', { hauteurCm: 60, stade: 'jeune' });
     expect(lire().plantes.ficus.taille).toMatchObject({ hauteurCm: 60, stade: 'jeune' });
+  });
+});
+
+describe('dépôt — le diamètre venu de la fiche d\'origine', () => {
+  beforeEach(() => reinitialiser());
+
+  it('décocher « sans pot » ne doit pas emporter le diamètre', async () => {
+    // Les deux vivent dans la même entrée de `sources`, mais n'ont rien à voir :
+    // l'un est un jugement sur l'image, l'autre un fait venu de la fiche.
+    // L'ancienne version supprimait l'entrée entière, donc les deux.
+    await noterDiametreFiche('plante.png', 19);
+    await marquerSansPot('plante.png', true);
+    await marquerSansPot('plante.png', false);
+
+    expect(lire().sources?.['plante.png']?.diametrePotCm).toBe(19);
+    expect(lire().sources?.['plante.png']?.sansPot).toBeUndefined();
+  });
+
+  it('retirer le diamètre ne doit pas emporter « sans pot »', async () => {
+    await noterDiametreFiche('plante.png', 19);
+    await marquerSansPot('plante.png', true);
+    await noterDiametreFiche('plante.png', null);
+
+    expect(lire().sources?.['plante.png']?.sansPot).toBe(true);
+    expect(lire().sources?.['plante.png']?.diametrePotCm).toBeUndefined();
+  });
+
+  it('une entrée vidée de tout est retirée, pour ne pas laisser de coquille', async () => {
+    await noterDiametreFiche('plante.png', 19);
+    await noterDiametreFiche('plante.png', null);
+    expect(lire().sources?.['plante.png']).toBeUndefined();
+  });
+
+  it('refuse une valeur qui ne décrit pas un diamètre', async () => {
+    for (const mauvais of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(await noterDiametreFiche('plante.png', mauvais)).toBeNull();
+    }
+    expect(lire().sources?.['plante.png']).toBeUndefined();
+  });
+
+  it('arrondit au dixième, comme la saisie de taille', async () => {
+    expect(await noterDiametreFiche('plante.png', 18.96)).toBe(19);
+    expect(await noterDiametreFiche('autre.png', 12.34)).toBe(12.3);
+  });
+
+  it('mesurables() expose le diamètre de la source de la tâche', async () => {
+    await noterDiametreFiche('dracaena.png', 24);
+    await deposer('Dracaena', '/quelque/part/dracaena.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, { candidats_pot: [{ voie: 'geometrie',
+      sommet: 0.3, socle: { rayon: 0.1, hauteur_modele: 1 } }] });
+
+    const m = mesurables().find((x) => x.plante === 'Dracaena');
+    // Indexé par nom NU : la tâche garde le chemin complet.
+    expect(m?.diametreFiche).toBe(24);
+  });
+
+  it('rend null quand la fiche ne dit rien', async () => {
+    await deposer('Inconnue', '/x/inconnue.png');
+    const t = await prendre();
+    await livrer(t!.id, t!.reservation!, { candidats_pot: [{ voie: 'geometrie',
+      sommet: 0.3, socle: { rayon: 0.1, hauteur_modele: 1 } }] });
+
+    const m = mesurables().find((x) => x.plante === 'Inconnue');
+    expect(m).toBeDefined();
+    expect(m!.diametreFiche).toBeNull();
   });
 });

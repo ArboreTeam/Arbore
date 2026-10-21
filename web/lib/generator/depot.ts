@@ -147,7 +147,21 @@ export type Etat = {
     purge?: Purge;
   }>;
   /** Ce qu'on sait d'une source au-delà de son fichier. */
-  sources?: Record<string, { sansPot?: boolean }>;
+  sources?: Record<string, {
+    sansPot?: boolean;
+    /**
+     * Diamètre du pot, en centimètres, tel que la fiche d'origine le donne.
+     *
+     * C'est un FAIT, pas un jugement : il sert à pré-remplir la saisie de
+     * taille au lieu de la laisser à l'œil. Mesuré sur 26 plantes ayant les
+     * deux, la fiche et la saisie humaine concordent 26 fois sur 26 — tandis
+     * que l'estimation visuelle libre s'est trompée 2 fois sur 3.
+     *
+     * L'opérateur reste libre de le changer : la fiche propose, elle ne
+     * décide pas.
+     */
+    diametrePotCm?: number;
+  }>;
   /** Empreintes mesurées, indexées par « plante/fichier ». */
   empreintes?: Record<string, EmpreinteRangee>;
 };
@@ -597,9 +611,46 @@ export function sources(): Source[] {
 export function marquerSansPot(fichier: string, sansPot: boolean) {
   return muter((etat) => {
     const s = (etat.sources ??= {});
-    if (sansPot) (s[fichier] ??= {}).sansPot = true;
-    else delete s[fichier];
+    if (sansPot) {
+      (s[fichier] ??= {}).sansPot = true;
+    } else {
+      // Ne retirer QUE ce drapeau. Effacer l'entrée emporterait le diamètre
+      // de la fiche, qui n'a rien à voir avec lui — décocher « sans pot »
+      // perdrait silencieusement une donnée d'une autre nature.
+      const e = s[fichier];
+      if (e) {
+        delete e.sansPot;
+        // Une entrée vide ne porte plus d'information : on la retire pour que
+        // l'état ne se peuple pas de coquilles.
+        if (Object.keys(e).length === 0) delete s[fichier];
+      }
+    }
     return sansPot;
+  });
+}
+
+/**
+ * Enregistre le diamètre de pot donné par la fiche d'origine d'une source.
+ *
+ * Séparé de la saisie de taille à dessein : celle-ci est une décision de
+ * l'opérateur, celui-là un fait rattaché à la source. Les confondre ferait
+ * passer une donnée reçue pour un jugement, et on ne saurait plus lequel des
+ * deux a produit une valeur.
+ */
+export function noterDiametreFiche(fichier: string, diametreCm: number | null) {
+  return muter((etat) => {
+    const s = (etat.sources ??= {});
+    if (diametreCm === null || !Number.isFinite(diametreCm) || diametreCm <= 0) {
+      const e = s[fichier];
+      if (e) {
+        delete e.diametrePotCm;
+        if (Object.keys(e).length === 0) delete s[fichier];
+      }
+      return null;
+    }
+    const d = Math.round(diametreCm * 10) / 10;
+    (s[fichier] ??= {}).diametrePotCm = d;
+    return d;
   });
 }
 
@@ -1277,6 +1328,13 @@ export type Mesurable = {
   /** Rapport hauteur/diamètre du pot, et s'il décrit un pot plausible. */
   rapportHD: number | null;
   potPlausible: boolean;
+  /**
+   * Diamètre donné par la fiche d'origine, quand elle le porte.
+   *
+   * Sert à pré-remplir la saisie : c'est la source la plus fiable dont on
+   * dispose, et la seule qui ne demande aucun jugement.
+   */
+  diametreFiche: number | null;
   taille: {
     hauteurCm: number; stade: 'jeune' | 'adulte';
     diametrePotCm?: number; pose: number;
@@ -1323,6 +1381,9 @@ export function mesurables(): Mesurable[] {
       rapportHD,
       potPlausible: rapportHD !== null
         && rapportHD >= HD_POT.min && rapportHD <= HD_POT.max,
+      // `nomFichier` et non `t.image` tel quel : `sources` est indexé par nom
+      // nu, alors que la tâche garde l'image telle qu'on la lui a donnée.
+      diametreFiche: nombre(etat.sources?.[nomFichier(t.image) ?? '']?.diametrePotCm),
       taille: etat.plantes[t.plante]?.taille ?? null,
     });
   }

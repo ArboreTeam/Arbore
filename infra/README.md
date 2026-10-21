@@ -131,26 +131,50 @@ identifiants de zone.
 Un plan qui **détruit** une ressource déclenche un avertissement visible sans
 faire échouer le job : c'est parfois voulu, jamais à appliquer sans l'avoir lu.
 
-## Pourquoi il n'y a pas de job `apply`
+## L'`apply`, déclenché à la main
 
-Les règles de tenue disent « `apply` au merge ». Ce workflow n'en fait pas, et
-c'est un choix à trancher plutôt qu'un oubli :
+Les règles de tenue disent « `apply` au merge ». Ce workflow ne le fait pas, et
+c'est délibéré : **un apply au merge applique sans que personne n'ait lu le
+plan**. Sur les enregistrements de messagerie, une erreur ne produit aucune
+erreur visible — le courrier cesse simplement d'arriver. Sur `api` ou `web`,
+elle coupe le service.
 
-un apply automatique applique **sans que personne n'ait lu le plan**. Sur les
-enregistrements de messagerie, une erreur ne produit aucune erreur visible — le
-courrier cesse simplement d'arriver. Sur `api` ou `web`, elle coupe le service.
+L'apply est donc un `workflow_dispatch`. Il tourne dans la CI, avec les bons
+identifiants et sans poste dans la boucle — ce que la règle voulait — mais il
+demande un geste humain, ce que « au merge » ne donnait pas.
 
-Trois options, par ordre de prudence décroissante :
+### Comment le déclencher
 
-1. **`workflow_dispatch` sur `main`**, déclenché à la main après avoir lu le
-   plan de la PR. L'apply reste un geste humain, mais joué par la CI, donc avec
-   les bons identifiants et sans poste dans la boucle.
-2. **Au merge, derrière un environnement protégé** (`infra-prod`) avec
-   relecteurs requis. Automatique, mais avec une approbation explicite.
-3. **Au merge, sans garde.** Ce que disent les règles de tenue aujourd'hui.
+Actions → **🏗️ Terraform** → *Run workflow*, puis :
 
-Tant que rien n'est tranché, l'apply se fait à la main — contrairement à la
-règle, et en le sachant.
+| champ | valeur |
+|---|---|
+| `appliquer` | taper `appliquer`. Laissé vide, le workflow ne fait que planifier. |
+| `autoriser_destruction` | **à laisser décoché**, sauf destruction voulue et relue. |
+
+```sh
+gh workflow run terraform.yml -f appliquer=appliquer
+```
+
+### Les trois garde-fous
+
+1. **Déclenchement humain.** Aucun push, aucun merge ne lance un apply.
+2. **Mot de confirmation.** Un `workflow_dispatch` lancé par curiosité planifie,
+   et n'applique rien.
+3. **Refus par défaut sur une destruction.** Un plan qui détruit **arrête** le
+   job, sauf autorisation explicite. La décision se prend dans le shell et non
+   dans une expression `if:` : seule la chaîne exacte `true` lève le garde-fou,
+   tout le reste refuse — y compris une valeur absente ou inattendue.
+
+### Ce qui est appliqué est ce qui a été montré
+
+Le job calcule son plan, l'affiche, puis applique **ce fichier de plan**. Pas un
+plan recalculé entre l'affichage et l'exécution, qui pourrait différer si la
+zone a bougé entre-temps.
+
+> `environment: infra-prod` est déclaré sur le job. Y poser des relecteurs
+> requis ajoute une approbation humaine avant tout apply, sans toucher au
+> workflow.
 
 ## Basculer dev seul, pour éprouver une machine neuve
 
@@ -158,19 +182,39 @@ règle, et en le sachant.
 c'est le cas normal et le défaut.
 
 ```hcl
-# envs/prod.tfvars
+# envs/prod.ci.tfvars — versionné, donc le changement est relu en PR
 origin_ip     = "79.137.92.154"   # api + web : machine en service
 dev_origin_ip = "162.19.13.82"    # api-dev seul : machine neuve
 ```
 
+La PR qui porte ce diff reçoit son plan en commentaire. Il doit montrer
+**exactement une ressource, sans destruction** :
+
+| ressource | action |
+|---|---|
+| `cloudflare_dns_record.api_dev[0]` | update |
+
+> **S'il propose autre chose** — en particulier une ligne sur `api`, `web` ou un
+> enregistrement MX — **ne pas appliquer** : le state a dérivé, ou le mauvais
+> backend est initialisé.
+
+Une fois le plan relu, déclencher l'apply à la main (voir plus haut) :
+
 ```sh
-terraform plan -var-file=envs/prod.tfvars    # doit montrer UN seul changement
-terraform apply -var-file=envs/prod.tfvars
+gh workflow run terraform.yml -f appliquer=appliquer
 ```
 
-Le plan ne doit toucher que `cloudflare_dns_record.api_dev[0]`. **S'il propose
-autre chose, ne pas appliquer** : le state a dérivé, ou le mauvais backend est
-initialisé.
+Puis vérifier, depuis n'importe où :
+
+```sh
+curl -s -o /dev/null -w '%{http_code}\n' https://api-dev.arbore.app/health
+```
+
+| code | ce que ça dit |
+|---|---|
+| `200` | la chaîne complète fonctionne contre la machine neuve |
+| `521` / `522` | Cloudflare n'atteint pas l'origine — pare-feu ou nginx |
+| `526` | Cloudflare refuse le certificat d'origine |
 
 Ce que la bascule éprouve, et qu'un essai en local ne peut pas donner : le
 proxy Cloudflare vers l'origine neuve, le certificat d'origine tel que
@@ -187,7 +231,9 @@ retourne suivre la production.
   plans différents. Même leçon que l'étiquette `latest` corrigée en #426.
 - **Le state n'est jamais dans git.** Il contient les clés R2 et Atlas en clair.
   Il vit dans R2 via le backend S3, verrouillé par `use_lockfile`.
-- **Pas d'`apply` depuis un poste.** `plan` en PR, `apply` au merge.
+- **Pas d'`apply` depuis un poste.** `plan` en PR, `apply` par
+  `workflow_dispatch` — voir plus haut. « Au merge » a été écarté : il
+  appliquerait sans que personne n'ait lu le plan.
 - **Détection de dérive planifiée** : `terraform plan -detailed-exitcode` en
   cron, code 2 = la réalité s'écarte de la déclaration. C'est la réponse
   automatisée au mode d'échec de [#341](https://github.com/ArboreTeam/Arbore/issues/341)

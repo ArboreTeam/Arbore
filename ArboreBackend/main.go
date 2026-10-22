@@ -279,6 +279,7 @@ type Plant struct {
 	Potless          *bool                   `json:"potless,omitempty" bson:"potless,omitempty"`                   // true = le maillage ne contient PAS son pot (sortie d'atelier recoupée) ; nil/false = pot inclus, comportement historique
 	PotBase          *PotBase                `json:"potBase,omitempty" bson:"potBase,omitempty"`                   // socle mesuré où poser le pot ; nil = pose non calculable, aucun pot n'est servi
 	HeightMeters     *float64                `json:"heightMeters,omitempty" bson:"heightMeters,omitempty"`         // hauteur réelle de l'exemplaire, mesurée DEPUIS LA TERRE ; nil = le client retombe sur sa constante
+	Versions         *AssetVersions          `json:"versions,omitempty" bson:"versions,omitempty"`                 // empreintes du contenu des fichiers servis ; pilote l'invalidation du cache de l'appareil (#294)
 }
 
 // PlantFlags : drapeaux booléens structurés alimentant la reco du

@@ -161,6 +161,7 @@ Plant catalog document. Each plant embeds its multilingual translations so that 
 | `upAxis` | string (optional) | `"Y"` or `"Z"` — rotation applied at load time (#89). |
 | `hasHeavy` | bool (optional) | `true` if a **high-definition** USDZ variant exists (served via `?lod=heavy`). Drives the LOD swap in AR — see [`../3d-lod-architecture.md`](../3d-lod-architecture.md). |
 | `heightMeters` | float (optional) | Real height of the specimen, **measured from the soil line**, not from the bottom of the pot: the pot changes, the plant does not. When absent, the client falls back on its 0.5 m constant (`autoScaleTargetHeightMeters`), which gives every plant the same size. |
+| `versions` | `AssetVersions` (optional) | Content fingerprints of the files served. They drive device cache invalidation; their absence leaves the client on its current behaviour. |
 | `potless` | bool (optional) | `true` if the mesh **does not contain its pot** (re-cut output of the 3D workshop). Absent or `false` means the pot is part of the mesh, the historical behaviour. |
 | `potBase` | `PotBase` (optional) | Base measured by the workshop: centre, radius, rim height, in model units. Without it, no pot is served. |
 | `flags` | `PlantFlags` (optional) | Legacy flags still used by visual filters and as weak evidence. They can no longer certify suitability on their own. |
@@ -273,6 +274,45 @@ Twelve historical booleans. They remain useful for search and appearance filters
 | `compact` | Compact size. |
 | `airPurifying` | Air-purifying. |
 
+#### `AssetVersions` sub-document
+
+Content fingerprint of each file served for the record: the first eight
+hexadecimal characters of its SHA-256. It drives device cache invalidation
+(#294).
+
+| Field | Type | Role |
+|---|---|---|
+| `model` | string (optional) | Light USDZ. |
+| `modelHeavy` | string (optional) | Heavy USDZ, served via `?lod=heavy`. |
+| `thumbnail` | string (optional) | PNG thumbnail. |
+
+One field per file, because they are distinct files: replacing the light one
+must not force a re-download of the heavy one, which is ten times larger. A
+missing field means “fingerprint not computed” — the client then falls back on
+its previous behaviour and keeps its cache.
+
+##### Why a per-file fingerprint rather than a global counter
+
+The iOS model cache is keyed by **file name**, under `Documents/Models/`, which
+an app update does not clear. A file rewritten under the same name therefore
+reaches no device that already downloaded it: that is #292, where testers kept
+grey models until they reinstalled.
+
+The obvious fix — a version constant in the binary — is already in place for
+thumbnails, and #524 measured what it costs. It is **global**: changing it
+invalidates the whole catalog for everyone in order to fix a single file, 440 MB
+for the light models. And it is **compiled in**: changing it reaches nobody
+without a new TestFlight build, so fixing a file server-side stays invisible.
+
+A content fingerprint has neither flaw. It changes when the bytes change, never
+otherwise, nobody has to remember to bump it, and it travels with the record the
+client already reads.
+
+The conditional GET, the other path in #294, is available server-side at no
+cost: `serveStorageObject` ends in `http.ServeContent`, which emits
+`Last-Modified` and honours `If-Modified-Since`. But it costs one request per
+file per check, where the fingerprint rides along with the catalog.
+
 #### `PotBase` sub-document
 
 The base measured by the 3D workshop, where the pot sits. Every value is in
@@ -299,6 +339,7 @@ in #623).
 | `rimRadius` | float | Rim radius, in **pot**-model units. |
 | `height` | float | Pot height. |
 | `default` | bool | Pot served when the client asks for none. |
+| `version` | string (optional) | Content fingerprint of its USDZ, same rule as `AssetVersions`. |
 
 ##### How plant and pot compose, and where the maths happens
 

@@ -129,6 +129,13 @@ class Operations(unittest.TestCase):
         e = self.etat(P={"verdict": "validee", "coupe": "c.glb", "_socle": socle()})
         self.assertNotIn("heightMeters", poser.operations(e)["plantes"][0]["set"])
 
+    # Régression : la bascule change le nom du modèle, mais le heavy de
+    # l'ancien porte l'ANCIEN nom. Laisser hasHeavy à vrai fait demander
+    # `?lod=heavy` sur un fichier qui n'existe pas — 404 au swap de LOD.
+    def test_la_bascule_retire_le_lod_lourd(self):
+        e = self.etat(P={"verdict": "validee", "coupe": "c.glb", "_socle": socle()})
+        self.assertIs(poser.operations(e)["plantes"][0]["set"]["hasHeavy"], False)
+
     def test_une_plante_validee_avec_socle(self):
         e = self.etat(P={"verdict": "validee", "coupe": "c.glb", "_socle": socle()})
         ops = poser.operations(e)

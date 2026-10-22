@@ -54,7 +54,8 @@ type Pot struct {
 	ModelURL  string             `json:"modelURL" bson:"modelURL"`
 	RimRadius float64            `json:"rimRadius" bson:"rimRadius"` // rayon du rebord, unités du modèle de pot
 	Height    float64            `json:"height" bson:"height"`
-	Default   bool               `json:"default" bson:"default"` // servi quand le client n'en demande aucun
+	Default   bool               `json:"default" bson:"default"`                     // servi quand le client n'en demande aucun
+	Version   string             `json:"version,omitempty" bson:"version,omitempty"` // empreinte du contenu du USDZ (#294)
 }
 
 // plantResponse : la plante, augmentée du pot par défaut quand elle en a

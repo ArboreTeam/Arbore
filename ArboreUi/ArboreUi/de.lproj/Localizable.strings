@@ -1539,8 +1539,6 @@
 "AR_EDIT_SELECTED_PLANT" = "Ausgewählte Pflanze";
 "AR_EDIT_EXIT" = "Bearbeitung beenden";
 "AR_EDIT_ROTATE" = "Pflanze drehen";
-"AR_EDIT_SCALE_UP" = "Pflanze vergrößern";
-"AR_EDIT_SCALE_DOWN" = "Pflanze verkleinern";
 
 "SHOP_CATEGORY_PLANTS" = "Pflanzen";
 "SHOP_CATEGORY_SOIL" = "Erde";

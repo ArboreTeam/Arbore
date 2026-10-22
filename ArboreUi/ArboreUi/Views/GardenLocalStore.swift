@@ -172,6 +172,11 @@ struct PersistedPlant: Codable {
     // pour ré-déclencher le swap heavy à la ré-ouverture du jardin. Optionnel →
     // les anciennes sauvegardes (sans la clé) décodent à nil (= pas d'upgrade).
     let hasHeavy: Bool?
+    /// Hauteur réelle de l'exemplaire, en mètres, mesurée DEPUIS LA TERRE
+    /// (#643). Enregistrée pour que la scène se rouvre à la bonne taille sans
+    /// réseau, comme `modelURLString` et `hasHeavy`. Absente des sauvegardes
+    /// d'avant : elles conservent alors l'échelle choisie à la main.
+    let heightMeters: Double?
     // Pot posé sous une plante recoupée. Optionnel : les sauvegardes d'avant,
     // et les plantes dont le maillage porte déjà son pot, décodent à nil.
     let pot: PersistedPot?
@@ -190,6 +195,7 @@ struct PersistedPlant: Codable {
         placementMode: String? = nil,
         surfaceAnchor: PersistedSurfaceAnchor? = nil,
         hasHeavy: Bool? = nil,
+        heightMeters: Double? = nil,
         pot: PersistedPot? = nil
     ) {
         self.plantID = plantID
@@ -205,6 +211,7 @@ struct PersistedPlant: Codable {
         self.placementMode = placementMode
         self.surfaceAnchor = surfaceAnchor
         self.hasHeavy = hasHeavy
+        self.heightMeters = heightMeters
         self.pot = pot
     }
 }

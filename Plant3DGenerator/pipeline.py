@@ -30,6 +30,7 @@ class Job:
     hint: str
     prompt: str
     texture_prompt: str
+    negative_prompt: str = ""
     stages: dict = field(default_factory=dict)
     final_glb: str = ""
     final_usdz: str = ""
@@ -47,42 +48,271 @@ def safe_filename(latin: str) -> str:
     return "_".join(p.capitalize() for p in latin.split() if p)
 
 
-def build_preview_prompt(latin: str, hint: str) -> str:
-    parts = [f"a potted {latin}"]
+def safe_pot_filename(pot_id: str) -> str:
+    """File-system safe name for a pot USDZ : `pot_<snake_id>`. Used to
+    distinguish pot files from plant files in the shared output/ dir."""
+    safe = "_".join(p.lower() for p in pot_id.replace("-", "_").split("_") if p)
+    return f"pot_{safe}"
+
+
+# Habit values supported in input.txt column 5. Each maps to a specific
+# block of prompt hints injected by `build_preview_prompt` to bias Meshy
+# toward the correct cascade behavior. Default = "upright" when missing
+# from input.txt (backward compat).
+SUPPORTED_HABITS = {"upright", "trailing", "arching", "bushy"}
+
+
+def build_preview_prompt(latin: str, hint: str, height_m: float = 0.0,
+                         habit: str = "upright") -> str:
+    """Build the preview prompt for a plant-only mesh — "soil line" convention.
+
+    The plant is generated with **NO motte / root ball / soil clump** at the
+    base. Convention used by professional 3D plant libraries (TurboSquid,
+    Sketchfab "potted plant — plant only" assets) : the USDZ contains only
+    what's visible ABOVE the soil line (leaves, stems, foliage). The mesh
+    is cut clean at the stem base and origin is at Y=0 = soil line.
+
+    Why no root ball : at composition time iOS aligns plant.position.y
+    with pot.soilSurfaceY. If the plant carried its own motte, the motte
+    would either poke out the sides (motte wider than pot rim) or float
+    above the pot's visible soil disc (motte too small). Cutting at the
+    soil line lets a single plant mesh combine with any pot of any
+    diameter as long as the camera doesn't dive UNDER the rim — which it
+    doesn't in AR/catalogue eye-level views.
+
+    `habit` (cf issue #185) drives a habit-specific block to guide Meshy
+    on cascade behavior. Trailing / arching plants have foliage that
+    drapes BELOW the soil line (Y < 0) outside an imaginary pot rim ;
+    upright / bushy plants have all their visible foliage ABOVE Y = 0.
+    Without this guidance Meshy can position trailing vines too close to
+    the central axis, leading to runtime clipping through the pot wall.
+
+    The hint describes ONLY the plant (foliage, color, habit) — no pot,
+    no motte, no soil. `height_m` is injected as a textual hint for
+    Meshy `auto_size` server-side.
+    """
+    parts = [f"a {latin} houseplant"]
     if hint:
         parts.append(hint)
     parts.extend([
-        "realistic houseplant",
+        # The "no" stack — repeated phrasings to bias Meshy away from its
+        # default "plant comes with soil" training prior.
+        "leaves stems and foliage only",
+        "cut clean at the base of the stem",
+        "no roots visible",
+        "no soil, no soil clump, no root ball, no motte",
+        "no pot, no container, no base, no plinth",
+        "stem emerging from invisible ground plane",
+        "ready to be inserted into a separate pot",
+    ])
+    # Habit-specific cascade guidance (issue #185, solution B).
+    habit_norm = habit.lower().strip() if habit else "upright"
+    if habit_norm == "trailing":
+        parts.extend([
+            "long vines that drape outward over an invisible pot rim",
+            "cascading foliage falling below the soil line outside the pot",
+            "trailing stems hanging vertically beside an imaginary 20 cm rim",
+        ])
+    elif habit_norm == "arching":
+        parts.extend([
+            "fronds arching outward then curving downward",
+            "foliage extending sideways past an invisible pot rim before falling",
+        ])
+    elif habit_norm == "bushy":
+        parts.extend([
+            "dense compact foliage above the soil line",
+            "rounded crown of leaves, no trailing parts",
+        ])
+    else:  # "upright" or unrecognised → safe default
+        parts.extend([
+            "upright growth strictly above the soil line",
+            "no trailing leaves, no foliage below the stem base",
+        ])
+    parts.extend([
+        # Visual quality hints.
+        "realistic indoor plant",
         "symmetric front view",
         "studio lighting",
         "white background",
-        "full plant visible including pot",
+    ])
+    if height_m > 0:
+        parts.append(f"approximately {height_m:.2f} meters tall")
+    return ", ".join(parts)
+
+
+def build_pot_prompt(style: str, height_m: float = 0.0) -> str:
+    """Build the preview prompt for a pot-only mesh.
+
+    Meshy v2 ne supporte pas `negative_prompt` (renvoie 400 si envoyé,
+    cf meshy_client.create_preview). Donc toute la suppression du
+    contenu "plante" doit passer par le prompt positif lui-même —
+    avec des phrases emphatiques + framing contextuel + substitution
+    du mot "pot" (très associé à "avec plante" dans le corpus Meshy)
+    par "vessel" / "container".
+
+    Le pot **porte la terre** (disque sombre visible à sa rim) dans
+    la convention "ligne de terre" — c'est lui qui rend visible la
+    transition terre/air.
+    """
+    # Strip "pot" / "planter" from the style — ces mots biaisent Meshy
+    # vers la génération d'une plante (corpus association). "vessel" est
+    # plus neutre et accepte la plupart des qualifiers (clay vessel,
+    # ceramic vessel, stone vessel, bonsai vessel...).
+    neutral_style = style
+    for word in ("planter", "pot"):
+        neutral_style = neutral_style.replace(word, "vessel")
+    parts = [
+        f"product photography of an empty {neutral_style}",
+        "isolated decorative ceramic object alone on white background",
+        "interior completely filled to the top with dark brown potting soil",
+        "soil surface forms a flat disc at the rim level, smooth slightly textured organic earth",
+        "absolutely empty above the soil — no plant, no leaves, no foliage, no stem, no flower, no branch",
+        "the vessel currently bare, awaits planting later",
+        "horticulture supply shop product shot — just the empty container with soil",
+        "clean exterior, flat stable base, sits flat on the ground",
+        "realistic PBR materials",
+        "studio lighting, white seamless background",
+    ]
+    if height_m > 0:
+        parts.append(f"approximately {height_m:.2f} meters tall")
+    return ", ".join(parts)
+
+
+def build_pot_negative_prompt() -> str:
+    """Negative-prompt envoyé en parallèle à `build_pot_prompt`. Meshy v2
+    le supporte natif. Sans ça, l'API génère systématiquement une plante
+    dans le pot — son corpus d'entraînement associe pot ↔ plante.
+
+    En plus du bloc anti-plante, ajoute les classiques anti-bugs Meshy :
+    topology fragmentée (très fréquent), style hors-spec, multi-pots,
+    parasites (text/watermark/humains)."""
+    return ", ".join([
+        # — Anti-plante (mission critique pour les pots)
+        "plant", "houseplant", "indoor plant", "vegetation",
+        "leaves", "leaf", "foliage",
+        "stem", "stems", "stalks", "branches", "branch", "twig", "tendril",
+        "roots", "root", "rhizome",
+        "flowers", "flower", "blooms", "petals", "bud",
+        "tree", "shrub", "bush", "vine", "creeper",
+        "succulent", "cactus", "fern", "moss",
+        "grass", "frond", "herb", "weed",
+        "sprout", "seedling", "bouquet", "bonsai",
+        "fake plant", "artificial plant",
+        # — Pot deformation
+        "broken pot", "cracked", "chipped", "shattered",
+        "deformed pot", "asymmetric pot", "lopsided", "wonky",
+        "tilted pot", "tipped over", "fallen over",
+        # — Topology / floating geometry (fréquent chez Meshy)
+        "floating soil chunks", "soil in mid-air",
+        "holes in pot wall", "missing surfaces", "missing parts",
+        "broken mesh", "disconnected geometry", "fragments separated",
+        "non-manifold geometry",
+        # — Style hors-spec (on veut realistic PBR)
+        "cartoon", "toy", "stylized", "anime",
+        "painting", "watercolor", "illustration", "sketch", "drawing", "2D",
+        "blurry", "fuzzy", "low quality", "ugly",
+        # — Multi-pots (Meshy sort parfois plusieurs spécimens)
+        "multiple pots", "stack of pots", "group of pots", "row of pots",
+        # — Parasites
+        "human", "person", "hand", "fingers",
+        "text", "watermark", "label", "signage", "logo",
+        "hard ground shadow", "shadow plane below",
+    ])
+
+
+def build_plant_negative_prompt(habit: str = "upright") -> str:
+    """Negative-prompt envoyé en parallèle à `build_preview_prompt` pour
+    les plantes. Couvre 6 axes :
+      1. Containers / motte (convention "ligne de terre")
+      2. Anatomy distortions (plante écrasée, déformée)
+      3. Topology / floating geometry (feuilles dans le vide — très
+         fréquent chez Meshy)
+      4. Style hors-spec (cartoon, painted, 2D)
+      5. Santé (wilted, dying, browning leaves)
+      6. Multi-plant (Meshy sort parfois un cluster au lieu d'un specimen)
+    """
+    return ", ".join([
+        # — 1. Containers / soil (convention "ligne de terre")
+        "pot", "container", "vessel", "planter", "vase", "tray", "saucer", "basin",
+        "soil", "potting soil", "earth", "dirt", "mulch",
+        "root ball", "rootball", "motte", "soil clump", "soil at base",
+        "exposed roots", "roots visible", "rhizome",
+        "plinth", "base", "pedestal", "platform",
+        "stones", "pebbles", "decorative gravel",
+        # — 2. Anatomy distortions
+        "squashed plant", "compressed plant", "flattened plant", "crushed plant",
+        "stretched unnaturally", "elongated awkwardly",
+        "deformed", "warped", "melted", "twisted unnaturally",
+        "leaves squashed together",
+        # — 3. Topology / floating geometry (signature failure de Meshy)
+        "floating leaves", "floating petals", "floating fragments",
+        "isolated leaf in mid-air", "leaf detached from stem",
+        "disconnected geometry", "broken mesh",
+        "fragments separated from plant", "parts floating in void",
+        "geometry clipping into itself", "self-intersecting",
+        "non-manifold geometry", "holes in leaves",
+        # — 4. Style hors-spec (on veut realistic)
+        "cartoon", "toy", "toy-like", "stylized", "anime", "manga",
+        "painting", "watercolor", "illustration", "sketch", "drawing", "2D flat",
+        "blurry", "fuzzy", "soft focus", "low quality", "ugly",
+        # — 5. État de santé (le specimen doit être sain)
+        "wilted", "withered", "dying", "dead leaves", "diseased",
+        "rotting", "brown dried foliage", "yellowing leaves",
+        "pest damage", "holes eaten in leaves",
+        # — 6. Multi-plant (un seul specimen attendu)
+        "multiple plants", "two plants", "three plants",
+        "cluster of separate plants", "group of plants", "row of plants",
+        # — Parasites scène
+        "human", "person", "hand", "fingers", "people",
+        "text", "watermark", "label", "logo", "signage",
+        "hard ground shadow", "shadow plane below the plant",
+    ])
+
+
+def build_texture_prompt(latin: str, hint: str) -> str:
+    """Texture refinement prompt. Soil-line convention — no soil, no pot
+    so the refine step doesn't bake those materials onto the plant
+    geometry. Mirror of build_preview_prompt's "no" stack."""
+    parts = [f"realistic PBR texture of {latin} plant"]
+    if hint:
+        parts.append(hint)
+    parts.extend([
+        "natural plant materials only",
+        "no soil texture, no pot texture, no terracotta",
+        "leaves stems foliage materials only",
     ])
     return ", ".join(parts)
 
 
-def build_texture_prompt(latin: str, hint: str) -> str:
-    parts = [f"realistic PBR texture of {latin}"]
-    if hint:
-        parts.append(hint)
-    parts.append("natural terracotta pot")
-    return ", ".join(parts)
-
-
-def scan_existing_jobs(output_dir: Path, known_plants: list[dict]) -> list[Job]:
+def scan_existing_jobs(output_dir: Path, known_plants: list[dict],
+                       known_pots: list[dict] | None = None) -> list[Job]:
     """Rebuild Job objects from files already present in the output directory.
 
     Used at server startup to pre-populate the UI with previously generated
-    plants. Cross-references with the parsed input.txt (when provided) so the
-    common name and hint are restored; falls back to the latin name extracted
-    from the filename otherwise.
+    assets. Cross-references with parsed input.txt (plants) and pots.txt
+    (pots) when provided so the common name + style are restored. Pots are
+    identified by their `pot_` filename prefix.
     """
-    by_id = {safe_filename(p["latin"]): p for p in known_plants}
+    plants_by_id = {safe_filename(p["latin"]): p for p in known_plants}
+    pots_by_id = {safe_pot_filename(p["pot_id"]): p for p in (known_pots or [])}
     jobs: list[Job] = []
     seen: set[str] = set()
 
     def reconstruct(job_id: str) -> Job:
-        meta = by_id.get(job_id)
+        # Pot job ? Prefix-based detection — robust as long as no plant
+        # latin name starts with "Pot_" (none do in the houseplant catalogue).
+        if job_id.startswith("pot_"):
+            meta = pots_by_id.get(job_id)
+            if meta:
+                return make_pot_job(
+                    meta["pot_id"], meta["display_name"], meta["style"],
+                    top_diameter_cm=meta.get("top_diameter_cm", 0.0),
+                    height_cm=meta.get("height_cm", 0.0),
+                )
+            # Fallback: derive a display name from the suffix.
+            short = job_id[len("pot_"):].replace("_", " ").title()
+            return make_pot_job(job_id[len("pot_"):], short, short)
+        meta = plants_by_id.get(job_id)
         if meta:
             return make_job(meta["common"], meta["latin"], meta.get("hint", ""))
         # Fallback: filename "Sansevieria_Trifasciata" → latin "sansevieria trifasciata"
@@ -137,12 +367,32 @@ def scan_existing_jobs(output_dir: Path, known_plants: list[dict]) -> list[Job]:
     return jobs
 
 
-def make_job(common: str, latin: str, hint: str = "") -> Job:
+def make_pot_job(pot_id: str, display_name: str, style: str,
+                 top_diameter_cm: float = 0.0, height_cm: float = 0.0) -> Job:
+    """Pot-specific make_job. Stores prompt + identity ; the runner doesn't
+    care whether it's a plant or a pot (same preview→refine pipeline)."""
+    height_m = height_cm / 100.0 if height_cm > 0 else 0.0
+    prompt = build_pot_prompt(style, height_m=height_m)
+    if top_diameter_cm > 0:
+        prompt += f", approximately {top_diameter_cm / 100.0:.2f} meters wide at the top"
+    return Job(
+        job_id=safe_pot_filename(pot_id),
+        common=display_name,
+        latin=pot_id,                  # reuse `latin` slot to carry the canonical id
+        hint=style,
+        prompt=prompt,
+        texture_prompt=prompt,
+        negative_prompt=build_pot_negative_prompt(),
+    )
+
+
+def make_job(common: str, latin: str, hint: str = "", height_m: float = 0.0,
+             habit: str = "upright") -> Job:
     # Mirror the Meshy website's "Texture" button behavior: it auto-fills the
     # texture prompt with the original preview prompt. We do the same by
     # aliasing texture_prompt to prompt. Override manually if you need to
     # force specific material hints later (call build_texture_prompt).
-    prompt = build_preview_prompt(latin, hint)
+    prompt = build_preview_prompt(latin, hint, height_m=height_m, habit=habit)
     return Job(
         job_id=safe_filename(latin),
         common=common,
@@ -150,6 +400,7 @@ def make_job(common: str, latin: str, hint: str = "") -> Job:
         hint=hint,
         prompt=prompt,
         texture_prompt=prompt,
+        negative_prompt=build_plant_negative_prompt(habit=habit),
     )
 
 
@@ -178,7 +429,11 @@ class PipelineRunner:
         s.started_at = time.time()
         self.on_event(job)
         try:
-            task_id = self.client.create_preview(job.prompt, lowpoly=True)
+            task_id = self.client.create_preview(
+                job.prompt,
+                lowpoly=True,
+                negative_prompt=job.negative_prompt,
+            )
             s.task_id = task_id
             self.on_event(job)
 
@@ -216,7 +471,11 @@ class PipelineRunner:
         self.on_event(job)
         try:
             task_id = self.client.create_refine(
-                preview_id, texture_prompt=job.texture_prompt, enable_pbr=True)
+                preview_id,
+                texture_prompt=job.texture_prompt,
+                enable_pbr=True,
+                negative_prompt=job.negative_prompt,
+            )
             s.task_id = task_id
             self.on_event(job)
 

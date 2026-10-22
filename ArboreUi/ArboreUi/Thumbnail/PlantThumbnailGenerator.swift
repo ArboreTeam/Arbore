@@ -58,7 +58,23 @@ final class PlantThumbnailGenerator: ObservableObject {
         Task {
             do {
                 let url = try await plant.getModelURL()
-                renderer.render(usdzURL: url, upAxis: plant.upAxis) { image in
+
+                // Une plante recoupée se montre AVEC son pot : sans lui, la
+                // vignette du catalogue et le rendu AR montreraient deux objets
+                // différents. L'échec du pot ne doit pas coûter la vignette —
+                // la plante nue se voit et se corrige, une carte vide non.
+                var pot: (url: URL, pose: PotPlacement)?
+                if let lie = plant.potEtPose() {
+                    do {
+                        let potURL = try await ModelCacheManager.shared.getModelURL(
+                            for: lie.pot.modelURL, version: lie.pot.version)
+                        pot = (potURL, lie.pose)
+                    } catch {
+                        print("🎬 pot indisponible pour", plant.name, error)
+                    }
+                }
+
+                renderer.render(usdzURL: url, upAxis: plant.upAxis, pot: pot) { image in
                     Task { @MainActor in
                         var cachedImage = image
                         if let image {

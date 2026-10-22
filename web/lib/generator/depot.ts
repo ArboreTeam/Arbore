@@ -1429,3 +1429,93 @@ export function noterTaille(plante: string, taille: Taille | null) {
     return { ok: true as const, taille: p.taille };
   });
 }
+
+// ── Galerie : tout ce que l'atelier a produit ────────────────────────────────
+
+/**
+ * Une plante telle qu'elle existe RÉELLEMENT sur le volume.
+ *
+ * La revue ne montre que ce qui attend un jugement. Rien ne permettait de
+ * revoir une plante déjà tranchée — et c'est ainsi qu'un palmier validé le
+ * 5 octobre a pu être servi avec une coupe réécrite le 15, sans que personne
+ * ne puisse le constater.
+ */
+export type EntreeGalerie = {
+  plante: string;
+  verdict: Verdict | null;
+  raison: string | null;
+  /** Coupe retenue, si le verdict en a nommé une. */
+  coupe: string | null;
+  /** Maillages présents sur le volume, du plus lourd au plus léger. */
+  maillages: Array<{ fichier: string; octets: number; modifie: number | null }>;
+  /** Aperçus PNG disponibles, pour montrer sans charger la 3D. */
+  apercus: string[];
+  /** Quand la plante a été tranchée. `purge.quand` en est le relevé le plus sûr. */
+  tranchee: number | null;
+  /** Quand la coupe retenue a été écrite sur le volume. */
+  coupeEcrite: number | null;
+  /**
+   * La coupe a été réécrite APRÈS le verdict.
+   *
+   * C'est le signal qui manquait : le verdict porte alors sur un maillage qui
+   * n'existe plus. Mesuré le 2026-10-22 — 58 coupes réécrites le 15 octobre,
+   * zéro plante marquée `recoupee`.
+   */
+  coupeApresVerdict: boolean;
+  graines: number[];
+  hauteurCm: number | null;
+};
+
+function modifieLe(plante: string, fichier: string): number | null {
+  try {
+    return statSync(cheminArtefact(plante, fichier)).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+/** Tout ce que l'atelier a produit, trié par nom. */
+export function galerie(): EntreeGalerie[] {
+  const etat = lire();
+  const sorties: EntreeGalerie[] = [];
+
+  for (const [plante, p] of Object.entries(etat.plantes)) {
+    let fichiers: string[] = [];
+    let apercus: string[] = [];
+    try {
+      const tous = readdirSync(join(racine(), 'plantes', plante));
+      fichiers = tous.filter((f) => f.toLowerCase().endsWith('.glb'));
+      apercus = tous.filter((f) => f.toLowerCase().endsWith('.png')).sort();
+    } catch {
+      // Plante sans répertoire : elle a été purgée, ou n'a jamais rien livré.
+    }
+
+    const maillages = fichiers
+      .map((f) => ({ fichier: f, octets: tailleArtefact(plante, f) ?? 0, modifie: modifieLe(plante, f) }))
+      .sort((a, b) => b.octets - a.octets);
+
+    const tranchee = p.purge?.quand ?? null;
+    const coupe = p.coupe ?? null;
+    const coupeEcrite = coupe ? modifieLe(plante, coupe) : null;
+
+    sorties.push({
+      plante,
+      verdict: (p.verdict as Verdict | undefined) ?? null,
+      raison: p.raison ?? null,
+      coupe,
+      maillages,
+      apercus,
+      tranchee,
+      coupeEcrite,
+      // Une minute de marge : la purge suit le verdict de quelques
+      // millisecondes, et on ne veut pas signaler ce décalage-là.
+      coupeApresVerdict: Boolean(
+        tranchee && coupeEcrite && coupeEcrite > tranchee + 60_000,
+      ),
+      graines: p.graines ?? [],
+      hauteurCm: p.taille?.hauteurCm ?? null,
+    });
+  }
+
+  return sorties.sort((a, b) => a.plante.localeCompare(b.plante));
+}

@@ -96,8 +96,6 @@ extension Notification.Name {
     static let gardenARRedo = Notification.Name("gardenARRedo")
     static let gardenARDelete = Notification.Name("gardenARDelete")
     static let gardenARRotate = Notification.Name("gardenARRotate")
-    static let gardenARScaleUp = Notification.Name("gardenARScaleUp")
-    static let gardenARScaleDown = Notification.Name("gardenARScaleDown")
     static let gardenARDeselect = Notification.Name("gardenARDeselect")
     // Manual replacement (Issue #111)
     static let gardenAREnterManualReplacement = Notification.Name("gardenAREnterManualReplacement")
@@ -163,6 +161,11 @@ struct GardenARPlacementView: View {
 
     // Model download state
     @State private var downloadedModelURL: URL? = nil
+    /// Pot à poser sous la plante choisie, et son modèle déjà téléchargé.
+    /// Résolus en même temps que le modèle de la plante : une plante recoupée
+    /// ne doit jamais apparaître nue, pas même le temps d'un aller-retour.
+    @State private var pendingPot: PersistedPot? = nil
+    @State private var downloadedPotURL: URL? = nil
     @State private var isDownloadingModel = false
     @State private var isRelocating = false
 
@@ -329,6 +332,8 @@ struct GardenARPlacementView: View {
             GardenARPlacementContainerView(
                 selectedPlant: $selectedPlantForPlacement,
                 downloadedModelURL: $downloadedModelURL,
+                pendingPot: $pendingPot,
+                downloadedPotURL: $downloadedPotURL,
                 isDownloadingModel: $isDownloadingModel,
                 placementMode: $placementMode,
                 placementFeedback: $placementFeedback,
@@ -560,6 +565,8 @@ struct GardenARPlacementView: View {
                 Task {
                     isDownloadingModel = true
                     downloadedModelURL = nil
+                    pendingPot = nil
+                    downloadedPotURL = nil
                     do {
                         let url = try await plant.getModelURL()
                         downloadedModelURL = url
@@ -568,6 +575,18 @@ struct GardenARPlacementView: View {
                         AppLog.plants.error("model pre-download failed plant=\(plant.name, privacy: .public) error=\(String(describing: error), privacy: .public)")
                         // Fallback to bundle if download fails
                         downloadedModelURL = plant.bundleModelURL
+                    }
+                    // Le pot suit le même chemin, et son échec ne doit pas
+                    // empêcher la pose : la plante sortira nue, ce qui se voit
+                    // et se répare, plutôt que de ne rien poser du tout.
+                    if let lie = plant.potEtPose() {
+                        do {
+                            downloadedPotURL = try await ModelCacheManager.shared.getModelURL(
+                                for: lie.pot.modelURL, version: lie.pot.version)
+                            pendingPot = PersistedPot(pot: lie.pot, pose: lie.pose)
+                        } catch {
+                            AppLog.plants.error("pot pre-download failed plant=\(plant.name, privacy: .public) pot=\(lie.pot.name, privacy: .public) error=\(String(describing: error), privacy: .public)")
+                        }
                     }
                     isDownloadingModel = false
                 }
@@ -1067,16 +1086,6 @@ struct GardenARPlacementView: View {
                     NotificationCenter.default.post(name: .gardenARRotate, object: nil)
                 }
                 .accessibilityLabel(L10n.t("AR_EDIT_ROTATE"))
-
-                editToolButton(systemImage: "plus.magnifyingglass", size: 44) {
-                    NotificationCenter.default.post(name: .gardenARScaleUp, object: nil)
-                }
-                .accessibilityLabel(L10n.t("AR_EDIT_SCALE_UP"))
-
-                editToolButton(systemImage: "minus.magnifyingglass", size: 44) {
-                    NotificationCenter.default.post(name: .gardenARScaleDown, object: nil)
-                }
-                .accessibilityLabel(L10n.t("AR_EDIT_SCALE_DOWN"))
 
                 editToolButton(systemImage: "trash", isDestructive: true, size: 44) {
                     NotificationCenter.default.post(name: .gardenARDelete, object: nil)
@@ -1673,6 +1682,9 @@ struct GardenARPlacementView: View {
 struct GardenARPlacementContainerView: UIViewRepresentable {
     @Binding var selectedPlant: Plant?
     @Binding var downloadedModelURL: URL?
+    /// Pot à poser sous la plante choisie, résolu en même temps que son modèle.
+    @Binding var pendingPot: PersistedPot?
+    @Binding var downloadedPotURL: URL?
     @Binding var isDownloadingModel: Bool
     @Binding var placementMode: ARPlacementMode
     @Binding var placementFeedback: String?
@@ -2048,6 +2060,18 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 let instanceId: UUID  // anchor.identifier — used so the loaded node can find its anchor
                 let autoSelect: Bool  // false for batch placements (AI auto-place) to avoid orange-halo flicker
                 var hasHeavy: Bool = false  // LOD: si true, on charge la version lourde en fond puis on swap
+                /// Hauteur réelle de l'exemplaire, en mètres, mesurée DEPUIS LA
+                /// TERRE (#643). Quand elle existe, elle remplace la constante
+                /// d'affichage : une Haworthia de 8 cm et un Schefflera de
+                /// 1,55 m ne sortaient jusqu'ici ni l'un ni l'autre à leur
+                /// taille, mais tous deux à 50 cm.
+                var heightMeters: Double? = nil
+                /// Pot à poser sous une plante recoupée, et sa pose. Résolu
+                /// AVANT la pose, comme le modèle de la plante, pour que
+                /// l'instanciation reste synchrone.
+                var pot: PersistedPot? = nil
+                /// Fichier local du modèle de pot, déjà téléchargé.
+                var potModelURL: URL? = nil
             }
 
             // 🤖 AI Auto-placement
@@ -2086,8 +2110,6 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 nc.addObserver(self, selector: #selector(handleValidateNotif), name: .gardenARValidate, object: nil)
                 nc.addObserver(self, selector: #selector(handleDelete), name: .gardenARDelete, object: nil)
                 nc.addObserver(self, selector: #selector(handleRotateAction), name: .gardenARRotate, object: nil)
-                nc.addObserver(self, selector: #selector(handleScaleUpAction), name: .gardenARScaleUp, object: nil)
-                nc.addObserver(self, selector: #selector(handleScaleDownAction), name: .gardenARScaleDown, object: nil)
                 nc.addObserver(self, selector: #selector(handleDeselectAction), name: .gardenARDeselect, object: nil)
                 nc.addObserver(self, selector: #selector(handleUndo), name: .gardenARUndo, object: nil)
                 nc.addObserver(self, selector: #selector(handleRedo), name: .gardenARRedo, object: nil)
@@ -3436,7 +3458,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                     surfaceHeight: finalY,
                                     placementMode: .floor,
                                     autoSelect: false,   // batch — no halo flicker
-                                    hasHeavy: item.plant.hasHeavy == true
+                                    hasHeavy: item.plant.hasHeavy == true,
+                                    heightMeters: item.plant.heightMeters
                                 )
 
                                 // Light haptic per plant
@@ -3987,7 +4010,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         surfaceHeight: surfaceHeight,
                         placementMode: placementMode,
                         surfaceAnchor: node.arboreSurfaceAnchor,
-                        hasHeavy: node.arboreHasHeavy
+                        hasHeavy: node.arboreHasHeavy,
+                        heightMeters: node.arboreHeightMeters > 0 ? node.arboreHeightMeters : nil
                     )
                 }
             }
@@ -4403,7 +4427,8 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                             surfaceAnchor: p.surfaceAnchor,
                             instanceId: anchor.identifier,
                             autoSelect: false,
-                            hasHeavy: p.hasHeavy == true
+                            hasHeavy: p.hasHeavy == true,
+                            heightMeters: p.heightMeters
                         )
                         self.instantiatePlantNode(into: node, pending: pending, anchorTransform: anchorTransform)
                     }
@@ -4677,23 +4702,15 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 node.runAction(SCNAction.rotateBy(x: 0, y: .pi/4, z: 0, duration: 0.2))
             }
 
-            @objc func handleScaleUpAction() {
-                guard let node = selectedNode else { return }
-                saveStateForUndo()
-                let action = SCNAction.scale(by: 1.1, duration: 0.2)
-                node.runAction(action) { [weak self] in
-                    self?.refreshPivotForScale(node: node)
-                }
-            }
-
-            @objc func handleScaleDownAction() {
-                guard let node = selectedNode else { return }
-                saveStateForUndo()
-                let action = SCNAction.scale(by: 0.9, duration: 0.2)
-                node.runAction(action) { [weak self] in
-                    self?.refreshPivotForScale(node: node)
-                }
-            }
+            // Les commandes « agrandir » et « réduire » ont été retirées : la
+            // taille d'une plante n'est plus une préférence d'affichage mais
+            // une MESURE, `heightMeters`, relevée depuis la terre (#643). Une
+            // plante n'est pas redimensionnable — elle a la taille qu'elle a,
+            // et c'est ce qui rend l'AR comparable au réel.
+            //
+            // `refreshPivotForScale` reste nécessaire : les jardins enregistrés
+            // avant ce changement portent une échelle choisie à la main, et
+            // elle doit continuer à se recharger correctement.
 
             @objc func handleDeselectAction() {
                 deselectAll()
@@ -4878,7 +4895,10 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     surfaceHeight: hit.placementTransform.columns.3.y,
                     placementMode: hit.placementMode,
                     surfaceAnchor: persistedSurfaceAnchor(for: hit, reliability: reliability),
-                    hasHeavy: plant.hasHeavy == true
+                    hasHeavy: plant.hasHeavy == true,
+                    heightMeters: plant.heightMeters,
+                    pot: parentProps?.pendingPot,
+                    potModelURL: parentProps?.downloadedPotURL
                 )
             }
 
@@ -4982,7 +5002,10 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 placementMode: ARPlacementMode? = nil,
                 surfaceAnchor: PersistedSurfaceAnchor? = nil,
                 autoSelect: Bool = true,
-                hasHeavy: Bool = false
+                hasHeavy: Bool = false,
+                heightMeters: Double? = nil,
+                pot: PersistedPot? = nil,
+                potModelURL: URL? = nil
             ) {
                 guard let arView = arView else { return }
 
@@ -5010,7 +5033,10 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     surfaceAnchor: surfaceAnchor,
                     instanceId: anchor.identifier,
                     autoSelect: autoSelect,
-                    hasHeavy: hasHeavy
+                    hasHeavy: hasHeavy,
+                    heightMeters: heightMeters,
+                    pot: pot,
+                    potModelURL: potModelURL
                 )
                 plantAnchorMap[anchor.identifier] = anchor
                 arView.session.add(anchor: anchor)
@@ -5066,6 +5092,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     container.arborePlacementMode = pending.placementMode?.rawValue
                     container.arboreSurfaceAnchor = pending.surfaceAnchor
                     container.arboreHasHeavy = pending.hasHeavy
+                    container.arboreHeightMeters = pending.heightMeters ?? 0
 
                     let wrapper = SCNNode()
                     for child in scene.rootNode.childNodes { wrapper.addChildNode(child) }
@@ -5077,7 +5104,28 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     stripPotIfNeeded(from: container)
 
                     let (minVec, maxVec) = container.boundingBox
+                    // Hauteur de la PLANTE SEULE : `heightMeters` est relevée
+                    // depuis la terre, donc le pot ne doit pas entrer dans la
+                    // mesure. Il est attaché après, et il suit l'échelle du
+                    // conteneur puisqu'il en est l'enfant.
                     let rawHeight = maxVec.y - minVec.y
+
+                    // Le pot est posé partout, y compris dehors, le temps de
+                    // juger le rendu. `stripPotIfNeeded` retire les pots des
+                    // ANCIENS modèles en extérieur, pour planter en pleine
+                    // terre ; les modèles recoupés n'en ont pas à retirer, et
+                    // les laisser nus dehors ne montrerait rien de plus. À
+                    // revoir quand le choix de pot existera.
+                    // Le bas de l'ensemble est RELU sur le conteneur après
+                    // l'attache, et non calculé : le pot vit dans le repère du
+                    // porteur, qui peut porter une correction Z-up. SceneKit
+                    // réunit les enfants en tenant compte de leur transformation,
+                    // donc la lecture reste juste quelle que soit la rotation.
+                    var basDeLEnsemble = minVec.y
+                    if let pot = pending.pot, let potURL = pending.potModelURL,
+                       attachPot(pot, modelURL: potURL, to: wrapper) {
+                        basDeLEnsemble = container.boundingBox.min.y
+                    }
                     // Hauteur intrinsèque (avant le halo) pour le LOD distance.
                     container.arboreModelRawHeight = Double(max(0, rawHeight))
 
@@ -5103,10 +5151,31 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     // base vertex (0, minY, 0) land exactly at anchor.t.
                     let attachByTop = pending.placementMode == .ceiling
 
-                    if let scale = pending.finalScale {
+                    // La MESURE l'emporte sur tout le reste, y compris sur une
+                    // échelle enregistrée à la main. Une plante n'est pas
+                    // redimensionnable : elle a la taille qu'elle a, et c'est
+                    // ce qui rend l'AR comparable au réel (#643).
+                    //
+                    // `heightMeters` est relevée DEPUIS LA TERRE, donc
+                    // directement comparable à la boîte englobante d'un
+                    // maillage recoupé. Les jardins enregistrés avant la
+                    // mesure n'en portent pas et gardent leur échelle, jusqu'à
+                    // leur prochain enregistrement.
+                    let mesure = Float(pending.heightMeters ?? 0)
+                    if rawHeight > 0, mesure > 0 {
+                        let scaleFactor = mesure / rawHeight
+                        container.scale = SCNVector3(scaleFactor, scaleFactor, scaleFactor)
+                        container.pivot = SCNMatrix4MakeTranslation(
+                            0, scaleFactor * (attachByTop ? maxVec.y : basDeLEnsemble), 0)
+                        AppLog.plants.debug("""
+                            mesureScale plant=\(pending.plantName, privacy: .public) \
+                            hauteurM=\(mesure, format: .fixed(precision: 3), privacy: .public) \
+                            scaleFactor=\(scaleFactor, format: .fixed(precision: 3), privacy: .public)
+                            """)
+                    } else if let scale = pending.finalScale {
                         container.scale = scale
                         if rawHeight > 0 {
-                            let pivotY = scale.y * (attachByTop ? maxVec.y : minVec.y)
+                            let pivotY = scale.y * (attachByTop ? maxVec.y : basDeLEnsemble)
                             container.pivot = SCNMatrix4MakeTranslation(0, pivotY, 0)
                         }
                         AppLog.plants.debug("""
@@ -5116,11 +5185,12 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                             """)
                     } else if !pending.isRestore {
                         if rawHeight > 0 {
+                            // Sans mesure, la taille de plante de bureau d'avant.
                             let scaleFactor = Self.autoScaleTargetHeightMeters / rawHeight
                             container.scale = SCNVector3(scaleFactor, scaleFactor, scaleFactor)
                             container.pivot = SCNMatrix4MakeTranslation(
                                 0,
-                                scaleFactor * (attachByTop ? maxVec.y : minVec.y),
+                                scaleFactor * (attachByTop ? maxVec.y : basDeLEnsemble),
                                 0
                             )
                             AppLog.plants.debug("""
@@ -5437,7 +5507,10 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                 surfaceHeight: pending.surfaceHeight,
                                 placementMode: pending.placementMode,
                                 surfaceAnchor: pending.surfaceAnchor,
-                                hasHeavy: pending.hasHeavy
+                                hasHeavy: pending.hasHeavy,
+                                // sans ça, une plante retéléchargée après échec
+                                // reviendrait à la taille par défaut
+                                heightMeters: pending.heightMeters
                             )
                         }
                     } catch {
@@ -5729,6 +5802,43 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
 
             // syncSceneUnderstanding + applySceneSnapshot moved to
             // GardenARPlacementView+SceneUnderstanding.swift (#188 P3.1).
+
+            /// Pose le pot sous une plante recoupée et rend le point le plus
+            /// bas de l'ensemble, dans le repère local du conteneur.
+            ///
+            /// La lèvre du pot s'aligne sur le socle mesuré, et le pot pend donc
+            /// SOUS la ligne de terre de la plante : le bas de l'ensemble n'est
+            /// plus celui de la plante, et le pivot doit s'y recaler, sinon le
+            /// pot s'enfonce dans le sol.
+            ///
+            /// La lèvre est lue sur la boîte englobante du modèle de pot plutôt
+            /// que déclarée : rien ne garantit où un pot place son origine.
+            @discardableResult
+            private func attachPot(_ pot: PersistedPot, modelURL: URL,
+                                   to porteur: SCNNode) -> Bool {
+                guard let pose = pot.pose,
+                      let scene = try? SCNScene(url: modelURL, options: nil) else {
+                    return false
+                }
+                let noeud = SCNNode()
+                for enfant in scene.rootNode.childNodes { noeud.addChildNode(enfant) }
+
+                let (potMin, potMax) = noeud.boundingBox
+                let e = Float(pose.scale)
+                noeud.scale = SCNVector3(e, e, e)
+                // Lèvre du pot sur le socle, centre du pot sur le centre du socle.
+                noeud.position = SCNVector3(Float(pose.x) - 0,
+                                            Float(pose.y) - potMax.y * e,
+                                            Float(pose.z) - 0)
+                noeud.name = "arbore_pot"
+                // Attaché au porteur de la GEOMETRIE, pas au conteneur : le
+                // socle est mesuré dans le repère du modèle, et c'est le
+                // porteur qui subit la correction Z-up. Au conteneur, un modèle
+                // en Z-up verrait son pot rester à plat.
+                porteur.addChildNode(noeud)
+                _ = potMin   // le bas réel est relu sur le conteneur, voir ci-dessous
+                return true
+            }
 
             private func stripPotIfNeeded(from root: SCNNode) {
                 guard let props = parentProps else { return }
@@ -7014,6 +7124,14 @@ extension SCNNode {
     var arboreHasHeavy: Bool {
         get { (value(forKey: "arboreHasHeavy") as? Bool) ?? false }
         set { setValue(newValue, forKey: "arboreHasHeavy") }
+    }
+    /// Hauteur réelle de l'exemplaire, en mètres, mesurée DEPUIS LA TERRE
+    /// (#643). Portée par le nœud pour être propagée à la sauvegarde : sans
+    /// elle, un jardin rouvert retomberait sur son ancienne échelle.
+    /// 0 = non mesurée.
+    var arboreHeightMeters: Double {
+        get { (value(forKey: "arboreHeightMeters") as? Double) ?? 0 }
+        set { setValue(newValue, forKey: "arboreHeightMeters") }
     }
     /// LOD courant effectivement affiché ("light" / "heavy"). Défaut "light".
     var arboreCurrentLOD: String {

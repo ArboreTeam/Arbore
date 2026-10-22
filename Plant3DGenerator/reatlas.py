@@ -62,8 +62,13 @@ def normales_non_orientees(V: np.ndarray, F: np.ndarray) -> np.ndarray:
 
 
 def rasteriser(F: np.ndarray, P: np.ndarray, taille: int):
-    """Texels couverts par l'atlas : leur position 3D et leur index dans l'image."""
-    pts, dest = [], []
+    """Texels couverts par l'atlas : leur position 3D, leur normale, et leur
+    index dans l'image.
+
+    La normale sert à la cuisson : sans elle, un texel pris sur une fronde se
+    projette parfois sur le tronc, dont le sommet est plus proche.
+    """
+    pts, dest, norms = [], [], []
     for t in range(len(F)):
         tri = F[t]
         p = P[tri]
@@ -86,9 +91,12 @@ def rasteriser(F: np.ndarray, P: np.ndarray, taille: int):
             continue
         yield_b = np.stack([b0[dedans], b1[dedans], b2[dedans]], 1)
         pts.append(yield_b @ VERTS[tri])
+        g = np.cross(VERTS[tri[1]] - VERTS[tri[0]], VERTS[tri[2]] - VERTS[tri[0]])
+        ng = np.linalg.norm(g)
+        norms.append(np.tile(g / ng if ng > 1e-20 else g, (int(dedans.sum()), 1)))
         qq = q[dedans].astype(int)
         dest.append(qq[:, 1] * taille + qq[:, 0])
-    return np.concatenate(pts), np.concatenate(dest)
+    return np.concatenate(pts), np.concatenate(norms), np.concatenate(dest)
 
 
 def main() -> None:
@@ -116,8 +124,8 @@ def main() -> None:
 
     global VERTS
     VERTS = Vn
-    pts, dest = rasteriser(idx, uv * taille, taille)
-    coul = bake.couleurs(pts, V, F, uv_src, np.asarray(img, np.float64),
+    pts, norms, dest = rasteriser(idx, uv * taille, taille)
+    coul = bake.couleurs(pts, norms, V, F, uv_src, np.asarray(img, np.float64),
                          cKDTree(V), bake.adjacence(F, len(V)))
     print(f"  cuit     {len(pts):>9,} texels   atlas {taille}        ({time.time()-t0:.1f}s)")
 
@@ -143,6 +151,14 @@ def main() -> None:
         roughnessFactor=1.0,   # la source vaut 1,0 (carte MR : vert a 1,00)
         doubleSided=True,       # membrane : sans cela un quart des faces rend noir
     )
+    # trimesh RETOURNE v en lisant un GLB — `uv_trimesh = 1 - uv_fichier` — et
+    # le retourne donc à nouveau en écrivant. Or l'atlas a été rasterisé avec
+    # le v de xatlas, ligne = v * taille. Sans cette compensation, le fichier
+    # porte `1 - v` et le moteur lit l'atlas à l'envers : les couleurs restent
+    # justes mais se posent au mauvais endroit, ce qui donne une statistique
+    # d'aire identique à la source et un rendu marbré.
+    uv = np.column_stack([uv[:, 0], 1.0 - uv[:, 1]])
+
     maille = trimesh.Trimesh(vertices=Vn, faces=idx, process=False)
     # sans normales explicites, USD ombre a plat : a 40 000 triangles la plante
     # est facettee et plus claire que la source

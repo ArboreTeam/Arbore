@@ -9,9 +9,18 @@ enum ModelLOD: String {
 
     /// URL distante. Le heavy passe par `?lod=heavy` sur la même route `/models/<file>`
     /// (un sous-chemin /models/heavy ferait paniquer httprouter côté backend).
-    func remoteURLString(base: String, filename: String) -> String {
-        let url = "\(base)/models/\(filename)"
-        return self == .heavy ? "\(url)?lod=heavy" : url
+    ///
+    /// `version` est l'empreinte du contenu servi (#294). Elle ne change rien
+    /// pour le serveur, qui l'ignore : elle sert à ce que deux contenus
+    /// différents n'aient jamais la même URL, donc jamais la même entrée de
+    /// cache, ni ici ni dans un cache intermédiaire.
+    func remoteURLString(base: String, filename: String, version: String? = nil) -> String {
+        var url = "\(base)/models/\(filename)"
+        var parametres: [String] = []
+        if self == .heavy { parametres.append("lod=heavy") }
+        if let version, !version.isEmpty { parametres.append("v=\(version)") }
+        if !parametres.isEmpty { url += "?" + parametres.joined(separator: "&") }
+        return url
     }
 
     /// Sous-dossier de cache. Le heavy est isolé dans Documents/Models/heavy/ pour
@@ -19,6 +28,23 @@ enum ModelLOD: String {
     var cacheSubdirectory: String? {
         self == .heavy ? "heavy" : nil
     }
+}
+
+/// Nom du fichier en cache, empreinte comprise.
+///
+/// Le cache est indexé par **nom de fichier**, et `Documents/` survit aux mises
+/// à jour de l'app : un contenu réécrit sous le même nom ne serait jamais
+/// retéléchargé. C'est #292, où les testeurs ont gardé des modèles gris jusqu'à
+/// une réinstallation. Glisser l'empreinte dans le nom suffit à ce qu'un
+/// contenu neuf soit un fichier neuf.
+///
+/// Sans empreinte, le nom reste celui d'avant : une fiche non calculée garde
+/// son cache au lieu de le perdre.
+func nomEnCache(fichier: String, version: String?) -> String {
+    guard let version, !version.isEmpty else { return fichier }
+    let nom = (fichier as NSString).deletingPathExtension
+    let extension_ = (fichier as NSString).pathExtension
+    return extension_.isEmpty ? "\(nom)_\(version)" : "\(nom)_\(version).\(extension_)"
 }
 
 /// Gère le téléchargement et le cache des modèles 3D USDZ depuis le backend
@@ -42,7 +68,8 @@ actor ModelCacheManager {
     ///   - modelURL: Le nom du fichier du modèle (ex: "Monstera_Deliciosa.usdz")
     ///   - forceDownload: Si true, forcer un nouveau téléchargement même si un cache existe
     /// - Returns: L'URL locale du fichier téléchargé
-    func getModelURL(for modelURL: String, lod: ModelLOD = .light, forceDownload: Bool = false) async throws -> URL {
+    func getModelURL(for modelURL: String, lod: ModelLOD = .light, version: String? = nil,
+                     forceDownload: Bool = false) async throws -> URL {
         guard !modelURL.isEmpty else {
             throw ModelCacheError.invalidModelURL
         }
@@ -56,7 +83,7 @@ actor ModelCacheManager {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             return dir
         }()
-        let localURL = lodDir.appendingPathComponent(filename)
+        let localURL = lodDir.appendingPathComponent(nomEnCache(fichier: filename, version: version))
 
         let fileExists = FileManager.default.fileExists(atPath: localURL.path)
 
@@ -74,7 +101,7 @@ actor ModelCacheManager {
 
         // La clé inclut le LOD pour que light/heavy d'un même fichier ne partagent
         // pas la même tâche en cours.
-        let taskKey = "\(lod.rawValue):\(forceDownload ? "force:" : "")\(filename)"
+        let taskKey = "\(lod.rawValue):\(version ?? ""):\(forceDownload ? "force:" : "")\(filename)"
         if forceDownload {
             print("⬇️ Forcing download for: \(filename)")
         }
@@ -87,7 +114,7 @@ actor ModelCacheManager {
 
         // Créer une nouvelle tâche de téléchargement
         let task = Task<URL, Error> {
-            try await downloadModel(filename: filename, lod: lod, to: localURL)
+            try await downloadModel(filename: filename, lod: lod, version: version, to: localURL)
         }
 
         downloadTasks[taskKey] = task
@@ -105,9 +132,10 @@ actor ModelCacheManager {
     /// Annule un téléchargement en cours (heavy par défaut). No-op si aucun n'est actif.
     /// `URLSession.download` honore l'annulation coopérative → le transfert s'interrompt
     /// et `task.value` lève `CancellationError`, capturée par le `catch` de getModelURL.
-    func cancelDownload(for modelURL: String, lod: ModelLOD = .heavy, forceDownload: Bool = false) {
+    func cancelDownload(for modelURL: String, lod: ModelLOD = .heavy, version: String? = nil,
+                        forceDownload: Bool = false) {
         let filename = (modelURL as NSString).lastPathComponent
-        let taskKey = "\(lod.rawValue):\(forceDownload ? "force:" : "")\(filename)"
+        let taskKey = "\(lod.rawValue):\(version ?? ""):\(forceDownload ? "force:" : "")\(filename)"
         if let task = downloadTasks[taskKey] {
             task.cancel()
             downloadTasks[taskKey] = nil
@@ -116,11 +144,13 @@ actor ModelCacheManager {
     }
 
     /// Télécharge un modèle depuis le backend
-    private func downloadModel(filename: String, lod: ModelLOD = .light, to localURL: URL) async throws -> URL {
+    private func downloadModel(filename: String, lod: ModelLOD = .light, version: String? = nil,
+                               to localURL: URL) async throws -> URL {
         print("⬇️ Downloading model: \(filename) [\(lod.rawValue)]")
 
         // Construire l'URL du backend (heavy → ?lod=heavy)
-        guard let backendURL = URL(string: lod.remoteURLString(base: NetworkManager.shared.baseURL, filename: filename)) else {
+        guard let backendURL = URL(string: lod.remoteURLString(
+            base: NetworkManager.shared.baseURL, filename: filename, version: version)) else {
             throw ModelCacheError.invalidBackendURL
         }
 
@@ -149,6 +179,46 @@ actor ModelCacheManager {
 
         print("✅ Model downloaded successfully: \(filename)")
         return localURL
+    }
+
+    /// Purge unique des modèles mis en cache AVANT l'arrivée des empreintes.
+    /// (#295)
+    ///
+    /// Les fichiers d'avant portent le nom nu — `Monstera.usdz` — et rien ne
+    /// dit quel contenu ils portent. Ils ne seront donc jamais remplacés : le
+    /// chemin versionné ne les regarde même pas, et ils resteraient sur
+    /// l'appareil à occuper de la place sans jamais servir.
+    ///
+    /// Les supprimer est sans risque : le pire est un retéléchargement. Mais ce
+    /// n'est juste **qu'une fois** — sans le drapeau, chaque lancement viderait
+    /// le cache et retéléchargerait tout le catalogue.
+    ///
+    /// Ne touche QUE `Documents/Models/`. Les jardins enregistrés —
+    /// `scene_*.json`, `worldmap_*`, `wizard_*.json` — vivent dans le même
+    /// `Documents/`, et ce sont des données d'utilisateur, pas un cache.
+    static let cleGenerationDeCache = "arbore.modelCache.generation"
+    static let generationCourante = 1
+
+    @discardableResult
+    func purgerSiAnterieurAuxEmpreintes(
+        defaults: UserDefaults = .standard
+    ) -> Int {
+        let connue = defaults.integer(forKey: Self.cleGenerationDeCache)
+        guard connue < Self.generationCourante else { return 0 }
+        defaults.set(Self.generationCourante, forKey: Self.cleGenerationDeCache)
+
+        var supprimes = 0
+        for repertoire in [cacheDirectory, cacheDirectory.appendingPathComponent("heavy", isDirectory: true)] {
+            let fichiers = (try? FileManager.default.contentsOfDirectory(
+                at: repertoire, includingPropertiesForKeys: nil)) ?? []
+            for fichier in fichiers where fichier.pathExtension.lowercased() == "usdz" {
+                if (try? FileManager.default.removeItem(at: fichier)) != nil { supprimes += 1 }
+            }
+        }
+        if supprimes > 0 {
+            print("🧹 Cache modèles purgé une fois : \(supprimes) fichiers sans empreinte")
+        }
+        return supprimes
     }
 
     /// Supprime un modèle du cache

@@ -300,3 +300,45 @@ func TestComposerPlante_LaHauteurSurvitALaComposition(t *testing.T) {
 		t.Fatalf("hauteur perdue par la composition : %v", rep.HeightMeters)
 	}
 }
+
+// --- L'invariant : une plante recoupée ne voyage jamais sans son pot --------
+
+// La question qui a motivé ce test : « partout où les plantes sont appelées,
+// si sans_pot alors on lie le pot — c'est bien respecté ? »
+//
+// Ça ne l'était pas. La fiche servait le pot, le catalogue non, et une plante
+// recoupée arrivait donc nue dans la liste. L'invariant doit tenir à la
+// SOURCE, sinon chaque nouvel appelant doit y penser — et un jour l'un d'eux
+// n'y pensera pas.
+func TestComposerPlante_LInvariantTientSurUneListeEntiere(t *testing.T) {
+	pot := potDeTest("cachepot_pieds", 0.058654, true)
+	catalogue := []Plant{
+		planteRecoupee(socleReel()),
+		{Name: "Monstera"}, // historique : son maillage porte déjà son pot
+		planteRecoupee(socleReel()),
+		planteRecoupee(nil), // recoupée mais sans socle : pose incalculable
+	}
+
+	var recoupeesAvecPot, historiquesSansPot, recoupeesSansPot int
+	for _, p := range catalogue {
+		rep := composerPlante(p, []Pot{pot}, "")
+		switch {
+		case sansPot(p) && rep.Pot != nil:
+			recoupeesAvecPot++
+		case sansPot(p):
+			recoupeesSansPot++
+		case rep.Pot == nil:
+			historiquesSansPot++
+		}
+	}
+
+	if recoupeesAvecPot != 2 {
+		t.Errorf("les plantes recoupées posables doivent toutes recevoir un pot, obtenu %d/2", recoupeesAvecPot)
+	}
+	if historiquesSansPot != 1 {
+		t.Errorf("une plante historique ne doit pas recevoir de pot, obtenu %d/1", historiquesSansPot)
+	}
+	if recoupeesSansPot != 1 {
+		t.Errorf("une recoupée sans socle ne doit pas recevoir de pot qu'elle ne saurait poser, obtenu %d/1", recoupeesSansPot)
+	}
+}

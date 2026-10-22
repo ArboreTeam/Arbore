@@ -80,17 +80,40 @@ def bilineaire(img_a: np.ndarray, uv: np.ndarray) -> np.ndarray:
     return a * (1 - fy) + b * fy
 
 
-def couleurs(pts, Vsrc, Fsrc, uv_src, img_a, arbre, adj, lot=200_000):
-    """Couleur de chaque point, lue sur le triangle source le plus proche."""
+# Poids de la désaccord de normale, en unités de distance au carré.
+#
+# Sans lui, un texel pris sur une fronde de palmier peut se projeter sur le
+# TRONC ou sur la fronde d'en dessous : le sommet source le plus proche n'est
+# pas forcément sur la même surface quand elles se touchent presque. Mesuré sur
+# Palmier_TRACHYCARPUS_FORTUNEI : le feuillage ressortait marbré de pâle.
+#
+# La comparaison se fait au SIGNE PRÈS : la source a 42,6 % de faces à
+# contre-sens (#638), donc seul l'axe compte, pas son orientation.
+PENALITE_NORMALE = 4.0
+
+
+def couleurs(pts, normales, Vsrc, Fsrc, uv_src, img_a, arbre, adj, lot=200_000):
+    """Couleur de chaque point, lue sur le triangle source le plus proche ET
+    le mieux aligné."""
     sortie = np.empty((len(pts), 3), np.uint8)
     for i in range(0, len(pts), lot):
         p = pts[i:i + lot]
+        n = normales[i:i + lot]
         _, graine = arbre.query(p, workers=-1)
         faces = adj[graine]                       # (n, plafond)
         vide = faces < 0
         f = Fsrc[np.where(vide, 0, faces)]        # (n, plafond, 3)
-        d, bary = plus_proche_sur_triangles(
-            p[:, None, :], Vsrc[f[..., 0]], Vsrc[f[..., 1]], Vsrc[f[..., 2]])
+        A, B, C = Vsrc[f[..., 0]], Vsrc[f[..., 1]], Vsrc[f[..., 2]]
+        d, bary = plus_proche_sur_triangles(p[:, None, :], A, B, C)
+
+        # Normale de chaque candidat, et son désaccord avec la surface visée.
+        g = np.cross(B - A, C - A)
+        ng = np.linalg.norm(g, axis=-1, keepdims=True)
+        g = np.divide(g, ng, out=np.zeros_like(g), where=ng > 1e-20)
+        cos = np.abs(np.einsum("ijk,ik->ij", g, n))
+        echelle = np.maximum(d.min(1, keepdims=True), 1e-12)
+        d = d + PENALITE_NORMALE * echelle * (1.0 - cos)
+
         d = np.where(vide, np.inf, d)
         k = d.argmin(1)
         n = np.arange(len(p))

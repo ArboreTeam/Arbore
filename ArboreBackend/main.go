@@ -1172,7 +1172,27 @@ func getPlants(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, plants)
+	// Une plante recoupée ne voyage jamais sans son pot, ici comme sur la fiche.
+	// L'invariant tient donc à la source, et aucun appelant ne peut l'oublier :
+	// catalogue, vignette ou AR reçoivent la même chose.
+	//
+	// Mesuré avant de le faire, parce que l'argument du poids était le seul à
+	// opposer : la réponse fait 3,3 Mo, et le pot sur les 52 plantes concernées
+	// y ajoute 7,1 Ko — deux dixièmes de pour cent. La bibliothèque est chargée
+	// UNE fois pour toute la liste, pas une fois par plante.
+	pots, err := chargerPots(c)
+	if err != nil {
+		// La bibliothèque indisponible ne doit pas emporter le catalogue.
+		log.Println("pots indisponibles, catalogue servi sans pots:", err)
+		c.JSON(http.StatusOK, plants)
+		return
+	}
+
+	reponses := make([]plantResponse, 0, len(plants))
+	for _, p := range plants {
+		reponses = append(reponses, composerPlante(p, pots, ""))
+	}
+	c.JSON(http.StatusOK, reponses)
 }
 
 func getPlantByID(c *gin.Context) {

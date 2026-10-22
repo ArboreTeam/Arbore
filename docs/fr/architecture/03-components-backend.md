@@ -124,7 +124,7 @@ prouver.
 | Endpoint | Handler | Notes |
 |---|---|---|
 | `POST /plants` | `createPlant` | Insertion (auth standard, pas d'authz supplémentaire). |
-| `GET /plants` | `getPlants` | Catalogue complet. |
+| `GET /plants` | `getPlants` | Catalogue complet. Une plante `potless` y est servie avec son pot par défaut, comme sur la fiche : l'invariant tient à la source, et aucun appelant ne peut l'oublier. |
 | `GET /plants/:id` | `getPlantByID` | Validation `ObjectIDFromHex`. Une plante `potless` est servie avec un champ `pot` : celui de `?pot=<id>`, sinon le pot par défaut. |
 | `GET /pots` | `getPots` | Bibliothèque de pots. Chargée une fois par le client puis gardée : changer de pot ne repasse pas par le serveur. |
 

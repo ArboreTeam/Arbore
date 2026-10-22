@@ -84,7 +84,19 @@ final class PlantThumbnailRenderer {
         self.floorTexture = try? TextureResource.load(named: "studio_floor")
     }
 
-    func render(usdzURL: URL, upAxis: String?, completion: @escaping (UIImage?) -> Void) {
+    /// Rend la vignette d'une plante, éventuellement avec son pot.
+    ///
+    /// Le pot est attaché **comme enfant du modèle de la plante**, donc dans
+    /// son repère : le socle est mesuré là, et c'est le modèle qui porte la
+    /// correction Z-up. Attaché à côté, un modèle redressé verrait son pot
+    /// rester à plat.
+    ///
+    /// Contrairement à l'AR, le cadrage tient compte de l'ENSEMBLE : une
+    /// vignette montre la plante dans son pot, et c'est ce couple qu'il faut
+    /// faire tenir dans l'image.
+    func render(usdzURL: URL, upAxis: String?,
+                pot: (url: URL, pose: PotPlacement)? = nil,
+                completion: @escaping (UIImage?) -> Void) {
         Task { @MainActor in
             do {
                 arView.scene.anchors.removeAll()
@@ -99,6 +111,25 @@ final class PlantThumbnailRenderer {
                     model.orientation = simd_quatf(angle: -.pi / 2, axis: [1, 0, 0])
                 } else {
                     model.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
+                }
+
+                if let pot {
+                    do {
+                        let potEntity = try await ModelEntity(contentsOf: pot.url)
+                        let local = potEntity.visualBounds(relativeTo: potEntity)
+                        let e = Float(pot.pose.scale)
+                        potEntity.scale = [e, e, e]
+                        // Lèvre du pot alignée sur le socle de la plante.
+                        potEntity.position = [Float(pot.pose.x),
+                                              Float(pot.pose.y) - local.max.y * e,
+                                              Float(pot.pose.z)]
+                        model.addChild(potEntity)
+                    } catch {
+                        // Une plante nue vaut mieux qu'aucune vignette : le
+                        // défaut se voit et se corrige, l'absence laisse une
+                        // carte vide dans le catalogue.
+                        print("Thumbnail pot load failed", error)
+                    }
                 }
 
                 var b = model.visualBounds(relativeTo: nil)

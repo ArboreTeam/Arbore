@@ -5114,10 +5114,15 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     // retire déjà les pots des anciens modèles, lui en ajouter
                     // un contredirait cette règle.
                     let enInterieur = parentProps?.wizard.spaceType != GardenSpaceType.garden.rawValue
+                    // Le bas de l'ensemble est RELU sur le conteneur après
+                    // l'attache, et non calculé : le pot vit dans le repère du
+                    // porteur, qui peut porter une correction Z-up. SceneKit
+                    // réunit les enfants en tenant compte de leur transformation,
+                    // donc la lecture reste juste quelle que soit la rotation.
                     var basDeLEnsemble = minVec.y
-                    if enInterieur, let pot = pending.pot, let potURL = pending.potModelURL {
-                        basDeLEnsemble = attachPot(pot, modelURL: potURL,
-                                                   to: container, plantMinY: minVec.y)
+                    if enInterieur, let pot = pending.pot, let potURL = pending.potModelURL,
+                       attachPot(pot, modelURL: potURL, to: wrapper) {
+                        basDeLEnsemble = container.boundingBox.min.y
                     }
                     // Hauteur intrinsèque (avant le halo) pour le LOD distance.
                     container.arboreModelRawHeight = Double(max(0, rawHeight))
@@ -5808,10 +5813,10 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             /// que déclarée : rien ne garantit où un pot place son origine.
             @discardableResult
             private func attachPot(_ pot: PersistedPot, modelURL: URL,
-                                   to container: SCNNode, plantMinY: Float) -> Float {
+                                   to porteur: SCNNode) -> Bool {
                 guard let pose = pot.pose,
                       let scene = try? SCNScene(url: modelURL, options: nil) else {
-                    return plantMinY
+                    return false
                 }
                 let noeud = SCNNode()
                 for enfant in scene.rootNode.childNodes { noeud.addChildNode(enfant) }
@@ -5824,9 +5829,13 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                             Float(pose.y) - potMax.y * e,
                                             Float(pose.z) - 0)
                 noeud.name = "arbore_pot"
-                container.addChildNode(noeud)
-
-                return min(plantMinY, noeud.position.y + potMin.y * e)
+                // Attaché au porteur de la GEOMETRIE, pas au conteneur : le
+                // socle est mesuré dans le repère du modèle, et c'est le
+                // porteur qui subit la correction Z-up. Au conteneur, un modèle
+                // en Z-up verrait son pot rester à plat.
+                porteur.addChildNode(noeud)
+                _ = potMin   // le bas réel est relu sur le conteneur, voir ci-dessous
+                return true
             }
 
             private func stripPotIfNeeded(from root: SCNNode) {

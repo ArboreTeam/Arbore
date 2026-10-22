@@ -161,6 +161,7 @@ Document du catalogue de plantes. Chaque plante embarque ses traductions multili
 | `upAxis` | string (optionnel) | `"Y"` ou `"Z"` — rotation appliquée au chargement (#89). |
 | `hasHeavy` | bool (optionnel) | `true` si une variante USDZ **haute définition** existe (servie via `?lod=heavy`). Pilote le swap LOD en AR — cf. [`../3d-lod-architecture.md`](../3d-lod-architecture.md). |
 | `heightMeters` | float (optionnel) | Hauteur réelle de l'exemplaire, **mesurée depuis la terre** et non depuis le bas du pot : le pot change, la plante non. Son absence fait retomber le client sur sa constante de 0,5 m (`autoScaleTargetHeightMeters`), qui met toute plante à la même taille. |
+| `versions` | `AssetVersions` (optionnel) | Empreintes du contenu des fichiers servis. Pilotent l'invalidation du cache de l'appareil ; leur absence laisse le client sur son comportement actuel. |
 | `potless` | bool (optionnel) | `true` si le maillage **ne contient pas son pot** (sortie recoupée de l'atelier 3D). Absent ou `false` = pot inclus, comportement historique. |
 | `potBase` | `PotBase` (optionnel) | Socle mesuré par l'atelier : centre, rayon, hauteur de la lèvre, en unités du modèle. Sans lui, aucun pot n'est servi. |
 | `flags` | `PlantFlags` (optionnel) | Drapeaux legacy encore utilisés pour les filtres visuels et comme indice faible. Ils ne certifient plus seuls une compatibilité. |
@@ -274,6 +275,46 @@ Douze booléens historiques. Ils restent utiles pour la recherche et les filtres
 | `compact` | Format compact. |
 | `airPurifying` | Dépolluante. |
 
+#### Sous-document `AssetVersions`
+
+Empreinte du contenu de chaque fichier servi pour la fiche : les huit premiers
+caractères hexadécimaux de son SHA-256. Elle pilote l'invalidation du cache de
+l'appareil (#294).
+
+| Champ | Type | Rôle |
+|---|---|---|
+| `model` | string (optionnel) | USDZ light. |
+| `modelHeavy` | string (optionnel) | USDZ heavy, servi via `?lod=heavy`. |
+| `thumbnail` | string (optionnel) | Vignette PNG. |
+
+Un champ par fichier, parce que ce sont des fichiers distincts : remplacer le
+light ne doit pas faire retélécharger le heavy, qui pèse dix fois plus. Un champ
+absent signifie « empreinte non calculée » — le client retombe alors sur son
+comportement d'avant et ne perd pas son cache.
+
+##### Pourquoi une empreinte par fichier et non un compteur global
+
+Le cache iOS des modèles est indexé par **nom de fichier**, dans
+`Documents/Models/`, que la mise à jour d'une app ne vide pas. Un fichier
+réécrit sous le même nom n'atteint donc aucun appareil l'ayant déjà téléchargé :
+c'est #292, où les testeurs ont gardé des modèles gris jusqu'à réinstallation.
+
+La solution apparente — une constante de version dans le binaire — est déjà en
+place pour les vignettes, et #524 a mesuré ce qu'elle coûte. Elle est
+**globale** : la changer invalide tout le catalogue chez tout le monde pour
+corriger un seul fichier, soit 440 Mo en light. Et elle est **compilée** : la
+changer n'atteint personne sans une nouvelle livraison TestFlight, donc réparer
+un fichier côté serveur reste invisible.
+
+L'empreinte du contenu n'a aucun de ces deux défauts. Elle change quand les
+octets changent, jamais autrement, personne n'a à penser à l'incrémenter, et
+elle voyage avec la fiche — que le client lit déjà.
+
+Le GET conditionnel, l'autre piste de #294, est disponible côté serveur sans
+rien ajouter : `serveStorageObject` finit par `http.ServeContent`, qui émet
+`Last-Modified` et honore `If-Modified-Since`. Mais il coûte une requête par
+fichier et par contrôle, là où l'empreinte arrive avec le catalogue.
+
 #### Sous-document `PotBase`
 
 Le socle mesuré par l'atelier 3D, sur lequel le pot vient se poser. Toutes les
@@ -301,6 +342,7 @@ compatibilité par plante n'est enregistrée, faute d'élément qui la justifie
 | `rimRadius` | float | Rayon du rebord, en unités du modèle **du pot**. |
 | `height` | float | Hauteur du pot. |
 | `default` | bool | Pot servi quand le client n'en demande aucun. |
+| `version` | string (optionnel) | Empreinte du contenu de son USDZ, même règle que `AssetVersions`. |
 
 ##### Comment plante et pot se composent, et où le calcul se fait
 

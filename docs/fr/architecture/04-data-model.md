@@ -46,6 +46,9 @@ erDiagram
         bool   generated "modèle 3D généré (IA)"
         string upAxis "Y ou Z"
         bool   hasHeavy "variante USDZ haute définition"
+        float  heightMeters "hauteur reelle depuis la terre"
+        bool   potless "maillage sans son pot"
+        object potBase "socle où poser le pot"
         object flags "PlantFlags embedded"
         string source "libellé de provenance optionnel"
         string sourceUrl "URL d'origine optionnelle"
@@ -157,6 +160,9 @@ Document du catalogue de plantes. Chaque plante embarque ses traductions multili
 | `generated` | bool (optionnel) | `true` si le modèle 3D est généré par IA (badge BETA, #84). |
 | `upAxis` | string (optionnel) | `"Y"` ou `"Z"` — rotation appliquée au chargement (#89). |
 | `hasHeavy` | bool (optionnel) | `true` si une variante USDZ **haute définition** existe (servie via `?lod=heavy`). Pilote le swap LOD en AR — cf. [`../3d-lod-architecture.md`](../3d-lod-architecture.md). |
+| `heightMeters` | float (optionnel) | Hauteur réelle de l'exemplaire, **mesurée depuis la terre** et non depuis le bas du pot : le pot change, la plante non. Son absence fait retomber le client sur sa constante de 0,5 m (`autoScaleTargetHeightMeters`), qui met toute plante à la même taille. |
+| `potless` | bool (optionnel) | `true` si le maillage **ne contient pas son pot** (sortie recoupée de l'atelier 3D). Absent ou `false` = pot inclus, comportement historique. |
+| `potBase` | `PotBase` (optionnel) | Socle mesuré par l'atelier : centre, rayon, hauteur de la lèvre, en unités du modèle. Sans lui, aucun pot n'est servi. |
 | `flags` | `PlantFlags` (optionnel) | Drapeaux legacy encore utilisés pour les filtres visuels et comme indice faible. Ils ne certifient plus seuls une compatibilité. |
 | `botanicalProfile` | `PlantBotanicalProfile` (optionnel) | Contraintes horticoles canoniques, structurées et sourcées champ par champ. Son absence force le verdict « Probablement compatible » ou « Non adaptée », jamais « Adaptée ». |
 | `source` | string (optionnel) | Libellé de provenance optionnel (catalogue curé vs entrées legacy/beta). |
@@ -267,6 +273,65 @@ Douze booléens historiques. Ils restent utiles pour la recherche et les filtres
 | `trailing` | Retombante. |
 | `compact` | Format compact. |
 | `airPurifying` | Dépolluante. |
+
+#### Sous-document `PotBase`
+
+Le socle mesuré par l'atelier 3D, sur lequel le pot vient se poser. Toutes les
+valeurs sont en **unités du modèle de la plante**, pas en centimètres : le
+maillage n'est pas à l'échelle réelle.
+
+| Champ | Type | Rôle |
+|---|---|---|
+| `x`, `y`, `z` | float | Centre du socle ; `y` est la hauteur de la lèvre, où s'aligne le haut du pot. |
+| `radius` | float | Rayon du socle. C'est lui qui donne l'échelle du pot. |
+| `groundY` | float (optionnel) | Ligne de terre, pour l'anti-clipping du feuillage retombant (#185). Rarement mesuré à ce jour. |
+| `plantHeight` | float (optionnel) | Hauteur du végétal seul. |
+
+### `pots`
+
+Bibliothèque de pots, **libre** : un pot va sous n'importe quelle plante. Aucune
+compatibilité par plante n'est enregistrée, faute d'élément qui la justifie
+(question ouverte de #623).
+
+| Champ | Type | Rôle |
+|---|---|---|
+| `_id` | ObjectID | Identifiant servi tel quel au client. |
+| `name` | string | Libellé. |
+| `modelURL` | string | Nom de fichier USDZ, servi par `GET /models/:filename` comme ceux des plantes. |
+| `rimRadius` | float | Rayon du rebord, en unités du modèle **du pot**. |
+| `height` | float | Hauteur du pot. |
+| `default` | bool | Pot servi quand le client n'en demande aucun. |
+
+##### Comment plante et pot se composent, et où le calcul se fait
+
+Une plante `potless` ne peut pas s'afficher seule. `GET /plants/:id` sert donc,
+dans la même charge, un champ `pot` — celui que `?pot=<id>` demande, sinon le
+pot par défaut. Un appel séparé serait toujours en série derrière celui de la
+plante, puisque le client ne sait qu'après coup qu'il lui faut un pot.
+
+La pose, elle, **n'est pas servie** : le pot est mis à l'échelle
+`potBase.radius / pot.rimRadius`, centré sur le socle, sa lèvre alignée sur
+`potBase.y`. Le client a les deux valeurs et fait la division.
+
+Ce partage n'est pas arbitraire. Changer de pot ne repasse jamais par le
+serveur : le socle est une mesure de la plante, indépendante du pot, et la
+bibliothèque se charge une fois puis se garde. L'aperçu du sélecteur est donc
+instantané et un jardin se rouvre hors ligne. Resservir la fiche entière —
+traductions, profil botanique, images — pour une division serait du gaspillage,
+et poser la règle des deux côtés la ferait diverger.
+
+Le serveur garde une seule responsabilité de calcul : **refuser** de servir un
+pot quand la pose n'a pas de sens — socle absent, rayon ou rebord nul. Une
+plante visiblement nue se répare ; un pot posé au hasard passe pour un bug d'AR.
+
+##### Pourquoi le modèle recoupé change de nom de fichier
+
+Le modèle sans pot ne remplace pas l'ancien : il se dépose à côté, suffixé
+`_potless`. Le cache iOS est indexé par **nom de fichier** et `Documents/Models/`
+survit aux mises à jour (#294) — réécrire un fichier sous le même nom
+n'atteindrait aucun appareil l'ayant déjà téléchargé. Et `GardenLocalStore`
+persiste `modelURLString` dans chaque jardin enregistré : l'ancien fichier doit
+rester servi, sinon les jardins déjà créés cassent.
 
 ### `gardens`
 

@@ -115,6 +115,42 @@ struct PersistedSurfaceAnchor: Codable, Equatable {
     }
 }
 
+/// Pot posé sous une plante recoupée, enregistré dans le jardin.
+///
+/// Un jardin enregistré doit se rouvrir **sans réseau** : c'est déjà pourquoi
+/// `PersistedPlant` garde `modelURLString` et `hasHeavy` plutôt que d'aller les
+/// redemander au catalogue. Le pot suit la même règle, et pour deux raisons qui
+/// se cumulent :
+///
+///   - le pot CHOISI par l'utilisateur ne se retrouve que dans la bibliothèque.
+///     Tant qu'elle n'est pas chargée, on retomberait sur le pot par défaut —
+///     donc sur le mauvais pot, brièvement au démarrage, durablement hors ligne ;
+///   - la pose se calcule depuis `potBase`, qui vit dans le catalogue et n'est
+///     gardé qu'en mémoire. Hors ligne, il n'y aurait même pas de quoi la
+///     recalculer.
+///
+/// On enregistre donc la pose **déjà résolue**, comme la plante enregistre sa
+/// propre échelle et sa transformation.
+struct PersistedPot: Codable, Equatable {
+    let potID: String
+    let modelURLString: String
+    /// Échelle uniforme à appliquer au modèle du pot.
+    let scale: Float
+    /// Décalage dans le repère du modèle de la plante, [x, y, z].
+    let offset: [Float]
+    /// Empreinte du contenu du USDZ, pour que le cache suive un pot remplacé.
+    let version: String?
+
+    init(potID: String, modelURLString: String, scale: Float,
+         offset: [Float], version: String? = nil) {
+        self.potID = potID
+        self.modelURLString = modelURLString
+        self.scale = scale
+        self.offset = offset
+        self.version = version
+    }
+}
+
 struct PersistedPlant: Codable {
     let plantID: String
     let plantName: String
@@ -136,6 +172,9 @@ struct PersistedPlant: Codable {
     // pour ré-déclencher le swap heavy à la ré-ouverture du jardin. Optionnel →
     // les anciennes sauvegardes (sans la clé) décodent à nil (= pas d'upgrade).
     let hasHeavy: Bool?
+    // Pot posé sous une plante recoupée. Optionnel : les sauvegardes d'avant,
+    // et les plantes dont le maillage porte déjà son pot, décodent à nil.
+    let pot: PersistedPot?
 
     init(
         plantID: String,
@@ -150,7 +189,8 @@ struct PersistedPlant: Codable {
         surfaceHeight: Float? = nil,
         placementMode: String? = nil,
         surfaceAnchor: PersistedSurfaceAnchor? = nil,
-        hasHeavy: Bool? = nil
+        hasHeavy: Bool? = nil,
+        pot: PersistedPot? = nil
     ) {
         self.plantID = plantID
         self.plantName = plantName
@@ -165,6 +205,7 @@ struct PersistedPlant: Codable {
         self.placementMode = placementMode
         self.surfaceAnchor = surfaceAnchor
         self.hasHeavy = hasHeavy
+        self.pot = pot
     }
 }
 

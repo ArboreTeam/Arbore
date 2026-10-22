@@ -152,6 +152,117 @@ final class PlantPotCompositionTests: XCTestCase {
         XCTAssertEqual(pose.z, 0)
     }
 
+    // MARK: - L'invariant : une plante recoupée a toujours un pot
+
+    // La question qui a motivé ces tests : « partout où les plantes sont
+    // appelées, si sans_pot alors on lie le pot — c'est bien respecté ? »
+    //
+    // L'invariant doit tenir en UN seul endroit, sinon chaque nouvel appelant
+    // doit y penser, et un jour l'un d'eux n'y pensera pas.
+
+    func testInvariant_UneRecoupeeRecoitSonPotSansBibliotheque() throws {
+        let p = try plante("""
+        ,"potless":true,"potBase":{"radius":0.16146,"x":0,"y":-0.1,"z":0},
+         "pot":{"id":"abc","name":"cachepot","modelURL":"c.usdz",
+                "rimRadius":0.058654,"height":0.1,"default":true}
+        """)
+        let lie = try XCTUnwrap(p.potEtPose(),
+                                "le pot servi avec la fiche doit suffire : sans lui, la plante s'afficherait nue le temps d'un aller-retour")
+        XCTAssertEqual(lie.pot.id, "abc")
+        XCTAssertEqual(lie.pose.scale, 0.16146 / 0.058654, accuracy: 1e-9)
+    }
+
+    func testInvariant_UnePlanteHistoriqueNenRecoitAucun() throws {
+        let p = try plante("")
+        XCTAssertNil(p.potEtPose(bibliotheque: [pot("a", rebord: 0.05, defaut: true)]),
+                     "son maillage porte déjà son pot ; un second s'y superposerait")
+    }
+
+    // Une recoupée sans socle n'a pas de pose calculable : lui lier un pot
+    // reviendrait à le poser au hasard.
+    func testInvariant_UneRecoupeeSansSocleNenRecoitPas() throws {
+        let p = try plante(",\"potless\":true")
+        XCTAssertNil(p.potEtPose(bibliotheque: [pot("a", rebord: 0.05, defaut: true)]))
+    }
+
+    // Le choix de l'utilisateur, persisté dans son jardin, l'emporte sur le
+    // pot que le serveur avait servi.
+    func testInvariant_LeChoixLocalLEmporteSurLePotServi() throws {
+        let p = try plante("""
+        ,"potless":true,"potBase":{"radius":0.16,"x":0,"y":0,"z":0},
+         "pot":{"id":"servi","name":"servi","modelURL":"s.usdz",
+                "rimRadius":0.05,"height":0.1,"default":true}
+        """)
+        let autre = pot("choisi", rebord: 0.08)
+        let lie = try XCTUnwrap(p.potEtPose(choisi: "choisi", bibliotheque: [autre]))
+        XCTAssertEqual(lie.pot.id, "choisi")
+        XCTAssertEqual(lie.pose.scale, 0.16 / 0.08, accuracy: 1e-9)
+    }
+
+    // Un catalogue entier doit sortir cohérent : chaque recoupée posable avec
+    // son pot, chaque historique sans.
+    func testInvariant_SurUnCatalogueEntier() throws {
+        let recoupee = """
+        ,"potless":true,"potBase":{"radius":0.16,"x":0,"y":0,"z":0},
+         "pot":{"id":"p","name":"p","modelURL":"p.usdz",
+                "rimRadius":0.05,"height":0.1,"default":true}
+        """
+        let catalogue = [try plante(recoupee), try plante(""),
+                         try plante(recoupee), try plante(",\"potless\":true")]
+        let lies = catalogue.map { $0.potEtPose() != nil }
+        XCTAssertEqual(lies, [true, false, true, false])
+    }
+
+    // MARK: - Un jardin enregistré se rouvre sans réseau
+
+    // Le pot CHOISI ne se retrouve que dans la bibliothèque, et la pose se
+    // calcule depuis `potBase`, qui vit dans le catalogue. Ni l'un ni l'autre
+    // n'est disponible hors ligne : le jardin doit donc porter sa propre copie,
+    // exactement comme il porte déjà `modelURLString` et `hasHeavy`.
+
+    func testJardin_LePotPersisteAvecSaPose() throws {
+        let p = pot("cachepot", rebord: 0.058654, defaut: true)
+        let pose = try XCTUnwrap(PlantPotComposer.placement(base: socleReel(), pot: p))
+        let enregistre = PersistedPot(pot: p, pose: pose)
+
+        XCTAssertEqual(enregistre.potID, "cachepot")
+        XCTAssertEqual(enregistre.modelURLString, "cachepot.usdz")
+        let relue = try XCTUnwrap(enregistre.pose)
+        XCTAssertEqual(relue.scale, pose.scale, accuracy: 1e-6)
+        XCTAssertEqual(relue.y, pose.y, accuracy: 1e-6,
+                       "la lèvre doit se retrouver où elle était")
+    }
+
+    func testJardin_SurvitAuCodageJSON() throws {
+        let p = pot("cachepot", rebord: 0.05)
+        let pose = try XCTUnwrap(PlantPotComposer.placement(base: socleReel(), pot: p))
+        let brut = try JSONEncoder().encode(PersistedPot(pot: p, pose: pose))
+        let relu = try JSONDecoder().decode(PersistedPot.self, from: brut)
+        XCTAssertEqual(relu, PersistedPot(pot: p, pose: pose))
+    }
+
+    // Une sauvegarde d'avant n'a pas la clé : elle doit décoder, pas échouer.
+    func testJardin_UneSauvegardeDAvantDecodeSansPot() throws {
+        let json = """
+        {"plantID":"p","plantName":"n","modelURLString":"m.usdz",
+         "position":[0,0,0],"rotation":[0,0,0,0],"scale":[1,1,1],
+         "transform":[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]}
+        """
+        let plante = try JSONDecoder().decode(PersistedPlant.self, from: Data(json.utf8))
+        XCTAssertNil(plante.pot)
+        XCTAssertEqual(plante.modelURLString, "m.usdz")
+    }
+
+    // Un enregistrement amputé ne doit pas produire une pose absurde.
+    func testJardin_EnregistrementAmputeNeDonneAucunePose() {
+        XCTAssertNil(PersistedPot(potID: "p", modelURLString: "p.usdz",
+                                  scale: 1, offset: [0, 0]).pose, "offset incomplet")
+        XCTAssertNil(PersistedPot(potID: "p", modelURLString: "p.usdz",
+                                  scale: 0, offset: [0, 0, 0]).pose, "échelle nulle")
+        XCTAssertNil(PersistedPot(potID: "p", modelURLString: "p.usdz",
+                                  scale: .infinity, offset: [0, 0, 0]).pose, "échelle non finie")
+    }
+
     // MARK: - Empreintes et cache
 
     func testEmpreinte_ParNiveauDeDetail() throws {

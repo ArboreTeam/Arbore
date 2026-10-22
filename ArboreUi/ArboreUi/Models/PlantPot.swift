@@ -157,3 +157,57 @@ enum PlantPotComposer {
         return pots.first(where: { $0.isDefault }) ?? pots.first
     }
 }
+
+extension Plant {
+
+    /// Pot à poser sous cette plante, et sa pose. `nil` si elle n'en attend pas.
+    ///
+    /// C'est le **seul** endroit qui répond à « cette plante a-t-elle besoin
+    /// d'un pot, lequel, et où ». Catalogue, vignette et AR passent par ici :
+    /// l'invariant ne peut donc pas être oublié par un appelant, et il n'y a
+    /// qu'un endroit à corriger le jour où la règle change.
+    ///
+    /// - Parameters:
+    ///   - choisi: identifiant du pot retenu par l'utilisateur, persisté dans
+    ///     son jardin. `nil` = celui que le serveur a servi, sinon le défaut.
+    ///   - bibliotheque: pots connus du client, pour un choix fait en local.
+    ///     Vide, on s'en tient au pot servi avec la fiche.
+    func potEtPose(choisi: String? = nil,
+                   bibliotheque: [Pot] = []) -> (pot: Pot, pose: PotPlacement)? {
+        guard attendUnPot else { return nil }
+
+        // Le pot servi avec la fiche fait partie des candidats : sans lui, un
+        // client qui n'a pas encore chargé la bibliothèque n'aurait rien à
+        // poser, et la plante s'afficherait nue le temps d'un aller-retour.
+        var candidats = bibliotheque
+        if let servi = pot, !candidats.contains(where: { $0.id == servi.id }) {
+            candidats.append(servi)
+        }
+
+        guard let retenu = PlantPotComposer.pot(parmi: candidats, choisi: choisi),
+              let pose = PlantPotComposer.placement(base: potBase, pot: retenu) else {
+            return nil
+        }
+        return (retenu, pose)
+    }
+}
+
+extension PersistedPot {
+
+    /// Enregistre un pot et sa pose pour qu'un jardin se rouvre sans réseau.
+    init(pot: Pot, pose: PotPlacement) {
+        self.init(potID: pot.id,
+                  modelURLString: pot.modelURL,
+                  scale: Float(pose.scale),
+                  offset: [Float(pose.x), Float(pose.y), Float(pose.z)],
+                  version: pot.version)
+    }
+
+    /// Pose relue d'un jardin enregistré. `nil` si l'enregistrement est amputé :
+    /// mieux vaut une plante nue qu'un pot posé au hasard.
+    var pose: PotPlacement? {
+        guard offset.count == 3, scale > 0, scale.isFinite else { return nil }
+        return PotPlacement(scale: Double(scale),
+                            x: Double(offset[0]), y: Double(offset[1]), z: Double(offset[2]))
+    }
+}

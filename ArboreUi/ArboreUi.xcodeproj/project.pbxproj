@@ -584,7 +584,7 @@
 					"$(inherited)",
 					"$(inherited)",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				MTL_ENABLE_DEBUG_INFO = None;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -630,7 +630,7 @@
 					"$(inherited)",
 					"$(inherited)",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -808,7 +808,7 @@
 					"$(inherited)",
 					"$(inherited)",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				MTL_ENABLE_DEBUG_INFO = None;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore;
 				PRODUCT_NAME = "$(TARGET_NAME)";

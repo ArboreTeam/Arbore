@@ -276,6 +276,8 @@ type Plant struct {
 	Flags            *PlantFlags             `json:"flags,omitempty" bson:"flags,omitempty"`                       // drapeaux structurés pour la reco wizard (fiables, vs matching mots-clés)
 	BotanicalProfile *PlantBotanicalProfile  `json:"botanicalProfile,omitempty" bson:"botanicalProfile,omitempty"` // contraintes horticoles sourcées ; nil = fiche non auditée
 	HasHeavy         *bool                   `json:"hasHeavy,omitempty" bson:"hasHeavy,omitempty"`                 // true = une version haute définition existe (servie via /models/<file>?lod=heavy)
+	Potless          *bool                   `json:"potless,omitempty" bson:"potless,omitempty"`                   // true = le maillage ne contient PAS son pot (sortie d'atelier recoupée) ; nil/false = pot inclus, comportement historique
+	PotBase          *PotBase                `json:"potBase,omitempty" bson:"potBase,omitempty"`                   // socle mesuré où poser le pot ; nil = pose non calculable, aucun pot n'est servi
 }
 
 // PlantFlags : drapeaux booléens structurés alimentant la reco du
@@ -1190,6 +1192,23 @@ func getPlantByID(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération de la plante"})
+		return
+	}
+
+	// Une plante recoupée est servie avec un pot par défaut, sans quoi le client
+	// l'afficherait nue. Le paramètre `pot` sert au premier rendu d'un choix
+	// déjà connu (lien profond, jardin rouvert) ; le sélecteur, lui, recalcule
+	// en local sans repasser ici. Voir pots.go.
+	if sansPot(plant) {
+		pots, err := chargerPots(c)
+		if err != nil {
+			// La bibliothèque indisponible ne doit pas emporter la fiche : on
+			// sert la plante seule plutôt que de rendre une erreur.
+			log.Println("pots indisponibles, plante servie sans pot:", err)
+			c.JSON(http.StatusOK, plantResponse{Plant: plant})
+			return
+		}
+		c.JSON(http.StatusOK, composerPlante(plant, pots, c.Query("pot")))
 		return
 	}
 
@@ -2290,6 +2309,9 @@ func buildRouter() *gin.Engine {
 		// Plants
 		protected.GET("/plants", getPlants)
 		protected.GET("/plants/:id", getPlantByID)
+		// Bibliothèque de pots : chargée une fois par le client, puis gardée.
+		// Changer de pot n'y repasse pas (voir pots.go).
+		protected.GET("/pots", getPots)
 
 		// Gardens
 		protected.POST("/gardens", createGarden)

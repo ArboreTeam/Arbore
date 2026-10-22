@@ -279,6 +279,10 @@ var (
 		"GET /photos/:filename",
 		"GET /plants",
 		"GET /plants/:id",
+		// La bibliothèque de pots suit le catalogue : un invité qui peut voir
+		// les plantes doit pouvoir voir les pots, sans quoi les plantes
+		// recoupées s'afficheraient nues pour lui seul.
+		"GET /pots",
 		"POST /chat",
 		"POST /diagnose",
 		"GET /users/export",

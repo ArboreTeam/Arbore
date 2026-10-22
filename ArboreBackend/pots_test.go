@@ -253,3 +253,50 @@ func TestPot_JSONPorteLeRebord(t *testing.T) {
 		}
 	}
 }
+
+// --- Hauteur réelle --------------------------------------------------------
+
+// Aujourd'hui le client met TOUTE plante à l'échelle d'une constante — 0,5 m
+// dans `GardenARPlacementView.autoScaleTargetHeightMeters` — faute de hauteur
+// réelle en base. Un Yucca et une Haworthia sortent donc à la même taille.
+// `heightMeters` est ce qui lève cette constante ; il est optionnel pour que
+// les fiches non mesurées continuent d'y retomber plutôt que de disparaître.
+func TestPlant_HeightMetersOptionnelEtOmisSiAbsent(t *testing.T) {
+	brut, err := json.Marshal(Plant{Name: "Monstera"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(brut, &m); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := m["heightMeters"]; present {
+		t.Fatal("sans mesure, le champ doit être absent, pas à zéro : un zéro ferait disparaître la plante")
+	}
+
+	h := 0.339
+	brut, err = json.Marshal(Plant{Name: "Cordyline", HeightMeters: &h})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m = map[string]any{}
+	if err := json.Unmarshal(brut, &m); err != nil {
+		t.Fatal(err)
+	}
+	if m["heightMeters"] != 0.339 {
+		t.Fatalf("heightMeters = %v, attendu 0.339", m["heightMeters"])
+	}
+}
+
+// La hauteur est celle de la plante DEPUIS LA TERRE, donc indépendante du pot :
+// elle doit être servie que la plante soit recoupée ou non.
+func TestComposerPlante_LaHauteurSurvitALaComposition(t *testing.T) {
+	h := 0.241
+	pot := potDeTest("cachepot_pieds", 0.058654, true)
+	p := planteRecoupee(socleReel())
+	p.HeightMeters = &h
+	rep := composerPlante(p, []Pot{pot}, "")
+	if rep.HeightMeters == nil || *rep.HeightMeters != h {
+		t.Fatalf("hauteur perdue par la composition : %v", rep.HeightMeters)
+	}
+}

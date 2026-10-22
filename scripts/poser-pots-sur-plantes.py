@@ -35,6 +35,23 @@ Le modèle recoupé ne remplace pas l'ancien, il se pose à côté, avec le suff
   - l'opération devient purement additive : aucun modèle en service n'est
     touché, et un retour en arrière se fait en remettant l'ancien `modelURL`.
 
+## La hauteur, et ce qu'elle mesure
+
+`hauteurCm` est relevée **depuis la terre**, pas depuis le bas du pot — « le pot
+change, la plante non, et c'est la plante qu'on pose » (`web/lib/generator/
+depot.ts`). C'est exactement la sémantique d'un maillage recoupé, donc elle se
+porte telle quelle en `heightMeters`.
+
+Vérifié sur les 4 plantes qui portent `hauteur_vegetal` ET un maillage sur le
+disque : la boîte englobante du recoupé vaut la hauteur depuis la terre à
+**×1,00**. Le client peut donc mettre à l'échelle sur sa boîte englobante.
+
+Réserve, à ne pas oublier : une plante retombante descend **sous** la ligne de
+terre, sa boîte est donc plus haute que `heightMeters` et la mettre à l'échelle
+sur la boîte la rapetisserait. `potBase.groundY` est ce qui permettrait de le
+corriger — il manque sur 48 des 52. Aucune des 7 retombantes du lot ne porte la
+mesure, donc l'écart n'est à ce jour **pas vérifiable**.
+
 ## Ce que le script ne fait pas
 
 Il n'invente aucun socle, et il ne bascule **que** les plantes dont le socle est
@@ -110,6 +127,18 @@ def convertir_socle(socle: dict) -> dict[str, float]:
     return out
 
 
+def hauteur_metres(plante: dict) -> float | None:
+    """Hauteur réelle en mètres, depuis la terre, ou None si non mesurée.
+
+    L'atelier relève des centimètres ; l'AR raisonne en mètres, et c'est l'unité
+    de la constante que ce champ remplace côté client.
+    """
+    cm = (plante.get("taille") or {}).get("hauteurCm")
+    if not isinstance(cm, (int, float)) or cm <= 0:
+        return None
+    return round(float(cm) / 100.0, 4)
+
+
 def operations(etat: dict) -> dict[str, Any]:
     """Opérations à appliquer, et ce qui n'a pas pu l'être."""
     plantes = etat.get("plantes") or {}
@@ -133,15 +162,19 @@ def operations(etat: dict) -> dict[str, Any]:
             # de servir un pot de toute façon.
             sans_socle.append(nom)
             continue
+        maj = {
+            "modelURL": f"{nom}{SUFFIXE_RECOUPE}.usdz",
+            "potless": True,
+            "potBase": base,
+        }
+        hauteur = hauteur_metres(p)
+        if hauteur is not None:
+            maj["heightMeters"] = hauteur
         poser.append({
             # Le filtre porte sur le modèle ACTUEL de la plante ; la mise à
             # jour la fait pointer sur le recoupé, déposé à côté de lui.
             "modelURL": f"{nom}.usdz",
-            "set": {
-                "modelURL": f"{nom}{SUFFIXE_RECOUPE}.usdz",
-                "potless": True,
-                "potBase": base,
-            },
+            "set": maj,
         })
 
     pots = []

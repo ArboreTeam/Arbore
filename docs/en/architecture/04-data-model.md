@@ -46,6 +46,7 @@ erDiagram
         bool   generated "3D model AI-generated"
         string upAxis "Y or Z"
         bool   hasHeavy "high-definition USDZ variant"
+        float  heightMeters "real height from the soil line"
         bool   potless "mesh without its pot"
         object potBase "base the pot sits on"
         object flags "PlantFlags embedded"
@@ -159,6 +160,7 @@ Plant catalog document. Each plant embeds its multilingual translations so that 
 | `generated` | bool (optional) | `true` if the 3D model is AI-generated (BETA badge, #84). |
 | `upAxis` | string (optional) | `"Y"` or `"Z"` — rotation applied at load time (#89). |
 | `hasHeavy` | bool (optional) | `true` if a **high-definition** USDZ variant exists (served via `?lod=heavy`). Drives the LOD swap in AR — see [`../3d-lod-architecture.md`](../3d-lod-architecture.md). |
+| `heightMeters` | float (optional) | Real height of the specimen, **measured from the soil line**, not from the bottom of the pot: the pot changes, the plant does not. When absent, the client falls back on its 0.5 m constant (`autoScaleTargetHeightMeters`), which gives every plant the same size. |
 | `potless` | bool (optional) | `true` if the mesh **does not contain its pot** (re-cut output of the 3D workshop). Absent or `false` means the pot is part of the mesh, the historical behaviour. |
 | `potBase` | `PotBase` (optional) | Base measured by the workshop: centre, radius, rim height, in model units. Without it, no pot is served. |
 | `flags` | `PlantFlags` (optional) | Legacy flags still used by visual filters and as weak evidence. They can no longer certify suitability on their own. |

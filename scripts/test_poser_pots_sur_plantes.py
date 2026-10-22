@@ -90,6 +90,18 @@ class ConversionDuSocle(unittest.TestCase):
         self.assertEqual(got, {"y": 2.0})
 
 
+class HauteurReelle(unittest.TestCase):
+    def test_centimetres_vers_metres(self):
+        self.assertEqual(poser.hauteur_metres({"taille": {"hauteurCm": 24.1}}), 0.241)
+        self.assertEqual(poser.hauteur_metres({"taille": {"hauteurCm": 7.9}}), 0.079)
+
+    def test_absente_ou_absurde(self):
+        for taille in (None, {}, {"hauteurCm": 0}, {"hauteurCm": -5},
+                       {"hauteurCm": "24"}, {"hauteurCm": None}):
+            with self.subTest(taille=taille):
+                self.assertIsNone(poser.hauteur_metres({"taille": taille}))
+
+
 class Operations(unittest.TestCase):
     def etat(self, **plantes):
         taches = []
@@ -102,6 +114,20 @@ class Operations(unittest.TestCase):
             "taches": taches,
             "pots": {"cachepot_pieds.glb": {"rayon": 0.058654, "hauteur": 0.1}},
         }
+
+    # Une hauteur mesurée remplace, côté client, la constante de 50 cm à
+    # laquelle TOUTE plante est aujourd'hui mise à l'échelle
+    # (GardenARPlacementView.swift : autoScaleTargetHeightMeters).
+    def test_la_hauteur_est_portee_quand_elle_existe(self):
+        e = self.etat(P={"verdict": "validee", "coupe": "c.glb", "_socle": socle(),
+                         "taille": {"hauteurCm": 33.9, "stade": "adulte"}})
+        self.assertEqual(poser.operations(e)["plantes"][0]["set"]["heightMeters"], 0.339)
+
+    # Sans mesure, mieux vaut ne rien poser : le client retombe sur sa
+    # constante, alors qu'un zéro le ferait disparaitre.
+    def test_sans_hauteur_le_champ_est_absent(self):
+        e = self.etat(P={"verdict": "validee", "coupe": "c.glb", "_socle": socle()})
+        self.assertNotIn("heightMeters", poser.operations(e)["plantes"][0]["set"])
 
     def test_une_plante_validee_avec_socle(self):
         e = self.etat(P={"verdict": "validee", "coupe": "c.glb", "_socle": socle()})

@@ -46,6 +46,7 @@ erDiagram
         bool   generated "modèle 3D généré (IA)"
         string upAxis "Y ou Z"
         bool   hasHeavy "variante USDZ haute définition"
+        float  heightMeters "hauteur reelle depuis la terre"
         bool   potless "maillage sans son pot"
         object potBase "socle où poser le pot"
         object flags "PlantFlags embedded"
@@ -159,6 +160,7 @@ Document du catalogue de plantes. Chaque plante embarque ses traductions multili
 | `generated` | bool (optionnel) | `true` si le modèle 3D est généré par IA (badge BETA, #84). |
 | `upAxis` | string (optionnel) | `"Y"` ou `"Z"` — rotation appliquée au chargement (#89). |
 | `hasHeavy` | bool (optionnel) | `true` si une variante USDZ **haute définition** existe (servie via `?lod=heavy`). Pilote le swap LOD en AR — cf. [`../3d-lod-architecture.md`](../3d-lod-architecture.md). |
+| `heightMeters` | float (optionnel) | Hauteur réelle de l'exemplaire, **mesurée depuis la terre** et non depuis le bas du pot : le pot change, la plante non. Son absence fait retomber le client sur sa constante de 0,5 m (`autoScaleTargetHeightMeters`), qui met toute plante à la même taille. |
 | `potless` | bool (optionnel) | `true` si le maillage **ne contient pas son pot** (sortie recoupée de l'atelier 3D). Absent ou `false` = pot inclus, comportement historique. |
 | `potBase` | `PotBase` (optionnel) | Socle mesuré par l'atelier : centre, rayon, hauteur de la lèvre, en unités du modèle. Sans lui, aucun pot n'est servi. |
 | `flags` | `PlantFlags` (optionnel) | Drapeaux legacy encore utilisés pour les filtres visuels et comme indice faible. Ils ne certifient plus seuls une compatibilité. |

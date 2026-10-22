@@ -278,6 +278,7 @@ type Plant struct {
 	HasHeavy         *bool                   `json:"hasHeavy,omitempty" bson:"hasHeavy,omitempty"`                 // true = une version haute définition existe (servie via /models/<file>?lod=heavy)
 	Potless          *bool                   `json:"potless,omitempty" bson:"potless,omitempty"`                   // true = le maillage ne contient PAS son pot (sortie d'atelier recoupée) ; nil/false = pot inclus, comportement historique
 	PotBase          *PotBase                `json:"potBase,omitempty" bson:"potBase,omitempty"`                   // socle mesuré où poser le pot ; nil = pose non calculable, aucun pot n'est servi
+	HeightMeters     *float64                `json:"heightMeters,omitempty" bson:"heightMeters,omitempty"`         // hauteur réelle de l'exemplaire, mesurée DEPUIS LA TERRE ; nil = le client retombe sur sa constante
 }
 
 // PlantFlags : drapeaux booléens structurés alimentant la reco du

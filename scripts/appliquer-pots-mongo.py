@@ -14,7 +14,11 @@ d'opérations déjà produit et relu.
     `MONGODB_URI`, pour ne pas apparaître dans l'historique ni dans `ps`.
   - une opération dont le filtre ne trouve aucune plante est signalée, pas
     silencieusement ignorée : c'est le symptôme d'un catalogue qui a bougé.
-  - une plante déjà basculée est laissée telle quelle, le script est rejouable.
+  - le script est **rejouable**. Le filtre vise l'ancien `modelURL` ; une plante
+    déjà basculée ne s'y reconnaît plus, alors on la retrouve par son nouveau
+    nom et on lui réapplique la mise à jour. Sans ça, une passe ultérieure qui
+    ajoute un champ — la hauteur réelle, par exemple — n'atteindrait jamais les
+    plantes de la première passe.
 
   MONGODB_URI=... python3 scripts/appliquer-pots-mongo.py \\
       --ops ops.json --base arbore_dev [--appliquer]
@@ -45,20 +49,22 @@ def main() -> int:
     db = MongoClient(uri)[args.base]
     plants, pots = db["plants"], db["pots"]
 
-    introuvables, deja, a_faire = [], 0, []
+    introuvables, a_faire, rejouees = [], [], 0
     for o in ops["plantes"]:
-        doc = plants.find_one({"modelURL": o["modelURL"]}, {"_id": 1})
-        if doc is None:
-            # Déjà basculée ? Le filtre vise l'ancien nom, pas le nouveau.
-            if plants.find_one({"modelURL": o["set"]["modelURL"]}, {"_id": 1}):
-                deja += 1
-            else:
-                introuvables.append(o["modelURL"])
+        if plants.find_one({"modelURL": o["modelURL"]}, {"_id": 1}):
+            a_faire.append((o["modelURL"], o["set"]))
             continue
-        a_faire.append(o)
+        # Déjà basculée : le filtre vise l'ancien nom, elle porte le nouveau.
+        # On la retrouve par là et on réapplique, pour que le script reste
+        # rejouable quand une passe ultérieure ajoute un champ.
+        if plants.find_one({"modelURL": o["set"]["modelURL"]}, {"_id": 1}):
+            a_faire.append((o["set"]["modelURL"], o["set"]))
+            rejouees += 1
+            continue
+        introuvables.append(o["modelURL"])
 
-    print(f"  plantes à basculer   : {len(a_faire)}", file=sys.stderr)
-    print(f"  déjà basculées       : {deja}", file=sys.stderr)
+    print(f"  plantes à écrire     : {len(a_faire)}", file=sys.stderr)
+    print(f"  dont déjà basculées  : {rejouees}", file=sys.stderr)
     print(f"  introuvables         : {len(introuvables)} {introuvables[:5]}", file=sys.stderr)
     print(f"  pots à poser         : {len(ops['pots'])}", file=sys.stderr)
 
@@ -66,8 +72,8 @@ def main() -> int:
         print("  — simulation, rien n'a été écrit (ajouter --appliquer)", file=sys.stderr)
         return 0
 
-    for o in a_faire:
-        plants.update_one({"modelURL": o["modelURL"]}, {"$set": o["set"]})
+    for filtre, maj in a_faire:
+        plants.update_one({"modelURL": filtre}, {"$set": maj})
     for p in ops["pots"]:
         pots.update_one({"name": p["name"]}, {"$set": p}, upsert=True)
 

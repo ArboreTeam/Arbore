@@ -10,3 +10,13 @@ __pycache__/
 .venv/
 venv/
 node_modules/
+
+# Sorties de la chaine de reconstruction (reatlas*.py) : modeles 3D, deployes
+# hors depot comme output/ et opti_output/.
+trellis_light/
+trellis_usdz/
+trellis_pots/
+trellis_deploy/
+# Copie de travail de l'etat de l'atelier, telechargee depuis la machine.
+_etat_atelier.json
+_ops_pots.json

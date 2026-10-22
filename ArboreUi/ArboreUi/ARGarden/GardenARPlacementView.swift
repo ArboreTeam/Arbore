@@ -5110,17 +5110,19 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     // conteneur puisqu'il en est l'enfant.
                     let rawHeight = maxVec.y - minVec.y
 
-                    // Dehors, la plante est en pleine terre : `stripPotIfNeeded`
-                    // retire déjà les pots des anciens modèles, lui en ajouter
-                    // un contredirait cette règle.
-                    let enInterieur = parentProps?.wizard.spaceType != GardenSpaceType.garden.rawValue
+                    // Le pot est posé partout, y compris dehors, le temps de
+                    // juger le rendu. `stripPotIfNeeded` retire les pots des
+                    // ANCIENS modèles en extérieur, pour planter en pleine
+                    // terre ; les modèles recoupés n'en ont pas à retirer, et
+                    // les laisser nus dehors ne montrerait rien de plus. À
+                    // revoir quand le choix de pot existera.
                     // Le bas de l'ensemble est RELU sur le conteneur après
                     // l'attache, et non calculé : le pot vit dans le repère du
                     // porteur, qui peut porter une correction Z-up. SceneKit
                     // réunit les enfants en tenant compte de leur transformation,
                     // donc la lecture reste juste quelle que soit la rotation.
                     var basDeLEnsemble = minVec.y
-                    if enInterieur, let pot = pending.pot, let potURL = pending.potModelURL,
+                    if let pot = pending.pot, let potURL = pending.potModelURL,
                        attachPot(pot, modelURL: potURL, to: wrapper) {
                         basDeLEnsemble = container.boundingBox.min.y
                     }

@@ -21,3 +21,8 @@ trellis_deploy/
 _etat_atelier.json
 _ops_pots.json
 _vignette_*.png
+_brut/
+_coupes/
+_palmier_*.png
+_palmier_*.usdz
+trellis_brut/

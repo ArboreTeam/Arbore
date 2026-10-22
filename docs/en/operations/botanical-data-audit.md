@@ -2,14 +2,60 @@
 
 ## Current baseline
 
-Read-only audit of the production `arbore.plants` collection, performed on July 23, 2026:
+Audit of the production `arbore.plants` collection, taken on September 9, 2026:
 
-- 124 catalog plants;
-- 0 `botanicalProfile`;
-- 0 plant certifiable on critical constraints;
-- 0 verified values out of 1,860 possible values (124 plants × 15 fields).
+```
+124 catalog plants
+123 now carry a botanicalProfile
+  0 plants certifiable on critical constraints
+  0 verified values out of 1,860 possible
+```
 
-The engine must therefore show at most **Probably compatible** until profiles are populated. Legacy prose and `PlantFlags` remain weak hints and can never produce **Suitable**.
+Four fields were populated on September 9 (#489):
+
+| Field | Coverage | Provenance |
+|---|---|---|
+| `petToxicity` | 38/124 | ASPCA, named and dated source |
+| `directSunHours` | 121/124 | derived from `sun.durationPerDay` |
+| `wateringIntervalDays` | 107/124 | derived from `water.frequency` |
+| `drainage` | 110/124 | derived from `soilAndPot.substrate` |
+
+**"0 verified values" remains exact, and that is not a contradiction.** The audit
+only accepts `reliability: high`, which this document reserves for review by a
+horticulturist or botanist — step 5 of the population plan. None of these values
+has been reviewed by a human.
+
+The vocabulary says so:
+
+| Value | Meaning |
+|---|---|
+| `high` | reviewed by a competent human — **none to date** |
+| `authoritative` | authoritative source, machine-collected (ASPCA) |
+| `authoritative-genus` | same, but the verdict holds for the genus, not the species |
+| `derived` | transcribed from the plant's own prose |
+
+> ⚠️ **One nuance to settle.** Step 3 of the plan asks to complete fields
+> "**without inferring** a missing value from the text". The three `derived`
+> fields transcribe an explicitly written number — "6–8 h / jour" becomes
+> `{minimum: 6, maximum: 8}` — rather than inferring one. The line is thin and
+> deserves a ruling: these values may be kept as hints, or removed if the rule
+> is to be strict.
+
+The engine must therefore still show at most **Probably compatible**. Legacy
+prose and `PlantFlags` remain weak hints and can never produce **Suitable**.
+
+## What the filters already consume
+
+Independently of certification, two iOS filters read this data:
+
+- **safety** (#488) — `botanicalProfile.petToxicity` first, `flags.toxicToPets`
+  next. An **unestablished** toxicity **excludes** the plant when the user asks
+  for safe plants: 40 of 124 remain in that case;
+- **difficulty** (#485) — `care.difficulty`, never populated to date, then
+  `flags.easyCare`. Here the unknown **does not exclude**.
+
+The two rules differ deliberately: hiding a harmless plant denies a choice,
+offering a toxic one breaks a promise.
 
 ## Running the audit
 
@@ -37,6 +83,37 @@ The report distinguishes:
 - present but insufficiently sourced fields;
 - verified coverage;
 - plants certifiable on critical fields.
+
+## Enrichment tools
+
+Three scripts, to run in this order. None writes to the database: they produce
+an operations file to be reviewed before applying it with `mongosh`.
+
+```sh
+# 1. Collect the ASPCA list (toxicity to dogs / cats / horses)
+python3 scripts/collect-aspca-toxicity.py          # → aspca.json
+
+# 2. Match against the catalogue and produce the operations
+python3 scripts/enrich-pet-toxicity.py \
+  --aspca aspca.json --plants plants.json --out ops.json
+
+# 3. Derive sun, watering and drainage from each plant's prose
+python3 scripts/derive-botanical-profile.py \
+  --plants plants.json --out derived.json
+```
+
+The expected plants file is a `GET /plants` export, as for the audit.
+
+**Two rules baked into these scripts, not to be undone:**
+
+Name matching only accepts an exact species, or an ASPCA entry in `spp.` which
+covers the whole genus. An entry naming a **different** species of the same genus
+is rejected — `hydrangea arborescens` says nothing about *Hydrangea macrophylla*.
+Without this rule, 72 plants would receive a borrowed verdict.
+
+Derivation rejects any fragment mentioning centimetres: "water when the top 2–3
+centimetres are dry" describes a soil depth, not a periodicity. Reading it as
+"every 2–3 days" would be a fivefold error, invisible on review.
 
 ## Acceptance criteria
 

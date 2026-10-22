@@ -81,13 +81,15 @@ export default function Carte({ e }: { e: EntreeVue }) {
         </span>
       </div>
 
-      {/* Le signal qui manquait : le verdict porte sur un maillage qui n'existe
-          plus. Mis en avant, et non noyé dans les métadonnées. */}
+      {/* Comparaison de DATES, pas de contenus : une recoupe réécrit le
+          fichier même quand elle retombe sur la même coupe. Le signal invite à
+          regarder, il n'affirme pas que le maillage a changé. */}
       {e.coupeApresVerdict && (
         <div className="mt-2 rounded-xl border border-[#E3C9A8] bg-[#FBF3E8] px-3 py-2 text-[11px] text-[#8A5A1B]">
-          <strong>La coupe a été réécrite après ton verdict.</strong><br />
-          tranchée le {date(e.tranchee)} · coupe écrite le {date(e.coupeEcrite)}<br />
-          Ce que tu as validé n&apos;est pas ce qui est sur le volume.
+          <strong>Fichier réécrit après le dernier verdict enregistré.</strong><br />
+          verdict le {date(e.tranchee)} · fichier écrit le {date(e.coupeEcrite)}<br />
+          Une recoupe réécrit le fichier même si la coupe est identique — à
+          regarder, pas forcément à rejuger.
         </div>
       )}
 

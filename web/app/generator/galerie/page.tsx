@@ -54,12 +54,13 @@ export default async function Galerie() {
       {decalees.length > 0 && (
         <div className="mb-4 rounded-2xl border border-[#E3C9A8] bg-[#FBF3E8] px-4 py-3">
           <div className="text-sm font-semibold text-[#8A5A1B]">
-            {decalees.length} plante{decalees.length > 1 ? 's' : ''} dont la coupe a été
-            réécrite après le verdict
+            {decalees.length} plante{decalees.length > 1 ? 's' : ''} dont le fichier a été
+            réécrit après le dernier verdict enregistré
           </div>
           <p className="mt-1 text-[12px] text-[#8A5A1B]">
-            Leur verdict porte sur un maillage qui n&apos;est plus sur le volume.
-            Elles sont à revoir en priorité, et à ne pas livrer en l&apos;état.
+            C&apos;est une comparaison de dates, pas de contenus : une passe de
+            recoupe réécrit le fichier même quand elle retombe sur la même
+            coupe. À regarder en priorité, sans présumer qu&apos;il a changé.
           </p>
           <div className="mt-1 text-[11px] text-[#6E746B]">
             {decalees.map((p) => p.plante).join(' · ')}

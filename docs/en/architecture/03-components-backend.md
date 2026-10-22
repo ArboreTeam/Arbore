@@ -125,7 +125,8 @@ prove.
 |---|---|---|
 | `POST /plants` | `createPlant` | Insertion (standard auth, no additional authz). |
 | `GET /plants` | `getPlants` | Full catalog. |
-| `GET /plants/:id` | `getPlantByID` | `ObjectIDFromHex` validation. |
+| `GET /plants/:id` | `getPlantByID` | `ObjectIDFromHex` validation. A `potless` plant is served with a `pot` field: the one from `?pot=<id>`, otherwise the default pot. |
+| `GET /pots` | `getPots` | Pot library. Fetched once by the client and kept: switching pots does not go back to the server. |
 
 #### Gardens domain (`/gardens`) — open to guests since #393
 

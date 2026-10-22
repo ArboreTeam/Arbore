@@ -46,6 +46,8 @@ erDiagram
         bool   generated "3D model AI-generated"
         string upAxis "Y or Z"
         bool   hasHeavy "high-definition USDZ variant"
+        bool   potless "mesh without its pot"
+        object potBase "base the pot sits on"
         object flags "PlantFlags embedded"
         string source "optional provenance label"
         string sourceUrl "optional origin URL"
@@ -157,6 +159,8 @@ Plant catalog document. Each plant embeds its multilingual translations so that 
 | `generated` | bool (optional) | `true` if the 3D model is AI-generated (BETA badge, #84). |
 | `upAxis` | string (optional) | `"Y"` or `"Z"` — rotation applied at load time (#89). |
 | `hasHeavy` | bool (optional) | `true` if a **high-definition** USDZ variant exists (served via `?lod=heavy`). Drives the LOD swap in AR — see [`../3d-lod-architecture.md`](../3d-lod-architecture.md). |
+| `potless` | bool (optional) | `true` if the mesh **does not contain its pot** (re-cut output of the 3D workshop). Absent or `false` means the pot is part of the mesh, the historical behaviour. |
+| `potBase` | `PotBase` (optional) | Base measured by the workshop: centre, radius, rim height, in model units. Without it, no pot is served. |
 | `flags` | `PlantFlags` (optional) | Legacy flags still used by visual filters and as weak evidence. They can no longer certify suitability on their own. |
 | `botanicalProfile` | `PlantBotanicalProfile` (optional) | Canonical horticultural constraints, structured and sourced per field. When absent, the verdict can only be “Probably compatible” or “Not suitable,” never “Suitable.” |
 | `source` | string (optional) | Optional provenance label (curated catalog vs legacy/beta entries). |
@@ -266,6 +270,64 @@ Twelve historical booleans. They remain useful for search and appearance filters
 | `trailing` | Trailing. |
 | `compact` | Compact size. |
 | `airPurifying` | Air-purifying. |
+
+#### `PotBase` sub-document
+
+The base measured by the 3D workshop, where the pot sits. Every value is in
+**plant-model units**, not centimetres: the mesh is not at real-world scale.
+
+| Field | Type | Role |
+|---|---|---|
+| `x`, `y`, `z` | float | Base centre; `y` is the rim height, where the top of the pot lines up. |
+| `radius` | float | Base radius. This is what scales the pot. |
+| `groundY` | float (optional) | Soil line, for trailing-foliage anti-clipping (#185). Rarely measured so far. |
+| `plantHeight` | float (optional) | Height of the plant alone. |
+
+### `pots`
+
+Pot library, **unrestricted**: any pot goes under any plant. No per-plant
+compatibility is recorded, for want of evidence that it is needed (open question
+in #623).
+
+| Field | Type | Role |
+|---|---|---|
+| `_id` | ObjectID | Identifier served as-is to the client. |
+| `name` | string | Label. |
+| `modelURL` | string | USDZ file name, served by `GET /models/:filename` like plant models. |
+| `rimRadius` | float | Rim radius, in **pot**-model units. |
+| `height` | float | Pot height. |
+| `default` | bool | Pot served when the client asks for none. |
+
+##### How plant and pot compose, and where the maths happens
+
+A `potless` plant cannot be displayed on its own. `GET /plants/:id` therefore
+serves a `pot` field in the same payload — the one `?pot=<id>` asks for, or the
+default. A separate call would always be serial behind the plant's, since the
+client only learns afterwards that it needs a pot.
+
+The fit itself is **not** served: the pot is scaled by
+`potBase.radius / pot.rimRadius`, centred on the base, its rim aligned with
+`potBase.y`. The client has both values and does the division.
+
+That split is deliberate. Switching pots never goes back to the server: the base
+is a measurement of the plant, independent of any pot, and the library is
+fetched once and kept. The picker preview is therefore instant and a garden
+reopens offline. Re-serving the whole record — translations, botanical profile,
+images — for one division would be waste, and stating the rule on both sides
+would let it drift.
+
+The server keeps exactly one computing duty: **refusing** to serve a pot when
+the fit is meaningless — missing base, zero radius or zero rim. A visibly bare
+plant can be fixed; a pot placed at random reads as an AR bug.
+
+##### Why the re-cut model changes file name
+
+The pot-less model does not replace the old one: it lands beside it, suffixed
+`_potless`. The iOS cache is keyed by **file name** and `Documents/Models/`
+survives app updates (#294) — rewriting a file under the same name would reach
+no device that already downloaded it. And `GardenLocalStore` persists
+`modelURLString` in every saved garden: the old file must stay served, or
+already-created gardens break.
 
 ### `gardens`
 

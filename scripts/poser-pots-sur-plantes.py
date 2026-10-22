@@ -166,6 +166,12 @@ def operations(etat: dict) -> dict[str, Any]:
             "modelURL": f"{nom}{SUFFIXE_RECOUPE}.usdz",
             "potless": True,
             "potBase": base,
+            # La chaîne d'atelier ne produit qu'un LOD. Laisser `hasHeavy` à
+            # vrai ferait demander `?lod=heavy` au client, qui prendrait un 404
+            # — le heavy de l'ancien modèle porte l'ancien nom de fichier.
+            # #609 avait posé la question : à 2,37 Mo de moyenne, le light tient
+            # déjà dans la fourchette du parc, un lourd ne se justifie pas.
+            "hasHeavy": False,
         }
         hauteur = hauteur_metres(p)
         if hauteur is not None:

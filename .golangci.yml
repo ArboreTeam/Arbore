@@ -68,6 +68,9 @@ linters:
         - appareil
         - correspondant
         - continuent
+        - quarante
+        - davantage
+        - differente
         - infiniment
         - existantes
 

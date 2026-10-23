@@ -310,16 +310,28 @@ struct DebugThumbnailGeneratorView: View {
                 return
             }
 
+            // La raison du premier échec, affichée telle quelle. Sur un appareil
+            // TestFlight la console n'est pas lisible : sans ça, 271 refus
+            // ressemblent à « Failed: 271 » et la cause reste invisible.
+            var premiereRaison: String?
+
             for (index, plantID) in plantIDs.enumerated() {
                 do {
                     try await uploadThumbnail(plantID: plantID, token: token)
                     uploaded += 1
                 } catch {
                     failed += 1
+                    if premiereRaison == nil {
+                        premiereRaison = (error as? LocalizedError)?.errorDescription
+                            ?? error.localizedDescription
+                    }
                     print("❌ Upload thumbnail failed for \(plantID):", error)
                 }
 
                 generationProgress = "Uploading \(index + 1)/\(plantIDs.count)... OK: \(uploaded), Failed: \(failed)"
+                if let premiereRaison {
+                    generationProgress += "\n\(premiereRaison)"
+                }
                 try? await Task.sleep(nanoseconds: 250_000_000)
             }
 
@@ -389,11 +401,37 @@ struct DebugThumbnailGeneratorView: View {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
 
-        let (_, response) = try await Self.uploadSession.upload(for: request, fromFile: uploadFileURL)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200...299).contains(httpResponse.statusCode) else {
+        let (data, response) = try await Self.uploadSession.upload(for: request, fromFile: uploadFileURL)
+        guard let httpResponse = response as? HTTPURLResponse else {
             throw NetworkError.serverError("Upload failed for \(plantID)")
         }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw ThumbnailUploadError(plantID: plantID,
+                                       statusCode: httpResponse.statusCode,
+                                       corps: Self.messageServeur(data))
+        }
+    }
+
+    /// Message d'erreur rendu par le backend, s'il en rend un.
+    ///
+    /// `uploadPlantThumbnail` répond en JSON `{error, code}` ; on retient les
+    /// deux, le code étant le seul qui distingue un refus de rôle d'un refus de
+    /// cadence. Un corps non-JSON est tronqué plutôt que jeté : un reverse proxy
+    /// peut répondre en HTML, et la première ligne suffit à le reconnaître.
+    private nonisolated static func messageServeur(_ data: Data) -> String? {
+        guard !data.isEmpty else { return nil }
+        if let objet = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            let message = objet["error"] as? String
+            let code = objet["code"] as? String
+            switch (message, code) {
+            case let (m?, c?): return "\(m) [\(c)]"
+            case let (m?, nil): return m
+            case let (nil, c?): return c
+            default: break
+            }
+        }
+        return String(decoding: data.prefix(200), as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private nonisolated static func makeMultipartUploadFile(
@@ -471,6 +509,10 @@ struct DebugThumbnailGeneratorView: View {
     }
 
     private nonisolated static func isRetryableUploadError(_ error: Error) -> Bool {
+        if let refus = error as? ThumbnailUploadError {
+            return refus.estReessayable
+        }
+
         let nsError = error as NSError
         guard nsError.domain == NSURLErrorDomain else { return false }
 
@@ -501,6 +543,52 @@ struct DebugThumbnailGeneratorView: View {
             endpoint: "/plants",
             method: .GET
         )
+    }
+}
+
+/// Échec d'un envoi de vignette, avec de quoi le diagnostiquer sur l'appareil.
+///
+/// Le cas qui a motivé ce type : 271 refus d'affilée sur la build interne, tous
+/// des 403, invisibles parce que l'erreur ne portait que le nom de la plante.
+/// Le code HTTP est ce qui sépare « ce compte n'est pas administrateur » de
+/// « tu envoies trop vite », et les deux se corrigent différemment.
+struct ThumbnailUploadError: LocalizedError {
+    let plantID: String
+    let statusCode: Int
+    let corps: String?
+
+    var errorDescription: String? {
+        var texte = "HTTP \(statusCode) — \(plantID)"
+        if let corps, !corps.isEmpty {
+            texte += " : \(corps)"
+        }
+        if let indice = Self.indice(pour: statusCode) {
+            texte += "\n\(indice)"
+        }
+        return texte
+    }
+
+    private static func indice(pour code: Int) -> String? {
+        switch code {
+        case 401:
+            return "Jeton Firebase refusé — reconnecte-toi."
+        case 403:
+            return "Ce compte n'a pas le rôle administrateur. "
+                + "Son UID Firebase doit figurer dans ARBORE_ADMIN_UIDS côté serveur, "
+                + "ou porter la revendication admin."
+        case 413:
+            return "Vignette trop lourde pour la limite du serveur."
+        case 429:
+            return "Cadence trop élevée : l'envoi réessaie de lui-même."
+        default:
+            return nil
+        }
+    }
+
+    /// Vaut-il la peine de réessayer ? Une cadence et une panne passagère, oui ;
+    /// un refus de rôle, non — il se répéterait à l'identique 51 fois.
+    var estReessayable: Bool {
+        statusCode == 429 || (500...599).contains(statusCode)
     }
 }
 

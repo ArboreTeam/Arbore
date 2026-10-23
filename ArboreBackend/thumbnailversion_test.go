@@ -93,3 +93,37 @@ func TestFiltrePlanteParIDNeViseQuUneFiche(t *testing.T) {
 		t.Fatalf("filtre sans _id : %v", bson.M(filtre))
 	}
 }
+
+// vignettesAuCatalogue : taille du catalogue servi au 2026-10-23.
+//
+// Codée en dur à dessein. Le plafond d'envoi doit laisser passer une passe
+// complète, et c'est la seule façon de faire échouer le test le jour où
+// quelqu'un le rabaisse sans mesurer ce qu'il coupe.
+const vignettesAuCatalogue = 123
+
+func TestPlafondVignettesLaissePasserUnePasseComplete(t *testing.T) {
+	if vignettesParMinute < vignettesAuCatalogue {
+		t.Fatalf("plafond de %d par minute pour %d vignettes : une republication "+
+			"s'arreterait en route, comme avec le limiteur partage a 10/min",
+			vignettesParMinute, vignettesAuCatalogue)
+	}
+}
+
+func TestPlafondVignettesGardeUneMarge(t *testing.T) {
+	// Pile la taille du catalogue ne suffit pas : un essai repris apres un
+	// echec reseau consomme un jeton de plus, et le catalogue grandit.
+	if minimum := vignettesAuCatalogue + vignettesAuCatalogue/4; vignettesParMinute < minimum {
+		t.Fatalf("plafond de %d, attendu au moins %d pour tenir les reprises "+
+			"et la croissance du catalogue", vignettesParMinute, minimum)
+	}
+}
+
+func TestPlafondVignettesResteBorne(t *testing.T) {
+	// L'autre erreur : un plafond si haut qu'il ne borne plus rien. La route
+	// est derriere RequireAdmin(), mais chaque envoi accepte jusqu'a 8 Mo.
+	if vignettesParMinute > 1000 {
+		t.Fatalf("plafond de %d par minute : jusqu'a %d Mo la minute, ce n'est "+
+			"plus une limite", vignettesParMinute,
+			int64(vignettesParMinute)*maxThumbnailBytes/(1<<20))
+	}
+}

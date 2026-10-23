@@ -368,8 +368,19 @@ struct DebugThumbnailGeneratorView: View {
                     throw error
                 }
 
-                generationProgress = "Retry \(attempt + 1)/\(Self.uploadRetryCount): \(plantID)"
-                try await Task.sleep(nanoseconds: UInt64(attempt * 2) * 1_000_000_000)
+                // Le délai annoncé par le serveur, pas un délai deviné.
+                //
+                // Le limiteur rend un en-tête `Retry-After` qui dit exactement
+                // quand la fenêtre se réouvre. L'attente en `attempt * 2`
+                // secondes ne dépassait jamais six secondes, là où une fenêtre
+                // d'une minute en demande jusqu'à soixante : les trois essais
+                // se consommaient dans la même fenêtre fermée, et la vignette
+                // était perdue alors qu'attendre aurait suffi.
+                let attente = (error as? ThumbnailUploadError)?.attenteConseillee
+                    ?? Double(attempt * 2)
+                generationProgress = "Retry \(attempt + 1)/\(Self.uploadRetryCount) "
+                    + "dans \(Int(attente.rounded())) s : \(plantID)"
+                try await Task.sleep(nanoseconds: UInt64(attente * 1_000_000_000))
             }
         }
 
@@ -406,9 +417,11 @@ struct DebugThumbnailGeneratorView: View {
             throw NetworkError.serverError("Upload failed for \(plantID)")
         }
         guard (200...299).contains(httpResponse.statusCode) else {
+            let entete = httpResponse.value(forHTTPHeaderField: "Retry-After")
             throw ThumbnailUploadError(plantID: plantID,
                                        statusCode: httpResponse.statusCode,
-                                       corps: Self.messageServeur(data))
+                                       corps: Self.messageServeur(data),
+                                       retryAfter: entete.flatMap(Double.init))
         }
     }
 
@@ -556,6 +569,22 @@ struct ThumbnailUploadError: LocalizedError {
     let plantID: String
     let statusCode: Int
     let corps: String?
+    /// Secondes annoncées par l'en-tête `Retry-After`, quand le serveur en rend un.
+    let retryAfter: Double?
+
+    init(plantID: String, statusCode: Int, corps: String?, retryAfter: Double? = nil) {
+        self.plantID = plantID
+        self.statusCode = statusCode
+        self.corps = corps
+        self.retryAfter = retryAfter
+    }
+
+    /// Combien attendre avant de réessayer. Borné : un `Retry-After` aberrant
+    /// — ou hostile — ne doit pas figer l'envoi pendant des heures.
+    var attenteConseillee: Double? {
+        guard let retryAfter, retryAfter.isFinite, retryAfter > 0 else { return nil }
+        return min(retryAfter + 1, 90)
+    }
 
     var errorDescription: String? {
         var texte = "HTTP \(statusCode) — \(plantID)"

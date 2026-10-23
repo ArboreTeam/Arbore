@@ -68,6 +68,15 @@ const (
 	maxAIImageBytes      = 6 << 20
 	maxPlantNameRunes    = 120
 	maxBulkPlantNames    = 10
+
+	// vignettesParMinute : plafond de `POST /models/thumbnails/:plantId`.
+	//
+	// Il doit laisser passer un catalogue ENTIER en une seule passe. La route
+	// partageait le limiteur des photos de profil, à dix par minute : une
+	// republication s'arrêtait à la dixième vignette et prenait ensuite
+	// quarante-neuf refus de suite. Le plafond d'une route de lot se mesure à
+	// la taille du lot, pas à ce qu'un humain fait à la main.
+	vignettesParMinute = 200
 )
 
 // getDatabaseForRequest retourne la *mongo.Database à utiliser pour la
@@ -2250,6 +2259,19 @@ func buildRouter() *gin.Engine {
 	diagnosisMinuteLimiter := middleware.NewWindowLimiter(6, time.Minute)
 	diagnosisDailyQuota := middleware.NewTieredWindowLimiter(3, 20, 100, 24*time.Hour)
 	uploadMinuteLimiter := middleware.NewWindowLimiter(10, time.Minute)
+	// Un limiteur à part pour les vignettes, et non celui des photos de profil.
+	//
+	// Dix par minute est le bon plafond pour `/users/:uid/photo` : un humain qui
+	// change sa photo n'en envoie pas onze. Mais republier le catalogue est une
+	// opération de LOT — 123 vignettes — et le même plafond la coupait à la
+	// dixième, puis rendait 49 refus d'affilée. Partager le limiteur revenait à
+	// choisir entre affaiblir une protection destinée à tous les comptes et
+	// rendre la republication impossible.
+	//
+	// Celle-ci est déjà derrière `RequireAdmin()`, donc le plafond n'est plus là
+	// pour contenir un abus mais pour borner un emballement : de quoi passer un
+	// catalogue entier en une fois, avec de la marge, et pas davantage.
+	thumbnailUploadLimiter := middleware.NewWindowLimiter(vignettesParMinute, time.Minute)
 
 	configureCORS(router)
 
@@ -2457,7 +2479,7 @@ func buildRouter() *gin.Engine {
 	admin.Use(middleware.RequireAdmin())
 	{
 		admin.POST("/plants", createPlant)
-		admin.POST("/models/thumbnails/:plantId", middleware.MaxBodyBytes(maxThumbnailBytes+(1<<20)), uploadMinuteLimiter.Middleware(), uploadPlantThumbnail)
+		admin.POST("/models/thumbnails/:plantId", middleware.MaxBodyBytes(maxThumbnailBytes+(1<<20)), thumbnailUploadLimiter.Middleware(), uploadPlantThumbnail)
 	}
 
 	return router

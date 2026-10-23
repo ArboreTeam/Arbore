@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -1390,13 +1391,73 @@ func uploadPlantThumbnail(c *gin.Context) {
 		return
 	}
 
+	// L'empreinte se recalcule ICI, et pas plus tard.
+	//
+	// Sans elle, remplacer une vignette ne l'affiche sur aucun appareil :
+	// `PlantThumbnailCache` indexe par `versions.thumbnail` (#294), et un
+	// fichier réécrit sous le même nom ne change pas la clé de cache. C'est
+	// exactement #292, où les testeurs gardaient l'ancienne image jusqu'à
+	// réinstallation — et le quatrième contrôle que #524 réclamait avant
+	// publication. Le faire dans le handler, sur les octets qu'il vient
+	// d'écrire, est le seul endroit où on ne peut pas l'oublier.
+	empreinte, err := EmpreinteContenu(bytes.NewReader(imageBytes))
+	if err != nil {
+		// Le fichier EST écrit : on ne renvoie pas d'erreur, mais on dit que
+		// l'empreinte manque plutôt que de laisser croire au succès complet.
+		log.Printf("❌ empreinte de vignette (%s) non calculée : %v", plantID, err)
+		c.JSON(http.StatusOK, gin.H{
+			"message":        "Thumbnail uploaded, fingerprint not computed",
+			"plantId":        plantID,
+			"url":            "/models/thumbnails/" + plantID + ".png",
+			"versionUpdated": false,
+		})
+		return
+	}
+
+	versionUpdated := false
+	if filtre, ok := filtrePlanteParID(plantID); ok {
+		res, err := getDatabaseForRequest(c).Collection("plants").UpdateOne(
+			c.Request.Context(),
+			filtre,
+			bson.M{"$set": bson.M{"versions.thumbnail": empreinte}},
+		)
+		switch {
+		case err != nil:
+			log.Printf("❌ versions.thumbnail (%s) non enregistrée : %v", plantID, err)
+		case res.MatchedCount == 0:
+			log.Printf("⚠️ vignette %s écrite, mais aucune fiche ne porte cet identifiant", plantID)
+		default:
+			versionUpdated = true
+		}
+	} else {
+		log.Printf("⚠️ vignette %s écrite : identifiant non exploitable pour la mise à jour", plantID)
+	}
+
 	// URL publique plutôt que chemin disque : le client en a l'usage, et
 	// l'emplacement réel n'a plus de sens une fois le stockage abstrait.
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Thumbnail uploaded",
-		"plantId": plantID,
-		"url":     "/models/thumbnails/" + plantID + ".png",
+		"message":        "Thumbnail uploaded",
+		"plantId":        plantID,
+		"url":            "/models/thumbnails/" + plantID + ".png",
+		"version":        empreinte,
+		"versionUpdated": versionUpdated,
 	})
+}
+
+// filtrePlanteParID : filtre Mongo visant la fiche que `plantId` désigne.
+//
+// `thumbnailPlantIDRegex` accepte tout identifiant alphanumérique, pas
+// seulement un ObjectID de 24 caractères — un `_id` posé à la main en est un
+// aussi. On essaie donc l'ObjectID d'abord, et on retombe sur la chaîne brute,
+// plutôt que de refuser une fiche parfaitement valide.
+func filtrePlanteParID(plantID string) (bson.M, bool) {
+	if oid, err := primitive.ObjectIDFromHex(plantID); err == nil {
+		return bson.M{"_id": oid}, true
+	}
+	if plantID == "" {
+		return nil, false
+	}
+	return bson.M{"_id": plantID}, true
 }
 
 // ---------- GARDENS HANDLERS (NEW) ----------

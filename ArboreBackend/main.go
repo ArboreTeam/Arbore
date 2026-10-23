@@ -125,8 +125,6 @@ func maybeLabelTestDoc(dbSelector string, doc interface{}) interface{} {
 	return m
 }
 
-var thumbnailPlantIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
-
 // buildCommit est le commit git à partir duquel ce binaire a été construit. Il
 // est injecté à la compilation :
 //
@@ -1352,11 +1350,19 @@ func getUserPhoto(c *gin.Context) {
 }
 
 func uploadPlantThumbnail(c *gin.Context) {
-	plantID := strings.TrimSpace(c.Param("plantId"))
-	if !thumbnailPlantIDRegex.MatchString(plantID) {
+	oid, ok := identifiantFiche(c.Param("plantId"))
+	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plant ID"})
 		return
 	}
+	// Reconstruit depuis l'ObjectID analysé, et non repris du paramètre d'URL.
+	//
+	// C'est ce qui fait que ni le nom du fichier écrit, ni la requête Mongo, ni
+	// les traces ne portent plus une valeur venue du client : `oid` est douze
+	// octets validés, et `Hex()` les réécrit. CodeQL le relevait à raison —
+	// « Database query built from user-controlled sources » —, et la ceinture
+	// de contrôles qui suivait ne valait que tant que personne ne l'enlevait.
+	plantID := oid.Hex()
 
 	file, _, err := c.Request.FormFile("thumbnail")
 	if err != nil {
@@ -1424,22 +1430,18 @@ func uploadPlantThumbnail(c *gin.Context) {
 	}
 
 	versionUpdated := false
-	if filtre, ok := filtrePlanteParID(plantID); ok {
-		res, err := getDatabaseForRequest(c).Collection("plants").UpdateOne(
-			c.Request.Context(),
-			filtre,
-			bson.M{"$set": bson.M{"versions.thumbnail": empreinte}},
-		)
-		switch {
-		case err != nil:
-			log.Printf("❌ versions.thumbnail (%s) non enregistrée : %v", plantID, err)
-		case res.MatchedCount == 0:
-			log.Printf("⚠️ vignette %s écrite, mais aucune fiche ne porte cet identifiant", plantID)
-		default:
-			versionUpdated = true
-		}
-	} else {
-		log.Printf("⚠️ vignette %s écrite : identifiant non exploitable pour la mise à jour", plantID)
+	res, err := getDatabaseForRequest(c).Collection("plants").UpdateOne(
+		c.Request.Context(),
+		bson.M{"_id": oid},
+		bson.M{"$set": bson.M{"versions.thumbnail": empreinte}},
+	)
+	switch {
+	case err != nil:
+		log.Printf("❌ versions.thumbnail (%s) non enregistrée : %v", plantID, err)
+	case res.MatchedCount == 0:
+		log.Printf("⚠️ vignette %s écrite, mais aucune fiche ne porte cet identifiant", plantID)
+	default:
+		versionUpdated = true
 	}
 
 	// URL publique plutôt que chemin disque : le client en a l'usage, et
@@ -1453,20 +1455,25 @@ func uploadPlantThumbnail(c *gin.Context) {
 	})
 }
 
-// filtrePlanteParID : filtre Mongo visant la fiche que `plantId` désigne.
+// identifiantFiche : l'ObjectID que `plantId` désigne, ou l'échec.
 //
-// `thumbnailPlantIDRegex` accepte tout identifiant alphanumérique, pas
-// seulement un ObjectID de 24 caractères — un `_id` posé à la main en est un
-// aussi. On essaie donc l'ObjectID d'abord, et on retombe sur la chaîne brute,
-// plutôt que de refuser une fiche parfaitement valide.
-func filtrePlanteParID(plantID string) (bson.M, bool) {
-	if oid, err := primitive.ObjectIDFromHex(plantID); err == nil {
-		return bson.M{"_id": oid}, true
+// Stricte à dessein, et c'est un resserrement par rapport à l'ancien contrôle.
+//
+// J'avais d'abord accepté tout identifiant alphanumérique — `_id` posé à la
+// main compris — en me disant qu'il valait mieux ne pas refuser une fiche
+// valide. Mesuré sur le volume servi : les **123** vignettes en service portent
+// toutes un ObjectID de 24 caractères hexadécimaux, et la route n'a jamais reçu
+// autre chose. Le repli ne couvrait donc aucun cas réel, et il coûtait cher :
+// il faisait entrer une chaîne venue de l'URL dans un filtre Mongo.
+//
+// Exiger l'ObjectID rend du même coup la traversée de chemin impossible sur le
+// nom du fichier écrit, sans avoir à s'en souvenir.
+func identifiantFiche(brut string) (primitive.ObjectID, bool) {
+	oid, err := primitive.ObjectIDFromHex(strings.TrimSpace(brut))
+	if err != nil {
+		return primitive.NilObjectID, false
 	}
-	if plantID == "" {
-		return nil, false
-	}
-	return bson.M{"_id": plantID}, true
+	return oid, true
 }
 
 // ---------- GARDENS HANDLERS (NEW) ----------

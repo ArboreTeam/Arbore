@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"testing"
 
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -49,51 +48,6 @@ func TestEmpreinteVignetteStableAContenuEgal(t *testing.T) {
 	}
 }
 
-func TestFiltrePlanteParIDAccepteUnObjectID(t *testing.T) {
-	oid := primitive.NewObjectID()
-	filtre, ok := filtrePlanteParID(oid.Hex())
-	if !ok {
-		t.Fatal("un ObjectID valide doit être exploitable")
-	}
-	if got := filtre["_id"]; got != oid {
-		t.Fatalf("_id = %v (%T), attendu l'ObjectID %v", got, got, oid)
-	}
-}
-
-func TestFiltrePlanteParIDRetombeSurLaChaine(t *testing.T) {
-	// `thumbnailPlantIDRegex` accepte tout alphanumérique : un `_id` posé à la
-	// main est un identifiant valide, et le refuser perdrait l'empreinte d'une
-	// fiche parfaitement servie.
-	filtre, ok := filtrePlanteParID("monstera-maison")
-	if !ok {
-		t.Fatal("un identifiant non-ObjectID doit rester exploitable")
-	}
-	if got := filtre["_id"]; got != "monstera-maison" {
-		t.Fatalf("_id = %v, attendu la chaîne brute", got)
-	}
-}
-
-func TestFiltrePlanteParIDRefuseLeVide(t *testing.T) {
-	if filtre, ok := filtrePlanteParID(""); ok {
-		t.Fatalf("un identifiant vide ne doit pas produire de filtre, obtenu %v", filtre)
-	}
-}
-
-func TestFiltrePlanteParIDNeViseQuUneFiche(t *testing.T) {
-	// Un filtre qui ne porterait pas sur `_id` pourrait toucher plusieurs
-	// fiches : l'empreinte d'une vignette n'appartient qu'à la sienne.
-	filtre, ok := filtrePlanteParID(primitive.NewObjectID().Hex())
-	if !ok {
-		t.Fatal("filtre attendu")
-	}
-	if len(filtre) != 1 {
-		t.Fatalf("filtre à %d clés, attendu la seule clé _id : %v", len(filtre), bson.M(filtre))
-	}
-	if _, présent := filtre["_id"]; !présent {
-		t.Fatalf("filtre sans _id : %v", bson.M(filtre))
-	}
-}
-
 // vignettesAuCatalogue : taille du catalogue servi au 2026-10-23.
 //
 // Codée en dur à dessein. Le plafond d'envoi doit laisser passer une passe
@@ -125,5 +79,48 @@ func TestPlafondVignettesResteBorne(t *testing.T) {
 		t.Fatalf("plafond de %d par minute : jusqu'a %d Mo la minute, ce n'est "+
 			"plus une limite", vignettesParMinute,
 			int64(vignettesParMinute)*maxThumbnailBytes/(1<<20))
+	}
+}
+
+// identifiantFiche : le resserrement qui a suivi l'alerte CodeQL « Database
+// query built from user-controlled sources ». Accepter tout alphanumerique
+// faisait entrer une chaine venue de l'URL dans un filtre Mongo, pour couvrir
+// un cas qui n'existe pas : les 123 vignettes servies portent toutes un
+// ObjectID.
+
+func TestIdentifiantFicheAccepteUnObjectID(t *testing.T) {
+	attendu := primitive.NewObjectID()
+	oid, ok := identifiantFiche(attendu.Hex())
+	if !ok {
+		t.Fatal("un ObjectID valide doit etre accepte")
+	}
+	if oid != attendu {
+		t.Fatalf("oid = %v, attendu %v", oid, attendu)
+	}
+}
+
+func TestIdentifiantFicheToleredesEspaces(t *testing.T) {
+	attendu := primitive.NewObjectID()
+	if oid, ok := identifiantFiche("  " + attendu.Hex() + "\t"); !ok || oid != attendu {
+		t.Fatalf("espaces autour de l'identifiant : ok=%v oid=%v", ok, oid)
+	}
+}
+
+func TestIdentifiantFicheRefuseCeQuiNEstPasUnObjectID(t *testing.T) {
+	// Chaque cas refuse pour une raison differente, et les trois derniers sont
+	// ceux qui atteignaient le filtre Mongo et les traces avant ce changement.
+	for _, brut := range []string{
+		"",                          // vide
+		"monstera-maison",           // alphanumerique mais pas hexadecimal
+		"69e020341fe524cab5a67f4",   // 23 caracteres
+		"69e020341fe524cab5a67f4dd", // 25 caracteres
+		"69e020341fe524cab5a67f4z",  // caractere non hexadecimal
+		"../../etc/passwd",          // traversee de chemin
+		"a\nFAUSSE LIGNE DE LOG",    // forgerie de trace
+		`{"$ne": null}`,             // operateur Mongo
+	} {
+		if oid, ok := identifiantFiche(brut); ok {
+			t.Errorf("%q accepte a tort (oid=%v)", brut, oid)
+		}
 	}
 }

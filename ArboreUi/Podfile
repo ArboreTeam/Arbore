@@ -1,10 +1,21 @@
 # Sources CocoaPods
 source 'https://cdn.cocoapods.org/'
 
-# Platform iOS minimum
-platform :ios, '13.0'
-
-# Updated 2026-01-26: CocoaPods 1.16.2 + Xcode 16.2 + iPhone 16 Pro simulator
+# Platform iOS minimum — ALIGNÉE sur celle de l'app.
+#
+# Elle valait 13.0 alors que `project.pbxproj` dit 18.2 partout (9 cibles sur
+# 9). La contradiction est restée invisible tant que Xcode acceptait 13.0 ;
+# le SDK iOS 27.1 ne descend plus sous 15.0 et refuse d'archiver :
+#
+#     Pods.xcodeproj: error: The iOS deployment target
+#     'IPHONEOS_DEPLOYMENT_TARGET' is set to 13.0, but the range of supported
+#     deployment target versions is 15.0 to 27.1.x (in target 'Pods-ArboreUi')
+#
+# Les constructions SIMULATEUR passaient encore, parce qu'elles réutilisaient
+# une description de build mise en cache ; seule une archive propre révélait
+# le défaut. Autrement dit : ce n'est pas une régression, c'est une dette que
+# la montée de version a rendue bloquante.
+platform :ios, '18.2'
 
 use_frameworks!
 inhibit_all_warnings!
@@ -35,13 +46,19 @@ target 'ArboreUi' do
   # Aucune dépendance CocoaPods restante à ce jour.
 end
 
-# post_install minimal et sur
+# post_install : une seule chose, et la MÊME valeur que l'app.
+#
+# CocoaPods écrit sa propre cible de déploiement dans le projet Pods, sans
+# regarder celle de l'app. La forcer ici est donc nécessaire — mais la forcer
+# à une valeur INFÉRIEURE à celle de l'app n'apporte rien : aucune cible de
+# l'app ne descend sous 18.2, et plus aucun pod n'est déclaré depuis le
+# retrait de Facebook (#204). `Podfile.lock` ne liste aucune dépendance.
+DEPLOYMENT_TARGET = '18.2'
+
 post_install do |installer|
   installer.pods_project.targets.each do |t|
     t.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0'
-      # Si simulateur Apple Silicon pose souci, decommente :
-      # config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = DEPLOYMENT_TARGET
     end
   end
 end

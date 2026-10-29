@@ -324,3 +324,73 @@ final class PlantPotCompositionTests: XCTestCase {
                        "sans le drapeau, chaque lancement viderait le cache et retéléchargerait tout")
     }
 }
+
+// MARK: - Disque de terre (#623)
+//
+// Ce que ces cas protègent : l'atelier ne conserve la terre qu'à 75 % du rayon
+// alors que le pot est posé à 100 %, et un anneau de paroi nue reste visible
+// tout autour. Le disque le comble. Les deux erreurs opposées coûtent :
+// trop large, il traverse la paroi ; trop étroit, il ne masque rien.
+
+extension PlantPotCompositionTests {
+
+    private var poseDeReference: PotPlacement {
+        PotPlacement(scale: 2.4646, x: -0.02958, y: -0.20387, z: 0.02886)
+    }
+
+    func testDisqueTientDansLOuvertureDuPot() {
+        // Mesuré sur le maillage servi : paroi intérieure à 0,0554 pour un
+        // rebord extérieur à 0,0589. Le disque doit rester sous l'ouverture.
+        let rayonExterieur = 0.14456
+        guard let d = PlantPotComposer.disque(pose: poseDeReference,
+                                              rayonExterieurPose: rayonExterieur,
+                                              hauteurPose: 0.24646) else {
+            return XCTFail("disque attendu")
+        }
+        let ouverture = rayonExterieur * PlantPotComposer.partOuverture
+        XCTAssertLessThan(d.rayon, ouverture,
+                          "le disque traverserait la paroi intérieure")
+        XCTAssertGreaterThan(d.rayon, ouverture * 0.95,
+                             "trop étroit : l'anneau nu resterait visible")
+    }
+
+    func testDisqueEstEnRetraitSousLaLevre() {
+        guard let d = PlantPotComposer.disque(pose: poseDeReference,
+                                              rayonExterieurPose: 0.14456,
+                                              hauteurPose: 0.24646) else {
+            return XCTFail("disque attendu")
+        }
+        XCTAssertLessThan(d.y, poseDeReference.y,
+                          "au ras du rebord, le disque a l'air de flotter")
+        XCTAssertGreaterThan(d.y, poseDeReference.y - 0.24646 * 0.25,
+                             "trop bas, il décolle de la terre de la plante")
+    }
+
+    func testDisqueSuitLeCentreDuSocle() {
+        guard let d = PlantPotComposer.disque(pose: poseDeReference,
+                                              rayonExterieurPose: 0.14456,
+                                              hauteurPose: 0.24646) else {
+            return XCTFail("disque attendu")
+        }
+        XCTAssertEqual(d.x, poseDeReference.x, accuracy: 1e-9)
+        XCTAssertEqual(d.z, poseDeReference.z, accuracy: 1e-9)
+    }
+
+    func testPasDeDisqueSansPose() {
+        XCTAssertNil(PlantPotComposer.disque(pose: nil,
+                                             rayonExterieurPose: 0.14456,
+                                             hauteurPose: 0.24646))
+    }
+
+    func testPasDeDisqueSurDesDimensionsAberrantes() {
+        // Un maillage illisible rendrait des bornes nulles ou infinies. Mieux
+        // vaut un anneau nu qu'un disque au hasard, qu'on prendrait pour un bug.
+        for (r, h) in [(0.0, 0.24646), (0.14456, 0.0), (-1.0, 0.2),
+                       (Double.nan, 0.2), (0.14, Double.infinity)] {
+            XCTAssertNil(PlantPotComposer.disque(pose: poseDeReference,
+                                                 rayonExterieurPose: r,
+                                                 hauteurPose: h),
+                         "accepté à tort pour rayon=\(r) hauteur=\(h)")
+        }
+    }
+}

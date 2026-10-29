@@ -124,6 +124,28 @@ final class PlantThumbnailRenderer {
                                               Float(pot.pose.y) - local.max.y * e,
                                               Float(pot.pose.z)]
                         model.addChild(potEntity)
+
+                        // Disque de terre : même règle que l'AR, voir
+                        // `PlantPotComposer.disque`. Les deux moteurs diffèrent,
+                        // la règle non — sans ça les vignettes et l'AR
+                        // divergeraient sur ce que l'utilisateur voit.
+                        let rayonPose = Double(max(local.max.x, local.max.z)) * Double(e)
+                        let hauteurPose = Double(local.max.y) * Double(e)
+                        if let d = PlantPotComposer.disque(pose: pot.pose,
+                                                           rayonExterieurPose: rayonPose,
+                                                           hauteurPose: hauteurPose) {
+                            var matiere = PhysicallyBasedMaterial()
+                            matiere.baseColor = .init(tint: UIColor(red: 0.21, green: 0.15,
+                                                                    blue: 0.10, alpha: 1))
+                            matiere.roughness = 0.95
+                            matiere.metallic = 0.0
+                            let terre = ModelEntity(
+                                mesh: .generateCylinder(height: Float(d.epaisseur),
+                                                        radius: Float(d.rayon)),
+                                materials: [matiere])
+                            terre.position = [Float(d.x), Float(d.y), Float(d.z)]
+                            model.addChild(terre)
+                        }
                     } catch {
                         // Une plante nue vaut mieux qu'aucune vignette : le
                         // défaut se voit et se corrige, l'absence laisse une

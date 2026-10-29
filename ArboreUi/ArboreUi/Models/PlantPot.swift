@@ -125,6 +125,31 @@ struct PotPlacement: Equatable {
     let z: Double
 }
 
+/// Disque de terre posé au fond du pot, pour combler l'anneau de paroi nue.
+///
+/// Pourquoi il faut un disque du tout : l'atelier ne conserve la terre qu'à
+/// **75 % du rayon** (`_coeur`, « un quart de marge le garde dedans »), alors
+/// que le pot est mis à l'échelle à 100 % de `socle.rayon`. La terre fait donc
+/// les trois quarts de l'ouverture, et un anneau de paroi reste nu tout autour.
+/// Mesuré sur le maillage du pot servi : l'ouverture vaut 0,0554 pour un rebord
+/// à 0,0587, soit 94,5 % — l'anneau couvre bien un cinquième du rayon.
+///
+/// Le disque le masque sans toucher aux maillages, donc sans réexporter les
+/// 2,3 Go du catalogue. Il reste juste le jour où `socle.rayon` sera corrigé
+/// (#685) : il se dimensionne sur le pot, pas sur la plante.
+///
+/// Rayon et hauteurs sont dans le repère du modèle de la PLANTE, comme
+/// `PotPlacement` — c'est le porteur qui subit la correction Z-up.
+struct DisqueDeTerre: Equatable {
+    let rayon: Double
+    /// Hauteur de la face visible. Sous la lèvre : dans un vrai pot, la terre
+    /// est en retrait du rebord, et l'aligner dessus donne un disque qui flotte.
+    let y: Double
+    let x: Double
+    let z: Double
+    let epaisseur: Double
+}
+
 enum PlantPotComposer {
 
     /// Pose du pot : mis à l'échelle `socle.rayon / rebord.rayon`, centré sur le
@@ -142,6 +167,46 @@ enum PlantPotComposer {
             return nil
         }
         return PotPlacement(scale: base.radius / pot.rimRadius, x: base.x, y: base.y, z: base.z)
+    }
+
+    /// Part du rebord occupée par l'OUVERTURE du pot.
+    ///
+    /// `rimRadius` est le rayon EXTÉRIEUR : mesuré sur le maillage servi, la
+    /// paroi forme deux coques, l'extérieure à 0,0589 et l'intérieure à 0,0554.
+    /// Poser le disque au rayon du rebord le ferait traverser la paroi.
+    ///
+    /// Une constante tant que la bibliothèque ne compte qu'un pot. Le jour où
+    /// un second arrive, c'est une mesure à porter sur sa fiche, pas un
+    /// réglage à ajuster : 0,9445 décrit CE pot, pas une règle générale.
+    static let partOuverture = 0.9445
+
+    /// Retrait de la face de terre sous la lèvre, en part de la hauteur du pot.
+    static let retraitTerre = 0.06
+
+    /// Disque de terre à poser dans le pot, ou `nil` s'il n'a pas de sens.
+    ///
+    /// Prend les dimensions du pot **déjà mis à l'échelle**, telles que chaque
+    /// moteur les lit sur le maillage chargé, et non les champs de la fiche :
+    /// l'AR ne dispose que d'un `PersistedPot`, qui porte la pose mais ni
+    /// `rimRadius` ni `height`. Mesurer les bornes est de toute façon plus sûr
+    /// que de croire la fiche — c'est le maillage qu'on affiche.
+    ///
+    /// Rend `nil` aux mêmes conditions que `placement` : sans dimensions
+    /// utilisables, pas de disque. Mieux vaut un anneau nu qu'un disque au
+    /// hasard, qui passerait pour un défaut d'affichage.
+    static func disque(pose: PotPlacement?,
+                       rayonExterieurPose: Double,
+                       hauteurPose: Double) -> DisqueDeTerre? {
+        guard let pose,
+              rayonExterieurPose > 0, rayonExterieurPose.isFinite,
+              hauteurPose > 0, hauteurPose.isFinite else { return nil }
+        // 0,985 : une marge contre le z-fighting avec la paroi intérieure.
+        let rayon = rayonExterieurPose * partOuverture * 0.985
+        guard rayon > 0 else { return nil }
+        return DisqueDeTerre(rayon: rayon,
+                             y: pose.y - hauteurPose * retraitTerre,
+                             x: pose.x, z: pose.z,
+                             epaisseur: hauteurPose * 0.02)
     }
 
     /// Pot à afficher parmi ceux de la bibliothèque.

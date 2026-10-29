@@ -5831,6 +5831,27 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                             Float(pose.y) - potMax.y * e,
                                             Float(pose.z) - 0)
                 noeud.name = "arbore_pot"
+
+                // Disque de terre, pour combler l'anneau de paroi nue.
+                // L'atelier ne garde la terre qu'à 75 % du rayon alors que le
+                // pot est posé à 100 % : voir `DisqueDeTerre`.
+                let rayonPose = Double(max(potMax.x, potMax.z)) * Double(e)
+                let hauteurPose = Double(potMax.y) * Double(e)
+                if let d = PlantPotComposer.disque(pose: pose,
+                                                   rayonExterieurPose: rayonPose,
+                                                   hauteurPose: hauteurPose) {
+                    let terre = SCNNode(geometry: SCNCylinder(
+                        radius: CGFloat(d.rayon), height: CGFloat(d.epaisseur)))
+                    let matiere = SCNMaterial()
+                    matiere.diffuse.contents = UIColor(red: 0.21, green: 0.15,
+                                                       blue: 0.10, alpha: 1)
+                    matiere.roughness.contents = 0.95
+                    matiere.metalness.contents = 0.0
+                    terre.geometry?.materials = [matiere]
+                    terre.position = SCNVector3(Float(d.x), Float(d.y), Float(d.z))
+                    terre.name = "arbore_terre"
+                    porteur.addChildNode(terre)
+                }
                 // Attaché au porteur de la GEOMETRIE, pas au conteneur : le
                 // socle est mesuré dans le repère du modèle, et c'est le
                 // porteur qui subit la correction Z-up. Au conteneur, un modèle

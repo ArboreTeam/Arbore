@@ -15,7 +15,7 @@ final class PlantThumbnailGenerator: ObservableObject {
     var onThumbnailGenerated: (() -> Void)?
 
     func generateIfNeeded(plant: Plant, completion: @escaping (UIImage?) -> Void) {
-        if let cached = PlantThumbnailCache.load(for: plant.id) {
+        if let cached = PlantThumbnailCache.load(for: plant.id, empreinte: plant.versions?.thumbnail) {
             completion(cached)
             return
         }
@@ -30,7 +30,7 @@ final class PlantThumbnailGenerator: ObservableObject {
 
     func enqueue(plants: [Plant]) {
         print("🧩 enqueue called with:", plants.count)
-        let newOnes = plants.filter { !PlantThumbnailCache.exists(for: $0.id) }
+        let newOnes = plants.filter { !PlantThumbnailCache.exists(for: $0.id, empreinte: $0.versions?.thumbnail) }
         print("🧩 new thumbnails to render:", newOnes.count)
         for plant in newOnes where !queuedPlantIDs.contains(plant.id) {
             queuedPlantIDs.insert(plant.id)
@@ -79,7 +79,8 @@ final class PlantThumbnailGenerator: ObservableObject {
                         var cachedImage = image
                         if let image {
                             cachedImage = await Task.detached(priority: .utility) {
-                                PlantThumbnailCache.save(image, plantID: plant.id)
+                                PlantThumbnailCache.save(image, plantID: plant.id,
+                                         empreinte: plant.versions?.thumbnail)
                             }.value
                             self.onThumbnailGenerated?()
                         }

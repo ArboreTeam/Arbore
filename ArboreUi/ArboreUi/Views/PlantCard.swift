@@ -9,7 +9,8 @@ struct PlantCard: View {
     private let cardHeight: CGFloat = 220
 
     private var thumbnailURL: URL? {
-        PlantThumbnailCache.remoteURL(for: plant.id, baseURL: AppConfig.baseURL)
+        PlantThumbnailCache.remoteURL(for: plant.id, baseURL: AppConfig.baseURL,
+                                      empreinte: plant.versions?.thumbnail)
     }
 
     var body: some View {
@@ -97,7 +98,7 @@ struct PlantCard: View {
 
         // 1. Vérifie le cache disque local
         let diskImage = await Task.detached(priority: .userInitiated) {
-            PlantThumbnailCache.load(for: plant.id)
+            PlantThumbnailCache.load(for: plant.id, empreinte: plant.versions?.thumbnail)
         }.value
 
         if let img = diskImage {
@@ -183,7 +184,8 @@ struct PlantCard: View {
         // est à la fois plus court et plus honnête qu'une image posée d'avance
         // au prix d'un gel.
         let cachedImage = await Task.detached(priority: .utility) {
-            PlantThumbnailCache.save(image, plantID: plant.id)
+            PlantThumbnailCache.save(image, plantID: plant.id,
+                                     empreinte: plant.versions?.thumbnail)
         }.value
 
         await MainActor.run {

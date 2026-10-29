@@ -341,7 +341,12 @@ struct DebugThumbnailGeneratorView: View {
     }
 
     private func uploadThumbnail(plantID: String, token: String) async throws {
-        let fileURL = PlantThumbnailCache.url(for: plantID)
+        // Retrouvé par préfixe : depuis que la clé de cache peut être
+        // l'empreinte de la fiche, reconstruire le nom avec la constante
+        // globale ne trouve plus rien.
+        guard let fileURL = PlantThumbnailCache.fichierEnCache(pour: plantID) else {
+            throw NetworkError.serverError("Missing local thumbnail for \(plantID)")
+        }
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             throw NetworkError.serverError("Missing local thumbnail for \(plantID)")
         }

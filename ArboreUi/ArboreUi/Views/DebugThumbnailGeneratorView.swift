@@ -17,7 +17,6 @@ struct DebugThumbnailGeneratorView: View {
     @State private var showFileExportInfo = false
     @State private var isUploading = false
 
-    private static let uploadMaxPixelSize = 900
     private static let uploadRetryCount = 3
     private static let uploadSession: URLSession = {
         let config = URLSessionConfiguration.ephemeral
@@ -476,49 +475,10 @@ struct DebugThumbnailGeneratorView: View {
         return uploadFileURL
     }
 
+    /// Réduction déléguée à `ReductionVignette`, partagée avec la génération
+    /// hors app (#524) : les deux chemins doivent produire le même gabarit.
     private nonisolated static func optimizedPNGData(for fileURL: URL) throws -> Data {
-        try autoreleasepool {
-            let fallback = { try Data(contentsOf: fileURL) }
-            let sourceOptions: [CFString: Any] = [
-                kCGImageSourceShouldCache: false
-            ]
-
-            guard let source = CGImageSourceCreateWithURL(fileURL as CFURL, sourceOptions as CFDictionary) else {
-                return try fallback()
-            }
-
-            let thumbnailOptions: [CFString: Any] = [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceShouldCacheImmediately: true,
-                kCGImageSourceThumbnailMaxPixelSize: uploadMaxPixelSize
-            ]
-
-            guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(
-                source,
-                0,
-                thumbnailOptions as CFDictionary
-            ) else {
-                return try fallback()
-            }
-
-            let data = NSMutableData()
-            guard let destination = CGImageDestinationCreateWithData(
-                data,
-                UTType.png.identifier as CFString,
-                1,
-                nil
-            ) else {
-                return try fallback()
-            }
-
-            CGImageDestinationAddImage(destination, thumbnail, nil)
-            guard CGImageDestinationFinalize(destination) else {
-                return try fallback()
-            }
-
-            return data as Data
-        }
+        try ReductionVignette.reduire(fichier: fileURL)
     }
 
     private nonisolated static func isRetryableUploadError(_ error: Error) -> Bool {

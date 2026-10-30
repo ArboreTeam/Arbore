@@ -2,14 +2,63 @@
 
 ## Référence actuelle
 
-Audit en lecture seule de la collection de production `arbore.plants`, réalisé le 23 juillet 2026 :
+Audit de la collection de production `arbore.plants`, relevé le 9 septembre 2026 :
 
-- 124 plantes au catalogue ;
-- 0 profil `botanicalProfile` ;
-- 0 plante certifiable sur les contraintes critiques ;
-- 0 valeur vérifiée sur 1 860 valeurs possibles (124 plantes × 15 champs).
+```
+123 plantes au catalogue
+122 portent désormais un botanicalProfile
+  0 plante certifiable sur les contraintes critiques
+  0 valeur vérifiée sur 1 845 possibles
+```
 
-Le moteur doit donc afficher au mieux **Probablement compatible** tant que les profils ne sont pas renseignés. Les anciens textes et `PlantFlags` restent des indices faibles et ne permettent jamais d'afficher **Adaptée**.
+Quatre champs ont été renseignés le 9 septembre (#489) :
+
+| Champ | Couverture | Provenance |
+|---|---|---|
+| `petToxicity` | 38/123 | ASPCA, source nommée et datée |
+| `directSunHours` | 120/123 | dérivé de `sun.durationPerDay` |
+| `wateringIntervalDays` | 106/123 | dérivé de `water.frequency` |
+| `drainage` | 109/123 | dérivé de `soilAndPot.substrate` |
+
+**« 0 valeur vérifiée » reste exact, et ce n'est pas une contradiction.** L'audit
+n'accepte que `reliability: high`, réservée par ce document à une relecture par
+un horticulteur ou un botaniste — étape 5 du plan de remplissage. Aucune de ces
+valeurs n'a été relue par un humain.
+
+Le vocabulaire employé le dit :
+
+| Valeur | Signification |
+|---|---|
+| `high` | relue par un humain compétent — **aucune à ce jour** |
+| `authoritative` | source faisant autorité, collectée automatiquement (ASPCA) |
+| `authoritative-genus` | idem, mais le verdict vaut pour le genre, pas l'espèce |
+| `derived` | transcrite depuis la prose de la fiche |
+
+> ⚠️ **Une nuance à trancher.** L'étape 3 du plan demande de « compléter les
+> champs **sans déduire** une valeur absente depuis le texte ». Les trois champs
+> `derived` transcrivent un nombre explicitement écrit — « 6–8 h / jour » devient
+> `{minimum: 6, maximum: 8}` — plutôt qu'ils ne l'infèrent. La frontière est
+> mince et mérite d'être arbitrée : ces valeurs peuvent être conservées comme
+> indices, ou retirées si la règle doit être stricte.
+
+Le moteur doit donc toujours afficher au mieux **Probablement compatible**. Les
+anciens textes et `PlantFlags` restent des indices faibles et ne permettent
+jamais d'afficher **Adaptée**.
+
+## Ce que les filtres consomment déjà
+
+Indépendamment de la certification, deux filtres iOS lisent ces données :
+
+- **sécurité** (#488) — `botanicalProfile.petToxicity` d'abord, `flags.toxicToPets`
+  ensuite. Une toxicité **non établie exclut** la plante quand l'utilisateur
+  demande des plantes sûres : 39 fiches sur 123 subsistent alors ;
+- **difficulté** (#485) — `care.difficulty`, désormais renseigné sur **123/123**
+  dans les quatre langues (#512), puis `flags.easyCare`. Ici l'inconnu
+  **n'exclut pas**. Le champ est lu sous `translations.<langue>.care`, pas à la
+  racine de la fiche.
+
+Les deux règles diffèrent délibérément : masquer une plante inoffensive prive
+d'un choix, en proposer une toxique rompt une promesse.
 
 ## Lancer l'audit
 
@@ -38,6 +87,38 @@ Le rapport distingue :
 - couverture vérifiée ;
 - plante certifiable sur les champs critiques.
 
+## Outils d'enrichissement
+
+Trois scripts, à lancer dans cet ordre. Aucun n'écrit en base : ils produisent
+un fichier d'opérations que l'on relit avant de l'appliquer par `mongosh`.
+
+```sh
+# 1. Collecter la liste ASPCA (toxicité chiens / chats / chevaux)
+python3 scripts/collect-aspca-toxicity.py          # → aspca.json
+
+# 2. Rapprocher le catalogue et produire les opérations
+python3 scripts/enrich-pet-toxicity.py \
+  --aspca aspca.json --plants plants.json --out ops.json
+
+# 3. Dériver soleil, arrosage et drainage depuis la prose des fiches
+python3 scripts/derive-botanical-profile.py \
+  --plants plants.json --out derived.json
+```
+
+Le fichier de plantes attendu est un export de `GET /plants`, comme pour l'audit.
+
+**Deux règles inscrites dans ces scripts, à ne pas défaire :**
+
+Le rapprochement des noms ne retient que l'espèce exacte, ou une entrée ASPCA en
+`spp.` qui vise le genre entier. Une entrée nommant une **autre** espèce du même
+genre est écartée — `hydrangea arborescens` ne dit rien de *Hydrangea
+macrophylla*. Sans cette règle, 72 fiches recevraient un verdict emprunté.
+
+La dérivation refuse tout fragment mentionnant des centimètres : « arrose quand
+les 2 à 3 premiers centimètres sont secs » décrit une profondeur de sol, pas une
+périodicité. En tirer « tous les 2 à 3 jours » serait une erreur d'un facteur
+cinq, invisible à la relecture.
+
 ## Critères d'acceptation
 
 Une valeur vérifiée possède :
@@ -56,6 +137,6 @@ Les sept champs critiques suivis par l'audit sont : environnement intérieur/ext
 4. Attacher les preuves champ par champ, avec priorité aux bases botaniques reconnues, organismes publics et sources toxicologiques dédiées.
 5. Faire relire le lot par un horticulteur ou botaniste ; la date de cette revue devient `reviewedAt`.
 6. Relancer l'audit et n'autoriser **Adaptée** qu'après couverture critique complète.
-7. Étendre ensuite le protocole aux 124 plantes et planifier une revue périodique.
+7. Étendre ensuite le protocole aux 123 plantes et planifier une revue périodique.
 
 L'IA peut préparer des brouillons et rapprocher des sources, mais elle ne doit ni inventer une valeur ni attribuer elle-même la fiabilité `high`.

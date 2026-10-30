@@ -5,20 +5,20 @@
 Audit de la collection de production `arbore.plants`, relevé le 9 septembre 2026 :
 
 ```
-124 plantes au catalogue
-123 portent désormais un botanicalProfile
+123 plantes au catalogue
+122 portent désormais un botanicalProfile
   0 plante certifiable sur les contraintes critiques
-  0 valeur vérifiée sur 1 860 possibles
+  0 valeur vérifiée sur 1 845 possibles
 ```
 
 Quatre champs ont été renseignés le 9 septembre (#489) :
 
 | Champ | Couverture | Provenance |
 |---|---|---|
-| `petToxicity` | 38/124 | ASPCA, source nommée et datée |
-| `directSunHours` | 121/124 | dérivé de `sun.durationPerDay` |
-| `wateringIntervalDays` | 107/124 | dérivé de `water.frequency` |
-| `drainage` | 110/124 | dérivé de `soilAndPot.substrate` |
+| `petToxicity` | 38/123 | ASPCA, source nommée et datée |
+| `directSunHours` | 120/123 | dérivé de `sun.durationPerDay` |
+| `wateringIntervalDays` | 106/123 | dérivé de `water.frequency` |
+| `drainage` | 109/123 | dérivé de `soilAndPot.substrate` |
 
 **« 0 valeur vérifiée » reste exact, et ce n'est pas une contradiction.** L'audit
 n'accepte que `reliability: high`, réservée par ce document à une relecture par
@@ -51,9 +51,11 @@ Indépendamment de la certification, deux filtres iOS lisent ces données :
 
 - **sécurité** (#488) — `botanicalProfile.petToxicity` d'abord, `flags.toxicToPets`
   ensuite. Une toxicité **non établie exclut** la plante quand l'utilisateur
-  demande des plantes sûres : 40 fiches sur 124 subsistent alors ;
-- **difficulté** (#485) — `care.difficulty`, jamais renseigné à ce jour, puis
-  `flags.easyCare`. Ici l'inconnu **n'exclut pas**.
+  demande des plantes sûres : 39 fiches sur 123 subsistent alors ;
+- **difficulté** (#485) — `care.difficulty`, désormais renseigné sur **123/123**
+  dans les quatre langues (#512), puis `flags.easyCare`. Ici l'inconnu
+  **n'exclut pas**. Le champ est lu sous `translations.<langue>.care`, pas à la
+  racine de la fiche.
 
 Les deux règles diffèrent délibérément : masquer une plante inoffensive prive
 d'un choix, en proposer une toxique rompt une promesse.
@@ -135,6 +137,6 @@ Les sept champs critiques suivis par l'audit sont : environnement intérieur/ext
 4. Attacher les preuves champ par champ, avec priorité aux bases botaniques reconnues, organismes publics et sources toxicologiques dédiées.
 5. Faire relire le lot par un horticulteur ou botaniste ; la date de cette revue devient `reviewedAt`.
 6. Relancer l'audit et n'autoriser **Adaptée** qu'après couverture critique complète.
-7. Étendre ensuite le protocole aux 124 plantes et planifier une revue périodique.
+7. Étendre ensuite le protocole aux 123 plantes et planifier une revue périodique.
 
 L'IA peut préparer des brouillons et rapprocher des sources, mais elle ne doit ni inventer une valeur ni attribuer elle-même la fiabilité `high`.

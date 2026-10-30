@@ -5,20 +5,20 @@
 Audit of the production `arbore.plants` collection, taken on September 9, 2026:
 
 ```
-124 catalog plants
-123 now carry a botanicalProfile
+123 catalog plants
+122 now carry a botanicalProfile
   0 plants certifiable on critical constraints
-  0 verified values out of 1,860 possible
+  0 verified values out of 1,845 possible
 ```
 
 Four fields were populated on September 9 (#489):
 
 | Field | Coverage | Provenance |
 |---|---|---|
-| `petToxicity` | 38/124 | ASPCA, named and dated source |
-| `directSunHours` | 121/124 | derived from `sun.durationPerDay` |
-| `wateringIntervalDays` | 107/124 | derived from `water.frequency` |
-| `drainage` | 110/124 | derived from `soilAndPot.substrate` |
+| `petToxicity` | 38/123 | ASPCA, named and dated source |
+| `directSunHours` | 120/123 | derived from `sun.durationPerDay` |
+| `wateringIntervalDays` | 106/123 | derived from `water.frequency` |
+| `drainage` | 109/123 | derived from `soilAndPot.substrate` |
 
 **"0 verified values" remains exact, and that is not a contradiction.** The audit
 only accepts `reliability: high`, which this document reserves for review by a
@@ -50,9 +50,11 @@ Independently of certification, two iOS filters read this data:
 
 - **safety** (#488) — `botanicalProfile.petToxicity` first, `flags.toxicToPets`
   next. An **unestablished** toxicity **excludes** the plant when the user asks
-  for safe plants: 40 of 124 remain in that case;
-- **difficulty** (#485) — `care.difficulty`, never populated to date, then
-  `flags.easyCare`. Here the unknown **does not exclude**.
+  for safe plants: 39 of 123 remain in that case;
+- **difficulty** (#485) — `care.difficulty`, now populated on **123/123** in all
+  four languages (#512), then `flags.easyCare`. Here the unknown **does not
+  exclude**. The field is read under `translations.<language>.care`, not at the
+  root of the record.
 
 The two rules differ deliberately: hiding a harmless plant denies a choice,
 offering a toxic one breaks a promise.
@@ -133,6 +135,6 @@ The seven critical fields tracked by the audit are indoor/outdoor environment, m
 4. Attach evidence per field, prioritizing recognized botanical databases, public bodies, and dedicated toxicology sources.
 5. Have the batch reviewed by a horticulturist or botanist; that review date becomes `reviewedAt`.
 6. Rerun the audit and only allow **Suitable** after full critical coverage.
-7. Extend the protocol to all 124 plants, then schedule periodic review.
+7. Extend the protocol to all 123 plants, then schedule periodic review.
 
 AI may prepare drafts and reconcile sources, but it must never invent a value or assign itself `high` reliability.

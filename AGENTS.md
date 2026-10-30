@@ -6,20 +6,14 @@ targets backend, web, AI generation, docs, or deployment.
 
 ## Product shape
 
-- `ArboreUi/`: native iOS app using SwiftUI, ARKit, RoomPlan, SceneKit,
-  RealityKit, Firebase Auth, Google Sign-In, Sentry, and XCTest/XCUITest.
-- `ArboreBackend/`: Go 1.24 API using Gin, MongoDB Atlas, Firebase Admin, and
-  API-key protected REST endpoints.
-- `AiGenerator/`: Python FastAPI service for AI-generated plant sheets.
-- `web/`: Next.js 13 companion web app with TypeScript, Tailwind, shadcn/Radix,
-  Firebase, Sentry, and Vitest.
+Read the manifests for stack and versions (`ArboreBackend/go.mod`,
+`web/package.json`, `ArboreUi/Podfile`) — they stay current, a list here does not.
+
 - `docs/`: bilingual FR/EN technical docs. Any PR touching a documented domain
   should update both languages.
 
 ## Mobile architecture reminders
 
-- App entry point: `ArboreUi/ArboreUi/ArboreUiApp.swift`.
-- Runtime config: `ArboreUi/ArboreUi/Config/AppConfig.swift`.
 - Backend calls should go through `ArboreUi/ArboreUi/Services/NetworkManager.swift`
   so `X-API-Key`, Firebase bearer tokens, token refresh, and retry behavior stay
   consistent.
@@ -64,17 +58,8 @@ Use the matching `docs/en/...` file when updating documentation.
 
 ## Common commands
 
-Install iOS dependencies:
-
-```sh
-cd ArboreUi && pod install
-```
-
-Open iOS workspace:
-
-```sh
-open ArboreUi/ArboreUi.xcworkspace
-```
+Only the non-obvious invocations are listed here. For the rest, read the
+`Makefile` targets and `web/package.json` scripts.
 
 Build iOS for simulator without signing:
 
@@ -108,30 +93,8 @@ cd ArboreUi && xcodebuild test \
   -only-testing:ArboreUiTests/TSDFGridTests
 ```
 
-List available simulators before relying on hardcoded destinations:
-
-```sh
-xcrun simctl list devices available
-```
-
-Backend checks:
-
-```sh
-make test-backend
-```
-
-AI checks:
-
-```sh
-make test-ai
-```
-
-Web checks:
-
-```sh
-cd web && npm test
-cd web && npm run typecheck
-```
+The hardcoded simulator destinations above go stale — list what is actually
+available before relying on them.
 
 Local service startup:
 

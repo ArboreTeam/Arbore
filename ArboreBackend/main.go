@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -67,6 +68,15 @@ const (
 	maxAIImageBytes      = 6 << 20
 	maxPlantNameRunes    = 120
 	maxBulkPlantNames    = 10
+
+	// vignettesParMinute : plafond de `POST /models/thumbnails/:plantId`.
+	//
+	// Il doit laisser passer un catalogue ENTIER en une seule passe. La route
+	// partageait le limiteur des photos de profil, à dix par minute : une
+	// republication s'arrêtait à la dixième vignette et prenait ensuite
+	// quarante-neuf refus de suite. Le plafond d'une route de lot se mesure à
+	// la taille du lot, pas à ce qu'un humain fait à la main.
+	vignettesParMinute = 200
 )
 
 // getDatabaseForRequest retourne la *mongo.Database à utiliser pour la
@@ -114,8 +124,6 @@ func maybeLabelTestDoc(dbSelector string, doc interface{}) interface{} {
 	m["_createdAtUTC"] = time.Now().UTC()
 	return m
 }
-
-var thumbnailPlantIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // buildCommit est le commit git à partir duquel ce binaire a été construit. Il
 // est injecté à la compilation :
@@ -1342,11 +1350,19 @@ func getUserPhoto(c *gin.Context) {
 }
 
 func uploadPlantThumbnail(c *gin.Context) {
-	plantID := strings.TrimSpace(c.Param("plantId"))
-	if !thumbnailPlantIDRegex.MatchString(plantID) {
+	oid, ok := identifiantFiche(c.Param("plantId"))
+	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plant ID"})
 		return
 	}
+	// Reconstruit depuis l'ObjectID analysé, et non repris du paramètre d'URL.
+	//
+	// C'est ce qui fait que ni le nom du fichier écrit, ni la requête Mongo, ni
+	// les traces ne portent plus une valeur venue du client : `oid` est douze
+	// octets validés, et `Hex()` les réécrit. CodeQL le relevait à raison —
+	// « Database query built from user-controlled sources » —, et la ceinture
+	// de contrôles qui suivait ne valait que tant que personne ne l'enlevait.
+	plantID := oid.Hex()
 
 	file, _, err := c.Request.FormFile("thumbnail")
 	if err != nil {
@@ -1390,13 +1406,74 @@ func uploadPlantThumbnail(c *gin.Context) {
 		return
 	}
 
+	// L'empreinte se recalcule ICI, et pas plus tard.
+	//
+	// Sans elle, remplacer une vignette ne l'affiche sur aucun appareil :
+	// `PlantThumbnailCache` indexe par `versions.thumbnail` (#294), et un
+	// fichier réécrit sous le même nom ne change pas la clé de cache. C'est
+	// exactement #292, où les testeurs gardaient l'ancienne image jusqu'à
+	// réinstallation — et le quatrième contrôle que #524 réclamait avant
+	// publication. Le faire dans le handler, sur les octets qu'il vient
+	// d'écrire, est le seul endroit où on ne peut pas l'oublier.
+	empreinte, err := EmpreinteContenu(bytes.NewReader(imageBytes))
+	if err != nil {
+		// Le fichier EST écrit : on ne renvoie pas d'erreur, mais on dit que
+		// l'empreinte manque plutôt que de laisser croire au succès complet.
+		log.Printf("❌ empreinte de vignette (%s) non calculée : %v", plantID, err)
+		c.JSON(http.StatusOK, gin.H{
+			"message":        "Thumbnail uploaded, fingerprint not computed",
+			"plantId":        plantID,
+			"url":            "/models/thumbnails/" + plantID + ".png",
+			"versionUpdated": false,
+		})
+		return
+	}
+
+	versionUpdated := false
+	res, err := getDatabaseForRequest(c).Collection("plants").UpdateOne(
+		c.Request.Context(),
+		bson.M{"_id": oid},
+		bson.M{"$set": bson.M{"versions.thumbnail": empreinte}},
+	)
+	switch {
+	case err != nil:
+		log.Printf("❌ versions.thumbnail (%s) non enregistrée : %v", plantID, err)
+	case res.MatchedCount == 0:
+		log.Printf("⚠️ vignette %s écrite, mais aucune fiche ne porte cet identifiant", plantID)
+	default:
+		versionUpdated = true
+	}
+
 	// URL publique plutôt que chemin disque : le client en a l'usage, et
 	// l'emplacement réel n'a plus de sens une fois le stockage abstrait.
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Thumbnail uploaded",
-		"plantId": plantID,
-		"url":     "/models/thumbnails/" + plantID + ".png",
+		"message":        "Thumbnail uploaded",
+		"plantId":        plantID,
+		"url":            "/models/thumbnails/" + plantID + ".png",
+		"version":        empreinte,
+		"versionUpdated": versionUpdated,
 	})
+}
+
+// identifiantFiche : l'ObjectID que `plantId` désigne, ou l'échec.
+//
+// Stricte à dessein, et c'est un resserrement par rapport à l'ancien contrôle.
+//
+// J'avais d'abord accepté tout identifiant alphanumérique — `_id` posé à la
+// main compris — en me disant qu'il valait mieux ne pas refuser une fiche
+// valide. Mesuré sur le volume servi : les **123** vignettes en service portent
+// toutes un ObjectID de 24 caractères hexadécimaux, et la route n'a jamais reçu
+// autre chose. Le repli ne couvrait donc aucun cas réel, et il coûtait cher :
+// il faisait entrer une chaîne venue de l'URL dans un filtre Mongo.
+//
+// Exiger l'ObjectID rend du même coup la traversée de chemin impossible sur le
+// nom du fichier écrit, sans avoir à s'en souvenir.
+func identifiantFiche(brut string) (primitive.ObjectID, bool) {
+	oid, err := primitive.ObjectIDFromHex(strings.TrimSpace(brut))
+	if err != nil {
+		return primitive.NilObjectID, false
+	}
+	return oid, true
 }
 
 // ---------- GARDENS HANDLERS (NEW) ----------
@@ -2189,6 +2266,19 @@ func buildRouter() *gin.Engine {
 	diagnosisMinuteLimiter := middleware.NewWindowLimiter(6, time.Minute)
 	diagnosisDailyQuota := middleware.NewTieredWindowLimiter(3, 20, 100, 24*time.Hour)
 	uploadMinuteLimiter := middleware.NewWindowLimiter(10, time.Minute)
+	// Un limiteur à part pour les vignettes, et non celui des photos de profil.
+	//
+	// Dix par minute est le bon plafond pour `/users/:uid/photo` : un humain qui
+	// change sa photo n'en envoie pas onze. Mais republier le catalogue est une
+	// opération de LOT — 123 vignettes — et le même plafond la coupait à la
+	// dixième, puis rendait 49 refus d'affilée. Partager le limiteur revenait à
+	// choisir entre affaiblir une protection destinée à tous les comptes et
+	// rendre la republication impossible.
+	//
+	// Celle-ci est déjà derrière `RequireAdmin()`, donc le plafond n'est plus là
+	// pour contenir un abus mais pour borner un emballement : de quoi passer un
+	// catalogue entier en une fois, avec de la marge, et pas davantage.
+	thumbnailUploadLimiter := middleware.NewWindowLimiter(vignettesParMinute, time.Minute)
 
 	configureCORS(router)
 
@@ -2396,7 +2486,7 @@ func buildRouter() *gin.Engine {
 	admin.Use(middleware.RequireAdmin())
 	{
 		admin.POST("/plants", createPlant)
-		admin.POST("/models/thumbnails/:plantId", middleware.MaxBodyBytes(maxThumbnailBytes+(1<<20)), uploadMinuteLimiter.Middleware(), uploadPlantThumbnail)
+		admin.POST("/models/thumbnails/:plantId", middleware.MaxBodyBytes(maxThumbnailBytes+(1<<20)), thumbnailUploadLimiter.Middleware(), uploadPlantThumbnail)
 	}
 
 	return router

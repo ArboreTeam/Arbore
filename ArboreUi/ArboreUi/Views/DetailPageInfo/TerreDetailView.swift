@@ -37,8 +37,7 @@ struct TerreDetailView: View {
                         mesurerPotCTA
                     } else {
                         SoilSectionCard(
-                            icon: "leaf.fill",
-                            iconColor: Color(hex: "#4ADE80"),
+                            icon: "icon3d_soil",
                             title: NSLocalizedString("SOILDETAIL_INFO_UNAVAILABLE_TITLE", comment: "")
                         ) {
                             Text(NSLocalizedString("SOILDETAIL_INFO_UNAVAILABLE_BODY", comment: ""))
@@ -103,9 +102,7 @@ struct TerreDetailView: View {
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .fill(Color.white.opacity(0.10))
                             .frame(width: 64, height: 64)
-                        Image(systemName: "leaf.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(Color(hex: "#FACC15"))
+                        Icon3D(name: "icon3d_soil", size: 38)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -163,8 +160,7 @@ struct TerreDetailView: View {
 
     private func substrateSection(soil: SoilAndPotInfo) -> some View {
         SoilSectionCard(
-            icon: "leaf.fill",
-            iconColor: Color(hex: "#4ADE80"),
+            icon: "icon3d_substrate",
             title: NSLocalizedString("SOILDETAIL_SECTION_SUBSTRATE_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 10) {
@@ -195,8 +191,7 @@ struct TerreDetailView: View {
 
     private func potSection(soil: SoilAndPotInfo) -> some View {
         SoilSectionCard(
-            icon: "tray.fill",
-            iconColor: Color(hex: "#22C55E"),
+            icon: "icon3d_soil",
             title: NSLocalizedString("SOILDETAIL_SECTION_POT_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -227,8 +222,7 @@ struct TerreDetailView: View {
 
     private func repotSection(soil: SoilAndPotInfo) -> some View {
         SoilSectionCard(
-            icon: "arrow.triangle.2.circlepath",
-            iconColor: Color(hex: "#EAB308"),
+            icon: "icon3d_repot",
             title: NSLocalizedString("SOILDETAIL_SECTION_REPOT_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -259,8 +253,7 @@ struct TerreDetailView: View {
 
     private var outilsUtilesSection: some View {
         SoilSectionCard(
-            icon: "wrench.and.screwdriver.fill",
-            iconColor: Color(hex: "#38BDF8"),
+            icon: "icon3d_tools",
             title: NSLocalizedString("SOILDETAIL_TOOLS_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -315,13 +308,11 @@ private struct SoilSectionCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let icon: String
-    let iconColor: Color
     let title: String
     let content: Content
 
-    init(icon: String, iconColor: Color, title: String, @ViewBuilder content: () -> Content) {
+    init(icon: String, title: String, @ViewBuilder content: () -> Content) {
         self.icon = icon
-        self.iconColor = iconColor
         self.title = title
         self.content = content()
     }
@@ -339,14 +330,8 @@ private struct SoilSectionCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(iconColor.opacity(0.18))
-                        .frame(width: 40, height: 40)
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(iconColor)
-                }
+                Icon3D(name: icon, size: 30)
+                    .frame(width: 40, height: 40)
 
                 Text(title)
                     .font(.system(size: 18, weight: .semibold))

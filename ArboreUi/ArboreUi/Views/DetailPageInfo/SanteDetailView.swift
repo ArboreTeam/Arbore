@@ -30,7 +30,7 @@ struct SanteDetailView: View {
                         scanSanteCTA
                     } else {
                         HealthSectionCard(
-                            icon: "cross.case.fill", iconColor: Color(hex: "#F97316"),
+                            icon: "icon3d_health",
                             title: NSLocalizedString("HEALTHDETAIL_INFO_UNAVAILABLE_TITLE", comment: "")
                         ) {
                             Text(NSLocalizedString("HEALTHDETAIL_INFO_UNAVAILABLE_BODY", comment: ""))
@@ -70,7 +70,7 @@ struct SanteDetailView: View {
                 HStack(alignment: .center, spacing: 14) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.white.opacity(0.10)).frame(width: 64, height: 64)
-                        Image(systemName: "cross.case.fill").font(.system(size: 30)).foregroundColor(Color(hex: "#F97316"))
+                        Icon3D(name: "icon3d_health", size: 38)
                     }
                     VStack(alignment: .leading, spacing: 4) {
                         Text(NSLocalizedString("HEALTHDETAIL_HEADER_TITLE", comment: "")).font(.system(size: 24, weight: .bold)).foregroundColor(.white)
@@ -102,7 +102,7 @@ struct SanteDetailView: View {
     // SECTIONS
     private func hasProblemInfo(health: HealthInfo) -> Bool { (health.commonProblems?.count ?? 0) > 0 || (health.symptomsAndCauses?.count ?? 0) > 0 }
     private func problemsSection(health: HealthInfo) -> some View {
-        HealthSectionCard(icon: "exclamationmark.triangle.fill", iconColor: Color(hex: "#F97316"), title: NSLocalizedString("HEALTHDETAIL_SECTION_PROBLEMS_TITLE", comment: "")) {
+        HealthSectionCard(icon: "icon3d_warning", title: NSLocalizedString("HEALTHDETAIL_SECTION_PROBLEMS_TITLE", comment: "")) {
             VStack(alignment: .leading, spacing: 12) {
                 if let problems = health.commonProblems {
                     VStack(alignment: .leading, spacing: 6) {
@@ -122,7 +122,7 @@ struct SanteDetailView: View {
 
     private func hasPestInfo(health: HealthInfo) -> Bool { (health.pests?.count ?? 0) > 0 || (health.treatments?.count ?? 0) > 0 }
     private func pestsSection(health: HealthInfo) -> some View {
-        HealthSectionCard(icon: "ant.fill", iconColor: Color(hex: "#22C55E"), title: NSLocalizedString("HEALTHDETAIL_SECTION_PESTS_TITLE", comment: "")) {
+        HealthSectionCard(icon: "icon3d_pest", title: NSLocalizedString("HEALTHDETAIL_SECTION_PESTS_TITLE", comment: "")) {
             VStack(alignment: .leading, spacing: 12) {
                 if let pests = health.pests {
                     VStack(alignment: .leading, spacing: 6) {
@@ -142,13 +142,13 @@ struct SanteDetailView: View {
 
     private func hasPreventionInfo(health: HealthInfo) -> Bool { (health.prevention?.count ?? 0) > 0 }
     private func preventionSection(health: HealthInfo) -> some View {
-        HealthSectionCard(icon: "shield.lefthalf.filled", iconColor: Color(hex: "#22C55E"), title: NSLocalizedString("HEALTHDETAIL_SECTION_PREVENTION_TITLE", comment: "")) {
+        HealthSectionCard(icon: "icon3d_shield", title: NSLocalizedString("HEALTHDETAIL_SECTION_PREVENTION_TITLE", comment: "")) {
             if let prevention = health.prevention { ForEach(prevention, id: \.self) { HealthBulletRow(text: $0) } }
         }
     }
 
     private var outilsUtilesSection: some View {
-        HealthSectionCard(icon: "wrench.and.screwdriver.fill", iconColor: Color(hex: "#38BDF8"), title: NSLocalizedString("HEALTHDETAIL_TOOLS_TITLE", comment: "")) {
+        HealthSectionCard(icon: "icon3d_tools", title: NSLocalizedString("HEALTHDETAIL_TOOLS_TITLE", comment: "")) {
             VStack(alignment: .leading, spacing: 12) {
                 HealthToolRow(systemIcon: "magnifyingglass", title: NSLocalizedString("HEALTHDETAIL_TOOLS_MAGNIFIER_TITLE", comment: ""), subtitle: NSLocalizedString("HEALTHDETAIL_TOOLS_MAGNIFIER_SUBTITLE", comment: ""))
                 HealthToolRow(systemIcon: "camera.viewfinder", title: NSLocalizedString("HEALTHDETAIL_TOOLS_PHOTOS_TITLE", comment: ""), subtitle: NSLocalizedString("HEALTHDETAIL_TOOLS_PHOTOS_SUBTITLE", comment: ""))
@@ -172,12 +172,12 @@ struct SanteDetailView: View {
 // MARK: - Subviews
 private struct HealthSectionCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
-    let icon: String; let iconColor: Color; let title: String; let content: Content
-    init(icon: String, iconColor: Color, title: String, @ViewBuilder content: () -> Content) { self.icon = icon; self.iconColor = iconColor; self.title = title; self.content = content() }
+    let icon: String; let title: String; let content: Content
+    init(icon: String, title: String, @ViewBuilder content: () -> Content) { self.icon = icon; self.title = title; self.content = content() }
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
-                ZStack { Circle().fill(iconColor.opacity(0.18)).frame(width: 40, height: 40); Image(systemName: icon).font(.system(size: 18, weight: .semibold)).foregroundColor(iconColor) }
+                Icon3D(name: icon, size: 30).frame(width: 40, height: 40)
                 Text(title).font(.system(size: 18, weight: .semibold)).foregroundColor(colorScheme == .dark ? .white : .black); Spacer()
             }
             content

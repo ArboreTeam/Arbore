@@ -36,8 +36,7 @@ struct EauDetailView: View {
                     } else {
                         // Aucune donnée → message neutre + outils génériques
                         WaterSectionCard(
-                            icon: "drop.fill",
-                            iconColor: Color(hex: "#38BDF8"),
+                            icon: "icon3d_water",
                             title: NSLocalizedString("WATERDETAIL_INFO_UNAVAILABLE_TITLE", comment: "")
                         ) {
                             Text(NSLocalizedString("WATERDETAIL_INFO_UNAVAILABLE_BODY", comment: ""))
@@ -98,9 +97,7 @@ struct EauDetailView: View {
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .fill(Color.white.opacity(0.10))
                             .frame(width: 64, height: 64)
-                        Image(systemName: "drop.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(Color(hex: "#38BDF8"))
+                        Icon3D(name: "icon3d_water", size: 38)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -154,8 +151,7 @@ struct EauDetailView: View {
 
     private func arrosageSection(water: WaterInfo) -> some View {
         WaterSectionCard(
-            icon: "drop.fill",
-            iconColor: Color(hex: "#38BDF8"),
+            icon: "icon3d_water",
             title: NSLocalizedString("WATERDETAIL_WATERING_SECTION_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -229,8 +225,7 @@ struct EauDetailView: View {
 
     private func humiditySection(water: WaterInfo) -> some View {
         WaterSectionCard(
-            icon: "humidity.fill",
-            iconColor: Color(hex: "#22C55E"),
+            icon: "icon3d_humidity",
             title: NSLocalizedString("WATERDETAIL_HUMIDITY_SECTION_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 10) {
@@ -261,8 +256,7 @@ struct EauDetailView: View {
 
     private func signsSection(water: WaterInfo) -> some View {
         WaterSectionCard(
-            icon: "exclamationmark.triangle.fill",
-            iconColor: Color(hex: "#F97316"),
+            icon: "icon3d_warning",
             title: NSLocalizedString("WATERDETAIL_SIGNS_SECTION_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -291,8 +285,7 @@ struct EauDetailView: View {
 
     private var outilsUtilesSection: some View {
         WaterSectionCard(
-            icon: "wrench.and.screwdriver.fill",
-            iconColor: Color(hex: "#38BDF8"),
+            icon: "icon3d_tools",
             title: NSLocalizedString("WATERDETAIL_TOOLS_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -354,13 +347,11 @@ private struct WaterSectionCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let icon: String
-    let iconColor: Color
     let title: String
     let content: Content
 
-    init(icon: String, iconColor: Color, title: String, @ViewBuilder content: () -> Content) {
+    init(icon: String, title: String, @ViewBuilder content: () -> Content) {
         self.icon = icon
-        self.iconColor = iconColor
         self.title = title
         self.content = content()
     }
@@ -378,14 +369,8 @@ private struct WaterSectionCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(iconColor.opacity(0.18))
-                        .frame(width: 40, height: 40)
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(iconColor)
-                }
+                Icon3D(name: icon, size: 30)
+                    .frame(width: 40, height: 40)
 
                 Text(title)
                     .font(.system(size: 18, weight: .semibold))

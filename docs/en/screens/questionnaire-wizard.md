@@ -2,9 +2,9 @@
 
 ## Purpose
 
-This screen guides the user through the **complete creation of a garden**: aesthetic and functional profile (style, space, exposure, maintenance, safety, soil), choice of the scan method **that creates the garden in the database**, then AI-assisted plant selection. On exit, the user is routed to the AR placement view.
+This screen guides the user through the **complete creation of a garden**: aesthetic and functional profile (space, style, exposure, maintenance, safety, soil), choice of the scan method **that creates the garden in the database**, then AI-assisted plant selection. On exit, the user is routed to the AR placement view.
 
-Implemented in `Views/GardenSteps/QuestionnaireView.swift`. Made up of 8 to 9 steps (depending on the choices), carried by a non-paginable `TabView` whose selection is governed by the `GardenWizardStep` enum. **Intentionally reversed order**: the `scanMethod` step first opens the AR tracing view, which creates the garden in the database with its boundary, **before** handing control back to the wizard for the **final** `aiSuggestion` step. There is **no** "summary" step.
+Implemented in `Views/GardenSteps/QuestionnaireView.swift`. Made up of 7 to 8 steps (depending on the choices), carried by a non-paginable `TabView` whose selection is governed by the `GardenWizardStep` enum. **Intentionally reversed order**: the `scanMethod` step first opens the AR tracing view, which creates the garden in the database with its boundary, **before** handing control back to the wizard for the **final** `aiSuggestion` step. There is **no** "summary" step.
 
 ## Entry points
 
@@ -20,7 +20,7 @@ Implemented in `Views/GardenSteps/QuestionnaireView.swift`. Made up of 8 to 9 st
 | Tap **"Start tracing"** on the `scanMethod` step, `scanMethod == gardenPerimeter` | `fullScreenCover` to `ARViewContainerMeasure` (non-LiDAR perimeter tracing) → `POST /gardens` at the end of tracing → back to the wizard on `aiSuggestion`. |
 | Tap **"Scan the room"** on the `scanMethod` step, `scanMethod == roomScan` | `fullScreenCover` to `LiDARScanWizardView` (RoomPlan) → `POST /gardens` → back to the wizard on `aiSuggestion`. |
 | Tap **"Place my plants in AR"** on the final `aiSuggestion` step | `fullScreenCover` to `GardenARPlacementView` (plant placement, `PUT /gardens/:id`). |
-| Tap **"Back"** on the first step (intro) or **X (close)** | `dismiss()` — back to the Home. No confirmation as long as the garden has not been created. |
+| Tap **"Back"** on the first step (`spaceType`) or **X (close)** | `dismiss()` — back to the Home. No confirmation as long as the garden has not been created. |
 
 ## Screen-level flow
 
@@ -28,19 +28,18 @@ The full flow is documented in [`../flows/garden-creation.md`](../flows/garden-c
 
 ```mermaid
 flowchart TB
-    intro[1 intro]
-    style_step[2 style]
-    spaceType[3 spaceType]
-    exposure[4 exposure]
-    maintenance[5 maintenance]
-    safety[6 safety]
-    soil[7 soil — conditional]
-    scan[8 scanMethod]
-    ai[9 aiSuggestion — final]
+    spaceType[1 spaceType]
+    style_step[2 style — multiple choice]
+    exposure[3 exposure]
+    maintenance[4 maintenance]
+    safety[5 safety]
+    soil[6 soil — conditional]
+    scan[7 scanMethod]
+    ai[8 aiSuggestion — final]
     placement[AR placement<br/>fullScreenCover GardenARPlacementView]
 
-    intro --> style_step --> spaceType
-    spaceType --> exposure --> maintenance --> safety
+    spaceType --> style_step
+    style_step --> exposure --> maintenance --> safety
     safety -->|spaceType garden| soil --> scan
     safety -->|otherwise| scan
     scan -->|AR tracing + POST /gardens| ai
@@ -48,7 +47,7 @@ flowchart TB
 
     classDef step fill:#1168BD,stroke:#0B4884,color:#fff
     classDef cond fill:#2E7D32,stroke:#1B5E20,color:#fff
-    class intro,style_step,spaceType,exposure,maintenance,safety,scan,ai,placement step
+    class style_step,spaceType,exposure,maintenance,safety,scan,ai,placement step
     class soil cond
 ```
 
@@ -63,15 +62,19 @@ Progress bar. Displays the current step (`currentIndex + 1`) and the total numbe
 | Button | Style | Action |
 |---|---|---|
 | **"Continue"** | Primary | `goToNext()` — increments `currentIndex`. Disabled as long as the step has not received a valid answer. |
-| **"Back"** | Secondary | `goToPrevious()` — decrements `currentIndex`. Disabled on the `intro` step. |
+| **"Back"** | Secondary | `goToPrevious()` — decrements `currentIndex`. On the first step, closes the wizard (`dismiss()`). |
 
 The `PrimaryWizardButtonStyle` / `SecondaryWizardButtonStyle` styles are shared across all steps.
 
 ### `ImprovedSelectableCard`
 
-Selectable card used on most steps (style, spaceType, exposure, maintenance, scanMethod). System icon, title, subtitle, gradient; border + check when `isSelected`.
+Selectable card used on most steps (spaceType, exposure, maintenance, scanMethod). System icon, title, subtitle, gradient; border + check when `isSelected`.
 
-### `ScanMethodStepView` (step 8) — garden creation
+### `StyleStepView` (step 2) — multiple choice
+
+Grid of `StyleCard`. Several styles can be selected; tapping a selected card deselects it; "No preference" excludes the other styles (`GardenWizardState.toggleStyle(_:)`). "Continue" is disabled while `state.styles` is empty. Styles locked by the remote config (#236) stay unselectable. The selection is sent joined in `wizard.style` (`state.styleValue`).
+
+### `ScanMethodStepView` (step 7) — garden creation
 
 Choice of the scan method, **the step that creates the garden**:
 
@@ -80,7 +83,7 @@ Choice of the scan method, **the step that creates the garden**:
 
 When the scan/tracing starts, the corresponding AR view opens; at the end of tracing, `POST /gardens` creates the document with its boundary, then the wizard returns to `aiSuggestion`.
 
-### `AISuggestionStepView` (step 9, final)
+### `AISuggestionStepView` (step 8, final)
 
 Displays the plants recommended by `GardenSuggestionEngine` according to the profile. Primary button **"Place my plants in AR"** → opens `GardenARPlacementView` (placement, `PUT /gardens/:id`).
 
@@ -90,7 +93,7 @@ After the scan, the wizard can add an approximate location and call `POST /clima
 
 | Situation | Behavior |
 |---|---|
-| "Back" all the way to `intro` | The "Back" button disables; exit via the X. |
+| "Back" on `spaceType` | Closes the wizard, like the X. |
 | `spaceType` changed backward | `visibleSteps` recomputed: going from `garden` to `indoor` removes `soil`. An `onChange(of: visibleSteps)` repositions the current step if it disappears. |
 | Backend down during tracing (`scanMethod`) | `POST /gardens` throws a `NetworkError`; inline message "Unable to create the garden. Try again." and a retry is possible. |
 | LiDAR selected but not supported | Should not happen (card grayed out). Otherwise `LiDARScanWizardView` displays "3D scan unavailable" and offers to return to the choice. |
@@ -108,7 +111,7 @@ After the scan, the wizard can add an approximate location and call `POST /clima
 
 ### Shared states and services
 
-- `GardenWizardState` (`@StateObject`) — lives for the duration of the wizard; stores the selections (style, spaceType, exposure, maintenance, safety, soil, scanMethod) and the scan data (`measuredBoundaryPoints`, `measuredArea`, `measuredPerimeter`).
+- `GardenWizardState` (`@StateObject`) — lives for the duration of the wizard; stores the selections (spaceType, styles, exposure, maintenance, safety, soil, scanMethod) and the scan data (`measuredBoundaryPoints`, `measuredArea`, `measuredPerimeter`).
 - `GardenSuggestionEngine` — filters/suggests the plants suited to the profile for `aiSuggestion`.
 - `TabRouter` (`@EnvironmentObject`) — redirect to the Home after creation.
 - `NetworkManager.shared` — backend calls.

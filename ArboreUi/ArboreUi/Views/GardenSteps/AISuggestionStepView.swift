@@ -75,56 +75,7 @@ struct AISuggestionStepView: View {
         VStack(spacing: 28) {
             Spacer()
 
-            // Animated plant icon
-            ZStack {
-                // Outer glow
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                Color.gardenAccent.opacity(0.3),
-                                Color.gardenAccent.opacity(0.0)
-                            ],
-                            center: .center,
-                            startRadius: 30,
-                            endRadius: 80
-                        )
-                    )
-                    .frame(width: 160, height: 160)
-
-                // Rotating ring
-                Circle()
-                    .trim(from: 0, to: 0.7)
-                    .stroke(
-                        AngularGradient(
-                            colors: [Color.gardenPrimary, Color.gardenAccent, Color.gardenPrimary],
-                            center: .center
-                        ),
-                        style: StrokeStyle(lineWidth: 3, lineCap: .round)
-                    )
-                    .frame(width: 100, height: 100)
-                    .rotationEffect(.degrees(isGenerating ? 360 : 0))
-                    .animation(
-                        .linear(duration: 1.5).repeatForever(autoreverses: false),
-                        value: isGenerating
-                    )
-
-                // Center icon
-                Image(systemName: "leaf.fill")
-                    .font(.system(size: 36, weight: .medium))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Color.gardenPrimary, Color.gardenAccent],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .scaleEffect(isGenerating ? 1.1 : 0.9)
-                    .animation(
-                        .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
-                        value: isGenerating
-                    )
-            }
+            AnalyzingLoader()
 
             VStack(spacing: 10) {
                 Text(L10n.t("AI_SUGGESTION_LOADING_TITLE"))
@@ -317,21 +268,9 @@ struct AISuggestionStepView: View {
                 .buttonStyle(SecondaryWizardButtonStyle())
         }
         .padding(.horizontal, 24)
-        .padding(.top, 12)
-        .padding(.bottom, 32)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color.gardenBackground.opacity(0.0),
-                    Color.gardenBackground.opacity(0.9),
-                    Color.gardenBackground
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 180)
-            .ignoresSafeArea(edges: .bottom)
-        )
+        .padding(.top, 16)
+        .padding(.bottom, 20)
+        .background(WizardEdgeBlur(edge: .bottom))
     }
 
     // MARK: - Actions
@@ -345,7 +284,7 @@ struct AISuggestionStepView: View {
 
         // Build the wizard DTO from current state
         let dto = GardenSiteProfileResolver.wizardByPersistingResolvedProfile(GardenWizardDTO(
-            style: state.style?.rawValue ?? "",
+            style: state.styleValue,
             spaceType: state.spaceType?.rawValue ?? "",
             exposure: state.exposure?.rawValue,
             maintenance: state.maintenance?.rawValue,
@@ -607,5 +546,75 @@ struct PlantCategoryBadge: View {
             Capsule()
                 .fill(Color.gardenPrimary.opacity(0.1))
         )
+    }
+}
+
+// MARK: - Analyzing Loader
+
+/// Loader de l'analyse IA, piloté par le temps. L'ancienne version animait
+/// sur `isGenerating`, qui vaut `true` dès l'apparition et ne change pas
+/// pendant l'affichage : aucune animation ne se déclenchait.
+private struct AnalyzingLoader: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(paused: reduceMotion)) { context in
+            let t = reduceMotion ? 0 : context.date.timeIntervalSinceReferenceDate
+            // 0…1 sur 1,6 s : rythme commun du halo, de l'arc et de la feuille.
+            let pulse = (sin(t * 2 * .pi / 1.6) + 1) / 2
+
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.gardenAccent.opacity(0.35), Color.gardenAccent.opacity(0)],
+                            center: .center,
+                            startRadius: 30,
+                            endRadius: 80
+                        )
+                    )
+                    .scaleEffect(0.88 + 0.16 * pulse)
+                    .opacity(0.55 + 0.45 * pulse)
+
+                Circle()
+                    .stroke(Color.gardenAccent.opacity(0.18), lineWidth: 3)
+                    .frame(width: 100, height: 100)
+
+                Circle()
+                    .trim(from: 0, to: 0.25 + 0.4 * pulse)
+                    .stroke(
+                        AngularGradient(
+                            colors: [Color.gardenPrimary, Color.gardenAccent, Color.gardenPrimary],
+                            center: .center
+                        ),
+                        style: StrokeStyle(lineWidth: 3.5, lineCap: .round)
+                    )
+                    .frame(width: 100, height: 100)
+                    .rotationEffect(.radians(t * 2 * .pi / 1.2))
+
+                ForEach(0..<3, id: \.self) { index in
+                    Circle()
+                        .fill(Color.gardenAccent)
+                        .frame(width: 7, height: 7)
+                        .offset(y: -68)
+                        .rotationEffect(.radians(-t * 2 * .pi / 3.2 + Double(index) * 2 * .pi / 3))
+                        .opacity(0.45 + 0.55 * pulse)
+                }
+
+                Image(systemName: "leaf.fill")
+                    .font(.system(size: 36, weight: .medium))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Color.gardenPrimary, Color.gardenAccent],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .scaleEffect(0.92 + 0.16 * pulse)
+                    .rotationEffect(.degrees(-7 + 14 * pulse), anchor: .bottom)
+            }
+            .frame(width: 160, height: 160)
+        }
+        .accessibilityHidden(true)
     }
 }

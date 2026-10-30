@@ -163,35 +163,35 @@ struct ProfileView: View {
             settingsSection(
                 title: NSLocalizedString("PROFILE_ACCOUNT_TITLE", comment: ""),
                 items: [
-                    SettingRowItem(icon: "person.crop.circle", label: NSLocalizedString("PROFILE_PERSONAL_DETAILS", comment: ""), destination: PersonalDetailsView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.primaryGreen),
-                    SettingRowItem(icon: "key", label: NSLocalizedString("PROFILE_CHANGE_PASSWORD", comment: ""), destination: ChangePasswordView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.accentGold),
-                    SettingRowItem(icon: "lock.shield", label: NSLocalizedString("PROFILE_PRIVACY_POLICY", comment: ""), destination: PrivacyPolicyView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.secondaryGreen),
-                    SettingRowItem(icon: "doc.text", label: NSLocalizedString("PROFILE_TERMS", comment: ""), destination: TermsConditionsView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.primaryGreen),
-                    SettingRowItem(icon: "square.and.arrow.down", label: NSLocalizedString("PROFILE_DOWNLOAD_DATA", comment: "Download My Data"), destination: DataExportView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.success),
-                    SettingRowItem(icon: "trash", label: NSLocalizedString("PROFILE_CLOSE_ACCOUNT", comment: ""), destination: CloseAccountView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.danger)
+                    SettingRowItem(icon: "icon3d_person", label: NSLocalizedString("PROFILE_PERSONAL_DETAILS", comment: ""), destination: PersonalDetailsView().environmentObject(themeManager)),
+                    SettingRowItem(icon: "icon3d_key", label: NSLocalizedString("PROFILE_CHANGE_PASSWORD", comment: ""), destination: ChangePasswordView().environmentObject(themeManager)),
+                    SettingRowItem(icon: "icon3d_lock", label: NSLocalizedString("PROFILE_PRIVACY_POLICY", comment: ""), destination: PrivacyPolicyView().environmentObject(themeManager)),
+                    SettingRowItem(icon: "icon3d_document", label: NSLocalizedString("PROFILE_TERMS", comment: ""), destination: TermsConditionsView().environmentObject(themeManager)),
+                    SettingRowItem(icon: "icon3d_download", label: NSLocalizedString("PROFILE_DOWNLOAD_DATA", comment: "Download My Data"), destination: DataExportView().environmentObject(themeManager)),
+                    SettingRowItem(icon: "icon3d_trash", label: NSLocalizedString("PROFILE_CLOSE_ACCOUNT", comment: ""), destination: CloseAccountView().environmentObject(themeManager))
                 ]
             )
 
             settingsSection(
                 title: NSLocalizedString("PROFILE_PRIVACY_SECTION", comment: ""),
                 items: [
-                    SettingRowItem(icon: "eye.slash", label: NSLocalizedString("PROFILE_PRIVACY_SETTINGS", comment: ""), destination: PrivacySettingsView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.primaryGreen)
+                    SettingRowItem(icon: "icon3d_shield", label: NSLocalizedString("PROFILE_PRIVACY_SETTINGS", comment: ""), destination: PrivacySettingsView().environmentObject(themeManager))
                 ]
             )
 
             settingsSection(
                 title: NSLocalizedString("PROFILE_SETTINGS_SECTION", comment: ""),
                 items: [
-                    SettingRowItem(icon: "bell.badge", label: NSLocalizedString("PROFILE_NOTIFICATIONS", comment: ""), destination: NotificationsView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.accentGold),
-                    SettingRowItem(icon: "paintbrush", label: NSLocalizedString("PROFILE_APPEARANCE", comment: ""), destination: AppearanceView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.secondaryGreen)
+                    SettingRowItem(icon: "icon3d_bell", label: NSLocalizedString("PROFILE_NOTIFICATIONS", comment: ""), destination: NotificationsView().environmentObject(themeManager)),
+                    SettingRowItem(icon: "icon3d_palette", label: NSLocalizedString("PROFILE_APPEARANCE", comment: ""), destination: AppearanceView().environmentObject(themeManager))
                 ]
             )
 
             settingsSection(
                 title: NSLocalizedString("PROFILE_APP_INFO", comment: ""),
                 items: [
-                    SettingRowItem(icon: "figure.walk", label: NSLocalizedString("PROFILE_ACCESSIBILITY", comment: ""), destination: AccessibilityView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.success),
-                    SettingRowItem(icon: "info.circle", label: NSLocalizedString("PROFILE_ABOUT", comment: ""), destination: AboutUsView().environmentObject(themeManager), iconColor: ArboreDesign.Colors.textSecondary)
+                    SettingRowItem(icon: "icon3d_accessibility", label: NSLocalizedString("PROFILE_ACCESSIBILITY", comment: ""), destination: AccessibilityView().environmentObject(themeManager)),
+                    SettingRowItem(icon: "icon3d_info", label: NSLocalizedString("PROFILE_ABOUT", comment: ""), destination: AboutUsView().environmentObject(themeManager))
                 ]
             )
 
@@ -230,11 +230,7 @@ struct ProfileView: View {
             VStack(spacing: ArboreDesign.Spacing.xs) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
                     Button(action: { selectedDestination = DestinationItem(view: item.destination) }) {
-                        SettingsRow(
-                            systemImage: item.icon,
-                            title: item.label,
-                            tint: item.iconColor
-                        )
+                        SettingsRow(icon3D: item.icon, title: item.label)
                     }
                     .buttonStyle(.plain)
                 }

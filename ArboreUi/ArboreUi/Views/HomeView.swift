@@ -244,25 +244,45 @@ private extension HomeView {
 
 // MARK: - Empty state
 private extension HomeView {
+    /// Vert de marque en clair ; en sombre, le vert foncé manque de
+    /// contraste sur le fond, on passe au vert sauge.
+    static let emptyStateAccent = ArboreDesign.Colors.dynamic(
+        light: UIColor(hex: "#234632"),
+        dark: UIColor(hex: "#8FAF8A")
+    )
+
     var emptyState: some View {
-        AppCard {
-            HStack(spacing: ArboreDesign.Spacing.md) {
-                SettingsIconBadge(systemImage: "leaf", tint: ArboreDesign.Colors.primaryGreen, size: 44)
+        VStack(spacing: ArboreDesign.Spacing.sm) {
+            Image("home_empty_garden")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 210)
+                .padding(.bottom, ArboreDesign.Spacing.sm)
+                .accessibilityHidden(true)
 
-                VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
-                    Text(L10n.t("HOME_EMPTY_TITLE"))
-                        .font(ArboreDesign.Typography.cardTitle)
-                        .foregroundColor(ArboreDesign.Colors.textPrimary)
+            Text(L10n.t("HOME_EMPTY_TITLE"))
+                .font(.system(size: 26, weight: .bold, design: .rounded))
+                .foregroundColor(Self.emptyStateAccent)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
-                    Text(L10n.t("HOME_EMPTY_SUBTITLE"))
-                        .font(ArboreDesign.Typography.bodySmall)
-                        .foregroundColor(ArboreDesign.Colors.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+            Text(L10n.t("HOME_EMPTY_SUBTITLE"))
+                .font(ArboreDesign.Typography.bodySmall)
+                .foregroundColor(ArboreDesign.Colors.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
 
-                Spacer(minLength: 0)
-            }
+            // Police manuscrite fournie par iOS : rien à embarquer, et
+            // repli automatique sur la police système si elle manquait.
+            Text("\(L10n.t("HOME_EMPTY_TAGLINE")) \(Text(Image(systemName: "leaf.fill")).foregroundStyle(ArboreDesign.Colors.secondaryGreen))")
+                .font(.custom("BradleyHandITCTT-Bold", size: 19, relativeTo: .body))
+                .foregroundColor(Self.emptyStateAccent)
+                .padding(.top, ArboreDesign.Spacing.sm)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, ArboreDesign.Spacing.lg)
+        .padding(.vertical, ArboreDesign.Spacing.md)
     }
 }
 

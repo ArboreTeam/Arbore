@@ -30,8 +30,7 @@ struct CycleDeVieView: View {
                         planifierCycleCTA
                     } else {
                         LifecycleSectionCard(
-                            icon: "calendar",
-                            iconColor: Color(hex: "#F97316"),
+                            icon: "icon3d_lifecycle",
                             title: NSLocalizedString("LIFECYCLEDETAIL_INFO_UNAVAILABLE_TITLE", comment: "")
                         ) {
                             Text(NSLocalizedString("LIFECYCLEDETAIL_INFO_UNAVAILABLE_BODY", comment: ""))
@@ -104,9 +103,7 @@ struct CycleDeVieView: View {
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .fill(Color.white.opacity(0.10))
                             .frame(width: 64, height: 64)
-                        Image(systemName: "calendar")
-                            .font(.system(size: 30))
-                            .foregroundColor(Color(hex: "#FACC15"))
+                        Icon3D(name: "icon3d_lifecycle", size: 38)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -160,8 +157,7 @@ struct CycleDeVieView: View {
 
     private func phasesSection(lifecycle: LifeCycleInfo) -> some View {
         LifecycleSectionCard(
-            icon: "clock.arrow.circlepath",
-            iconColor: Color(hex: "#FACC15"),
+            icon: "icon3d_calendar",
             title: NSLocalizedString("LIFECYCLEDETAIL_SECTION_PHASES_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -225,8 +221,7 @@ struct CycleDeVieView: View {
 
     private func careSection(lifecycle: LifeCycleInfo) -> some View {
         LifecycleSectionCard(
-            icon: "leaf.circle.fill",
-            iconColor: Color(hex: "#22C55E"),
+            icon: "icon3d_growth",
             title: NSLocalizedString("LIFECYCLEDETAIL_SECTION_CARE_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -250,8 +245,7 @@ struct CycleDeVieView: View {
 
     private var outilsUtilesSection: some View {
         LifecycleSectionCard(
-            icon: "wrench.and.screwdriver.fill",
-            iconColor: Color(hex: "#38BDF8"),
+            icon: "icon3d_tools",
             title: NSLocalizedString("LIFECYCLEDETAIL_TOOLS_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -306,13 +300,11 @@ private struct LifecycleSectionCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let icon: String
-    let iconColor: Color
     let title: String
     let content: Content
 
-    init(icon: String, iconColor: Color, title: String, @ViewBuilder content: () -> Content) {
+    init(icon: String, title: String, @ViewBuilder content: () -> Content) {
         self.icon = icon
-        self.iconColor = iconColor
         self.title = title
         self.content = content()
     }
@@ -330,14 +322,8 @@ private struct LifecycleSectionCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(iconColor.opacity(0.18))
-                        .frame(width: 40, height: 40)
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(iconColor)
-                }
+                Icon3D(name: icon, size: 30)
+                    .frame(width: 40, height: 40)
 
                 Text(title)
                     .font(.system(size: 18, weight: .semibold))

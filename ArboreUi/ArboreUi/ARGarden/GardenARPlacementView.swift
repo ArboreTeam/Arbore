@@ -725,12 +725,31 @@ struct GardenARPlacementView: View {
         }
     }
 
+    /// Les outils d'édition d'une plante (barre du bas et suppression en
+    /// haut) s'affichent dans les mêmes conditions que le dock.
+    private var showsPlantEditTools: Bool {
+        hasSelectedNode && !relocationPhase.isManualReplacement && !isRelocating
+    }
+
     private var topBar: some View {
         HStack(spacing: 10) {
             Button { dismiss() } label: {
                 Image(systemName: "arrow.left").modifier(GlassButtonStyle())
             }
             .buttonStyle(.plain)
+
+            // En haut à gauche, loin du pouce droit : supprimer une plante
+            // doit rester un geste délibéré.
+            if showsPlantEditTools {
+                Button {
+                    NotificationCenter.default.post(name: .gardenARDelete, object: nil)
+                } label: {
+                    Image(systemName: "trash").modifier(GlassButtonStyle(isDestructive: true))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.t("COMMON_DELETE"))
+                .transition(.scale.combined(with: .opacity))
+            }
 
             Spacer()
 
@@ -753,6 +772,7 @@ struct GardenARPlacementView: View {
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
+        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: showsPlantEditTools)
     }
 
     private var undoRedoControl: some View {
@@ -1018,35 +1038,13 @@ struct GardenARPlacementView: View {
             .disabled(isCapturingSharePhoto)
             .accessibilityLabel(L10n.t("AR_CAPTURE_GARDEN_PHOTO_ACCESSIBILITY"))
 
-            Button {
-                wakePlacementDock()
-                showPicker = true
-            } label: {
-                ZStack {
-                    RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
-                        .fill(ArboreDesign.Colors.primaryGreen)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
-                                .stroke(.white.opacity(0.16), lineWidth: 1)
-                        )
-
-                    if isDownloadingModel {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        Image(systemName: "plus")
-                            .font(.system(size: 26, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                }
-                .frame(width: 54, height: 48)
-            }
-            .disabled(isDownloadingModel)
-            .buttonStyle(.plain)
-            .accessibilityLabel(L10n.t("COMMON_ADD"))
+            addPlantButton(width: 54, height: 48)
         }
     }
 
+    /// La suppression est remontée dans la barre du haut. Le + remplace
+    /// l'ancienne croix : il quitte l'édition et ouvre le catalogue. La
+    /// rotation, geste le plus fréquent, est en bout de barre, sous le pouce.
     private var editDockContent: some View {
         HStack(spacing: 8) {
             Text(selectedNodeName ?? L10n.t("AR_EDIT_SELECTED_PLANT"))
@@ -1058,32 +1056,62 @@ struct GardenARPlacementView: View {
                 .padding(.leading, 4)
 
             HStack(spacing: 6) {
-                arDockIconButton(systemImage: "xmark", size: 44) {
-                    NotificationCenter.default.post(name: .gardenARDeselect, object: nil)
-                }
-                .accessibilityLabel(L10n.t("AR_EDIT_EXIT"))
-
-                editToolButton(systemImage: "rotate.right", size: 44) {
-                    NotificationCenter.default.post(name: .gardenARRotate, object: nil)
-                }
-                .accessibilityLabel(L10n.t("AR_EDIT_ROTATE"))
-
-                editToolButton(systemImage: "plus.magnifyingglass", size: 44) {
-                    NotificationCenter.default.post(name: .gardenARScaleUp, object: nil)
-                }
-                .accessibilityLabel(L10n.t("AR_EDIT_SCALE_UP"))
+                addPlantButton(width: 50, height: 44)
 
                 editToolButton(systemImage: "minus.magnifyingglass", size: 44) {
                     NotificationCenter.default.post(name: .gardenARScaleDown, object: nil)
                 }
                 .accessibilityLabel(L10n.t("AR_EDIT_SCALE_DOWN"))
 
-                editToolButton(systemImage: "trash", isDestructive: true, size: 44) {
-                    NotificationCenter.default.post(name: .gardenARDelete, object: nil)
+                editToolButton(systemImage: "plus.magnifyingglass", size: 44) {
+                    NotificationCenter.default.post(name: .gardenARScaleUp, object: nil)
                 }
-                .accessibilityLabel(L10n.t("COMMON_DELETE"))
+                .accessibilityLabel(L10n.t("AR_EDIT_SCALE_UP"))
+
+                editToolButton(systemImage: "rotate.right", size: 44) {
+                    NotificationCenter.default.post(name: .gardenARRotate, object: nil)
+                }
+                .accessibilityLabel(L10n.t("AR_EDIT_ROTATE"))
             }
         }
+    }
+
+    private func addPlantButton(width: CGFloat, height: CGFloat) -> some View {
+        Button {
+            openPlantPicker()
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                    .fill(ArboreDesign.Colors.primaryGreen)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
+                            .stroke(.white.opacity(0.16), lineWidth: 1)
+                    )
+
+                if isDownloadingModel {
+                    ProgressView()
+                        .tint(.white)
+                } else {
+                    Image(systemName: "plus")
+                        .font(.system(size: height > 44 ? 26 : 22, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            }
+            .frame(width: width, height: height)
+        }
+        .disabled(isDownloadingModel)
+        .buttonStyle(.plain)
+        .accessibilityLabel(L10n.t("COMMON_ADD"))
+    }
+
+    /// Depuis la barre d'édition, le + sert aussi de sortie : la plante est
+    /// désélectionnée avant l'ouverture du catalogue.
+    private func openPlantPicker() {
+        if hasSelectedNode {
+            NotificationCenter.default.post(name: .gardenARDeselect, object: nil)
+        }
+        wakePlacementDock()
+        showPicker = true
     }
 
     private var dockBackground: some View {
@@ -1131,20 +1159,19 @@ struct GardenARPlacementView: View {
 
     private func editToolButton(
         systemImage: String,
-        isDestructive: Bool = false,
         size: CGFloat = 48,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(isDestructive ? .white : ArboreDesign.Colors.textPrimary)
+                .foregroundStyle(ArboreDesign.Colors.textPrimary)
                 .frame(width: size, height: size)
-                .background(isDestructive ? ArboreDesign.Colors.danger : ArboreDesign.Colors.softSurface.opacity(0.78))
+                .background(ArboreDesign.Colors.softSurface.opacity(0.78))
                 .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
-                        .stroke(isDestructive ? .white.opacity(0.14) : ArboreDesign.Colors.border.opacity(0.85), lineWidth: 1)
+                        .stroke(ArboreDesign.Colors.border.opacity(0.85), lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
@@ -2046,7 +2073,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 let placementMode: ARPlacementMode?
                 let surfaceAnchor: PersistedSurfaceAnchor?
                 let instanceId: UUID  // anchor.identifier — used so the loaded node can find its anchor
-                let autoSelect: Bool  // false for batch placements (AI auto-place) to avoid orange-halo flicker
+                let autoSelect: Bool  // false for batch placements (AI auto-place) to avoid selection-halo flicker
                 var hasHeavy: Bool = false  // LOD: si true, on charge la version lourde en fond puis on swap
             }
 
@@ -4782,7 +4809,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
 
                 // Adjusting phase (Issue #111) — reticle-centric selection.
                 // The user aims a plant at the screen-center reticle and taps:
-                //  - reticle on a plant  → select it (orange outline)
+                //  - reticle on a plant  → select it (green outline)
                 //  - reticle on a surface, plant already selected → teleport
                 //    the selected plant to the reticle's world position
                 //  - reticle on empty   → deselect
@@ -5158,7 +5185,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     // flag. Catalogue taps pass true (default) so the
                     // bottom dock switches to edit mode (rotate / scale +- / delete)
                     // immediately. Batch placements (AI auto-place,
-                    // morph-confirm) pass false to avoid the orange-halo
+                    // morph-confirm) pass false to avoid the selection-halo
                     // flicker as we loop through plants. Restore is also
                     // skipped — autoSelect is meaningless during reload.
                     if !pending.isRestore && pending.autoSelect {
@@ -5804,10 +5831,13 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             // so the "lag at first selection" is gone.
             private static let outlineHaloName = "outline_halo"
             private static let outlineDefaultColor = UIColor(red: 0.36, green: 0.75, blue: 1.0, alpha: 1.0)
-            private static let outlineSelectedColor = UIColor(red: 1.0, green: 0.62, blue: 0.10, alpha: 1.0)
+            // Vert vif saturé (#2EE85A) : la plante choisie ressort nettement
+            // sur l'image caméra, quel que soit le sol derrière.
+            private static let outlineSelectedColor = UIColor(red: 0.18, green: 0.91, blue: 0.35, alpha: 1.0)
             private static let outlineDefaultOpacity: CGFloat = 0.5
             private static let outlineSelectedOpacity: CGFloat = 0.75
-            private static let outlineHaloScale: Float = 1.04
+            // Épaisseur du trait : la coque dépasse le modèle de 2,5 %.
+            private static let outlineHaloScale: Float = 1.025
             private static let outlineRenderingOrder: Int = 100
 
             // Surface classification (Issue #113) — a plant whose Y is more than
@@ -5891,7 +5921,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 selectedNode = node
                 parentProps?.hasSelectedNode = true
                 parentProps?.selectedNodeName = plantName(of: node) ?? "Plante"
-                applyOutline(to: node, color: Self.outlineSelectedColor, opacity: 0.7)
+                applyOutline(to: node, color: Self.outlineSelectedColor, opacity: Self.outlineSelectedOpacity)
             }
 
             func deselectAll() {
@@ -5997,14 +6027,24 @@ func floatArrayToMatrix(_ a: [Float]) -> simd_float4x4? {
 
 struct GlassButtonStyle: ViewModifier {
     var isGreen: Bool = false
+    var isDestructive: Bool = false
+
+    private var isFilled: Bool { isGreen || isDestructive }
+
+    private var fill: Color {
+        if isDestructive { return ArboreDesign.Colors.danger }
+        if isGreen { return ArboreDesign.Colors.primaryGreen }
+        return ArboreDesign.Colors.card.opacity(0.72)
+    }
+
     func body(content: Content) -> some View {
         content
             .font(.system(size: 17, weight: .bold))
-            .foregroundColor(isGreen ? .white : ArboreDesign.Colors.textPrimary)
+            .foregroundColor(isFilled ? .white : ArboreDesign.Colors.textPrimary)
             .frame(width: 42, height: 42)
             .background(
                 RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
-                    .fill(isGreen ? ArboreDesign.Colors.primaryGreen : ArboreDesign.Colors.card.opacity(0.72))
+                    .fill(fill)
                     .background(
                         RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
                             .fill(.ultraThinMaterial)
@@ -6013,7 +6053,7 @@ struct GlassButtonStyle: ViewModifier {
             .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: ArboreDesign.Radius.button, style: .continuous)
-                    .stroke(isGreen ? .white.opacity(0.16) : ArboreDesign.Colors.border.opacity(0.82), lineWidth: 1)
+                    .stroke(isFilled ? .white.opacity(0.16) : ArboreDesign.Colors.border.opacity(0.82), lineWidth: 1)
             )
             .shadow(color: Color.black.opacity(0.16), radius: 10, x: 0, y: 4)
     }

@@ -832,7 +832,7 @@ struct GardenDetailsPage: View {
                     VStack(spacing: ArboreDesign.Spacing.md) {
                         ForEach(Array(dueCareItems.prefix(5))) { item in
                             CareTaskCard(
-                                systemImage: item.icon,
+                                icon: item.icon,
                                 title: item.title,
                                 subtitle: item.subtitle,
                                 detail: statusText(for: item.date).text,
@@ -895,7 +895,7 @@ struct GardenDetailsPage: View {
                         VStack(spacing: ArboreDesign.Spacing.sm) {
                             ForEach(Array(upcomingCareItems.prefix(5))) { item in
                                 CareUpcomingRow(
-                                    systemImage: item.icon,
+                                    icon: item.icon,
                                     plantName: item.plantName,
                                     title: item.title,
                                     subtitle: item.subtitle,
@@ -975,7 +975,7 @@ struct GardenDetailsPage: View {
                 title: L10n.t("ROUTINE_ACTION_WATERING"),
                 subtitle: wateringSubtitle(for: routine),
                 date: routine.nextWateringDate,
-                icon: "drop.fill",
+                icon: "icon3d_water",
                 tint: Color(hex: "#3A93B8"),
                 completionTitle: L10n.t("CARE_WATERED_DONE")
             )
@@ -989,7 +989,7 @@ struct GardenDetailsPage: View {
                 title: routine.title,
                 subtitle: careRoutineSubtitle(for: routine),
                 date: routine.nextCareDate,
-                icon: routine.kind.icon,
+                icon: routine.kind.illustration,
                 tint: Color(hex: routine.kind.tintHex),
                 completionTitle: routine.kind.completionLabel
             )
@@ -2235,30 +2235,23 @@ private struct GardenMeasurementPromptCard: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [
-                    Color(hex: "#172019"),
-                    Color(hex: "#0D120F")
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            ArboreDesign.Colors.card
 
             GridPattern(spacing: 42)
-                .stroke(Color.white.opacity(0.055), lineWidth: 1)
+                .stroke(ArboreDesign.Colors.border.opacity(0.7), lineWidth: 1)
 
             VStack(spacing: ArboreDesign.Spacing.lg) {
-                SettingsIconBadge(systemImage: "ruler.fill", tint: ArboreDesign.Colors.primaryGreen, size: 56)
+                Icon3D(name: "icon3d_triangular_ruler", size: 56)
 
                 VStack(spacing: ArboreDesign.Spacing.xs) {
                     Text(L10n.t("GARDEN_MEASURE_SPACE_TITLE"))
                         .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                        .foregroundColor(ArboreDesign.Colors.textPrimary)
                         .multilineTextAlignment(.center)
 
                     Text(L10n.t("GARDEN_MEASURE_SPACE_SUBTITLE"))
                         .font(ArboreDesign.Typography.bodySmall)
-                        .foregroundColor(Color.white.opacity(0.72))
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
                         .multilineTextAlignment(.center)
                         .lineSpacing(2)
                         .padding(.horizontal, ArboreDesign.Spacing.lg)
@@ -2738,26 +2731,26 @@ private struct GardenStatsGrid: View {
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: ArboreDesign.Spacing.sm) {
-            GardenDarkStatCard(
-                systemImage: "square.dashed",
+            GardenStatCard(
+                icon: "icon3d_triangular_ruler",
                 title: L10n.t("GARDEN_STAT_SURFACE"),
                 value: area > 0 ? "\(String(format: "%.2f", area)) m²" : "—"
             )
 
-            GardenDarkStatCard(
-                systemImage: "arrow.triangle.turn.up.right.diamond",
+            GardenStatCard(
+                icon: "icon3d_ruler",
                 title: L10n.t("GARDEN_STAT_PERIMETER"),
                 value: perimeter > 0 ? "\(String(format: "%.2f", perimeter)) m" : "—"
             )
 
-            GardenDarkStatCard(
-                systemImage: "leaf.fill",
+            GardenStatCard(
+                icon: "icon3d_soil",
                 title: L10n.t("SHOP_CATEGORY_PLANTS"),
                 value: "\(plantCount)"
             )
 
-            GardenDarkStatCard(
-                systemImage: "checklist",
+            GardenStatCard(
+                icon: "icon3d_clipboard",
                 title: L10n.t("GARDEN_STAT_TODO"),
                 value: "\(taskCount)"
             )
@@ -2765,29 +2758,30 @@ private struct GardenStatsGrid: View {
     }
 }
 
-private struct GardenDarkStatCard: View {
-    let systemImage: String
+/// Carte de statistique du jardin. Couleurs du thème : le dégradé noir
+/// fixe d'origine restait sombre en mode clair.
+private struct GardenStatCard: View {
+    /// Image dans `Icons3D`.
+    let icon: String
     let title: String
     let value: String
 
     var body: some View {
         HStack(spacing: ArboreDesign.Spacing.sm) {
-            Image(systemName: systemImage)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(ArboreDesign.Colors.primaryGreenDark)
+            Icon3D(name: icon, size: 24)
                 .frame(width: 34, height: 34)
-                .background(Color.white.opacity(0.08))
+                .background(ArboreDesign.Colors.softSurface)
                 .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(Color.white.opacity(0.62))
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
                     .lineLimit(1)
 
                 Text(value)
                     .font(.system(size: 17, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
@@ -2796,22 +2790,13 @@ private struct GardenDarkStatCard: View {
         }
         .padding(ArboreDesign.Spacing.md)
         .frame(minHeight: 72)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(hex: "#20231F"),
-                    Color(hex: "#171A16")
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
+        .background(ArboreDesign.Colors.card)
         .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: ArboreDesign.Radius.large, style: .continuous)
-                .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                .stroke(ArboreDesign.Colors.border, lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.14), radius: 10, x: 0, y: 5)
+        .shadow(color: ArboreDesign.Colors.shadow, radius: 10, x: 0, y: 4)
     }
 }
 
@@ -2857,6 +2842,7 @@ private struct GardenCareScheduleItem: Identifiable {
     let title: String
     let subtitle: String
     let date: Date
+    /// Image dans `Icons3D`.
     let icon: String
     let tint: Color
     let completionTitle: String
@@ -3043,9 +3029,7 @@ private struct CareCalendarAgendaRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: ArboreDesign.Spacing.sm) {
-            Image(systemName: item.icon)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundColor(item.tint)
+            Icon3D(name: item.icon, size: 20)
                 .frame(width: 32, height: 32)
                 .background(item.tint.opacity(0.12))
                 .clipShape(Circle())
@@ -3104,7 +3088,8 @@ private struct CareCalendarAgendaRow: View {
 }
 
 private struct CareTaskCard: View {
-    let systemImage: String
+    /// Image dans `Icons3D`.
+    let icon: String
     let title: String
     let subtitle: String
     let detail: String
@@ -3116,7 +3101,8 @@ private struct CareTaskCard: View {
     var body: some View {
         AppCard {
             HStack(alignment: .top, spacing: ArboreDesign.Spacing.md) {
-                SettingsIconBadge(systemImage: systemImage, tint: tint, size: 44)
+                Icon3D(name: icon, size: 36)
+                    .frame(width: 44, height: 44)
 
                 VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
                     HStack(alignment: .firstTextBaseline, spacing: ArboreDesign.Spacing.sm) {
@@ -3185,7 +3171,8 @@ private struct CareEmptyRoutineCard: View {
         AppCard {
             VStack(alignment: .leading, spacing: ArboreDesign.Spacing.md) {
                 HStack(alignment: .top, spacing: ArboreDesign.Spacing.md) {
-                    SettingsIconBadge(systemImage: "calendar.badge.plus", tint: ArboreDesign.Colors.primaryGreen, size: 44)
+                    Icon3D(name: "icon3d_calendar", size: 40)
+                        .frame(width: 44, height: 44)
 
                     VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
                         Text(L10n.t("CARE_NO_ACTIVE_ROUTINE"))
@@ -3288,7 +3275,8 @@ private struct CareWeekTimeline: View {
 }
 
 private struct CareUpcomingRow: View {
-    let systemImage: String
+    /// Image dans `Icons3D`.
+    let icon: String
     let plantName: String
     let title: String
     let subtitle: String
@@ -3297,9 +3285,7 @@ private struct CareUpcomingRow: View {
 
     var body: some View {
         HStack(spacing: ArboreDesign.Spacing.sm) {
-            Image(systemName: systemImage)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(tint)
+            Icon3D(name: icon, size: 22)
                 .frame(width: 34, height: 34)
                 .background(tint.opacity(0.12))
                 .clipShape(Circle())
@@ -3419,7 +3405,8 @@ private struct CareRecommendationCard: View {
     var body: some View {
         AppCard {
             HStack(alignment: .top, spacing: ArboreDesign.Spacing.md) {
-                SettingsIconBadge(systemImage: "sparkles", tint: ArboreDesign.Colors.accentGold, size: 44)
+                Icon3D(name: "icon3d_essentials", size: 40)
+                    .frame(width: 44, height: 44)
 
                 VStack(alignment: .leading, spacing: ArboreDesign.Spacing.xs) {
                     Text(L10n.t("CARE_TIP_OF_DAY"))
@@ -3685,7 +3672,15 @@ struct GardenPlanInteractiveMap: View {
     @State private var lastScale: CGFloat = 80.0
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
-    
+
+    /// On ne dézoome pas au-delà de « tout le jardin visible » : plus loin,
+    /// il devenait un point perdu dans la texture.
+    private static let minZoomFactor: CGFloat = 0.85
+    private static let maxZoomFactor: CGFloat = 8
+    /// Sans bouton de recentrage, le glissement garde toujours au moins
+    /// cette part du jardin à l'écran.
+    private static let minVisibleContent: CGFloat = 60
+
     var body: some View {
         GeometryReader { geo in
             ZStack {
@@ -3831,9 +3826,8 @@ struct GardenPlanInteractiveMap: View {
                     HStack {
                         Spacer()
                         VStack(spacing: 8) {
-                            Button(action: { withAnimation { fitContent(geo: geo) } }) { IconBtn(icon: "arrow.up.left.and.arrow.down.right") }
-                            Button(action: { withAnimation { scale *= 1.2 } }) { IconBtn(icon: "plus.magnifyingglass") }
-                            Button(action: { withAnimation { scale /= 1.2 } }) { IconBtn(icon: "minus.magnifyingglass") }
+                            Button(action: { withAnimation { zoom(to: scale * 1.2, in: geo.size) } }) { IconBtn(icon: "plus.magnifyingglass") }
+                            Button(action: { withAnimation { zoom(to: scale / 1.2, in: geo.size) } }) { IconBtn(icon: "minus.magnifyingglass") }
                         }
                         .padding()
                     }
@@ -3841,8 +3835,20 @@ struct GardenPlanInteractiveMap: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.image, style: .continuous))
             .contentShape(Rectangle())
-            .gesture(DragGesture().onChanged { val in offset = CGSize(width: lastOffset.width + val.translation.width, height: lastOffset.height + val.translation.height) }.onEnded { _ in lastOffset = offset })
-            .gesture(MagnificationGesture().onChanged { val in scale = lastScale * val }.onEnded { _ in lastScale = scale })
+            .gesture(DragGesture().onChanged { val in
+                let proposed = CGSize(
+                    width: lastOffset.width + val.translation.width,
+                    height: lastOffset.height + val.translation.height
+                )
+                offset = clampedOffset(proposed, scale: scale, in: geo.size)
+            }.onEnded { _ in lastOffset = offset })
+            .gesture(MagnificationGesture().onChanged { val in
+                zoom(to: lastScale * val, in: geo.size)
+            }.onEnded { _ in lastScale = scale })
+            .onAppear { fitContent(geo: geo) }
+            .onChange(of: viewModel.boundaryPoints.count) { _, _ in
+                withAnimation { fitContent(geo: geo) }
+            }
             .onChange(of: viewModel.displayPlants.count) { _, _ in
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     withAnimation { fitContent(geo: geo) }
@@ -3898,49 +3904,62 @@ struct GardenPlanInteractiveMap: View {
         }
     }
     
+    /// Emprise des plantes et du contour, en mètres, autour du centroïde.
+    private var contentBounds: (minX: CGFloat, maxX: CGFloat, minZ: CGFloat, maxZ: CGFloat)? {
+        let xs = viewModel.displayPlants.map { CGFloat($0.data.position[0]) }
+            + viewModel.boundaryPoints.map { CGFloat($0[0]) }
+        let zs = viewModel.displayPlants.map { CGFloat($0.data.position[2]) }
+            + viewModel.boundaryPoints.map { CGFloat($0[2]) }
+        guard let minX = xs.min(), let maxX = xs.max(),
+              let minZ = zs.min(), let maxZ = zs.max() else { return nil }
+        return (minX, maxX, minZ, maxZ)
+    }
+
+    /// Échelle qui fait tenir tout le jardin dans la vue.
+    private func fitScale(in size: CGSize) -> CGFloat? {
+        guard let bounds = contentBounds else { return nil }
+        let spanX = max(bounds.maxX - bounds.minX, 1.0)
+        let spanZ = max(bounds.maxZ - bounds.minZ, 1.0)
+        return min((size.width - 100) / spanX, (size.height - 100) / spanZ, 150.0)
+    }
+
+    private func zoom(to proposed: CGFloat, in size: CGSize) {
+        if let fit = fitScale(in: size) {
+            scale = min(max(proposed, fit * Self.minZoomFactor), fit * Self.maxZoomFactor)
+        } else {
+            scale = proposed
+        }
+        // Un dézoom peut ramener le jardin hors champ : on recale le décalage.
+        offset = clampedOffset(offset, scale: scale, in: size)
+        lastOffset = offset
+    }
+
+    /// Borne le décalage pour qu'au moins `minVisibleContent` points du
+    /// jardin restent visibles sur chaque axe.
+    private func clampedOffset(_ proposed: CGSize, scale: CGFloat, in size: CGSize) -> CGSize {
+        guard let bounds = contentBounds else { return proposed }
+        let margin = Self.minVisibleContent
+        let halfWidth = size.width / 2
+        let halfHeight = size.height / 2
+        let x = min(
+            max(proposed.width, margin - halfWidth - bounds.maxX * scale),
+            halfWidth - margin - bounds.minX * scale
+        )
+        let z = min(
+            max(proposed.height, margin - halfHeight - bounds.maxZ * scale),
+            halfHeight - margin - bounds.minZ * scale
+        )
+        return CGSize(width: x, height: z)
+    }
+
+    /// Cadre tout le jardin. Les données sont normalisées par le centroïde,
+    /// le centre est donc toujours (0, 0).
     private func fitContent(geo: GeometryProxy) {
-        // Collecter toutes les coordonnées (plantes ET bordures) pour calculer la taille
-        var allX: [CGFloat] = []
-        var allZ: [CGFloat] = []
-        
-        // Ajouter les plantes
-        if !viewModel.displayPlants.isEmpty {
-            allX += viewModel.displayPlants.map { CGFloat($0.data.position[0]) }
-            allZ += viewModel.displayPlants.map { CGFloat($0.data.position[2]) }
-        }
-        
-        // Ajouter les bordures
-        if !viewModel.boundaryPoints.isEmpty {
-            allX += viewModel.boundaryPoints.map { CGFloat($0[0]) }
-            allZ += viewModel.boundaryPoints.map { CGFloat($0[2]) }
-        }
-        
-        // Si aucune donnée, ne rien faire
-        guard !allX.isEmpty && !allZ.isEmpty else { return }
-        
-        let minX = allX.min() ?? 0
-        let maxX = allX.max() ?? 0
-        let minZ = allZ.min() ?? 0
-        let maxZ = allZ.max() ?? 0
-        
-        // 🔧 CORRECTION : Puisque les données sont normalisées par le centroïd,
-        // le centre devrait TOUJOURS être (0, 0) !
-        // On ne calcule plus (min+max)/2 qui peut être décalé si la distribution n'est pas uniforme
-        let centerX: CGFloat = 0  // 🆕 Centre sur l'origine
-        let centerZ: CGFloat = 0  // 🆕 Centre sur l'origine
-        
-        let spanX = max(maxX - minX, 1.0)
-        let spanZ = max(maxZ - minZ, 1.0)
-        let scaleX = (geo.size.width - 100) / spanX
-        let scaleZ = (geo.size.height - 100) / spanZ
-        let newScale = min(scaleX, scaleZ, 150.0)
-        self.scale = newScale
-        self.lastScale = newScale
-        self.offset = CGSize(width: -centerX * newScale, height: -centerZ * newScale)  // = (0, 0)
-        self.lastOffset = self.offset
-        
-        print("📏 FitContent: scale=\(newScale), centerX=\(centerX), centerZ=\(centerZ)")
-        print("📏 BBox: X[\(minX)...\(maxX)], Z[\(minZ)...\(maxZ)]")
+        guard let newScale = fitScale(in: geo.size) else { return }
+        scale = newScale
+        lastScale = newScale
+        offset = .zero
+        lastOffset = .zero
     }
 }
 

@@ -97,12 +97,13 @@ enum GardenSpaceType: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Image dans `Icons3D`.
     var iconName: String {
         switch self {
-        case .interior: return "house"
-        case .balcony: return "building.2"
-        case .terrace: return "chair.lounge"
-        case .garden: return "house.and.flag"
+        case .interior: return "icon3d_couch"
+        case .balcony: return "icon3d_building"
+        case .terrace: return "icon3d_terrace"
+        case .garden: return "icon3d_house_garden"
         }
     }
 
@@ -134,20 +135,23 @@ enum GardenSpaceType: String, CaseIterable, Identifiable {
     }
 }
 
+/// L'ordre des cas est l'ordre des cartes : « Je ne sais pas » vient en
+/// premier pour ne pas pousser l'utilisateur à deviner.
 enum SunExposure: String, CaseIterable, Identifiable {
+    case unknown = "Je ne sais pas"
     case fullSun = "Soleil direct (6h+)"
     case partialShade = "Mi-ombre"
     case shade = "Ombragé"
-    case unknown = "Je ne sais pas"
     
     var id: String { rawValue }
     
+    /// Image dans `Icons3D`.
     var iconName: String {
         switch self {
-        case .fullSun: return "sun.max"
-        case .partialShade: return "cloud.sun"
-        case .shade: return "cloud"
-        case .unknown: return "questionmark.circle"
+        case .fullSun: return "icon3d_sun"
+        case .partialShade: return "icon3d_sun_cloud"
+        case .shade: return "icon3d_cloud"
+        case .unknown: return "icon3d_question"
         }
     }
     
@@ -177,11 +181,13 @@ enum MaintenanceLevel: String, CaseIterable, Identifiable {
     
     var id: String { rawValue }
     
+    /// Image dans `Icons3D`, accordée au profil : fleur fanée pour le
+    /// « tueur de plantes », plante en pot, puis tournesol épanoui.
     var iconName: String {
         switch self {
-        case .veryEasy: return "hand.thumbsup"
-        case .easy: return "leaf"
-        case .demanding: return "wrench.and.screwdriver"
+        case .veryEasy: return "icon3d_wilted"
+        case .easy: return "icon3d_soil"
+        case .demanding: return "icon3d_sunflower"
         }
     }
     
@@ -209,11 +215,12 @@ enum SafetyOption: String, CaseIterable, Identifiable {
     
     var id: String { rawValue }
     
+    /// Image dans `Icons3D`.
     var iconName: String {
         switch self {
-        case .pets: return "pawprint"
-        case .children: return "person.2"
-        case .none: return "checkmark.shield"
+        case .pets: return "icon3d_paws"
+        case .children: return "icon3d_child"
+        case .none: return "icon3d_check"
         }
     }
     
@@ -235,13 +242,14 @@ enum SoilType: String, CaseIterable, Identifiable {
     
     var id: String { rawValue }
     
+    /// Image dans `Icons3D`.
     var iconName: String {
         switch self {
-        case .rich: return "leaf"
-        case .dry: return "sun.max"
-        case .rocky: return "mountain.2"
-        case .waterRetentive: return "drop"
-        case .unknown: return "questionmark.circle"
+        case .rich: return "icon3d_substrate"
+        case .dry: return "icon3d_desert"
+        case .rocky: return "icon3d_rock"
+        case .waterRetentive: return "icon3d_water"
+        case .unknown: return "icon3d_question"
         }
     }
     
@@ -259,7 +267,7 @@ enum SoilType: String, CaseIterable, Identifiable {
 // MARK: - Wizard State
 
 final class GardenWizardState: ObservableObject {
-    @Published var style: GardenStyle?
+    @Published var styles: Set<GardenStyle> = []
     @Published var spaceType: GardenSpaceType?
     @Published var exposure: SunExposure?
     @Published var maintenance: MaintenanceLevel?
@@ -286,14 +294,39 @@ final class GardenWizardState: ObservableObject {
     @Published var measuredBoundaryPoints: [SIMD3<Float>] = []
     @Published var measuredArea: Float = 0
     @Published var measuredPerimeter: Float = 0
+
+    /// Styles choisis, dans l'ordre des cartes.
+    var orderedStyles: [GardenStyle] {
+        GardenStyle.allCases.filter(styles.contains)
+    }
+
+    /// Valeur envoyée dans `GardenWizardDTO.style`. Le backend ne stocke
+    /// qu'une chaîne : plusieurs styles y sont joints. Les lecteurs existants
+    /// (filtre, moteur de suggestion, mise en page AR, vignettes) cherchent
+    /// des mots-clés par `contains`, ils lisent donc aussi la forme jointe.
+    var styleValue: String {
+        orderedStyles.map(\.rawValue).joined(separator: ", ")
+    }
+
+    /// Une carte déjà choisie se désélectionne. « Sans préférence » exclut
+    /// les autres styles, comme « Aucune contrainte » à l'étape sécurité.
+    func toggleStyle(_ style: GardenStyle) {
+        if styles.contains(style) {
+            styles.remove(style)
+        } else if style == .noPreference {
+            styles = [.noPreference]
+        } else {
+            styles.remove(.noPreference)
+            styles.insert(style)
+        }
+    }
 }
 
 // MARK: - Wizard Steps
 
 enum GardenWizardStep: Int, CaseIterable, Identifiable {
-    case intro
-    case style
     case spaceType
+    case style
     case exposure
     case maintenance
     case safety
@@ -307,7 +340,7 @@ enum GardenWizardStep: Int, CaseIterable, Identifiable {
 
 struct GardenWizardView: View {
     @StateObject private var state = GardenWizardState()
-    @State private var currentStep: GardenWizardStep = .intro
+    @State private var currentStep: GardenWizardStep = .spaceType
 
     /// Sens de la dernière navigation, pour que la transition glisse du bon
     /// côté. Le geste est parti (#500), l'animation reste.
@@ -358,7 +391,7 @@ struct GardenWizardView: View {
     let onFinish: (GardenWizardState) -> Void
 
     private var visibleSteps: [GardenWizardStep] {
-        var steps: [GardenWizardStep] = [.intro, .style, .spaceType, .exposure, .maintenance, .safety]
+        var steps: [GardenWizardStep] = [.spaceType, .style, .exposure, .maintenance, .safety]
 
         if state.spaceType == .garden {
             steps.append(.soil)
@@ -383,12 +416,10 @@ struct GardenWizardView: View {
     @ViewBuilder
     private var currentStepView: some View {
         switch currentStep {
-        case .intro:
-            IntroStepView(onNext: goToNext)
-        case .style:
-            StyleStepView(state: state, onNext: goToNext, onBack: goToPrevious)
         case .spaceType:
             SpaceTypeStepView(state: state, onNext: goToNext, onBack: goToPrevious)
+        case .style:
+            StyleStepView(state: state, onNext: goToNext, onBack: goToPrevious)
         case .exposure:
             ExposureStepView(state: state, onNext: goToNext, onBack: goToPrevious)
         case .maintenance:
@@ -430,11 +461,14 @@ struct GardenWizardView: View {
         }
     }
 
+    /// « Retour » sur la première étape quitte le wizard, comme le X.
     private func goToPrevious() {
         let prevIndex = currentIndex - 1
         if prevIndex >= 0 {
             isMovingForward = false
             withAnimation(.easeInOut) { currentStep = visibleSteps[prevIndex] }
+        } else {
+            dismiss()
         }
     }
 
@@ -599,7 +633,7 @@ struct GardenWizardView: View {
     // ✅ state -> DTO pour AR + backend
     private var wizardDTO: GardenWizardDTO {
         let wizard = GardenWizardDTO(
-            style: state.style?.rawValue ?? "",
+            style: state.styleValue,
             spaceType: state.spaceType?.rawValue ?? "",
             exposure: state.exposure?.rawValue,
             maintenance: state.maintenance?.rawValue,
@@ -620,8 +654,8 @@ struct GardenWizardView: View {
 
     private var gardenName: String { L10n.t("MY_GARDEN_TITLE") }
 
-    /// Si tu veux une clé d’image cohérente: utilise imageName
-    private var thumbnailKey: String? { state.style?.imageName }
+    /// Vignette du premier style choisi, dans l'ordre des cartes.
+    private var thumbnailKey: String? { state.orderedStyles.first?.imageName }
 
     /// Charge une seule fois les contraintes durables du foyer. Elles sont
     /// copiées dans le snapshot du jardin afin que le moteur puisse appliquer
@@ -647,52 +681,33 @@ struct GardenWizardView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack {
             Color.gardenBackground.ignoresSafeArea()
 
-            VStack(spacing: 0) {
-
-                // Progress header (pas sur intro)
-                if currentStep != .intro {
-                    WizardProgressHeader(currentIndex: currentIndex, total: visibleSteps.count)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 60)
-                        .padding(.bottom, 12)
-                }
-
-                // Une seule étape est montée à la fois, et seuls `goToNext` /
-                // `goToPrevious` la changent.
-                //
-                // C'était auparavant un `TabView` en style `.page`. Sa pagination
-                // au doigt n'était utile à rien — la navigation a toujours été
-                // pilotée par les boutons — mais elle laissait glisser d'une
-                // question à l'autre sans y répondre, jusqu'à la validation
-                // (#500, remonté par un bêta-testeur). Chaque étape verrouille
-                // pourtant son bouton « Continuer » tant qu'aucune réponse n'est
-                // donnée : le glissement était la seule porte dérobée, et sauter
-                // une question ne produisait pas d'erreur mais une recommandation
-                // qui ignorait ce critère en silence.
-                ZStack {
-                    currentStepView
-                        .id(currentStep)
-                        .transition(stepTransition)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
+            // Une seule étape est montée à la fois, et seuls `goToNext` /
+            // `goToPrevious` la changent.
+            //
+            // C'était auparavant un `TabView` en style `.page`. Sa pagination
+            // au doigt n'était utile à rien — la navigation a toujours été
+            // pilotée par les boutons — mais elle laissait glisser d'une
+            // question à l'autre sans y répondre, jusqu'à la validation
+            // (#500, remonté par un bêta-testeur). Chaque étape verrouille
+            // pourtant son bouton « Continuer » tant qu'aucune réponse n'est
+            // donnée : le glissement était la seule porte dérobée, et sauter
+            // une question ne produisait pas d'erreur mais une recommandation
+            // qui ignorait ce critère en silence.
+            //
+            // Pas de `.clipped()` ici : il couperait la liste sous la barre du
+            // haut, que le contenu doit pouvoir traverser.
+            ZStack {
+                currentStepView
+                    .id(currentStep)
+                    .transition(stepTransition)
             }
-
-            // bouton close
-            Button { dismiss() } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(colorScheme == .dark ? .white : .black)
-                    .padding(10)
-                    .background(
-                        Circle().fill((colorScheme == .dark ? Color.white : Color.black).opacity(0.08))
-                    )
-            }
-            .padding(.top, 16)
-            .padding(.leading, 20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            wizardTopBar
         }
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
@@ -795,7 +810,7 @@ struct GardenWizardView: View {
         }
         // ✅ super important: quand tu ré-ouvres un wizard, on repart de 0
         .onAppear {
-            currentStep = .intro
+            currentStep = visibleSteps.first ?? .spaceType
             isMovingForward = true
             state.scanMethod = nil
             // Reset des champs liés au tracé pour éviter qu'un ancien tracé
@@ -803,7 +818,7 @@ struct GardenWizardView: View {
             // du second jardin créé dans la même session app, l'AR placement
             // chargerait la WorldMap du jardin précédent).
             state.createdGardenId = nil
-            state.style = nil
+            state.styles = []
             state.measuredBoundaryPoints = []
             state.measuredArea = 0
             state.measuredPerimeter = 0
@@ -841,6 +856,29 @@ struct GardenWizardView: View {
                 currentStep = visibleSteps.last ?? .aiSuggestion
             }
         }
+    }
+
+    /// Croix et progression, posées sur un flou : la liste de l'étape
+    /// défile dessous au lieu d'être coupée.
+    private var wizardTopBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button { dismiss() } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(colorScheme == .dark ? .white : .black)
+                    .padding(10)
+                    .background(
+                        Circle().fill((colorScheme == .dark ? Color.white : Color.black).opacity(0.08))
+                    )
+            }
+            .padding(.leading, 20)
+
+            WizardProgressHeader(currentIndex: currentIndex, total: visibleSteps.count)
+                .padding(.horizontal, 24)
+        }
+        .padding(.top, 16)
+        .padding(.bottom, 14)
+        .background(WizardEdgeBlur(edge: .top))
     }
 
     // MARK: - Fetch Catalogue Plants for AI Suggestion
@@ -920,6 +958,72 @@ struct WizardProgressHeader: View {
     }
 }
 
+// MARK: - Step Layout
+
+/// Flou de bord : matériau teinté du fond de page, opaque côté écran et qui
+/// s'estompe vers le contenu sur `fade` points. La liste défile dessous au
+/// lieu d'être coupée net par un aplat.
+struct WizardEdgeBlur: View {
+    let edge: VerticalEdge
+    var fade: CGFloat = 28
+
+    var body: some View {
+        GeometryReader { geo in
+            let solidEnd = max(0, (geo.size.height - fade) / max(geo.size.height, 1))
+
+            ZStack {
+                Rectangle().fill(.ultraThinMaterial)
+                Color.gardenBackground.opacity(0.6)
+            }
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black, location: solidEnd),
+                        .init(color: .black.opacity(0), location: 1)
+                    ],
+                    startPoint: edge == .top ? .top : .bottom,
+                    endPoint: edge == .top ? .bottom : .top
+                )
+            )
+        }
+        .padding(edge == .top ? .bottom : .top, -fade)
+        .ignoresSafeArea(edges: edge == .top ? .top : .bottom)
+        .allowsHitTesting(false)
+    }
+}
+
+/// Mise en page commune des étapes : le contenu défile en plein écran, sous
+/// la barre de progression (portée par `GardenWizardView`) et sous les
+/// boutons, posés ici sur un flou.
+struct WizardStepScaffold<Content: View, Actions: View>: View {
+    private let content: Content
+    private let actions: Actions
+
+    init(@ViewBuilder content: () -> Content, @ViewBuilder actions: () -> Actions) {
+        self.content = content()
+        self.actions = actions()
+    }
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            content
+                .padding(.top, 20)
+                .padding(.bottom, 16)
+        }
+        .background(Color.gardenBackground.ignoresSafeArea())
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 12) {
+                actions
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
+            .padding(.bottom, 20)
+            .background(WizardEdgeBlur(edge: .bottom))
+        }
+    }
+}
+
 // MARK: - Button Styles
 
 struct PrimaryWizardButtonStyle: ButtonStyle {
@@ -956,27 +1060,25 @@ struct SecondaryWizardButtonStyle: ButtonStyle {
 
 struct ImprovedSelectableCard: View {
     let isSelected: Bool
-    let systemImage: String
+    /// Image dans `Icons3D`.
+    let icon: String
     let title: String
     let subtitle: String?
-    let gradient: [Color]?
     let action: () -> Void
     
     @Environment(\.colorScheme) private var colorScheme
     
     init(
         isSelected: Bool,
-        systemImage: String,
+        icon: String,
         title: String,
         subtitle: String? = nil,
-        gradient: [Color]? = nil,
         action: @escaping () -> Void
     ) {
         self.isSelected = isSelected
-        self.systemImage = systemImage
+        self.icon = icon
         self.title = title
         self.subtitle = subtitle
-        self.gradient = gradient
         self.action = action
     }
     
@@ -1003,25 +1105,10 @@ struct ImprovedSelectableCard: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 16) {
-                ZStack {
-                    if let gradient = gradient {
-                        LinearGradient(
-                            colors: gradient,
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .frame(width: 50, height: 50)
-                        .cornerRadius(12)
-                    } else {
-                        iconBackground
-                            .frame(width: 50, height: 50)
-                            .cornerRadius(12)
-                    }
-                    
-                    Image(systemName: systemImage)
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundColor(gradient == nil ? Color.gardenPrimary : .white)
-                }
+                Icon3D(name: icon, size: 32)
+                    .frame(width: 50, height: 50)
+                    .background(iconBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)

@@ -21,7 +21,9 @@ struct PlantThumbnailCache {
     /// value invalidates both the on-device files and Cloudflare's cached
     /// response after a new thumbnail design is uploaded under the same plant
     /// identifier.
-    static let version = "v22"
+    /// v24 : studio beige uni (`PlantThumbnailBackdrop`). La v23 a pu mettre
+    /// en cache, sous son nom, les anciennes images du serveur.
+    static let version = "v24"
     private static let designMarkerColor = UIColor(
         red: 94.0 / 255.0,
         green: 28.0 / 255.0,
@@ -562,19 +564,12 @@ struct PlantThumbnailCache {
             let wallRect = CGRect(x: 0, y: 0, width: size.width, height: wallHeight)
             let floorRect = CGRect(x: 0, y: wallHeight, width: size.width, height: floorHeight)
 
-            let wallColor = UIColor(white: 0.72, alpha: 1.0)
-            let floorColor = UIColor(red: 0.58, green: 0.57, blue: 0.52, alpha: 1.0)
-
-            wallColor.setFill()
+            // Même décor que le rendu 3D (`PlantThumbnailBackdrop`).
+            PlantThumbnailBackdrop.wall.setFill()
             rendererContext.fill(rect)
-
-            wallColor.setFill()
             rendererContext.fill(wallRect)
-            floorColor.setFill()
+            PlantThumbnailBackdrop.litFloor.setFill()
             rendererContext.fill(floorRect)
-            if let floor = UIImage(named: "studio_floor") {
-                drawAspectFill(floor, in: floorRect, alpha: 0.55)
-            }
 
             drawHorizonShade(in: CGRect(
                 x: 0,
@@ -586,25 +581,6 @@ struct PlantThumbnailCache {
 
             image.draw(in: rect)
         }
-    }
-
-    private static func drawAspectFill(
-        _ image: UIImage,
-        in rect: CGRect,
-        alpha: CGFloat = 1.0
-    ) {
-        guard image.size.width > 0, image.size.height > 0 else { return }
-
-        let scale = max(rect.width / image.size.width, rect.height / image.size.height)
-        let drawSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let drawRect = CGRect(
-            x: rect.midX - drawSize.width / 2,
-            y: rect.midY - drawSize.height / 2,
-            width: drawSize.width,
-            height: drawSize.height
-        )
-
-        image.draw(in: drawRect, blendMode: .normal, alpha: alpha)
     }
 
     private static func drawHorizonShade(in rect: CGRect) {

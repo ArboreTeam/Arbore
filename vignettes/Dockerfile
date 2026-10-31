@@ -31,8 +31,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates curl xz-utils python3 \
-        libgl1 libglx-mesa0 libxi6 libxxf86vm1 libxfixes3 libxrender1 \
-        libsm6 libice6 \
+        libgl1 libglx-mesa0 libegl1 libxi6 libxxf86vm1 libxfixes3 libxrender1 \
+        libsm6 libice6 libxkbcommon0 libdbus-1-3 libwayland-client0 \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL "https://download.blender.org/release/Blender${BLENDER_SERIE}/blender-${BLENDER_VERSION}-linux-x64.tar.xz" \
@@ -41,7 +41,11 @@ RUN curl -fsSL "https://download.blender.org/release/Blender${BLENDER_SERIE}/ble
     && tar -xJf /tmp/blender.tar.xz -C /opt/blender --strip-components=1 \
     && rm /tmp/blender.tar.xz \
     && ln -s /opt/blender/blender /usr/local/bin/blender \
-    && blender --version | head -1
+    # SANS tube : `blender --version | head -1` rend le code de sortie de
+    # `head`, donc 0 même quand Blender échoue sur une bibliothèque absente.
+    # Le build passait, et l'erreur n'apparaissait qu'à la première exécution.
+    && ldd /opt/blender/blender | grep -q 'not found' && exit 1 || true \
+    && blender --version
 
 WORKDIR /app
 COPY rendre.py publier.py ./

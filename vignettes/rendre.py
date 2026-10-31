@@ -59,6 +59,17 @@ def scene_vide():
     # Le filtre par défaut adoucit les bords ; à 720 px une feuille fine
     # disparaîtrait à moitié. 1,2 px garde l'anticrénelage sans fondre le trait.
     s.render.filter_size = 1.2
+
+    # `Standard`, et surtout PAS le défaut de Blender 4.2, qui est AgX : un
+    # rendu filmique qui désature et relève les noirs. SceneKit, lui, n'applique
+    # aucun tonemapping. Laissé par défaut, le feuillage sortait vert pâle là
+    # où la vignette servie est franchement verte — un écart de style sur tout
+    # le catalogue, pour un réglage que personne n'avait choisi.
+    s.view_settings.view_transform = "Standard"
+    s.view_settings.look = "None"
+    s.view_settings.exposure = 0.0
+    s.view_settings.gamma = 1.0
+    s.display_settings.display_device = "sRGB"
     return s
 
 
@@ -71,11 +82,21 @@ def importer_usd(chemin):
     sans réduction embarquent (#684).
     """
     avant = set(bpy.data.objects)
+    # Pas de `import_subdiv` : nos USDZ ne déclarent pas de
+    # `subdivisionScheme`, donc le défaut d'USD (catmullClark) s'appliquerait.
+    # Essayé le 2026-10-31 sur le cachepot : AUCUN changement de silhouette.
+    # On reste sur le maillage tel quel, comme l'AR l'affiche.
     bpy.ops.wm.usd_import(filepath=chemin, import_materials=True)
-    ajoutes = [o for o in set(bpy.data.objects) - avant if o.type == "MESH"]
-    if not ajoutes:
+    ajoutes = set(bpy.data.objects) - avant
+    maillages = [o for o in ajoutes if o.type == "MESH"]
+    if not maillages:
         raise RuntimeError(f"aucun maillage importé depuis {chemin}")
-    return ajoutes
+    # Les racines PORTENT la conversion Y-up → Z-up : nos USDZ déclarent
+    # `upAxis = Y` et Blender la matérialise par une rotation X+90° sur
+    # l'Xform racine, pas sur le maillage. Reparenter un maillage sans elle le
+    # couche — un pot de 10 cm de haut se mesure alors 5,9 cm, son rayon.
+    racines = [o for o in ajoutes if o.parent not in ajoutes]
+    return racines, maillages
 
 
 def boite(objets):
@@ -86,7 +107,7 @@ def boite(objets):
     return bas, haut
 
 
-def poser_fond_studio(bas, haut):
+def poser_fond_studio(bas, haut, niveau_sol=None):
     """Fond studio : un mur et un sol, en dégradé doux.
 
     Ce n'est pas de la décoration. `hasLegacyWhiteWallDarkFloor` rejette
@@ -95,10 +116,11 @@ def poser_fond_studio(bas, haut):
     fond doit donc être continu et le sol pas plus sombre que le mur.
     """
     taille = max(haut.x - bas.x, haut.z - bas.z, haut.y - bas.y) * 12.0
+    z = bas.z if niveau_sol is None else niveau_sol
 
-    bpy.ops.mesh.primitive_plane_add(size=taille, location=(0, 0, bas.z))
+    bpy.ops.mesh.primitive_plane_add(size=taille, location=(0, 0, z))
     sol = bpy.context.active_object
-    bpy.ops.mesh.primitive_plane_add(size=taille, location=(0, taille / 2.2, bas.z))
+    bpy.ops.mesh.primitive_plane_add(size=taille, location=(0, taille / 2.2, z))
     mur = bpy.context.active_object
     mur.rotation_euler[0] = math.radians(90)
 
@@ -128,14 +150,17 @@ def poser_eclairage(bas, haut):
     bpy.ops.object.light_add(type="AREA",
                              location=(etendue * 1.6, -etendue * 1.4, haut.z + etendue * 1.1))
     cle = bpy.context.active_object
-    cle.data.energy = etendue * etendue * 260
+    # 110 et non 260 : en vue `Standard`, sans la compression des hautes
+    # lumières d'AgX, la clé à 260 écrêtait le pot blanc et effaçait le
+    # relief en nid d'abeilles qu'elle est censée révéler.
+    cle.data.energy = etendue * etendue * 110
     cle.data.size = etendue * 1.4
     cle.rotation_euler = (math.radians(52), 0, math.radians(38))
 
     bpy.ops.object.light_add(type="AREA",
                              location=(-etendue * 1.5, -etendue * 1.2, haut.z * 0.6))
     remplissage = bpy.context.active_object
-    remplissage.data.energy = etendue * etendue * 90
+    remplissage.data.energy = etendue * etendue * 60
     remplissage.data.size = etendue * 2.0
     remplissage.rotation_euler = (math.radians(74), 0, math.radians(-42))
 
@@ -144,7 +169,7 @@ def poser_eclairage(bas, haut):
     monde = bpy.data.worlds.new("studio")
     monde.use_nodes = True
     monde.node_tree.nodes["Background"].inputs[0].default_value = (0.55, 0.55, 0.55, 1.0)
-    monde.node_tree.nodes["Background"].inputs[1].default_value = 0.55
+    monde.node_tree.nodes["Background"].inputs[1].default_value = 0.48
     bpy.context.scene.world = monde
 
 
@@ -186,18 +211,20 @@ def poser_marqueur(chemin_png):
     n'est pas rééchantillonnée, seuls des pixels sont écrasés.
     """
     img = bpy.data.images.load(chemin_png)
+    # `Non-Color` AVANT de lire les pixels, et c'est tout l'enjeu : l'image est
+    # alors lue et réécrite telle quelle, sans transfert. On pose donc les
+    # octets sRGB attendus par le détecteur, qui compare des OCTETS de PNG.
+    #
+    # Sans ce réglage, la tentation est de convertir la couleur en linéaire en
+    # supposant que l'écriture reconvertira. Elle ne reconvertit pas : le
+    # premier essai a produit (29, 3, 125) — exactement les valeurs linéaires
+    # de (94, 28, 186) — et le détecteur, qui tolère 5, a refusé les 4 coins.
+    img.colorspace_settings.name = "Non-Color"
     l, h = img.size
     cote = max(4, int(min(l, h) * MARQUEUR_PART))
     px = list(img.pixels)
 
-    # Blender travaille en linéaire ; le PNG est en sRGB. On convertit la
-    # couleur attendue plutôt que l'image : poser 94/255 tel quel donnerait un
-    # violet plus clair à l'écriture, et le détecteur tolère moins de 12.
-    def vers_lineaire(c):
-        c = c / 255.0
-        return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-
-    r, v, b = (vers_lineaire(c) for c in MARQUEUR_RVB)
+    r, v, b = (c / 255.0 for c in MARQUEUR_RVB)
 
     for x0, y0 in ((0, 0), (l - cote, 0), (0, h - cote), (l - cote, h - cote)):
         for y in range(y0, y0 + cote):
@@ -212,6 +239,16 @@ def poser_marqueur(chemin_png):
     img.save()
 
 
+def _conv(x, y, z):
+    """Pose du backend (Y en haut, comme SceneKit) vers le repère de Blender.
+
+    L'importateur USD de Blender convertit la scène en Z-up ; la pose, elle,
+    arrive dans le repère du modèle. Il faut lui appliquer LA MÊME conversion,
+    sans quoi la hauteur et la profondeur sont interverties.
+    """
+    return (float(x), -float(z), float(y))
+
+
 def composer(modele, pot_chemin, pose):
     """Assemble la plante, son pot et le disque de terre.
 
@@ -219,27 +256,53 @@ def composer(modele, pot_chemin, pose):
     vit dans `PlantPotComposer` et le serveur la sert. La recalculer ici en
     ferait une seconde source, et l'AR comme les vignettes divergeraient sans
     que rien ne le signale.
-    """
-    plante = importer_usd(modele)
-    if not pot_chemin or not pose:
-        return plante
 
-    pot = importer_usd(pot_chemin)
+    La structure calque `attachPot` : les maillages du pot sont groupés sous un
+    PARENT, et c'est le parent qu'on met à l'échelle et qu'on translate. Mettre
+    chaque objet à l'échelle séparément le ferait grandir autour de son propre
+    centre et aplatirait les décalages internes du pot — un pot désassemblé,
+    pour un fichier à plusieurs maillages.
+    """
+    _, plante = importer_usd(modele)
+    if not pot_chemin or not pose:
+        return plante, None
+
+    racines_pot, pot = importer_usd(pot_chemin)
+
+    bpy.ops.object.empty_add(location=(0, 0, 0))
+    porteur = bpy.context.active_object
+    porteur.name = "arbore_pot"
+    for o in racines_pot:
+        o.parent = porteur
+    bpy.context.view_layer.update()
+
+    # `potMax` dans l'espace LOCAL du porteur, comme `noeud.boundingBox` : le
+    # porteur est encore à l'identité, donc le monde EST son espace local.
+    _, haut_local = boite(pot)
     e = float(pose["scale"])
-    # Les bornes du pot AVANT mise à l'échelle, comme le fait `attachPot`.
-    pot_bas, pot_haut = boite(pot)
-    for o in pot:
-        o.scale = (e, e, e)
-        o.location = (float(pose["x"]),
-                      float(pose["z"]),
-                      float(pose["y"]) - pot_haut.z * e)
+    x, y, z = _conv(pose["x"], pose["y"], pose["z"])
+    porteur.scale = (e, e, e)
+    porteur.location = (x, y, z - haut_local.z * e)
+    bpy.context.view_layer.update()
+
+    print(f"pot local max z={haut_local.z:.5f} x={haut_local.x:.5f} "
+          f"y={haut_local.y:.5f} | echelle={e:.5f} | "
+          f"porteur={tuple(round(v, 5) for v in porteur.location)}")
+    bas_p, haut_p = boite(plante)
+    print(f"plante bas={tuple(round(v, 5) for v in bas_p)} "
+          f"haut={tuple(round(v, 5) for v in haut_p)}")
+
+    # Le porteur est un Empty : sa `bound_box` vaut huit zéros et étendrait le
+    # cadrage jusqu'à l'origine du monde. Seuls les maillages sont mesurés.
+    objets = list(pot)
 
     disque = pose.get("disque")
     if disque:
+        dx, dy, dz = _conv(disque["x"], disque["y"], disque["z"])
         bpy.ops.mesh.primitive_cylinder_add(
             radius=float(disque["rayon"]),
             depth=float(disque["epaisseur"]),
-            location=(float(disque["x"]), float(disque["z"]), float(disque["y"])))
+            location=(dx, dy, dz))
         terre = bpy.context.active_object
         mat = bpy.data.materials.new("terre")
         mat.use_nodes = True
@@ -248,9 +311,13 @@ def composer(modele, pot_chemin, pose):
         p.inputs["Roughness"].default_value = 0.95
         p.inputs["Metallic"].default_value = 0.0
         terre.data.materials.append(mat)
-        pot.append(terre)
+        objets.append(terre)
 
-    return plante + pot
+    # Le sol se pose sous le POT, pas sous la boîte englobante : les racines du
+    # modèle descendent plus bas que le fond du pot, qui les cache. Au plus bas
+    # de la boîte, le pot flotte de cinq centimètres au-dessus du sol.
+    bas_pot, _ = boite(pot)
+    return plante + objets, bas_pot.z
 
 
 def main():
@@ -263,10 +330,14 @@ def main():
 
     scene_vide()
     pose = json.loads(a.pose) if a.pose else None
-    objets = composer(a.modele, a.pot, pose)
+    objets, niveau_sol = composer(a.modele, a.pot, pose)
 
     bas, haut = boite(objets)
-    poser_fond_studio(bas, haut)
+    if niveau_sol is not None and niveau_sol > bas.z:
+        # Ce qui passe sous le sol est caché : le cadrer réserverait une bande
+        # vide en bas de l'image.
+        bas = Vector((bas.x, bas.y, niveau_sol))
+    poser_fond_studio(bas, haut, niveau_sol)
     poser_eclairage(bas, haut)
     poser_camera(bas, haut)
 

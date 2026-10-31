@@ -37,7 +37,9 @@ import urllib.request
 LARGEUR, HAUTEUR = 720, 900
 MARQUEUR_RVB = (94, 28, 186)
 POIDS_PLANCHER = 50_000          # en dessous, le rendu est vide ou tronqué
-TOLERANCE_MARQUEUR = 12
+# 5, comme `hasCurrentDesignMarker` : un contrôle plus large que le juge
+# laisse passer ce que le juge refusera, en silence.
+TOLERANCE_MARQUEUR = 5
 
 
 def http(url, entetes, corps=None, methode=None, delai=300):
@@ -76,6 +78,43 @@ def dimensions_png(donnees):
     return struct.unpack(">II", donnees[16:24])
 
 
+def _lignes_png(brut, largeur, hauteur, canaux):
+    """Défiltre les lignes d'un PNG décompressé.
+
+    Les quatre filtres du format sont tous possibles : Blender en choisit
+    librement. Lire le premier octet d'une seule ligne, comme on le faisait,
+    ne marchait que par chance sur une ligne non filtrée.
+    """
+    pas = largeur * canaux
+    lignes, prec, pos = [], bytearray(pas), 0
+    for _ in range(hauteur):
+        f = brut[pos]
+        pos += 1
+        cur = bytearray(brut[pos:pos + pas])
+        pos += pas
+        if f == 1:
+            for i in range(canaux, pas):
+                cur[i] = (cur[i] + cur[i - canaux]) & 255
+        elif f == 2:
+            for i in range(pas):
+                cur[i] = (cur[i] + prec[i]) & 255
+        elif f == 3:
+            for i in range(pas):
+                g = cur[i - canaux] if i >= canaux else 0
+                cur[i] = (cur[i] + ((g + prec[i]) >> 1)) & 255
+        elif f == 4:
+            for i in range(pas):
+                g = cur[i - canaux] if i >= canaux else 0
+                h = prec[i]
+                d = prec[i - canaux] if i >= canaux else 0
+                pg, ph, pd = abs(h - d), abs(g - d), abs(g + h - 2 * d)
+                pred = g if (pg <= ph and pg <= pd) else (h if ph <= pd else d)
+                cur[i] = (cur[i] + pred) & 255
+        lignes.append(cur)
+        prec = cur
+    return lignes
+
+
 def coins_marques(chemin):
     """Vérifie le marqueur sans dépendance d'image, en décodant le PNG.
 
@@ -83,16 +122,21 @@ def coins_marques(chemin):
     est téléchargée par l'app, **examinée, refusée**, et les cartes gardent
     l'ancienne image — sans que rien ne le signale. C'est exactement ce qui est
     arrivé le 30 octobre à 123 fichiers par ailleurs irréprochables.
+
+    Échantillonne les MÊMES quatre points que `hasCurrentDesignMarker`, au même
+    retrait de 1,75 % du petit côté, et exige les mêmes trois sur quatre.
+    Contrôler le seul pixel (0, 0) laissait passer une image dont trois coins
+    sur quatre manquaient — et c'est l'app qui aurait tranché, en silence.
     """
     import zlib
     d = open(chemin, "rb").read()
-    pos, largeur, canaux, idat = 8, None, None, b""
+    pos, largeur, hauteur, canaux, idat = 8, None, None, None, b""
     while pos < len(d):
         lg = struct.unpack(">I", d[pos:pos + 4])[0]
         typ = d[pos + 4:pos + 8]
         corps = d[pos + 8:pos + 8 + lg]
         if typ == b"IHDR":
-            largeur, _, prof, couleur = struct.unpack(">IIBB", corps[:10])
+            largeur, hauteur, prof, couleur = struct.unpack(">IIBB", corps[:10])
             if prof != 8 or couleur not in (2, 6):
                 return False
             canaux = 3 if couleur == 2 else 4
@@ -101,12 +145,22 @@ def coins_marques(chemin):
         elif typ == b"IEND":
             break
         pos += 12 + lg
-    brut = zlib.decompress(idat)
-    if not brut or brut[0] != 0:          # 1re ligne non filtrée attendue
+    if not idat or largeur is None:
         return False
-    r, v, b = brut[1], brut[2], brut[3]
-    return all(abs(a - b_) < TOLERANCE_MARQUEUR
-               for a, b_ in zip((r, v, b), MARQUEUR_RVB))
+
+    lignes = _lignes_png(zlib.decompress(idat), largeur, hauteur, canaux)
+    retrait = max(1, int(min(largeur, hauteur) * 0.0175))
+    points = ((retrait, retrait),
+              (max(largeur - retrait - 1, 0), retrait),
+              (retrait, max(hauteur - retrait - 1, 0)),
+              (max(largeur - retrait - 1, 0), max(hauteur - retrait - 1, 0)))
+    bons = 0
+    for x, y in points:
+        pixel = lignes[y][x * canaux:x * canaux + 3]
+        if all(abs(a - b) <= TOLERANCE_MARQUEUR
+               for a, b in zip(pixel, MARQUEUR_RVB)):
+            bons += 1
+    return bons >= 3
 
 
 def telecharger_modele(base, entetes, fichier, version, dest):

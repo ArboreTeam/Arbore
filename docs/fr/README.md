@@ -42,6 +42,7 @@ La documentation est découpée en vues complémentaires. Selon l'information re
 | Provisionnement VPS (Docker · nginx · Mongo) | [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md) |
 | Stockage des assets 3D (R2 · S3 · MinIO) | [`operations/stockage-assets.md`](operations/stockage-assets.md) |
 | Fournisseurs LLM (quotas gratuits, bascule, RAG) | [`operations/fournisseurs-llm.md`](operations/fournisseurs-llm.md) |
+| Rendu des vignettes du catalogue (job Blender) | [`operations/vignettes-rendu.md`](operations/vignettes-rendu.md) |
 | Index des décisions d'architecture (ADR) | [`decisions/_index.md`](decisions/_index.md) |
 | Listing App Store (multilingue) | [`../appstore-listing.md`](../appstore-listing.md) |
 | Définition d'un terme métier ou technique | [`glossary.md`](glossary.md) |

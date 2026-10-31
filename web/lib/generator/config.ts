@@ -50,3 +50,57 @@ export function adresseClient(entetes: Headers): string {
   if (chaine) return chaine.split(',')[0].trim();
   return 'inconnue';
 }
+
+/** Un environnement dont l'atelier peut montrer, et refaire, les vignettes. */
+export type Environnement = {
+  nom: string;
+  /** Base de l'API, sans barre finale. */
+  api: string;
+  /** Clé d'API de CET environnement. Ne sort jamais du serveur. */
+  cle: string;
+};
+
+/**
+ * Environnements déclarés, pour l'aperçu et le rendu des vignettes.
+ *
+ * Déclarés explicitement plutôt que devinés : l'atelier ne connaissait
+ * jusqu'ici qu'un seul backend, par `BACKEND_API_URL`, et il est déployé par
+ * environnement. Montrer dev ET prod depuis une seule page suppose de nommer
+ * les deux.
+ *
+ * Les IMAGES, elles, ne demandent aucun secret :
+ * `GET /models/thumbnails/:filename` est une route publique du backend. La clé
+ * ne sert qu'à lister le catalogue, et elle reste côté serveur — jamais de
+ * `NEXT_PUBLIC_`.
+ *
+ * Format : un tableau JSON `[{ "nom": "dev", "api": "https://…", "cle": "…" }]`,
+ * de préférence monté par `_PATH` plutôt que posé en variable, qu'un
+ * `docker inspect` suffit à lire.
+ */
+export function environnements(): Environnement[] {
+  const brut = secretDepuis('VIGNETTES_ENVIRONNEMENTS');
+  if (!brut) return [];
+  try {
+    const lu: unknown = JSON.parse(brut);
+    if (!Array.isArray(lu)) return [];
+    return lu
+      .filter((e): e is Environnement =>
+        Boolean(e) && typeof e === 'object'
+        && typeof (e as Environnement).nom === 'string'
+        && typeof (e as Environnement).api === 'string')
+      .map((e) => ({
+        nom: e.nom,
+        api: e.api.replace(/\/+$/, ''),
+        cle: typeof e.cle === 'string' ? e.cle : '',
+      }));
+  } catch {
+    // Une configuration illisible rend une liste vide, et la page le dira.
+    // Lever ici ferait tomber l'atelier entier pour une virgule en trop.
+    return [];
+  }
+}
+
+/** Un environnement par son nom, ou `null`. Ne jamais faire confiance au client. */
+export function environnement(nom: string): Environnement | null {
+  return environnements().find((e) => e.nom === nom) ?? null;
+}

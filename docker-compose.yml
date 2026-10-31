@@ -326,13 +326,8 @@ services:
   # une empreinte qui ment devient impossible.
   vignettes:
     build:
-      # Contexte à la racine, pas `./vignettes` : l'image embarque la texture
-      # de sol du studio, qui vit dans le catalogue d'assets iOS. La copier
-      # dans `vignettes/` en ferait une SECONDE source — le jour où le studio
-      # de l'app change de sol, les vignettes du job garderaient l'ancien sans
-      # que rien ne le signale. Un seul fichier, deux lecteurs.
-      context: .
-      dockerfile: vignettes/Dockerfile
+      context: ./vignettes
+      dockerfile: Dockerfile
     image: ghcr.io/arboreteam/arbore-vignettes:${ARBORE_IMAGE_TAG:-latest}
     container_name: arbore-${ARBORE_ENV:-prod}-vignettes
     profiles: ["outils"]

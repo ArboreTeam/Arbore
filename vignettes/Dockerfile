@@ -48,12 +48,7 @@ RUN curl -fsSL "https://download.blender.org/release/Blender${BLENDER_SERIE}/ble
     && blender --version
 
 WORKDIR /app
-COPY vignettes/rendre.py vignettes/publier.py ./
-
-# La texture de sol du studio, partagée avec le moteur iOS : c'est le même
-# fichier, lu depuis le catalogue d'assets de l'app. Le job ne la duplique pas.
-COPY ArboreUi/ArboreUi/Assets/Assets.xcassets/studio_floor.imageset/studio_floor.png \
-     /app/studio_floor.png
+COPY rendre.py publier.py ./
 
 # Aucun point d'entrée qui démarre tout seul : c'est un JOB, invoqué
 # explicitement. Le service compose est sous profil pour la même raison —

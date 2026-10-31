@@ -26,7 +26,6 @@ vignette de catalogue, pas une image de rendu.
 import argparse
 import json
 import math
-import os
 import sys
 
 import bpy
@@ -43,9 +42,23 @@ LARGEUR, HAUTEUR = 720, 900
 CHAMP_VERTICAL = 35.0      # cameraFOVDegrees
 REMPLISSAGE = 0.70         # fillFactor
 INCLINAISON = 8.0          # cameraPitchDegrees, vers le bas
-MUR_SRGB = 161
-TEXTURE_SOL = "/app/studio_floor.png"
-SOL_REPLI = (0.58, 0.57, 0.52)   # floorFallbackColor
+
+# Décor : pelouse et ciel clair.
+#
+# Le beige prolonge la palette de l'app, dont le fond vaut #F0EEEA. Il n'est
+# toutefois PAS repris tel quel : sa clarté vaut 238, au-dessus du seuil de
+# 225 ci-dessous, et l'app refuserait toutes les vignettes. Celui-ci est de la
+# même famille, en plus soutenu — et il se distingue aussi du fond des cartes,
+# #FFFFFF en thème clair et #24231F en sombre.
+CIEL = "#D5CBB8"
+HERBE = "#7CA65C"
+
+# Plafond de clarté du ciel, et ce n'est pas un réglage de goût.
+# `hasLegacyWhiteWallDarkFloor` REFUSE la vignette dès que deux de ses cinq
+# points hauts dépassent 225 — le symptôme de l'ancien design, mur blanc sur
+# sol sombre. Un ciel « clair » passe cette barre sans prévenir, et l'app
+# rejetterait alors en silence toutes les vignettes du catalogue.
+CIEL_CLARTE_MAX = 215
 
 
 def vers_lineaire(c):
@@ -163,71 +176,67 @@ def boite(objets):
     return bas, haut
 
 
-def poser_fond_studio(cadre, hauteur, largeur, profondeur, teinte_sol):
-    """Studio repris du moteur iOS : sol texturé, mur uni non éclairé.
+def rvb(hexa):
+    """`#RRGGBB` vers trois octets."""
+    h = hexa.lstrip("#")
+    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))
 
-    Le mur est ÉMISSIF, et non éclairé comme une surface ordinaire. C'est la
-    transposition d'`UnlitMaterial` : sa couleur ne dépend ni des lampes ni de
-    leur distance, donc le fond est rigoureusement plat d'un bord à l'autre et
-    d'une plante à l'autre. Éclairé, il prendrait un dégradé qui varierait avec
-    la taille du sujet — deux fiches voisines n'auraient pas le même gris.
 
-    `hasLegacyWhiteWallDarkFloor` rejette un mur clair (> 225) sur sol sombre ;
-    à 161 on en est loin, et c'est la valeur des vignettes en service.
+def clarte(couleur):
+    """Clarté Rec. 709, la même formule que `sampledBrightness` côté app."""
+    r, v, b = couleur
+    return 0.2126 * r + 0.7152 * v + 0.0722 * b
+
+
+def poser_fond_studio(cadre, hauteur, largeur, profondeur, ciel, herbe, teinte_sol):
+    """Pelouse et ciel : sol vert lisse, fond uni non éclairé.
+
+    Le ciel est ÉMISSIF, et non éclairé comme une surface ordinaire. Sa
+    couleur ne dépend donc ni des lampes ni de leur distance : le fond est
+    rigoureusement plat d'un bord à l'autre et, surtout, IDENTIQUE d'une
+    plante à l'autre. Éclairé, il prendrait un dégradé qui varierait avec la
+    taille du sujet, et deux fiches voisines n'auraient pas le même ciel.
+
+    Le sol, lui, reste éclairé : c'est lui qui reçoit l'ombre de contact, celle
+    qui pose la plante au sol au lieu de la laisser flotter.
     """
+    couleur_ciel = rvb(ciel)
+    if clarte(couleur_ciel) > CIEL_CLARTE_MAX:
+        raise SystemExit(
+            f"ciel {ciel} trop clair : clarté {clarte(couleur_ciel):.0f} > "
+            f"{CIEL_CLARTE_MAX}. Au-delà de 225, hasLegacyWhiteWallDarkFloor "
+            f"refuse la vignette et l'app garde l'ancienne image, en silence.")
+
     echelle = max(hauteur, largeur, profondeur, cadre["distance"])
     taille = echelle * 10
 
-    # --- sol, à -0,001 comme dans `PlantThumbnailRenderer`
+    # --- pelouse, à -0,001 comme le sol du moteur iOS
     bpy.ops.mesh.primitive_plane_add(size=taille, location=(0, 0, -0.001))
     sol = bpy.context.active_object
-    mat_sol = bpy.data.materials.new("sol_studio")
+    mat_sol = bpy.data.materials.new("pelouse")
     mat_sol.use_nodes = True
-    arbre = mat_sol.node_tree
-    principal = arbre.nodes["Principled BSDF"]
-    principal.inputs["Roughness"].default_value = 0.95
+    principal = mat_sol.node_tree.nodes["Principled BSDF"]
+    # La teinte dépasse 1, et c'est délibéré : le sol est un DÉCOR dont la
+    # clarté est choisie, pas le résultat d'un éclairage physique. L'obtenir en
+    # montant les lampes brûlerait le pot blanc — mesuré, 2,62 % de pixels
+    # saturés contre 0,05 % sur une vignette servie. Multiplier n'écrase pas
+    # l'ombre portée, qui est multipliée aussi : le contraste tient.
+    vert = tuple(min(vers_lineaire(c) * teinte_sol, 1.0) for c in rvb(herbe))
+    principal.inputs["Base Color"].default_value = (*vert, 1.0)
+    principal.inputs["Roughness"].default_value = 0.92
     principal.inputs["Metallic"].default_value = 0.0
-
-    if os.path.exists(TEXTURE_SOL):
-        coord = arbre.nodes.new("ShaderNodeTexCoord")
-        mapping = arbre.nodes.new("ShaderNodeMapping")
-        # Le même nombre de répétitions que `makeTiledPlane` : `uScale` y vaut
-        # `studioSize * 0.8`, et la grandeur du carrelage suit donc la taille
-        # de la scène, pas celle de l'image.
-        mapping.inputs["Scale"].default_value = (taille * 0.8, taille * 0.8, 1.0)
-        image = arbre.nodes.new("ShaderNodeTexImage")
-        image.image = bpy.data.images.load(TEXTURE_SOL)
-        image.extension = "REPEAT"
-        teinte = arbre.nodes.new("ShaderNodeMixRGB")
-        teinte.blend_type = "MULTIPLY"
-        teinte.inputs["Fac"].default_value = 1.0
-        # Le moteur iOS multiplie par 0,98 ; ici la valeur dépasse 1, et c'est
-        # délibéré. Le sol est un DÉCOR, au même titre que le mur émissif : sa
-        # clarté est une valeur mesurée sur les vignettes servies (151), pas le
-        # résultat d'un éclairage physique. L'obtenir en montant les lampes
-        # brûlerait le pot blanc, dont le relief est justement ce qu'on veut
-        # montrer. Multiplier n'écrase pas l'ombre portée : elle est
-        # multipliée aussi, donc le rapport de contraste tient.
-        teinte.inputs["Color2"].default_value = (teinte_sol, teinte_sol, teinte_sol, 1.0)
-        arbre.links.new(coord.outputs["UV"], mapping.inputs["Vector"])
-        arbre.links.new(mapping.outputs["Vector"], image.inputs["Vector"])
-        arbre.links.new(image.outputs["Color"], teinte.inputs["Color1"])
-        arbre.links.new(teinte.outputs["Color"], principal.inputs["Base Color"])
-    else:
-        principal.inputs["Base Color"].default_value = (*SOL_REPLI, 1.0)
     sol.data.materials.append(mat_sol)
 
-    # --- mur, à la même distance que dans le moteur iOS
+    # --- ciel, à la même distance que le mur du moteur iOS
     mur_y = profondeur + cadre["distance"] * 0.3
     bpy.ops.mesh.primitive_plane_add(size=taille, location=(0, mur_y, taille / 2))
     mur = bpy.context.active_object
     mur.rotation_euler[0] = math.radians(90)
-    mat_mur = bpy.data.materials.new("mur_studio")
+    mat_mur = bpy.data.materials.new("ciel")
     mat_mur.use_nodes = True
     arbre = mat_mur.node_tree
     emission = arbre.nodes.new("ShaderNodeEmission")
-    gris = vers_lineaire(MUR_SRGB)
-    emission.inputs["Color"].default_value = (gris, gris, gris, 1.0)
+    emission.inputs["Color"].default_value = (*[vers_lineaire(c) for c in couleur_ciel], 1.0)
     emission.inputs["Strength"].default_value = 1.0
     arbre.links.new(emission.outputs["Emission"],
                     arbre.nodes["Material Output"].inputs["Surface"])
@@ -454,8 +463,11 @@ def main():
                     help="intensité de la clé, réglée sur la clarté mesurée")
     ap.add_argument("--ambiante", type=float, default=0.40,
                     help="force de l'ambiante du monde")
-    ap.add_argument("--teinte-sol", type=float, default=2.18,
-                    help="multiplicateur du sol, réglé sur la clarté mesurée")
+    ap.add_argument("--teinte-sol", type=float, default=0.84,
+                    help="corrige l'éclairage du sol pour qu'il rende la "
+                         "couleur demandée ; 0,84 = 1 / l'exposition mesurée")
+    ap.add_argument("--ciel", default=CIEL, help="couleur du fond, #RRGGBB")
+    ap.add_argument("--herbe", default=HERBE, help="couleur du sol, #RRGGBB")
     a = ap.parse_args(argv_apres_double_tiret())
 
     scene = scene_vide()
@@ -483,7 +495,8 @@ def main():
     print(f"sujet H={hauteur:.4f} L={largeur:.4f} P={profondeur:.4f}")
 
     cadre = cadrer(largeur, hauteur, profondeur, LARGEUR / HAUTEUR)
-    poser_fond_studio(cadre, hauteur, largeur, profondeur, a.teinte_sol)
+    poser_fond_studio(cadre, hauteur, largeur, profondeur,
+                      a.ciel, a.herbe, a.teinte_sol)
     poser_eclairage(cadre, hauteur, largeur, profondeur,
                     a.puissance_cle, a.ambiante)
     poser_camera(cadre)

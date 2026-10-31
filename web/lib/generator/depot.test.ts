@@ -1566,6 +1566,15 @@ describe('dépôt — file des vignettes', () => {
     expect(await prendreVignette()).toBeNull();
   });
 
+  it('un ouvrier ne prend que les tâches de SON environnement', async () => {
+    // Publier demande un jeton admin propre à l'environnement : un ouvrier de
+    // dev qui réserverait une tâche de prod la bloquerait 20 minutes sans
+    // pouvoir la livrer.
+    await deposerVignettes('prod', ['abc'], r);
+    expect(await prendreVignette(Date.now(), 'dev')).toBeNull();
+    expect((await prendreVignette(Date.now(), 'prod'))?.plante).toBe('abc');
+  });
+
   it('deux prises concurrentes ne rendent jamais la même vignette', async () => {
     await deposerVignettes('dev', ['seule'], r);
     const [a, b] = await Promise.all([prendreVignette(), prendreVignette()]);

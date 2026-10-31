@@ -19,7 +19,11 @@ export const runtime = 'nodejs';
  */
 export async function POST(req: NextRequest) {
   if (!bonHote(req)) return introuvable();
-  const tache = await prendreVignette();
+  // L'ouvrier annonce l'environnement qu'il sert. Sans ce filtre il
+  // réserverait une tâche de production qu'il n'a pas de quoi publier, et la
+  // tâche reviendrait en attente 20 minutes plus tard.
+  const servi = req.nextUrl.searchParams.get('env') ?? undefined;
+  const tache = await prendreVignette(Date.now(), servi);
   if (!tache) return new NextResponse(null, { status: 204 });
 
   const env = environnement(tache.env);

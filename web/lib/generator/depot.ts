@@ -1681,11 +1681,20 @@ function reprendreVignettesExpirees(etat: Etat, maintenant: number): number {
   return reprises;
 }
 
-/** Réserve une vignette à rendre, ou `null`. Même protocole que `prendre`. */
-export function prendreVignette(maintenant = Date.now()) {
+/**
+ * Réserve une vignette à rendre, ou `null`. Même protocole que `prendre`.
+ *
+ * `env` restreint la prise à un environnement, et ce n'est pas un confort :
+ * publier demande un jeton admin propre à l'environnement visé. Un ouvrier
+ * unique servant dev ET prod devrait porter les identifiants des deux, ce qui
+ * reviendrait à donner à dev de quoi écrire en production. Chaque
+ * environnement fait donc tourner son ouvrier, avec ses seuls identifiants.
+ */
+export function prendreVignette(maintenant = Date.now(), env?: string) {
   return muter((etat) => {
     reprendreVignettesExpirees(etat, maintenant);
-    const tache = (etat.vignettes ?? []).find((t) => t.etat === 'en_attente');
+    const tache = (etat.vignettes ?? [])
+      .find((t) => t.etat === 'en_attente' && (env === undefined || t.env === env));
     if (!tache) return null;
     tache.etat = 'en_cours';
     tache.pris = maintenant;

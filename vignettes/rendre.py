@@ -139,6 +139,22 @@ def scene_vide():
     s.view_settings.exposure = 0.0
     s.view_settings.gamma = 1.0
     s.display_settings.display_device = "sRGB"
+
+    # Qualité des ombres. Laissés par défaut, ces réglages donnent une ombre
+    # portée mouchetée : EEVEE échantillonne la pénombre de façon stochastique,
+    # et un feuillage fin est exactement le cas qui la fait bruiter. Le feuillage
+    # est aussi ce qu'on photographie — l'ombre d'une plante EST une dentelle.
+    s.eevee.use_shadows = True
+    # Lancer de rayons COUPÉ, et ce n'est pas une économie. Activé, la pelouse
+    # déteint sur le pot blanc par rayonnement indirect : physiquement juste,
+    # inacceptable pour un catalogue où le pot doit rester blanc d'une fiche à
+    # l'autre quelle que soit la couleur du sol. Ce n'est de toute façon pas
+    # lui qui nettoie l'ombre — ce sont les trois réglages ci-dessous.
+    s.eevee.use_raytracing = False
+    s.eevee.shadow_ray_count = 4
+    s.eevee.shadow_step_count = 16
+    s.eevee.shadow_resolution_scale = 1.0
+    s.eevee.shadow_pool_size = "1024"
     return s
 
 
@@ -269,6 +285,12 @@ def poser_eclairage(cadre, hauteur, largeur, profondeur, puissance_cle, ambiante
     cle = bpy.context.active_object
     cle.data.energy = puissance_cle
     cle.data.angle = math.radians(3.0)   # ombre douce, pas un trait net
+    # `use_shadow_jitter` : sans lui, la pénombre est approchée par un flou de
+    # la carte d'ombre et les feuilles se résolvent en escalier. Avec, elle est
+    # échantillonnée pour de bon — plus lente à converger, mais elle converge.
+    cle.data.use_shadow_jitter = True
+    cle.data.shadow_maximum_resolution = 0.0005
+    cle.data.shadow_filter_radius = 2.0
     cle.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
 
     distance = echelle * 1.2

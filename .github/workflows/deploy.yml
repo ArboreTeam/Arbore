@@ -106,6 +106,12 @@ jobs:
           - service: web
             context: ./web
             suffix: web
+          # Job de rendu des vignettes (#695). Construit comme les autres pour
+          # que l'environnement de rendu soit le MÊME partout : la version de
+          # Blender est épinglée dans son Dockerfile, pas héritée d'une machine.
+          - service: vignettes
+            context: ./vignettes
+            suffix: vignettes
 
     steps:
       - name: Checkout

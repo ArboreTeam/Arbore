@@ -26,13 +26,69 @@ vignette de catalogue, pas une image de rendu.
 import argparse
 import json
 import math
+import os
 import sys
 
 import bpy
-from mathutils import Vector
+from mathutils import Quaternion, Vector
 
 # Gabarit servi, mesuré sur les 123 vignettes en service.
 LARGEUR, HAUTEUR = 720, 900
+
+# Studio repris de `PlantThumbnailRenderer` : le catalogue doit garder une
+# seule allure, et c'est celle-là qui est en service. Les trois premières
+# valeurs sont copiées du moteur iOS ; la quatrième est MESURÉE sur une
+# vignette servie, parce que RealityKit applique son propre rendu à son mur
+# « non éclairé » et que sa couleur nominale (0,72) sort à 161, pas à 184.
+CHAMP_VERTICAL = 35.0      # cameraFOVDegrees
+REMPLISSAGE = 0.70         # fillFactor
+INCLINAISON = 8.0          # cameraPitchDegrees, vers le bas
+MUR_SRGB = 161
+TEXTURE_SOL = "/app/studio_floor.png"
+SOL_REPLI = (0.58, 0.57, 0.52)   # floorFallbackColor
+
+
+def vers_lineaire(c):
+    """Octet sRGB vers la valeur linéaire que Blender attend d'un matériau."""
+    c = c / 255.0
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def cadrer(largeur, hauteur, profondeur, rapport):
+    """Port littéral de `PlantThumbnailFraming.fit`.
+
+    Recalculer ce cadrage « à peu près » donnerait des vignettes qui ne se
+    superposent pas aux anciennes : la plante changerait de taille d'une fiche
+    à l'autre selon celle qui a été régénérée. On copie donc la formule, y
+    compris sa prise en compte de la PROFONDEUR — c'est elle qui, une fois la
+    caméra inclinée, fait sortir du cadre les plantes larges.
+    """
+    largeur = max(largeur, 0.001)
+    hauteur = max(hauteur, 0.001)
+    profondeur = max(profondeur, 0.001)
+    rapport = max(rapport, 0.1)
+    remplissage = min(max(REMPLISSAGE, 0.1), 0.95)
+
+    demi_champ = CHAMP_VERTICAL * math.pi / 360
+    tan_vertical = max(math.tan(demi_champ), 0.001)
+    tan_horizontal = max(tan_vertical * rapport, 0.001)
+    inclinaison = INCLINAISON * math.pi / 180
+    sinus = abs(math.sin(inclinaison))
+    cosinus = abs(math.cos(inclinaison))
+
+    demi_vertical = (hauteur * 0.5 * cosinus) + (profondeur * 0.5 * sinus)
+    demi_horizontal = largeur * 0.5
+    demi_profondeur = (hauteur * 0.5 * sinus) + (profondeur * 0.5 * cosinus)
+
+    marge_verticale = demi_vertical / (tan_vertical * remplissage)
+    marge_horizontale = demi_horizontal / (tan_horizontal * remplissage)
+    distance = demi_profondeur + max(marge_verticale, marge_horizontale)
+    vise_z = hauteur * 0.5
+
+    return {"distance": distance,
+            "camera_z": vise_z + distance * math.sin(inclinaison),
+            "camera_y": distance * math.cos(inclinaison),
+            "vise_z": vise_z}
 
 # Marqueur de design attendu par l'app : quatre carrés dans les coins.
 # `PlantThumbnailCache.designMarkerColor` vaut (94, 28, 186) en sRGB 8 bits,
@@ -107,93 +163,149 @@ def boite(objets):
     return bas, haut
 
 
-def poser_fond_studio(bas, haut, niveau_sol=None):
-    """Fond studio : un mur et un sol, en dégradé doux.
+def poser_fond_studio(cadre, hauteur, largeur, profondeur, teinte_sol):
+    """Studio repris du moteur iOS : sol texturé, mur uni non éclairé.
 
-    Ce n'est pas de la décoration. `hasLegacyWhiteWallDarkFloor` rejette
-    précisément un mur clair sur un sol sombre — l'ancien design — et
-    `hasTopBackdropSeam` rejette une couture franche en haut de l'image. Le
-    fond doit donc être continu et le sol pas plus sombre que le mur.
+    Le mur est ÉMISSIF, et non éclairé comme une surface ordinaire. C'est la
+    transposition d'`UnlitMaterial` : sa couleur ne dépend ni des lampes ni de
+    leur distance, donc le fond est rigoureusement plat d'un bord à l'autre et
+    d'une plante à l'autre. Éclairé, il prendrait un dégradé qui varierait avec
+    la taille du sujet — deux fiches voisines n'auraient pas le même gris.
+
+    `hasLegacyWhiteWallDarkFloor` rejette un mur clair (> 225) sur sol sombre ;
+    à 161 on en est loin, et c'est la valeur des vignettes en service.
     """
-    taille = max(haut.x - bas.x, haut.z - bas.z, haut.y - bas.y) * 12.0
-    z = bas.z if niveau_sol is None else niveau_sol
+    echelle = max(hauteur, largeur, profondeur, cadre["distance"])
+    taille = echelle * 10
 
-    bpy.ops.mesh.primitive_plane_add(size=taille, location=(0, 0, z))
+    # --- sol, à -0,001 comme dans `PlantThumbnailRenderer`
+    bpy.ops.mesh.primitive_plane_add(size=taille, location=(0, 0, -0.001))
     sol = bpy.context.active_object
-    bpy.ops.mesh.primitive_plane_add(size=taille, location=(0, taille / 2.2, z))
+    mat_sol = bpy.data.materials.new("sol_studio")
+    mat_sol.use_nodes = True
+    arbre = mat_sol.node_tree
+    principal = arbre.nodes["Principled BSDF"]
+    principal.inputs["Roughness"].default_value = 0.95
+    principal.inputs["Metallic"].default_value = 0.0
+
+    if os.path.exists(TEXTURE_SOL):
+        coord = arbre.nodes.new("ShaderNodeTexCoord")
+        mapping = arbre.nodes.new("ShaderNodeMapping")
+        # Le même nombre de répétitions que `makeTiledPlane` : `uScale` y vaut
+        # `studioSize * 0.8`, et la grandeur du carrelage suit donc la taille
+        # de la scène, pas celle de l'image.
+        mapping.inputs["Scale"].default_value = (taille * 0.8, taille * 0.8, 1.0)
+        image = arbre.nodes.new("ShaderNodeTexImage")
+        image.image = bpy.data.images.load(TEXTURE_SOL)
+        image.extension = "REPEAT"
+        teinte = arbre.nodes.new("ShaderNodeMixRGB")
+        teinte.blend_type = "MULTIPLY"
+        teinte.inputs["Fac"].default_value = 1.0
+        # Le moteur iOS multiplie par 0,98 ; ici la valeur dépasse 1, et c'est
+        # délibéré. Le sol est un DÉCOR, au même titre que le mur émissif : sa
+        # clarté est une valeur mesurée sur les vignettes servies (151), pas le
+        # résultat d'un éclairage physique. L'obtenir en montant les lampes
+        # brûlerait le pot blanc, dont le relief est justement ce qu'on veut
+        # montrer. Multiplier n'écrase pas l'ombre portée : elle est
+        # multipliée aussi, donc le rapport de contraste tient.
+        teinte.inputs["Color2"].default_value = (teinte_sol, teinte_sol, teinte_sol, 1.0)
+        arbre.links.new(coord.outputs["UV"], mapping.inputs["Vector"])
+        arbre.links.new(mapping.outputs["Vector"], image.inputs["Vector"])
+        arbre.links.new(image.outputs["Color"], teinte.inputs["Color1"])
+        arbre.links.new(teinte.outputs["Color"], principal.inputs["Base Color"])
+    else:
+        principal.inputs["Base Color"].default_value = (*SOL_REPLI, 1.0)
+    sol.data.materials.append(mat_sol)
+
+    # --- mur, à la même distance que dans le moteur iOS
+    mur_y = profondeur + cadre["distance"] * 0.3
+    bpy.ops.mesh.primitive_plane_add(size=taille, location=(0, mur_y, taille / 2))
     mur = bpy.context.active_object
     mur.rotation_euler[0] = math.radians(90)
-
-    mat = bpy.data.materials.new("fond_studio")
-    mat.use_nodes = True
-    p = mat.node_tree.nodes["Principled BSDF"]
-    # Gris moyen, identique au sol et au mur : ni mur blanc, ni sol sombre.
-    p.inputs["Base Color"].default_value = (0.62, 0.62, 0.62, 1.0)
-    p.inputs["Roughness"].default_value = 0.92
-    p.inputs["Metallic"].default_value = 0.0
-    for o in (sol, mur):
-        o.data.materials.append(mat)
+    mat_mur = bpy.data.materials.new("mur_studio")
+    mat_mur.use_nodes = True
+    arbre = mat_mur.node_tree
+    emission = arbre.nodes.new("ShaderNodeEmission")
+    gris = vers_lineaire(MUR_SRGB)
+    emission.inputs["Color"].default_value = (gris, gris, gris, 1.0)
+    emission.inputs["Strength"].default_value = 1.0
+    arbre.links.new(emission.outputs["Emission"],
+                    arbre.nodes["Material Output"].inputs["Surface"])
+    mur.data.materials.append(mat_mur)
     return sol, mur
 
 
-def poser_eclairage(bas, haut):
-    """Lumière clé en biais, plus un remplissage doux.
+def poser_eclairage(cadre, hauteur, largeur, profondeur, puissance_cle, ambiante):
+    """Clé presque zénithale, remplissage et contre-jour — plan du moteur iOS.
 
-    Le biais n'est pas esthétique : c'est lui qui fait ressortir le relief du
-    pot. Les rendus de contrôle du 2026-10-30 ont montré que le motif en nid
-    d'abeilles disparaît sous un éclairage frontal et apparaît nettement en
-    latéral — ce qui a d'ailleurs corrigé le diagnostic de #682, où le pot
-    était cru « plat » alors que c'était la lumière qui l'écrasait.
+    L'orientation de la clé n'est pas réglée à vue : elle est DÉRIVÉE des deux
+    mêmes quaternions que `PlantThumbnailRenderer`, puis amenée dans le repère
+    de Blender. C'est elle qui donne l'ombre de contact courte, celle qui pose
+    la plante sur le sol au lieu de la laisser flotter.
+
+    Les intensités, elles, ne se transposent pas : RealityKit compte en lux et
+    en lumens, Blender en watts, et le moteur iOS applique en plus son propre
+    rendu. Elles sont donc réglées sur la clarté MESURÉE d'une vignette servie.
     """
-    etendue = max(haut.x - bas.x, haut.y - bas.y, haut.z - bas.z, 1e-6)
+    echelle = max(hauteur, largeur, profondeur, cadre["distance"])
 
-    bpy.ops.object.light_add(type="AREA",
-                             location=(etendue * 1.6, -etendue * 1.4, haut.z + etendue * 1.1))
+    # simd_quatf(-0,42 pi, X) * simd_quatf(pi/12, Y) appliqué à (0, 0, -1),
+    # puis iOS (x, y, z) -> Blender (x, -z, y).
+    q = (Quaternion((1, 0, 0), -math.pi * 0.42)
+         @ Quaternion((0, 1, 0), math.pi / 12))
+    d = q @ Vector((0, 0, -1))
+    direction = Vector((d.x, -d.z, d.y))
+
+    bpy.ops.object.light_add(type="SUN", location=(0, 0, hauteur * 2))
     cle = bpy.context.active_object
-    # 110 et non 260 : en vue `Standard`, sans la compression des hautes
-    # lumières d'AgX, la clé à 260 écrêtait le pot blanc et effaçait le
-    # relief en nid d'abeilles qu'elle est censée révéler.
-    cle.data.energy = etendue * etendue * 110
-    cle.data.size = etendue * 1.4
-    cle.rotation_euler = (math.radians(52), 0, math.radians(38))
+    cle.data.energy = puissance_cle
+    cle.data.angle = math.radians(3.0)   # ombre douce, pas un trait net
+    cle.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
 
-    bpy.ops.object.light_add(type="AREA",
-                             location=(-etendue * 1.5, -etendue * 1.2, haut.z * 0.6))
+    distance = echelle * 1.2
+    puissance = 0.30 * distance * distance   # ratio du moteur iOS, en watts
+
+    bpy.ops.object.light_add(type="POINT",
+                             location=(distance, -distance, hauteur * 0.9))
     remplissage = bpy.context.active_object
-    remplissage.data.energy = etendue * etendue * 60
-    remplissage.data.size = etendue * 2.0
-    remplissage.rotation_euler = (math.radians(74), 0, math.radians(-42))
+    remplissage.data.energy = puissance
+    remplissage.data.color = (0.92, 0.92, 0.92)
+    remplissage.data.shadow_soft_size = echelle * 0.3
 
-    # Ambiante : empêche les creux de tomber au noir. `isLegacyDarkThumbnail`
-    # rejette une vignette globalement trop sombre.
+    bpy.ops.object.light_add(type="POINT",
+                             location=(-distance, distance, hauteur * 0.8))
+    contre = bpy.context.active_object
+    contre.data.energy = puissance
+    contre.data.color = (0.92, 0.92, 0.92)
+    contre.data.shadow_soft_size = echelle * 0.3
+
+    # Ambiante : `isLegacyDarkThumbnail` rejette une vignette globalement trop
+    # sombre, et les creux du feuillage tomberaient au noir sans elle.
     monde = bpy.data.worlds.new("studio")
     monde.use_nodes = True
-    monde.node_tree.nodes["Background"].inputs[0].default_value = (0.55, 0.55, 0.55, 1.0)
-    monde.node_tree.nodes["Background"].inputs[1].default_value = 0.48
+    # 0,60 et non 0,25 : c'est l'ambiante, et non la clé, qui remonte le sol
+    # et déboucher l'ombre. Monter la clé à la place écrêterait le pot blanc.
+    monde.node_tree.nodes["Background"].inputs[0].default_value = (0.5, 0.5, 0.5, 1.0)
+    monde.node_tree.nodes["Background"].inputs[1].default_value = ambiante
     bpy.context.scene.world = monde
 
 
-def poser_camera(bas, haut):
-    """Cadrage orthographique, sujet centré avec une marge constante.
+def poser_camera(cadre):
+    """Caméra en perspective, au cadrage calculé par `cadrer`.
 
-    Orthographique et non perspective : une vignette de catalogue se compare à
-    la suivante, et une focale introduirait une déformation qui varierait avec
-    la taille de la plante.
+    En perspective et non en orthographique : c'est ce que fait le moteur iOS,
+    et une vignette orthographique à côté d'une vignette en perspective se
+    repère immédiatement dans une grille de catalogue.
     """
-    centre = (bas + haut) / 2
-    hauteur_sujet = haut.z - bas.z
-    largeur_sujet = max(haut.x - bas.x, haut.y - bas.y)
-
     bpy.ops.object.camera_add()
     cam = bpy.context.active_object
-    cam.data.type = "ORTHO"
-    # 1,18 : la marge des vignettes servies, mesurée sur le cadrage actuel.
-    cam.data.ortho_scale = max(hauteur_sujet * HAUTEUR / LARGEUR, largeur_sujet) * 1.18
+    cam.data.sensor_fit = "VERTICAL"
+    cam.data.angle_y = math.radians(CHAMP_VERTICAL)
     cam.data.clip_start = 1e-4
-
-    recul = max(hauteur_sujet, largeur_sujet) * 6
-    cam.location = (0, -recul, centre.z)
-    cam.rotation_euler = (math.radians(90), 0, 0)
+    # La caméra est devant le sujet, donc en Y négatif ; `cadre["camera_y"]`
+    # est la distance en profondeur, toujours positive.
+    cam.location = (0, -cadre["camera_y"], cadre["camera_z"])
+    cam.rotation_euler = (math.radians(90 - INCLINAISON), 0, 0)
     bpy.context.scene.camera = cam
     return cam
 
@@ -263,9 +375,16 @@ def composer(modele, pot_chemin, pose):
     centre et aplatirait les décalages internes du pot — un pot désassemblé,
     pour un fichier à plusieurs maillages.
     """
-    _, plante = importer_usd(modele)
+    bpy.ops.object.empty_add(location=(0, 0, 0))
+    sujet = bpy.context.active_object
+    sujet.name = "arbore_sujet"
+
+    racines_plante, plante = importer_usd(modele)
+    for o in racines_plante:
+        o.parent = sujet
     if not pot_chemin or not pose:
-        return plante, None
+        bpy.context.view_layer.update()
+        return sujet, plante, None
 
     racines_pot, pot = importer_usd(pot_chemin)
 
@@ -275,6 +394,7 @@ def composer(modele, pot_chemin, pose):
     for o in racines_pot:
         o.parent = porteur
     bpy.context.view_layer.update()
+    porteur.parent = sujet
 
     # `potMax` dans l'espace LOCAL du porteur, comme `noeud.boundingBox` : le
     # porteur est encore à l'identité, donc le monde EST son espace local.
@@ -311,13 +431,15 @@ def composer(modele, pot_chemin, pose):
         p.inputs["Roughness"].default_value = 0.95
         p.inputs["Metallic"].default_value = 0.0
         terre.data.materials.append(mat)
+        terre.parent = sujet
         objets.append(terre)
 
     # Le sol se pose sous le POT, pas sous la boîte englobante : les racines du
     # modèle descendent plus bas que le fond du pot, qui les cache. Au plus bas
     # de la boîte, le pot flotte de cinq centimètres au-dessus du sol.
     bas_pot, _ = boite(pot)
-    return plante + objets, bas_pot.z
+    bpy.context.view_layer.update()
+    return sujet, plante + objets, bas_pot.z
 
 
 def main():
@@ -326,22 +448,47 @@ def main():
     ap.add_argument("--sortie", required=True)
     ap.add_argument("--pot")
     ap.add_argument("--pose", help="JSON de la pose, servi par le backend")
+    ap.add_argument("--echantillons", type=int, default=64,
+                    help="échantillons EEVEE ; baisser pour un essai rapide")
+    ap.add_argument("--puissance-cle", type=float, default=4.0,
+                    help="intensité de la clé, réglée sur la clarté mesurée")
+    ap.add_argument("--ambiante", type=float, default=0.40,
+                    help="force de l'ambiante du monde")
+    ap.add_argument("--teinte-sol", type=float, default=2.18,
+                    help="multiplicateur du sol, réglé sur la clarté mesurée")
     a = ap.parse_args(argv_apres_double_tiret())
 
-    scene_vide()
+    scene = scene_vide()
+    scene.eevee.taa_render_samples = a.echantillons
     pose = json.loads(a.pose) if a.pose else None
-    objets, niveau_sol = composer(a.modele, a.pot, pose)
+    sujet, maillages, niveau_sol = composer(a.modele, a.pot, pose)
 
-    bas, haut = boite(objets)
-    if niveau_sol is not None and niveau_sol > bas.z:
-        # Ce qui passe sous le sol est caché : le cadrer réserverait une bande
-        # vide en bas de l'image.
-        bas = Vector((bas.x, bas.y, niveau_sol))
-    poser_fond_studio(bas, haut, niveau_sol)
-    poser_eclairage(bas, haut)
-    poser_camera(bas, haut)
+    # Pose au sol et centrage, comme le moteur iOS : `model.position.y` ramène
+    # le bas sur le sol, puis le centre est ramené sur l'axe.
+    #
+    # À une différence près, et elle compte : iOS rend le modèle COMPLET, dont
+    # le bas EST le fond de son pot. Ici la plante est servie sans pot, et ses
+    # racines descendent plus bas que le cachepot qui les couvre. Poser la
+    # boîte englobante sur le sol ferait donc flotter le pot de cinq
+    # centimètres. C'est le fond du POT qui touche le sol.
+    bas, haut = boite(maillages)
+    sol = bas.z if niveau_sol is None else niveau_sol
+    sujet.location = (-(bas.x + haut.x) / 2, -(bas.y + haut.y) / 2, -sol)
+    bpy.context.view_layer.update()
 
-    bpy.context.scene.render.filepath = a.sortie
+    bas, haut = boite(maillages)
+    hauteur = max(haut.z, 0.001)
+    largeur = max(haut.x - bas.x, 0.001)
+    profondeur = max(haut.y - bas.y, 0.001)
+    print(f"sujet H={hauteur:.4f} L={largeur:.4f} P={profondeur:.4f}")
+
+    cadre = cadrer(largeur, hauteur, profondeur, LARGEUR / HAUTEUR)
+    poser_fond_studio(cadre, hauteur, largeur, profondeur, a.teinte_sol)
+    poser_eclairage(cadre, hauteur, largeur, profondeur,
+                    a.puissance_cle, a.ambiante)
+    poser_camera(cadre)
+
+    scene.render.filepath = a.sortie
     bpy.ops.render.render(write_still=True)
     poser_marqueur(a.sortie)
     print(f"vignette écrite : {a.sortie}")

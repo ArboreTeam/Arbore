@@ -51,7 +51,7 @@ INCLINAISON = 8.0          # cameraPitchDegrees, vers le bas
 # même famille, en plus soutenu — et il se distingue aussi du fond des cartes,
 # #FFFFFF en thème clair et #24231F en sombre.
 CIEL = "#D5CBB8"
-HERBE = "#7CA65C"
+HERBE = "#567A40"
 
 # Plafond de clarté du ciel, et ce n'est pas un réglage de goût.
 # `hasLegacyWhiteWallDarkFloor` REFUSE la vignette dès que deux de ses cinq

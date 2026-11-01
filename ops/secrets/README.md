@@ -184,6 +184,32 @@ autre et remplacer l'empreinte. À ne pas confondre avec
 `GENERATOR_SESSION_SECRET`, qui est stocké comme valeur et donc relisible — le
 serveur en a besoin pour signer les sessions.
 
+### Une exception assumée : `GENERATOR_KEY` sur dev
+
+Depuis le 2026-11-01, `dev.enc.env` porte **aussi** `GENERATOR_KEY`, en clair
+une fois déchiffré. C'est une déviation de la règle ci-dessus, et elle se
+justifie ainsi.
+
+L'ouvrier des vignettes (#696) tourne **sur le serveur**, dans la même pile
+que l'atelier, et doit y ouvrir une session. L'ouvrier Colab, lui, est hors
+machine : sa clé vit dans les secrets Colab, et la règle tenait sans effort.
+
+Trois choses rendent l'exception acceptable :
+
+1. **Ce n'est pas la clé humaine.** `GENERATOR_KEY_HASH` accepte désormais
+   plusieurs empreintes, séparées par des virgules. Le robot a la sienne,
+   tirée au hasard. La clé de l'opérateur reste hors du serveur, comme avant.
+2. **Elle est révocable seule.** Retirer l'empreinte du robot de la liste lui
+   coupe l'accès sans déconnecter personne.
+3. **Le `.env` donne déjà bien davantage.** Qui le lit détient `MONGODB_URI`,
+   `ARBORE_API_KEY`, `GHCR_TOKEN` et les clés Apple — donc la base entière.
+   L'atelier n'est qu'une interface au-dessus de ces mêmes données : l'accès
+   marginal qu'ouvre cette clé est nul.
+
+Ce qui reste vrai, et qu'il ne faut pas défaire : **la clé de l'opérateur ne
+doit jamais rejoindre ce fichier.** Perdue, elle ne se retrouve pas ; partagée
+avec un robot, elle devient irrévocable sans déconnecter la personne.
+
 **Un projet Firebase par environnement.** Le job de réconciliation (#393) tourne chaque dimanche avec `--apply` et compare les uid Firebase à une base Mongo. Pointé vers le mauvais couple, **il vide la mauvaise base**. Aucune de ses quatre gardes ne couvre ce cas.
 
 ## Déploiement

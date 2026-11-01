@@ -2,8 +2,13 @@
 
 Catalogue thumbnails are rendered by a **container job**, outside any Apple
 environment. They used to be rendered from the app, screen by screen, through
-an admin view — a manual operation that had to be replayed on every model
+a debug view — a manual operation that had to be replayed on every model
 change.
+
+That view, its RealityKit renderer and the test suite that drove it from the
+simulator **have been removed** from the app (#696). The app no longer renders
+thumbnails: it displays them, caches them and rejects stale ones. Rendering now
+has a single path, the one described here.
 
 ## Why Blender
 
@@ -123,6 +128,59 @@ Render time is **to be re-measured on the VPS**, which is natively x86: under
 emulation it means nothing in absolute terms. The ratio does hold: raising
 shadow quality took the render from 4 min 47 to 8 min 20.
 
+## How the job authenticates
+
+Through **two keys**, and no Firebase session.
+
+```
+X-API-Key              ARBORE_API_KEY        picks the database (prod or test)
+X-Arbore-Internal-Key  ARBORE_INTERNAL_KEY   opens the /internal/* routes
+```
+
+Three routes, and nothing more:
+
+| Route | Why |
+| --- | --- |
+| `GET /internal/plants` | know which plants to render |
+| `GET /internal/models/:filename` | download the USDZ model |
+| `POST /internal/models/thumbnails/:plantId` | upload the rendered thumbnail |
+
+### Why not a service account
+
+The first version aimed at the app's own routes, under `protected`: API key
+**then** Firebase session. A robot cannot hold a Firebase session, so the only
+way through was a **service account carrying the administrator role** — a human
+account repurposed, with its password kept in the secret store, its token to
+refresh, its UID in `ARBORE_ADMIN_UIDS`, and the right to write the entire
+catalogue. To upload images.
+
+An **anonymous** session solves nothing: it would be enough to read, never to
+publish, since its UID changes on every sign-in and therefore cannot appear in
+`ARBORE_ADMIN_UIDS`.
+
+The `/internal/*` routes grant exactly the three gestures needed. They confer
+**no role**, open no account route, and require both keys **together**: the API
+key alone, the one the iOS app carries, does not get in.
+
+### Key absent: the door closes
+
+With `ARBORE_INTERNAL_KEY` unset, the internal routes answer **503
+`INTERNAL_ROUTES_DISABLED`**, whatever is presented to them. An instance that
+runs no robot has nothing to configure, and the surface does not exist there —
+which is production's situation today.
+
+An unset secret must **close** the door, never open it. The trap is a precise
+one: `ConstantTimeCompare(supplied, configured)` would judge an empty header
+equal to an empty key, and anyone would walk in. A test pins this by name.
+
+503 rather than 404, because a 404 would be indistinguishable from the one a
+mismatched host already returns — and we have chased the same fault twice
+already.
+
+The `GET /models/:filename` handler is **mounted twice**, under `protected` and
+under `/internal`, from a single body (`servePlantModel`). Two copies would have
+meant two definitions of the path checks to keep in agreement.
+
 ## Driving it from the workshop
 
 The workshop exposes a `Vignettes` page showing what each environment
@@ -135,7 +193,8 @@ workshop  --[POST /api/generator/vignettes]-->  queue
                                                  |
                       vignettes-ouvrier  <-------+  (--surveiller)
                                |
-                               +--> renders, checks, POST /models/thumbnails/<id>
+                               +--> renders, checks,
+                               |    POST /internal/models/thumbnails/<id>
                                +--> delivers or reports failure
 ```
 
@@ -147,13 +206,15 @@ docker compose --profile vignettes up -d vignettes-ouvrier
 
 It needs `ATELIER_BASE`, `ATELIER_CLE` and `ARBORE_ENV_NOM`.
 
-**A worker serves exactly ONE environment**, and that is not tidiness:
-publishing requires an admin token specific to the target environment. A single
-worker serving dev and prod would have to carry both sets of credentials, which
-would amount to giving dev the means to write to production. Each environment
-runs its own, and `prendre` filters on that name — without the filter, a dev
-worker would reserve a prod task it cannot deliver, blocking it for twenty
-minutes.
+**A worker serves exactly ONE environment.** While idling it carries **no**
+backend key at all: the workshop attaches the API address and its two keys to
+the task it hands out. `ARBORE_ENV_NOM` only decides which queue it draws from,
+and `prendre` filters on that name — without the filter, a dev worker would
+reserve a prod task, blocking it for twenty minutes.
+
+A worker wired to dev therefore never, at any moment, holds the means to write
+to production. This is not a rule someone could forget to follow: it never
+receives the secret.
 
 The worker is capped at 2 cores. A Blender render takes everything it is given,
 and a catalogue pass runs for hours: uncapped, it starves the backend sharing
@@ -166,11 +227,19 @@ the machine.
 `docker inspect`, a mounted file is not.
 
 ```json
-[{ "nom": "dev", "api": "https://api-dev.arbore.app", "cle": "…" }]
+[{ "nom": "dev", "api": "https://api-dev.arbore.app",
+   "cle": "…", "interne": "…" }]
 ```
 
+`cle` is the environment's API key, `interne` its internal-routes key. **Both**
+are required, and neither leaves the server — never a `NEXT_PUBLIC_`.
+
+An entry without `interne` is still **loaded**, with an empty key, and the
+preview says so plainly. Rejecting it would turn it into an "unknown
+environment", a diagnosis far harder to trace back to its cause.
+
 **Images** need no secret: `GET /models/thumbnails/:filename` is a public
-backend route. The key only lists the catalogue, and never leaves the server.
+backend route.
 
 ### What the page cannot do
 

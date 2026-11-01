@@ -17,8 +17,14 @@ type FicheDistante = {
  * Catalogue d'un environnement, avec l'adresse publique de chaque vignette.
  *
  * Les images ne demandent aucun secret : `GET /models/thumbnails/:filename`
- * est une route publique du backend. Seule la LISTE passe par la clé, et
- * celle-ci ne quitte pas le serveur.
+ * est une route publique du backend. Seule la LISTE est authentifiée, et ses
+ * deux clés ne quittent pas le serveur.
+ *
+ * Elle passe par `GET /internal/plants` et non par `/plants` (#696). La
+ * première version de cette route supposait que la clé d'API suffisait à
+ * lister le catalogue : c'était faux, `/plants` vit sous `protected`, donc
+ * derrière une session Firebase. L'aperçu rendait 502 à chaque appel. Mesuré
+ * depuis le conteneur web : 401 avec la seule clé d'API.
  *
  * `?v=<empreinte>` sur l'URL d'image n'est pas décoratif : sans lui le
  * navigateur sert sa copie en cache et une vignette refaite reste
@@ -41,10 +47,20 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // Dit explicitement plutôt que de laisser partir un appel qui prendra un
+  // 503 : « clé interne non configurée » est une panne de provisionnement, pas
+  // une panne du backend, et les deux ne se réparent pas au même endroit.
+  if (!env.interne) {
+    return NextResponse.json(
+      { error: `clé interne absente pour ${env.nom} : ajouter \`interne\` à VIGNETTES_ENVIRONNEMENTS` },
+      { status: 503 },
+    );
+  }
+
   let reponse: Response;
   try {
-    reponse = await fetch(`${env.api}/plants`, {
-      headers: { 'X-API-Key': env.cle },
+    reponse = await fetch(`${env.api}/internal/plants`, {
+      headers: { 'X-API-Key': env.cle, 'X-Arbore-Internal-Key': env.interne },
       cache: 'no-store',
       signal: AbortSignal.timeout(20_000),
     });

@@ -77,6 +77,17 @@ export type Environnement = {
   api: string;
   /** Clé d'API de CET environnement. Ne sort jamais du serveur. */
   cle: string;
+  /**
+   * Clé des routes internes de CET environnement (`X-Arbore-Internal-Key`).
+   *
+   * Exigée EN PLUS de `cle` par `/internal/*` : c'est ce qui permet de lister
+   * le catalogue et de publier une vignette sans session Firebase (#696). Sans
+   * elle, l'atelier n'a aucune façon de lire le catalogue — la clé d'API seule
+   * prend un 401 sur `/plants`, mesuré.
+   *
+   * Vide est un état valide : l'aperçu le dira plutôt que de tomber.
+   */
+  interne: string;
 };
 
 /**
@@ -88,11 +99,12 @@ export type Environnement = {
  * les deux.
  *
  * Les IMAGES, elles, ne demandent aucun secret :
- * `GET /models/thumbnails/:filename` est une route publique du backend. La clé
- * ne sert qu'à lister le catalogue, et elle reste côté serveur — jamais de
- * `NEXT_PUBLIC_`.
+ * `GET /models/thumbnails/:filename` est une route publique du backend. Les
+ * clés ne servent qu'à lister le catalogue et à publier, et elles restent côté
+ * serveur — jamais de `NEXT_PUBLIC_`.
  *
- * Format : un tableau JSON `[{ "nom": "dev", "api": "https://…", "cle": "…" }]`,
+ * Format : un tableau JSON
+ * `[{ "nom": "dev", "api": "https://…", "cle": "…", "interne": "…" }]`,
  * de préférence monté par `_PATH` plutôt que posé en variable, qu'un
  * `docker inspect` suffit à lire.
  */
@@ -111,6 +123,7 @@ export function environnements(): Environnement[] {
         nom: e.nom,
         api: e.api.replace(/\/+$/, ''),
         cle: typeof e.cle === 'string' ? e.cle : '',
+        interne: typeof e.interne === 'string' ? e.interne : '',
       }));
   } catch {
     // Une configuration illisible rend une liste vide, et la page le dira.

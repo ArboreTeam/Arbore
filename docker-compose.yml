@@ -49,6 +49,12 @@ services:
       - MONGODB_DB_TEST=${MONGODB_DB_TEST:-arbore_test}
       - ARBORE_API_KEY=${ARBORE_API_KEY}
       - ARBORE_API_KEY_TEST=${ARBORE_API_KEY_TEST:-}
+      # Clé des routes `/internal/*` (#696). Non renseignée, elles RÉPONDENT
+      # 503 : une instance qui ne sert pas de robot n'a rien à configurer et
+      # n'expose pas la surface. Compose ne transmet que ce qui est déclaré
+      # ici — l'oubli de cette ligne est exactement la panne de #701.
+      - ARBORE_INTERNAL_KEY=${ARBORE_INTERNAL_KEY:-}
+      - ARBORE_INTERNAL_KEY_PATH=${ARBORE_INTERNAL_KEY_PATH:-}
       # Sentry (#388). Sans DSN, le SDK ne démarre pas et le backend se comporte
       # à l'identique — parité avec iOS et web.
       #
@@ -345,8 +351,11 @@ services:
       # suit son environnement sans qu'on ait à lui donner une URL publique.
       - ARBORE_API_BASE=http://backend:8080
       - ARBORE_API_KEY=${ARBORE_API_KEY:-}
-      - ARBORE_FIREBASE_KEY=${ARBORE_FIREBASE_KEY:-}
-      - ARBORE_ADMIN_TOKEN=${ARBORE_ADMIN_TOKEN:-}
+      # Les routes `/internal/*` exigent les DEUX clés (#696). Plus aucune
+      # session Firebase : le compte de service administrateur qu'il aurait
+      # fallu créer était la mauvaise réponse — voir
+      # `ArboreBackend/middleware/internal_key.go`.
+      - ARBORE_INTERNAL_KEY=${ARBORE_INTERNAL_KEY:-}
 
   # Ouvrier des vignettes : le même binaire, en veille sur la file de l'atelier.
   #
@@ -354,10 +363,10 @@ services:
   # à Docker, et c'est très bien ainsi. Il dépose, l'ouvrier consomme —
   # exactement le motif de l'ouvrier Colab pour les maillages (#696).
   #
-  # Un ouvrier ne sert QU'UN environnement, par `ARBORE_ENV_NOM` : publier
-  # demande un jeton admin propre à l'environnement visé, et un ouvrier servant
-  # les deux devrait porter les identifiants des deux — ce qui reviendrait à
-  # donner à dev de quoi écrire en production.
+  # Un ouvrier ne sert QU'UN environnement, par `ARBORE_ENV_NOM` : c'est la
+  # file où il puise. Les clés du backend ne sont pas dans sa configuration,
+  # l'atelier les joint à chaque tâche — un ouvrier de dev ne reçoit donc
+  # jamais de quoi écrire en production.
   #
   # Sous profil, donc jamais démarré par surprise. `docker compose --profile
   # vignettes up -d vignettes-ouvrier` quand on le veut.
@@ -387,8 +396,9 @@ services:
       # Sans elle il s'arrête au démarrage en le disant, plutôt que de boucler
       # sur des refus.
       - ATELIER_CLE=${GENERATOR_KEY:-}
-      - ARBORE_FIREBASE_KEY=${ARBORE_FIREBASE_KEY:-}
-      - ARBORE_ADMIN_TOKEN=${ARBORE_ADMIN_TOKEN:-}
+      # Aucune clé de backend ici, volontairement : l'atelier joint l'adresse
+      # de l'API et ses deux clés à la tâche qu'il remet (#696). L'ouvrier n'a
+      # donc jamais en main de quoi écrire ailleurs que là où on l'envoie.
     deploy:
       resources:
         limits:

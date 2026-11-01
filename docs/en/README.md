@@ -120,5 +120,4 @@ The following files predate this structure and are isolated under [`../legacy/`]
 
 - [`../legacy/AR_CAMERA_BLACK_SCREEN_FIX.md`](../legacy/AR_CAMERA_BLACK_SCREEN_FIX.md) — AR camera black-screen fix notes
 - [`../legacy/CI-CD.md`](../legacy/CI-CD.md) — detailed historical CI/CD documentation
-- [`../legacy/DEBUG_MODE_VISUAL_SUMMARY.md`](../legacy/DEBUG_MODE_VISUAL_SUMMARY.md), [`../legacy/DEBUG_THUMBNAIL_MODE.md`](../legacy/DEBUG_THUMBNAIL_MODE.md) — thumbnail debug guides
 - [`../legacy/TROUBLESHOOTING.md`](../legacy/TROUBLESHOOTING.md) — CI troubleshooting guide

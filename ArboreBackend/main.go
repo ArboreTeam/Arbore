@@ -1349,6 +1349,43 @@ func getUserPhoto(c *gin.Context) {
 	c.Data(http.StatusOK, contentType, data)
 }
 
+// servePlantModel sert un USDZ du catalogue.
+//
+// Nommé, et non plus une fermeture posée dans `buildRouter`, parce qu'il est
+// monté DEUX fois : sous `protected` pour l'app, et sous `/internal` pour
+// l'ouvrier de vignettes, qui a besoin du modèle pour le rendre et ne peut pas
+// tenir de session Firebase (#696). Les deux montages doivent servir exactement
+// le même fichier avec exactement les mêmes contrôles de chemin — d'où un seul
+// corps, et non une copie par groupe.
+func servePlantModel(c *gin.Context) {
+	filename := c.Param("filename")
+
+	// Sécurité: empêcher les path traversal attacks (parité avec le handler thumbnails)
+	if strings.Contains(filename, "..") || strings.ContainsAny(filename, "/\\") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid filename"})
+		return
+	}
+
+	// Vérifier que c'est bien un fichier .usdz
+	if !strings.HasSuffix(strings.ToLower(filename), ".usdz") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only .usdz files are allowed"})
+		return
+	}
+
+	// LOD: ?lod=heavy sert le modèle haute définition.
+	// (Une seule route : un sous-chemin /models/heavy/:filename ferait paniquer
+	// httprouter — collision wildcard ':filename' vs segment statique 'heavy'.)
+	bucket := BucketModelsLight
+	if c.Query("lod") == "heavy" {
+		bucket = BucketModelsHeavy
+	}
+
+	serveStorageObject(c,
+		StorageObject{Bucket: bucket, Name: filename},
+		"model/vnd.usdz+zip",
+		"Model not found")
+}
+
 func uploadPlantThumbnail(c *gin.Context) {
 	oid, ok := identifiantFiche(c.Param("plantId"))
 	if !ok {
@@ -2450,34 +2487,7 @@ func buildRouter() *gin.Engine {
 		account.GET("/consents/latest", getLatestUserConsents)
 
 		// Models 3D (USDZ files) - Protected endpoint
-		protected.GET("/models/:filename", func(c *gin.Context) {
-			filename := c.Param("filename")
-
-			// Sécurité: empêcher les path traversal attacks (parité avec le handler thumbnails)
-			if strings.Contains(filename, "..") || strings.ContainsAny(filename, "/\\") {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid filename"})
-				return
-			}
-
-			// Vérifier que c'est bien un fichier .usdz
-			if !strings.HasSuffix(strings.ToLower(filename), ".usdz") {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Only .usdz files are allowed"})
-				return
-			}
-
-			// LOD: ?lod=heavy sert le modèle haute définition.
-			// (Une seule route : un sous-chemin /models/heavy/:filename ferait paniquer
-			// httprouter — collision wildcard ':filename' vs segment statique 'heavy'.)
-			bucket := BucketModelsLight
-			if c.Query("lod") == "heavy" {
-				bucket = BucketModelsHeavy
-			}
-
-			serveStorageObject(c,
-				StorageObject{Bucket: bucket, Name: filename},
-				"model/vnd.usdz+zip",
-				"Model not found")
-		})
+		protected.GET("/models/:filename", servePlantModel)
 	}
 
 	// Catalogue writes and cost-bearing plant generation require an explicit
@@ -2487,6 +2497,34 @@ func buildRouter() *gin.Engine {
 	{
 		admin.POST("/plants", createPlant)
 		admin.POST("/models/thumbnails/:plantId", middleware.MaxBodyBytes(maxThumbnailBytes+(1<<20)), thumbnailUploadLimiter.Middleware(), uploadPlantThumbnail)
+	}
+
+	// === ROUTES INTERNES (clé d'API + clé interne, sans Firebase) === (#696)
+	//
+	// Pour les appelants qui ne sont pas des personnes : l'ouvrier de vignettes
+	// et l'atelier, tous deux sur le réseau interne. Ils ne peuvent pas tenir
+	// une session Firebase, et leur en fabriquer une aurait voulu dire créer un
+	// compte administrateur de service — voir `middleware/internal_key.go` pour
+	// pourquoi c'est la mauvaise réponse.
+	//
+	// Les routes sont les MÊMES handlers que leurs jumelles authentifiées, pas
+	// des copies : `getPlants` et `uploadPlantThumbnail` ne lisent aucune
+	// identité d'appelant (vérifié : ni l'un ni l'autre ne touche à `uid`), donc
+	// rien ne change pour eux. Les dupliquer aurait créé deux définitions de
+	// « déposer une vignette » à garder d'accord.
+	//
+	// La clé d'API reste exigée EN PLUS de la clé interne. C'est elle qui
+	// choisit la base, et deux secrets valent mieux qu'un.
+	internalKey := secretFromFileOrEnv("ARBORE_INTERNAL_KEY")
+	internal := router.Group("/internal")
+	internal.Use(middleware.APIKeyMiddlewareWithKeys(apiKeyProd, apiKeyTest))
+	internal.Use(middleware.InternalKeyMiddleware(internalKey))
+	internal.Use(apiLimiter.Middleware())
+	internal.Use(middleware.MaxBodyBytes(maxJSONBodyBytes))
+	{
+		internal.GET("/plants", getPlants)
+		internal.GET("/models/:filename", servePlantModel)
+		internal.POST("/models/thumbnails/:plantId", middleware.MaxBodyBytes(maxThumbnailBytes+(1<<20)), thumbnailUploadLimiter.Middleware(), uploadPlantThumbnail)
 	}
 
 	return router

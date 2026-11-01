@@ -13,9 +13,13 @@ export const runtime = 'nodejs';
  * `204` et non `404` quand la file est vide : ce n'est pas une erreur, c'est
  * un catalogue à jour. L'ouvrier boucle là-dessus.
  *
- * La réponse porte l'adresse de l'API visée et sa clé : l'ouvrier ne les
- * connaît pas et n'a pas à les porter en configuration, sinon il faudrait lui
- * donner celles de TOUS les environnements pour qu'il puisse en servir un.
+ * La réponse porte l'adresse de l'API visée et ses DEUX clés — celle d'API et
+ * celle des routes internes : l'ouvrier ne les connaît pas et n'a pas à les
+ * porter en configuration, sinon il faudrait lui donner celles de TOUS les
+ * environnements pour qu'il puisse en servir un.
+ *
+ * C'est aussi ce qui fait qu'un ouvrier branché sur dev n'a, à aucun instant,
+ * de quoi écrire en production.
  */
 export async function POST(req: NextRequest) {
   if (!bonHote(req)) return introuvable();
@@ -34,5 +38,15 @@ export async function POST(req: NextRequest) {
       { error: `environnement ${tache.env} absent de la configuration` }, { status: 409 },
     );
   }
-  return NextResponse.json({ ...tache, api: env.api, cle: env.cle });
+  if (!env.interne) {
+    // Sans clé interne, l'ouvrier ne pourrait ni lire le catalogue ni publier.
+    // Mieux vaut garder la tâche en attente que la lui remettre pour qu'il
+    // échoue : un 409 la laisse réservable dès que le secret est posé.
+    return NextResponse.json(
+      { error: `clé interne absente pour ${tache.env}` }, { status: 409 },
+    );
+  }
+  return NextResponse.json({
+    ...tache, api: env.api, cle: env.cle, interne: env.interne,
+  });
 }

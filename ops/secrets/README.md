@@ -170,7 +170,7 @@ Il reste à poser la clé privée sur une machine neuve. **Aucun système n'y é
 
 Mais on passe de **24 valeurs à poser à la main à une seule**. C'est le minimum théorique.
 
-## ⚠️ Deux pièges
+## ⚠️ Pièges
 
 **Ne jamais déchiffrer `MASTER_ENCRYPTION_KEY` vers l'environnement.** Le code préfère déjà `MASTER_ENCRYPTION_KEY_PATH` parce qu'une variable est lisible par `docker inspect` et `/proc/<pid>/environ` — or cette clé déchiffre les refresh tokens Apple (audit #338 constat 4). Le déploiement doit écrire un **fichier**.
 
@@ -209,6 +209,31 @@ Trois choses rendent l'exception acceptable :
 Ce qui reste vrai, et qu'il ne faut pas défaire : **la clé de l'opérateur ne
 doit jamais rejoindre ce fichier.** Perdue, elle ne se retrouve pas ; partagée
 avec un robot, elle devient irrévocable sans déconnecter la personne.
+
+### `ARBORE_INTERNAL_KEY` — un secret qui ferme la porte par défaut
+
+Depuis le 2026-11-01, `dev.enc.env` porte aussi `ARBORE_INTERNAL_KEY` : la clé
+des routes `/internal/*` du backend, par lesquelles l'ouvrier des vignettes
+lit le catalogue et publie ses images sans session Firebase (#696).
+
+Elle est aussi reportée dans le champ `interne` de `VIGNETTES_ENVIRONNEMENTS`,
+puisque c'est l'atelier qui la remet à l'ouvrier avec chaque tâche. **Les deux
+doivent porter la même valeur** : le backend compare, l'atelier présente.
+
+Deux propriétés à ne pas défaire :
+
+- **Absente, la porte se ferme.** Les routes répondent 503, quoi qu'on leur
+  présente. C'est pourquoi `prod.enc.env` ne la porte **pas** : la prod ne fait
+  pas tourner d'ouvrier, donc la surface n'existe pas chez elle. Ne l'y ajouter
+  que le jour où un ouvrier y tournera.
+- **Elle ne remplace pas `ARBORE_API_KEY`.** Les routes internes exigent les
+  deux clés ensemble. Une clé d'API seule — celle que porte l'app iOS — n'y
+  donne pas accès.
+
+Elle ne confère **aucun rôle**. C'est tout l'objet du choix : la voie précédente
+réclamait un compte de service administrateur Firebase, donc un mot de passe de
+compte à stocker ici et le droit d'écrire tout le catalogue, pour déposer des
+images. Cette voie a été abandonnée.
 
 **Un projet Firebase par environnement.** Le job de réconciliation (#393) tourne chaque dimanche avec `--apply` et compare les uid Firebase à une base Mongo. Pointé vers le mauvais couple, **il vide la mauvaise base**. Aucune de ses quatre gardes ne couvre ce cas.
 

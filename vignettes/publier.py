@@ -92,13 +92,23 @@ def entetes_internes(cle_api, cle_interne):
     """Les deux en-têtes qu'exigent les routes `/internal/*`. (#696)
 
     Les deux sont vérifiés ici plutôt qu'au premier appel : un secret manquant
-    doit se dire en une phrase au démarrage, pas se deviner depuis un 401 ou un
-    503 remonté du backend. On vient d'y passer cinq cycles de diagnostic.
+    doit se dire en une phrase, pas se deviner depuis un 401 ou un 503 remonté
+    du backend. On vient d'y passer cinq cycles de diagnostic.
+
+    Lève `ValueError`, et NON `SystemExit`. La nuance décide du sort de
+    l'ouvrier : `SystemExit` dérive de `BaseException`, que le `except
+    Exception` de `surveiller()` ne rattrape pas. Un atelier pas encore
+    redéployé, qui remet une tâche sans champ `interne`, tuerait donc l'ouvrier
+    au lieu de faire déclarer la tâche en échec — et la tâche resterait « en
+    cours » vingt minutes, sans que rien ne dise pourquoi.
+
+    Le job autonome, lui, veut bien s'arrêter net : c'est `main()` qui traduit.
+    Même contrôle, deux réactions selon qui le demande.
     """
     if not cle_api:
-        raise SystemExit("clé d'API absente — en-tête X-API-Key impossible")
+        raise ValueError("clé d'API absente — en-tête X-API-Key impossible")
     if not cle_interne:
-        raise SystemExit(
+        raise ValueError(
             "clé interne absente — les routes /internal/* répondront 401. "
             "La poser dans ARBORE_INTERNAL_KEY (job autonome), ou dans le champ "
             "`interne` de VIGNETTES_ENVIRONNEMENTS côté atelier (mode veille).")
@@ -445,8 +455,13 @@ def main():
     if not base:
         raise SystemExit("ARBORE_API_BASE est requis")
 
-    entetes = entetes_internes(os.environ.get("ARBORE_API_KEY"),
-                               os.environ.get("ARBORE_INTERNAL_KEY"))
+    try:
+        entetes = entetes_internes(os.environ.get("ARBORE_API_KEY"),
+                                   os.environ.get("ARBORE_INTERNAL_KEY"))
+    except ValueError as exc:
+        # Le job autonome s'arrête net, et sans trace d'appels : c'est une
+        # configuration à corriger, pas un incident à déboguer.
+        raise SystemExit(str(exc))
     plantes = catalogue(base, entetes)
     if a.plantes:
         voulus = {x.strip() for x in a.plantes.split(",") if x.strip()}

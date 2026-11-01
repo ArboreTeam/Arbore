@@ -58,7 +58,6 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from http.cookiejar import CookieJar
 
 LARGEUR, HAUTEUR = 720, 900
 MARQUEUR_RVB = (94, 28, 186)
@@ -257,36 +256,52 @@ def publier(base, entetes, plant_id, chemin):
     return json.loads(reponse)
 
 
+# Nom du cookie de session de l'atelier, cf. `COOKIE_SESSION` côté web.
+COOKIE_SESSION = "arbore_generator"
+
+
 def ouvrir_atelier():
-    """Ouvre une session d'atelier et rend un opener qui la porte.
+    """Ouvre une session d'atelier et rend le cookie qui la porte.
 
     L'atelier est derrière une session, comme pour l'ouvrier Colab : il n'y a
     pas de voie d'accès sans authentification à ouvrir pour un robot.
+
+    Le cookie est porté À LA MAIN, et non par un `CookieJar`. Celui de
+    l'atelier est marqué `Secure`, donc un gestionnaire de cookies conforme
+    refuse de le renvoyer sur du HTTP en clair : la connexion réussissait, et
+    tous les appels suivants prenaient un 401 « Non authentifié ».
+
+    On ne passe pas pour autant par l'adresse publique en HTTPS : le saut va
+    d'un conteneur à l'autre sur le pont interne de Docker et ne quitte jamais
+    la machine. `Secure` protège d'une interception sur un réseau non sûr —
+    ce n'en est pas un.
     """
     base = os.environ.get("ATELIER_BASE", "").rstrip("/")
     cle = os.environ.get("ATELIER_CLE")
     if not base or not cle:
         raise SystemExit("ATELIER_BASE et ATELIER_CLE sont requis en mode veille")
 
-    # `CookieJar` importée par son nom : ce module définit déjà une fonction
-    # `http`, qui masque le module du même nom.
-    pot = CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(pot))
     corps = json.dumps({"cle": cle}).encode()
     req = urllib.request.Request(f"{base}/api/generator/login", data=corps,
                                  headers={"Content-Type": "application/json",
                                           "Host": hote_atelier()},
                                  method="POST")
     try:
-        with opener.open(req, timeout=60) as r:
+        with urllib.request.urlopen(req, timeout=60) as r:
             if r.status != 200:
                 raise SystemExit(f"atelier : connexion refusée ({r.status})")
+            biscuit = next(
+                (sc.split(";", 1)[0] for sc in (r.headers.get_all("Set-Cookie") or [])
+                 if sc.startswith(COOKIE_SESSION + "=")), None)
     except urllib.error.HTTPError as e:
         raise SystemExit(f"atelier : connexion refusée ({e.code}) — clé invalide ?") from e
     except urllib.error.URLError as e:
         # Un conteneur qui meurt sur une trace d'appels se diagnostique mal.
         raise SystemExit(f"atelier injoignable sur {base} : {e.reason}") from e
-    return base, opener
+    if not biscuit:
+        raise SystemExit("atelier : connexion acceptée mais aucun cookie de "
+                         f"session « {COOKIE_SESSION} » reçu")
+    return base, biscuit
 
 
 def hote_atelier():
@@ -294,15 +309,15 @@ def hote_atelier():
     return os.environ.get("ATELIER_HOTE", "generator.arbore.app")
 
 
-def appeler(opener, url, corps=None, methode=None, delai=120):
+def appeler(biscuit, url, corps=None, methode=None, delai=120):
     """Appel porté par la session. Rend (statut, octets)."""
     donnees = json.dumps(corps).encode() if corps is not None else None
-    entetes = {"Host": hote_atelier()}
+    entetes = {"Host": hote_atelier(), "Cookie": biscuit}
     if donnees:
         entetes["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=donnees, headers=entetes, method=methode)
     try:
-        with opener.open(req, timeout=delai) as r:
+        with urllib.request.urlopen(req, timeout=delai) as r:
             return r.status, r.read()
     except urllib.error.HTTPError as e:
         return e.code, e.read()
@@ -359,13 +374,13 @@ def surveiller(pause, sortie):
     nom = os.environ.get("ARBORE_ENV_NOM", "").strip()
     if not nom:
         raise SystemExit("ARBORE_ENV_NOM est requis : un ouvrier ne sert qu'un environnement")
-    atelier, opener = ouvrir_atelier()
+    atelier, biscuit = ouvrir_atelier()
     os.makedirs(sortie, exist_ok=True)
     print(f"ouvrier de vignettes en veille sur « {nom} », atelier {atelier}", flush=True)
 
     while True:
         statut, brut = appeler(
-            opener,
+            biscuit,
             f"{atelier}/api/generator/vignettes/prendre?env={urllib.parse.quote(nom)}",
             corps={}, methode="POST")
         if statut == 204:
@@ -385,11 +400,11 @@ def surveiller(pause, sortie):
 
         if motif:
             print(f"  ÉCHEC : {motif}", flush=True)
-            appeler(opener, f"{atelier}/api/generator/vignettes/{tache['id']}/echec",
+            appeler(biscuit, f"{atelier}/api/generator/vignettes/{tache['id']}/echec",
                     corps={"reservation": tache["reservation"], "erreur": motif}, methode="POST")
         else:
             print("  publiée", flush=True)
-            appeler(opener, f"{atelier}/api/generator/vignettes/{tache['id']}/resultat",
+            appeler(biscuit, f"{atelier}/api/generator/vignettes/{tache['id']}/resultat",
                     corps={"reservation": tache["reservation"], "resultat": {"publiee": True}},
                     methode="POST")
 

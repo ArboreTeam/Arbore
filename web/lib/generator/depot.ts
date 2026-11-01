@@ -12,6 +12,9 @@
 import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BANDES, type Empreinte, type Profil } from './profil';
+import {
+  CLARTE_CIEL_MAX, REGLAGES_VIGNETTE, type ReglagesVignette, clarte, reglagesValides,
+} from './vignette';
 
 export type EtatTache = 'en_attente' | 'en_cours' | 'livree' | 'echec';
 
@@ -37,23 +40,6 @@ export type Tache = {
   livre?: number;
   resultat?: Record<string, unknown>;
   erreur?: string;
-};
-
-/**
- * Réglages de rendu d'une vignette, passés tels quels à `rendre.py`.
- *
- * Portés par la TÂCHE et non relus au moment où l'ouvrier la prend : une
- * tâche déposée ce matin doit rendre avec les réglages de ce matin, sinon
- * changer une couleur en cours de passe donnerait un catalogue bicolore sans
- * que rien ne le signale.
- */
-export type ReglagesVignette = {
-  ciel: string;
-  herbe: string;
-  echantillons: number;
-  puissanceCle: number;
-  ambiante: number;
-  teinteSol: number;
 };
 
 /**
@@ -126,6 +112,8 @@ export type EmpreinteRangee = Empreinte & {
   octets: number;
   mesure: number;
 };
+
+export type { ReglagesVignette };
 
 export type Etat = {
   taches: Tache[];
@@ -1581,21 +1569,6 @@ export function galerie(): EntreeGalerie[] {
 // qu'on veut : pas d'écrasement, pas de tâche prise deux fois.
 
 /**
- * Plafond de clarté du ciel, repris de `rendre.py`.
- *
- * `hasLegacyWhiteWallDarkFloor` REFUSE une vignette dès que deux de ses cinq
- * points hauts dépassent 225 — le symptôme de l'ancien design, mur blanc sur
- * sol sombre. L'app la télécharge alors, l'examine, la refuse, et garde
- * l'ancienne image SANS que rien ne le signale.
- *
- * Le fond de l'app lui-même, `#F0EEEA`, mesure 238 : la couleur la plus
- * évidente à choisir est précisément celle qui ferait rejeter tout le
- * catalogue. On refuse donc ici, au dépôt, plutôt que de découvrir 123
- * fichiers refusés après coup.
- */
-export const CLARTE_CIEL_MAX = 215;
-
-/**
  * Expiration propre à la file des vignettes.
  *
  * Celle des maillages vaut 30 min et son commentaire dit pourquoi : une
@@ -1604,38 +1577,6 @@ export const CLARTE_CIEL_MAX = 215;
  * laissent une marge large tout en reprenant vite un ouvrier mort.
  */
 export const EXPIRATION_VIGNETTE_MS = 20 * 60 * 1000;
-
-/** Réglages par défaut, alignés sur ceux de `rendre.py`. */
-export const REGLAGES_VIGNETTE: ReglagesVignette = {
-  ciel: '#D5CBB8',
-  herbe: '#628A4B',
-  echantillons: 64,
-  puissanceCle: 4.0,
-  ambiante: 0.4,
-  teinteSol: 0.84,
-};
-
-/** Clarté Rec. 709 d'un `#RRGGBB`, la formule de `sampledBrightness`. */
-export function clarte(hexa: string): number {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hexa.trim());
-  if (!m) return NaN;
-  const n = parseInt(m[1], 16);
-  return 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255);
-}
-
-/** Réglages reçus d'un client, complétés et validés. `null` si refusés. */
-export function reglagesValides(recu: Partial<ReglagesVignette> | undefined): ReglagesVignette | null {
-  const r = { ...REGLAGES_VIGNETTE, ...(recu ?? {}) };
-  for (const couleur of [r.ciel, r.herbe]) {
-    if (!Number.isFinite(clarte(couleur))) return null;
-  }
-  if (clarte(r.ciel) > CLARTE_CIEL_MAX) return null;
-  if (!Number.isInteger(r.echantillons) || r.echantillons < 1 || r.echantillons > 256) return null;
-  for (const n of [r.puissanceCle, r.ambiante, r.teinteSol]) {
-    if (!Number.isFinite(n) || n < 0 || n > 100) return null;
-  }
-  return r;
-}
 
 /**
  * Dépose une tâche par plante.
@@ -1733,3 +1674,5 @@ export function echouerVignette(id: string, reservation: string, erreur: string)
 export function fileVignettes(): Omit<TacheVignette, 'reservation'>[] {
   return (lire().vignettes ?? []).map(({ reservation, ...reste }) => reste);
 }
+
+export { CLARTE_CIEL_MAX, REGLAGES_VIGNETTE, clarte, reglagesValides };

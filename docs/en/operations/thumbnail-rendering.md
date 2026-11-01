@@ -122,3 +122,78 @@ backdrop          brightness 204, flat to the pixel
 Render time is **to be re-measured on the VPS**, which is natively x86: under
 emulation it means nothing in absolute terms. The ratio does hold: raising
 shadow quality took the render from 4 min 47 to 8 min 20.
+
+## Driving it from the workshop
+
+The workshop exposes a `Vignettes` page showing what each environment
+**serves**, and letting you redo it. The web container has no Docker access,
+and rightly so: it **enqueues**, a **worker** consumes — the pattern already in
+place for meshes.
+
+```
+workshop  --[POST /api/generator/vignettes]-->  queue
+                                                 |
+                      vignettes-ouvrier  <-------+  (--surveiller)
+                               |
+                               +--> renders, checks, POST /models/thumbnails/<id>
+                               +--> delivers or reports failure
+```
+
+### Starting the worker
+
+```sh
+docker compose --profile vignettes up -d vignettes-ouvrier
+```
+
+It needs `ATELIER_BASE`, `ATELIER_CLE` and `ARBORE_ENV_NOM`.
+
+**A worker serves exactly ONE environment**, and that is not tidiness:
+publishing requires an admin token specific to the target environment. A single
+worker serving dev and prod would have to carry both sets of credentials, which
+would amount to giving dev the means to write to production. Each environment
+runs its own, and `prendre` filters on that name — without the filter, a dev
+worker would reserve a prod task it cannot deliver, blocking it for twenty
+minutes.
+
+The worker is capped at 2 cores. A Blender render takes everything it is given,
+and a catalogue pass runs for hours: uncapped, it starves the backend sharing
+the machine.
+
+### Declaring environments
+
+`VIGNETTES_ENVIRONNEMENTS`, a JSON array, preferably mounted via
+`VIGNETTES_ENVIRONNEMENTS_PATH` — an environment variable is readable with
+`docker inspect`, a mounted file is not.
+
+```json
+[{ "nom": "dev", "api": "https://api-dev.arbore.app", "cle": "…" }]
+```
+
+**Images** need no secret: `GET /models/thumbnails/:filename` is a public
+backend route. The key only lists the catalogue, and never leaves the server.
+
+### What the page cannot do
+
+**Compare the same plant across two environments.** Measured on 2026-10-31, the
+dev (`arbore_test`) and prod (`arbore`) catalogues share **no** plant
+identifier at all. The page therefore shows one environment at a time, with its
+own entries. See #434.
+
+### The queue is separate, and must stay that way
+
+Thumbnail tasks live in `etat.vignettes`, **not** in `etat.taches`.
+`prendre()` returns the first `en_attente` task in `taches` without filtering:
+a thumbnail task placed there would be reserved by the Colab worker, which
+would fail on it.
+
+The reverse trap is silent. `lire()` rebuilds state from an explicit list of
+keys and **discards everything else**, then `ecrire()` writes the rebuilt
+object. A `vignettes` key missing from that list would be erased on the first
+mesh deposit — that is, by the Colab worker's normal activity. The key is
+declared in `lire()` **and** in `VIDE`, and a test proves it: removing the key
+fails seven tests.
+
+Thumbnail expiry is 20 min, not the meshes' 30: those are sized around a Colab
+session dying and a blocking CUDA call. And it is **one task per plant** — a
+single batch covering the catalogue would exceed expiry and be re-queued while
+still running, putting two workers on the same job.

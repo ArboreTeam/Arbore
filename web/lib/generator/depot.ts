@@ -12,6 +12,9 @@
 import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BANDES, type Empreinte, type Profil } from './profil';
+import {
+  CLARTE_CIEL_MAX, REGLAGES_VIGNETTE, type ReglagesVignette, clarte, reglagesValides,
+} from './vignette';
 
 export type EtatTache = 'en_attente' | 'en_cours' | 'livree' | 'echec';
 
@@ -33,6 +36,34 @@ export type Tache = {
   depose: number;
   pris?: number;
   /** Identité de la réservation en cours. Voir `prendre`. */
+  reservation?: string;
+  livre?: number;
+  resultat?: Record<string, unknown>;
+  erreur?: string;
+};
+
+/**
+ * Une vignette à rendre.
+ *
+ * Tableau SÉPARÉ de `taches`, et ce n'est pas un rangement : `prendre()` rend
+ * la première tâche `en_attente` de `taches` sans filtrer, donc une tâche de
+ * vignette posée là serait réservée par l'ouvrier Colab, qui échouerait
+ * dessus.
+ *
+ * Une tâche par PLANTE, comme pour les maillages. Un lot unique couvrant le
+ * catalogue dépasserait l'expiration de réservation et serait remis en
+ * attente alors qu'il tourne encore — deux ouvriers sur le même travail.
+ */
+export type TacheVignette = {
+  id: string;
+  /** Environnement visé : les identifiants de plante n'y sont pas les mêmes. */
+  env: string;
+  /** Identifiant de la plante DANS le catalogue de cet environnement. */
+  plante: string;
+  reglages: ReglagesVignette;
+  etat: EtatTache;
+  depose: number;
+  pris?: number;
   reservation?: string;
   livre?: number;
   resultat?: Record<string, unknown>;
@@ -82,8 +113,12 @@ export type EmpreinteRangee = Empreinte & {
   mesure: number;
 };
 
+export type { ReglagesVignette };
+
 export type Etat = {
   taches: Tache[];
+  /** File de rendu des vignettes. Voir `TacheVignette`. */
+  vignettes?: TacheVignette[];
   /** Bibliothèque de pots, indexée par nom de fichier. */
   pots?: Record<string, Pot>;
   plantes: Record<string, {
@@ -166,7 +201,7 @@ export type Etat = {
   empreintes?: Record<string, EmpreinteRangee>;
 };
 
-const VIDE: Etat = { taches: [], plantes: {} };
+const VIDE: Etat = { taches: [], plantes: {}, vignettes: [] };
 
 /**
  * Au-delà de ce délai, une tâche réservée retourne en attente.
@@ -698,6 +733,12 @@ export function lire(): Etat {
       taches: brut.taches ?? [], plantes: brut.plantes ?? {},
       pots: brut.pots ?? {}, sources: brut.sources ?? {},
       empreintes: brut.empreintes ?? {},
+      // `vignettes` DOIT figurer ici. `lire()` reconstruit l'état à partir de
+      // cette liste et jette tout le reste, puis `ecrire()` réécrit l'objet
+      // reconstruit : une clé oubliée serait silencieusement effacée au
+      // prochain dépôt de tâche de maillage — c'est-à-dire par l'activité
+      // normale de l'ouvrier Colab, qui n'a rien demandé.
+      vignettes: brut.vignettes ?? [],
     };
   } catch {
     return structuredClone(VIDE);
@@ -1519,3 +1560,119 @@ export function galerie(): EntreeGalerie[] {
 
   return sorties.sort((a, b) => a.plante.localeCompare(b.plante));
 }
+
+// ── File de rendu des vignettes ────────────────────────────────────────────
+//
+// Seconde file, posée sur le MÊME état que celle des maillages, mais dans un
+// tableau distinct. Les deux ouvriers ne se croisent donc jamais, alors que
+// les mutations restent sérialisées par `muter` — ce qui est exactement ce
+// qu'on veut : pas d'écrasement, pas de tâche prise deux fois.
+
+/**
+ * Expiration propre à la file des vignettes.
+ *
+ * Celle des maillages vaut 30 min et son commentaire dit pourquoi : une
+ * session Colab meurt vers 90 min et un appel CUDA bloquant ne s'interrompt
+ * pas. Un rendu de vignette se compte en minutes, pas en dizaines : 20 min
+ * laissent une marge large tout en reprenant vite un ouvrier mort.
+ */
+export const EXPIRATION_VIGNETTE_MS = 20 * 60 * 1000;
+
+/**
+ * Dépose une tâche par plante.
+ *
+ * Une plante déjà en attente ou en cours POUR LE MÊME environnement n'est pas
+ * redéposée : sans cette garde, cliquer deux fois rendrait deux fois la même
+ * vignette et la publierait deux fois.
+ */
+export function deposerVignettes(
+  env: string, plantes: string[], reglages: ReglagesVignette,
+): Promise<TacheVignette[]> {
+  return muter((etat) => {
+    const file = (etat.vignettes ??= []);
+    const enCours = new Set(
+      file.filter((t) => t.etat === 'en_attente' || t.etat === 'en_cours')
+        .filter((t) => t.env === env)
+        .map((t) => t.plante),
+    );
+    const posees: TacheVignette[] = [];
+    for (const plante of plantes) {
+      if (enCours.has(plante)) continue;
+      enCours.add(plante);
+      const tache: TacheVignette = {
+        id: identifiant(), env, plante, reglages,
+        etat: 'en_attente', depose: Date.now(),
+      };
+      file.push(tache);
+      posees.push(tache);
+    }
+    return posees;
+  });
+}
+
+function reprendreVignettesExpirees(etat: Etat, maintenant: number): number {
+  let reprises = 0;
+  for (const t of etat.vignettes ?? []) {
+    if (t.etat === 'en_cours' && maintenant - (t.pris ?? 0) > EXPIRATION_VIGNETTE_MS) {
+      t.etat = 'en_attente';
+      delete t.reservation;
+      reprises += 1;
+    }
+  }
+  return reprises;
+}
+
+/**
+ * Réserve une vignette à rendre, ou `null`. Même protocole que `prendre`.
+ *
+ * `env` restreint la prise à un environnement, et ce n'est pas un confort :
+ * publier demande un jeton admin propre à l'environnement visé. Un ouvrier
+ * unique servant dev ET prod devrait porter les identifiants des deux, ce qui
+ * reviendrait à donner à dev de quoi écrire en production. Chaque
+ * environnement fait donc tourner son ouvrier, avec ses seuls identifiants.
+ */
+export function prendreVignette(maintenant = Date.now(), env?: string) {
+  return muter((etat) => {
+    reprendreVignettesExpirees(etat, maintenant);
+    const tache = (etat.vignettes ?? [])
+      .find((t) => t.etat === 'en_attente' && (env === undefined || t.env === env));
+    if (!tache) return null;
+    tache.etat = 'en_cours';
+    tache.pris = maintenant;
+    // Comme pour les maillages : la livraison doit présenter la réservation.
+    // Une tâche expirée puis reprise garde son identifiant, et l'ouvrier
+    // bloqué livrerait par-dessus le travail de celui qui a repris.
+    tache.reservation = identifiant();
+    return { ...tache };
+  });
+}
+
+export function livrerVignette(id: string, reservation: string, resultat: Record<string, unknown>) {
+  return muter((etat) => {
+    const t = (etat.vignettes ?? []).find((x) => x.id === id);
+    if (!t || t.etat !== 'en_cours' || t.reservation !== reservation) return false;
+    delete t.reservation;
+    t.etat = 'livree';
+    t.resultat = resultat;
+    t.livre = Date.now();
+    return true;
+  });
+}
+
+export function echouerVignette(id: string, reservation: string, erreur: string) {
+  return muter((etat) => {
+    const t = (etat.vignettes ?? []).find((x) => x.id === id);
+    if (!t || t.reservation !== reservation) return false;
+    delete t.reservation;
+    t.etat = 'echec';
+    t.erreur = erreur.slice(0, 500);
+    return true;
+  });
+}
+
+/** La file, sans les jetons de réservation, pour le tableau de bord. */
+export function fileVignettes(): Omit<TacheVignette, 'reservation'>[] {
+  return (lire().vignettes ?? []).map(({ reservation, ...reste }) => reste);
+}
+
+export { CLARTE_CIEL_MAX, REGLAGES_VIGNETTE, clarte, reglagesValides };

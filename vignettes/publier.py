@@ -23,6 +23,22 @@ improbable.
     ARBORE_API_KEY       clé d'API
     ARBORE_FIREBASE_KEY  clé web du projet, pour ouvrir la session
     ARBORE_ADMIN_TOKEN   jeton d'un compte de service ayant le rôle admin
+
+## Mode veille
+
+`--surveiller` en fait un OUVRIER : il consomme la file déposée par l'atelier,
+exactement comme l'ouvrier Colab consomme `/api/generator/taches`. C'est ce
+qui donne un bouton à l'atelier sans monter la socket Docker dans un
+conteneur exposé.
+
+    ATELIER_BASE         https://generator.arbore.app
+    ATELIER_CLE          clé d'accès de l'atelier
+    ARBORE_ENV_NOM       l'environnement servi, « dev » ou « prod »
+
+Un ouvrier ne sert QU'UN environnement, et c'est volontaire : publier demande
+un jeton admin propre à l'environnement visé. Un ouvrier unique servant les
+deux devrait porter les identifiants des deux, ce qui reviendrait à donner à
+dev de quoi écrire en production.
 """
 import argparse
 import json
@@ -31,8 +47,11 @@ import struct
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
+from http.cookiejar import CookieJar
 
 LARGEUR, HAUTEUR = 720, 900
 MARQUEUR_RVB = (94, 28, 186)
@@ -174,12 +193,26 @@ def telecharger_modele(base, entetes, fichier, version, dest):
     return len(corps)
 
 
-def rendre(modele, sortie, pot=None, pose=None):
+# Nom du réglage côté atelier -> option de `rendre.py`.
+REGLAGES = {
+    "ciel": "--ciel", "herbe": "--herbe", "echantillons": "--echantillons",
+    "puissanceCle": "--puissance-cle", "ambiante": "--ambiante",
+    "teinteSol": "--teinte-sol",
+}
+
+
+def rendre(modele, sortie, pot=None, pose=None, reglages=None):
     cmd = ["blender", "--background", "--factory-startup",
            "--python", "/app/rendre.py", "--",
            "--modele", modele, "--sortie", sortie]
     if pot and pose:
         cmd += ["--pot", pot, "--pose", json.dumps(pose)]
+    # Les réglages viennent de la TÂCHE, pas de l'environnement du conteneur :
+    # une passe lancée ce matin doit rendre avec les réglages de ce matin, même
+    # si l'atelier a changé de couleur depuis.
+    for cle, option in REGLAGES.items():
+        if reglages and cle in reglages:
+            cmd += [option, str(reglages[cle])]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
     if r.returncode != 0 or not os.path.exists(sortie):
         derniere = (r.stderr or r.stdout or "").strip().splitlines()[-3:]
@@ -217,6 +250,135 @@ def publier(base, entetes, plant_id, chemin):
     return json.loads(reponse)
 
 
+def ouvrir_atelier():
+    """Ouvre une session d'atelier et rend un opener qui la porte.
+
+    L'atelier est derrière une session, comme pour l'ouvrier Colab : il n'y a
+    pas de voie d'accès sans authentification à ouvrir pour un robot.
+    """
+    base = os.environ.get("ATELIER_BASE", "").rstrip("/")
+    cle = os.environ.get("ATELIER_CLE")
+    if not base or not cle:
+        raise SystemExit("ATELIER_BASE et ATELIER_CLE sont requis en mode veille")
+
+    # `CookieJar` importée par son nom : ce module définit déjà une fonction
+    # `http`, qui masque le module du même nom.
+    pot = CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(pot))
+    corps = json.dumps({"cle": cle}).encode()
+    req = urllib.request.Request(f"{base}/api/generator/login", data=corps,
+                                 headers={"Content-Type": "application/json"},
+                                 method="POST")
+    try:
+        with opener.open(req, timeout=60) as r:
+            if r.status != 200:
+                raise SystemExit(f"atelier : connexion refusée ({r.status})")
+    except urllib.error.HTTPError as e:
+        raise SystemExit(f"atelier : connexion refusée ({e.code}) — clé invalide ?") from e
+    except urllib.error.URLError as e:
+        # Un conteneur qui meurt sur une trace d'appels se diagnostique mal.
+        raise SystemExit(f"atelier injoignable sur {base} : {e.reason}") from e
+    return base, opener
+
+
+def appeler(opener, url, corps=None, methode=None, delai=120):
+    """Appel porté par la session. Rend (statut, octets)."""
+    donnees = json.dumps(corps).encode() if corps is not None else None
+    entetes = {"Content-Type": "application/json"} if donnees else {}
+    req = urllib.request.Request(url, data=donnees, headers=entetes, method=methode)
+    try:
+        with opener.open(req, timeout=delai) as r:
+            return r.status, r.read()
+    except urllib.error.HTTPError as e:
+        return e.code, e.read()
+
+
+def rendre_une(tache, sortie):
+    """Rend et publie UNE vignette. Rend None si tout va bien, le motif sinon.
+
+    L'adresse de l'API et sa clé viennent de la TÂCHE : l'ouvrier ne les porte
+    pas en configuration, sinon il faudrait lui donner celles de tous les
+    environnements pour qu'il puisse en servir un.
+    """
+    base = tache["api"].rstrip("/")
+    entetes = {"X-API-Key": tache["cle"], "Authorization": "Bearer " + jeton(base)}
+    pid = tache["plante"]
+
+    fiches = catalogue(base, entetes)
+    fiche = next((p for p in fiches if (p.get("id") or p.get("_id")) == pid), None)
+    if not fiche:
+        return f"{pid} absente du catalogue de {tache['env']}"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        modele = os.path.join(tmp, "m.usdz")
+        telecharger_modele(base, entetes, fiche["modelURL"],
+                           (fiche.get("versions") or {}).get("model"), modele)
+
+        pose, pot_local = None, None
+        pot = fiche.get("pot")
+        if pot:
+            pot_local = os.path.join(tmp, "pot.usdz")
+            telecharger_modele(base, entetes, pot["modelURL"], pot.get("version"), pot_local)
+            pose = pot.get("pose") or fiche.get("potPose")
+
+        png = os.path.join(sortie, f"{pid}.png")
+        rendre(modele, png, pot_local if pose else None, pose, tache.get("reglages"))
+
+        souci = controler(png)
+        if souci:
+            return souci
+
+        r = publier(base, entetes, pid, png)
+        if not r.get("versionUpdated"):
+            return "publiée mais versions.thumbnail non mise à jour"
+    return None
+
+
+def surveiller(pause, sortie):
+    """Boucle d'ouvrier : prendre, rendre, livrer.
+
+    Une tâche qui échoue est DÉCLARÉE en échec, jamais abandonnée en silence :
+    sans ça elle resterait « en cours » jusqu'à expiration, et l'atelier
+    afficherait un travail qui n'avance pas sans dire pourquoi.
+    """
+    nom = os.environ.get("ARBORE_ENV_NOM", "").strip()
+    if not nom:
+        raise SystemExit("ARBORE_ENV_NOM est requis : un ouvrier ne sert qu'un environnement")
+    atelier, opener = ouvrir_atelier()
+    os.makedirs(sortie, exist_ok=True)
+    print(f"ouvrier de vignettes en veille sur « {nom} », atelier {atelier}", flush=True)
+
+    while True:
+        statut, brut = appeler(
+            opener,
+            f"{atelier}/api/generator/vignettes/prendre?env={urllib.parse.quote(nom)}",
+            corps={}, methode="POST")
+        if statut == 204:
+            time.sleep(pause)
+            continue
+        if statut != 200:
+            print(f"prise refusée ({statut}) : {brut[:160].decode(errors='replace')}", flush=True)
+            time.sleep(pause)
+            continue
+
+        tache = json.loads(brut)
+        print(f"→ {tache['plante']} ({tache['env']})", flush=True)
+        try:
+            motif = rendre_une(tache, sortie)
+        except Exception as exc:                          # noqa: BLE001
+            motif = str(exc)[:400]
+
+        if motif:
+            print(f"  ÉCHEC : {motif}", flush=True)
+            appeler(opener, f"{atelier}/api/generator/vignettes/{tache['id']}/echec",
+                    corps={"reservation": tache["reservation"], "erreur": motif}, methode="POST")
+        else:
+            print("  publiée", flush=True)
+            appeler(opener, f"{atelier}/api/generator/vignettes/{tache['id']}/resultat",
+                    corps={"reservation": tache["reservation"], "resultat": {"publiee": True}},
+                    methode="POST")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--plantes", help="identifiants séparés par des virgules")
@@ -224,7 +386,14 @@ def main():
                     help="rend et contrôle sans publier")
     ap.add_argument("--sortie", default="/sortie",
                     help="où déposer les PNG en mode rendre-seulement")
+    ap.add_argument("--surveiller", action="store_true",
+                    help="consomme la file de l'atelier au lieu du catalogue entier")
+    ap.add_argument("--pause", type=float, default=20.0,
+                    help="secondes entre deux interrogations de la file")
     a = ap.parse_args()
+
+    if a.surveiller:
+        return surveiller(a.pause, a.sortie)
 
     base = os.environ.get("ARBORE_API_BASE", "").rstrip("/")
     cle = os.environ.get("ARBORE_API_KEY")

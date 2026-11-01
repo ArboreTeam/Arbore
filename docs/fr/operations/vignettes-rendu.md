@@ -126,3 +126,80 @@ fond              204 de clarté, plat au pixel près
 Le temps de rendu est **à remesurer sur le VPS**, qui est nativement x86 :
 sous émulation il ne veut rien dire en absolu. Le rapport, lui, vaut : passer
 l'ombre en qualité a fait passer le rendu de 4 min 47 à 8 min 20.
+
+## Piloter depuis l'atelier
+
+L'atelier expose une page `Vignettes` qui montre ce que chaque environnement
+**sert**, et permet de le refaire. Le conteneur web n'a pas accès à Docker, et
+c'est très bien ainsi : il **dépose** dans une file, un **ouvrier** consomme —
+le motif déjà en place pour les maillages.
+
+```
+atelier  --[POST /api/generator/vignettes]-->  file
+                                                |
+                     vignettes-ouvrier  <-------+  (--surveiller)
+                              |
+                              +--> rend, contrôle, POST /models/thumbnails/<id>
+                              +--> livre ou déclare l'échec
+```
+
+### Démarrer l'ouvrier
+
+```sh
+docker compose --profile vignettes up -d vignettes-ouvrier
+```
+
+Il lui faut `ATELIER_BASE`, `ATELIER_CLE` et `ARBORE_ENV_NOM`.
+
+**Un ouvrier ne sert qu'UN environnement**, et ce n'est pas un rangement :
+publier demande un jeton admin propre à l'environnement visé. Un ouvrier
+unique servant dev et prod devrait porter les identifiants des deux, ce qui
+reviendrait à donner à dev de quoi écrire en production. Chaque environnement
+fait donc tourner le sien, et `prendre` filtre sur ce nom — sans ce filtre, un
+ouvrier de dev réserverait une tâche de prod qu'il ne peut pas livrer, la
+bloquant vingt minutes.
+
+L'ouvrier est plafonné à 2 cœurs. Un rendu Blender prend tout ce qu'on lui
+laisse, et une passe de catalogue dure des heures : sans plafond il affame le
+backend qui partage la machine.
+
+### Déclarer les environnements
+
+`VIGNETTES_ENVIRONNEMENTS`, un tableau JSON, de préférence monté par
+`VIGNETTES_ENVIRONNEMENTS_PATH` — une variable d'environnement se lit avec
+`docker inspect`, un fichier monté non.
+
+```json
+[{ "nom": "dev", "api": "https://api-dev.arbore.app", "cle": "…" }]
+```
+
+Les **images** ne demandent aucun secret : `GET /models/thumbnails/:filename`
+est une route publique du backend. La clé ne sert qu'à lister le catalogue, et
+ne quitte pas le serveur.
+
+### Ce que la page ne peut pas faire
+
+**Comparer la même plante entre deux environnements.** Mesuré le 2026-10-31,
+les catalogues de dev (`arbore_test`) et de prod (`arbore`) n'ont **aucun**
+identifiant en commun. La page montre donc un environnement à la fois, avec
+ses propres fiches. Voir #434.
+
+### La file est séparée, et elle doit le rester
+
+Les tâches de vignettes vivent dans `etat.vignettes`, **pas** dans
+`etat.taches`. `prendre()` rend la première tâche `en_attente` de `taches`
+sans filtrer : une tâche de vignette posée là serait réservée par l'ouvrier
+Colab, qui échouerait dessus.
+
+Le piège inverse est silencieux. `lire()` reconstruit l'état à partir d'une
+liste explicite de clés et **jette tout le reste**, puis `ecrire()` réécrit
+l'objet reconstruit. Une clé `vignettes` absente de cette liste serait effacée
+au premier dépôt de maillage — donc par l'activité normale du Colab. La clé
+est déclarée dans `lire()` **et** dans `VIDE`, et un test le prouve : la
+retirer fait tomber sept tests.
+
+L'expiration des vignettes vaut 20 min, et non les 30 des maillages : celles-là
+sont dimensionnées sur la mort d'une session Colab et un appel CUDA bloquant.
+Et c'est **une tâche par plante** — un lot unique couvrant le catalogue
+dépasserait l'expiration et serait remis en attente alors qu'il tourne encore,
+mettant deux ouvriers sur le même travail.

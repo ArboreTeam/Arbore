@@ -15,6 +15,9 @@ import {
   mesurables, noterTaille, noterDiametreFiche,
   recoupables, recouper, reinitialiser, retenirCoupe, coupeNonRetenue,
   sources, supprimerSource, trancher,
+  CLARTE_CIEL_MAX, EXPIRATION_VIGNETTE_MS, REGLAGES_VIGNETTE, clarte,
+  deposerVignettes, echouerVignette, fileVignettes, livrerVignette,
+  prendreVignette, reglagesValides,
 } from './depot';
 
 afterAll(() => rmSync(BAC, { recursive: true, force: true }));
@@ -1529,5 +1532,109 @@ describe('dépôt — le diamètre venu de la fiche d\'origine', () => {
     const m = mesurables().find((x) => x.plante === 'Inconnue');
     expect(m).toBeDefined();
     expect(m!.diametreFiche).toBeNull();
+  });
+});
+
+
+describe('dépôt — file des vignettes', () => {
+  beforeEach(() => reinitialiser());
+
+  const r = REGLAGES_VIGNETTE;
+
+  it('un dépôt de maillage n efface pas la file des vignettes', async () => {
+    // LE test de cette file. `lire()` reconstruit l'état à partir d'une liste
+    // explicite de clés et jette tout le reste, puis `ecrire()` réécrit
+    // l'objet reconstruit. Si `vignettes` manquait à cette liste, la file
+    // serait effacée au premier dépôt de maillage — donc par l'activité
+    // normale de l'ouvrier Colab, silencieusement.
+    await deposerVignettes('dev', ['abc'], r);
+    await deposer('alpha', '/a.png');
+    expect(fileVignettes()).toHaveLength(1);
+    expect(fileVignettes()[0].plante).toBe('abc');
+  });
+
+  it('l ouvrier des maillages ne prend jamais une vignette', async () => {
+    // Et réciproquement. Les deux files vivent dans le même état : si elles
+    // partageaient un tableau, chaque ouvrier échouerait sur le travail de
+    // l'autre.
+    await deposerVignettes('dev', ['abc'], r);
+    expect(await prendre()).toBeNull();
+
+    await deposer('alpha', '/a.png');
+    const v = await prendreVignette();
+    expect(v?.plante).toBe('abc');
+    expect(await prendreVignette()).toBeNull();
+  });
+
+  it('un ouvrier ne prend que les tâches de SON environnement', async () => {
+    // Publier demande un jeton admin propre à l'environnement : un ouvrier de
+    // dev qui réserverait une tâche de prod la bloquerait 20 minutes sans
+    // pouvoir la livrer.
+    await deposerVignettes('prod', ['abc'], r);
+    expect(await prendreVignette(Date.now(), 'dev')).toBeNull();
+    expect((await prendreVignette(Date.now(), 'prod'))?.plante).toBe('abc');
+  });
+
+  it('deux prises concurrentes ne rendent jamais la même vignette', async () => {
+    await deposerVignettes('dev', ['seule'], r);
+    const [a, b] = await Promise.all([prendreVignette(), prendreVignette()]);
+    expect([a, b].filter(Boolean)).toHaveLength(1);
+  });
+
+  it('ne redépose pas une plante déjà en attente pour le même environnement', async () => {
+    await deposerVignettes('dev', ['abc', 'def'], r);
+    const encore = await deposerVignettes('dev', ['abc'], r);
+    expect(encore).toHaveLength(0);
+    expect(fileVignettes()).toHaveLength(2);
+  });
+
+  it('la même plante reste déposable sur un autre environnement', async () => {
+    // Les catalogues de dev et de prod n'ont aucun identifiant en commun
+    // aujourd'hui, mais la garde ne doit pas dépendre de ce fait.
+    await deposerVignettes('dev', ['abc'], r);
+    const prod = await deposerVignettes('prod', ['abc'], r);
+    expect(prod).toHaveLength(1);
+  });
+
+  it('reprend une réservation expirée, et l ancien ouvrier ne livre plus', async () => {
+    await deposerVignettes('dev', ['abc'], r);
+    const premier = await prendreVignette(0);
+    const second = await prendreVignette(EXPIRATION_VIGNETTE_MS + 1);
+    expect(second?.id).toBe(premier?.id);
+    expect(second?.reservation).not.toBe(premier?.reservation);
+    expect(await livrerVignette(premier!.id, premier!.reservation!, {})).toBe(false);
+    expect(await livrerVignette(second!.id, second!.reservation!, {})).toBe(true);
+  });
+
+  it('un échec porte son motif, tronqué', async () => {
+    await deposerVignettes('dev', ['abc'], r);
+    const t = await prendreVignette();
+    expect(await echouerVignette(t!.id, t!.reservation!, 'x'.repeat(900))).toBe(true);
+    const apres = fileVignettes()[0];
+    expect(apres.etat).toBe('echec');
+    expect(apres.erreur).toHaveLength(500);
+  });
+
+  it('refuse le fond de l app lui-même, qui ferait rejeter tout le catalogue', () => {
+    // #F0EEEA est le fond de l'app : la couleur la plus évidente à choisir
+    // est précisément celle qui dépasse le seuil de l'app.
+    expect(Math.round(clarte('#F0EEEA'))).toBe(238);
+    expect(reglagesValides({ ciel: '#F0EEEA' })).toBeNull();
+    expect(clarte(REGLAGES_VIGNETTE.ciel)).toBeLessThanOrEqual(CLARTE_CIEL_MAX);
+    expect(reglagesValides({})).not.toBeNull();
+  });
+
+  it('refuse une couleur mal formée et un nombre hors bornes', () => {
+    expect(reglagesValides({ ciel: 'beige' })).toBeNull();
+    expect(reglagesValides({ herbe: '#GGG' })).toBeNull();
+    expect(reglagesValides({ echantillons: 0 })).toBeNull();
+    expect(reglagesValides({ echantillons: 1.5 })).toBeNull();
+    expect(reglagesValides({ ambiante: -1 })).toBeNull();
+  });
+
+  it('la file publiée ne porte aucun jeton de réservation', async () => {
+    await deposerVignettes('dev', ['abc'], r);
+    await prendreVignette();
+    expect(fileVignettes()[0]).not.toHaveProperty('reservation');
   });
 });

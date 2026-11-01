@@ -342,6 +342,44 @@ services:
       - ARBORE_FIREBASE_KEY=${ARBORE_FIREBASE_KEY:-}
       - ARBORE_ADMIN_TOKEN=${ARBORE_ADMIN_TOKEN:-}
 
+  # Ouvrier des vignettes : le même binaire, en veille sur la file de l'atelier.
+  #
+  # Pourquoi un ouvrier et pas un appel direct : le conteneur web n'a pas accès
+  # à Docker, et c'est très bien ainsi. Il dépose, l'ouvrier consomme —
+  # exactement le motif de l'ouvrier Colab pour les maillages (#696).
+  #
+  # Un ouvrier ne sert QU'UN environnement, par `ARBORE_ENV_NOM` : publier
+  # demande un jeton admin propre à l'environnement visé, et un ouvrier servant
+  # les deux devrait porter les identifiants des deux — ce qui reviendrait à
+  # donner à dev de quoi écrire en production.
+  #
+  # Sous profil, donc jamais démarré par surprise. `docker compose --profile
+  # vignettes up -d vignettes-ouvrier` quand on le veut.
+  vignettes-ouvrier:
+    build:
+      context: ./vignettes
+      dockerfile: Dockerfile
+    image: ghcr.io/arboreteam/arbore-vignettes:${ARBORE_IMAGE_TAG:-latest}
+    container_name: arbore-${ARBORE_ENV:-prod}-vignettes-ouvrier
+    profiles: ["vignettes"]
+    restart: unless-stopped
+    command: ["--surveiller"]
+    networks:
+      - arbore-net
+    environment:
+      - ARBORE_ENV_NOM=${ARBORE_ENV:-prod}
+      - ATELIER_BASE=http://web:3000
+      - ATELIER_CLE=${GENERATOR_KEY:-}
+      - ARBORE_FIREBASE_KEY=${ARBORE_FIREBASE_KEY:-}
+      - ARBORE_ADMIN_TOKEN=${ARBORE_ADMIN_TOKEN:-}
+    deploy:
+      resources:
+        limits:
+          # Un rendu Blender prend tout ce qu'on lui laisse. Sans plafond,
+          # l'ouvrier affame le backend qui partage la machine — et une passe
+          # de catalogue dure des heures, pas des secondes.
+          cpus: "2.0"
+
   minio:
     image: minio/minio:latest
     container_name: arbore-${ARBORE_ENV:-prod}-minio

@@ -74,6 +74,16 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+# Agent annonce à l'API. `urllib` envoie sinon « Python-urllib/3.11 », que
+# Cloudflare refuse par un 403 — mesuré le 2026-11-02 sur dev, mêmes clés et
+# même URL : 200 avec l'agent de curl, 403 avec celui d'urllib.
+#
+# Ce n'est PAS la parade retenue : l'ouvrier passe désormais par l'adresse
+# interne (`apiInterne`), donc ne traverse plus de CDN du tout. Mais un robot
+# doit se nommer. Un agent honnête se journalise, se compte et se bloque
+# nommément si besoin ; « Python-urllib » ne dit rien de qui appelle.
+AGENT = "arbore-vignettes (ouvrier de rendu ; +https://github.com/ArboreTeam/Arbore)"
+
 LARGEUR, HAUTEUR = 720, 900
 MARQUEUR_RVB = (94, 28, 186)
 POIDS_PLANCHER = 50_000          # en dessous, le rendu est vide ou tronqué
@@ -112,7 +122,8 @@ def entetes_internes(cle_api, cle_interne):
             "clé interne absente — les routes /internal/* répondront 401. "
             "La poser dans ARBORE_INTERNAL_KEY (job autonome), ou dans le champ "
             "`interne` de VIGNETTES_ENVIRONNEMENTS côté atelier (mode veille).")
-    return {"X-API-Key": cle_api, "X-Arbore-Internal-Key": cle_interne}
+    return {"X-API-Key": cle_api, "X-Arbore-Internal-Key": cle_interne,
+            "User-Agent": AGENT}
 
 
 def catalogue(base, entetes):
@@ -310,7 +321,8 @@ def ouvrir_atelier():
     corps = json.dumps({"cle": cle}).encode()
     req = urllib.request.Request(f"{base}/api/generator/login", data=corps,
                                  headers={"Content-Type": "application/json",
-                                          "Host": hote_atelier()},
+                                          "Host": hote_atelier(),
+                                          "User-Agent": AGENT},
                                  method="POST")
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
@@ -338,7 +350,7 @@ def hote_atelier():
 def appeler(biscuit, url, corps=None, methode=None, delai=120):
     """Appel porté par la session. Rend (statut, octets)."""
     donnees = json.dumps(corps).encode() if corps is not None else None
-    entetes = {"Host": hote_atelier(), "Cookie": biscuit}
+    entetes = {"Host": hote_atelier(), "Cookie": biscuit, "User-Agent": AGENT}
     if donnees:
         entetes["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=donnees, headers=entetes, method=methode)

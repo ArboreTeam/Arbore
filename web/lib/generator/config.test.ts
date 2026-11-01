@@ -103,6 +103,37 @@ describe('config — environnements des vignettes', () => {
     expect(environnements().map((e) => e.nom)).toEqual(['dev']);
   });
 
+  // `apiInterne` retombe sur `api`. C'est ce repli qui fait qu'une
+  // configuration ecrite avant la separation continue de fonctionner telle
+  // quelle — sans lui, l'adresse serait vide et tous les appels partiraient
+  // sur `/internal/plants` sans hote.
+  it('apiInterne retombe sur api quand elle est absente', () => {
+    process.env.VIGNETTES_ENVIRONNEMENTS = JSON.stringify(
+      [{ nom: 'dev', api: 'https://api-dev.arbore.app', cle: 'k', interne: 'i' }],
+    );
+    expect(environnement('dev')?.apiInterne).toBe('https://api-dev.arbore.app');
+  });
+
+  it('apiInterne vide ou en blancs retombe aussi sur api', () => {
+    for (const vide of ['', '   ']) {
+      process.env.VIGNETTES_ENVIRONNEMENTS = JSON.stringify(
+        [{ nom: 'dev', api: 'https://pub', apiInterne: vide, cle: 'k' }],
+      );
+      expect(environnement('dev')?.apiInterne).toBe('https://pub');
+    }
+  });
+
+  it('apiInterne declaree remplace api, barre finale retiree', () => {
+    process.env.VIGNETTES_ENVIRONNEMENTS = JSON.stringify(
+      [{ nom: 'dev', api: 'https://pub/', apiInterne: 'http://backend:8080/', cle: 'k' }],
+    );
+    const env = environnement('dev');
+    // Les deux doivent rester DISTINCTES : le navigateur charge les images sur
+    // `api`, et lui ne joint pas `http://backend:8080`.
+    expect(env?.api).toBe('https://pub');
+    expect(env?.apiInterne).toBe('http://backend:8080');
+  });
+
   // Les clés ne doivent jamais arriver dans le navigateur. Le seul endroit qui
   // les expose est la remise de tâche à l'ouvrier, derrière une session.
   it('un type inattendu pour interne ne traverse pas', () => {

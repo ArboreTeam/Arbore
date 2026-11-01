@@ -227,9 +227,38 @@ the machine.
 `docker inspect`, a mounted file is not.
 
 ```json
-[{ "nom": "dev", "api": "https://api-dev.arbore.app",
+[{ "nom": "dev",
+   "api": "https://api-dev.arbore.app",
+   "apiInterne": "http://backend:8080",
    "cle": "…", "interne": "…" }]
 ```
+
+### Two addresses, and they must stay distinct
+
+`api` is the **public** address. It builds the image URLs, and it is the
+**browser** that loads those — the browser cannot reach `http://backend:8080`.
+
+`apiInterne` is the one used for `/internal/*` calls, made by the server and by
+the worker. When empty, it falls back to `api`.
+
+Conflating them put **Cloudflare in an internal robot's path**. Measured on dev
+on 2026-11-02, same keys and same URL:
+
+```
+curl/8.5.0          -> 200
+Python-urllib/3.11  -> 403
+```
+
+The worker therefore took a **403 on every task**. Spoofing its agent would
+have worked around a bot rule by pretending to be something else, and the rule
+can change tomorrow. Traffic from a robot running on the **same machine** as the
+backend has no reason to leave it: `http://backend:8080` never leaves the Docker
+bridge, skips the CDN, and saves a 2.6 MB download and one upload per plant —
+times 123.
+
+The worker also announces an agent that names it. That is not the fix, since it
+no longer crosses a CDN; but a robot should name itself, and "Python-urllib"
+says nothing about who is calling.
 
 `cle` is the environment's API key, `interne` its internal-routes key. **Both**
 are required, and neither leaves the server — never a `NEXT_PUBLIC_`.

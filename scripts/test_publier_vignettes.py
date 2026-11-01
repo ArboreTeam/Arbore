@@ -32,14 +32,24 @@ _spec.loader.exec_module(publier)
 class EntetesInternes(unittest.TestCase):
 
     def test_cas_nominal_rend_les_deux_entetes(self):
-        """Les deux clés, et exactement les deux. Les routes `/internal/*`
-        exigent `X-API-Key` ET `X-Arbore-Internal-Key`."""
+        """Les deux clés, et exactement deux en-têtes d'authentification.
+
+        Les routes `/internal/*` exigent `X-API-Key` ET
+        `X-Arbore-Internal-Key`. Le `User-Agent` qui les accompagne n'authentifie
+        rien — d'où le partage en deux assertions plutôt qu'une égalité stricte
+        du dictionnaire, qui mélangerait les deux sujets.
+        """
         e = publier.entetes_internes("cle-api", "cle-interne")
 
-        self.assertEqual(e, {
-            "X-API-Key": "cle-api",
-            "X-Arbore-Internal-Key": "cle-interne",
-        })
+        self.assertEqual(e["X-API-Key"], "cle-api")
+        self.assertEqual(e["X-Arbore-Internal-Key"], "cle-interne")
+
+        # Aucun `Authorization` ne doit revenir : c'est la voie Firebase qu'on
+        # a justement abandonnee.
+        auth = [k for k in e if k.lower() in ("authorization", "cookie")
+                or k.lower().startswith("x-") and k not in
+                ("X-API-Key", "X-Arbore-Internal-Key")]
+        self.assertEqual(auth, [], "en-tete d'authentification inattendu : %r" % (auth,))
 
     def test_une_cle_manquante_leve_value_error(self):
         for nom, args in [
@@ -68,6 +78,22 @@ class EntetesInternes(unittest.TestCase):
                       "au lieu de déclarer la tâche en échec")
         else:                                             # pragma: no cover
             self.fail("aucune exception levée pour une clé interne absente")
+
+    def test_un_agent_est_annonce(self):
+        """`urllib` envoie sinon « Python-urllib/3.x », que Cloudflare refuse
+        par un 403 — mesure du 2026-11-02 : 200 avec l'agent de curl, 403 avec
+        celui d'urllib, memes cles et meme URL.
+
+        L'ouvrier passe desormais par l'adresse interne et ne traverse plus de
+        CDN, donc ce n'est pas la parade. Mais un robot doit se nommer : un
+        agent honnete se journalise, se compte, et se bloque nommement si
+        besoin.
+        """
+        e = publier.entetes_internes("api", "interne")
+
+        self.assertIn("User-Agent", e)
+        self.assertIn("arbore-vignettes", e["User-Agent"])
+        self.assertNotIn("urllib", e["User-Agent"])
 
     def test_le_message_dit_ou_poser_la_cle(self):
         """Un message qui ne nomme pas l'endroit fait rouvrir le code.

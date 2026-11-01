@@ -20,6 +20,11 @@ type FicheDistante = {
  * est une route publique du backend. Seule la LISTE est authentifiée, et ses
  * deux clés ne quittent pas le serveur.
  *
+ * Deux adresses, et il faut les garder distinctes : la liste est demandée sur
+ * `apiInterne`, depuis le serveur, tandis que les URL d'images sont bâties sur
+ * `api` — c'est le NAVIGATEUR qui les charge, et lui ne joint pas
+ * `http://backend:8080`.
+ *
  * Elle passe par `GET /internal/plants` et non par `/plants` (#696). La
  * première version de cette route supposait que la clé d'API suffisait à
  * lister le catalogue : c'était faux, `/plants` vit sous `protected`, donc
@@ -59,7 +64,7 @@ export async function GET(req: NextRequest) {
 
   let reponse: Response;
   try {
-    reponse = await fetch(`${env.api}/internal/plants`, {
+    reponse = await fetch(`${env.apiInterne}/internal/plants`, {
       headers: { 'X-API-Key': env.cle, 'X-Arbore-Internal-Key': env.interne },
       cache: 'no-store',
       signal: AbortSignal.timeout(20_000),

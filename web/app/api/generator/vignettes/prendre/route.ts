@@ -13,8 +13,8 @@ export const runtime = 'nodejs';
  * `204` et non `404` quand la file est vide : ce n'est pas une erreur, c'est
  * un catalogue à jour. L'ouvrier boucle là-dessus.
  *
- * La réponse porte l'adresse de l'API visée et ses DEUX clés — celle d'API et
- * celle des routes internes : l'ouvrier ne les connaît pas et n'a pas à les
+ * La réponse porte l'adresse INTERNE de l'API visée et ses DEUX clés — celle
+ * d'API et celle des routes internes : l'ouvrier ne les connaît pas et n'a pas à les
  * porter en configuration, sinon il faudrait lui donner celles de TOUS les
  * environnements pour qu'il puisse en servir un.
  *
@@ -46,7 +46,11 @@ export async function POST(req: NextRequest) {
       { error: `clé interne absente pour ${tache.env}` }, { status: 409 },
     );
   }
+  // `apiInterne` et non `api` : l'ouvrier n'appelle QUE des routes
+  // `/internal/*`, et il tourne sur la même machine que le backend. Lui donner
+  // l'adresse publique mettait Cloudflare dans son chemin, qui rendait 403 sur
+  // l'agent `Python-urllib` — mesuré le 2026-11-02. Voir `Environnement`.
   return NextResponse.json({
-    ...tache, api: env.api, cle: env.cle, interne: env.interne,
+    ...tache, api: env.apiInterne, cle: env.cle, interne: env.interne,
   });
 }

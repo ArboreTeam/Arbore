@@ -237,6 +237,44 @@ images. Cette voie a été abandonnée.
 
 **Un projet Firebase par environnement.** Le job de réconciliation (#393) tourne chaque dimanche avec `--apply` et compare les uid Firebase à une base Mongo. Pointé vers le mauvais couple, **il vide la mauvaise base**. Aucune de ses quatre gardes ne couvre ce cas.
 
+### ⚠️ `sudo ./deploy.sh` ne déchiffre RIEN sans `SOPS_AGE_KEY_FILE`
+
+`apply_secrets()` cherche la clé age à
+`${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/arbore-<env>.txt}`. Sous `sudo`,
+`$HOME` vaut **`/root`**, pas `/home/debian`. La clé y est introuvable, et la
+fonction **avertit puis rend 0** :
+
+```
+⚠️ Clé age introuvable (…) — secrets non déchiffrés, configuration en place conservée
+```
+
+Le déploiement continue, annonce « ✅ Déploiement terminé », et tourne avec les
+**anciens** secrets. Un secret fraîchement ajouté n'arrive jamais — ce qui s'est
+produit le 2026-11-02 avec `ARBORE_INTERNAL_KEY` : la variable valait zéro
+caractère dans le conteneur, et les routes internes répondaient 503.
+
+Passer la clé **explicitement** :
+
+```sh
+sudo -n ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev \
+  SOPS_AGE_KEY_FILE=/home/debian/.config/sops/age/arbore-dev.txt \
+  ./deploy.sh
+```
+
+Le signe qu'il a fonctionné, à chercher dans la sortie — un `tail` trop court le
+coupe :
+
+```
+✅ Secrets déchiffrés (dev) : 1 appliqué(s), 0 inchangé(s)
+```
+
+Et pour vérifier qu'une variable est bien arrivée, sans jamais la faire sortir :
+
+```sh
+sudo -n docker exec arbore-dev-backend \
+  sh -c 'printf "%s caracteres\n" "${#ARBORE_INTERNAL_KEY}"'
+```
+
 ## Déploiement
 
 `deploy.sh` déchiffre ces fichiers vers leurs emplacements à l'étape 2/7 :

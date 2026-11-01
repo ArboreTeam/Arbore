@@ -231,9 +231,38 @@ backend qui partage la machine.
 `docker inspect`, un fichier monté non.
 
 ```json
-[{ "nom": "dev", "api": "https://api-dev.arbore.app",
+[{ "nom": "dev",
+   "api": "https://api-dev.arbore.app",
+   "apiInterne": "http://backend:8080",
    "cle": "…", "interne": "…" }]
 ```
+
+### Deux adresses, et il faut les garder distinctes
+
+`api` est l'adresse **publique**. Elle sert à bâtir les URL d'images, que c'est
+le **navigateur** qui charge — lui ne joint pas `http://backend:8080`.
+
+`apiInterne` est celle des appels `/internal/*`, faits par le serveur et par
+l'ouvrier. Vide, elle retombe sur `api`.
+
+Les confondre mettait **Cloudflare dans le chemin d'un robot interne**. Mesuré
+le 2026-11-02 sur dev, mêmes clés et même URL :
+
+```
+curl/8.5.0          -> 200
+Python-urllib/3.11  -> 403
+```
+
+L'ouvrier prenait donc un **403 à chaque tâche**. Déguiser son agent aurait
+contourné une règle de bot en se faisant passer pour autre chose, et la règle
+peut changer demain. Le trafic d'un robot qui tourne sur la **même machine** que
+le backend n'a aucune raison de sortir : `http://backend:8080` ne quitte pas le
+pont Docker, évite le CDN, et épargne 2,6 Mo de téléchargement et un envoi par
+plante — fois 123.
+
+L'ouvrier annonce par ailleurs un agent qui le nomme. Ce n'est pas la parade,
+puisqu'il ne traverse plus de CDN ; mais un robot doit se nommer, et
+« Python-urllib » ne dit rien de qui appelle.
 
 `cle` est la clé d'API de l'environnement, `interne` sa clé de routes internes.
 Les **deux** sont nécessaires, et aucune ne quitte le serveur — jamais de

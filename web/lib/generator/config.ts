@@ -73,8 +73,36 @@ export function adresseClient(entetes: Headers): string {
 /** Un environnement dont l'atelier peut montrer, et refaire, les vignettes. */
 export type Environnement = {
   nom: string;
-  /** Base de l'API, sans barre finale. */
+  /**
+   * Base PUBLIQUE de l'API, sans barre finale.
+   *
+   * Elle sert à fabriquer les URL d'images affichées dans le NAVIGATEUR. Elle
+   * doit donc rester joignable depuis l'extérieur.
+   */
   api: string;
+  /**
+   * Base à employer pour les appels `/internal/*`, sans barre finale.
+   *
+   * Séparée de `api`, et ce n'est pas du rangement (#696). `api` avait deux
+   * publics à la fois — le navigateur, pour les images, et le robot, pour ses
+   * appels — et les confondre mettait **Cloudflare dans le chemin d'un robot
+   * interne**.
+   *
+   * Mesuré le 2026-11-02 sur dev, mêmes clés et même URL :
+   *
+   *     curl/8.5.0          -> 200
+   *     Python-urllib/3.11  -> 403
+   *
+   * L'ouvrier prenait donc un 403 à chaque tâche. Déguiser son agent aurait
+   * contourné une règle de bot en se faisant passer pour autre chose, et la
+   * règle peut changer demain. Le trafic d'un robot qui tourne sur la MÊME
+   * machine que le backend n'a aucune raison de sortir : `http://backend:8080`
+   * ne quitte pas le pont Docker, évite le CDN, et épargne 2,6 Mo de
+   * téléchargement et un envoi par plante — fois 123.
+   *
+   * Vide, elle retombe sur `api` : rien à changer là où les deux coïncident.
+   */
+  apiInterne: string;
   /** Clé d'API de CET environnement. Ne sort jamais du serveur. */
   cle: string;
   /**
@@ -104,7 +132,8 @@ export type Environnement = {
  * serveur — jamais de `NEXT_PUBLIC_`.
  *
  * Format : un tableau JSON
- * `[{ "nom": "dev", "api": "https://…", "cle": "…", "interne": "…" }]`,
+ * `[{ "nom": "dev", "api": "https://…", "apiInterne": "http://backend:8080",
+ *     "cle": "…", "interne": "…" }]`,
  * de préférence monté par `_PATH` plutôt que posé en variable, qu'un
  * `docker inspect` suffit à lire.
  */
@@ -119,12 +148,21 @@ export function environnements(): Environnement[] {
         Boolean(e) && typeof e === 'object'
         && typeof (e as Environnement).nom === 'string'
         && typeof (e as Environnement).api === 'string')
-      .map((e) => ({
-        nom: e.nom,
-        api: e.api.replace(/\/+$/, ''),
-        cle: typeof e.cle === 'string' ? e.cle : '',
-        interne: typeof e.interne === 'string' ? e.interne : '',
-      }));
+      .map((e) => {
+        const api = e.api.replace(/\/+$/, '');
+        return {
+          nom: e.nom,
+          api,
+          // Retombe sur `api`, et non sur une chaîne vide : une configuration
+          // écrite avant cette séparation doit continuer de fonctionner telle
+          // quelle, exactement comme avant.
+          apiInterne: typeof e.apiInterne === 'string' && e.apiInterne.trim()
+            ? e.apiInterne.replace(/\/+$/, '')
+            : api,
+          cle: typeof e.cle === 'string' ? e.cle : '',
+          interne: typeof e.interne === 'string' ? e.interne : '',
+        };
+      });
   } catch {
     // Une configuration illisible rend une liste vide, et la page le dira.
     // Lever ici ferait tomber l'atelier entier pour une virgule en trop.

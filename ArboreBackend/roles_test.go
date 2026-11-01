@@ -314,6 +314,21 @@ var (
 		"POST /plants",
 		"POST /models/thumbnails/:plantId",
 	}
+
+	// Réservées aux appelants internes : clé d'API + clé interne, sans Firebase
+	// et sans rôle (#696). Elles existent pour l'ouvrier de vignettes, qui ne
+	// peut pas tenir une session Firebase.
+	//
+	// Cette liste doit rester COURTE et tenir en une justification par entrée.
+	// Elle contourne l'authentification des personnes : chaque route ajoutée
+	// ici est une route qu'un porteur de deux secrets atteint sans compte.
+	internalKeyRoutes = map[string]string{
+		"GET /internal/plants": "l'ouvrier doit savoir quelles plantes rendre, et l'atelier les afficher en aperçu ; " +
+			"lecture seule du catalogue, déjà ouverte à tout compte authentifié",
+		"POST /internal/models/thumbnails/:plantId": "la raison d'être du robot : déposer l'image qu'il vient de rendre",
+		"GET /internal/models/:filename": "il faut le modèle USDZ pour le rendre ; " +
+			"même handler que sous `protected`, donc mêmes contrôles de chemin",
+	}
 )
 
 func TestRouterExposesExactlyTheClassifiedRoutes(t *testing.T) {
@@ -330,6 +345,10 @@ func TestRouterExposesExactlyTheClassifiedRoutes(t *testing.T) {
 			assert.False(t, classified[route], "route classée deux fois : %s", route)
 			classified[route] = true
 		}
+	}
+	for route := range internalKeyRoutes {
+		assert.False(t, classified[route], "route classée deux fois : %s", route)
+		classified[route] = true
 	}
 
 	for route := range classified {
@@ -364,6 +383,10 @@ func TestSensitiveRoutesAreNeverGuestReachable(t *testing.T) {
 	for _, route := range adminOnlyRoutes {
 		assert.False(t, guestSet[route],
 			"%s est une route d'administration, jamais ouverte aux invités", route)
+	}
+	for route := range internalKeyRoutes {
+		assert.False(t, guestSet[route],
+			"%s est une route interne, jamais ouverte aux invités", route)
 	}
 
 	// Les deux seules routes sous un préfixe sensible qu'un invité peut

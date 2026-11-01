@@ -82,4 +82,33 @@ describe('config — environnements des vignettes', () => {
     ]);
     expect(environnements().map((e) => e.nom)).toEqual(['dev']);
   });
+
+  it('lit la clé interne', () => {
+    process.env.VIGNETTES_ENVIRONNEMENTS = JSON.stringify(
+      [{ nom: 'dev', api: 'https://a', cle: 'k', interne: 'i' }],
+    );
+    expect(environnement('dev')?.interne).toBe('i');
+  });
+
+  // Une entrée sans `interne` reste VALIDE, et rend une chaîne vide. C'est
+  // l'état de toute configuration écrite avant #696, et l'atelier doit la
+  // charger pour pouvoir dire « clé interne absente » dans son aperçu — une
+  // entrée rejetée ici deviendrait un « environnement inconnu », diagnostic
+  // beaucoup plus difficile à relier à la vraie cause.
+  it('une entrée sans clé interne reste chargée, clé vide', () => {
+    process.env.VIGNETTES_ENVIRONNEMENTS = JSON.stringify(
+      [{ nom: 'dev', api: 'https://a', cle: 'k' }],
+    );
+    expect(environnement('dev')?.interne).toBe('');
+    expect(environnements().map((e) => e.nom)).toEqual(['dev']);
+  });
+
+  // Les clés ne doivent jamais arriver dans le navigateur. Le seul endroit qui
+  // les expose est la remise de tâche à l'ouvrier, derrière une session.
+  it('un type inattendu pour interne ne traverse pas', () => {
+    process.env.VIGNETTES_ENVIRONNEMENTS = JSON.stringify(
+      [{ nom: 'dev', api: 'https://a', cle: 'k', interne: { fuite: true } }],
+    );
+    expect(environnement('dev')?.interne).toBe('');
+  });
 });

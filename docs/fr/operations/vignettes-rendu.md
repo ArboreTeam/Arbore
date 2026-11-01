@@ -2,8 +2,13 @@
 
 Les vignettes du catalogue sont rendues par un **job en conteneur**, hors de
 tout environnement Apple. Elles l'étaient auparavant depuis l'app, écran par
-écran, par un écran d'administration — une opération manuelle qu'il fallait
-rejouer à chaque changement de modèle.
+écran, par un écran de debug — une opération manuelle qu'il fallait rejouer à
+chaque changement de modèle.
+
+Cet écran, son renderer RealityKit et la suite de tests qui le pilotait depuis
+le simulateur **ont été retirés** de l'app (#696). L'app ne rend plus de
+vignettes : elle les affiche, les met en cache et refuse les anciennes. Le
+rendu n'a plus qu'un seul chemin, et c'est celui décrit ici.
 
 ## Pourquoi Blender
 
@@ -127,6 +132,59 @@ Le temps de rendu est **à remesurer sur le VPS**, qui est nativement x86 :
 sous émulation il ne veut rien dire en absolu. Le rapport, lui, vaut : passer
 l'ombre en qualité a fait passer le rendu de 4 min 47 à 8 min 20.
 
+## Comment le job s'authentifie
+
+Par **deux clés**, et aucune session Firebase.
+
+```
+X-API-Key              ARBORE_API_KEY        choisit la base (prod ou test)
+X-Arbore-Internal-Key  ARBORE_INTERNAL_KEY   ouvre les routes /internal/*
+```
+
+Trois routes, et rien de plus :
+
+| Route | Pourquoi |
+| --- | --- |
+| `GET /internal/plants` | savoir quelles plantes rendre |
+| `GET /internal/models/:filename` | télécharger le modèle USDZ |
+| `POST /internal/models/thumbnails/:plantId` | déposer la vignette rendue |
+
+### Pourquoi pas un compte de service
+
+La première version visait les routes de l'app, sous `protected` : clé d'API
+**puis** session Firebase. Un robot ne peut pas tenir de session Firebase, donc
+la seule voie était un **compte de service ayant le rôle administrateur** — un
+compte humain détourné, avec son mot de passe à conserver dans les secrets, son
+jeton à rafraîchir, son UID dans `ARBORE_ADMIN_UIDS`, et le droit d'écrire tout
+le catalogue. Pour déposer des images.
+
+Une session **anonyme** ne résout rien : elle suffirait à lire, jamais à
+publier, puisque son UID change à chaque ouverture et ne peut donc pas figurer
+dans `ARBORE_ADMIN_UIDS`.
+
+Les routes `/internal/*` donnent exactement les trois gestes nécessaires. Elles
+ne confèrent **aucun rôle**, n'ouvrent aucune route de compte, et exigent les
+deux clés **ensemble** : la clé d'API seule, celle que porte l'app iOS, n'y
+donne pas accès.
+
+### Clé absente : la porte se ferme
+
+`ARBORE_INTERNAL_KEY` non renseignée, les routes internes répondent **503
+`INTERNAL_ROUTES_DISABLED`**, quoi qu'on leur présente. Une instance qui ne
+sert pas de robot n'a donc rien à configurer, et la surface n'existe pas chez
+elle — c'est le cas de la prod aujourd'hui.
+
+Un secret non renseigné doit **fermer** la porte, jamais l'ouvrir. Le piège est
+précis : `ConstantTimeCompare(fourni, configuré)` jugerait un en-tête vide égal
+à une clé vide, et n'importe qui entrerait. Un test le fixe nommément.
+
+503 plutôt que 404, parce qu'un 404 serait indiscernable de celui qu'un hôte mal
+apparié renvoie déjà — et on a déjà cherché deux fois la même panne.
+
+Le handler `GET /models/:filename` est **monté deux fois**, sous `protected` et
+sous `/internal`, depuis un seul corps (`servePlantModel`). Deux copies auraient
+voulu dire deux définitions des contrôles de chemin à garder d'accord.
+
 ## Piloter depuis l'atelier
 
 L'atelier expose une page `Vignettes` qui montre ce que chaque environnement
@@ -139,7 +197,8 @@ atelier  --[POST /api/generator/vignettes]-->  file
                                                 |
                      vignettes-ouvrier  <-------+  (--surveiller)
                               |
-                              +--> rend, contrôle, POST /models/thumbnails/<id>
+                              +--> rend, contrôle,
+                              |    POST /internal/models/thumbnails/<id>
                               +--> livre ou déclare l'échec
 ```
 
@@ -151,13 +210,15 @@ docker compose --profile vignettes up -d vignettes-ouvrier
 
 Il lui faut `ATELIER_BASE`, `ATELIER_CLE` et `ARBORE_ENV_NOM`.
 
-**Un ouvrier ne sert qu'UN environnement**, et ce n'est pas un rangement :
-publier demande un jeton admin propre à l'environnement visé. Un ouvrier
-unique servant dev et prod devrait porter les identifiants des deux, ce qui
-reviendrait à donner à dev de quoi écrire en production. Chaque environnement
-fait donc tourner le sien, et `prendre` filtre sur ce nom — sans ce filtre, un
-ouvrier de dev réserverait une tâche de prod qu'il ne peut pas livrer, la
-bloquant vingt minutes.
+**Un ouvrier ne sert qu'UN environnement.** En veille il ne porte **aucune**
+clé de backend : l'atelier joint l'adresse de l'API et ses deux clés à la
+tâche qu'il remet. `ARBORE_ENV_NOM` décide seulement de la file où il puise, et
+`prendre` filtre sur ce nom — sans ce filtre, un ouvrier de dev réserverait une
+tâche de prod, la bloquant vingt minutes.
+
+Un ouvrier branché sur dev n'a donc, à aucun instant, de quoi écrire en
+production. Ce n'est pas une consigne qu'on pourrait oublier de suivre : il ne
+reçoit jamais le secret.
 
 L'ouvrier est plafonné à 2 cœurs. Un rendu Blender prend tout ce qu'on lui
 laisse, et une passe de catalogue dure des heures : sans plafond il affame le
@@ -170,12 +231,20 @@ backend qui partage la machine.
 `docker inspect`, un fichier monté non.
 
 ```json
-[{ "nom": "dev", "api": "https://api-dev.arbore.app", "cle": "…" }]
+[{ "nom": "dev", "api": "https://api-dev.arbore.app",
+   "cle": "…", "interne": "…" }]
 ```
 
-Les **images** ne demandent aucun secret : `GET /models/thumbnails/:filename`
-est une route publique du backend. La clé ne sert qu'à lister le catalogue, et
-ne quitte pas le serveur.
+`cle` est la clé d'API de l'environnement, `interne` sa clé de routes internes.
+Les **deux** sont nécessaires, et aucune ne quitte le serveur — jamais de
+`NEXT_PUBLIC_`.
+
+Une entrée sans `interne` reste **chargée**, avec une clé vide, et l'aperçu le
+dit en clair. La rejeter en ferait un « environnement inconnu », diagnostic
+bien plus difficile à relier à sa cause.
+
+Les **images**, elles, ne demandent aucun secret :
+`GET /models/thumbnails/:filename` est une route publique du backend.
 
 ### Ce que la page ne peut pas faire
 

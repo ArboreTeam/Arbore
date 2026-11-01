@@ -2,6 +2,15 @@ import XCTest
 import UIKit
 @testable import ArboreUi
 
+// Ce qui reste ici est le CONSOMMATEUR de vignettes : l'URL distante et le
+// détecteur d'ancienneté. L'app ne rend plus de vignettes (#696), donc les deux
+// tests de `PlantThumbnailFraming.fit` sont partis avec le renderer.
+//
+// Le cadrage n'est pas pour autant sans test : il a été porté littéralement
+// dans `vignettes/rendre.py`, et c'est là qu'il est désormais éprouvé — sur le
+// rendu réel, par les quatre contrôles de `controler()`, qui sont exactement
+// ceux que `isLegacyThumbnail` applique ci-dessous. Un cadrage faux ne produit
+// plus un nombre qui diffère, il produit une vignette que l'app refuse.
 final class PlantThumbnailRenderingTests: XCTestCase {
     func testRemoteThumbnailURLIncludesDesignVersionToBypassCDNCache() throws {
         let url = try XCTUnwrap(
@@ -17,41 +26,6 @@ final class PlantThumbnailRenderingTests: XCTestCase {
             components.queryItems,
             [URLQueryItem(name: "v", value: PlantThumbnailCache.version)]
         )
-    }
-
-    func testFramingMovesCameraBackForWidePlant() {
-        let narrow = PlantThumbnailFraming.fit(
-            width: 0.5,
-            height: 1.5,
-            depth: 0.4,
-            aspectRatio: 0.8
-        )
-        let wide = PlantThumbnailFraming.fit(
-            width: 2.5,
-            height: 1.5,
-            depth: 0.4,
-            aspectRatio: 0.8
-        )
-
-        XCTAssertGreaterThan(wide.cameraDistance, narrow.cameraDistance)
-    }
-
-    func testFramingIncludesDepthWhenCameraIsPitched() {
-        let shallow = PlantThumbnailFraming.fit(
-            width: 1,
-            height: 1,
-            depth: 0.2,
-            aspectRatio: 0.8
-        )
-        let deep = PlantThumbnailFraming.fit(
-            width: 1,
-            height: 1,
-            depth: 2,
-            aspectRatio: 0.8
-        )
-
-        XCTAssertGreaterThan(deep.cameraDistance, shallow.cameraDistance)
-        XCTAssertEqual(deep.lookAtY, 0.5, accuracy: 0.0001)
     }
 
     func testLegacyDetectorRejectsPaleTopStrip() {

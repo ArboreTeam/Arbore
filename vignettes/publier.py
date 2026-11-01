@@ -12,17 +12,30 @@ fausses sur 123** : deux répertoires de vignettes existent sur le VPS, un seul
 est monté dans le conteneur. Connaître la disposition du stockage, c'est
 pouvoir s'y tromper.
 
-En passant par `POST /models/thumbnails/:plantId`, c'est le backend qui écrit
-et qui recalcule `versions.thumbnail` sur les octets qu'il vient d'écrire
-(#687). Publier une empreinte qui ment devient impossible, pas seulement
-improbable.
+En passant par `POST /internal/models/thumbnails/:plantId`, c'est le backend
+qui écrit et qui recalcule `versions.thumbnail` sur les octets qu'il vient
+d'écrire (#687). Publier une empreinte qui ment devient impossible, pas
+seulement improbable.
 
-## Ce qu'il lui faut
+## Comment il s'authentifie
+
+Par DEUX clés, et aucune session Firebase (#696) :
 
     ARBORE_API_BASE      https://api-dev.arbore.app
-    ARBORE_API_KEY       clé d'API
-    ARBORE_FIREBASE_KEY  clé web du projet, pour ouvrir la session
-    ARBORE_ADMIN_TOKEN   jeton d'un compte de service ayant le rôle admin
+    ARBORE_API_KEY       clé d'API           -> en-tête X-API-Key
+    ARBORE_INTERNAL_KEY  clé des routes internes -> X-Arbore-Internal-Key
+
+La première version visait les routes de l'app, sous `protected` : clé d'API
+PUIS session Firebase. Un robot ne pouvant pas tenir de session, la seule voie
+était un compte de service ayant le rôle administrateur — un compte humain
+détourné, avec son mot de passe à conserver, son jeton à rafraîchir, son UID
+dans `ARBORE_ADMIN_UIDS`, et le droit d'écrire tout le catalogue. Pour déposer
+des images.
+
+Les routes `/internal/*` donnent exactement les trois gestes nécessaires —
+lister le catalogue, télécharger un modèle, déposer une vignette — et rien de
+plus. Elles exigent les deux clés ensemble : la clé d'API seule, celle que
+porte l'app iOS, n'y donne pas accès.
 
 ## Mode veille
 
@@ -42,10 +55,12 @@ l'en-tête `Host` à `GENERATOR_HOST`, et le middleware fait de même. Joint sur
 le réseau interne, le job enverrait `Host: web:3000` et prendrait un 404 à
 chaque appel, sans jamais rien faire. Mesuré : 404 sans l'en-tête, 401 avec.
 
-Un ouvrier ne sert QU'UN environnement, et c'est volontaire : publier demande
-un jeton admin propre à l'environnement visé. Un ouvrier unique servant les
-deux devrait porter les identifiants des deux, ce qui reviendrait à donner à
-dev de quoi écrire en production.
+Un ouvrier ne sert QU'UN environnement, et c'est volontaire. En veille il ne
+porte AUCUNE clé de backend : l'atelier les joint à la tâche qu'il remet, avec
+l'adresse de l'API. `ARBORE_ENV_NOM` décide seulement de la file où il puise.
+Un ouvrier branché sur dev n'a donc, à aucun instant, de quoi écrire en
+production — ce n'est pas une consigne, c'est qu'il ne reçoit jamais le
+secret.
 """
 import argparse
 import json
@@ -73,27 +88,27 @@ def http(url, entetes, corps=None, methode=None, delai=300):
         return r.status, r.read()
 
 
-def jeton(base_env):
-    """Jeton d'authentification. Un jeton admin couvre aussi les lectures."""
-    fourni = os.environ.get("ARBORE_ADMIN_TOKEN")
-    if fourni:
-        return fourni
-    cle = os.environ.get("ARBORE_FIREBASE_KEY")
-    if not cle:
-        raise SystemExit("ni ARBORE_ADMIN_TOKEN ni ARBORE_FIREBASE_KEY — "
-                         "le job ne peut ni lire le catalogue ni publier")
-    # Session anonyme : suffisante pour LIRE, jamais pour publier. Utile pour
-    # une passe de contrôle qui rend sans envoyer.
-    url = f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={cle}"
-    _, corps = http(url, {"Content-Type": "application/json"},
-                    b'{"returnSecureToken":true}', "POST")
-    return json.loads(corps)["idToken"]
+def entetes_internes(cle_api, cle_interne):
+    """Les deux en-têtes qu'exigent les routes `/internal/*`. (#696)
+
+    Les deux sont vérifiés ici plutôt qu'au premier appel : un secret manquant
+    doit se dire en une phrase au démarrage, pas se deviner depuis un 401 ou un
+    503 remonté du backend. On vient d'y passer cinq cycles de diagnostic.
+    """
+    if not cle_api:
+        raise SystemExit("clé d'API absente — en-tête X-API-Key impossible")
+    if not cle_interne:
+        raise SystemExit(
+            "clé interne absente — les routes /internal/* répondront 401. "
+            "La poser dans ARBORE_INTERNAL_KEY (job autonome), ou dans le champ "
+            "`interne` de VIGNETTES_ENVIRONNEMENTS côté atelier (mode veille).")
+    return {"X-API-Key": cle_api, "X-Arbore-Internal-Key": cle_interne}
 
 
 def catalogue(base, entetes):
-    statut, corps = http(f"{base}/plants", entetes)
+    statut, corps = http(f"{base}/internal/plants", entetes)
     if statut != 200:
-        raise SystemExit(f"GET /plants a rendu {statut}")
+        raise SystemExit(f"GET /internal/plants a rendu {statut}")
     return json.loads(corps)
 
 
@@ -189,12 +204,12 @@ def coins_marques(chemin):
 
 
 def telecharger_modele(base, entetes, fichier, version, dest):
-    url = f"{base}/models/{fichier}"
+    url = f"{base}/internal/models/{fichier}"
     if version:
         url += f"?v={version}"
     statut, corps = http(url, entetes)
     if statut != 200:
-        raise RuntimeError(f"GET {fichier} a rendu {statut}")
+        raise RuntimeError(f"GET /internal/models/{fichier} a rendu {statut}")
     open(dest, "wb").write(corps)
     return len(corps)
 
@@ -250,7 +265,8 @@ def publier(base, entetes, plant_id, chemin):
         f"\r\n--{limite}--\r\n".encode()
     e = dict(entetes)
     e["Content-Type"] = f"multipart/form-data; boundary={limite}"
-    statut, reponse = http(f"{base}/models/thumbnails/{plant_id}", e, corps, "POST")
+    statut, reponse = http(
+        f"{base}/internal/models/thumbnails/{plant_id}", e, corps, "POST")
     if statut != 200:
         raise RuntimeError(f"POST a rendu {statut} : {reponse[:160].decode(errors='replace')}")
     return json.loads(reponse)
@@ -326,12 +342,12 @@ def appeler(biscuit, url, corps=None, methode=None, delai=120):
 def rendre_une(tache, sortie):
     """Rend et publie UNE vignette. Rend None si tout va bien, le motif sinon.
 
-    L'adresse de l'API et sa clé viennent de la TÂCHE : l'ouvrier ne les porte
-    pas en configuration, sinon il faudrait lui donner celles de tous les
+    L'adresse de l'API et ses DEUX clés viennent de la TÂCHE : l'ouvrier ne les
+    porte pas en configuration, sinon il faudrait lui donner celles de tous les
     environnements pour qu'il puisse en servir un.
     """
     base = tache["api"].rstrip("/")
-    entetes = {"X-API-Key": tache["cle"], "Authorization": "Bearer " + jeton(base)}
+    entetes = entetes_internes(tache.get("cle"), tache.get("interne"))
     pid = tache["plante"]
 
     fiches = catalogue(base, entetes)
@@ -426,11 +442,11 @@ def main():
         return surveiller(a.pause, a.sortie)
 
     base = os.environ.get("ARBORE_API_BASE", "").rstrip("/")
-    cle = os.environ.get("ARBORE_API_KEY")
-    if not base or not cle:
-        raise SystemExit("ARBORE_API_BASE et ARBORE_API_KEY sont requis")
+    if not base:
+        raise SystemExit("ARBORE_API_BASE est requis")
 
-    entetes = {"X-API-Key": cle, "Authorization": "Bearer " + jeton(base)}
+    entetes = entetes_internes(os.environ.get("ARBORE_API_KEY"),
+                               os.environ.get("ARBORE_INTERNAL_KEY"))
     plantes = catalogue(base, entetes)
     if a.plantes:
         voulus = {x.strip() for x in a.plantes.split(",") if x.strip()}

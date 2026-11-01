@@ -12,7 +12,6 @@ struct ProfileView: View {
     @State private var userNameFetchError: String? = nil
 
     #if DEBUG
-    @State private var showDebugThumbnailGenerator = false
     #endif
 
     // name
@@ -62,12 +61,6 @@ struct ProfileView: View {
                 }
             }
         }
-
-        #if DEBUG
-        .sheet(isPresented: $showDebugThumbnailGenerator) {
-            DebugThumbnailGeneratorView()
-        }
-        #endif
     }
 
     // MARK: - Header (single line name + editable photo)
@@ -198,15 +191,6 @@ struct ProfileView: View {
             #if DEBUG
             VStack(alignment: .leading, spacing: ArboreDesign.Spacing.sm) {
                 SectionTitle(title: "Debug Tools")
-
-                Button(action: { showDebugThumbnailGenerator = true }) {
-                    SettingsRow(
-                        systemImage: "hammer",
-                        title: "Thumbnail Generator",
-                        tint: ArboreDesign.Colors.danger
-                    )
-                }
-                .buttonStyle(.plain)
 
                 // Sentry (#205) : envoie un event de test pour vérifier le DSN.
                 // No-op si Sentry n'est pas configuré dans Secrets.xcconfig.

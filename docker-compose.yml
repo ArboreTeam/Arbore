@@ -369,6 +369,12 @@ services:
     environment:
       - ARBORE_ENV_NOM=${ARBORE_ENV:-prod}
       - ATELIER_BASE=http://web:3000
+      # `GENERATOR_KEY` n'est PAS encore dans les secrets : l'atelier n'en
+      # stocke que l'empreinte, `GENERATOR_KEY_HASH`, et une empreinte ne
+      # permet pas d'ouvrir une session. La clé en clair doit être ajoutée à
+      # `ops/secrets/<env>.enc.env` pour que l'ouvrier puisse se connecter.
+      # Sans elle il s'arrête au démarrage en le disant, plutôt que de boucler
+      # sur des refus.
       - ATELIER_CLE=${GENERATOR_KEY:-}
       - ARBORE_FIREBASE_KEY=${ARBORE_FIREBASE_KEY:-}
       - ARBORE_ADMIN_TOKEN=${ARBORE_ADMIN_TOKEN:-}

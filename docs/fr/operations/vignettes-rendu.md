@@ -179,10 +179,15 @@ ne quitte pas le serveur.
 
 ### Ce que la page ne peut pas faire
 
-**Comparer la même plante entre deux environnements.** Mesuré le 2026-10-31,
-les catalogues de dev (`arbore_test`) et de prod (`arbore`) n'ont **aucun**
-identifiant en commun. La page montre donc un environnement à la fois, avec
-ses propres fiches. Voir #434.
+**Comparer la même plante entre deux environnements.** Mesuré le 2026-11-01,
+les catalogues de dev (`arbore_dev`) et de prod (`arbore`) comptent 123 fiches
+chacun et n'ont **aucun** identifiant en commun. La page montre donc un
+environnement à la fois, avec ses propres fiches. Voir #434.
+
+> La base de dev se lit dans `MONGODB_DB`, et **non** dans la base par défaut
+> de `MONGODB_URI` — celle-ci pointe sur `arbore_test`, une troisième base de
+> 143 fiches que plus personne ne sert. Interroger l'URI sans tenir compte de
+> `MONGODB_DB`, c'est mesurer le mauvais catalogue.
 
 ### La file est séparée, et elle doit le rester
 

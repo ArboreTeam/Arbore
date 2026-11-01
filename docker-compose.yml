@@ -311,6 +311,37 @@ services:
   # Les identifiants ci-dessous sont des valeurs de développement, volontairement
   # en clair : elles ne donnent accès qu'à un conteneur local sans données
   # réelles. Les surcharger via l'environnement si besoin.
+  # Rendu des vignettes du catalogue. (#694, #695)
+  #
+  # Sous profil, donc JAMAIS démarré par `docker compose up -d` : c'est un job,
+  # pas un service. Invocation explicite :
+  #
+  #   docker compose --profile outils run --rm vignettes
+  #   docker compose --profile outils run --rm vignettes --plantes <id>,<id>
+  #
+  # Aucun volume monté, et c'est délibéré. Il ne parle qu'à l'API : la prod
+  # sert ses assets depuis `r2` et dev depuis `filesystem`, donc un montage de
+  # répertoire ne marcherait pas sur la prod. Et c'est le backend qui recalcule
+  # `versions.thumbnail` sur les octets qu'il vient d'écrire (#687) — publier
+  # une empreinte qui ment devient impossible.
+  vignettes:
+    build:
+      context: ./vignettes
+      dockerfile: Dockerfile
+    image: ghcr.io/arboreteam/arbore-vignettes:${ARBORE_IMAGE_TAG:-latest}
+    container_name: arbore-${ARBORE_ENV:-prod}-vignettes
+    profiles: ["outils"]
+    restart: "no"
+    networks:
+      - arbore-net
+    environment:
+      # Le backend de CE déploiement, joint par le réseau interne : le job
+      # suit son environnement sans qu'on ait à lui donner une URL publique.
+      - ARBORE_API_BASE=http://backend:8080
+      - ARBORE_API_KEY=${ARBORE_API_KEY:-}
+      - ARBORE_FIREBASE_KEY=${ARBORE_FIREBASE_KEY:-}
+      - ARBORE_ADMIN_TOKEN=${ARBORE_ADMIN_TOKEN:-}
+
   minio:
     image: minio/minio:latest
     container_name: arbore-${ARBORE_ENV:-prod}-minio

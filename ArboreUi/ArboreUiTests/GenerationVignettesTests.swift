@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 import FirebaseAuth
 @testable import ArboreUi
 
@@ -74,7 +75,32 @@ final class GenerationVignettesTests: XCTestCase {
                 // l'app. Le rendu brut fait 3072×3840 pour une dizaine de
                 // mégaoctets — au-delà des 8 Mo du backend, et sans rapport
                 // avec les 720×900 des 123 vignettes en service.
-                let png = try ReductionVignette.reduire(png: rendu)
+                let reduit = try ReductionVignette.reduire(png: rendu)
+
+                // Marquée APRÈS la réduction, et ce n'est pas un détail d'ordre.
+                //
+                // `PlantThumbnailCache.isLegacyThumbnail` rejette toute vignette
+                // qui ne porte pas le marqueur de design — quatre carrés violets
+                // dans les coins. Une vignette déposée sans lui est téléchargée
+                // par l'app, puis **ignorée** : la carte garde l'ancienne image
+                // et rien ne le signale. C'est exactement ce qui est arrivé aux
+                // 123 vignettes déposées le 2026-10-30.
+                //
+                // Marquer avant de réduire ne marche pas davantage : le
+                // rééchantillonnage mélangerait le violet au fond et le
+                // détecteur ne le reconnaîtrait plus. L'app fait le même ordre
+                // dans `save()` — fond studio, puis marqueur, puis écriture.
+                guard let imageReduite = UIImage(data: reduit) else {
+                    echecs.append("\(plante.name) : relecture du PNG réduit"); continue
+                }
+                let marquee = PlantThumbnailCache.applyingCurrentDesignMarker(to: imageReduite)
+                guard let png = marquee.pngData() else {
+                    echecs.append("\(plante.name) : encodage après marquage"); continue
+                }
+                guard PlantThumbnailCache.hasCurrentDesignMarker(marquee) else {
+                    echecs.append("\(plante.name) : marqueur absent après marquage"); continue
+                }
+
                 // Nommé par identifiant de fiche, comme la route qui les sert :
                 // `/models/thumbnails/<plantId>.png`.
                 let chemin = (sortie as NSString).appendingPathComponent("\(plante.id).png")

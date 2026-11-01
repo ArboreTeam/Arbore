@@ -174,10 +174,15 @@ backend route. The key only lists the catalogue, and never leaves the server.
 
 ### What the page cannot do
 
-**Compare the same plant across two environments.** Measured on 2026-10-31, the
-dev (`arbore_test`) and prod (`arbore`) catalogues share **no** plant
-identifier at all. The page therefore shows one environment at a time, with its
-own entries. See #434.
+**Compare the same plant across two environments.** Measured on 2026-11-01, the
+dev (`arbore_dev`) and prod (`arbore`) catalogues each hold 123 entries and
+share **no** plant identifier at all. The page therefore shows one environment
+at a time, with its own entries. See #434.
+
+> The dev database is named by `MONGODB_DB`, **not** by the default database of
+> `MONGODB_URI` — that one points at `arbore_test`, a third database of 143
+> entries nobody serves any more. Querying the URI without honouring
+> `MONGODB_DB` measures the wrong catalogue.
 
 ### The queue is separate, and must stay that way
 

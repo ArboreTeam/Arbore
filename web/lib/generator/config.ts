@@ -18,9 +18,28 @@ function secretDepuis(nom: string): string {
   return (process.env[nom] ?? '').trim();
 }
 
-/** Empreinte SHA-256 hexadécimale de la clé d'accès. Jamais la clé elle-même. */
-export function empreinteAttendue(): string {
-  return secretDepuis('GENERATOR_KEY_HASH').toLowerCase();
+/**
+ * Empreintes SHA-256 des clés acceptées. Jamais les clés elles-mêmes.
+ *
+ * PLUSIEURS, séparées par des virgules ou des espaces, et c'est le point.
+ * L'ouvrier des vignettes doit se connecter à l'atelier, et avec une empreinte
+ * unique il faudrait lui confier la clé HUMAINE — donc écrire un mot de passe
+ * de personne dans un fichier de secrets, et le rendre irrévocable sans
+ * déconnecter cette personne.
+ *
+ * Avec une liste, le robot reçoit sa propre clé, révocable seule : on retire
+ * son empreinte et lui seul perd l'accès.
+ *
+ * Une valeur unique reste acceptée telle quelle — rien à changer là où il n'y
+ * a pas de robot.
+ */
+export function empreintesAttendues(): Set<string> {
+  return new Set(
+    secretDepuis('GENERATOR_KEY_HASH')
+      .toLowerCase()
+      .split(/[\s,]+/)
+      .filter((e) => /^[0-9a-f]{64}$/.test(e)),
+  );
 }
 
 /** Secret de signature des cookies de session. */

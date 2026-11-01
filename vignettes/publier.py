@@ -31,9 +31,16 @@ exactement comme l'ouvrier Colab consomme `/api/generator/taches`. C'est ce
 qui donne un bouton à l'atelier sans monter la socket Docker dans un
 conteneur exposé.
 
-    ATELIER_BASE         https://generator.arbore.app
+    ATELIER_BASE         http://web:3000 (adresse joignable)
+    ATELIER_HOTE         generator.arbore.app (en-tête Host à présenter)
     ATELIER_CLE          clé d'accès de l'atelier
     ARBORE_ENV_NOM       l'environnement servi, « dev » ou « prod »
+
+`ATELIER_HOTE` n'est pas un doublon de `ATELIER_BASE`. L'atelier REFUSE par un
+404 tout ce qui ne se présente pas sous son hôte — `bonHote()` compare
+l'en-tête `Host` à `GENERATOR_HOST`, et le middleware fait de même. Joint sur
+le réseau interne, le job enverrait `Host: web:3000` et prendrait un 404 à
+chaque appel, sans jamais rien faire. Mesuré : 404 sans l'en-tête, 401 avec.
 
 Un ouvrier ne sert QU'UN environnement, et c'est volontaire : publier demande
 un jeton admin propre à l'environnement visé. Un ouvrier unique servant les
@@ -267,7 +274,8 @@ def ouvrir_atelier():
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(pot))
     corps = json.dumps({"cle": cle}).encode()
     req = urllib.request.Request(f"{base}/api/generator/login", data=corps,
-                                 headers={"Content-Type": "application/json"},
+                                 headers={"Content-Type": "application/json",
+                                          "Host": hote_atelier()},
                                  method="POST")
     try:
         with opener.open(req, timeout=60) as r:
@@ -281,10 +289,17 @@ def ouvrir_atelier():
     return base, opener
 
 
+def hote_atelier():
+    """L'hôte sous lequel se présenter. Voir la note en tête de module."""
+    return os.environ.get("ATELIER_HOTE", "generator.arbore.app")
+
+
 def appeler(opener, url, corps=None, methode=None, delai=120):
     """Appel porté par la session. Rend (statut, octets)."""
     donnees = json.dumps(corps).encode() if corps is not None else None
-    entetes = {"Content-Type": "application/json"} if donnees else {}
+    entetes = {"Host": hote_atelier()}
+    if donnees:
+        entetes["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=donnees, headers=entetes, method=methode)
     try:
         with opener.open(req, timeout=delai) as r:

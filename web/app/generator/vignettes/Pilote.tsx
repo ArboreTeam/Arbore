@@ -10,10 +10,16 @@ type Fiche = {
   potless: boolean;
   empreinteModele: string | null;
   empreinteVignette: string | null;
+  /** Version du modèle dont la vignette servie est issue. */
+  empreinteVignetteModele: string | null;
+  /** La provenance ne correspond plus au modèle servi — ou est inconnue. */
+  perimee: boolean;
   url: string;
 };
 
-type Apercu = { env: string; total: number; sansVignette: number; plantes: Fiche[] };
+type Apercu = {
+  env: string; total: number; sansVignette: number; perimees: number; plantes: Fiche[];
+};
 
 type TacheAffichee = {
   id: string; env: string; plante: string; etat: string; erreur?: string;
@@ -108,15 +114,16 @@ export default function Pilote({
         {apercu && (
           <span className="ml-2 text-sm text-[#6E746B]">
             {apercu.total} plante{apercu.total > 1 ? 's' : ''} · {apercu.sansVignette} sans
-            empreinte de vignette
+            empreinte de vignette · <strong>{apercu.perimees} à refaire</strong>
           </span>
         )}
       </div>
 
       <p className="mb-4 rounded-xl border border-[#DDD8CF] bg-white px-3 py-2 text-[12px] text-[#6E746B]">
-        Les catalogues de dev et de prod n&apos;ont aujourd&apos;hui aucun identifiant de
-        plante en commun : on ne peut donc pas comparer la même plante d&apos;un
-        environnement à l&apos;autre, seulement regarder chacun avec ses propres fiches.
+        Cette page montre un environnement à la fois, avec ses propres fiches. Une
+        comparaison d&apos;un environnement à l&apos;autre n&apos;est pas proposée :
+        rien ne garantit aujourd&apos;hui que les deux catalogues désignent la même
+        plante par le même identifiant.
       </p>
 
       <div className="mb-5 rounded-2xl border border-[#DDD8CF] bg-white p-4">
@@ -176,6 +183,19 @@ export default function Pilote({
             className="rounded-full border border-[#DDD8CF] bg-white px-4 py-2 text-sm"
           >
             tout choisir
+          </button>
+          {/*
+            Le bouton qui évite de refaire les 123 pour une plante qui a changé :
+            une passe complète dure près de neuf heures.
+          */}
+          <button
+            onClick={() => setChoisies(new Set(
+              (apercu?.plantes ?? []).filter((p) => p.perimee).map((p) => p.id),
+            ))}
+            disabled={!apercu || apercu.perimees === 0}
+            className="rounded-full border border-[#DDD8CF] bg-white px-4 py-2 text-sm disabled:opacity-40"
+          >
+            seulement les {apercu?.perimees ?? 0} à refaire
           </button>
           <button
             onClick={() => setChoisies(new Set())}

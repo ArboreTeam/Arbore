@@ -10,7 +10,7 @@ type FicheDistante = {
   id?: string;
   name?: string;
   potless?: boolean;
-  versions?: { model?: string; thumbnail?: string };
+  versions?: { model?: string; thumbnail?: string; thumbnailModel?: string };
 };
 
 /**
@@ -100,6 +100,15 @@ export async function GET(req: NextRequest) {
       potless: Boolean(f.potless),
       empreinteModele: f.versions?.model ?? null,
       empreinteVignette: f.versions?.thumbnail ?? null,
+      // Provenance de la vignette : la version du MODÈLE dont elle est issue.
+      empreinteVignetteModele: f.versions?.thumbnailModel ?? null,
+      // Périmée dès que la provenance ne correspond plus au modèle servi.
+      //
+      // Une provenance ABSENTE compte comme périmée : c'est l'état des
+      // vignettes publiées avant #694, et de toute vignette republiée sans
+      // déclaration. « Je ne sais pas d'où elle vient » doit se traduire par
+      // « à refaire », jamais par « sans doute à jour ».
+      perimee: (f.versions?.thumbnailModel ?? null) !== (f.versions?.model ?? null),
       url: `${env.api}/models/thumbnails/${f.id}.png`
         + (f.versions?.thumbnail ? `?v=${encodeURIComponent(f.versions.thumbnail)}` : ''),
     }))
@@ -109,6 +118,7 @@ export async function GET(req: NextRequest) {
     env: env.nom,
     total: plantes.length,
     sansVignette: plantes.filter((p) => !p.empreinteVignette).length,
+    perimees: plantes.filter((p) => p.perimee).length,
     plantes,
   });
 }

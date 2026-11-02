@@ -59,12 +59,47 @@ type AssetVersions struct {
 	Model      string `json:"model,omitempty" bson:"model,omitempty"`           // USDZ light
 	ModelHeavy string `json:"modelHeavy,omitempty" bson:"modelHeavy,omitempty"` // USDZ heavy (?lod=heavy)
 	Thumbnail  string `json:"thumbnail,omitempty" bson:"thumbnail,omitempty"`   // vignette PNG
+
+	// ThumbnailModel : la version du MODÈLE dont la vignette courante est
+	// issue. Ce n'est pas l'empreinte d'un fichier servi, contrairement aux
+	// trois autres — c'est une PROVENANCE.
+	//
+	// Elle répond à « faut-il refaire cette vignette ? » : oui dès qu'elle
+	// diffère de `Model`. Sans elle, la seule option est de refaire les 123,
+	// soit près de neuf heures pour une plante qui a changé (#694).
+	//
+	// Vide signifie « provenance inconnue », donc à refaire. C'est l'état des
+	// vignettes publiées avant cette issue, et celui de toute vignette
+	// republiée sans déclaration.
+	ThumbnailModel string `json:"thumbnailModel,omitempty" bson:"thumbnailModel,omitempty"`
 }
 
 // EmpreinteContenu rend l'empreinte courte d'un flux d'octets.
 //
 // Lit en flux plutôt que d'un bloc : un modèle heavy pèse jusqu'à 80 Mo, et
 // rien n'oblige à les tenir en mémoire pour les résumer.
+// EmpreinteValide dit si une chaîne a la forme d'une empreinte de contenu.
+//
+// Sert aux valeurs qu'un APPELANT déclare, et non que le serveur calcule : la
+// version du modèle dont une vignette est issue (#694). Sans contrôle, un
+// appelant pourrait écrire n'importe quoi dans `versions.*` et fausser la
+// comparaison qui décide des re-rendus.
+//
+// Volontairement stricte sur l'alphabet, souple sur la longueur :
+// `longueurEmpreinte` a déjà changé une fois, et une empreinte plus ancienne
+// reste une empreinte.
+func EmpreinteValide(s string) bool {
+	if len(s) < 6 || len(s) > 64 {
+		return false
+	}
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 func EmpreinteContenu(r io.Reader) (string, error) {
 	h := sha256.New()
 	if _, err := io.Copy(h, r); err != nil {

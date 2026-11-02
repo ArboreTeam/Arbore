@@ -1466,11 +1466,35 @@ func uploadPlantThumbnail(c *gin.Context) {
 		return
 	}
 
+	// `versions.thumbnailModel` : la version du MODÈLE dont cette vignette est
+	// issue (#694). C'est ce qui rend la régénération incrémentale possible —
+	// une vignette est périmée quand `versions.model` ne lui correspond plus,
+	// et refaire les 123 pour une seule plante coûte près de neuf heures.
+	//
+	// Déclarée par l'appelant, donc contrôlée : le serveur ne peut pas la
+	// calculer, il n'a pas rendu l'image.
+	//
+	// ABSENTE, le champ est RETIRÉ, pas conservé. Une vignette republiée sans
+	// déclaration vient d'un rendu dont on ignore la source ; garder l'ancienne
+	// valeur en ferait un mensonge, et la plante serait exclue des re-rendus
+	// pour toujours. « Je ne sais pas » doit se traduire par « à refaire ».
+	maj := bson.M{"$set": bson.M{"versions.thumbnail": empreinte}}
+	if mv := strings.TrimSpace(c.Request.FormValue("modelVersion")); mv != "" {
+		if EmpreinteValide(mv) {
+			maj["$set"].(bson.M)["versions.thumbnailModel"] = mv
+		} else {
+			log.Printf("⚠️ modelVersion rejetée pour %s : forme invalide", plantID)
+			maj["$unset"] = bson.M{"versions.thumbnailModel": ""}
+		}
+	} else {
+		maj["$unset"] = bson.M{"versions.thumbnailModel": ""}
+	}
+
 	versionUpdated := false
 	res, err := getDatabaseForRequest(c).Collection("plants").UpdateOne(
 		c.Request.Context(),
 		bson.M{"_id": oid},
-		bson.M{"$set": bson.M{"versions.thumbnail": empreinte}},
+		maj,
 	)
 	switch {
 	case err != nil:

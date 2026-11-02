@@ -276,10 +276,27 @@ def controler(chemin):
     return None
 
 
-def publier(base, entetes, plant_id, chemin):
-    """Envoi multipart. Le backend écrit ET recalcule l'empreinte (#687)."""
+def publier(base, entetes, plant_id, chemin, version_modele=None):
+    """Envoi multipart. Le backend écrit ET recalcule l'empreinte (#687).
+
+    `version_modele` est la version du MODÈLE dont ce rendu est issu. Le
+    serveur la range dans `versions.thumbnailModel`, ce qui rend la
+    régénération incrémentale possible : une vignette est périmée quand
+    `versions.model` ne lui correspond plus (#694).
+
+    Le serveur ne peut pas la deviner — il n'a pas rendu l'image. Ne pas la
+    déclarer fait RETIRER le champ, donc la plante repasse « à refaire ». C'est
+    le bon défaut : mieux vaut un rendu de trop qu'une vignette périmée servie
+    indéfiniment parce qu'on a cru savoir d'où elle venait.
+    """
     limite = "----arbore-vignettes"
-    corps = (
+    corps = b""
+    if version_modele:
+        corps += (
+            f"--{limite}\r\n"
+            'Content-Disposition: form-data; name="modelVersion"\r\n\r\n'
+            f"{version_modele}\r\n").encode()
+    corps += (
         f"--{limite}\r\n"
         f'Content-Disposition: form-data; name="thumbnail"; filename="{plant_id}.png"\r\n'
         "Content-Type: image/png\r\n\r\n").encode() + open(chemin, "rb").read() + \
@@ -427,7 +444,8 @@ def rendre_une(tache, sortie):
         if souci:
             return souci
 
-        r = publier(base, entetes, pid, png)
+        r = publier(base, entetes, pid, png,
+                    (fiche.get("versions") or {}).get("model"))
         if not r.get("versionUpdated"):
             return "publiée mais versions.thumbnail non mise à jour"
     return None
@@ -544,7 +562,8 @@ def main():
                     continue
 
                 if not a.rendre_seulement:
-                    r = publier(base, entetes, pid, png)
+                    r = publier(base, entetes, pid, png,
+                                (p.get("versions") or {}).get("model"))
                     if not r.get("versionUpdated"):
                         echecs.append((nom, "publiée mais versions.thumbnail non mise à jour"))
                         continue

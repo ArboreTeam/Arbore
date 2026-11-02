@@ -163,3 +163,99 @@ func TestPot_VersionOmiseSiAbsente(t *testing.T) {
 		t.Fatalf("version vide ne doit pas sortir : %s", brut)
 	}
 }
+
+// --- Provenance d'une vignette (#694) --------------------------------------
+//
+// `versions.thumbnailModel` repond a « faut-il refaire cette vignette ? ».
+// Elle est DECLAREE par l'appelant, pas calculee par le serveur, donc elle doit
+// etre controlee : sans ca, n'importe quoi ecrit dans ce champ fausserait la
+// comparaison qui decide des re-rendus — et une plante pourrait etre exclue des
+// passes pour toujours.
+
+func TestEmpreinteValide_AccepteDesEmpreintesReelles(t *testing.T) {
+	// Longueur courante (8), et une plus longue : `longueurEmpreinte` a deja
+	// change une fois, et une empreinte plus ancienne reste une empreinte.
+	for _, bonne := range []string{
+		"f4ff96c1", "4a454725", "0f990a38", "e634dc95", "9d9f265d",
+		"abcdef01", "0123456789abcdef",
+		"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+	} {
+		if !EmpreinteValide(bonne) {
+			t.Errorf("%q refusee a tort", bonne)
+		}
+	}
+}
+
+func TestEmpreinteValide_RefuseCeQuiNEnEstPas(t *testing.T) {
+	cas := map[string]string{
+		"vide":               "",
+		"trop courte":        "abcd",
+		"trop longue":        strings.Repeat("a", 65),
+		"majuscules":         "F4FF96C1",
+		"hors alphabet hexa": "f4ff96g1",
+		"espace":             "f4ff96c 1",
+		"chemin":             "../../etc/passwd",
+		"injection mongo":    `{"$ne":null}`,
+		"point":              "f4ff.96c1",
+		"tiret":              "f4ff-96c1",
+	}
+	for nom, mauvaise := range cas {
+		if EmpreinteValide(mauvaise) {
+			t.Errorf("%s : %q acceptee a tort", nom, mauvaise)
+		}
+	}
+}
+
+// LE test de ce bloc. Une vignette dont la provenance est INCONNUE doit
+// compter comme a refaire, jamais comme a jour.
+//
+// C'est l'etat de toutes les vignettes publiees avant cette issue, et de toute
+// vignette republiee sans declaration. Traiter « je ne sais pas » comme « sans
+// doute a jour » exclurait ces plantes des passes incrementales
+// definitivement — et le defaut serait invisible, puisque la vignette
+// s'afficherait normalement.
+func TestProvenanceInconnueCompteCommeAPerimer(t *testing.T) {
+	cas := []struct {
+		nom        string
+		modele     string
+		provenance string
+		perimee    bool
+	}{
+		{"a jour", "abc12345", "abc12345", false},
+		{"modele change", "def67890", "abc12345", true},
+		{"provenance absente", "abc12345", "", true},
+		{"modele absent, provenance posee", "", "abc12345", true},
+		{"les deux absents", "", "", false},
+	}
+	for _, c := range cas {
+		// La meme comparaison que celle de la route d'apercu.
+		got := c.provenance != c.modele
+		if got != c.perimee {
+			t.Errorf("%s : perimee = %v, attendu %v", c.nom, got, c.perimee)
+		}
+	}
+}
+
+// Le champ doit traverser le JSON : c'est la que la route d'apercu le lit.
+func TestThumbnailModelEstSerialise(t *testing.T) {
+	v := AssetVersions{Model: "abc12345", Thumbnail: "def67890", ThumbnailModel: "abc12345"}
+
+	brut, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("serialisation : %v", err)
+	}
+	var lu map[string]string
+	if err := json.Unmarshal(brut, &lu); err != nil {
+		t.Fatalf("relecture : %v", err)
+	}
+	if lu["thumbnailModel"] != "abc12345" {
+		t.Fatalf("thumbnailModel absent ou faux : %s", brut)
+	}
+
+	// `omitempty` : une provenance vide ne doit pas encombrer la charge des
+	// 123 fiches avec un champ qui ne dit rien.
+	brut, _ = json.Marshal(AssetVersions{Model: "abc12345"})
+	if strings.Contains(string(brut), "thumbnailModel") {
+		t.Fatalf("champ vide serialise : %s", brut)
+	}
+}

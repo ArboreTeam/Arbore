@@ -73,6 +73,8 @@ linters:
         - differente
         - infiniment
         - existantes
+        - infinie
+        - compense
 
     revive:
       confidence: 0.8

@@ -342,3 +342,216 @@ func TestComposerPlante_LInvariantTientSurUneListeEntiere(t *testing.T) {
 		t.Errorf("une recoupée sans socle ne doit pas recevoir de pot qu'elle ne saurait poser, obtenu %d/1", recoupeesSansPot)
 	}
 }
+
+// --- Pose servie (#695) ----------------------------------------------------
+//
+// Le serveur ne servait aucune pose : le client la calculait. Ça ne couvrait
+// pas un moteur SANS client — le job de rendu des vignettes est headless et
+// refuse délibérément d'inventer la règle. Mesuré : 51 plantes sur 123 étaient
+// rendues NUES.
+//
+// Ces tests calquent `PlantPotCompositionTests.swift`, pour que les deux
+// implémentations ne puissent pas diverger en silence.
+
+// Les constantes DOIVENT valoir celles de `PlantPotComposer`, dans
+// `ArboreUi/ArboreUi/Models/PlantPot.swift`. Ce test ne lit pas le Swift : il
+// épingle les nombres pour qu'un changement d'UN seul côté fasse tomber la CI
+// plutôt que de produire deux compositions différentes.
+func TestConstantesDeCompositionEpinglees(t *testing.T) {
+	cas := map[string]struct{ got, want float64 }{
+		"partOuverture (PlantPotComposer.partOuverture)": {partOuverturePot, 0.9445},
+		"retraitTerre (PlantPotComposer.retraitTerre)":   {retraitTerrePot, 0.06},
+		"marge anti z-fighting":                          {margeDisquePot, 0.985},
+		"épaisseur, en part de la hauteur":               {epaisseurDisque, 0.02},
+	}
+	for nom, c := range cas {
+		if c.got != c.want {
+			t.Errorf("%s = %v, attendu %v — aligner avec PlantPot.swift", nom, c.got, c.want)
+		}
+	}
+}
+
+func TestPoserPot_EchelleEtCentre(t *testing.T) {
+	pot := potDeTest("cachepot_pieds", 0.058654, true)
+	base := socleReel()
+
+	pose, ok := poserPot(base, &pot)
+	if !ok {
+		t.Fatal("la pose devrait être calculable sur des valeurs relevées")
+	}
+	if want := base.Radius / pot.RimRadius; math.Abs(pose.Scale-want) > 1e-9 {
+		t.Fatalf("échelle = %v, attendu %v", pose.Scale, want)
+	}
+	// Le pot est centré sur le socle, sa lèvre alignée sur `socle.y`.
+	if pose.X != base.X || pose.Y != base.Y || pose.Z != base.Z {
+		t.Fatalf("pose = (%v,%v,%v), attendu le centre du socle (%v,%v,%v)",
+			pose.X, pose.Y, pose.Z, base.X, base.Y, base.Z)
+	}
+}
+
+// LE test du disque. Son rayon ne dépend PAS du maillage : par construction,
+// le rayon extérieur mis à l'échelle vaut exactement `socle.rayon`.
+func TestPoserPot_RayonDuDisqueNeDependPasDuMaillage(t *testing.T) {
+	base := socleReel()
+
+	// Deux pots de rebords très différents : à socle égal, le disque doit être
+	// IDENTIQUE, puisque l'échelle compense exactement le rebord.
+	etroit := potDeTest("étroit", 0.03, true)
+	large := potDeTest("large", 0.12, true)
+
+	a, okA := poserPot(base, &etroit)
+	b, okB := poserPot(base, &large)
+	if !okA || !okB || a.Disque == nil || b.Disque == nil {
+		t.Fatal("deux disques attendus")
+	}
+	if math.Abs(a.Disque.Rayon-b.Disque.Rayon) > 1e-12 {
+		t.Fatalf("rayons différents (%v vs %v) : le disque ne devrait dépendre que du socle",
+			a.Disque.Rayon, b.Disque.Rayon)
+	}
+	if want := base.Radius * partOuverturePot * margeDisquePot; math.Abs(a.Disque.Rayon-want) > 1e-12 {
+		t.Fatalf("rayon = %v, attendu %v", a.Disque.Rayon, want)
+	}
+}
+
+func TestPoserPot_DisqueTientDansLOuverture(t *testing.T) {
+	pot := potDeTest("cachepot_pieds", 0.058654, true)
+	base := socleReel()
+
+	pose, _ := poserPot(base, &pot)
+	if pose.Disque == nil {
+		t.Fatal("disque attendu")
+	}
+	// Mêmes bornes que `testDisqueTientDansLOuvertureDuPot` côté iOS.
+	ouverture := base.Radius * partOuverturePot
+	if pose.Disque.Rayon >= ouverture {
+		t.Errorf("rayon %v >= ouverture %v : le disque traverserait la paroi",
+			pose.Disque.Rayon, ouverture)
+	}
+	if pose.Disque.Rayon <= ouverture*0.95 {
+		t.Errorf("rayon %v trop étroit : l'anneau nu resterait visible", pose.Disque.Rayon)
+	}
+}
+
+func TestPoserPot_DisqueEnRetraitSousLaLevreEtCentre(t *testing.T) {
+	pot := potDeTest("cachepot_pieds", 0.058654, true)
+	base := socleReel()
+
+	pose, _ := poserPot(base, &pot)
+	if pose.Disque == nil {
+		t.Fatal("disque attendu")
+	}
+	if pose.Disque.Y >= pose.Y {
+		t.Errorf("au ras du rebord (%v >= %v), le disque a l'air de flotter",
+			pose.Disque.Y, pose.Y)
+	}
+	hauteur := pot.Height * pose.Scale
+	if pose.Disque.Y <= pose.Y-hauteur*0.25 {
+		t.Errorf("trop bas (%v), il décolle de la terre de la plante", pose.Disque.Y)
+	}
+	if pose.Disque.X != pose.X || pose.Disque.Z != pose.Z {
+		t.Errorf("le disque doit suivre le centre du socle")
+	}
+}
+
+// Une hauteur inutilisable ne doit pas empêcher de servir la POSE : un pot bien
+// posé sans disque reste très au-dessus d'une plante nue.
+func TestPoserPot_SansHauteurLaPoseEstServieSansDisque(t *testing.T) {
+	base := socleReel()
+	for nom, h := range map[string]float64{
+		"hauteur nulle":    0,
+		"hauteur négative": -1,
+		"hauteur NaN":      math.NaN(),
+		"hauteur infinie":  math.Inf(1),
+	} {
+		pot := potDeTest("bancal", 0.058654, true)
+		pot.Height = h
+
+		pose, ok := poserPot(base, &pot)
+		if !ok {
+			t.Errorf("%s : la pose devrait rester servie", nom)
+			continue
+		}
+		if pose.Disque != nil {
+			t.Errorf("%s : disque servi à tort (%+v)", nom, pose.Disque)
+		}
+	}
+}
+
+// NaN et Inf : toute comparaison avec NaN étant fausse, `NaN <= 0` ne rejetait
+// rien. Sans conséquence tant que l'échelle n'était qu'un garde-fou local ;
+// elle part maintenant sur le réseau.
+func TestEchellePot_RefuseNaNEtInfini(t *testing.T) {
+	cas := map[string]struct {
+		rayon  float64
+		rebord float64
+	}{
+		"socle NaN":    {math.NaN(), 0.05},
+		"rebord NaN":   {0.16, math.NaN()},
+		"socle +Inf":   {math.Inf(1), 0.05},
+		"rebord +Inf":  {0.16, math.Inf(1)},
+		"les deux NaN": {math.NaN(), math.NaN()},
+	}
+	for nom, c := range cas {
+		pot := potDeTest("x", c.rebord, true)
+		base := &PotBase{Radius: c.rayon}
+		if e, ok := echellePot(base, &pot); ok {
+			t.Errorf("%s : accepté à tort, échelle = %v", nom, e)
+		}
+		if _, ok := poserPot(base, &pot); ok {
+			t.Errorf("%s : pose servie à tort", nom)
+		}
+	}
+}
+
+// La plante historique, dont le maillage porte déjà son pot, ne doit rien voir
+// changer — pas même une pose.
+func TestComposerPlante_PlanteAvecSonPotNeRecoitAucunePose(t *testing.T) {
+	pot := potDeTest("cachepot_pieds", 0.058654, true)
+	historique := Plant{Name: "Ficus historique", PotBase: socleReel()}
+
+	rep := composerPlante(historique, []Pot{pot}, "")
+
+	if rep.Pot != nil {
+		t.Fatalf("aucun pot ne doit être servi, obtenu %+v", rep.Pot)
+	}
+}
+
+// La pose doit atteindre le JSON, sous `pot.pose` : c'est précisément là que
+// `vignettes/publier.py` la lit (`pot.get("pose")`).
+func TestComposerPlante_LaPoseEstDansLeJSONSousPot(t *testing.T) {
+	pot := potDeTest("cachepot_pieds", 0.058654, true)
+	rep := composerPlante(planteRecoupee(socleReel()), []Pot{pot}, "")
+
+	brut, err := json.Marshal(rep)
+	if err != nil {
+		t.Fatalf("sérialisation : %v", err)
+	}
+	var lu struct {
+		Pot *struct {
+			RimRadius float64 `json:"rimRadius"`
+			Pose      *struct {
+				Scale  float64 `json:"scale"`
+				X      float64 `json:"x"`
+				Y      float64 `json:"y"`
+				Z      float64 `json:"z"`
+				Disque *struct {
+					Rayon     float64 `json:"rayon"`
+					Epaisseur float64 `json:"epaisseur"`
+				} `json:"disque"`
+			} `json:"pose"`
+		} `json:"pot"`
+	}
+	if err := json.Unmarshal(brut, &lu); err != nil {
+		t.Fatalf("relecture : %v", err)
+	}
+	if lu.Pot == nil || lu.Pot.Pose == nil {
+		t.Fatalf("`pot.pose` absent du JSON : le job rendrait la plante nue\n%s", brut)
+	}
+	if lu.Pot.Pose.Disque == nil {
+		t.Fatalf("`pot.pose.disque` absent du JSON\n%s", brut)
+	}
+	// Le pot reste servi en entier : le client qui recalcule en a besoin.
+	if lu.Pot.RimRadius != 0.058654 {
+		t.Errorf("rimRadius = %v, le pot doit rester servi entier", lu.Pot.RimRadius)
+	}
+}

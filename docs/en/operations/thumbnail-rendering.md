@@ -272,10 +272,29 @@ backend route.
 
 ### What the page cannot do
 
-**Compare the same plant across two environments.** Measured on 2026-11-01, the
-dev (`arbore_dev`) and prod (`arbore`) catalogues each hold 123 entries and
-share **no** plant identifier at all. The page therefore shows one environment
-at a time, with its own entries. See #434.
+**Compare the same plant across two environments.** The page shows one
+environment at a time, with its own entries. See #434.
+
+> ⚠️ **The reason given here was wrong, and the conclusion stands only
+> provisionally.**
+>
+> It used to read: "the dev and prod catalogues each hold 123 entries and share
+> **no** plant identifier at all". Contradicted on 2026-11-02: the list of
+> thumbnail filenames, sorted and hashed on both machines, is **identical**.
+>
+> ```
+> old VPS (live prod) : 1457d95aee2ac202f468f335f43c29a6   123 png
+> new VPS (dev)       : 1457d95aee2ac202f468f335f43c29a6   123 png
+> ```
+>
+> What that proves exactly: the **files** are the same set. Whether the two
+> **databases** use the same identifiers remains to be confirmed — the files
+> may have been copied wholesale while staging the new VPS.
+>
+> The page therefore still shows one environment at a time, out of caution
+> rather than demonstrated impossibility. This point decides whether dev and
+> prod can ever share a thumbnail directory: to settle before the #652
+> cutover.
 
 > The dev database is named by `MONGODB_DB`, **not** by the default database of
 > `MONGODB_URI` — that one points at `arbore_test`, a third database of 143

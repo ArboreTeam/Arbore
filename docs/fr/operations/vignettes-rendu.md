@@ -277,10 +277,29 @@ Les **images**, elles, ne demandent aucun secret :
 
 ### Ce que la page ne peut pas faire
 
-**Comparer la même plante entre deux environnements.** Mesuré le 2026-11-01,
-les catalogues de dev (`arbore_dev`) et de prod (`arbore`) comptent 123 fiches
-chacun et n'ont **aucun** identifiant en commun. La page montre donc un
+**Comparer la même plante entre deux environnements.** La page montre un
 environnement à la fois, avec ses propres fiches. Voir #434.
+
+> ⚠️ **Le motif invoqué ici était faux, et la conclusion reste provisoire.**
+>
+> On lisait : « les catalogues de dev et de prod comptent 123 fiches chacun et
+> n'ont **aucun** identifiant en commun ». Contredit le 2026-11-02 : la liste
+> des noms de vignettes, triée et hachée sur les deux machines, est
+> **identique**.
+>
+> ```
+> ancien VPS (prod vivante) : 1457d95aee2ac202f468f335f43c29a6   123 png
+> nouveau VPS (dev)         : 1457d95aee2ac202f468f335f43c29a6   123 png
+> ```
+>
+> Ce que cela prouve exactement : les **fichiers** sont le même jeu. Que les
+> deux **bases** emploient les mêmes identifiants reste à confirmer — les
+> fichiers ont pu être copiés en bloc lors de la préparation du nouveau VPS.
+>
+> La page continue donc de montrer un environnement à la fois, mais par
+> prudence et non par impossibilité démontrée. Ce point décide si dev et prod
+> peuvent partager un répertoire de vignettes : à trancher avant la bascule de
+> #652.
 
 > La base de dev se lit dans `MONGODB_DB`, et **non** dans la base par défaut
 > de `MONGODB_URI` — celle-ci pointe sur `arbore_test`, une troisième base de

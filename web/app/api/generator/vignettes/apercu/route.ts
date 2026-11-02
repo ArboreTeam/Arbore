@@ -35,10 +35,15 @@ type FicheDistante = {
  * navigateur sert sa copie en cache et une vignette refaite reste
  * invisible — le symptôme exact qu'on cherche à rendre observable ici.
  *
- * Une comparaison « la même plante dans les deux environnements » n'est PAS
- * possible aujourd'hui : mesuré le 2026-10-31, les catalogues de dev et de
- * prod n'ont aucun identifiant en commun (#434). Cette route rend donc le
- * catalogue d'UN environnement, et la page en montre un à la fois.
+ * Cette route rend le catalogue d'UN environnement, et la page en montre un à
+ * la fois (#434).
+ *
+ * Le motif invoqué ici était faux. On lisait « les catalogues de dev et de prod
+ * n'ont aucun identifiant en commun » ; le 2026-11-02, la liste des noms de
+ * vignettes hachée sur les deux machines s'est révélée IDENTIQUE. Cela prouve
+ * que les fichiers sont le même jeu, pas que les bases s'accordent — ils ont pu
+ * être copiés en bloc. La restriction reste donc, par prudence et non par
+ * impossibilité démontrée.
  */
 export async function GET(req: NextRequest) {
   if (!bonHote(req)) return introuvable();

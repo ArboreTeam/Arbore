@@ -838,10 +838,54 @@ prepare_generator_dir() {
     fi
 }
 
+# Refuse de démarrer si un AUTRE environnement sert déjà ses vignettes depuis
+# le répertoire que celui-ci s'apprête à monter en écriture. (#694, #434)
+#
+# Deux environnements qui partagent ce répertoire, ce sont deux catalogues qui
+# s'écrasent : les fichiers portent l'identifiant de la fiche, et une passe de
+# rendu sur dev réécrirait ceux de la prod.
+#
+# Ça n'a rien de théorique. L'ancien VPS tenait dev et prod dans DEUX checkouts
+# (`Arbore` et `Arbore-dev`), donc le défaut relatif de docker-compose.yml —
+# `./ArboreBackend/models/thumbnails` — les séparait tout seul. Le nouveau VPS
+# n'a qu'un checkout pour deux piles : le même défaut les a fait converger, en
+# silence, vers le même répertoire monté `rw` par les deux backends.
+#
+# Un échec, pas un avertissement : un avertissement se perd dans la sortie, et
+# c'est exactement ce qui est arrivé à celui des secrets (#690). Partager un
+# répertoire de données entre deux environnements doit arrêter le déploiement.
+verifier_vignettes_cloisonnees() {
+    local voulu
+    voulu="$(grep '^THUMBNAILS_HOST_PATH=' "$ENV_FILE" 2>/dev/null \
+             | sed 's/^THUMBNAILS_HOST_PATH=//' || true)"
+    # Le défaut suit docker-compose.yml, où le chemin est relatif au répertoire
+    # du fichier compose.
+    [ -n "$voulu" ] || voulu="$SCRIPT_DIR/ArboreBackend/models/thumbnails"
+    # `-m` : le répertoire peut ne pas exister encore, compose le créerait.
+    voulu="$(realpath -m "$voulu")"
+
+    local autre source
+    for autre in $("${DOCKER_PRIVILEGE[@]}" docker ps --format '{{.Names}}' 2>/dev/null \
+                   | grep -E '^arbore-.+-backend$' || true); do
+        [ "$autre" != "arbore-$ARBORE_ENV-backend" ] || continue
+        source="$("${DOCKER_PRIVILEGE[@]}" docker inspect "$autre" \
+            --format '{{range .Mounts}}{{if eq .Destination "/app/thumbnails"}}{{.Source}}{{end}}{{end}}' \
+            2>/dev/null || true)"
+        [ -n "$source" ] || continue
+        if [ "$(realpath -m "$source")" = "$voulu" ]; then
+            fail "Vignettes partagées avec $autre : $voulu"
+            fail "Deux environnements y écriraient les mêmes noms de fichiers."
+            fail "Poser THUMBNAILS_HOST_PATH dans $ENV_FILE, propre à « $ARBORE_ENV »."
+            exit 1
+        fi
+    done
+}
+
 do_docker_up() {
     step 5 "Redémarrage des containers..."
     drop_legacy_containers
     prepare_generator_dir
+    verifier_vignettes_cloisonnees
     if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" ARBORE_IMAGE_TAG="$IMAGE_TAG" \
         docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" up -d backend web; then
         fail "docker compose up a échoué"

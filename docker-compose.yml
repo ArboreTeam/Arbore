@@ -154,7 +154,18 @@ services:
     volumes:
       # Fichiers 3D USDZ (lecture seule)
       - ${MODELS_HOST_PATH:-./ArboreBackend/models}:/app/models:ro
-      # Thumbnails : bind mount sur le dossier existant de la VM (conserve les anciens thumbnails)
+      # Vignettes, en ÉCRITURE : le backend y écrit à chaque publication.
+      #
+      # ⚠️ `THUMBNAILS_HOST_PATH` DOIT être posée dès que deux environnements
+      # tournent sur la même machine. Le défaut ci-dessous est relatif au
+      # répertoire du fichier compose : avec un checkout par environnement il
+      # les sépare tout seul, mais avec UN checkout pour deux piles — le cas du
+      # nouveau VPS — les deux convergent vers le même répertoire et s'y
+      # écrasent, les fichiers portant l'identifiant de la fiche.
+      #
+      # Ce n'est pas théorique : les deux backends du nouveau VPS l'ont partagé
+      # en `rw` jusqu'au 2026-11-02 (#694, #434). `deploy.sh` refuse désormais
+      # de démarrer dans ce cas — voir `verifier_vignettes_cloisonnees`.
       - ${THUMBNAILS_HOST_PATH:-./ArboreBackend/models/thumbnails}:/app/thumbnails
       # Photos de fiche. Montées en lecture seule : elles sont déposées par la
       # migration, jamais écrites par le backend — aucune route ne les téléverse.

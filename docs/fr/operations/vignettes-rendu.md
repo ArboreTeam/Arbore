@@ -132,6 +132,49 @@ Le temps de rendu est **à remesurer sur le VPS**, qui est nativement x86 :
 sous émulation il ne veut rien dire en absolu. Le rapport, lui, vaut : passer
 l'ombre en qualité a fait passer le rendu de 4 min 47 à 8 min 20.
 
+## ⚠️ Les vignettes de deux environnements ne doivent pas partager un répertoire
+
+Le backend écrit les vignettes dans `/app/thumbnails`, et le fichier porte
+**l'identifiant de la fiche** — pas celui de l'environnement. Deux
+environnements qui montent le même répertoire s'y écrasent donc mutuellement.
+
+Le défaut de `docker-compose.yml` est **relatif au fichier compose** :
+
+```yaml
+${THUMBNAILS_HOST_PATH:-./ArboreBackend/models/thumbnails}:/app/thumbnails
+```
+
+Avec **un checkout par environnement** — la disposition de l'ancien VPS,
+`Arbore` et `Arbore-dev` — ce défaut les sépare tout seul. Avec **un seul
+checkout pour deux piles** — celle du nouveau VPS — les deux convergent.
+
+Mesuré le 2026-11-02, avant correction :
+
+```
+arbore-dev-backend   .../ArboreBackend/models/thumbnails -> /app/thumbnails (rw)
+arbore-prod-backend  .../ArboreBackend/models/thumbnails -> /app/thumbnails (rw)
+```
+
+Le même répertoire, en écriture, pour les deux. `THUMBNAILS_HOST_PATH` n'était
+définie nulle part.
+
+### Ce qui est en place
+
+- dev pointe sur `/home/debian/arbore-data/thumbnails-dev`, **hors du
+  checkout** : un répertoire de données n'a rien à faire dans un répertoire de
+  code ;
+- `deploy.sh` **refuse de démarrer** si un autre backend Arbore monte déjà le
+  répertoire visé (`verifier_vignettes_cloisonnees`). Un échec, pas un
+  avertissement — un avertissement se perd dans la sortie, c'est exactement ce
+  qui est arrivé à celui des secrets (#690).
+
+### Ce qui reste à trancher avant la bascule de #652
+
+Les 123 noms de fichiers sont **identiques** sur les deux machines (même
+empreinte de la liste triée). Les fichiers sont donc le même jeu ; que les deux
+**bases** emploient les mêmes identifiants reste à confirmer. Tant que ce n'est
+pas tranché, aucune mutualisation de répertoire ne doit être envisagée.
+
 ## Le pot, et pourquoi le serveur sert désormais sa pose
 
 51 plantes sur 123 sont **recoupées** : leur maillage ne contient pas leur pot,

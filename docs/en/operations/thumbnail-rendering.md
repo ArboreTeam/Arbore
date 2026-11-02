@@ -128,6 +128,47 @@ Render time is **to be re-measured on the VPS**, which is natively x86: under
 emulation it means nothing in absolute terms. The ratio does hold: raising
 shadow quality took the render from 4 min 47 to 8 min 20.
 
+## ⚠️ Two environments must not share a thumbnail directory
+
+The backend writes thumbnails to `/app/thumbnails`, and each file is named
+after **the plant's identifier** — not the environment's. Two environments
+mounting the same directory therefore overwrite each other.
+
+The `docker-compose.yml` default is **relative to the compose file**:
+
+```yaml
+${THUMBNAILS_HOST_PATH:-./ArboreBackend/models/thumbnails}:/app/thumbnails
+```
+
+With **one checkout per environment** — the old VPS layout, `Arbore` and
+`Arbore-dev` — that default separates them on its own. With **a single checkout
+for two stacks** — the new VPS — both converge.
+
+Measured on 2026-11-02, before the fix:
+
+```
+arbore-dev-backend   .../ArboreBackend/models/thumbnails -> /app/thumbnails (rw)
+arbore-prod-backend  .../ArboreBackend/models/thumbnails -> /app/thumbnails (rw)
+```
+
+The same directory, writable, for both. `THUMBNAILS_HOST_PATH` was set nowhere.
+
+### What is in place
+
+- dev points at `/home/debian/arbore-data/thumbnails-dev`, **outside the
+  checkout**: a data directory has no business living in a code directory;
+- `deploy.sh` **refuses to start** when another Arbore backend already mounts
+  the target directory (`verifier_vignettes_cloisonnees`). A failure, not a
+  warning — a warning gets lost in the output, which is exactly what happened
+  to the secrets one (#690).
+
+### What remains to settle before the #652 cutover
+
+The 123 filenames are **identical** on both machines (same hash of the sorted
+list). The files are therefore the same set; whether the two **databases** use
+the same identifiers remains to be confirmed. Until that is settled, no shared
+directory should be considered.
+
 ## The pot, and why the server now serves its pose
 
 51 of the 123 plants are **recut**: their mesh does not contain its pot, which

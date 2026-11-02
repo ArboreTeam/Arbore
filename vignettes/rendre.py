@@ -269,7 +269,29 @@ def poser_fond_studio(cadre, hauteur, largeur, profondeur, ciel, herbe, teinte_s
             f"refuse la vignette et l'app garde l'ancienne image, en silence.")
 
     echelle = max(hauteur, largeur, profondeur, cadre["distance"])
-    taille = echelle * 10
+    # ×4, et non ×10 : un sol démesuré produit de l'ACNÉ D'OMBRE.
+    #
+    # Le symptôme, visible sur toutes les vignettes : un striage horizontal
+    # régulier sur la pelouse, plus une large diagonale. Signalé à l'œil sur la
+    # grille de l'atelier, puis isolé le 2026-11-02.
+    #
+    # La cause n'est ni la caméra ni le matériau. Contre-épreuve : le même
+    # rendu, ombres coupées, donne un sol RIGOUREUSEMENT uniforme. C'est donc
+    # la carte d'ombre du soleil, qui doit couvrir tout le plan : à ×10 elle
+    # étale sa résolution sur cent fois la surface visible, et le biais de
+    # profondeur ne suffit plus en incidence rasante — la caméra regarde le sol
+    # à 8° d'inclinaison.
+    #
+    # ×4 suffit géométriquement. Le sol doit atteindre le mur, posé à
+    # `profondeur + distance × 0,3` ; au pire `profondeur` et `distance` valent
+    # `echelle`, donc il faut couvrir 1,3 × echelle. Un demi-côté de 2 × echelle
+    # laisse 54 % de marge, là où ×3 n'en laisserait que 15 %.
+    #
+    # Mesuré, à 16 échantillons sur la même plante : ×3 et ×4 donnent tous deux
+    # un sol propre, pour le même temps (36,6 s et 37,6 s contre 37,3 s). Les
+    # quatre contrôles de l'app passent dans les trois cas. L'ombre de contact
+    # est CONSERVÉE, et même plus nette — c'est la résolution utile qui augmente.
+    taille = echelle * 4
 
     # --- pelouse, à -0,001 comme le sol du moteur iOS
     bpy.ops.mesh.primitive_plane_add(size=taille, location=(0, 0, -0.001))

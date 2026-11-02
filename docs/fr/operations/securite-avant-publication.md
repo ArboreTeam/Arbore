@@ -35,3 +35,37 @@ La route est rejouable si Firebase échoue après les suppressions MongoDB. Le p
 4. Vérifier la présence de la clé privée Apple hors du dépôt et sa lisibilité uniquement par le service.
 5. Tester `/health`, les refus `401`, `403`, `413` et `429`, puis une suppression complète de compte.
 6. Publier la politique version 2.2 avant d'envoyer le build à Apple.
+
+---
+
+## Ce qui a changé depuis — addendum du 2026-11-03
+
+Ce document est un **instantané daté**, et c'est un format utile : il dit ce
+qui était vrai à une date, pas ce qui est vrai aujourd'hui. Deux faits l'ont
+contredit depuis, relevés en auditant la codebase. Ils sont consignés ici
+plutôt qu'intégrés au corps, pour ne pas abîmer l'instantané.
+
+**Le dépôt de miniature n'exige plus toujours le rôle administrateur.** La
+phrase « les opérations qui … déposent une miniature exigent en plus le rôle
+administrateur » reste vraie de `POST /models/thumbnails/:plantId`. Mais #696 a
+ajouté `POST /internal/models/thumbnails/:plantId`, qui exige **deux clés** —
+`X-API-Key` et `X-Arbore-Internal-Key` — et **aucun rôle**.
+
+Ce n'est pas un affaiblissement : la clé interne n'ouvre que trois gestes
+(lister le catalogue, lire un modèle, déposer une vignette), n'accorde aucun
+rôle, n'ouvre aucune route de compte, et la clé d'API seule ne suffit pas.
+Absente, les routes répondent 503 — la production ne la porte pas. Détail dans
+[`../architecture/03-components-backend.md`](../architecture/03-components-backend.md).
+
+**Le plafond des dépôts de miniature est passé de 10 à 200 par minute.** La
+ligne « Téléversements : 10 requêtes par minute » vaut toujours pour les photos
+de profil (`uploadMinuteLimiter`). Les vignettes ont leur propre limiteur,
+`vignettesParMinute = 200`, parce qu'une republication de catalogue doit passer
+en une seule fois : à dix par minute elle s'arrêtait à la dixième et prenait
+quarante-neuf refus de suite. Le plafond d'une route de lot se mesure à la
+taille du lot.
+
+Le reste des valeurs a été recontrôlé contre `main.go` le 2026-11-03 et tient :
+300/min public, 120/min authentifié, 20 et 100 pour le chat, 6 et 20 pour le
+diagnostic, 10 Mio de corps JSON, 5 Mio de photo de profil, 6 Mio d'image de
+diagnostic, 8 Mio de miniature.

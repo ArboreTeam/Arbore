@@ -56,7 +56,7 @@ flowchart TB
     class mongo,firebase_admin,apple,gemini,storage_ext ext
 ```
 
-The backend exposes **five distinct access levels**, defined in `buildRouter()`: **public** routes (no middleware), an **API-key-only** group, a **protected** group (API key *then* Firebase token), an **`account`** subgroup closed to guests, and an **`admin`** subgroup. This discipline is enforced by how the `router.Group(...)` calls are composed.
+The backend exposes **six distinct access levels**, defined in `buildRouter()`: **public** routes (no middleware), an **API-key-only** group, a **protected** group (API key *then* Firebase token), an **`account`** subgroup closed to guests, an **`admin`** subgroup, and an **`/internal`** group for callers that are not people (#696). This discipline is enforced by how the `router.Group(...)` calls are composed.
 
 `buildRouter()` is extracted from `main()` precisely so it is reachable from tests: how each route is classified across these groups is locked by an inventory test (#381), which fails until a newly added route is explicitly classified.
 
@@ -150,10 +150,49 @@ prove.
 
 | Endpoint | Handler | Notes |
 |---|---|---|
-| `GET /models/:filename` | inline (**protected**) | Serves the USDZ model. Rejects `..` / `/` / `\`, requires `.usdz`, `Content-Type: model/vnd.usdz+zip`. The `?lod=heavy` parameter serves the high-definition variant from `./models/heavy/` (see [`../3d-lod-architecture.md`](../3d-lod-architecture.md)). |
-| `POST /models/thumbnails/:plantId` | `uploadPlantThumbnail` | Restricted to `THUMBNAIL_UPLOAD_ALLOWED_UIDS`; PNG, max 100 MB, `plantId` validated. |
+| `GET /models/:filename` | `servePlantModel` (**protected**) | Serves the USDZ model. Rejects `..` / `/` / `\`, requires `.usdz`, `Content-Type: model/vnd.usdz+zip`. The `?lod=heavy` parameter serves the high-definition variant from `./models/heavy/` (see [`../3d-lod-architecture.md`](../3d-lod-architecture.md)). |
+| `POST /models/thumbnails/:plantId` | `uploadPlantThumbnail` (**admin**) | Under `RequireAdmin()`. PNG only, **8 MB** (`maxThumbnailBytes`), `plantId` validated as an ObjectID then rewritten from it. The backend **recomputes** `versions.thumbnail` on the bytes it just wrote (#687): publishing a fingerprint that lies becomes impossible. |
 
 > Unlike the thumbnail PNG (public), `GET /models/:filename` is in the **protected** group: viewing a 3D model requires both an API key **and** a Firebase token.
+
+> Until 2026-11-03 this table claimed a restriction by
+> `THUMBNAIL_UPLOAD_ALLOWED_UIDS` and a 100 MB limit. Neither exists in the
+> code: the variable appears nowhere, and the limit is 8 MB.
+
+### `/internal` group (API key + internal key, no Firebase)
+
+Added by #696, for callers that are **not people**: the thumbnail worker and
+the workshop, both on the internal network. A robot cannot hold a Firebase
+session.
+
+| Endpoint | Handler | Why |
+|---|---|---|
+| `GET /internal/plants` | `getPlants` | know which plants to render |
+| `GET /internal/models/:filename` | `servePlantModel` | download the USDZ model |
+| `POST /internal/models/thumbnails/:plantId` | `uploadPlantThumbnail` | upload the rendered thumbnail |
+
+These are the **same handlers** as their authenticated twins, not copies:
+neither `getPlants` nor `uploadPlantThumbnail` reads any caller identity.
+`servePlantModel` was in fact extracted from a closure so it could be mounted
+**twice** from a single body — two copies would have meant two definitions of
+the path checks to keep in agreement.
+
+Three properties not to undo:
+
+- **Both keys are required together.** The API key alone — the one the iOS app
+  carries — does not open these routes. It is also the only thing that picks
+  the database: there is no second way to designate one.
+- **The internal key confers no role** and opens no account route. It replaces
+  the Firebase administrator service account that would otherwise have been
+  needed — a human account repurposed, with its password in the secret store
+  and the right to write the whole catalogue, in order to upload images.
+- **Key absent, the door closes.** `InternalKeyMiddleware` answers **503
+  `INTERNAL_ROUTES_DISABLED`**, whatever is presented. The trap is precise:
+  `ConstantTimeCompare(supplied, configured)` would judge an **empty** header
+  equal to an **empty** key. A test pins this by name.
+
+Production does not carry the key: it runs no worker, so the surface does not
+exist there.
 
 #### AI Assistant domain (`/chat`, `/diagnose`)
 

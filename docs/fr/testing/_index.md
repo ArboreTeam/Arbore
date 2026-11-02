@@ -7,6 +7,20 @@ Cette section documente les **suites de tests** d'Arbore (front et back), ce qu'
 | Tests iOS | App iOS (front) | XCTest + XCUITest | [`ios.md`](ios.md) |
 | Tests Backend | API Go (back) | `go test` + testify | [`backend.md`](backend.md) |
 | Tests Web | Front web Next.js | Vitest + Testing Library | [`web.md`](web.md) |
+| Tests Python | Scripts de maintenance et job de vignettes | `unittest` | voir ci-dessous |
+
+> **La suite Python n'était pas listée ici** jusqu'au 2026-11-03. Elle compte
+> **58 tests** dans `scripts/test_*.py`, et couvre notamment l'ouvrier de
+> vignettes : type d'exception de sa boucle, routes visées, agent annoncé,
+> relevé des mesures de phases.
+>
+> ```sh
+> python3 -I -m unittest discover -s scripts -p 'test_*.py'
+> ```
+>
+> ⚠️ **Aucun job CI ne l'exécute** — vérifié le 2026-11-03, aucun workflow ne
+> mentionne `unittest`. Elle tourne à la main, comme les tests web avant que
+> leur job n'existe.
 
 ## Philosophie
 

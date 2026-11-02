@@ -260,6 +260,17 @@ def rendre(modele, sortie, pot=None, pose=None, reglages=None):
         derniere = (r.stderr or r.stdout or "").strip().splitlines()[-3:]
         raise RuntimeError("blender a échoué : " + " | ".join(derniere))
 
+    # Les mesures de phases, et RIEN d'autre de la sortie de Blender — elle
+    # fait des centaines de lignes par rendu.
+    #
+    # Journalisées aussi quand tout va bien, ce qui est le point : on ne savait
+    # pas où partait le temps d'un rendu réussi, et une plante avec pot en coûte
+    # trois fois une sans (#695). Une passe de catalogue devient ainsi une
+    # campagne de mesure gratuite, sur une centaine d'échantillons.
+    for ligne in (r.stdout or "").splitlines():
+        if ligne.startswith(MARQUE_TEMPS):
+            print("   " + ligne, flush=True)
+
 
 def controler(chemin):
     """Les quatre garanties, avant tout envoi. Un lot n'est pas publié à moitié."""
@@ -308,6 +319,11 @@ def publier(base, entetes, plant_id, chemin, version_modele=None):
     if statut != 200:
         raise RuntimeError(f"POST a rendu {statut} : {reponse[:160].decode(errors='replace')}")
     return json.loads(reponse)
+
+
+# Préfixe des lignes de chronométrage émises par `rendre.py`. Doit rester
+# identique des deux côtés.
+MARQUE_TEMPS = "[temps]"
 
 
 # Nom du cookie de session de l'atelier, cf. `COOKIE_SESSION` côté web.

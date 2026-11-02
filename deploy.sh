@@ -48,6 +48,42 @@ SNAPSHOT_RETENTION_DAYS=14
 # l'environnement — un préfixe `VAR=val sudo …` est silencieusement perdu
 # (vérifié sur le VPS). Vider ce tableau suffit si docker tourne sans sudo.
 DOCKER_PRIVILEGE=( sudo )
+
+# ───── L'utilisateur réel derrière `sudo` ─────────────────────────────────
+#
+# Ce script se lance sous `sudo`, et `sudo` fait DEUX choses qui ont chacune
+# produit une panne silencieuse (#690) :
+#
+#   1. il remplace `$HOME` par `/root`. `apply_secrets` y cherchait la clé age,
+#      ne la trouvait pas, AVERTISSAIT puis rendait 0 — le déploiement
+#      s'annonçait « terminé » en tournant sur les ANCIENS secrets. Relevé le
+#      2026-11-02 : `ARBORE_INTERNAL_KEY` valait zéro caractère dans le
+#      conteneur, et les routes concernées répondaient 503 ;
+#
+#   2. il fait écrire les fichiers par root. `git pull` déposait donc des
+#      objets root dans un dépôt appartenant à l'utilisateur — 167 entrées sur
+#      1021. Le déploiement continuait de fonctionner, root écrivant partout ;
+#      la panne n'apparaissait qu'au premier `git pull` fait À LA MAIN, soit
+#      exactement quand on veut mettre à jour sans redéployer toute la pile.
+#
+# Les deux viennent de la même cause, d'où une seule correction : retrouver
+# l'utilisateur réel et travailler sous son identité pour ce qui lui
+# appartient.
+UTILISATEUR_REEL="${SUDO_USER:-$(id -un)}"
+FOYER_REEL="$(getent passwd "$UTILISATEUR_REEL" 2>/dev/null | cut -d: -f6 || true)"
+[ -n "$FOYER_REEL" ] || FOYER_REEL="$HOME"
+
+# git sous l'identité du propriétaire du checkout.
+#
+# N'intervient QUE si l'on est root et que l'utilisateur réel ne l'est pas :
+# lancé sans sudo, le script garde son comportement d'avant, à l'octet près.
+git_reel() {
+    if [ "$(id -u)" -eq 0 ] && [ "$UTILISATEUR_REEL" != "root" ]; then
+        sudo -u "$UTILISATEUR_REEL" git "$@"
+    else
+        git "$@"
+    fi
+}
 # Un projet compose PAR ENVIRONNEMENT (#434). Sans nom de projet, compose le
 # déduit du nom du répertoire — identique pour les deux piles, qui se
 # recycleraient mutuellement : démarrer dev arrêterait la production, sans
@@ -229,7 +265,7 @@ do_git_pull() {
         # Mode release : on récupère les étiquettes puis on se place dessus en
         # HEAD détachée. Pas de `git pull` — il n'a pas de sens hors d'une
         # branche, et une release ne doit surtout pas bouger.
-        if ! git fetch --tags --force --quiet origin; then
+        if ! git_reel fetch --tags --force --quiet origin; then
             fail "Impossible de récupérer les étiquettes"
             exit 1
         fi
@@ -238,12 +274,12 @@ do_git_pull() {
             fail "Étiquettes disponibles : $(git tag --list 'v*' --sort=-version:refname | head -5 | tr '\n' ' ')"
             exit 1
         fi
-        if ! git checkout --quiet --detach "refs/tags/$deploy_tag"; then
+        if ! git_reel checkout --quiet --detach "refs/tags/$deploy_tag"; then
             fail "Impossible de se placer sur '$deploy_tag'"
             exit 1
         fi
         ok "Release $deploy_tag ($(git rev-parse --short HEAD))"
-    elif ! git pull --ff-only; then
+    elif ! git_reel pull --ff-only; then
         fail "Erreur lors du git pull"
         if [ "$out_of_band" -gt 0 ]; then
             fail "Si un commit entrant touche ${OUT_OF_BAND_PATHS[*]}, git refuse d'écraser les"
@@ -291,7 +327,9 @@ do_git_pull() {
 apply_secrets() {
     local env_name="${ARBORE_ENV:-prod}"
     local enc_dir="$SCRIPT_DIR/ops/secrets"
-    local key_file="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/arbore-$env_name.txt}"
+    # `$FOYER_REEL`, et non `$HOME` : sous sudo ce dernier vaut `/root`, où la
+    # clé n'est pas. Voir le bloc « utilisateur réel » en tête de fichier.
+    local key_file="${SOPS_AGE_KEY_FILE:-$FOYER_REEL/.config/sops/age/arbore-$env_name.txt}"
 
     [ -d "$enc_dir" ] || return 0
 
@@ -838,46 +876,61 @@ prepare_generator_dir() {
     fi
 }
 
-# Refuse de démarrer si un AUTRE environnement sert déjà ses vignettes depuis
-# le répertoire que celui-ci s'apprête à monter en écriture. (#694, #434)
+# Montages qui ne doivent JAMAIS être partagés entre deux environnements.
 #
-# Deux environnements qui partagent ce répertoire, ce sont deux catalogues qui
-# s'écrasent : les fichiers portent l'identifiant de la fiche, et une passe de
-# rendu sur dev réécrirait ceux de la prod.
+# Format : VARIABLE|défaut relatif au compose|destination dans le conteneur
 #
-# Ça n'a rien de théorique. L'ancien VPS tenait dev et prod dans DEUX checkouts
-# (`Arbore` et `Arbore-dev`), donc le défaut relatif de docker-compose.yml —
-# `./ArboreBackend/models/thumbnails` — les séparait tout seul. Le nouveau VPS
-# n'a qu'un checkout pour deux piles : le même défaut les a fait converger, en
-# silence, vers le même répertoire monté `rw` par les deux backends.
+# Tous sont montés en ÉCRITURE. Les partager, c'est laisser un environnement
+# réécrire les données d'un autre — les vignettes portent l'identifiant de la
+# fiche, pas celui de l'environnement.
+#
+# `/data/generator` n'y figure PAS ENCORE : les deux piles le partagent
+# aujourd'hui, et l'y ajouter ferait échouer tout déploiement avant que les
+# chemins ne soient séparés. À ajouter avec la séparation (#434).
+MONTAGES_CLOISONNES=(
+    "THUMBNAILS_HOST_PATH|./ArboreBackend/models/thumbnails|/app/thumbnails"
+    "LEGACY_COMMUNITY_UPLOADS_HOST_PATH|./ArboreBackend/uploads/community|/app/uploads/community"
+)
+
+# Refuse de démarrer si un AUTRE environnement monte déjà le même répertoire de
+# données en écriture. (#694, #434)
+#
+# Ce n'est pas théorique : les deux backends du nouveau VPS ont partagé leur
+# répertoire de vignettes jusqu'au 2026-11-02. Et ce n'était pas une faute de
+# configuration — les défauts de `docker-compose.yml` sont RELATIFS au fichier
+# compose. L'ancien VPS, avec un checkout par environnement, les séparait tout
+# seul ; un checkout unique pour deux piles les fait converger, en silence.
 #
 # Un échec, pas un avertissement : un avertissement se perd dans la sortie, et
-# c'est exactement ce qui est arrivé à celui des secrets (#690). Partager un
-# répertoire de données entre deux environnements doit arrêter le déploiement.
-verifier_vignettes_cloisonnees() {
-    local voulu
-    voulu="$(grep '^THUMBNAILS_HOST_PATH=' "$ENV_FILE" 2>/dev/null \
-             | sed 's/^THUMBNAILS_HOST_PATH=//' || true)"
-    # Le défaut suit docker-compose.yml, où le chemin est relatif au répertoire
-    # du fichier compose.
-    [ -n "$voulu" ] || voulu="$SCRIPT_DIR/ArboreBackend/models/thumbnails"
-    # `-m` : le répertoire peut ne pas exister encore, compose le créerait.
-    voulu="$(realpath -m "$voulu")"
+# c'est précisément ce qui est arrivé à celui des secrets (#690).
+verifier_cloisonnement() {
+    local entree variable defaut destination voulu autre source
+    for entree in "${MONTAGES_CLOISONNES[@]}"; do
+        IFS="|" read -r variable defaut destination <<< "$entree"
 
-    local autre source
-    for autre in $("${DOCKER_PRIVILEGE[@]}" docker ps --format '{{.Names}}' 2>/dev/null \
-                   | grep -E '^arbore-.+-backend$' || true); do
-        [ "$autre" != "arbore-$ARBORE_ENV-backend" ] || continue
-        source="$("${DOCKER_PRIVILEGE[@]}" docker inspect "$autre" \
-            --format '{{range .Mounts}}{{if eq .Destination "/app/thumbnails"}}{{.Source}}{{end}}{{end}}' \
-            2>/dev/null || true)"
-        [ -n "$source" ] || continue
-        if [ "$(realpath -m "$source")" = "$voulu" ]; then
-            fail "Vignettes partagées avec $autre : $voulu"
-            fail "Deux environnements y écriraient les mêmes noms de fichiers."
-            fail "Poser THUMBNAILS_HOST_PATH dans $ENV_FILE, propre à « $ARBORE_ENV »."
-            exit 1
-        fi
+        voulu="$(grep "^$variable=" "$ENV_FILE" 2>/dev/null \
+                 | sed "s/^$variable=//" || true)"
+        [ -n "$voulu" ] || voulu="$SCRIPT_DIR/${defaut#./}"
+        # `-m` : le répertoire peut ne pas exister encore, compose le créerait.
+        voulu="$(realpath -m "$voulu")"
+
+        for autre in $("${DOCKER_PRIVILEGE[@]}" docker ps --format '{{.Names}}' 2>/dev/null \
+                       | grep -E '^arbore-.+-(backend|web)$' || true); do
+            case "$autre" in
+                "arbore-$ARBORE_ENV-backend"|"arbore-$ARBORE_ENV-web") continue ;;
+            esac
+            source="$("${DOCKER_PRIVILEGE[@]}" docker inspect "$autre" \
+                --format "{{range .Mounts}}{{if eq .Destination \"$destination\"}}{{.Source}}{{end}}{{end}}" \
+                2>/dev/null || true)"
+            [ -n "$source" ] || continue
+            if [ "$(realpath -m "$source")" = "$voulu" ]; then
+                fail "Données partagées avec $autre : $destination"
+                fail "  répertoire : $voulu"
+                fail "Deux environnements y écriraient les mêmes fichiers."
+                fail "Poser $variable dans $ENV_FILE, propre à « $ARBORE_ENV »."
+                exit 1
+            fi
+        done
     done
 }
 
@@ -885,7 +938,7 @@ do_docker_up() {
     step 5 "Redémarrage des containers..."
     drop_legacy_containers
     prepare_generator_dir
-    verifier_vignettes_cloisonnees
+    verifier_cloisonnement
     if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" ARBORE_IMAGE_TAG="$IMAGE_TAG" \
         docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" up -d backend web; then
         fail "docker compose up a échoué"

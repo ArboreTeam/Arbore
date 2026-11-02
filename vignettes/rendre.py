@@ -546,7 +546,14 @@ def main():
     hauteur = max(haut.z, 0.001)
     largeur = max(haut.x - bas.x, 0.001)
     profondeur = max(haut.y - bas.y, 0.001)
-    print(f"sujet H={hauteur:.4f} L={largeur:.4f} P={profondeur:.4f}")
+    # Relayé avec les mesures de temps, et c'est voulu : `shadow_maximum_resolution`
+    # est exprimée en UNITÉS DE MONDE (0,5 mm par texel). La surface de carte
+    # d'ombre croît donc avec le CARRÉ de l'étendue de la scène — et nos
+    # maillages ne sont pas à l'échelle réelle, le pot étant en plus remis à
+    # l'échelle du socle. Sans ces trois nombres à côté du temps de rendu, on ne
+    # peut pas vérifier si c'est bien là qu'est le surcoût du pot (#695).
+    print(f"{MARQUE_TEMPS} sujet_h={hauteur:.4f} sujet_l={largeur:.4f} "
+          f"sujet_p={profondeur:.4f} etendue={largeur * profondeur:.4f}", flush=True)
 
     cadre = cadrer(largeur, hauteur, profondeur, LARGEUR / HAUTEUR)
     with chrono("decor_eclairage_camera"):

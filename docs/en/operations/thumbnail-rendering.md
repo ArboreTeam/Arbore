@@ -128,6 +128,54 @@ Render time is **to be re-measured on the VPS**, which is natively x86: under
 emulation it means nothing in absolute terms. The ratio does hold: raising
 shadow quality took the render from 4 min 47 to 8 min 20.
 
+## The pot, and why the server now serves its pose
+
+51 of the 123 plants are **recut**: their mesh does not contain its pot, which
+is composed at display time. Redoing the thumbnails **for this new pot method**
+is what #694 exists for.
+
+The job refuses to invent the composition rule:
+
+```python
+# La pose vient du backend quand il la sert ; sinon on ne
+# compose pas de pot plutôt que d'en inventer la règle.
+```
+
+But the backend did **not** serve the pose: the original choice (#623) was for
+the client to compute it, so that changing pot never goes back to the server.
+That choice still holds — it simply did not cover an engine with **no client**.
+Measured outcome: those 51 plants rendered **bare**.
+
+`GET /plants` therefore now serves `pot.pose`:
+
+```json
+"pot": {
+  "name": "cachepot_pieds", "rimRadius": 0.058654, "height": 0.1,
+  "pose": {
+    "scale": 2.7528, "x": 0.00432, "y": -0.10521, "z": -0.07449,
+    "disque": { "rayon": 0.1502, "x": 0.00432, "y": -0.1217,
+                "z": -0.07449, "epaisseur": 0.0055 }
+  }
+}
+```
+
+### The disc radius does not depend on the mesh
+
+That is what makes the server-side computation legitimate. By construction, the
+**scaled** outer radius equals `rimRadius × (base.radius / rimRadius)`, that is
+**exactly `base.radius`**.
+
+`PlantPotComposer.disque` prefers measuring the mesh over trusting the record —
+but only because AR holds a `PersistedPot`, without `rimRadius` or `height`.
+The server has both. Only the height goes through the record.
+
+### Two implementations, pinned
+
+The four constants (`0.9445`, `0.06`, `0.985`, `0.02`) now exist in Go **and**
+in Swift. That is accepted, since AR must keep recomputing offline. A Go test
+pins them by name, citing `PlantPot.swift`: changing them on one side only
+fails CI instead of producing two compositions that silently diverge.
+
 ## How the job authenticates
 
 Through **two keys**, and no Firebase session.

@@ -26,6 +26,7 @@ package main
 
 import (
 	"context"
+	"math"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -58,17 +59,62 @@ type Pot struct {
 	Version   string             `json:"version,omitempty" bson:"version,omitempty"` // empreinte du contenu du USDZ (#294)
 }
 
+// PotPose : où poser le pot sous cette plante.
+//
+// Mis à l'échelle `socle.rayon / rebord.rayon`, centré sur le socle, sa lèvre
+// alignée sur `socle.y`. Référence : `PlantPotComposer.placement`, dans
+// `ArboreUi/ArboreUi/Models/PlantPot.swift`.
+type PotPose struct {
+	Scale  float64        `json:"scale"`
+	X      float64        `json:"x"`
+	Y      float64        `json:"y"`
+	Z      float64        `json:"z"`
+	Disque *DisqueDeTerre `json:"disque,omitempty"`
+}
+
+// DisqueDeTerre : le disque à poser au fond du pot.
+//
+// Pourquoi il en faut un : l'atelier ne conserve la terre de la plante qu'à
+// 75 % du rayon, alors que le pot est posé à 100 % de `socle.rayon`. Un anneau
+// de paroi nue reste donc visible tout autour sans lui.
+type DisqueDeTerre struct {
+	Rayon     float64 `json:"rayon"`
+	X         float64 `json:"x"`
+	Y         float64 `json:"y"`
+	Z         float64 `json:"z"`
+	Epaisseur float64 `json:"epaisseur"`
+}
+
+// Constantes de composition. Elles décrivent CE pot, pas une règle générale :
+// le jour où la bibliothèque en compte un second, ce sont des mesures à porter
+// sur sa fiche.
+//
+// Elles doublent celles de `PlantPotComposer` côté iOS, et c'est assumé — voir
+// `poserPot` pour pourquoi. Un test les épingle nommément : les changer d'un
+// seul côté doit faire tomber la CI, pas diverger en silence.
+const (
+	partOuverturePot = 0.9445 // part du rebord occupée par l'OUVERTURE
+	retraitTerrePot  = 0.06   // retrait de la face de terre sous la lèvre
+	margeDisquePot   = 0.985  // marge contre le z-fighting avec la paroi
+	epaisseurDisque  = 0.02   // épaisseur du disque, en part de la hauteur
+)
+
+// potServi : un pot de la bibliothèque, augmenté de sa pose sous CETTE plante.
+//
+// Type distinct de `Pot` à dessein : la pose dépend de la plante, et n'a donc
+// aucun sens sur `GET /pots`, qui sert la bibliothèque seule. L'embarquement
+// garde le JSON plat.
+type potServi struct {
+	Pot
+	Pose *PotPose `json:"pose,omitempty"`
+}
+
 // plantResponse : la plante, augmentée du pot par défaut quand elle en a
 // besoin. Le champ `Plant` est embarqué, donc le JSON reste plat et les clients
 // existants ne voient aucun changement.
-//
-// Aucune pose n'est servie : le client la calcule depuis `potBase` et
-// `rimRadius`, règle de #623 — pot mis à l'échelle `socle.rayon / rebord.rayon`,
-// centré sur le socle, lèvre alignée sur `socle.y`. C'est la même ligne pour le
-// pot par défaut et pour un pot choisi ensuite, donc une seule implémentation.
 type plantResponse struct {
 	Plant
-	Pot *Pot `json:"pot,omitempty"`
+	Pot *potServi `json:"pot,omitempty"`
 }
 
 // sansPot : vrai si le maillage de la plante ne contient pas son pot.
@@ -111,7 +157,70 @@ func echellePot(base *PotBase, pot *Pot) (float64, bool) {
 	if base == nil || pot == nil || pot.RimRadius <= 0 || base.Radius <= 0 {
 		return 0, false
 	}
-	return base.Radius / pot.RimRadius, true
+	// Finitude, comme le fait `PlantPotComposer.placement` côté iOS. Ce n'est
+	// pas redondant avec les comparaisons ci-dessus : en Go comme en Swift,
+	// TOUTE comparaison avec NaN est fausse, donc `NaN <= 0` ne rejette rien.
+	// Un rayon NaN en base produisait une échelle NaN.
+	//
+	// Longtemps sans conséquence, cette valeur ne servant que de garde-fou
+	// local. Elle part maintenant sur le réseau : un NaN poserait le pot nulle
+	// part, chez tous les clients à la fois.
+	if !math.IsInf(base.Radius, 0) && !math.IsInf(pot.RimRadius, 0) &&
+		!math.IsNaN(base.Radius) && !math.IsNaN(pot.RimRadius) {
+		return base.Radius / pot.RimRadius, true
+	}
+	return 0, false
+}
+
+// poserPot rend la pose du pot sous cette plante, disque de terre compris.
+//
+// ## Pourquoi le serveur la sert, alors qu'il ne la servait pas
+//
+// Le choix d'origine (#623) était que le CLIENT calcule : la bibliothèque se
+// charge une fois, changer de pot ne repasse pas par le serveur, et l'aperçu du
+// sélecteur reste instantané. Ce choix tient toujours, et l'app continue de
+// recalculer pour un pot choisi en local.
+//
+// Ce qu'il ne couvrait pas : un moteur SANS client. Le job de rendu des
+// vignettes (#694, #695) est headless, et il refuse délibérément d'inventer la
+// règle — « sinon on ne compose pas de pot plutôt que d'en inventer la règle ».
+// Résultat mesuré : 51 plantes sur 123 étaient rendues NUES.
+//
+// Servir la pose ne retire rien au client ; elle s'ajoute pour qui ne peut pas
+// la calculer.
+//
+// ## Le rayon du disque ne dépend pas du maillage
+//
+// Par construction : le rayon extérieur mis à l'échelle vaut
+// `rimRadius × (socle.rayon / rimRadius)`, soit **exactement `socle.rayon`**.
+// Le serveur n'a donc aucune mesure de maillage à deviner — ce qui lève
+// l'objection de `PlantPotComposer.disque`, qui préfère mesurer parce que l'AR
+// ne dispose pas de `rimRadius`. Ici, si.
+//
+// Seule la hauteur passe par la fiche (`height × échelle`).
+func poserPot(base *PotBase, pot *Pot) (*PotPose, bool) {
+	e, ok := echellePot(base, pot)
+	if !ok {
+		return nil, false
+	}
+	pose := &PotPose{Scale: e, X: base.X, Y: base.Y, Z: base.Z}
+
+	// Le disque est FACULTATIF : sans hauteur de pot utilisable, on sert la
+	// pose sans lui. Mieux vaut un anneau nu qu'un disque au hasard, qui
+	// passerait pour un défaut d'affichage — et un pot bien posé sans disque
+	// reste très au-dessus d'une plante nue.
+	hauteur := pot.Height * e
+	rayon := base.Radius * partOuverturePot * margeDisquePot
+	if hauteur > 0 && !math.IsInf(hauteur, 0) && !math.IsNaN(hauteur) && rayon > 0 {
+		pose.Disque = &DisqueDeTerre{
+			Rayon:     rayon,
+			X:         base.X,
+			Y:         base.Y - hauteur*retraitTerrePot,
+			Z:         base.Z,
+			Epaisseur: hauteur * epaisseurDisque,
+		}
+	}
+	return pose, true
 }
 
 // composerPlante assemble la réponse. Une plante dont le maillage porte déjà
@@ -126,10 +235,13 @@ func composerPlante(p Plant, pots []Pot, demande string) plantResponse {
 	if pot == nil {
 		return rep
 	}
-	if _, ok := echellePot(p.PotBase, pot); !ok {
+	pose, ok := poserPot(p.PotBase, pot)
+	if !ok {
+		// Inchangé : sans socle exploitable, mieux vaut ne servir AUCUN pot
+		// que d'en donner un que le client poserait au hasard.
 		return rep
 	}
-	rep.Pot = pot
+	rep.Pot = &potServi{Pot: *pot, Pose: pose}
 	return rep
 }
 

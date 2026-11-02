@@ -132,6 +132,56 @@ Le temps de rendu est **à remesurer sur le VPS**, qui est nativement x86 :
 sous émulation il ne veut rien dire en absolu. Le rapport, lui, vaut : passer
 l'ombre en qualité a fait passer le rendu de 4 min 47 à 8 min 20.
 
+## Le pot, et pourquoi le serveur sert désormais sa pose
+
+51 plantes sur 123 sont **recoupées** : leur maillage ne contient pas leur pot,
+qui est composé à l'affichage. Refaire les vignettes **pour cette nouvelle
+méthode de pot** est la raison d'être de #694.
+
+Le job refuse d'inventer la règle de composition :
+
+```python
+# La pose vient du backend quand il la sert ; sinon on ne
+# compose pas de pot plutôt que d'en inventer la règle.
+```
+
+Or le backend ne servait **pas** la pose : le choix d'origine (#623) était que
+le client la calcule, pour que changer de pot ne repasse pas par le serveur.
+Ce choix tient toujours — il ne couvrait simplement pas un moteur **sans
+client**. Résultat mesuré : ces 51 plantes étaient rendues **nues**.
+
+`GET /plants` sert donc maintenant `pot.pose` :
+
+```json
+"pot": {
+  "name": "cachepot_pieds", "rimRadius": 0.058654, "height": 0.1,
+  "pose": {
+    "scale": 2.7528, "x": 0.00432, "y": -0.10521, "z": -0.07449,
+    "disque": { "rayon": 0.1502, "x": 0.00432, "y": -0.1217,
+                "z": -0.07449, "epaisseur": 0.0055 }
+  }
+}
+```
+
+### Le rayon du disque ne dépend pas du maillage
+
+C'est ce qui rend le calcul serveur légitime. Par construction, le rayon
+extérieur **mis à l'échelle** vaut
+`rimRadius × (socle.rayon / rimRadius)`, soit **exactement `socle.rayon`**.
+
+`PlantPotComposer.disque` préfère mesurer le maillage plutôt que croire la
+fiche — mais c'est parce que l'AR ne dispose que d'un `PersistedPot`, sans
+`rimRadius` ni `height`. Le serveur, lui, les a. Seule la hauteur passe par la
+fiche.
+
+### Deux implémentations, épinglées
+
+Les quatre constantes (`0.9445`, `0.06`, `0.985`, `0.02`) existent désormais en
+Go **et** en Swift. C'est assumé, l'AR devant continuer de recalculer hors
+ligne. Un test Go les épingle nommément, en citant `PlantPot.swift` : les
+changer d'un seul côté fait tomber la CI au lieu de produire deux compositions
+qui divergent en silence.
+
 ## Comment le job s'authentifie
 
 Par **deux clés**, et aucune session Firebase.

@@ -31,10 +31,14 @@ resource "cloudflare_dns_record" "web" {
 
 # `generator.arbore.app` — l'atelier 3D.
 #
-# Servi par le MÊME conteneur que `web.arbore.app`, distingué par `server_name`
-# dans nginx. C'est pour ça qu'il n'a pas de variable dédiée : il suit l'origine
-# de la production, et il n'existe pas de variante par environnement — comme
-# `api_dev` plus bas, il est donc déclaré en ligne.
+# Servi par le MÊME conteneur Next.js que `web.arbore.app`, distingué par
+# `server_name` dans nginx.
+#
+# ⚠️ Il NE suit PLUS l'origine de la production. Vérifié le 2026-11-02 à
+# l'origine : nginx du nouveau VPS sert `generator.arbore.app` vers
+# `127.0.0.1:3001`, soit `arbore-dev-web`. L'atelier est un OUTIL, et il tourne
+# sur la pile de dev — `generator_origin_ip` doit donc rester renseignée tant
+# que c'est le cas.
 #
 # Il est resté HORS de ce répertoire du 2026-09-07 au 2026-10-21, alors qu'il
 # sert en production. La conséquence n'était pas théorique : changer `origin_ip`

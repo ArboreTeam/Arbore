@@ -209,5 +209,47 @@ class AppelerSurvitAuxCoupures(unittest.TestCase):
         self.assertNotEqual(publier.INJOIGNABLE, 204)
 
 
+class Chronometrage(unittest.TestCase):
+    """Les mesures de phases doivent remonter dans le journal. (#695)
+
+    Une plante AVEC pot coute trois fois une plante sans — 269 s contre 85 s a
+    plafond CPU egal — et rien ne disait ou partait ce temps. `rendre.py` les
+    emet, `publier.py` les releve.
+    """
+
+    def test_le_prefixe_est_le_meme_des_deux_cotes(self):
+        """Deux constantes, deux fichiers : elles divergeraient en silence.
+
+        Si `rendre.py` changeait de prefixe, `publier.py` n'en releverait plus
+        AUCUNE — et le journal redeviendrait muet sans que rien n'echoue.
+        """
+        rendre = (_chemin.parent / "rendre.py").read_text(encoding="utf-8")
+
+        self.assertIn('MARQUE_TEMPS = "%s"' % publier.MARQUE_TEMPS, rendre,
+                      "le prefixe de rendre.py ne correspond plus a celui de publier.py")
+
+    def test_les_phases_attendues_sont_chronometrees(self):
+        """Chaque phase nommee ici est un suspect du surcout du pot.
+
+        Les retirer rendrait la mesure aveugle precisement la ou on cherche.
+        """
+        rendre = (_chemin.parent / "rendre.py").read_text(encoding="utf-8")
+
+        for phase in ("import_plante", "import_pot", "composition_totale",
+                      "decor_eclairage_camera", "rendu", "marqueur"):
+            with self.subTest(phase):
+                self.assertIn('chrono("%s")' % phase, rendre)
+
+    def test_le_releve_ne_retient_que_les_lignes_de_temps(self):
+        """Blender crache des centaines de lignes par rendu.
+
+        Tout journaliser noierait le signal ; n'en journaliser aucune laisserait
+        la question ouverte. Le filtre est donc le coeur de la mesure.
+        """
+        source = _chemin.read_text(encoding="utf-8")
+
+        self.assertIn("ligne.startswith(MARQUE_TEMPS)", source)
+
+
 if __name__ == "__main__":
     unittest.main()

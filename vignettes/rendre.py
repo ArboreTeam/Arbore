@@ -24,9 +24,11 @@ rien de visible et coûte un ordre de grandeur de temps. Le besoin est une
 vignette de catalogue, pas une image de rendu.
 """
 import argparse
+import contextlib
 import json
 import math
 import sys
+import time
 
 import bpy
 from mathutils import Quaternion, Vector
@@ -182,6 +184,33 @@ def importer_usd(chemin):
     # couche — un pot de 10 cm de haut se mesure alors 5,9 cm, son rayon.
     racines = [o for o in ajoutes if o.parent not in ajoutes]
     return racines, maillages
+
+
+# Préfixe des lignes de chronométrage. `publier.py` les relève dans la sortie
+# de Blender ; aucun autre texte ne doit le porter.
+MARQUE_TEMPS = "[temps]"
+
+
+@contextlib.contextmanager
+def chrono(phase):
+    """Chronomètre une phase et l'annonce sur la sortie standard.
+
+    Rien ne disait où partait le temps d'un rendu. On savait seulement qu'une
+    plante AVEC pot coûtait trois fois une plante sans — 269 s contre 85 s à
+    plafond CPU égal —, sans pouvoir dire si c'était l'import, la composition,
+    les ombres ou l'écriture (#695).
+
+    Mesurer avant d'optimiser : trois hypothèses plausibles se valaient, et en
+    choisir une au jugé revenait à tirer au sort.
+    """
+    debut = time.perf_counter()
+    try:
+        yield
+    finally:
+        # `flush` : Blender tamponne sa sortie, et un rendu qui échoue
+        # emporterait les mesures déjà prises.
+        print(f"{MARQUE_TEMPS} {phase}={time.perf_counter() - debut:.2f}s",
+              flush=True)
 
 
 def boite(objets):
@@ -410,14 +439,16 @@ def composer(modele, pot_chemin, pose):
     sujet = bpy.context.active_object
     sujet.name = "arbore_sujet"
 
-    racines_plante, plante = importer_usd(modele)
+    with chrono("import_plante"):
+        racines_plante, plante = importer_usd(modele)
     for o in racines_plante:
         o.parent = sujet
     if not pot_chemin or not pose:
         bpy.context.view_layer.update()
         return sujet, plante, None
 
-    racines_pot, pot = importer_usd(pot_chemin)
+    with chrono("import_pot"):
+        racines_pot, pot = importer_usd(pot_chemin)
 
     bpy.ops.object.empty_add(location=(0, 0, 0))
     porteur = bpy.context.active_object
@@ -495,7 +526,8 @@ def main():
     scene = scene_vide()
     scene.eevee.taa_render_samples = a.echantillons
     pose = json.loads(a.pose) if a.pose else None
-    sujet, maillages, niveau_sol = composer(a.modele, a.pot, pose)
+    with chrono("composition_totale"):
+        sujet, maillages, niveau_sol = composer(a.modele, a.pot, pose)
 
     # Pose au sol et centrage, comme le moteur iOS : `model.position.y` ramène
     # le bas sur le sol, puis le centre est ramené sur l'axe.
@@ -517,15 +549,29 @@ def main():
     print(f"sujet H={hauteur:.4f} L={largeur:.4f} P={profondeur:.4f}")
 
     cadre = cadrer(largeur, hauteur, profondeur, LARGEUR / HAUTEUR)
-    poser_fond_studio(cadre, hauteur, largeur, profondeur,
-                      a.ciel, a.herbe, a.teinte_sol)
-    poser_eclairage(cadre, hauteur, largeur, profondeur,
-                    a.puissance_cle, a.ambiante)
-    poser_camera(cadre)
+    with chrono("decor_eclairage_camera"):
+        poser_fond_studio(cadre, hauteur, largeur, profondeur,
+                          a.ciel, a.herbe, a.teinte_sol)
+        poser_eclairage(cadre, hauteur, largeur, profondeur,
+                        a.puissance_cle, a.ambiante)
+        poser_camera(cadre)
 
     scene.render.filepath = a.sortie
-    bpy.ops.render.render(write_still=True)
-    poser_marqueur(a.sortie)
+    with chrono("rendu"):
+        bpy.ops.render.render(write_still=True)
+    with chrono("marqueur"):
+        poser_marqueur(a.sortie)
+
+    # Combien d'objets la scène porte-t-elle, et combien de triangles ? Si le
+    # rendu domine, c'est là qu'il faudra regarder — un pot n'ajoute qu'un
+    # objet, mais il change ce que la caméra voit et ce qui projette une ombre.
+    tris = 0
+    for o in bpy.context.scene.objects:
+        if o.type == "MESH":
+            tris += len(o.data.loop_triangles) or sum(
+                len(pl.vertices) - 2 for pl in o.data.polygons)
+    print(f"{MARQUE_TEMPS} objets={len(bpy.context.scene.objects)} triangles={tris}",
+          flush=True)
     print(f"vignette écrite : {a.sortie}")
 
 

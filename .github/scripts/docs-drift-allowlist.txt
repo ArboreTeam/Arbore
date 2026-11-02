@@ -21,3 +21,10 @@ AuthKey.json
 # de docs/legacy/ décrivent un état PASSÉ : leurs références à ces chemins sont
 # correctes historiquement, et ne doivent pas faire échouer le drift check.
 AiGenerator/pyproject.toml
+
+# État de l'atelier 3D, écrit à l'exécution dans `GENERATOR_DATA_DIR`
+# (`/data/generator` dans le conteneur, hors du dépôt). Il porte la file de
+# tâches et l'inventaire des artefacts, et n'a aucune raison d'être versionné :
+# c'est de la donnée de travail, pas du code. Cité par les vues composants du
+# web depuis le 2026-11-03.
+etat.json

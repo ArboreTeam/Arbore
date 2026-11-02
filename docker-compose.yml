@@ -416,7 +416,21 @@ services:
           # Un rendu Blender prend tout ce qu'on lui laisse. Sans plafond,
           # l'ouvrier affame le backend qui partage la machine — et une passe
           # de catalogue dure des heures, pas des secondes.
-          cpus: "2.0"
+          #
+          # Réglable, parce que le bon plafond dépend de la MACHINE et non du
+          # code. Mesuré le 2026-11-02 sur le VPS de dev (4 cœurs) : à 2,0, le
+          # conteneur oscille entre 136 % et 204 % — il TAPE le plafond, et
+          # Blender y ouvre 25 threads. Le plafond est donc le goulot, pas le
+          # moteur.
+          #
+          # Il n'y a pas de GPU sur ces machines (`/dev/dri` absent) : EEVEE
+          # rend en LOGICIEL, d'où des minutes par image là où un GPU donnerait
+          # des secondes. C'est la contrainte de fond ; le plafond ne fait que
+          # décider de la part de CPU qu'on lui concède.
+          #
+          # Laisser au moins un cœur au reste de la pile : le backend et le web
+          # partagent la machine, et une passe dure des heures.
+          cpus: "${VIGNETTES_CPUS:-2.0}"
 
   minio:
     image: minio/minio:latest

@@ -7,6 +7,19 @@ This section documents Arbore's **test suites** (front and back), what they cove
 | iOS tests | iOS app (front) | XCTest + XCUITest | [`ios.md`](ios.md) |
 | Backend tests | Go API (back) | `go test` + testify | [`backend.md`](backend.md) |
 | Web tests | Next.js web front | Vitest + Testing Library | [`web.md`](web.md) |
+| Python tests | Maintenance scripts and thumbnail job | `unittest` | see below |
+
+> **The Python suite was not listed here** until 2026-11-03. It holds **58
+> tests** in `scripts/test_*.py`, covering in particular the thumbnail worker:
+> the exception type of its loop, the routes it targets, the agent it
+> announces, and the relaying of phase measurements.
+>
+> ```sh
+> python3 -I -m unittest discover -s scripts -p 'test_*.py'
+> ```
+>
+> ⚠️ **No CI job runs it** — verified on 2026-11-03, no workflow mentions
+> `unittest`. It runs by hand, as the web tests did before their job existed.
 
 ## Philosophy
 

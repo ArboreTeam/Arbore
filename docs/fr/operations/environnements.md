@@ -16,11 +16,34 @@ Pour le provisionnement, [`vps-bootstrap.md`](vps-bootstrap.md).
 | **prod** | `main`  | `api.arbore.app`     | `arbore`        | manuellement       |
 | **dev**  | `dev`   | `api-dev.arbore.app` | `arbore_dev`    | manuellement       |
 
-Les deux tournent **en même temps** sur le même VPS, sur des ports distincts,
-depuis deux checkouts git séparés. Ils ne partagent ni la version, ni les
-secrets, ni les données.
-
 Casser le dev n'a aucun effet sur les bêta-testeurs. C'est sa raison d'être.
+
+### ⚠️ Ils ne sont plus sur la même machine
+
+Relevé le 2026-11-02. La migration de #652 est **en cours**, et les deux
+environnements vivent désormais sur deux VPS différents :
+
+| | machine | chemin | utilisateur |
+|---|---|---|---|
+| **prod** | ancien VPS, `79.137.92.154` | `/home/fedora/Arbore` | `fedora` |
+| **dev** | nouveau VPS, `162.19.13.82` | `/home/debian/Arbore` | `debian` |
+
+`generator.arbore.app` (l'atelier 3D) et `api-dev.arbore.app` pointent sur le
+**nouveau** VPS ; `api.arbore.app` et `web.arbore.app` sur l'ancien.
+
+**Et la disposition a changé de nature.** L'ancienne machine tenait deux
+checkouts git séparés — `Arbore` et `Arbore-dev` —, ce qui séparait les données
+de chaque environnement sans que personne ait à y penser : les chemins par
+défaut de `docker-compose.yml` sont **relatifs au fichier compose**.
+
+La nouvelle machine n'a **qu'un seul checkout** pour deux piles compose
+(`arbore-prod` et `arbore-dev`). Les mêmes défauts les font donc converger vers
+les mêmes répertoires. C'est ce qui a fait partager aux deux backends leur
+répertoire de vignettes **en écriture** jusqu'au 2026-11-02.
+
+Ce qui est cloisonné aujourd'hui, et ce qui ne l'est pas, est suivi dans #434.
+`deploy.sh` refuse désormais de démarrer si un autre environnement monte déjà
+le répertoire visé.
 
 ---
 
@@ -143,14 +166,14 @@ direct, et une PR promue depuis `dev` a déjà franchi le contrôle en amont.
 ## Déployer un environnement
 
 Le déploiement est **manuel**, par choix : personne ne pousse en production sans
-le savoir. Sur le VPS, un checkout par environnement.
+le savoir.
 
 ```sh
-# production
+# production — ancien VPS
 cd /home/fedora/Arbore && ./deploy.sh
 
-# développement
-cd /home/fedora/Arbore-dev && ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
+# développement — nouveau VPS
+cd /home/debian/Arbore && ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
 ```
 
 Trois pièges, tous rencontrés en vrai :
@@ -162,8 +185,27 @@ déployer cette branche sans rien signaler. Le défaut est `main`, et la
 production ne définit donc pas la variable.
 
 **Ne pas lancer `deploy.sh` avec `sudo`.** Le script gère lui-même l'élévation
-pour Docker. Sous `sudo`, git bascule sur les clés de root et le `git pull`
-échoue sur un `Permission denied (publickey)` trompeur.
+pour Docker : l'utilisateur n'a pas besoin d'être dans le groupe `docker`.
+
+> ⚠️ **Le symptôme décrit ici a disparu, pas la raison.** Cet avertissement
+> annonçait un `Permission denied (publickey)` sur le `git pull`, quand le
+> remote était en SSH. Il est passé en **HTTPS public** : sous `sudo`, le pull
+> **réussit** désormais. L'avertissement est devenu silencieux, et il a été
+> ignoré toute la journée du 2026-11-02.
+>
+> Les deux conséquences réelles, mesurées ce jour-là :
+>
+> | | |
+> |---|---|
+> | `$HOME` vaut `/root` | la clé age est introuvable, `apply_secrets` **avertit puis rend 0** — le déploiement s'annonce « terminé » en tournant sur les **anciens** secrets |
+> | les fichiers sont écrits par root | **167 entrées sur 1021** dans `.git`, et le premier `git pull` fait à la main échoue |
+>
+> Vérifié sans `sudo` : secrets déchiffrés, images tirées, santé à 200, et
+> **0 entrée root** dans `.git`.
+>
+> Depuis #716, le script tolère l'invocation sous `sudo` — il retrouve
+> l'utilisateur réel par `SUDO_USER` et travaille sous son identité. C'est un
+> filet, pas une permission : lancez-le sans.
 
 **Attendre la publication des images.** `deploy.sh` tire l'image étiquetée
 `sha-<commit>` ; si le workflow de publication n'a pas fini, le tirage échoue et

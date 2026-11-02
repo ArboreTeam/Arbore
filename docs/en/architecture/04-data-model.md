@@ -285,11 +285,35 @@ hexadecimal characters of its SHA-256. It drives device cache invalidation
 | `model` | string (optional) | Light USDZ. |
 | `modelHeavy` | string (optional) | Heavy USDZ, served via `?lod=heavy`. |
 | `thumbnail` | string (optional) | PNG thumbnail. |
+| `thumbnailModel` | string (optional) | The thumbnail's **provenance**: the version of the MODEL it was rendered from. |
 
 One field per file, because they are distinct files: replacing the light one
 must not force a re-download of the heavy one, which is ten times larger. A
 missing field means “fingerprint not computed” — the client then falls back on
 its previous behaviour and keeps its cache.
+
+##### `thumbnailModel` is not a file fingerprint
+
+It is the only one of the four that does not summarise a served file: it says
+**what** the thumbnail was rendered from. It answers "does this need
+redoing?" — yes as soon as it differs from `model`.
+
+It is **declared by the rendering job**, not computed by the server, which did
+not render the image; `EmpreinteValide` therefore checks its shape before
+writing it.
+
+**Empty means "provenance unknown", therefore to be redone.** That is the state
+of every thumbnail published before #694, and of any thumbnail republished
+without a declaration — in which case the server **removes** the field rather
+than keeping a value that has become false. Treating "I don't know" as
+"probably up to date" would exclude those plants from incremental passes
+permanently, and the defect would be invisible: the image would display
+normally.
+
+> ⚠️ **It tracks the model only, not the renderer.** A fix to `rendre.py`
+> therefore marks nothing stale and forces a full pass. Measured on
+> 2026-11-02: all 123 thumbnails of one pass kept a rendering defect that
+> incremental regeneration did not see. Tracked on #694.
 
 ##### Why a per-file fingerprint rather than a global counter
 

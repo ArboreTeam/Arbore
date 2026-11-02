@@ -286,11 +286,33 @@ l'appareil (#294).
 | `model` | string (optionnel) | USDZ light. |
 | `modelHeavy` | string (optionnel) | USDZ heavy, servi via `?lod=heavy`. |
 | `thumbnail` | string (optionnel) | Vignette PNG. |
+| `thumbnailModel` | string (optionnel) | **Provenance** de la vignette : la version du MODÈLE dont elle est issue. |
 
 Un champ par fichier, parce que ce sont des fichiers distincts : remplacer le
 light ne doit pas faire retélécharger le heavy, qui pèse dix fois plus. Un champ
 absent signifie « empreinte non calculée » — le client retombe alors sur son
 comportement d'avant et ne perd pas son cache.
+
+##### `thumbnailModel` n'est pas une empreinte de fichier
+
+C'est le seul des quatre à ne pas résumer un fichier servi : il dit **de quoi**
+la vignette a été rendue. Il répond à « faut-il la refaire ? » — oui dès qu'il
+diffère de `model`.
+
+Il est **déclaré par le job de rendu**, pas calculé par le serveur, qui n'a pas
+rendu l'image ; `EmpreinteValide` contrôle donc sa forme avant de l'écrire.
+
+**Vide signifie « provenance inconnue », donc à refaire.** C'est l'état de
+toute vignette publiée avant #694, et de toute vignette republiée sans
+déclaration — auquel cas le serveur **retire** le champ au lieu de conserver
+une valeur devenue fausse. Traiter « je ne sais pas » comme « sans doute à
+jour » exclurait ces plantes des passes incrémentales définitivement, et le
+défaut serait invisible : l'image s'afficherait normalement.
+
+> ⚠️ **Il ne suit que le modèle, pas le moteur.** Un correctif de `rendre.py`
+> ne marque donc rien comme périmé, et impose une passe complète. Mesuré le
+> 2026-11-02 : les 123 vignettes d'une passe ont gardé un défaut de rendu que
+> la régénération incrémentale n'a pas vu. Suivi sur #694.
 
 ##### Pourquoi une empreinte par fichier et non un compteur global
 

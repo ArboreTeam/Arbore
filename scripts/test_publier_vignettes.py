@@ -150,5 +150,64 @@ class RoutesVisees(unittest.TestCase):
         self.assertNotIn("identitytoolkit", source)
 
 
+class AppelerSurvitAuxCoupures(unittest.TestCase):
+    """L'ouvrier ne doit pas mourir quand l'atelier redemarre. (#695)
+
+    Observe le 2026-11-02 : `URLError: [Errno 111] Connection refused` remonte
+    de `appeler` jusqu'a `main`, conteneur terminé, `RestartCount: 1`. Docker
+    l'a relance, mais une tache en vol aurait ete perdue — elle serait restee
+    « en cours » vingt minutes, et une passe de catalogue dure des heures.
+    """
+
+    def simuler(self, exc):
+        """Remplace `urlopen` par une levee, et rend ce que `appeler` renvoie."""
+        import urllib.request
+        vrai = urllib.request.urlopen
+
+        def faux(*a, **k):
+            raise exc
+        urllib.request.urlopen = faux
+        try:
+            return publier.appeler("biscuit=x", "http://atelier/api")
+        finally:
+            urllib.request.urlopen = vrai
+
+    def test_connexion_refusee_ne_leve_pas(self):
+        import urllib.error
+        statut, corps = self.simuler(
+            urllib.error.URLError(ConnectionRefusedError(111, "Connection refused")))
+
+        self.assertEqual(statut, publier.INJOIGNABLE)
+        self.assertIn("injoignable", corps.decode("utf-8"))
+
+    def test_delai_depasse_ne_leve_pas(self):
+        """`urlopen` leve un `TimeoutError` NU, qui ne derive pas de URLError."""
+        statut, corps = self.simuler(TimeoutError("timed out"))
+
+        self.assertEqual(statut, publier.INJOIGNABLE)
+        self.assertIn("délai", corps.decode("utf-8"))
+
+    def test_un_refus_du_serveur_reste_un_refus(self):
+        """L'ordre des `except` compte : `HTTPError` HERITE de `URLError`.
+
+        Dans le mauvais ordre, un 401 de l'atelier passerait pour une coupure
+        reseau — et on perdrait le diagnostic qui a deja coute cinq cycles.
+        """
+        import io as _io
+        import urllib.error
+        statut, corps = self.simuler(urllib.error.HTTPError(
+            "http://atelier/api", 401, "Unauthorized", {},
+            _io.BytesIO(b'{"error":"Non authentifie"}')))
+
+        self.assertEqual(statut, 401)
+        self.assertIn(b"Non authentifie", corps)
+
+    def test_injoignable_est_hors_de_la_plage_http(self):
+        """La boucle teste `!= 200` ; le sentinelle doit aussi se distinguer
+        d'un vrai code dans le journal."""
+        self.assertEqual(publier.INJOIGNABLE, 0)
+        self.assertNotEqual(publier.INJOIGNABLE, 204)
+
+
 if __name__ == "__main__":
     unittest.main()

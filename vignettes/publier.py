@@ -347,8 +347,31 @@ def hote_atelier():
     return os.environ.get("ATELIER_HOTE", "generator.arbore.app")
 
 
+# Statut rendu quand aucune reponse HTTP n'a pu etre obtenue. Hors de la plage
+# des codes HTTP a dessein : l'appelant teste deja `!= 200`, et un 0 se
+# distingue d'un vrai refus du serveur dans le journal.
+INJOIGNABLE = 0
+
+
 def appeler(biscuit, url, corps=None, methode=None, delai=120):
-    """Appel porté par la session. Rend (statut, octets)."""
+    """Appel porté par la session. Rend (statut, octets).
+
+    Une coupure réseau rend `(INJOIGNABLE, motif)` au lieu de lever.
+
+    Sans ça, l'ouvrier MEURT quand l'atelier redémarre — ce qui arrive à chaque
+    déploiement du conteneur web. Observé le 2026-11-02 : `URLError: [Errno
+    111] Connection refused` remonté de `appeler` jusqu'à `main`, conteneur
+    terminé, `RestartCount: 1`.
+
+    Docker le relance (`restart: unless-stopped`), donc ça s'est réparé tout
+    seul. Mais une tâche en vol serait perdue : elle resterait « en cours »
+    vingt minutes avant d'expirer, et une passe de catalogue dure des heures —
+    un redéploiement en cours de route n'a rien d'improbable.
+
+    Les appels au BACKEND, eux, n'ont pas ce défaut : ils partent de
+    `rendre_une`, que `surveiller` enveloppe dans `except Exception`. Seuls les
+    appels à l'atelier sont hors de cette garde, parce qu'ils sont la garde.
+    """
     donnees = json.dumps(corps).encode() if corps is not None else None
     entetes = {"Host": hote_atelier(), "Cookie": biscuit, "User-Agent": AGENT}
     if donnees:
@@ -358,7 +381,15 @@ def appeler(biscuit, url, corps=None, methode=None, delai=120):
         with urllib.request.urlopen(req, timeout=delai) as r:
             return r.status, r.read()
     except urllib.error.HTTPError as e:
+        # AVANT `URLError` : `HTTPError` en hérite. Dans l'autre ordre, tout
+        # refus du serveur passerait pour une coupure réseau.
         return e.code, e.read()
+    except urllib.error.URLError as e:
+        return INJOIGNABLE, f"atelier injoignable : {e.reason}".encode()
+    except TimeoutError as e:
+        # `urlopen` lève un TimeoutError nu sur dépassement de `timeout`, et il
+        # ne dérive PAS de URLError.
+        return INJOIGNABLE, f"atelier : délai dépassé ({e})".encode()
 
 
 def rendre_une(tache, sortie):

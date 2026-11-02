@@ -16,10 +16,34 @@ For provisioning, [`vps-bootstrap.md`](vps-bootstrap.md).
 | **prod** | `main` | `api.arbore.app`     | `arbore`     | manually  |
 | **dev**  | `dev`  | `api-dev.arbore.app` | `arbore_dev` | manually  |
 
-Both run **at the same time** on the same VPS, on separate ports, from two
-distinct git checkouts. They share neither version, secrets, nor data.
-
 Breaking dev has no effect on beta testers. That is its purpose.
+
+### ⚠️ They are no longer on the same machine
+
+Recorded on 2026-11-02. The #652 migration is **under way**, and the two
+environments now live on two different VPSs:
+
+| | machine | path | user |
+|---|---|---|---|
+| **prod** | old VPS, `79.137.92.154` | `/home/fedora/Arbore` | `fedora` |
+| **dev** | new VPS, `162.19.13.82` | `/home/debian/Arbore` | `debian` |
+
+`generator.arbore.app` (the 3D workshop) and `api-dev.arbore.app` point at the
+**new** VPS; `api.arbore.app` and `web.arbore.app` at the old one.
+
+**And the layout changed in kind.** The old machine held two separate git
+checkouts — `Arbore` and `Arbore-dev` — which kept each environment's data
+apart without anyone having to think about it: the `docker-compose.yml`
+defaults are **relative to the compose file**.
+
+The new machine holds a **single checkout** for two compose stacks
+(`arbore-prod` and `arbore-dev`). The same defaults therefore converge on the
+same directories. That is what made both backends share their thumbnail
+directory **writable** until 2026-11-02.
+
+What is partitioned today, and what is not, is tracked in #434. `deploy.sh`
+now refuses to start when another environment already mounts the target
+directory.
 
 ---
 
@@ -142,11 +166,11 @@ Deployment is **manual**, by choice: nobody ships to production without knowing
 it. On the VPS, one checkout per environment.
 
 ```sh
-# production
+# production — old VPS
 cd /home/fedora/Arbore && ./deploy.sh
 
-# development
-cd /home/fedora/Arbore-dev && ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
+# development — new VPS
+cd /home/debian/Arbore && ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
 ```
 
 Three traps, all hit for real:
@@ -157,8 +181,27 @@ refuses: `Checkout sur 'dev', attendu 'main' — déploiement refusé`. This gua
 branch silently. The default is `main`, so production does not set the variable.
 
 **Do not run `deploy.sh` under `sudo`.** The script handles Docker elevation
-itself. Under `sudo`, git switches to root's keys and `git pull` fails with a
-misleading `Permission denied (publickey)`.
+itself: the user does not need to be in the `docker` group.
+
+> ⚠️ **The symptom described here is gone, the reason is not.** This warning
+> announced a `Permission denied (publickey)` on `git pull`, back when the
+> remote used SSH. It moved to **public HTTPS**: under `sudo`, the pull now
+> **succeeds**. The warning went silent, and it was ignored all through
+> 2026-11-02.
+>
+> The two real consequences, measured that day:
+>
+> | | |
+> |---|---|
+> | `$HOME` becomes `/root` | the age key is not found, `apply_secrets` **warns then returns 0** — the deployment reports "finished" while running on the **old** secrets |
+> | files are written by root | **167 entries out of 1021** in `.git`, and the next manual `git pull` fails |
+>
+> Verified without `sudo`: secrets decrypted, images pulled, health 200, and
+> **0 root-owned entries** in `.git`.
+>
+> Since #716 the script tolerates being run under `sudo` — it recovers the real
+> user through `SUDO_USER` and works under that identity. That is a safety net,
+> not a licence: run it without.
 
 **Wait for images to be published.** `deploy.sh` pulls the image tagged
 `sha-<commit>`; if the publish workflow has not finished, the pull fails and the

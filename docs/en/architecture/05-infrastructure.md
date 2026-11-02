@@ -151,40 +151,62 @@ exclusion of the commit read from `GET /health`.
 
 ## Environments
 
-Two independent stacks on one machine. They share the kernel, the disk and the
-Firebase project; they share **neither the version, nor the ports, nor the
-environment file**.
+Two independent stacks, **on two machines since the migration under way**
+(#652). They share the Firebase project; they share neither version, ports, nor
+environment file.
 
 ```mermaid
 flowchart TB
-    subgraph host["VPS"]
+    subgraph old["Old VPS · 79.137.92.154 · Fedora"]
         subgraph prod["arbore-prod · /home/fedora/Arbore · main"]
             p1["backend :8080"]
             p2["web :3000"]
-            p3["ai :8000"]
         end
-        subgraph devenv["arbore-dev · /home/fedora/Arbore-dev · dev"]
+        nginxA["nginx (host)"]
+    end
+    subgraph new["New VPS · 162.19.13.82 · Debian"]
+        subgraph devenv["arbore-dev · /home/debian/Arbore · dev"]
             d1["backend :8081"]
             d2["web :3001"]
-            d3["ai :8001"]
+            d3["vignettes-ouvrier (profile)"]
         end
-        nginx["nginx (host)<br/>:80 / :443"]
+        nginxB["nginx (host)"]
     end
-    nginx -->|api.arbore.app| p1
-    nginx -->|web.arbore.app| p2
-    nginx -->|api-dev.arbore.app| d1
+    nginxA -->|api.arbore.app| p1
+    nginxA -->|web.arbore.app| p2
+    nginxB -->|api-dev.arbore.app| d1
+    nginxB -->|generator.arbore.app| d2
     prod -.->|arbore| mongo[("MongoDB Atlas")]
     devenv -.->|arbore_dev| mongo
 ```
 
-**One git checkout per environment is required, not a convenience.**
-`deploy.sh` derives the image tag from `git rev-parse HEAD`: a shared checkout
-would deploy the same commit on both sides, defeating the point of having two
-environments.
+> The Python AI generator (`ai :8000`) appeared here until 2026-11-02. It was
+> **dropped on 2026-09-20** (#558).
+
+**One git checkout per environment is necessary, not a convenience.**
+`deploy.sh` derives the image tag from `git rev-parse HEAD` of the current
+checkout, and the branch guard requires `main` for prod, `dev` for dev. A
+checkout can only sit on one branch at a time.
+
+> ⚠️ **Consequence for the cutover, not to be discovered on the day.** The new
+> VPS has **a single checkout** (`/home/debian/Arbore`, on `dev`) because only
+> one environment is deployed there. Bringing production onto it will require a
+> **second checkout** — otherwise the two deployments fight over the branch and
+> the guard refuses one of them.
+>
+> That single checkout is also what made the compose data paths converge, since
+> they are relative to the compose file. Both backends shared their thumbnail
+> directory writable until 2026-11-02. Tracked in #434.
 
 **A non-primary environment does not touch host configuration.** The crontab is
-rendered with the current checkout path: applied from `Arbore-dev`, it would
-point production's jobs at that directory, the reconciliation job included.
+rendered with the current checkout path: applied from a secondary checkout, it
+would point production's jobs at that directory, the reconciliation job
+included.
+
+> Verified on 2026-11-02: the new VPS has **no** crontab, the guard having
+> held. But the first `prod` deployment there will install one — the old
+> machine's must be removed **in the same move**, or `reconcile-guests --apply`
+> will run on two machines on the same Sunday.
 
 Operational detail in [`../operations/vps-bootstrap.md`](../operations/vps-bootstrap.md).
 To target dev from the iOS app, see

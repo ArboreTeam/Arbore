@@ -1,6 +1,6 @@
 # C4 — Niveau 3 : Composants Backend
 
-Cette vue ouvre le container **Backend API** (Go 1.25 + Gin) et expose ses modules principaux.
+Cette vue ouvre le container **Backend API** (Go 1.26 + Gin) et expose ses modules principaux.
 
 Le code est organisé autour d'un `main.go` (~2 500 lignes) regroupant déclarations de types, handlers et bootstrap, complété par :
 

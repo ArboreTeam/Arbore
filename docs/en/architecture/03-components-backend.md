@@ -1,6 +1,6 @@
 # C4 — Level 3: Backend Components
 
-This view opens up the **Backend API** container (Go 1.25 + Gin) and exposes its main modules.
+This view opens up the **Backend API** container (Go 1.26 + Gin) and exposes its main modules.
 
 The code is organized around a `main.go` file (~2,500 lines) bundling type declarations, handlers and bootstrap, supplemented by:
 

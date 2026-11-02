@@ -213,6 +213,22 @@ def chrono(phase):
               flush=True)
 
 
+def compter_triangles(objets):
+    """Triangles portés par ces maillages.
+
+    `loop_triangles` n'est peuplé qu'après `calc_loop_triangles()` ; sans lui
+    on retombe sur la somme des polygones, qui donne le même ordre de grandeur
+    pour des maillages triangulés — ce que sont les nôtres.
+    """
+    n = 0
+    for o in objets:
+        if o.type != "MESH":
+            continue
+        n += len(o.data.loop_triangles) or sum(
+            len(pl.vertices) - 2 for pl in o.data.polygons)
+    return n
+
+
 def boite(objets):
     """Boîte englobante en coordonnées du monde."""
     pts = [o.matrix_world @ Vector(c) for o in objets for c in o.bound_box]
@@ -441,6 +457,11 @@ def composer(modele, pot_chemin, pose):
 
     with chrono("import_plante"):
         racines_plante, plante = importer_usd(modele)
+    # Comptés SEPAREMENT, et c'est le point de la mesure : une scene avec pot
+    # pese 790 a 860 mille triangles contre 10 a 123 mille sans, mais le USDZ
+    # du pot ne fait que 0,51 Mo — il ne peut pas en porter 700 000. Reste a
+    # prouver que la masse vient de la PLANTE, pas du pot (#695).
+    print(f"{MARQUE_TEMPS} tri_plante={compter_triangles(plante)}", flush=True)
     for o in racines_plante:
         o.parent = sujet
     if not pot_chemin or not pose:
@@ -449,6 +470,7 @@ def composer(modele, pot_chemin, pose):
 
     with chrono("import_pot"):
         racines_pot, pot = importer_usd(pot_chemin)
+    print(f"{MARQUE_TEMPS} tri_pot={compter_triangles(pot)}", flush=True)
 
     bpy.ops.object.empty_add(location=(0, 0, 0))
     porteur = bpy.context.active_object
@@ -546,7 +568,14 @@ def main():
     hauteur = max(haut.z, 0.001)
     largeur = max(haut.x - bas.x, 0.001)
     profondeur = max(haut.y - bas.y, 0.001)
-    print(f"sujet H={hauteur:.4f} L={largeur:.4f} P={profondeur:.4f}")
+    # Relayé avec les mesures de temps, et c'est voulu : `shadow_maximum_resolution`
+    # est exprimée en UNITÉS DE MONDE (0,5 mm par texel). La surface de carte
+    # d'ombre croît donc avec le CARRÉ de l'étendue de la scène — et nos
+    # maillages ne sont pas à l'échelle réelle, le pot étant en plus remis à
+    # l'échelle du socle. Sans ces trois nombres à côté du temps de rendu, on ne
+    # peut pas vérifier si c'est bien là qu'est le surcoût du pot (#695).
+    print(f"{MARQUE_TEMPS} sujet_h={hauteur:.4f} sujet_l={largeur:.4f} "
+          f"sujet_p={profondeur:.4f} etendue={largeur * profondeur:.4f}", flush=True)
 
     cadre = cadrer(largeur, hauteur, profondeur, LARGEUR / HAUTEUR)
     with chrono("decor_eclairage_camera"):

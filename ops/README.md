@@ -37,7 +37,12 @@ C'est le comportement voulu. Pour changer une entrée cron ou une unité systemd
 
 - **Les secrets** — hors dépôt par conception. Voir #401 §6 bis (piste SOPS + age).
 - **La configuration nginx** — pas encore déclarée, à traiter.
-- **`/etc/cf-http-firewall/cf-ranges-v4.txt`** — donnée générée par `cf-update-ranges.sh`, pas une configuration.
+- **`/etc/cf-http-firewall/cf-ranges-v4.txt`** — donnée générée par
+  `cf-update-ranges.sh`, pas une configuration. Le script **crée son propre
+  répertoire** depuis le 2026-11-03 : il ne l'était par personne, et sur une
+  machine neuve le rafraîchissement échouait à chaque déclenchement, sans
+  conséquence visible puisque le pare-feu retombe sur son repli codé en dur
+  (#652).
 - **Le provisionnement initial** de la machine — voir `docs/fr/operations/vps-bootstrap.md`.
 
 ## Références

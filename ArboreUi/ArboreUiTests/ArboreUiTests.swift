@@ -86,7 +86,8 @@ enum LiveIntegrationTestGate {
     /// la main.
     static func requireBackendReachable(
         suite: String,
-        timeout: TimeInterval = 7
+        essais: Int = 3,
+        delaiParEssai: TimeInterval = 10
     ) throws {
         let adresse = AppConfig.baseURL
 
@@ -95,35 +96,66 @@ enum LiveIntegrationTestGate {
                 suite: suite, adresse: adresse, detail: "URL de backend invalide")
         }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = timeout - 2
+        var dernierDetail = "aucune tentative"
+        for essai in 1...max(essais, 1) {
+            switch interrogerSante(url: url, delai: delaiParEssai) {
+            case .success:
+                return
+            case .failure(let detail):
+                dernierDetail = detail
+                // Pause courte avant de réessayer : on attend un service qui
+                // se réveille, pas un service en panne.
+                if essai < essais { Thread.sleep(forTimeInterval: 2) }
+            }
+        }
+
+        throw BackendPromisMaisAbsent(
+            suite: suite, adresse: adresse,
+            detail: "\(essais) tentative(s) sur /health, la dernière : \(dernierDetail)")
+    }
+
+    private enum ResultatDeSante {
+        case success
+        case failure(String)
+    }
+
+    /// Une interrogation de `/health`, synchrone par sémaphore.
+    ///
+    /// Plusieurs tentatives, et c'est délibéré. Le premier appel HTTPS d'une
+    /// suite paie la résolution DNS, la poignée TLS et le réveil de
+    /// Cloudflare ; sur un runner froid il a dépassé cinq secondes en CI le
+    /// 2026-11-03, alors que les trois tests suivants de la même classe sont
+    /// passés sans peine.
+    ///
+    /// Un portillon qui crie au backend absent pour une poignée de main lente
+    /// devient la prochaine chose qu'on apprend à ignorer — exactement le
+    /// défaut qu'il a été écrit pour corriger. Il doit distinguer « absent »
+    /// de « lent ».
+    private static func interrogerSante(url: URL, delai: TimeInterval) -> ResultatDeSante {
+        var requete = URLRequest(url: url)
+        requete.httpMethod = "GET"
+        requete.timeoutInterval = delai
 
         let verrou = DispatchSemaphore(value: 0)
         var code: Int?
         var echec: Error?
 
-        URLSession.shared.dataTask(with: request) { _, response, error in
-            code = (response as? HTTPURLResponse)?.statusCode
-            echec = error
+        URLSession.shared.dataTask(with: requete) { _, reponse, erreur in
+            code = (reponse as? HTTPURLResponse)?.statusCode
+            echec = erreur
             verrou.signal()
         }.resume()
 
-        guard verrou.wait(timeout: .now() + timeout) == .success else {
-            throw BackendPromisMaisAbsent(
-                suite: suite, adresse: adresse,
-                detail: "aucune réponse de /health en \(Int(timeout)) s")
+        guard verrou.wait(timeout: .now() + delai + 3) == .success else {
+            return .failure("aucune réponse en \(Int(delai)) s")
         }
         if let echec {
-            throw BackendPromisMaisAbsent(
-                suite: suite, adresse: adresse,
-                detail: "échec réseau sur /health (\(echec.localizedDescription))")
+            return .failure("échec réseau (\(echec.localizedDescription))")
         }
         guard code == 200 else {
-            throw BackendPromisMaisAbsent(
-                suite: suite, adresse: adresse,
-                detail: "/health a rendu \(code.map(String.init) ?? "aucun statut")")
+            return .failure("/health a rendu \(code.map(String.init) ?? "aucun statut")")
         }
+        return .success
     }
 
     // MARK: - Les deux identités que le backend distingue

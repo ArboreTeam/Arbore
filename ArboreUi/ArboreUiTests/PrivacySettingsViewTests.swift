@@ -483,210 +483,45 @@ class PrivacySettingsViewTests_OLD {
 
 class PrivacySettingsIntegrationTests: XCTestCase {
 
-    // MARK: - Test User (Auto-created & Auto-deleted)
-    /*
-     User de test créé automatiquement dans setUp() et supprimé dans tearDown()
-     Email: test-rgpd-{timestamp}@arbore.test
-     Password: TestRGPD2026!
+    // MARK: - Compte de test membre
 
-     Le user est créé dans:
-     1. Firebase Authentication (via createUser)
-     2. MongoDB collection "users" (via POST /users)
+    /// Cette suite vise les trois routes `/consents`, fermées aux invités
+    /// depuis #377. Elle ouvre donc une session **membre** sur un compte de
+    /// test jetable, dont l'adresse est marquée vérifiée par la route
+    /// interne de provisionnement.
+    ///
+    /// L'ancienne fixture créait un compte jetable à chaque exécution et ne
+    /// vérifiait jamais l'adresse : depuis le portillon d'email, le backend
+    /// refusait `testLoadConsentsFromBackend_ExistingConsents` en
+    /// `EMAIL_NOT_VERIFIED` — sans que personne le voie, puisque la suite ne
+    /// tournait pas (#725).
 
-     Et supprimé automatiquement de:
-     1. MongoDB (via DELETE /users, self-authz par token Firebase)
-     2. Firebase Authentication (via user.delete())
-     */
-
-    let testPassword = "TestRGPD2026!"
-    var testEmail: String!
     var testUserUID: String?
+    var testEmail: String!
 
-
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         try LiveIntegrationTestGate.requireEnabled()
         try LiveIntegrationTestGate.requireBackendReachable(suite: "PrivacySettings")
 
-        // Configuration Firebase
-        if FirebaseApp.app() == nil {
-            FirebaseApp.configure()
-        }
-
-        // Générer un email unique pour éviter les conflits
-        testEmail = "test-rgpd-\(UUID().uuidString.lowercased())@arbore.test"
-
-        // Créer le user dans Firebase Auth
-        let createExpectation = XCTestExpectation(description: "Create test user")
-        let startTime = Date()
-
-        Auth.auth().createUser(withEmail: testEmail, password: testPassword) { result, error in
-            let elapsed = Date().timeIntervalSince(startTime)
-            
-            if let error = error {
-                let nsError = error as NSError
-                let errorMsg = """
-                ❌ PrivacySettingsIntegrationTests setUp FAILED
-                📝 Firebase createUser failed after \(String(format: "%.2f", elapsed))s
-                📝 Error domain: \(nsError.domain)
-                📝 Error code: \(nsError.code)
-                📝 Description: \(error.localizedDescription)
-                📝 UserInfo: \(nsError.userInfo)
-                """
-                XCTFail(errorMsg)
-                createExpectation.fulfill()
-                return
-            }
-
-            guard let uid = result?.user.uid else {
-                XCTFail("❌ PrivacySettingsIntegrationTests setUp - No UID returned after user creation")
-                createExpectation.fulfill()
-                return
-            }
-
-            self.testUserUID = uid
-
-            // Obtenir le token Firebase
-            result?.user.getIDToken { token, error in
-                guard let firebaseToken = token else {
-                    XCTFail("❌ Failed to get Firebase token: \(error?.localizedDescription ?? "Unknown error")")
-                    createExpectation.fulfill()
-                    return
-                }
-                
-                // Créer le user dans MongoDB via backend avec le token
-                self.createUserInBackend(uid: uid, email: self.testEmail, firebaseToken: firebaseToken) { success, statusCode, responseBody in
-                    if !success {
-                        XCTFail("⚠️ PrivacySettingsIntegrationTests setUp - Failed to create user in MongoDB\n📝 HTTP Status: \(statusCode ?? -1)\n📝 Response: \(responseBody ?? "No response")")
-                    }
-                    createExpectation.fulfill()
-                }
-            }
-        }
-
-        wait(for: [createExpectation], timeout: 30.0)
-
-        // Nettoyer les données locales
+        let membre = try await LiveIntegrationTestGate.ouvrirSessionMembre()
+        testUserUID = membre.uid
+        testEmail = membre.email
         clearUserDefaults()
     }
 
-    override func tearDownWithError() throws {
-        // Nettoyer les données locales
+    /// Le compte est JETABLE : chaque exécution a le sien, et il part avec
+    /// ses données — consentements compris, ce qui garde la base de dev
+    /// propre d'une exécution à l'autre.
+    override func tearDown() async throws {
         clearUserDefaults()
-
-        // Supprimer le user du backend (MongoDB)
-        if testUserUID != nil {
-            let deleteBackendExpectation = XCTestExpectation(description: "Delete user from backend")
-
-            deleteUserFromBackend { success in
-                if success {
-                    NSLog("✅ Test user deleted from MongoDB")
-                } else {
-                    NSLog("⚠️ Failed to delete user from MongoDB")
-                }
-                deleteBackendExpectation.fulfill()
-            }
-
-            wait(for: [deleteBackendExpectation], timeout: 5.0)
-        }
-
-        // Supprimer le user de Firebase Auth
-        if let currentUser = Auth.auth().currentUser {
-            let deleteFirebaseExpectation = XCTestExpectation(description: "Delete user from Firebase")
-
-            currentUser.delete { error in
-                if let error = error {
-                    NSLog("⚠️ Failed to delete user from Firebase: \(error.localizedDescription)")
-                } else {
-                    NSLog("✅ Test user deleted from Firebase")
-                }
-                deleteFirebaseExpectation.fulfill()
-            }
-
-            wait(for: [deleteFirebaseExpectation], timeout: 5.0)
-        }
-
+        await LiveIntegrationTestGate.fermerEtDetruireLaSessionDeTest()
         testUserUID = nil
         testEmail = nil
     }
 
     // MARK: - Helper Methods
 
-    private func createUserInBackend(uid: String, email: String, firebaseToken: String, completion: @escaping (Bool, Int?, String?) -> Void) {
-        guard let url = URL(string: AppConfig.usersEndpoint) else {
-            completion(false, nil, "Invalid URL")
-            return
-        }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
-        request.setValue("Bearer \(firebaseToken)", forHTTPHeaderField: "Authorization")
-
-        let userData: [String: Any] = [
-            "email": email,
-            "firstName": "Test",
-            "lastName": "RGPD"
-        ]
-
-        do {
-            request.httpBody = try JSONSerialization.data(withJSONObject: userData)
-        } catch {
-            completion(false, nil, "Serialization error: \(error.localizedDescription)")
-            return
-        }
-
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                completion(false, nil, "Network error: \(error.localizedDescription)")
-                return
-            }
-
-            if let httpResponse = response as? HTTPURLResponse {
-                let bodyString = data.flatMap { String(data: $0, encoding: .utf8) } ?? "No response body"
-                let isSuccess = (200...299).contains(httpResponse.statusCode)
-                completion(isSuccess, httpResponse.statusCode, bodyString)
-            } else {
-                completion(false, nil, "No HTTP response")
-            }
-        }.resume()
-    }
-
-    /// Le backend dérive l'uid du Bearer token Firebase (self-only authz,
-    /// cf. ADR 0005). Pas d'uid dans l'URL — on tape `DELETE /users` tout
-    /// court avec le Bearer token. La variante précédente `DELETE /users/:uid`
-    /// renvoyait 404 (route inexistante) et laissait les users de test orphans
-    /// en base.
-    private func deleteUserFromBackend(completion: @escaping (Bool) -> Void) {
-        guard let currentUser = Auth.auth().currentUser else {
-            completion(false)
-            return
-        }
-        currentUser.getIDToken { token, _ in
-            guard let token = token,
-                  let url = URL(string: AppConfig.usersEndpoint) else {
-                completion(false)
-                return
-            }
-            var request = URLRequest(url: url)
-            request.httpMethod = "DELETE"
-            request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-            URLSession.shared.dataTask(with: request) { _, response, error in
-                if let error = error {
-                    NSLog("❌ Error deleting user from backend: \(error)")
-                    completion(false)
-                    return
-                }
-                if let httpResponse = response as? HTTPURLResponse {
-                    completion(httpResponse.statusCode == 200)
-                } else {
-                    completion(false)
-                }
-            }.resume()
-        }
-    }
 
     private func clearUserDefaults() {
         UserDefaults.standard.removeObject(forKey: "privacy_profilePublic")

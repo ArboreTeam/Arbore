@@ -180,69 +180,34 @@ class ModelCacheManagerTests: XCTestCase {
 
 class ModelCacheManagerIntegrationTests: XCTestCase {
 
-    let testPassword = "TestCache2026!"
-    var testEmail: String!
     var testUserUID: String?
 
-
-    override func setUpWithError() throws {
+    /// Session **invitée**, et non plus un compte email/mot de passe jetable.
+    ///
+    /// `/models/:filename` accepte les invités — c'est une route du catalogue,
+    /// pas du compte. L'ancienne fixture créait une adresse qu'elle ne
+    /// vérifiait jamais, et depuis le portillon d'email de #377 le backend
+    /// refusait les trois tests en `EMAIL_NOT_VERIFIED`. Ils ne l'ont jamais
+    /// signalé parce qu'ils ne tournaient pas (#725).
+    override func setUp() async throws {
         try LiveIntegrationTestGate.requireEnabled()
         try LiveIntegrationTestGate.requireBackendReachable(suite: "ModelCacheManager")
 
-        // Configuration Firebase
-        if FirebaseApp.app() == nil {
-            FirebaseApp.configure()
-        }
-
-        // Créer un user de test pour les requêtes authentifiées
-        testEmail = "test-cache-\(UUID().uuidString.lowercased())@arbore.test"
-
-        let createExpectation = XCTestExpectation(description: "Create test user")
-
-        Auth.auth().createUser(withEmail: testEmail, password: testPassword) { result, error in
-            if let error = error {
-                XCTFail("Failed to create test user: \(error)")
-                createExpectation.fulfill()
-                return
-            }
-
-            self.testUserUID = result?.user.uid
-
-            // Sign in
-            Auth.auth().signIn(withEmail: self.testEmail, password: self.testPassword) { _, signInError in
-                if let signInError = signInError {
-                    XCTFail("Failed to sign in test user: \(signInError)")
-                }
-                createExpectation.fulfill()
-            }
-        }
-
-        wait(for: [createExpectation], timeout: 30.0)
-
-        // Nettoyer le cache
-        let cacheExpectation = expectation(description: "Clear model cache")
-        Task {
-            try? await ModelCacheManager.shared.clearCache()
-            cacheExpectation.fulfill()
-        }
-        wait(for: [cacheExpectation], timeout: 10.0)
+        testUserUID = try await LiveIntegrationTestGate.ouvrirSessionInvitee().uid
+        try? await ModelCacheManager.shared.clearCache()
     }
 
     override func tearDown() async throws {
-        // Nettoyer le cache
         try await ModelCacheManager.shared.clearCache()
 
-        // Supprimer le user de Firebase
-        if let currentUser = Auth.auth().currentUser {
-            let deleteExpectation = XCTestExpectation(description: "Delete Firebase user")
-            currentUser.delete { _ in
-                deleteExpectation.fulfill()
-            }
-            await fulfillment(of: [deleteExpectation], timeout: 5.0)
+        // L'identité anonyme est supprimée, pas seulement déconnectée : une
+        // session invitée abandonnée laisse un uid que Firebase ne nettoie
+        // qu'au bout de trente jours, et que le job de réconciliation (#393)
+        // devrait ensuite ramasser. Autant ne pas en créer la dette.
+        if let courant = Auth.auth().currentUser {
+            try? await courant.delete()
         }
-
         testUserUID = nil
-        testEmail = nil
     }
 
     // MARK: - Real Backend Tests
@@ -346,12 +311,10 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
             XCTAssertTrue(true, "Should fail without auth")
         }
 
-        // Re-sign in pour tearDown
-        let signInExpectation = XCTestExpectation(description: "Re-sign in")
-        Auth.auth().signIn(withEmail: testEmail, password: testPassword) { _, _ in
-            signInExpectation.fulfill()
-        }
-        wait(for: [signInExpectation], timeout: 5.0)
+        // Rouvrir une session pour que `tearDown` ait une identité à nettoyer.
+        // Une session invitée n'est pas rattrapable par mot de passe : on en
+        // ouvre une neuve, et c'est celle-là que tearDown supprimera.
+        try? await LiveIntegrationTestGate.ouvrirSessionInvitee()
     }
 }
 

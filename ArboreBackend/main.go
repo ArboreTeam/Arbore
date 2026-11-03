@@ -2549,6 +2549,12 @@ func buildRouter() *gin.Engine {
 		internal.GET("/plants", getPlants)
 		internal.GET("/models/:filename", servePlantModel)
 		internal.POST("/models/thumbnails/:plantId", middleware.MaxBodyBytes(maxThumbnailBytes+(1<<20)), thumbnailUploadLimiter.Middleware(), uploadPlantThumbnail)
+		// Provisionne un compte de test à email vérifié, pour que les suites
+		// d'intégration iOS puissent éprouver le parcours d'un MEMBRE sans
+		// boîte mail. Voir `test_accounts.go` : la route ne crée rien, se
+		// borne au domaine réservé `@arbore.test`, et n'existe pas en
+		// production puisque la clé interne n'y est pas posée.
+		internal.POST("/test-accounts/verify", verifierCompteDeTest)
 	}
 
 	return router

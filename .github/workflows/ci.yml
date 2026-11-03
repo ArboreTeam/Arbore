@@ -367,25 +367,48 @@ jobs:
             ARBORE_BACKEND_HOST="${{ secrets.ARBORE_BACKEND_HOST }}" \
             | xcpretty
 
-      - name: 🧪 Switch to test API key (route to arbore_test DB)
-        # Si ARBORE_API_KEY_TEST est défini comme secret, on régénère
-        # Secrets.xcconfig avec cette clé avant les tests. Le backend
-        # détecte la clé test via APIKeyMiddleware et route les écritures
-        # vers la DB `arbore_test` au lieu de `arbore` (cf. issue #159 v2).
-        # Si le secret n'est pas défini, on reste sur la clé prod et les
-        # tests continuent de polluer `arbore` (état antérieur, à éviter).
-        if: env.ARBORE_API_KEY_TEST != ''
+      # Vers quel backend les tests tapent, et pourquoi c'est DEV. (#725)
+      #
+      # Jusqu'au 2026-11-03 ils visaient la PRODUCTION avec `ARBORE_API_KEY_TEST`,
+      # qui y route les écritures vers la base `arbore_test`. Ça fonctionnait,
+      # mais ça faisait écrire des tests dans le cluster de production — et
+      # surtout la clé de test n'est acceptée QUE par la prod, ce qui rendait
+      # inatteignable la route `/internal` de provisionnement (absente de la
+      # prod par construction, #696).
+      #
+      # Priorité à dev dès que ses secrets existent. Sans eux, le comportement
+      # d'avant est conservé à l'identique : rien ne casse chez qui n'a pas
+      # provisionné.
+      - name: 🎯 Choisir le backend des tests
         env:
-          ARBORE_API_KEY_TEST: ${{ secrets.ARBORE_API_KEY_TEST }}
+          DEV_HOST: ${{ secrets.ARBORE_DEV_BACKEND_HOST }}
+          DEV_API_KEY: ${{ secrets.ARBORE_DEV_API_KEY }}
+          TEST_API_KEY: ${{ secrets.ARBORE_API_KEY_TEST }}
         run: |
-          echo "🔁 Réécriture Secrets.xcconfig avec ARBORE_API_KEY_TEST"
-          cat > Secrets.xcconfig << EOF
-          // Secrets.xcconfig - Test mode (CI only)
-          ARBORE_API_KEY = ${ARBORE_API_KEY_TEST}
+          if [ -n "$DEV_HOST" ] && [ -n "$DEV_API_KEY" ]; then
+            echo "🎯 Backend des tests : DEV ($DEV_HOST)"
+            cat > Secrets.xcconfig << EOF
+          // Secrets.xcconfig — tests CI, backend de DÉVELOPPEMENT
+          ARBORE_API_KEY = ${DEV_API_KEY}
+          ARBORE_BACKEND_PROTOCOL = https
+          ARBORE_BACKEND_HOST = ${DEV_HOST}
+          EOF
+            echo "CIBLE_DES_TESTS=dev" >> "$GITHUB_ENV"
+          elif [ -n "$TEST_API_KEY" ]; then
+            echo "🎯 Backend des tests : PRODUCTION, base arbore_test"
+            echo "   Poser ARBORE_DEV_BACKEND_HOST et ARBORE_DEV_API_KEY pour"
+            echo "   basculer sur dev et cesser d'écrire dans le cluster de prod."
+            cat > Secrets.xcconfig << EOF
+          // Secrets.xcconfig — tests CI, backend de PRODUCTION, base de test
+          ARBORE_API_KEY = ${TEST_API_KEY}
           ARBORE_BACKEND_PROTOCOL = ${{ secrets.ARBORE_BACKEND_PROTOCOL }}
           ARBORE_BACKEND_HOST = ${{ secrets.ARBORE_BACKEND_HOST }}
           EOF
-          echo "✅ Secrets.xcconfig (test) écrit"
+            echo "CIBLE_DES_TESTS=prod-base-de-test" >> "$GITHUB_ENV"
+          else
+            echo "⚠️  Aucun secret de test : les tests viseraient la base de PRODUCTION."
+            echo "CIBLE_DES_TESTS=prod" >> "$GITHUB_ENV"
+          fi
 
       - name: 🧪 Run Unit Tests
         # 35 min : sous Xcode 26 le `xcodebuild test` recompile l'app + les
@@ -393,15 +416,26 @@ jobs:
         # suite ; 20 min étaient trop justes et faisaient timeout le step.
         timeout-minutes: 35
         env:
-          ARBORE_API_KEY_EFFECTIVE: ${{ secrets.ARBORE_API_KEY_TEST != '' && secrets.ARBORE_API_KEY_TEST || secrets.ARBORE_API_KEY }}
+          ARBORE_API_KEY_EFFECTIVE: ${{ secrets.ARBORE_DEV_API_KEY != '' && secrets.ARBORE_DEV_API_KEY || (secrets.ARBORE_API_KEY_TEST != '' && secrets.ARBORE_API_KEY_TEST || secrets.ARBORE_API_KEY) }}
+          ARBORE_BACKEND_HOST_EFFECTIF: ${{ secrets.ARBORE_DEV_BACKEND_HOST != '' && secrets.ARBORE_DEV_BACKEND_HOST || secrets.ARBORE_BACKEND_HOST }}
+          # Les suites d'intégration ne s'exécutent que contre DEV. Sur la
+          # production, la route `/internal` de provisionnement n'existe pas
+          # (#696) : les tests « membre » se sauteraient en le disant, et les
+          # « invité » écriraient dans le cluster de prod. (#725)
+          TEST_RUNNER_ARBORE_RUN_LIVE_INTEGRATION_TESTS: ${{ secrets.ARBORE_DEV_BACKEND_HOST != '' && '1' || '' }}
+          TEST_RUNNER_ARBORE_INTERNAL_KEY: ${{ secrets.ARBORE_DEV_INTERNAL_KEY }}
         run: |
           set -o pipefail
 
           echo "🧪 Running all tests (including integration tests with backend)"
-          if [ "${{ secrets.ARBORE_API_KEY_TEST != '' }}" = "true" ]; then
-            echo "ℹ️  Mode TEST actif : écritures dans arbore_test DB"
+          echo "🎯 Cible : ${CIBLE_DES_TESTS:-inconnue}"
+          if [ -n "${TEST_RUNNER_ARBORE_RUN_LIVE_INTEGRATION_TESTS:-}" ]; then
+            echo "🔌 Suites d'intégration ARMÉES : un backend injoignable fera ÉCHOUER le job"
+            if [ -z "${TEST_RUNNER_ARBORE_INTERNAL_KEY:-}" ]; then
+              echo "⏭️  Sans ARBORE_DEV_INTERNAL_KEY, les tests « membre » se sauteront"
+            fi
           else
-            echo "⚠️  Mode PROD : tests polluent arbore DB (ajouter ARBORE_API_KEY_TEST secret)"
+            echo "⏭️  Suites d'intégration non armées — elles se sauteront, visiblement"
           fi
 
           # Pas de -parallel-testing-enabled ici : ce flag surcharge le
@@ -425,7 +459,7 @@ jobs:
             SWIFT_TREAT_WARNINGS_AS_ERRORS=NO \
             ARBORE_API_KEY="$ARBORE_API_KEY_EFFECTIVE" \
             ARBORE_BACKEND_PROTOCOL="${{ secrets.ARBORE_BACKEND_PROTOCOL }}" \
-            ARBORE_BACKEND_HOST="${{ secrets.ARBORE_BACKEND_HOST }}" \
+            ARBORE_BACKEND_HOST="$ARBORE_BACKEND_HOST_EFFECTIF" \
             2>&1 | tee build/test-output.log
           
           # Show diagnostic logs

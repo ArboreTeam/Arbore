@@ -299,6 +299,47 @@ func isAdminUID(uid string) bool {
 	return false
 }
 
+// MarkEmailVerified pose `emailVerified` sur une identité Firebase. (#725)
+//
+// Pourquoi ça existe. Depuis #377, le backend refuse toute route authentifiée
+// à une adresse non vérifiée — sauf la création et la suppression de compte.
+// Les tests d'intégration iOS créaient des comptes jetables qu'aucune boîte
+// mail ne pouvait valider, et échouaient donc en `EMAIL_NOT_VERIFIED`. Vérifié
+// le 2026-11-03 : dix tests sur vingt-sept, pour cette seule raison.
+//
+// Ce n'est PAS une dérogation au portillon. Le jeton émis ensuite porte
+// réellement `email_verified: true` ; le contrôle s'applique normalement. On
+// ne contourne pas la règle, on provisionne un compte qui la respecte.
+//
+// L'alternative écartée : une dérogation conditionnée à la clé d'API de test.
+// Elle aurait vécu EN PRODUCTION — relevé le 2026-11-03,
+// `ARBORE_API_KEY_TEST` est présente sur le backend de prod — et quiconque
+// détient cette clé aurait pu agir sans adresse vérifiée. Le contrôle aurait
+// cessé d'être éprouvé par qui que ce soit.
+//
+// La protection ici est ailleurs, et à deux étages : l'appelant doit porter la
+// clé interne, ABSENTE de la production par construction (#696), et l'adresse
+// doit appartenir au domaine de test.
+func MarkEmailVerified(ctx context.Context, uid string) error {
+	if firebaseAuth == nil {
+		return fmt.Errorf("firebase authentication service unavailable")
+	}
+	_, err := firebaseAuth.UpdateUser(ctx, uid, (&auth.UserToUpdate{}).EmailVerified(true))
+	return err
+}
+
+// LookupUIDByEmail rend l'uid Firebase d'une adresse.
+func LookupUIDByEmail(ctx context.Context, email string) (string, error) {
+	if firebaseAuth == nil {
+		return "", fmt.Errorf("firebase authentication service unavailable")
+	}
+	user, err := firebaseAuth.GetUserByEmail(ctx, email)
+	if err != nil {
+		return "", err
+	}
+	return user.UID, nil
+}
+
 // DeleteFirebaseUser removes the authentication identity after the application
 // data has been erased. It deliberately fails closed in release mode.
 func DeleteFirebaseUser(ctx context.Context, uid string) error {

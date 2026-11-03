@@ -12,6 +12,7 @@ The web front (Next.js, `web/` directory) is tested with **Vitest** (not Jest) +
 
 | File | What it covers |
 |---|---|
+| `web/lib/authService.test.ts` | **Sign-in** (#725): the session cookie set for one hour in `SameSite=Lax` and **cleared** on logout, `signUp` returning the user even when the backend refuses (the Firebase account already exists), Google asking for `prompt: select_account`, Apple asking for the `email` and `name` scopes, the backend upsert carrying the token, and that **every** call targets `/api/backend` — never the API directly, or the key would be in the bundle. |
 | `web/lib/api.test.ts` | The API client. Mocks `./authService`, stubs `fetch`. Checks the `Authorization` header, rewriting to the `/api/backend/...` proxy, 2xx parsing and `ApiError` on non-2xx. |
 | `web/middleware.test.ts` | Host and session guarding. Both directions of the cross protection: the workshop unreachable from `web.arbore.app`, and the app pages unreachable from `generator.arbore.app`. |
 | `web/lib/generator/depot.test.ts` | The on-disk store: atomic writes, reservation token, serialised mutations, expiry. **Including that depositing a mesh does not wipe the thumbnail queue** — a key missing from `lire()` would be lost on the first deposit. |
@@ -22,7 +23,7 @@ The web front (Next.js, `web/` directory) is tested with **Vitest** (not Jest) +
 | `web/app/api/generator/*.test.ts` | The workshop routes: artefacts, pots, sources, and route wiring. |
 | `web/components/shared/SectionTitle.test.tsx` | Component rendering. |
 
-**256 tests across 13 files** as of 2026-11-02. This document listed only
+**280 tests across 14 files** as of 2026-11-03. This document listed only
 **two** until then, and claimed no CI job ran them.
 
 ## Execution
@@ -43,7 +44,7 @@ cd web && npm run typecheck   # tsc --noEmit
 - Coverage is **deep on the workshop** and **thin on the application pages**. Measured, by directory:
 
   ```
-     0.0%    0/63    lib/authService.ts
+   100.0%   63/63    lib/authService.ts
      0.0%    0/451   app/garden
      0.0%    0/712   components/ui
     42.9%  211/492   app/api
@@ -51,4 +52,4 @@ cd web && npm run typecheck   # tsc --noEmit
     93.8%   45/48    middleware.ts
   ```
 
-  That is the real gap, and it follows where the work went. The most exposed is not the volume but `lib/authService.ts`: it carries `signUp`, `login`, `signInWithGoogle`, `signInWithApple` and the backend account upsert, in **63 statements with zero tests**.
+  That is the real gap, and it follows where the work went. `lib/authService.ts` was the most exposed — `signUp`, `login`, `signInWithGoogle`, `signInWithApple` and the backend account upsert, in 63 statements with **zero tests**. It is at **100%** as of 2026-11-03 (#725). The remaining volume is in the pages and the UI primitives.

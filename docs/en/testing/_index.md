@@ -7,12 +7,19 @@ This section documents Arbore's **test suites** (front and back), what they cove
 | iOS tests | iOS app (front) | XCTest + XCUITest | [`ios.md`](ios.md) |
 | Backend tests | Go API (back) | `go test` + testify | [`backend.md`](backend.md) |
 | Web tests | Next.js web front | Vitest + Testing Library | [`web.md`](web.md) |
-| Python tests | Maintenance scripts and thumbnail job | `unittest` | see below |
+| Python tests | Maintenance scripts, thumbnail worker and **renderer** | `unittest` | see below |
 
-> **The Python suite was not listed here** until 2026-11-03. It holds **58
-> tests** in `scripts/test_*.py`, covering in particular the thumbnail worker:
-> the exception type of its loop, the routes it targets, the agent it
-> announces, and the relaying of phase measurements.
+> **The Python suite was not listed here** until 2026-11-03. It holds **89
+> tests** in `scripts/test_*.py`. It covers the thumbnail worker (the exception
+> type of its loop, the routes it targets, the agent it announces, the relaying
+> of phase measurements) and, since #725, the **renderer** itself: `rendre.py`
+> is loaded with `bpy` and `mathutils` stubbed, which makes it possible to
+> exercise the framing, the colour conversions, the Y-up → Z-up frame change
+> and the #718 scale normalisation without Blender.
+>
+> Its constants are treated as a **contract**: a sky one shade too light, or a
+> marker off by one byte, makes the app refuse the thumbnail in silence. That
+> is the class of defect that cost 123 thumbnails on 30 October.
 >
 > ```sh
 > python3 -I -m unittest discover -s scripts -p 'test_*.py'
@@ -20,7 +27,7 @@ This section documents Arbore's **test suites** (front and back), what they cove
 >
 > It has had a CI job since 2026-11-03: **`🐍 Outillage (Python)`**, filtered
 > on `scripts/**` and `vignettes/**`. Until then no workflow mentioned
-> `unittest` — 58 tests passing in 14 milliseconds that nobody would have seen
+> `unittest` — tests passing in milliseconds that nobody would have seen
 > break.
 
 ## Philosophy
@@ -71,8 +78,8 @@ provider was not installed.
 |---|---|---|---|
 | **iOS** (`ArboreUi.app`) | **6.94%** — 6,164 / 88,850 lines | 335 passed, 26 skipped | `ios_ui`, job summary |
 | **Go backend** | **52.7%** (main 51.1%, middleware 63.9%) | 355 | `backend`, then Codecov |
-| **Web** | **30.8%** — 1,174 / 3,811 statements | 256 | `🌱 Web`, job summary |
-| **Python** (`scripts/`) | not measured | 58 | `🐍 Outillage`, execution only |
+| **Web** | **32.5%** — 1,237 / 3,811 statements | 280 | `🌱 Web`, job summary |
+| **Python** (`scripts/`) | not measured | 89 | `🐍 Outillage`, execution only |
 
 **The web number comes with a caveat.** Without `coverage.all`, v8 only counts
 the files the tests **load**: the 140 files no test imports drop out of the

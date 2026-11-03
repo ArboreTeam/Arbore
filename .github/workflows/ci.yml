@@ -64,6 +64,7 @@ jobs:
       ios_ui: ${{ steps.filter.outputs.ios_ui }}
       ios_ar: ${{ steps.filter.outputs.ios_ar }}
       web: ${{ steps.filter.outputs.web }}
+      outillage: ${{ steps.filter.outputs.outillage }}
     steps:
       - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v2
@@ -84,6 +85,40 @@ jobs:
             web:
               - 'web/**'
               - '.github/workflows/ci.yml'
+            # Scripts de maintenance et chaîne de vignettes. Les tests qui les
+            # couvrent vivent dans `scripts/`, mais ils testent aussi
+            # `vignettes/publier.py` — d'où les deux chemins.
+            outillage:
+              - 'scripts/**'
+              - 'vignettes/**'
+              - '.github/workflows/ci.yml'
+
+  # Outillage Python — 58 tests que RIEN n'exécutait jusqu'au 2026-11-03.
+  #
+  # Ils existaient, ils passaient, et aucun job ne les lançait : `grep -rn
+  # pytest .github/workflows/` ne rendait rien (#725). Le symptôme aurait été
+  # découvert le jour où l'un d'eux casse, c'est-à-dire jamais.
+  #
+  # Aucune dépendance à installer : `unittest` est dans la bibliothèque
+  # standard, et les trois fichiers chargent leur module par
+  # `importlib.util.spec_from_file_location` plutôt que par un paquet. Le job
+  # dure quelques secondes, dont l'essentiel en checkout — les tests
+  # eux-mêmes prennent 14 millisecondes.
+  outillage:
+    needs: changes
+    if: needs.changes.outputs.outillage == 'true' || github.event_name == 'workflow_dispatch'
+    name: 🐍 Outillage (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          # Alignée sur `vignettes/Dockerfile`, qui exécute `publier.py` en
+          # production : tester sur une autre version que celle qui tourne,
+          # c'est tester autre chose.
+          python-version: "3.11"
+      - name: 🧪 Tests unitaires
+        run: python3 -m unittest discover -s scripts -p 'test_*.py' -v
 
   # Backend Go - Tests et Build
   backend:
@@ -354,6 +389,7 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
             -derivedDataPath build/ \
             -resultBundlePath build/TestResults.xcresult \
+            -enableCodeCoverage YES \
             -maximum-concurrent-test-simulator-destinations 4 \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_ALLOWED=YES \
@@ -374,6 +410,55 @@ jobs:
             echo "Diagnostic logs (last 50 lines):"
             grep -E "🔍|📝|✅|❌|⚠️|Test Suite|Test Case|passed|failed" build/test-output.log | tail -50 || echo "No diagnostic logs found"
           fi
+
+      # Couverture iOS. Elle n'était mesurée NULLE PART avant le 2026-11-03 :
+      # ni le schéma ni la CI ne demandaient `-enableCodeCoverage`, donc
+      # 54 000 lignes de Swift n'avaient aucun chiffre. La première mesure, à
+      # la main, a donné 6,94 % sur l'application (#725).
+      #
+      # Non bloquant, et délibérément : un seuil posé sur un chiffre qu'on
+      # découvre serait arbitraire. Ce qu'on veut d'abord, c'est le VOIR
+      # bouger à chaque PR — la même logique que la garde de cloisonnement
+      # de #434, qui relève sans refuser.
+      - name: 📈 Couverture iOS
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ ! -d build/TestResults.xcresult ]; then
+            echo "Pas de bundle de résultats — étape de test non atteinte."
+            exit 0
+          fi
+          echo "### 📈 Couverture iOS" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          xcrun xccov view --report --only-targets build/TestResults.xcresult \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          # Les vingt fichiers les moins couverts, triés par nombre de lignes
+          # NON couvertes : un fichier de 10 000 lignes à 0 % pèse plus qu'un
+          # fichier de 20 lignes à 0 %, et c'est ce classement-là qui dit où
+          # écrire le prochain test.
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "<details><summary>Les 20 fichiers qui manquent le plus de couverture</summary>" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          # awk POSIX : les runners macOS n'ont pas la `match()` à trois
+          # arguments de GNU awk, qui échouerait ici en silence. On découpe
+          # donc les champs à la main — le rapport a la forme
+          # `index  chemin  nb  12.34% (56/789)`.
+          xcrun xccov view --report --files-for-target ArboreUi.app build/TestResults.xcresult 2>/dev/null \
+            | awk 'NF >= 5 && $5 ~ /^\([0-9]+\/[0-9]+\)$/ {
+                     pct = $4; sub(/%$/, "", pct)
+                     paire = $5; gsub(/[()]/, "", paire)
+                     split(paire, n, "/")
+                     manquant = n[2] - n[1]
+                     chemin = $2
+                     sub(/.*\/ArboreUi\/ArboreUi\//, "", chemin)
+                     if (manquant > 0) printf "%7d non couvertes  %6.2f%%  %s\n", manquant, pct, chemin
+                   }' \
+            | sort -rn | head -20 >> "$GITHUB_STEP_SUMMARY" || echo "(classement indisponible)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "</details>" >> "$GITHUB_STEP_SUMMARY"
 
       - name: 📊 Parse test results
         if: always()
@@ -589,8 +674,36 @@ jobs:
       - name: 🧹 Lint
         run: npm run lint
 
+      # Avec couverture, et pas seulement `npm run test`. (#725)
+      #
+      # Le chiffre n'existait nulle part : le provider n'était même pas
+      # installé, donc `test:coverage` échouait. La première mesure a donné
+      # **30,8 %** — et non les 91,6 % qu'un rapport sans `coverage.all`
+      # affiche, parce que v8 n'y compte que les fichiers que les tests
+      # chargent.
+      #
+      # Non bloquant : aucun seuil n'est posé, on veut d'abord voir bouger.
       - name: 🧪 Tests unitaires et d'intégration
-        run: npm run test
+        run: npm run test:coverage
+
+      - name: 📈 Couverture web
+        if: always()
+        continue-on-error: true
+        run: |
+          if [ ! -f coverage/coverage-summary.json ]; then
+            echo "Pas de résumé de couverture — étape de test non atteinte."
+            exit 0
+          fi
+          echo "### 📈 Couverture web" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          node -e '
+            const t = require("./coverage/coverage-summary.json").total;
+            for (const k of ["statements", "branches", "functions", "lines"]) {
+              const v = t[k];
+              console.log(`${k.padEnd(12)} ${String(v.pct).padStart(6)}%  ${v.covered}/${v.total}`);
+            }
+          ' | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: 🏗️ Build
         # Sans secret : le build doit aboutir sur un checkout nu, sinon il ne
@@ -641,7 +754,7 @@ jobs:
 
   # Job de résumé final
   build_summary:
-    needs: [changes, backend, ios_ui, ios_ar, web]
+    needs: [changes, backend, ios_ui, ios_ar, web, outillage]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -662,6 +775,7 @@ jobs:
           echo "| Backend (Go) | ${{ needs.backend.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| iOS UI | ${{ needs.ios_ui.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| iOS AR Kit | ${{ needs.ios_ar.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Outillage (Python) | ${{ needs.outillage.result || '⏭️ skipped' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           # Afficher les résultats des tests iOS si disponibles

@@ -100,6 +100,46 @@ cd ArboreUi && xcodebuild test \
 
 In CI (`.github/workflows/ci.yml`, `ios_ui` job), the secrets (`GoogleService-Info.plist`, `Secrets.xcconfig`) are reconstructed from GitHub Actions secrets, and — if `ARBORE_API_KEY_TEST` is provided — writes are routed to the `arbore_test` database (#159). Results are parsed from the `.xcresult` (xcresultparser) into CLI/txt/html/JUnit formats.
 
+## Coverage
+
+Collected since 2026-11-03. It was collected **nowhere** before: the scheme
+carried no `codeCoverageEnabled`, and no CI `xcodebuild` invocation passed
+`-enableCodeCoverage`. 54,000 lines of Swift with no number at all.
+
+It is now enabled **in the shared scheme**, not just on the CI command line: a
+local `xcodebuild test` and a ⌘U in Xcode collect it too.
+`onlyGenerateCoverageForSpecifiedTargets` restricts it to `ArboreUi.app` —
+counting the test bundles themselves teaches nothing.
+
+```sh
+# after an `xcodebuild test -resultBundlePath <bundle>.xcresult`
+xcrun xccov view --report --only-targets <bundle>.xcresult
+xcrun xccov view --report --files-for-target ArboreUi.app <bundle>.xcresult
+```
+
+First measurement, unit bundle only: **6.94%** — 6,164 / 88,850 lines, 335
+tests passed, 26 skipped (the four integration suites, which stand down when
+the backend is unreachable).
+
+The distribution matters more than the total. The AR **mathematics** are
+tested; the **view** is not at all:
+
+```
+   0.0%       0/14749   ARGarden          (10,513 of them in GardenARPlacementView.swift)
+   0.0%       0/12563   Views/DetailPageInfo
+   0.0%       0/8223    Views/GardenSteps
+   2.7%     572/21511   Views
+  20.9%    1517/7258    LoginAuth
+  41.8%     394/943     ARGarden/SceneUnderstanding/Voxel
+  46.2%      67/145     ARGarden/SceneUnderstanding/Calibration
+  65.9%     489/742     Thumbnail
+```
+
+**No threshold** is set: one chosen on a number you have just discovered would
+be arbitrary. The `ios_ui` job prints the total and the twenty files missing
+the most coverage, so it can be seen moving on every PR. The gaps that matter
+are listed in #725.
+
 ## Known limitations
 
 - Integration tests depend on the test backend and Firebase; they are **skipped**

@@ -100,6 +100,47 @@ cd ArboreUi && xcodebuild test \
 
 En CI (`.github/workflows/ci.yml`, job `ios_ui`), les secrets (`GoogleService-Info.plist`, `Secrets.xcconfig`) sont reconstruits depuis les secrets GitHub Actions, et — si `ARBORE_API_KEY_TEST` est fourni — les écritures sont routées vers la base `arbore_test` (#159). Les résultats sont parsés depuis le `.xcresult` (xcresultparser) en formats CLI/txt/html/JUnit.
 
+## Couverture
+
+Collectée depuis le 2026-11-03. Elle ne l'était **nulle part** avant : le
+schéma ne portait pas `codeCoverageEnabled`, et aucune invocation
+`xcodebuild` de la CI ne passait `-enableCodeCoverage`. 54 000 lignes de Swift
+sans aucun chiffre.
+
+Elle est désormais activée **dans le schéma partagé**, et non seulement sur la
+ligne de commande de la CI : un `xcodebuild test` local et un ⌘U dans Xcode la
+collectent aussi. `onlyGenerateCoverageForSpecifiedTargets` la limite à
+`ArboreUi.app` — compter les bundles de test eux-mêmes n'apprend rien.
+
+```sh
+# après un `xcodebuild test -resultBundlePath <bundle>.xcresult`
+xcrun xccov view --report --only-targets <bundle>.xcresult
+xcrun xccov view --report --files-for-target ArboreUi.app <bundle>.xcresult
+```
+
+Première mesure, bundle unitaire seul : **6,94 %** — 6 164 / 88 850 lignes,
+335 tests passés, 26 sautés (les quatre suites d'intégration, qui se
+neutralisent quand le backend est injoignable).
+
+La répartition compte plus que le total. Les **mathématiques** de l'AR sont
+testées ; la **vue** ne l'est pas du tout :
+
+```
+   0.0%       0/14749   ARGarden          (dont 10 513 pour GardenARPlacementView.swift)
+   0.0%       0/12563   Views/DetailPageInfo
+   0.0%       0/8223    Views/GardenSteps
+   2.7%     572/21511   Views
+  20.9%    1517/7258    LoginAuth
+  41.8%     394/943     ARGarden/SceneUnderstanding/Voxel
+  46.2%      67/145     ARGarden/SceneUnderstanding/Calibration
+  65.9%     489/742     Thumbnail
+```
+
+**Aucun seuil** n'est posé : un seuil choisi sur un chiffre qu'on vient de
+découvrir serait arbitraire. Le job `ios_ui` affiche le total et les vingt
+fichiers qui manquent le plus de couverture, pour qu'on le voie bouger à
+chaque PR. Les manques qui comptent sont listés dans #725.
+
 ## Limites connues
 
 - Les tests d'intégration dépendent du backend de test et de Firebase ; ils sont

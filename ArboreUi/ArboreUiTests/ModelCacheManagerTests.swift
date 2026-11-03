@@ -210,6 +210,43 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
         testUserUID = nil
     }
 
+    /// Un nom de modèle que le catalogue COURANT sert vraiment.
+    ///
+    /// Les tests codaient `Pothos.usdz` en dur. Ce fichier n'existe pas sur
+    /// dev — le catalogue y porte `Pothos_Dore_Vert.usdz` et consorts — et
+    /// les deux tests de téléchargement échouaient en 404 dès qu'on les a
+    /// enfin exécutés contre cet environnement (#725).
+    ///
+    /// Un nom en dur fait dépendre le test de QUEL catalogue répond. Lire le
+    /// premier modèle servi rend le test vrai partout, et c'est précisément
+    /// ce qu'il veut prouver : que le téléchargement fonctionne pour ce que
+    /// le catalogue annonce.
+    private func premierModeleDuCatalogue() async throws -> String {
+        guard let url = URL(string: "\(AppConfig.baseURL)/plants"),
+              let jeton = try await Auth.auth().currentUser?.getIDToken() else {
+            throw XCTSkip("session absente : impossible de lire le catalogue")
+        }
+        var requete = URLRequest(url: url)
+        requete.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
+        requete.setValue("Bearer \(jeton)", forHTTPHeaderField: "Authorization")
+
+        let (data, reponse) = try await URLSession.shared.data(for: requete)
+        let statut = (reponse as? HTTPURLResponse)?.statusCode ?? -1
+        guard statut == 200 else {
+            throw XCTSkip("GET /plants a rendu \(statut) : pas de catalogue à lire")
+        }
+
+        let fiches = try JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        // `_potless` est une variante recoupée, pas une entrée de catalogue à
+        // part : on prend le premier modèle nominal.
+        let nom = fiches?.compactMap { $0["modelURL"] as? String }
+            .first { !$0.isEmpty && !$0.contains("_potless") }
+        guard let nom else {
+            throw XCTSkip("le catalogue ne sert aucun modèle : rien à télécharger")
+        }
+        return nom
+    }
+
     // MARK: - Real Backend Tests
 
     func testModelCacheManager_DownloadModel_ShouldCacheFile() async {
@@ -222,7 +259,8 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
 
         do {
             // Act - Télécharger le modèle Pothos (le plus petit: 2 MB)
-            let modelURL = try await ModelCacheManager.shared.getModelURL(for: "Pothos.usdz")
+            let modele = try await premierModeleDuCatalogue()
+            let modelURL = try await ModelCacheManager.shared.getModelURL(for: modele)
 
             // Assert
             XCTAssertTrue(FileManager.default.fileExists(atPath: modelURL.path),
@@ -252,9 +290,11 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
         }
 
         do {
+            let modele = try await premierModeleDuCatalogue()
+
             // First download
             let startTime1 = Date()
-            let modelURL1 = try await ModelCacheManager.shared.getModelURL(for: "Pothos.usdz")
+            let modelURL1 = try await ModelCacheManager.shared.getModelURL(for: modele)
             let duration1 = Date().timeIntervalSince(startTime1)
 
             XCTAssertTrue(FileManager.default.fileExists(atPath: modelURL1.path),
@@ -262,7 +302,7 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
 
             // Second download (should use cache)
             let startTime2 = Date()
-            let modelURL2 = try await ModelCacheManager.shared.getModelURL(for: "Pothos.usdz")
+            let modelURL2 = try await ModelCacheManager.shared.getModelURL(for: modele)
             let duration2 = Date().timeIntervalSince(startTime2)
 
             XCTAssertEqual(modelURL1.path, modelURL2.path,
@@ -297,13 +337,17 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
     }
 
     func testModelCacheManager_WithoutAuth_ShouldFail() async {
-        // Test sans authentification Firebase
+        // Le nom est lu AVANT la déconnexion, et c'est ce qui donne du sens au
+        // test : avec un nom qui n'existe pas, l'échec serait un 404 et on ne
+        // saurait pas si l'absence d'authentification y est pour quelque
+        // chose. Avec un modèle réellement servi, seul le défaut d'auth peut
+        // faire échouer l'appel.
+        let modele = (try? await premierModeleDuCatalogue()) ?? "NonExistent.usdz"
 
-        // Sign out
         try? Auth.auth().signOut()
 
         do {
-            _ = try await ModelCacheManager.shared.getModelURL(for: "Pothos.usdz")
+            _ = try await ModelCacheManager.shared.getModelURL(for: modele)
             XCTFail("Should fail when not authenticated")
         } catch {
             // Devrait échouer (401 ou autre erreur d'auth)

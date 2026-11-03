@@ -202,6 +202,14 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
         let membre = try await LiveIntegrationTestGate.ouvrirSessionMembre()
         let token = try await getFirebaseToken()
 
+        // Créer le document `users`, comme l'app le fait à CHAQUE connexion.
+        //
+        // Une identité Firebase fraîche n'en a pas : `hasProfile` vaut alors
+        // false et l'export ne porte que l'uid — ce qui est la bonne réponse
+        // du backend, et ce que le test invité vérifie par ailleurs. Sans
+        // cette étape, ce test-ci demanderait au backend un profil que
+        // personne n'a créé.
+        try await creerLeProfilBackend(membre: membre, token: token)
         try await createTestConsent(uid: membre.uid, token: token)
         try await Task.sleep(nanoseconds: 1_000_000_000)
 
@@ -223,6 +231,30 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
         let corps = String(data: data, encoding: .utf8) ?? ""
         XCTAssertFalse(corps.lowercased().contains("applerefreshtoken"),
                        "l'export ne doit jamais contenir le jeton Apple")
+    }
+
+    /// Upsert du document utilisateur, le même geste que l'app à la connexion.
+    private func creerLeProfilBackend(membre: FirebaseAuth.User, token: String) async throws {
+        guard let url = URL(string: "\(AppConfig.baseURL)/users") else {
+            throw NSError(domain: "TestError", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "URL /users invalide"])
+        }
+        var requete = URLRequest(url: url)
+        requete.httpMethod = "POST"
+        requete.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        requete.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
+        requete.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        requete.httpBody = try JSONSerialization.data(withJSONObject: [
+            "uid": membre.uid,
+            "email": membre.email ?? "",
+            "name": "Compte de test",
+            "createdAt": ISO8601DateFormatter().string(from: Date()),
+        ])
+
+        let (data, reponse) = try await URLSession.shared.data(for: requete)
+        guard (reponse as? HTTPURLResponse)?.statusCode == 200 else {
+            throw Self.echecHTTP("POST /users", response: reponse, data: data)
+        }
     }
 
     private func appelerExport(token: String) async throws -> (Data, URLResponse) {

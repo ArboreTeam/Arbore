@@ -37,5 +37,18 @@ cd web && npm run typecheck   # tsc --noEmit
 ## Known limitations
 
 - **A web CI job does exist**, added after this document was written: `🌱 Web (Next.js)` in `.github/workflows/ci.yml`. It chains `npm run typecheck`, `npm run lint` and then the tests, and only fires when `web/**` changed — hence the `skipped` on PRs that do not touch it.
-- `npm run test:coverage` passes `--coverage` but **no provider** (`@vitest/coverage-v8`) is in `devDependencies`: verified on 2026-11-02, the command would fail. No coverage threshold is configured.
-- Coverage is **deep on the workshop** (store, session, rate limiting, config, routes) and **thin on the application pages**: catalog, garden and calendar have no test. That is the real gap, and it follows where the work went.
+- `npm run test:coverage` **works** as of 2026-11-03: the `@vitest/coverage-v8` provider is in `devDependencies`, and the CI job runs it. Until then the command failed for want of a provider.
+- The configuration sets **`coverage.all: true`**, and that is not a detail. Without it, v8 only counts the files the tests **load**: the 140 files no test imports drop out of the denominator, and the report claims **91.64%** for a real coverage of **30.8%** (1,174 / 3,811 statements, measured on 2026-11-03). A number wrong in that direction is worse than no number.
+- **No threshold** is configured, deliberately: we want to see the number move on every PR first. See #725.
+- Coverage is **deep on the workshop** and **thin on the application pages**. Measured, by directory:
+
+  ```
+     0.0%    0/63    lib/authService.ts
+     0.0%    0/451   app/garden
+     0.0%    0/712   components/ui
+    42.9%  211/492   app/api
+    91.7%  901/983   lib/generator
+    93.8%   45/48    middleware.ts
+  ```
+
+  That is the real gap, and it follows where the work went. The most exposed is not the volume but `lib/authService.ts`: it carries `signUp`, `login`, `signInWithGoogle`, `signInWithApple` and the backend account upsert, in **63 statements with zero tests**.

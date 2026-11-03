@@ -18,9 +18,10 @@ Cette section documente les **suites de tests** d'Arbore (front et back), ce qu'
 > python3 -I -m unittest discover -s scripts -p 'test_*.py'
 > ```
 >
-> ⚠️ **Aucun job CI ne l'exécute** — vérifié le 2026-11-03, aucun workflow ne
-> mentionne `unittest`. Elle tourne à la main, comme les tests web avant que
-> leur job n'existe.
+> Elle a un job CI depuis le 2026-11-03 : **`🐍 Outillage (Python)`**, filtré
+> sur `scripts/**` et `vignettes/**`. Jusque-là aucun workflow ne mentionnait
+> `unittest` — 58 tests qui passaient en 14 millisecondes, et que personne
+> n'aurait vu casser.
 
 ## Philosophie
 
@@ -39,6 +40,9 @@ La pyramide de tests d'Arbore est volontairement **épaisse à la base** sur les
 | iOS (toute la suite) | `cd ArboreUi && xcodebuild test -workspace ArboreUi.xcworkspace -scheme ArboreUi -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2'` |
 | iOS (une suite) | ajouter `-only-testing:ArboreUiTests/TSDFGridTests` (ou utiliser le menu `ci-ui-local.sh`) |
 | Web (Vitest) | `cd web && npm test` (ou `npm run test:watch`) |
+| Web (couverture) | `cd web && npm run test:coverage` |
+| Python (outillage) | `python3 -I -m unittest discover -s scripts -p 'test_*.py'` |
+| iOS (couverture) | la couverture est **collectée par le schéma** ; la lire avec `xcrun xccov view --report --only-targets <bundle>.xcresult` |
 | Smoke CI local | `./ci-local.sh` (Go + lint + build iOS) |
 
 ## Intégration continue
@@ -48,17 +52,53 @@ Le workflow `.github/workflows/ci.yml` orchestre les tests, avec des jobs **filt
 | Job | Périmètre | Contenu |
 |---|---|---|
 | `backend` | `ArboreBackend/**`, `.golangci.yml` | `go vet`, `go test -race -coverprofile`, upload Codecov, `golangci-lint`, **`govulncheck` (bloquant)**, cross-build linux/amd64 + darwin/arm64. |
-| `ios_ui` | `ArboreUi/**` | Build + `xcodebuild test` (simulateur iPhone 16 Pro / iOS 18.2), parsing `.xcresult` (CLI/txt/html/JUnit). |
+| `ios_ui` | `ArboreUi/**` | Build + `xcodebuild test` (simulateur iPhone 16 Pro / iOS 18.2), **couverture** (`-enableCodeCoverage`, résumé + 20 fichiers les moins couverts), parsing `.xcresult` (CLI/txt/html/JUnit). |
 | `ios_ar` | `ArboreARkit/**` | Build + tests du projet AR (`continue-on-error`). |
+| `🌱 Web (Next.js)` | `web/**` | `typecheck`, `lint`, `npm run test:coverage`, résumé de couverture, `npm run build`. |
+| `🐍 Outillage (Python)` | `scripts/**`, `vignettes/**` | `python3 -m unittest discover -s scripts`. Aucune dépendance à installer. |
 | `security` | PR / main | Trivy (système de fichiers), en deux passes : un **rapport SARIF complet** vers l'onglet Security (non bloquant, pour la visibilité) puis un **gate bloquant en CRITICAL** (`--ignore-unfixed`). |
 | `build_summary` | toujours | Agrège les résultats et échoue si un job requis a échoué. |
 
 Le workflow `.github/workflows/docs.yml` valide en plus la documentation (syntaxe Mermaid, liens internes, drift des chemins de code) — voir [`../README.md`](../README.md).
 
-## Couverture et limites connues
+## Couverture : les quatre chiffres
 
-- La couverture backend est **publiée sur Codecov** mais **aucun seuil bloquant** n'est imposé à ce jour.
-- Les tests **web (Vitest) ne tournent pas encore en CI** — ils s'exécutent localement. `npm run test:coverage` nécessite l'installation d'un provider de couverture (`@vitest/coverage-v8`) ; aucun seuil n'est configuré.
+Mesurés le **2026-11-03** sur `dev` (#725). Deux d'entre eux n'existaient
+jusque-là **nulle part** : ni le schéma iOS ni la CI ne demandaient de
+couverture, et le provider web n'était pas installé.
+
+| Zone | Couverture | Tests | Où elle est mesurée |
+|---|---|---|---|
+| **iOS** (`ArboreUi.app`) | **6,94 %** — 6 164 / 88 850 lignes | 335 passés, 26 sautés | `ios_ui`, résumé du job |
+| **Backend Go** | **47,0 %** (principal 44,6 %, middleware 63,9 %) | 325 | `backend`, puis Codecov |
+| **Web** | **30,8 %** — 1 174 / 3 811 instructions | 256 | `🌱 Web`, résumé du job |
+| **Python** (`scripts/`) | non mesurée | 58 | `🐍 Outillage`, exécution seule |
+
+**Le chiffre du web se lit avec une précaution.** Sans `coverage.all`, v8 ne
+compte que les fichiers que les tests **chargent** : les 140 fichiers
+qu'aucun test n'importe sortent du dénominateur, et le rapport annonce alors
+**91,6 %**. `vitest.config.mts` pose donc `all: true` — un chiffre faux dans
+ce sens-là est pire que pas de chiffre, il dit que le travail est fait.
+
+**Aucun seuil n'est posé**, et c'est délibéré pour l'instant : un seuil choisi
+sur une mesure qu'on vient de découvrir serait arbitraire, et un seuil placé
+au niveau actuel figerait la dette plutôt que de la réduire. Ce qu'on veut
+d'abord, c'est voir le chiffre **bouger à chaque PR**.
+
+### Ce que la répartition dit
+
+Elle n'est pas « il manque des tests partout ». Côté iOS, les
+**mathématiques** de l'AR sont testées — TSDF, voxels, marching cubes,
+coordonnées de valeur moyenne, calibration — c'est la partie difficile et elle
+l'est bien. Ce qui ne l'est pas, c'est la **vue** : `ARGarden` est à 0 % sur
+14 749 lignes, dont 10 513 pour le seul `GardenARPlacementView.swift`.
+
+Côté web, `lib/generator` est à 91,7 % et les pages applicatives à 0 % : la
+couverture suit où le travail est allé.
+
+Les manques qui comptent, avec l'ordre proposé, sont dans #725.
+
+## Autres limites connues
 - La version Go déclarée dans `ArboreBackend/go.mod` (`go 1.25.12`) et la variable `GO_VERSION` du CI doivent être maintenues alignées. Elles ont divergé (`GO_VERSION: "1.22"` face à `go 1.25.12`) : le mécanisme de toolchain téléchargeait donc 1.25.12 à chaque run sans cache, et la version affichée n'était pas celle utilisée (audit #338 constat 6).
 - **Seuil des scans de sécurité** : le gate Trivy bloque en **CRITICAL** seulement. Il existe aujourd'hui des vulnérabilités **HIGH** dans les `package-lock.json` (`brace-expansion`, `sharp`/libvips) — bloquer en HIGH casserait la CI. Dependabot surveille désormais npm (`web/`, `Plant3DGenerator/`) et Docker en plus de Go, Python et les actions ; le seuil doit être resserré sur HIGH une fois ces PR passées.
 - Les tests d'intégration iOS dépendent du backend de test (DB `arbore_test`, routée par `ARBORE_API_KEY_TEST`) ; ils sont **skippés** automatiquement si `/health` ne répond pas.

@@ -37,5 +37,18 @@ cd web && npm run typecheck   # tsc --noEmit
 ## Limites connues
 
 - **Un job CI web existe** depuis que ce document a été écrit : `🌱 Web (Next.js)` dans `.github/workflows/ci.yml`. Il enchaîne `npm run typecheck`, `npm run lint` puis les tests, et ne se déclenche que si `web/**` a changé — d'où son `skipped` sur les PR qui n'y touchent pas.
-- `npm run test:coverage` invoque `--coverage` mais **aucun provider** (`@vitest/coverage-v8`) n'est en `devDependencies` : vérifié le 2026-11-02, la commande échouerait. Aucun seuil de couverture n'est configuré.
-- La couverture est **profonde sur l'atelier** (dépôt, session, anti-force-brute, configuration, routes) et **mince sur les pages applicatives** : catalogue, jardin et calendrier n'ont aucun test. C'est le vrai manque, et il suit là où le travail est allé.
+- `npm run test:coverage` **fonctionne** depuis le 2026-11-03 : le provider `@vitest/coverage-v8` est en `devDependencies`, et le job CI l'exécute. Jusque-là la commande échouait faute de provider.
+- La configuration pose **`coverage.all: true`**, et ce n'est pas un détail. Sans lui, v8 ne compte que les fichiers que les tests **chargent** : les 140 fichiers qu'aucun test n'importe sortent du dénominateur, et le rapport annonce **91,64 %** pour une couverture réelle de **30,8 %** (1 174 / 3 811 instructions, mesuré le 2026-11-03). Un chiffre faux dans ce sens-là est pire que pas de chiffre.
+- **Aucun seuil** n'est configuré, délibérément : on veut d'abord voir le chiffre bouger à chaque PR. Voir #725.
+- La couverture est **profonde sur l'atelier** et **mince sur les pages applicatives**. Mesurée, par dossier :
+
+  ```
+     0.0%    0/63    lib/authService.ts
+     0.0%    0/451   app/garden
+     0.0%    0/712   components/ui
+    42.9%  211/492   app/api
+    91.7%  901/983   lib/generator
+    93.8%   45/48    middleware.ts
+  ```
+
+  C'est le vrai manque, et il suit là où le travail est allé. Le plus exposé n'est pas le volume mais `lib/authService.ts` : il porte `signUp`, `login`, `signInWithGoogle`, `signInWithApple` et l'upsert du compte backend, pour **63 instructions et zéro test**.

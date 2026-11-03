@@ -246,12 +246,37 @@ enum LiveIntegrationTestGate {
 
         let (data, reponse) = try await URLSession.shared.data(for: requete)
         let statut = (reponse as? HTTPURLResponse)?.statusCode ?? -1
-        guard statut == 200 else {
-            let corps = String(data: data, encoding: .utf8) ?? "<illisible>"
-            throw BackendPromisMaisAbsent(
-                suite: "provisionnement", adresse: AppConfig.baseURL,
-                detail: "POST /internal/test-accounts/verify a rendu \(statut) — \(corps)")
+        if statut == 200 { return }
+
+        let corps = String(data: data, encoding: .utf8) ?? "<illisible>"
+
+        // 404 et 503 veulent dire « ce backend ne sait pas provisionner », pas
+        // « le backend est absent ». La distinction est le contrat du
+        // portillon : le drapeau promet une pile qui RÉPOND, et elle répond.
+        //
+        //   404 — le backend est antérieur à la route (#725). C'est le cas de
+        //         la CI de la PR qui l'introduit : elle ne peut pas exiger
+        //         d'un déploiement qu'il contienne du code pas encore fusionné.
+        //   503 — la clé interne n'est pas posée sur cette pile. C'est l'état
+        //         voulu en production (#696).
+        //
+        // Tout autre code EST un défaut : la route existe, elle a refusé.
+        if statut == 404 || statut == 503 {
+            throw XCTSkip("""
+                Ce backend ne sait pas provisionner de compte vérifié — \
+                POST /internal/test-accounts/verify a rendu \(statut).
+
+                \(statut == 404
+                    ? "La route n'y est pas encore déployée."
+                    : "La clé interne n'y est pas posée, et c'est voulu en production.")
+
+                Les tests « membre » se sautent donc ; les « invité » tournent.
+                """)
         }
+
+        throw BackendPromisMaisAbsent(
+            suite: "provisionnement", adresse: AppConfig.baseURL,
+            detail: "POST /internal/test-accounts/verify a rendu \(statut) — \(corps)")
     }
 
     /// Détruit le compte de test courant, données comprises.

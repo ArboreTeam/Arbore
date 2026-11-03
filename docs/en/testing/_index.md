@@ -70,7 +70,7 @@ provider was not installed.
 | Area | Coverage | Tests | Where it is measured |
 |---|---|---|---|
 | **iOS** (`ArboreUi.app`) | **6.94%** — 6,164 / 88,850 lines | 335 passed, 26 skipped | `ios_ui`, job summary |
-| **Go backend** | **47.0%** (main 44.6%, middleware 63.9%) | 325 | `backend`, then Codecov |
+| **Go backend** | **52.7%** (main 51.1%, middleware 63.9%) | 355 | `backend`, then Codecov |
 | **Web** | **30.8%** — 1,174 / 3,811 statements | 256 | `🌱 Web`, job summary |
 | **Python** (`scripts/`) | not measured | 58 | `🐍 Outillage`, execution only |
 

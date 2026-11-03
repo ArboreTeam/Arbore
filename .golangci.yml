@@ -76,6 +76,16 @@ linters:
         - infinie
         - compense
         - republi
+        # Vocabulaire des tests RGPD et du job de réconciliation (#725) :
+        # `reponse` → `response` est le plus fréquent, il apparaît dès qu'un
+        # test de handler nomme ce qu'il reçoit.
+        - reponse
+        - commandes
+        - collecte
+        - restauration
+        - restaurent
+        - substitue
+        - partiel
 
     revive:
       confidence: 0.8

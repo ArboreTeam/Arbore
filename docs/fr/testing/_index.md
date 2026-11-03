@@ -70,7 +70,7 @@ couverture, et le provider web n'était pas installé.
 | Zone | Couverture | Tests | Où elle est mesurée |
 |---|---|---|---|
 | **iOS** (`ArboreUi.app`) | **6,94 %** — 6 164 / 88 850 lignes | 335 passés, 26 sautés | `ios_ui`, résumé du job |
-| **Backend Go** | **47,0 %** (principal 44,6 %, middleware 63,9 %) | 325 | `backend`, puis Codecov |
+| **Backend Go** | **52,7 %** (principal 51,1 %, middleware 63,9 %) | 355 | `backend`, puis Codecov |
 | **Web** | **30,8 %** — 1 174 / 3 811 instructions | 256 | `🌱 Web`, résumé du job |
 | **Python** (`scripts/`) | non mesurée | 58 | `🐍 Outillage`, exécution seule |
 

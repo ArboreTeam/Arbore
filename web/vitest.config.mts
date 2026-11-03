@@ -1,6 +1,14 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import tsconfigPaths from 'vite-tsconfig-paths';
+
+// Un seul endroit pour les trois planchers de couverture — Go, web, iOS —
+// pour que les relever soit une seule modification, et que la raison de leur
+// existence ne soit écrite qu'une fois.
+const planchers = JSON.parse(
+  readFileSync(new URL('../.github/couverture-planchers.json', import.meta.url), 'utf8'),
+);
 
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
@@ -19,10 +27,10 @@ export default defineConfig({
     // **30,76 %** — mesuré le 2026-11-03. Un chiffre faux dans ce sens-là est
     // pire que pas de chiffre : il dit que le travail est fait.
     //
-    // Aucun seuil n'est posé. On veut d'abord VOIR le chiffre bouger à chaque
-    // PR ; un seuil choisi sur une mesure qu'on vient de découvrir serait
-    // arbitraire, et un seuil placé trop haut ferait rouge toute la CI dès ce
-    // commit.
+    // Le seuil est un CLIQUET, pas un objectif : il échoue si la couverture
+    // DESCEND, jamais parce qu'elle n'atteint pas un chiffre choisi d'avance.
+    // Le plancher vit dans `.github/couverture-planchers.json`, avec les deux
+    // autres zones et la raison. (#725 point 9)
     coverage: {
       provider: 'v8',
       all: true,
@@ -34,6 +42,12 @@ export default defineConfig({
                 'components/**/*.{ts,tsx}', 'middleware.ts'],
       exclude: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}',
                 '**/*.d.ts', 'app/**/layout.tsx'],
+      // Seules les INSTRUCTIONS portent un plancher. Branches et fonctions
+      // sont affichées mais pas gardées : elles bougent pour des raisons qui
+      // ne disent rien de l'effort de test — un `if` ajouté dans un fichier
+      // déjà couvert fait baisser le taux de branches sans qu'aucun test
+      // n'ait disparu.
+      thresholds: { statements: planchers.web.plancher },
     },
   },
 });

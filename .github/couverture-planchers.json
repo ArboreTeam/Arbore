@@ -1,0 +1,47 @@
+{
+  "_lire_dabord": [
+    "Planchers de couverture — un CLIQUET, pas un objectif. (#725 point 9)",
+    "",
+    "La CI échoue si la couverture DESCEND sous ces valeurs. Elle n'exige",
+    "jamais d'atteindre un chiffre choisi d'avance.",
+    "",
+    "Pourquoi ce sens-là. Un objectif du type « 80 % » serait arbitraire et",
+    "invérifiable : personne ne peut dire pourquoi 80 plutôt que 70, et",
+    "l'atteindre se fait très bien en testant ce qui est facile. « Ne pas",
+    "reculer » se justifie tout seul, se mesure exactement, et n'oblige à",
+    "aucun test de complaisance.",
+    "",
+    "Les valeurs sont légèrement SOUS les mesures du 2026-11-03, pour",
+    "absorber le bruit : un fichier supprimé ou une branche de code morte",
+    "retirée font bouger un dénominateur sans que personne n'ait rien cassé.",
+    "",
+    "COMMENT LES RELEVER. Quand une PR fait monter la couverture, relever le",
+    "plancher dans la même PR. C'est ce geste qui fait du cliquet un cliquet :",
+    "sans lui, le terrain gagné se reperd en silence. Le job affiche la marge",
+    "à chaque exécution, justement pour qu'on y pense.",
+    "",
+    "CE QUI N'EST PAS ICI. La suite Python n'a pas de couverture mesurée : ses",
+    "89 tests s'exécutent, mais aucun outil ne dit ce qu'ils couvrent. Poser un",
+    "plancher sur un chiffre qui n'existe pas n'aurait aucun sens.",
+    "",
+    "Détail des mesures et des manques : #725."
+  ],
+
+  "go": {
+    "plancher": 52.0,
+    "mesure_2026_11_03": 52.7,
+    "quoi": "ArboreBackend + middleware, instructions"
+  },
+
+  "web": {
+    "plancher": 32.0,
+    "mesure_2026_11_03": 32.45,
+    "quoi": "app/ lib/ components/ middleware.ts, instructions, coverage.all"
+  },
+
+  "ios": {
+    "plancher": 6.5,
+    "mesure_2026_11_03": 6.9,
+    "quoi": "cible ArboreUi.app, lignes"
+  }
+}

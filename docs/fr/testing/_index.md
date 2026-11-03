@@ -88,10 +88,44 @@ qu'aucun test n'importe sortent du dénominateur, et le rapport annonce alors
 **91,6 %**. `vitest.config.mts` pose donc `all: true` — un chiffre faux dans
 ce sens-là est pire que pas de chiffre, il dit que le travail est fait.
 
-**Aucun seuil n'est posé**, et c'est délibéré pour l'instant : un seuil choisi
-sur une mesure qu'on vient de découvrir serait arbitraire, et un seuil placé
-au niveau actuel figerait la dette plutôt que de la réduire. Ce qu'on veut
-d'abord, c'est voir le chiffre **bouger à chaque PR**.
+### Le cliquet
+
+Les trois zones mesurées portent un **plancher**, et c'est un cliquet : la CI
+échoue si la couverture **descend**, jamais parce qu'elle n'atteint pas un
+chiffre choisi d'avance.
+
+Le sens compte. Un objectif du type « 80 % » serait arbitraire et
+invérifiable — personne ne peut dire pourquoi 80 plutôt que 70 —, et on
+l'atteint très bien en testant ce qui est facile. « Ne pas reculer » se
+justifie tout seul, se mesure exactement, et n'oblige à aucun test de
+complaisance.
+
+Les planchers vivent **au même endroit**, `.github/couverture-planchers.json`,
+pour que les relever soit une seule modification :
+
+| zone | plancher | mesure du 2026-11-03 |
+|---|---|---|
+| Go | 52,0 % | 52,7 % |
+| Web | 32,0 % | 32,5 % |
+| iOS | 6,5 % | 6,9 % |
+
+Ils sont légèrement **sous** les mesures, pour absorber le bruit : un fichier
+supprimé ou une branche morte retirée font bouger un dénominateur sans que
+personne n'ait rien cassé.
+
+**Quand une PR fait monter la couverture, elle relève le plancher.** C'est ce
+geste qui fait du cliquet un cliquet ; sans lui le terrain gagné se reperd en
+silence. Les jobs affichent la marge à chaque exécution et suggèrent de
+relever dès qu'elle dépasse un point, justement pour qu'on y pense.
+
+La suite **Python** n'a pas de plancher : ses 89 tests s'exécutent, mais aucun
+outil ne mesure ce qu'ils couvrent. Un plancher sur un chiffre qui n'existe
+pas n'aurait aucun sens.
+
+Côté web, seules les **instructions** sont gardées. Branches et fonctions sont
+affichées mais pas verrouillées : elles bougent pour des raisons qui ne disent
+rien de l'effort de test — un `if` ajouté dans un fichier déjà couvert fait
+baisser le taux de branches sans qu'aucun test n'ait disparu.
 
 ### Ce que la répartition dit
 

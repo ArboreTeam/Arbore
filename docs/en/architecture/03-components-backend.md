@@ -170,8 +170,32 @@ session.
 | `GET /internal/plants` | `getPlants` | know which plants to render |
 | `GET /internal/models/:filename` | `servePlantModel` | download the USDZ model |
 | `POST /internal/models/thumbnails/:plantId` | `uploadPlantThumbnail` | upload the rendered thumbnail |
+| `POST /internal/test-accounts/verify` | `verifierCompteDeTest` | provision a test account with a **verified** email |
 
-These are the **same handlers** as their authenticated twins, not copies:
+The last one has no twin, and that is deliberate. Since #377 an unverified
+address is refused on every authenticated route except `POST /users` and
+`DELETE /users`. The iOS integration suites created throwaway accounts that no
+mailbox can validate: **ten tests out of twenty-seven** failed with
+`EMAIL_NOT_VERIFIED` the day they finally ran (2026-11-03, #725).
+
+`verifierCompteDeTest` sets `emailVerified` through the Admin SDK. **This is
+not a bypass of the gate**: the token issued afterwards really carries
+`email_verified: true`, and the check applies normally. A conforming account is
+provisioned rather than the rule being switched off.
+
+> **The option we rejected is worth writing down.** Keying the bypass to the
+> test API key would have been simpler — and would have lived **in
+> production**: recorded on 2026-11-03, `ARBORE_API_KEY_TEST` is present on the
+> prod backend. That key lives in CI and on developer machines; anyone holding
+> it could have acted without a verified address, and the gate would have
+> stopped being exercised by anyone.
+
+Two guards specific to this route, on top of the two keys: the address must
+belong to **`@arbore.test`** — a TLD reserved by RFC 2606, not resolvable, so
+it never designates a real person — and the route **creates nothing**. It marks
+an identity the caller has already created and whose password it holds.
+
+The other three are the **same handlers** as their authenticated twins, not copies:
 neither `getPlants` nor `uploadPlantThumbnail` reads any caller identity.
 `servePlantModel` was in fact extracted from a closure so it could be mounted
 **twice** from a single body — two copies would have meant two definitions of

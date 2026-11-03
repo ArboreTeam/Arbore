@@ -326,6 +326,10 @@ var (
 		"GET /internal/plants": "l'ouvrier doit savoir quelles plantes rendre, et l'atelier les afficher en aperçu ; " +
 			"lecture seule du catalogue, déjà ouverte à tout compte authentifié",
 		"POST /internal/models/thumbnails/:plantId": "la raison d'être du robot : déposer l'image qu'il vient de rendre",
+		"POST /internal/test-accounts/verify": "provisionne un compte de test à email vérifié, pour que les suites " +
+			"d'intégration iOS éprouvent le parcours d'un MEMBRE sans boîte mail (#725) ; " +
+			"bornée au domaine réservé @arbore.test, ne crée aucune identité, " +
+			"et inexistante en production faute de clé interne",
 		"GET /internal/models/:filename": "il faut le modèle USDZ pour le rendre ; " +
 			"même handler que sous `protected`, donc mêmes contrôles de chemin",
 	}

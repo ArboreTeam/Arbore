@@ -357,196 +357,47 @@ class NetworkManagerTests: XCTestCase {
 
 class NetworkManagerIntegrationTests: XCTestCase {
 
-    let testPassword = "TestNetwork2026!"
-    var testEmail: String!
     var testUserUID: String?
+    var testEmail: String!
 
-
-    override func setUpWithError() throws {
+    /// Session **membre** sur un compte de test jetable, provisionné vérifié.
+    ///
+    /// Cette suite vise `GET /users/:uid` et les trois routes `/consents`,
+    /// toutes fermées aux invités depuis #377. Les y tester en invité
+    /// reviendrait à tester le refus, pas la fonction.
+    ///
+    /// L'ancienne fixture créait un compte email/mot de passe jetable et ne
+    /// vérifiait jamais l'adresse : depuis le portillon d'email, le backend
+    /// refusait quatre tests en `EMAIL_NOT_VERIFIED`. Ils ne l'ont jamais
+    /// signalé parce qu'ils ne tournaient pas (#725).
+    override func setUp() async throws {
         try LiveIntegrationTestGate.requireEnabled()
         try LiveIntegrationTestGate.requireBackendReachable(suite: "NetworkManager")
 
-        // Configuration Firebase
-        if FirebaseApp.app() == nil {
-            FirebaseApp.configure()
-        }
+        let membre = try await LiveIntegrationTestGate.ouvrirSessionMembre()
+        testUserUID = membre.uid
+        testEmail = membre.email
 
-        // Créer un user de test
-        testEmail = "test-network-\(UUID().uuidString.lowercased())@arbore.test"
-
-        let createExpectation = XCTestExpectation(description: "Create test user")
-        let startTime = Date()
-
-        Auth.auth().createUser(withEmail: testEmail, password: testPassword) { result, error in
-            let elapsed = Date().timeIntervalSince(startTime)
-            
-            if let error = error {
-                let nsError = error as NSError
-                let errorMsg = """
-                ❌ NetworkManagerIntegrationTests setUp FAILED
-                📝 Firebase createUser failed after \(String(format: "%.2f", elapsed))s
-                📝 Error domain: \(nsError.domain)
-                📝 Error code: \(nsError.code)
-                📝 Description: \(error.localizedDescription)
-                📝 UserInfo: \(nsError.userInfo)
-                """
-                XCTFail(errorMsg)
-                createExpectation.fulfill()
-                return
-            }
-
-            self.testUserUID = result?.user.uid
-
-            // Sign in pour obtenir un token Firebase valide
-            let signInTime = Date()
-            
-            Auth.auth().signIn(withEmail: self.testEmail, password: self.testPassword) { _, signInError in
-                let signInElapsed = Date().timeIntervalSince(signInTime)
-                
-                if let signInError = signInError {
-                    let nsError = signInError as NSError
-                    let errorMsg = """
-                    ❌ NetworkManagerIntegrationTests setUp - signIn FAILED
-                    📝 Firebase signIn failed after \(String(format: "%.2f", signInElapsed))s
-                    📝 Error domain: \(nsError.domain)
-                    📝 Error code: \(nsError.code)
-                    📝 Description: \(signInError.localizedDescription)
-                    """
-                    XCTFail(errorMsg)
-                    createExpectation.fulfill()
-                    return
-                }
-
-                // Créer le user dans MongoDB avec NetworkManager (qui ajoute le token Firebase)
-                Task {
-                    do {
-                        let formatter = ISO8601DateFormatter()
-                        let userData: [String: Any] = [
-                            "uid": self.testUserUID!,
-                            "email": self.testEmail!,
-                            "name": "Test Network User",
-                            "createdAt": formatter.string(from: Date()),
-                            "banned": false
-                        ]
-
-                        let _: UserResponse = try await NetworkManager.shared.request(
-                            endpoint: "/users",
-                            method: .POST,
-                            body: userData
-                        )
-
-                        createExpectation.fulfill()
-                    } catch {
-                        let errorMsg = """
-                        ❌ NetworkManagerIntegrationTests setUp - Backend user creation FAILED
-                        📝 Backend POST /users failed
-                        📝 Error: \(error)
-                        """
-                        XCTFail(errorMsg)
-                        createExpectation.fulfill()
-                    }
-                }
-            }
-        }
-
-        wait(for: [createExpectation], timeout: 30.0)
-    }
-
-    override func tearDownWithError() throws {
-        // Supprimer le user du backend
-        if testUserUID != nil {
-            let deleteExpectation = XCTestExpectation(description: "Delete user from backend")
-            deleteUserFromBackend { _ in
-                deleteExpectation.fulfill()
-            }
-            wait(for: [deleteExpectation], timeout: 5.0)
-        }
-
-        // Supprimer le user de Firebase
-        if let currentUser = Auth.auth().currentUser {
-            let deleteFirebaseExpectation = XCTestExpectation(description: "Delete Firebase user")
-            currentUser.delete { _ in
-                deleteFirebaseExpectation.fulfill()
-            }
-            wait(for: [deleteFirebaseExpectation], timeout: 5.0)
-        }
-
-        testUserUID = nil
-        testEmail = nil
-    }
-
-    // MARK: - Helper Methods
-
-    private func createUserInBackend(uid: String, email: String, completion: @escaping (Bool) -> Void) {
-        guard let url = URL(string: AppConfig.usersEndpoint) else {
-            completion(false)
-            return
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
-
+        // Upsert, comme le fait l'app à chaque connexion : la suite reste
+        // autonome si le document Mongo du compte a été purgé entre-temps.
         let formatter = ISO8601DateFormatter()
         let userData: [String: Any] = [
-            "uid": uid,
-            "email": email,
-            "name": "Test Network User",
+            "uid": membre.uid,
+            "email": membre.email ?? "",
+            "name": "Compte de test Arbore",
             "createdAt": formatter.string(from: Date()),
             "banned": false
         ]
-
-        request.httpBody = try? JSONSerialization.data(withJSONObject: userData)
-
-        URLSession.shared.dataTask(with: request) { data, response, error in
-            if let error = error {
-                NSLog("❌ NetworkManagerTests: Error creating user in backend: \(error)")
-                completion(false)
-                return
-            }
-            
-            if let httpResponse = response as? HTTPURLResponse {
-                if httpResponse.statusCode != 201 {
-                    let bodyString = data.flatMap { String(data: $0, encoding: .utf8) } ?? "No response body"
-                    NSLog("⚠️ NetworkManagerTests: Backend returned status \(httpResponse.statusCode) when creating user. Response: \(bodyString)")
-                }
-                completion(httpResponse.statusCode == 201)
-            } else {
-                completion(false)
-            }
-        }.resume()
+        let _: UserResponse = try await NetworkManager.shared.request(
+            endpoint: "/users", method: .POST, body: userData)
     }
 
-    /// Le backend dérive l'uid du Bearer token Firebase (self-only authz,
-    /// cf. ADR 0005). Pas d'uid dans l'URL — on tape `DELETE /users` tout
-    /// court. Sans le Bearer token, le middleware Firebase renvoie 401
-    /// et le user reste orphan en base (issue identifiée pendant le
-    /// triage des dependabot bumps).
-    private func deleteUserFromBackend(completion: @escaping (Bool) -> Void) {
-        guard let currentUser = Auth.auth().currentUser else {
-            completion(false)
-            return
-        }
-        currentUser.getIDToken { token, _ in
-            guard let token = token,
-                  let url = URL(string: AppConfig.usersEndpoint) else {
-                completion(false)
-                return
-            }
-            var request = URLRequest(url: url)
-            request.httpMethod = "DELETE"
-            request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-            URLSession.shared.dataTask(with: request) { _, response, _ in
-                if let httpResponse = response as? HTTPURLResponse {
-                    completion(httpResponse.statusCode == 200)
-                } else {
-                    completion(false)
-                }
-            }.resume()
-        }
+    /// Le compte est JETABLE : chaque exécution a le sien, et il part avec
+    /// ses données. Rien ne s'accumule d'un passage à l'autre.
+    override func tearDown() async throws {
+        await LiveIntegrationTestGate.fermerEtDetruireLaSessionDeTest()
+        testUserUID = nil
+        testEmail = nil
     }
 
     // MARK: - Real Backend Tests

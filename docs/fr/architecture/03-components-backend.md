@@ -171,9 +171,34 @@ ne peut pas tenir de session Firebase.
 | `GET /internal/plants` | `getPlants` | savoir quelles plantes rendre |
 | `GET /internal/models/:filename` | `servePlantModel` | télécharger le modèle USDZ |
 | `POST /internal/models/thumbnails/:plantId` | `uploadPlantThumbnail` | déposer la vignette rendue |
+| `POST /internal/test-accounts/verify` | `verifierCompteDeTest` | provisionner un compte de test à email **vérifié** |
 
-Ce sont les **mêmes handlers** que leurs jumelles authentifiées, pas des
-copies : ni `getPlants` ni `uploadPlantThumbnail` ne lisent d'identité
+La dernière n'a pas de jumelle, et c'est voulu. Depuis #377, une adresse non
+vérifiée est refusée sur toute route authentifiée sauf `POST /users` et
+`DELETE /users`. Les suites d'intégration iOS créaient des comptes jetables
+qu'aucune boîte mail ne peut valider : **dix tests sur vingt-sept** échouaient
+en `EMAIL_NOT_VERIFIED` le jour où ils ont enfin tourné (2026-11-03, #725).
+
+`verifierCompteDeTest` pose `emailVerified` via le SDK Admin. **Ce n'est pas
+une dérogation au portillon** : le jeton émis ensuite porte réellement
+`email_verified: true`, et le contrôle s'applique normalement. On provisionne
+un compte conforme plutôt que de désactiver la règle.
+
+> **L'option écartée mérite d'être écrite.** Conditionner la dérogation à la
+> clé d'API de test aurait été plus simple — et aurait vécu **en production** :
+> relevé le 2026-11-03, `ARBORE_API_KEY_TEST` est présente sur le backend de
+> prod. Cette clé est dans la CI et sur les machines de développement ;
+> quiconque la détient aurait pu agir sans adresse vérifiée, et le portillon
+> aurait cessé d'être éprouvé par qui que ce soit.
+
+Deux gardes propres à cette route, en plus des deux clés : l'adresse doit
+appartenir à **`@arbore.test`** — TLD réservé par la RFC 2606, non résoluble,
+donc qui ne désigne jamais une personne — et la route **ne crée rien**. Elle
+marque une identité que l'appelant a déjà créée et dont il détient le mot de
+passe.
+
+Les trois autres sont les **mêmes handlers** que leurs jumelles authentifiées,
+pas des copies : ni `getPlants` ni `uploadPlantThumbnail` ne lisent d'identité
 d'appelant. `servePlantModel` a d'ailleurs été extrait d'une fermeture pour
 être monté **deux fois** depuis un seul corps — deux copies auraient voulu dire
 deux définitions des contrôles de chemin à garder d'accord.

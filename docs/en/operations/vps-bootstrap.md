@@ -666,6 +666,14 @@ Check off these items before considering the VPS operational:
 - [ ] `mongosh "$MONGODB_URI" --quiet --eval 'db.users.countDocuments()'` → integer > 0
 - [ ] `crontab -l` contains all three entries, installed by `deploy.sh` from `ops/crontab` — never by hand
 - [ ] `systemctl is-enabled cf-http-firewall.service cf-update-ranges.timer` → `enabled`
+- [ ] **`systemctl start cf-update-ranges.service && systemctl is-failed cf-update-ranges.service`
+      → `inactive`**, and `/etc/cf-http-firewall/cf-ranges-v4.txt` exists.
+      `enabled` does not mean *working*: on the migration machine the service
+      failed on every trigger for three weeks, for want of its directory, with
+      **no symptom at all** — `cf-http-firewall.sh` falls back to its
+      hardcoded list, so the firewall stayed correct but frozen. A change to
+      Cloudflare's ranges would have gone unnoticed until legitimate traffic
+      was dropped (#652)
 - [ ] `/home/fedora/Arbore/scripts/cleanup-test-db.sh` finishes with exit 0
 - [ ] `ls /home/fedora/Arbore/backups/daily/` does not crash (the folder is created on the first `deploy.sh`)
 - [ ] A test PR on GitHub triggers the CI; the tests pass while

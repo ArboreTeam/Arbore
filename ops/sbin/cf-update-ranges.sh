@@ -8,6 +8,29 @@ RANGES_FILE="/etc/cf-http-firewall/cf-ranges-v4.txt"
 URL="https://www.cloudflare.com/ips-v4"
 TMP="$(mktemp)"; trap 'rm -f "$TMP" "$TMP.norm"' EXIT
 
+# Le repertoire n'etait cree par PERSONNE. (#652)
+#
+# Les deux scripts du pare-feu nomment ce chemin, `ops/README.md` le decrit
+# comme « donnee generee par cf-update-ranges.sh », et aucun ne le creait : il
+# existait sur la premiere machine parce qu'il y avait ete pose a la main lors
+# de l'installation initiale, en juin.
+#
+# Sur la machine de migration, il manquait. Le service echouait donc a CHAQUE
+# declenchement depuis le 2026-10-25 :
+#
+#     cf-update-ranges.sh: line 31: /etc/cf-http-firewall/cf-ranges-v4.txt:
+#     No such file or directory
+#
+# Sans consequence visible, et c'est bien le probleme. `cf-http-firewall.sh`
+# porte un repli code en dur, utilise des que le fichier manque ou compte
+# moins de cinq entrees : le pare-feu reste donc CORRECT, mais FIGE a la liste
+# du depot. Le jour ou Cloudflare ajoute une plage, le trafic legitime qui en
+# vient serait rejete en silence — une panne partielle, intermittente selon le
+# point de presence, et qui ne ressemblerait pas a un pare-feu.
+#
+# C'est l'ecrivain du fichier qui doit garantir son repertoire.
+mkdir -p "$(dirname "$RANGES_FILE")"
+
 # 1. Fetch (echec => on garde l'existant, pas d'erreur bloquante).
 if ! curl -fsS -m 20 "$URL" -o "$TMP"; then
   echo "cf-update: fetch KO, on garde les plages actuelles" >&2; exit 0

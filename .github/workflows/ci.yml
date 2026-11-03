@@ -159,6 +159,33 @@ jobs:
           echo ""
           echo "✅ All backend tests passed (including model streaming tests)"
 
+      # Cliquet de couverture : échoue si elle DESCEND, jamais parce qu'elle
+      # n'atteint pas un objectif. Le plancher et sa justification vivent dans
+      # `.github/couverture-planchers.json`. (#725 point 9)
+      - name: 🔒 Cliquet de couverture
+        working-directory: .
+        run: |
+          plancher=$(python3 -c "import json;print(json.load(open('.github/couverture-planchers.json'))['go']['plancher'])")
+          mesure=$(cd ArboreBackend && go tool cover -func=coverage.out \
+                   | awk '$1=="total:"{sub(/%/,"",$3); print $3}')
+          echo "couverture Go : ${mesure}%   plancher : ${plancher}%"
+          python3 - "$mesure" "$plancher" <<'PY'
+          import sys
+          mesure, plancher = float(sys.argv[1]), float(sys.argv[2])
+          if mesure < plancher:
+              print(f"::error::La couverture Go est tombée à {mesure}%, "
+                    f"sous le plancher de {plancher}%. Ajouter un test, ou "
+                    f"justifier la baisse en abaissant le plancher dans "
+                    f".github/couverture-planchers.json.")
+              raise SystemExit(1)
+          marge = mesure - plancher
+          print(f"marge : +{marge:.2f} point(s)")
+          if marge >= 1.0:
+              print(f"::notice::La couverture Go dépasse son plancher de "
+                    f"{marge:.1f} points. Relever le plancher à {mesure:.1f} "
+                    f"fige le terrain gagné.")
+          PY
+
       - name: 📊 Upload coverage to Codecov
         uses: codecov/codecov-action@v4
         continue-on-error: true
@@ -459,6 +486,39 @@ jobs:
             | sort -rn | head -20 >> "$GITHUB_STEP_SUMMARY" || echo "(classement indisponible)" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "</details>" >> "$GITHUB_STEP_SUMMARY"
+
+      # Cliquet de couverture iOS. Séparé de l'étape d'affichage ci-dessus,
+      # qui est `continue-on-error` : un rapport illisible ne doit pas faire
+      # échouer la CI, une couverture qui RECULE si. (#725 point 9)
+      - name: 🔒 Cliquet de couverture iOS
+        if: always()
+        run: |
+          if [ ! -d build/TestResults.xcresult ]; then
+            echo "Pas de bundle de résultats — rien à contrôler."
+            exit 0
+          fi
+          plancher=$(python3 -c "import json;print(json.load(open('$GITHUB_WORKSPACE/.github/couverture-planchers.json'))['ios']['plancher'])")
+          mesure=$(xcrun xccov view --report --only-targets build/TestResults.xcresult \
+                   | awk '$2=="ArboreUi.app"{sub(/%/,"",$4); print $4}')
+          echo "couverture iOS : ${mesure}%   plancher : ${plancher}%"
+          python3 - "$mesure" "$plancher" <<'PY'
+          import sys
+          if not sys.argv[1]:
+              print("::warning::Couverture iOS illisible dans le rapport xccov.")
+              raise SystemExit(0)
+          mesure, plancher = float(sys.argv[1]), float(sys.argv[2])
+          if mesure < plancher:
+              print(f"::error::La couverture iOS est tombée à {mesure}%, sous "
+                    f"le plancher de {plancher}%. Ajouter un test, ou justifier "
+                    f"la baisse dans .github/couverture-planchers.json.")
+              raise SystemExit(1)
+          marge = mesure - plancher
+          print(f"marge : +{marge:.2f} point(s)")
+          if marge >= 1.0:
+              print(f"::notice::La couverture iOS dépasse son plancher de "
+                    f"{marge:.1f} points. Relever le plancher à {mesure:.1f} "
+                    f"fige le terrain gagné.")
+          PY
 
       - name: 📊 Parse test results
         if: always()

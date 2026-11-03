@@ -87,10 +87,42 @@ denominator, and the report then claims **91.6%**. `vitest.config.mts`
 therefore sets `all: true` — a number wrong in that direction is worse than no
 number, because it says the work is done.
 
-**No threshold is set**, deliberately for now: a threshold chosen on a
-measurement you have just discovered would be arbitrary, and one placed at the
-current level would freeze the debt rather than reduce it. What we want first
-is to see the number **move on every PR**.
+### The ratchet
+
+The three measured areas carry a **floor**, and it is a ratchet: CI fails when
+coverage **drops**, never because it falls short of a number picked in
+advance.
+
+The direction matters. A target like "80%" would be arbitrary and
+unverifiable — nobody can say why 80 rather than 70 — and it is easily reached
+by testing whatever is easy. "Do not go backwards" justifies itself, measures
+exactly, and forces no token tests.
+
+The floors live in **one place**, `.github/couverture-planchers.json`, so that
+raising them is a single edit:
+
+| area | floor | measured 2026-11-03 |
+|---|---|---|
+| Go | 52.0% | 52.7% |
+| Web | 32.0% | 32.5% |
+| iOS | 6.5% | 6.9% |
+
+They sit slightly **below** the measurements to absorb noise: a deleted file
+or a dead branch removed moves a denominator without anyone having broken
+anything.
+
+**When a PR raises coverage, it raises the floor.** That gesture is what makes
+the ratchet a ratchet; without it the ground gained is lost again in silence.
+The jobs print the margin on every run and suggest raising the floor as soon
+as it exceeds one point, precisely so it is not forgotten.
+
+The **Python** suite has no floor: its 89 tests run, but no tool measures what
+they cover. A floor on a number that does not exist would mean nothing.
+
+On the web side, only **statements** are guarded. Branches and functions are
+displayed but not locked: they move for reasons that say nothing about testing
+effort — an `if` added to an already-covered file lowers the branch rate
+without a single test having disappeared.
 
 ### What the distribution says
 

@@ -351,7 +351,33 @@ apply_secrets() {
     # porte ce nom — or le dépôt doit produire un déploiement sur N machines
     # (#401), et celles d'après février n'auront pas cet utilisateur.
     local data_dir="${ARBORE_DATA_DIR:-$(dirname "$SCRIPT_DIR")/arbore-data}"
+
+    # Suffixé par l'environnement, SAUF le primaire qui garde le chemin
+    # historique. (#434)
+    #
+    # Le chemin était commun aux deux piles, et c'est le point le plus coûteux
+    # du cloisonnement : il était à UN FICHIER de la panne. Les trois mappings
+    # autres que `.enc.env` sont sautés faute de source — `ops/secrets/` ne
+    # porte aujourd'hui que `dev.enc.env` —, donc rien n'écrase rien. Le jour
+    # où quelqu'un ajoute `dev.enc.json` pour donner à dev son propre projet
+    # Firebase, un déploiement de DEV écraserait le compte de service de la
+    # PROD. Et le job de réconciliation (#393) tourne chaque dimanche avec
+    # `--apply`.
+    #
+    # Le primaire ne bouge pas, donc il n'y a aucun fichier à déplacer sur les
+    # machines déjà déployées : la correction est sans effet observable
+    # aujourd'hui, et la panne n'existe plus demain. Même convention que
+    # `thumbnails-dev` et `uploads-community-dev`.
+    #
+    # Ce que ça ne fait PAS : séparer les secrets que les conteneurs LISENT.
+    # Ceux-là viennent des `*_HOST_PATH` du fichier d'environnement, et dev
+    # pointe délibérément sur ceux de prod — le projet Firebase est commun, et
+    # #434 le liste comme partage accepté. Ce qui est corrigé ici est
+    # l'ÉCRITURE, pas la lecture.
     local secrets_dir="$data_dir/secrets"
+    if [ "$env_name" != "${ARBORE_PRIMARY_ENV:-prod}" ]; then
+        secrets_dir="$data_dir/secrets-$env_name"
+    fi
 
     # Créé ici, parce que rien d'autre ne le crée : sur une machine vierge
     # `install` échoue faute de répertoire, le repli `sudo install` échoue pour
@@ -876,20 +902,47 @@ prepare_generator_dir() {
     fi
 }
 
-# Montages qui ne doivent JAMAIS être partagés entre deux environnements.
+# Montages à ne pas partager entre deux environnements, et ce qu'on en fait.
 #
-# Format : VARIABLE|défaut relatif au compose|destination dans le conteneur
+# Format : VARIABLE|défaut relatif au compose|destination|sévérité
 #
-# Tous sont montés en ÉCRITURE. Les partager, c'est laisser un environnement
-# réécrire les données d'un autre — les vignettes portent l'identifiant de la
-# fiche, pas celui de l'environnement.
+# Deux sévérités, parce que deux dangers de nature différente :
 #
-# `/data/generator` n'y figure PAS ENCORE : les deux piles le partagent
-# aujourd'hui, et l'y ajouter ferait échouer tout déploiement avant que les
-# chemins ne soient séparés. À ajouter avec la séparation (#434).
+#   bloquant  montage en ÉCRITURE. Le partager, c'est laisser un environnement
+#             réécrire les données d'un autre — les vignettes portent
+#             l'identifiant de la fiche, pas celui de l'environnement. Échec,
+#             pas avertissement : un avertissement se perd dans la sortie, et
+#             c'est exactement ce qui est arrivé à celui des secrets (#690).
+#
+#   signalé   montage en LECTURE SEULE. Un environnement ne peut pas corrompre
+#             l'autre à travers lui, mais déposer un fichier pour l'un le rend
+#             visible chez l'autre — ce que la règle interdit. Ceux-là sont
+#             partagés AUJOURD'HUI et le bloquer casserait tout déploiement
+#             avant que les chemins ne soient séparés. On les RELÈVE donc à
+#             chaque déploiement, ce qui vaut mieux que de ne pas les regarder.
+#
+# L'inventaire est complet à dessein : il n'y en avait que deux, et les six
+# autres n'étaient contrôlés nulle part. Un montage absent de cette liste est
+# un montage dont personne ne dit s'il est partagé.
 MONTAGES_CLOISONNES=(
-    "THUMBNAILS_HOST_PATH|./ArboreBackend/models/thumbnails|/app/thumbnails"
-    "LEGACY_COMMUNITY_UPLOADS_HOST_PATH|./ArboreBackend/uploads/community|/app/uploads/community"
+    "THUMBNAILS_HOST_PATH|./ArboreBackend/models/thumbnails|/app/thumbnails|bloquant"
+    "LEGACY_COMMUNITY_UPLOADS_HOST_PATH|./ArboreBackend/uploads/community|/app/uploads/community|bloquant"
+    # Écriture, mais partagé aujourd'hui et ce n'est PAS un cloisonnement à
+    # faire : l'atelier est un outil, il ne doit tourner que sur UNE pile, et
+    # le code le désactive là où ses clés ne sont pas posées. Une seule pile y
+    # écrit donc. Signalé, pas bloquant, tant que la décision tient (#719).
+    "GENERATOR_DATA_HOST_PATH|./data/generator|/data/generator|signalé"
+    # 6,7 Go et 176 modèles contre 123 côté prod. La copie sera faite au
+    # transfert des maillages de la bascule (#719 §2) : la faire maintenant
+    # serait à refaire. Signalé jusque-là.
+    "MODELS_HOST_PATH|./ArboreBackend/models|/app/models|signalé"
+    "PHOTOS_HOST_PATH|./ArboreBackend/models/photos|/app/photos|signalé"
+    # Lus par les deux piles à dessein : le projet Firebase est commun, et #434
+    # le liste comme partage accepté. C'est l'ÉCRITURE qui est cloisonnée, dans
+    # `apply_secrets`. Relevés pour que ce partage reste une décision visible.
+    "FIREBASE_SERVICE_ACCOUNT_HOST_PATH|./arbore-firebase-adminsdk.json|/run/secrets/firebase-adminsdk.json|signalé"
+    "APPLE_SIWA_KEY_HOST_PATH|./AuthKey_A4X35PAX94.p8|/run/secrets/apple-siwa.p8|signalé"
+    "MASTER_ENCRYPTION_KEY_HOST_PATH|/dev/null|/run/secrets/master-encryption.key|signalé"
 )
 
 # Refuse de démarrer si un AUTRE environnement monte déjà le même répertoire de
@@ -904,13 +957,26 @@ MONTAGES_CLOISONNES=(
 # Un échec, pas un avertissement : un avertissement se perd dans la sortie, et
 # c'est précisément ce qui est arrivé à celui des secrets (#690).
 verifier_cloisonnement() {
-    local entree variable defaut destination voulu autre source
+    local entree variable defaut destination severite voulu autre source
+    local partages=0
     for entree in "${MONTAGES_CLOISONNES[@]}"; do
-        IFS="|" read -r variable defaut destination <<< "$entree"
+        IFS="|" read -r variable defaut destination severite <<< "$entree"
 
         voulu="$(grep "^$variable=" "$ENV_FILE" 2>/dev/null \
                  | sed "s/^$variable=//" || true)"
         [ -n "$voulu" ] || voulu="$SCRIPT_DIR/${defaut#./}"
+        # `/dev/null` est le défaut de plusieurs secrets facultatifs : toujours
+        # présent, donc aucun répertoire fantôme n'est créé. Deux piles qui
+        # n'ont ni l'une ni l'autre le fichier y pointent toutes les deux, et
+        # ce n'est PAS un partage de données — l'annoncer serait un faux
+        # positif à chaque déploiement.
+        [ "$voulu" = "/dev/null" ] && continue
+        # Ancré sur le répertoire du fichier compose, et non sur le répertoire
+        # COURANT : c'est ainsi que compose résout `./data/generator` ou
+        # `../arbore-data/models`. Le script fait bien `cd "$SCRIPT_DIR"` en
+        # tête, donc les deux coïncident aujourd'hui — mais le contrôle ne doit
+        # pas dépendre de ça pour dire vrai.
+        case "$voulu" in /*) ;; *) voulu="$SCRIPT_DIR/$voulu" ;; esac
         # `-m` : le répertoire peut ne pas exister encore, compose le créerait.
         voulu="$(realpath -m "$voulu")"
 
@@ -923,15 +989,25 @@ verifier_cloisonnement() {
                 --format "{{range .Mounts}}{{if eq .Destination \"$destination\"}}{{.Source}}{{end}}{{end}}" \
                 2>/dev/null || true)"
             [ -n "$source" ] || continue
-            if [ "$(realpath -m "$source")" = "$voulu" ]; then
+            [ "$(realpath -m "$source")" = "$voulu" ] || continue
+
+            if [ "$severite" = "bloquant" ]; then
                 fail "Données partagées avec $autre : $destination"
                 fail "  répertoire : $voulu"
                 fail "Deux environnements y écriraient les mêmes fichiers."
                 fail "Poser $variable dans $ENV_FILE, propre à « $ARBORE_ENV »."
                 exit 1
             fi
+            warn "Partagé avec $autre : $destination ($voulu)"
+            partages=$((partages + 1))
         done
     done
+
+    if [ "$partages" -eq 0 ]; then
+        ok "Montages cloisonnés (${#MONTAGES_CLOISONNES[@]} contrôlés)"
+    else
+        warn "$partages montage(s) en lecture partagé(s) — connus, suivis en #434"
+    fi
 }
 
 do_docker_up() {

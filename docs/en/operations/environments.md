@@ -41,9 +41,50 @@ The new machine holds a **single checkout** for two compose stacks
 same directories. That is what made both backends share their thumbnail
 directory **writable** until 2026-11-02.
 
-What is partitioned today, and what is not, is tracked in #434. `deploy.sh`
-now refuses to start when another environment already mounts the target
-directory.
+#### What is partitioned, and what is not
+
+Recorded by `docker inspect` of the four containers, on 2026-11-03.
+
+| Mount | prod | dev | state |
+|---|---|---|---|
+| `/app/thumbnails` (rw) | `arbore-data/…/thumbnails` | `arbore-data/thumbnails-dev` | ✅ |
+| `/app/uploads/community` (rw) | checkout | `arbore-data/uploads-community-dev` | ✅ |
+| `/app/photos` (ro) | checkout | `arbore-data/photos-dev` | ✅ |
+| `/app/models` (ro) | `arbore-data/models` | **the same** | ⏳ migration |
+| `/run/secrets/*` (ro) | `arbore-data/secrets/` | **the same** | 🤝 accepted |
+| `/data/generator` (rw) | checkout | **the same** | 🤝 one workshop |
+
+**The writable mounts are partitioned**, except `/data/generator` — and that
+one is not a partitioning to do but a workshop that must run on **one** stack
+only. The code disables it wherever its keys are not laid down, so a single
+stack writes there.
+
+**The models wait for the migration**, and that is a choice: 6.7 GB and 176
+models on dev against 123 on prod. Copying them now would have to be redone
+when the meshes are transferred (#719 §2). The photos were partitioned right
+away because the directory is **empty on both sides** — nothing to copy,
+nothing to break.
+
+**The secrets that are read are shared on purpose**: the Firebase project is
+shared, and #434 lists it as an accepted overlap. What is partitioned is the
+**write**: `apply_secrets()` writes to `arbore-data/secrets-<env>` for every
+non-primary environment, `arbore-data/secrets` staying prod's. Without that,
+adding a dev.enc.json cipher file to give dev its own Firebase project would make **a dev
+deployment overwrite prod's service account** — and the reconciliation job
+(#393) runs every Sunday with `--apply`.
+
+#### The check at deploy time
+
+`deploy.sh` checks **eight** mounts on every `docker compose up`, at two
+severities:
+
+- **blocking** for a shared writable mount — the deployment stops. A warning
+  would get lost in the output, which is exactly what happened to the secrets
+  one (#690);
+- **reported** for a shared read-only mount — the line is printed on every
+  deployment, so the sharing stays a visible decision rather than an oversight.
+
+The rest of the tracking is in #434.
 
 ---
 

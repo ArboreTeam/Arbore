@@ -41,9 +41,52 @@ La nouvelle machine n'a **qu'un seul checkout** pour deux piles compose
 les mêmes répertoires. C'est ce qui a fait partager aux deux backends leur
 répertoire de vignettes **en écriture** jusqu'au 2026-11-02.
 
-Ce qui est cloisonné aujourd'hui, et ce qui ne l'est pas, est suivi dans #434.
-`deploy.sh` refuse désormais de démarrer si un autre environnement monte déjà
-le répertoire visé.
+#### Ce qui est cloisonné, et ce qui ne l'est pas
+
+Relevé par `docker inspect` des quatre conteneurs, le 2026-11-03.
+
+| Montage | prod | dev | état |
+|---|---|---|---|
+| `/app/thumbnails` (rw) | `arbore-data/…/thumbnails` | `arbore-data/thumbnails-dev` | ✅ |
+| `/app/uploads/community` (rw) | checkout | `arbore-data/uploads-community-dev` | ✅ |
+| `/app/photos` (ro) | checkout | `arbore-data/photos-dev` | ✅ |
+| `/app/models` (ro) | `arbore-data/models` | **le même** | ⏳ bascule |
+| `/run/secrets/*` (ro) | `arbore-data/secrets/` | **le même** | 🤝 assumé |
+| `/data/generator` (rw) | checkout | **le même** | 🤝 un seul atelier |
+
+**Les montages en écriture sont cloisonnés**, sauf `/data/generator` — et
+celui-là n'est pas un cloisonnement à faire mais un atelier qui ne doit tourner
+que sur **une** pile. Le code le désactive là où ses clés ne sont pas posées,
+donc une seule pile y écrit.
+
+**Les modèles attendent la bascule**, et c'est un choix : 6,7 Go et 176 modèles
+côté dev contre 123 côté prod. Les copier maintenant serait à refaire au
+transfert des maillages (#719 §2). Les photos, elles, ont été cloisonnées tout
+de suite parce que le répertoire est **vide des deux côtés** — rien à copier,
+rien à casser.
+
+**Les secrets lus sont communs à dessein** : le projet Firebase est partagé, et
+#434 le liste comme partage accepté. Ce qui est cloisonné, c'est l'**écriture** :
+`apply_secrets()` écrit dans `arbore-data/secrets-<env>` pour tout
+environnement non primaire, `arbore-data/secrets` restant celui de la prod.
+Sans cela, ajouter un chiffré dev.enc.json pour donner à dev son propre projet
+Firebase ferait **écraser le compte de service de la prod par un déploiement de
+dev** — et le job de réconciliation (#393) tourne chaque dimanche avec
+`--apply`.
+
+#### Le contrôle au déploiement
+
+`deploy.sh` vérifie les **huit** montages à chaque `docker compose up`, avec
+deux sévérités :
+
+- **bloquant** pour un montage en écriture partagé — le déploiement s'arrête.
+  Un avertissement se perdrait dans la sortie, et c'est exactement ce qui est
+  arrivé à celui des secrets (#690) ;
+- **signalé** pour un montage en lecture partagé — la ligne est affichée à
+  chaque déploiement, pour que le partage reste une décision visible et non un
+  oubli.
+
+Le reste du suivi est dans #434.
 
 ---
 

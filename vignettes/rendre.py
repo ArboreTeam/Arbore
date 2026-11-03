@@ -62,6 +62,30 @@ HERBE = "#628A4B"
 # rejetterait alors en silence toutes les vignettes du catalogue.
 CIEL_CLARTE_MAX = 215
 
+# Échelle que le décor SUPPOSE, et bande hors de laquelle on la rétablit.
+#
+# Le décor est bâti avec des constantes ABSOLUES : plan rapproché de la caméra
+# à 1e-4, pelouse à -0,001, `shadow_maximum_resolution` à 0,5 mm par texel.
+# Toutes supposent un sujet de l'ordre du mètre, et 121 des 123 modèles du
+# catalogue mesurent entre 0,83 et 2,00 unités. Deux sont authored en
+# CENTIMÈTRES et arrivent à 122 (Cactus) et 153 (Livistona Chinensis) unités,
+# sans que leur `metersPerUnit` le signale — il n'y a donc rien à lire dans le
+# fichier, seule la mesure le dit.
+#
+# À 153 unités, la plage de profondeur 1e-4 → 1000 a un pas plus GROS que le
+# pot : la caméra est à 536 unités, et un tampon de profondeur sur 24 bits y
+# vaut (536² / 1e-4) / 2²⁴ ≈ 168 unités, contre 30 pour la hauteur du pot. Le
+# pot entier tient dans un seul cran et le sol l'emporte — il disparaît, et le
+# mur émissif avec lui, d'où le ciel GRIS au lieu du beige. Constaté sur les
+# deux vignettes, reproduit, corrigé par ce facteur.
+#
+# La bande est large à dessein. Le cadrage, lui, est invariant d'échelle : tout
+# modèle déjà dans la bande reçoit un facteur de 1,0 et n'est pas transformé du
+# tout, donc sa vignette reste identique AU PIXEL près — vérifié sur
+# Alocasia Zebrina, 0 pixel d'écart.
+HAUTEUR_DE_REFERENCE = 1.5
+ECHELLE_MIN, ECHELLE_MAX = 0.1, 10.0
+
 
 def vers_lineaire(c):
     """Octet sRGB vers la valeur linéaire que Blender attend d'un matériau."""
@@ -235,6 +259,31 @@ def boite(objets):
     bas = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
     haut = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
     return bas, haut
+
+
+def normaliser_echelle(sujet, maillages):
+    """Ramène le sujet à l'échelle que le décor suppose, et rend le facteur.
+
+    Appliqué au PARENT, pas aux maillages : le pot et le disque de terre sont
+    déjà posés sous lui par `composer`, avec leurs décalages internes. Mettre
+    chaque maillage à l'échelle séparément les désassemblerait, exactement
+    comme pour le porteur du pot.
+
+    Rend 1,0 — et ne touche à rien — pour tout sujet déjà dans la bande. C'est
+    la propriété qui compte : la correction ne vaut que pour les modèles hors
+    unité, et ne redessine pas les vignettes du reste du catalogue.
+    """
+    bas, haut = boite(maillages)
+    etendue = max(haut.z - bas.z, haut.x - bas.x, haut.y - bas.y)
+    if etendue <= 0 or ECHELLE_MIN <= etendue <= ECHELLE_MAX:
+        return 1.0
+
+    facteur = HAUTEUR_DE_REFERENCE / etendue
+    sujet.scale = (facteur, facteur, facteur)
+    bpy.context.view_layer.update()
+    print(f"{MARQUE_TEMPS} echelle_corrigee etendue={etendue:.4f} "
+          f"facteur={facteur:.6f}", flush=True)
+    return facteur
 
 
 def rvb(hexa):
@@ -572,6 +621,13 @@ def main():
     pose = json.loads(a.pose) if a.pose else None
     with chrono("composition_totale"):
         sujet, maillages, niveau_sol = composer(a.modele, a.pot, pose)
+
+    # AVANT la pose au sol, et c'est l'ordre qui compte : `niveau_sol` est une
+    # cote en Z, donc la même mise à l'échelle lui est due. Après la pose, le
+    # facteur déplacerait aussi le sujet déjà posé.
+    facteur = normaliser_echelle(sujet, maillages)
+    if niveau_sol is not None:
+        niveau_sol *= facteur
 
     # Pose au sol et centrage, comme le moteur iOS : `model.position.y` ramène
     # le bas sur le sol, puis le centre est ramené sur l'axe.

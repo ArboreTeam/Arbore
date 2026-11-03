@@ -1,6 +1,8 @@
 # Backend Tests (back)
 
-The Go backend tests live at the package root (`ArboreBackend/*_test.go`) and in `middleware/`. They use Gin's test mode. No real MongoDB is required: depending on the case, handlers are either **re-implemented as mocked Gin routers** (authorization logic) or **called directly** through an injectable seam (AI proxies, where the network call is replaced by a fake `LLMProvider` or an `httptest.Server`). The tests stay fast and hermetic.
+The Go backend tests live at the package root (`ArboreBackend/*_test.go`) and in `middleware/`. They use Gin's test mode. No real MongoDB is required, and three techniques coexist depending on what must be proven: handlers are **re-implemented as mocked Gin routers** (authorization logic), **called directly** through an injectable seam (AI proxies, where the network call is replaced by a fake `LLMProvider` or an `httptest.Server`), or exercised against **`mtest`'s mock deployment** (paths that read from and write to the database). The tests stay fast and hermetic.
+
+`mtest` replies with canned documents and **records the commands sent**. For code that deletes, that is the right level: what matters is not the value Mongo returns but the collection targeted, the filter, the kind of deletion and the order. A real mongod would not say it any better.
 
 ## Inventory
 
@@ -31,7 +33,10 @@ The Go backend tests live at the package root (`ArboreBackend/*_test.go`) and in
 | `ArboreBackend/storage_s3_test.go` | S3 backend: key mapping, escape refused, 404 classification, incomplete configuration refused. |
 | `ArboreBackend/storage_guard_test.go` | Storage rate guard: stops at the limit, resets after the window, rejects oversized payloads **before** counting them, throttles presigning, counts presigns and opens together, disabled at zero, configured from environment variables. |
 | `ArboreBackend/account_cleanup_test.go` | Account cleanup: the legacy community image is deleted only inside the configured directory and only for an expected extension. |
-| `ArboreBackend/reconcile_guests_test.go` | Guest reconciliation: an empty Firebase set is refused (guardrail against a full purge), the grace period never disables itself and defaults to seven days, reconciled collections match those of the purge, `community_posts` does use the `userId` field. |
+| `ArboreBackend/purge_user_data_test.go` | **The erasure itself** (#725): the four collections are purged, the `users` document **last** (a mid-way failure leaves the uid findable for a retry), `DeleteMany` and not `DeleteOne` (audit #338 finding 1: some accounts carry several documents), the right field per collection (`userId` for `community_posts`), stop at the first error naming the step, and the images of deleted posts leave the disk. |
+| `ArboreBackend/reconcile_guests_mongo_test.go` | **The job's nominal path** (#725): `collectMongoUIDs` reads every collection on its own field and ignores unusable values; `hasRecentData` treats a non-ObjectId `_id` as **recent** (an undeterminable age protects the data), short-circuits, and fails closed; `reconcileGuests` **never** targets a uid present in Firebase, spares an orphan inside the grace period, and deletes nothing in simulation. The log contains **no uid** (#385). |
+| `ArboreBackend/rgpd_handlers_test.go` | **The two GDPR routes** (#725): neither the export nor the deletion touches the database before authentication; `deleteUser` purges the four collections and returns exact counts, reads the Apple token from a document that **carries** one, names the failing collection, and returns 503 `AUTH_DELETE_FAILED` when Firebase is unavailable — after purging Mongo. `exportUserData` exports the gardens and consents of a **guest with no profile** (Art. 15), and **never** discloses the Apple refresh token. |
+| `ArboreBackend/reconcile_guests_test.go` | Guest reconciliation, the **database-free** guardrails: an empty Firebase set is refused (guardrail against a full purge), the grace period never disables itself and defaults to seven days, reconciled collections match those of the purge, `community_posts` does use the `userId` field. |
 | `ArboreBackend/botanical_schema_test.go` | JSON round-trip for `PlantBotanicalProfile` and `GardenCompatibilityContext` (contract shared with iOS). |
 
 ## What these tests guarantee
@@ -66,5 +71,7 @@ In CI (`.github/workflows/ci.yml`, `backend` job): `go mod download && verify` �
 ## Known limitations
 
 - No **blocking coverage threshold** (Codecov in publish-only mode).
-- The tests use mocked routers: they validate the **authorization and format logic**, not the real MongoDB integration (covered on the iOS side by the integration tests that hit the real backend).
+- Coverage measured on 2026-11-03: **52.7%** overall (main package 51.1%, `middleware` 63.9%). The erasure paths, which were at 0%, are now at 83–100%.
+- Authorization-logic tests use mocked routers; the ones that touch the database go through `mtest`. Neither validates integration **with a real mongod** — indexes, unique constraints, real concurrency. That is covered on the iOS side by the integration tests that hit the real backend, which **skip** when it is unreachable.
+- `runReconcileGuests` stays at 0%: it requires Firebase and the package-level Mongo client. What it chains is covered separately (`reconcileGuests`, `logReconcileReport`).
 - `ArboreBackend/go.mod` declares `go 1.25.14`: the CI `GO_VERSION` variable must stay aligned.

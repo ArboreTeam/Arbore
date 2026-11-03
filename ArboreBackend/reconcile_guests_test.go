@@ -11,9 +11,14 @@ import (
 )
 
 // Le job supprime des données de production sur la foi d'un système externe.
-// Ces tests verrouillent les gardes qui rendent cela acceptable — pas le
-// chemin nominal, qui exige une base Mongo dont l'environnement de test ne
-// dispose pas.
+// Ces tests verrouillent les gardes qui rendent cela acceptable, sans aucune
+// base de données.
+//
+// Le chemin nominal — collecte des uid, période de grâce, purge effective —
+// est couvert séparément dans `reconcile_guests_mongo_test.go`, par le
+// déploiement simulé de `mtest`. Ce commentaire disait auparavant qu'il
+// « exige une base Mongo dont l'environnement de test ne dispose pas » :
+// c'était vrai d'un vrai mongod, pas du simulateur (#725).
 
 // TestReconcileRefusesEmptyFirebaseSet est la garde la plus importante du job.
 //

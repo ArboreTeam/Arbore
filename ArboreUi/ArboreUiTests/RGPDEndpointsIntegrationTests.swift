@@ -20,7 +20,7 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
         try super.setUpWithError()
 
         try LiveIntegrationTestGate.requireEnabled()
-        try ensureBackendIsReachableOrSkip()
+        try LiveIntegrationTestGate.requireBackendReachable(suite: "RGPD")
 
         // Configure Firebase
         if FirebaseApp.app() == nil {
@@ -32,31 +32,6 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
         testUserPassword = "TestPassword123!"
     }
 
-    private func ensureBackendIsReachableOrSkip() throws {
-        guard let url = URL(string: "\(AppConfig.baseURL)/health") else {
-            throw XCTSkip("RGPD integration tests skipped: invalid backend URL \(AppConfig.baseURL)")
-        }
-
-        let expectation = self.expectation(description: "Backend health check")
-        var isReachable = false
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 5
-
-        URLSession.shared.dataTask(with: request) { _, response, _ in
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
-                isReachable = true
-            }
-            expectation.fulfill()
-        }.resume()
-
-        wait(for: [expectation], timeout: 7.0)
-
-        if !isReachable {
-            throw XCTSkip("RGPD integration tests skipped: backend is unreachable at \(AppConfig.baseURL)")
-        }
-    }
 
     override func tearDownWithError() throws {
         // Cleanup: delete test user if created
@@ -163,6 +138,22 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
         return idToken
     }
 
+    /// Une erreur d'appel doit DIRE ce que le backend a répondu.
+    ///
+    /// Les messages précédents — « Failed to create garden » — ne
+    /// distinguaient pas un 401 d'un 403 ni d'un 500. Quand ces suites ont
+    /// enfin tourné, le 2026-11-03, il a fallu aller lire les journaux du
+    /// serveur pour savoir pourquoi dix tests échouaient. Le statut et le
+    /// corps suffisaient. (#725)
+    static func echecHTTP(_ appel: String, response: URLResponse?, data: Data) -> NSError {
+        let statut = (response as? HTTPURLResponse)?.statusCode
+        let corps = String(data: data, encoding: .utf8) ?? "<corps illisible>"
+        return NSError(
+            domain: "TestError", code: statut ?? -1,
+            userInfo: [NSLocalizedDescriptionKey:
+                "\(appel) a rendu \(statut.map(String.init) ?? "aucun statut") — \(corps)"])
+    }
+
     private func createUserInBackend(uid: String, email: String, name: String, token: String) async throws {
         let endpoint = "\(AppConfig.baseURL)/users"
         guard let url = URL(string: endpoint) else {
@@ -184,10 +175,10 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: userData)
 
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw NSError(domain: "TestError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create user in backend"])
+            throw Self.echecHTTP("POST /users", response: response, data: data)
         }
     }
 
@@ -218,7 +209,7 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw NSError(domain: "TestError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create garden"])
+            throw Self.echecHTTP("POST /gardens", response: response, data: data)
         }
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -249,10 +240,10 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: consentData)
 
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 else {
-            throw NSError(domain: "TestError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create consent"])
+            throw Self.echecHTTP("POST /consents", response: response, data: data)
         }
     }
 

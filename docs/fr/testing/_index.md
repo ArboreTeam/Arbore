@@ -7,12 +7,20 @@ Cette section documente les **suites de tests** d'Arbore (front et back), ce qu'
 | Tests iOS | App iOS (front) | XCTest + XCUITest | [`ios.md`](ios.md) |
 | Tests Backend | API Go (back) | `go test` + testify | [`backend.md`](backend.md) |
 | Tests Web | Front web Next.js | Vitest + Testing Library | [`web.md`](web.md) |
-| Tests Python | Scripts de maintenance et job de vignettes | `unittest` | voir ci-dessous |
+| Tests Python | Scripts de maintenance, ouvrier et **rendu** des vignettes | `unittest` | voir ci-dessous |
 
 > **La suite Python n'était pas listée ici** jusqu'au 2026-11-03. Elle compte
-> **58 tests** dans `scripts/test_*.py`, et couvre notamment l'ouvrier de
-> vignettes : type d'exception de sa boucle, routes visées, agent annoncé,
-> relevé des mesures de phases.
+> **89 tests** dans `scripts/test_*.py`. Elle couvre l'ouvrier de vignettes
+> (type d'exception de sa boucle, routes visées, agent annoncé, relevé des
+> mesures) et, depuis #725, le **rendu** lui-même : `rendre.py` est chargé avec
+> `bpy` et `mathutils` simulés, ce qui permet d'éprouver sans Blender le
+> cadrage, les conversions de couleur, le repère Y-up → Z-up et la
+> normalisation d'échelle de #718.
+>
+> Les constantes y sont traitées comme du **contrat** : un ciel trop clair ou
+> un marqueur décalé d'un octet font refuser la vignette par l'app, en
+> silence. C'est la catégorie de défaut qui a coûté 123 vignettes le
+> 30 octobre.
 >
 > ```sh
 > python3 -I -m unittest discover -s scripts -p 'test_*.py'
@@ -20,8 +28,8 @@ Cette section documente les **suites de tests** d'Arbore (front et back), ce qu'
 >
 > Elle a un job CI depuis le 2026-11-03 : **`🐍 Outillage (Python)`**, filtré
 > sur `scripts/**` et `vignettes/**`. Jusque-là aucun workflow ne mentionnait
-> `unittest` — 58 tests qui passaient en 14 millisecondes, et que personne
-> n'aurait vu casser.
+> `unittest` — des tests qui passaient en quelques millisecondes, et que
+> personne n'aurait vu casser.
 
 ## Philosophie
 
@@ -71,8 +79,8 @@ couverture, et le provider web n'était pas installé.
 |---|---|---|---|
 | **iOS** (`ArboreUi.app`) | **6,94 %** — 6 164 / 88 850 lignes | 335 passés, 26 sautés | `ios_ui`, résumé du job |
 | **Backend Go** | **52,7 %** (principal 51,1 %, middleware 63,9 %) | 355 | `backend`, puis Codecov |
-| **Web** | **30,8 %** — 1 174 / 3 811 instructions | 256 | `🌱 Web`, résumé du job |
-| **Python** (`scripts/`) | non mesurée | 58 | `🐍 Outillage`, exécution seule |
+| **Web** | **32,5 %** — 1 237 / 3 811 instructions | 280 | `🌱 Web`, résumé du job |
+| **Python** (`scripts/`) | non mesurée | 89 | `🐍 Outillage`, exécution seule |
 
 **Le chiffre du web se lit avec une précaution.** Sans `coverage.all`, v8 ne
 compte que les fichiers que les tests **chargent** : les 140 fichiers

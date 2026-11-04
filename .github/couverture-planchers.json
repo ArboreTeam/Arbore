@@ -11,9 +11,12 @@
     "reculer » se justifie tout seul, se mesure exactement, et n'oblige à",
     "aucun test de complaisance.",
     "",
-    "Les valeurs sont légèrement SOUS les mesures du 2026-11-03, pour",
-    "absorber le bruit : un fichier supprimé ou une branche de code morte",
+    "Les valeurs sont légèrement SOUS la dernière mesure de chaque langage,",
+    "pour absorber le bruit : un fichier supprimé ou une branche de code morte",
     "retirée font bouger un dénominateur sans que personne n'ait rien cassé.",
+    "La date de la mesure est portée par la clé `mesure_<date>` de chaque",
+    "langage, pour qu'un plancher ne se retrouve jamais daté par un",
+    "commentaire que personne n'a pensé à mettre à jour.",
     "",
     "COMMENT LES RELEVER. Quand une PR fait monter la couverture, relever le",
     "plancher dans la même PR. C'est ce geste qui fait du cliquet un cliquet :",
@@ -28,8 +31,9 @@
   ],
 
   "go": {
-    "plancher": 52.0,
-    "mesure_2026_11_03": 52.7,
+    "plancher": 52.7,
+    "mesure_2026_11_04": 53.4,
+    "releve_par": "#737 — tests de la garde de stockage (une opération par fichier servi)",
     "quoi": "ArboreBackend + middleware, instructions"
   },
 

@@ -33,6 +33,12 @@ import (
 // Elle borne les opérations FACTURÉES : les lectures directes comme les URL
 // signées, chacune produisant exactement une lecture chez le fournisseur.
 //
+// L'invariant, et ce qu'il a coûté de ne pas l'avoir (#737) : **une opération
+// décomptée = une lecture réellement autorisée.** Une signature qui échoue
+// n'autorise rien, donc ne se décompte pas — sinon un fichier servi par un
+// support incapable de signer coûterait deux opérations, et le plafond réel
+// vaudrait la moitié du plafond configuré.
+//
 // Elle ne borne pas ce qu'un client fait d'une URL déjà obtenue — mais une URL
 // expire en quinze minutes et n'autorise qu'un objet, donc la fenêtre d'abus
 // reste étroite.
@@ -55,6 +61,12 @@ type guardedStorage struct {
 	mu          sync.Mutex
 	windowStart time.Time
 	opsInWindow int
+	// generation change à chaque remise à zéro de la fenêtre. Elle sert à
+	// n'annuler une réservation que dans la fenêtre qui l'a accordée : sans
+	// elle, une annulation arrivant après un basculement de fenêtre
+	// décrémenterait le compteur de la fenêtre SUIVANTE, qui n'a rien
+	// réservé.
+	generation int
 	// refusals compte les refus, pour qu'un seuil trop bas se voie dans les
 	// journaux plutôt que de dégrader le service en silence.
 	refusals int
@@ -79,9 +91,12 @@ func (g *guardedStorage) Name() string {
 // allow décompte une opération. Fenêtre glissante grossière — on remet le
 // compteur à zéro quand la fenêtre est écoulée, plutôt que de tenir un
 // historique : la précision n'apporterait rien à un filet de sécurité.
-func (g *guardedStorage) allow() error {
+// allow réserve une opération et rend la génération de fenêtre sur laquelle
+// elle a été prise, à repasser à `cancel` si l'opération réservée n'a finalement
+// rien autorisé.
+func (g *guardedStorage) allow() (int, error) {
 	if g.config.MaxOpsPerWindow <= 0 {
-		return nil
+		return 0, nil
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -93,17 +108,39 @@ func (g *guardedStorage) allow() error {
 		g.windowStart = time.Now()
 		g.opsInWindow = 0
 		g.refusals = 0
+		g.generation++
 	}
 	if g.opsInWindow >= g.config.MaxOpsPerWindow {
 		g.refusals++
-		return ErrStorageQuotaExceeded
+		return g.generation, ErrStorageQuotaExceeded
 	}
 	g.opsInWindow++
-	return nil
+	return g.generation, nil
+}
+
+// cancel rend une réservation qui n'a rien autorisé.
+//
+// Le budget borne les opérations FACTURÉES. Une réservation qui n'aboutit à
+// aucune lecture chez le fournisseur n'en est pas une, et la garder décomptée
+// réduirait le plafond réel sous sa valeur configurée — exactement le défaut
+// que #737 a mesuré : `200 op/min` n'en valait que 100.
+//
+// Rendue seulement si la fenêtre n'a pas basculé entre-temps : sinon on
+// retirerait une opération à une fenêtre qui n'en a jamais accordé.
+func (g *guardedStorage) cancel(generation int) {
+	if g.config.MaxOpsPerWindow <= 0 {
+		return
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.generation == generation && g.opsInWindow > 0 {
+		g.opsInWindow--
+	}
 }
 
 func (g *guardedStorage) Open(ctx context.Context, obj StorageObject) (io.ReadSeekCloser, ObjectInfo, error) {
-	if err := g.allow(); err != nil {
+	if _, err := g.allow(); err != nil {
 		return nil, ObjectInfo{}, err
 	}
 	return g.inner.Open(ctx, obj)
@@ -116,7 +153,7 @@ func (g *guardedStorage) Put(ctx context.Context, obj StorageObject, data []byte
 		return fmt.Errorf("%w: objet de %d octets, maximum %d",
 			ErrStorageQuotaExceeded, len(data), g.config.MaxObjectBytes)
 	}
-	if err := g.allow(); err != nil {
+	if _, err := g.allow(); err != nil {
 		return err
 	}
 	return g.inner.Put(ctx, obj, data)
@@ -136,10 +173,31 @@ func (g *guardedStorage) PresignedURL(ctx context.Context, obj StorageObject, tt
 	//
 	// Une signature vaut donc exactement une opération, comme une lecture
 	// directe : les deux produisent une lecture facturée.
-	if err := g.allow(); err != nil {
+	//
+	// MAIS seulement si elle aboutit (#737). Sur un support qui ne sait pas
+	// signer — `filesystem`, celui de la production depuis le 2026-10-21 —
+	// l'appel rend `ErrNoPresign`, aucune URL n'est remise, donc RIEN n'est
+	// autorisé. `serveStorageObject` retombe alors sur `Open`, qui décompte à
+	// son tour : un fichier servi coûtait deux opérations, dont une qui
+	// n'autorisait rien.
+	//
+	// Le plafond réel valait donc la moitié du plafond configuré. Mesuré :
+	// `200 op/min` ne laissait passer que 100 vignettes, et le catalogue en
+	// compte 123.
+	//
+	// On réserve d'abord — pour continuer de refuser AVANT d'atteindre le
+	// support, comme le vérifie `TestGuardThrottlesPresign` — puis on rend la
+	// réservation si rien n'a été signé.
+	generation, err := g.allow()
+	if err != nil {
 		return "", err
 	}
-	return g.inner.PresignedURL(ctx, obj, ttl)
+	url, err := g.inner.PresignedURL(ctx, obj, ttl)
+	if err != nil || url == "" {
+		g.cancel(generation)
+		return url, err
+	}
+	return url, nil
 }
 
 // logStorageRefusals signale qu'un seuil a mordu. Sans ce journal, une garde

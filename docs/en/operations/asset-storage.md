@@ -166,6 +166,35 @@ The guard counts **direct reads and presigned URLs alike**: each produces
 exactly one billable operation. An earlier version exempted presigning, which
 made the guard inert — with a store that can sign, that is the only path taken.
 
+### One counted operation = one read actually authorised
+
+The invariant took a while to hold, and what it cost is worth writing down
+(#737). A signature is counted only if it **succeeds**.
+
+`serveStorageObject` tries the signed path, then falls back to a direct read.
+On `filesystem`, signing returns `ErrNoPresign`: no URL is handed out, so
+**nothing is authorised**. While it was counted anyway, one served file cost
+**two** operations, one of which opened no door.
+
+So the real ceiling was half the configured one, and only on the backend
+production actually uses. Measured on the new machine: `200 ops/min` let only
+**100 thumbnails** through, and the catalogue holds **123**.
+
+This is not a loosening of the quota but its restoration: `200` now means 200
+operations, where it accidentally meant 100. The configured value itself has
+not changed.
+
+> Edge caching masked the symptom, and that is what let it live: Cloudflare
+> caches thumbnails for four hours, so browsing the catalogue reaches the
+> origin once. That duration is now set by the application
+> (`Cache-Control: public, max-age=14400`) rather than by a dashboard setting
+> alone — a protection you can read in the code instead of an accident.
+>
+> It is set on the **two public routes** only, thumbnails and plant photos.
+> `servePlantModel` shares the same `serveStorageObject` but is mounted on
+> authenticated routes only: marking a session-gated response `public` would
+> invite caching it for everyone.
+
 The default of 200 per minute comes from a calculation:
 
 ```

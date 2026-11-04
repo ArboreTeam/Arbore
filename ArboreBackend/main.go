@@ -69,6 +69,29 @@ const (
 	maxPlantNameRunes    = 120
 	maxBulkPlantNames    = 10
 
+	// cacheDesActifsPublics : en-tête `Cache-Control` des vignettes et des
+	// photos de fiche, les deux seules routes d'actifs qui soient PUBLIQUES.
+	//
+	// Mesuré avant d'écrire ceci (#737) : Cloudflare met déjà ces réponses en
+	// cache quatre heures au bord, alors que l'origine n'envoyait AUCUN
+	// `Cache-Control`. La valeur venait donc d'un réglage de tableau de bord
+	// et de la mise en cache par extension de fichier — une protection par
+	// effet de bord, que personne ne lisait dans le code et qu'un changement
+	// de réglage aurait retirée sans bruit.
+	//
+	// 14400 s reprend exactement la valeur déjà effective : l'intention est de
+	// rendre explicite ce qui était implicite, pas de changer le comportement.
+	//
+	// Et ça compte pour le budget de la garde (#599) : le cache de bord est ce
+	// qui évite à un parcours de catalogue d'atteindre l'origine 123 fois.
+	// Mieux vaut que ce soit une décision.
+	//
+	// Volontairement PAS posé dans `serveStorageObject` : `servePlantModel`
+	// l'emprunte aussi, depuis des routes authentifiées (`protected` et
+	// `internal`). Marquer `public` une réponse qui exige une session serait
+	// une invitation à la mettre en cache pour tout le monde.
+	cacheDesActifsPublics = "public, max-age=14400"
+
 	// vignettesParMinute : plafond de `POST /models/thumbnails/:plantId`.
 	//
 	// Il doit laisser passer un catalogue ENTIER en une seule passe. La route
@@ -2363,6 +2386,7 @@ func buildRouter() *gin.Engine {
 			return
 		}
 
+		c.Header("Cache-Control", cacheDesActifsPublics)
 		serveStorageObject(c,
 			StorageObject{Bucket: BucketThumbnails, Name: filename},
 			"image/png",
@@ -2398,6 +2422,7 @@ func buildRouter() *gin.Engine {
 			return
 		}
 
+		c.Header("Cache-Control", cacheDesActifsPublics)
 		serveStorageObject(c,
 			StorageObject{Bucket: BucketPhotos, Name: filename},
 			contentType,

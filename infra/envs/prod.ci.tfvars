@@ -25,21 +25,25 @@ domain      = "arbore.app"
 api_hostname = "api.arbore.app"
 web_hostname = "web.arbore.app"
 
-# Machine servant la production.
-origin_ip = "79.137.92.154"
+# Machine servant la production : VPS Debian 12, GRA11, depuis le 2026-11-04.
+# L'ancienne (Fedora 40) reste allumée jusqu'au 2026-11-06 comme repli — y
+# revenir est un changement de cette seule ligne, suivi d'un apply.
+origin_ip = "162.19.13.82"
 
-# Vide = dev suit la production. Renseignée pendant une migration pour
-# éprouver une machine neuve derrière Cloudflare sans déplacer le trafic (#652).
+# Vide = suit `origin_ip`. Renseignées pendant une migration pour éprouver une
+# machine neuve derrière Cloudflare sans déplacer le trafic (#652).
 #
-# RENSEIGNÉE le 2026-10-21 : `api-dev.arbore.app` passe sur la machine de
-# migration. `api` et `web` restent sur celle en service. À remettre vide une
-# fois la bascule complète faite, pour que dev retourne suivre la production.
-dev_origin_ip = "162.19.13.82"
-
-# L'atelier 3D suit les modèles qu'il produit, donc la machine de migration.
-# Ce n'est pas une surface d'utilisateur : l'app mobile ne l'appelle pas, et
-# son état est un fichier sur disque, pas une base (#652).
-generator_origin_ip = "162.19.13.82"
+# Renseignées le 2026-10-21, REVIDÉES le 2026-11-04 : la bascule est faite, les
+# quatre noms vivent sur la même machine, et laisser une valeur dupliquée ici
+# se désynchroniserait à la prochaine migration — on corrigerait `origin_ip` en
+# croyant avoir tout fait.
+#
+# Le piège reste entier dans l'autre sens : changer `origin_ip` SEUL pendant une
+# migration déplace `api` et `web` en laissant `generator` et `api-dev`
+# derrière, et le plan ne signale qu'un changement d'adresse. C'est ce que
+# `dns.tf` décrit pour `generator`.
+dev_origin_ip       = ""
+generator_origin_ip = ""
 
 r2_bucket_name  = "arbore-assets"
 r2_jurisdiction = "eu"

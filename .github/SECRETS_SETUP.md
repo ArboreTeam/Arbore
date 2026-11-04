@@ -33,8 +33,17 @@ Cela copie le fichier encodé dans votre presse-papier.
 **Format**: `arbore_ios_v1_<64 alphanumeric chars>`
 
 **⚠️ La clé réelle ne doit jamais apparaître dans le repo.** Demandez-la
-à un mainteneur (canal privé) ou régénérez-en une nouvelle sur le
-backend (\`ssh fedora@<host>\`, voir \`/home/fedora/Arbore/.env\`).
+à un mainteneur (canal privé).
+
+La source de vérité est **`ops/secrets/prod.enc.env`**, chiffré par sops : les
+noms de clés y sont en clair et relisibles en PR, les valeurs non. Pour la lire
+ou la changer, il faut la clé age privée de l'environnement
+(`~/.config/sops/age/arbore-prod.txt`), qui ne vit jamais dans le dépôt.
+
+> Ne pas aller la chercher dans un `.env` sur la machine : ce fichier est
+> **produit** par `deploy.sh` à partir du secret chiffré, donc une valeur
+> modifiée là serait écrasée au déploiement suivant, sans avertissement.
+> Éditer le secret chiffré en place, jamais déchiffrer-puis-rechiffrer.
 
 **Comment le configurer**:
 1. Allez sur GitHub → Repository Settings → Secrets and variables → Actions
@@ -91,6 +100,32 @@ backend (\`ssh fedora@<host>\`, voir \`/home/fedora/Arbore/.env\`).
 
 ---
 
+---
+
+### 5. Les secrets de l'environnement de DEV, et pourquoi ils comptent
+
+| secret | rôle |
+|---|---|
+| `ARBORE_DEV_BACKEND_HOST` | `api-dev.arbore.app` |
+| `ARBORE_DEV_API_KEY` | clé d'API du backend de dev |
+| `ARBORE_API_KEY_TEST` | repli : clé visant la base `arbore_test` de la **production** |
+
+L'étape `🎯 Choisir le backend des tests` donne la **priorité à dev** dès que
+les deux premiers existent. Sans eux, le comportement d'avant est conservé à
+l'identique : les suites d'intégration iOS visent la production, base
+`arbore_test`.
+
+Ce n'est pas une préférence de confort. La route `/internal` de provisionnement
+d'un compte de test vérifié **n'existe pas en production**, par construction
+(#696) : sans backend de dev, les tests qui ont besoin d'un membre à email
+vérifié sautent.
+
+> ⚠️ **À vérifier après une migration de VPS.** `ARBORE_BACKEND_HOST` a porté
+> une adresse de machine (`79.137.92.154:8080`) jusqu'au 2026-10-21. Un secret
+> ne se relit pas en PR — personne ne voit qu'il a vieilli, et un test qui
+> saute ne fait échouer aucune CI. Comparer la date de dernière modification du
+> secret à celle de ce document est le réflexe utile.
+
 ## ✅ Vérification
 
 Une fois tous les secrets configurés, vous devriez avoir dans vos secrets GitHub Actions:
@@ -99,6 +134,8 @@ Une fois tous les secrets configurés, vous devriez avoir dans vos secrets GitHu
 - ✅ `ARBORE_API_KEY`
 - ✅ `ARBORE_BACKEND_PROTOCOL`
 - ✅ `ARBORE_BACKEND_HOST`
+- ✅ `ARBORE_DEV_BACKEND_HOST`, `ARBORE_DEV_API_KEY` — pour que les tests
+  visent dev et non la production
 
 ## 🔒 Sécurité
 
@@ -170,4 +207,4 @@ Si vous avez besoin de créer un nouveau projet Firebase pour le CI:
 
 ---
 
-**Dernière mise à jour**: 26 janvier 2026
+**Dernière mise à jour**: 4 novembre 2026 — après la bascule de VPS (#652).

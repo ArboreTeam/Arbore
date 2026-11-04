@@ -1,10 +1,10 @@
 # Flux — Création d'un jardin (wizard)
 
-Ce document décrit le **flux de création d'un nouveau jardin** par l'utilisateur, depuis l'intro du wizard jusqu'à la sauvegarde finale du placement. Le code de référence est `Views/GardenSteps/QuestionnaireView.swift` qui pilote la `TabView` du wizard.
+Ce document décrit le **flux de création d'un nouveau jardin** par l'utilisateur, depuis la première question du wizard jusqu'à la sauvegarde finale du placement. Le code de référence est `Views/GardenSteps/QuestionnaireView.swift` qui pilote la `TabView` du wizard.
 
 ## Vue d'ensemble
 
-Le wizard est composé d'un nombre variable d'étapes (entre 8 et 9 selon les choix utilisateur), implémentées comme une `TabView` SwiftUI non-paginable dont la sélection est gouvernée par l'enum `GardenWizardStep`. La liste des étapes effectivement affichées est calculée par le computed `visibleSteps`.
+Le wizard est composé d'un nombre variable d'étapes (entre 7 et 8 selon les choix utilisateur), implémentées comme une `TabView` SwiftUI non-paginable dont la sélection est gouvernée par l'enum `GardenWizardStep`. La liste des étapes effectivement affichées est calculée par le computed `visibleSteps`.
 
 Le **scan du jardin** intervient à l'étape `scanMethod` (avant la suggestion AI) : le tap sur le CTA principal ouvre directement la vue de tracé AR, qui appelle `POST /gardens` à la fin du tracé pour créer le jardin en base avec sa boundary. Après le scan, la caméra se ferme et l'utilisateur peut fournir une localisation propre à ce jardin ; quand elle existe, cette localisation déclenche un enrichissement climat côté backend. Le wizard reprend ensuite la main et présente l'étape `aiSuggestion`, qui peut consommer les vraies mesures `state.measuredArea` / `state.measuredPerimeter` et le profil climat pour son ranking. Le CTA final de l'étape `aiSuggestion` ouvre `GardenARPlacementView` sur le jardin tout neuf en mode `.create` et déclenche l'auto-placement des plantes sélectionnées.
 
@@ -14,31 +14,28 @@ Le **scan du jardin** intervient à l'étape `scanMethod` (avant la suggestion A
 flowchart TB
     start_node([Tap Créer un jardin<br/>depuis Home])
 
-    intro["Étape 1 — Intro"]
-    style_step["Étape 2 — Style"]
-    spaceType["Étape 3 — Type d espace"]
-    exposure["Étape 4 — Exposition"]
-    maintenance["Étape 5 — Entretien"]
-    safety["Étape 6 — Sécurité"]
-    soil["Étape 7 — Sol<br/>(spaceType garden uniquement)"]
-    scan["Étape 8 — Scan method<br/>perimeter vs roomScan"]
+    spaceType["Étape 1 — Type d espace"]
+    style_step["Étape 2 — Style<br/>(choix multiple)"]
+    exposure["Étape 3 — Exposition"]
+    maintenance["Étape 4 — Entretien"]
+    safety["Étape 5 — Sécurité"]
+    soil["Étape 6 — Sol<br/>(spaceType garden uniquement)"]
+    scan["Étape 7 — Scan method<br/>perimeter vs roomScan"]
 
     trace_ar["fullScreenCover AR<br/>ARViewContainerMesure ou LiDARScanWizardView<br/>user trace + valide"]
     post_garden["POST /gardens<br/>boundary + wizard + plants: []"]
     location["Localisation du jardin<br/>position approximative, ville ou passer"]
     climate["POST /climate/profile<br/>climat régional + gel + littoral"]
     update_garden["PUT /gardens/:id<br/>wizard.location + wizard.siteProfile"]
-    ai["Étape 9 — AI Suggestion<br/>sélection plantes (area-aware)"]
+    ai["Étape 8 — AI Suggestion<br/>sélection plantes (area-aware)"]
     placement["fullScreenCover<br/>GardenARPlacementView (.create + existingGardenId)"]
     auto_place["Auto-placement IA<br/>+ ajustement manuel"]
     put_garden["PUT /gardens/:id<br/>plants positions"]
 
     home([Retour Home])
 
-    start_node --> intro --> style_step --> spaceType
-    spaceType -->|indoor ou balcony| exposure
-    spaceType -->|garden| exposure
-    exposure --> maintenance --> safety
+    start_node --> spaceType --> style_step
+    style_step --> exposure --> maintenance --> safety
     safety -->|garden| soil --> scan
     safety -->|sinon| scan
 
@@ -57,7 +54,7 @@ flowchart TB
     classDef cond  fill:#2E7D32,stroke:#1B5E20,color:#fff
     classDef ar    fill:#6A1B9A,stroke:#4A148C,color:#fff
     classDef io    fill:#999,stroke:#666,color:#fff
-    class intro,style_step,spaceType,exposure,maintenance,safety,soil,scan,location,ai step
+    class style_step,spaceType,exposure,maintenance,safety,soil,scan,location,ai step
     class post_garden,climate,update_garden,put_garden cond
     class trace_ar,placement,auto_place ar
     class start_node,home io
@@ -69,7 +66,7 @@ Le computed `visibleSteps` dans `QuestionnaireView.swift` implémente la logique
 
 ```swift
 private var visibleSteps: [GardenWizardStep] {
-    var steps: [GardenWizardStep] = [.intro, .style, .spaceType, .exposure, .maintenance, .safety]
+    var steps: [GardenWizardStep] = [.spaceType, .style, .exposure, .maintenance, .safety]
     if state.spaceType == .garden {
         steps.append(.soil)
     }
@@ -82,42 +79,42 @@ Conséquence :
 
 | Choix utilisateur | Étapes affichées |
 |---|---|
-| `spaceType == .indoor` ou `.balcony` | intro · style · spaceType · exposure · maintenance · safety · scanMethod · aiSuggestion (8 étapes) |
-| `spaceType == .garden` | intro · style · spaceType · exposure · maintenance · safety · **soil** · scanMethod · aiSuggestion (9 étapes) |
+| `spaceType == .indoor` ou `.balcony` | spaceType · style · exposure · maintenance · safety · scanMethod · aiSuggestion (7 étapes) |
+| `spaceType == .garden` | spaceType · style · exposure · maintenance · safety · **soil** · scanMethod · aiSuggestion (8 étapes) |
 
 L'étape `soil` n'a de sens qu'en pleine terre — c'est la seule règle de skip à ce jour.
 
 ## Détails par étape
 
-### Étape 1 — Intro
+Il n'y a plus d'écran d'introduction : le wizard s'ouvre directement sur le type d'espace. « Retour » sur cette première étape ferme le wizard, comme le X.
 
-Écran d'accueil. Décrit en deux phrases ce que le wizard va proposer et invite à commencer. Aucune entrée utilisateur. État `GardenWizardState` reste vierge.
+### Étape 1 — Type d'espace
+
+Quatre options : `interior`, `balcony`, `terrace`, `garden`. Pose `state.spaceType`. **C'est l'étape qui détermine si `soil` sera affichée plus loin.**
 
 ### Étape 2 — Style
 
-Choix parmi plusieurs styles esthétiques (moderne, zen, sauvage, méditerranéen, etc.). Pose `state.style`.
+Choix d'un ou plusieurs styles esthétiques (moderne, fleuri, champêtre, zen, méditerranéen) ou « Sans préférence ». Pose `state.styles` via `GardenWizardState.toggleStyle(_:)` : toucher une carte déjà choisie la désélectionne, et « Sans préférence » exclut les autres styles. « Continuer » reste désactivé tant qu'aucun style n'est choisi.
 
-### Étape 3 — Type d'espace
+Le backend ne stocke qu'une chaîne `wizard.style` : `state.styleValue` y joint les styles choisis dans l'ordre des cartes (`"Moderne & minimaliste, Zen & japonais"`). Les lecteurs existants cherchent des mots-clés par `contains` et lisent donc cette forme ; `WizardPlantFilter` retient une plante qui correspond à **l'un** des styles choisis.
 
-Trois options : `indoor`, `balcony`, `garden`. Pose `state.spaceType`. **C'est l'étape qui détermine si `soil` sera affichée plus loin.**
+### Étape 3 — Exposition
 
-### Étape 4 — Exposition
+« Je ne sais pas » en premier, pour ne pas pousser à deviner, puis plein soleil, mi-ombre, ombre. L'ordre des cartes est celui des cas de `SunExposure`. Pose `state.exposure`.
 
-Plein soleil, mi-ombre, ombre. Pose `state.exposure`.
+### Étape 4 — Entretien
 
-### Étape 5 — Entretien
+« Côté plantes, vous êtes plutôt… » Trois profils : « Tueur de plantes », « Jardinier du dimanche », « Main verte passionnée ». Pose `state.maintenance`. Seuls les libellés affichés (clés `WIZARD_MAINTENANCE_*`) ont changé : les valeurs enregistrées restent `Très facile`, `Facile`, `Exigeant`, lues par le filtre et le moteur de suggestion.
 
-Faible, moyen, élevé. Pose `state.maintenance`.
-
-### Étape 6 — Sécurité
+### Étape 5 — Sécurité
 
 Sélection multiple : enfants, animaux, allergies. Pose `state.safetySelections`.
 
-### Étape 7 — Sol *(conditionnelle)*
+### Étape 6 — Sol *(conditionnelle)*
 
 Apparaît uniquement si `state.spaceType == .garden`. Type de sol qui servira au ranking AI ultérieur.
 
-### Étape 8 — Scan method
+### Étape 7 — Scan method
 
 Composant `ScanMethodStepView`. Deux cartes :
 
@@ -153,7 +150,7 @@ Symétrique au flow perimeter, dans `LiDARScanWizardView` :
 3. `POST /gardens` puis migration de fichiers à l'identique.
 4. `state.createdGardenId` est posé (boundary 2D reste vide pour le LiDAR), retour au wizard.
 
-### Étape 9 — AI Suggestion
+### Étape 8 — AI Suggestion
 
 Composant `AISuggestionStepView`. L'étape **finale** du wizard. Utilise `GardenSuggestionEngine` pour proposer une sélection de plantes adaptée au profil construit (et potentiellement à la surface mesurée — enrichissement en cours, cf. issue #125). L'utilisateur peut :
 
@@ -177,6 +174,7 @@ Le récapitulatif n'est pas une étape bloquante du wizard. Il vit durablement s
 - Surface et périmètre se corrigent avec « Refaire les dimensions ». Le scan remplace le contour local et persiste `measurements.boundaryPoints`, `area` et `perimeter` par `PUT /gardens/:id` afin de rester cohérent avec le plan.
 - Les autres valeurs se corrigent dans une feuille persistée par `PUT /gardens/:id`.
 - Les zones végétalisables sont des polygones dans le même repère que le contour. Elles peuvent être dessinées, renommées, exclues ou supprimées et sont superposées au plan 2D.
+- Le plan 2D cadre tout le jardin à l'ouverture. Le dézoom s'arrête un peu au-delà de cette vue d'ensemble, le zoom à huit fois, et le glissement garde toujours au moins 60 points du jardin à l'écran : on ne peut plus s'y perdre, d'où l'absence de bouton de recentrage.
 
 ## Création du jardin en base — récap
 

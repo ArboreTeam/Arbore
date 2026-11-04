@@ -33,8 +33,7 @@ struct SoleilDetailView: View {
                         testerLumiereCTA
                     } else {
                         SectionCard(
-                            icon: "sun.max.fill",
-                            iconColor: Color(hex: "#FACC15"),
+                            icon: "icon3d_sun",
                             title: NSLocalizedString("SUNDETAIL_INFO_UNAVAILABLE_TITLE", comment: "")
                         ) {
                             Text(NSLocalizedString("SUNDETAIL_INFO_UNAVAILABLE_BODY", comment: ""))
@@ -79,9 +78,7 @@ struct SoleilDetailView: View {
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .fill(Color.white.opacity(0.10))
                             .frame(width: 64, height: 64)
-                        Image(systemName: "sun.max.fill")
-                            .font(.system(size: 32))
-                            .foregroundColor(Color(hex: "#FACC15"))
+                        Icon3D(name: "icon3d_sun", size: 38)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -136,8 +133,7 @@ struct SoleilDetailView: View {
 
     private func lightSection(sun: SunInfo) -> some View {
         SectionCard(
-            icon: "sun.max.fill",
-            iconColor: Color(hex: "#FACC15"),
+            icon: "icon3d_sun",
             title: NSLocalizedString("SUNDETAIL_LIGHT_SECTION_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -193,8 +189,7 @@ struct SoleilDetailView: View {
 
     private func placementSection(sun: SunInfo) -> some View {
         SectionCard(
-            icon: "house.fill",
-            iconColor: Color(hex: "#22C55E"),
+            icon: "icon3d_house",
             title: NSLocalizedString("SUNDETAIL_PLACEMENT_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 14) {
@@ -247,8 +242,7 @@ struct SoleilDetailView: View {
 
     private func tipsSection(tips: [String]) -> some View {
         SectionCard(
-            icon: "lightbulb.max.fill",
-            iconColor: Color(hex: "#FDE68A"),
+            icon: "icon3d_bulb",
             title: NSLocalizedString("SUNDETAIL_TIPS_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 8) {
@@ -263,8 +257,7 @@ struct SoleilDetailView: View {
 
     private var outilsUtilesSection: some View {
         SectionCard(
-            icon: "wrench.and.screwdriver.fill",
-            iconColor: Color(hex: "#38BDF8"),
+            icon: "icon3d_tools",
             title: NSLocalizedString("SUNDETAIL_TOOLS_TITLE", comment: "")
         ) {
             VStack(alignment: .leading, spacing: 12) {
@@ -321,13 +314,11 @@ struct SoleilDetailView: View {
 private struct SectionCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     let icon: String
-    let iconColor: Color
     let title: String
     let content: Content
 
-    init(icon: String, iconColor: Color, title: String, @ViewBuilder content: () -> Content) {
+    init(icon: String, title: String, @ViewBuilder content: () -> Content) {
         self.icon = icon
-        self.iconColor = iconColor
         self.title = title
         self.content = content()
     }
@@ -335,14 +326,8 @@ private struct SectionCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(iconColor.opacity(0.18))
-                        .frame(width: 40, height: 40)
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(iconColor)
-                }
+                Icon3D(name: icon, size: 30)
+                    .frame(width: 40, height: 40)
 
                 Text(title)
                     .font(.system(size: 18, weight: .semibold))

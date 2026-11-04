@@ -94,12 +94,12 @@ struct WizardPlantFilter {
             return true
         }
 
-        // Find matching keyword list
-        let keywords: [String]? = Self.styleKeywords.first { key, _ in
-            style.contains(key)
-        }?.value
+        // Several styles can be selected: a plant matches if it fits ANY of them.
+        let kws = Self.styleKeywords
+            .filter { key, _ in style.contains(key) }
+            .flatMap(\.value)
 
-        guard let kws = keywords else {
+        guard !kws.isEmpty else {
             // Unknown style → no filter
             return true
         }

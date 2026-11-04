@@ -205,6 +205,21 @@ enum GardenCareKind: String, Codable, CaseIterable {
         }
     }
 
+    /// Icône 3D (`Icons3D`) des cartes de la page Jardin. `icon` reste le
+    /// symbole SF des listes et des menus.
+    var illustration: String {
+        switch self {
+        case .pruneLeaves: return "icon3d_pruning"
+        case .cleanLeaves: return "icon3d_sponge"
+        case .fertilize: return "icon3d_test_tube"
+        case .repot: return "icon3d_soil"
+        case .pestCheck: return "icon3d_ladybug"
+        case .rotatePot: return "icon3d_repot"
+        case .soilCheck: return "icon3d_magnifier"
+        case .custom: return "icon3d_clipboard"
+        }
+    }
+
     var tintHex: String {
         switch self {
         case .pruneLeaves: return "#D8A85B"

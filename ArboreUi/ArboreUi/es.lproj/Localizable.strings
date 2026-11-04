@@ -947,17 +947,16 @@
 "HOME_CREATE_GARDEN_TITLE" = "Crear un futuro jardín";
 "HOME_CREATE_GARDEN_SUBTITLE" = "Responde algunas preguntas, elige tus plantas y colócalas en AR.";
 "HOME_YOUR_GARDENS" = "Tus jardines";
-"HOME_EMPTY_TITLE" = "Aún no hay jardines";
-"HOME_EMPTY_SUBTITLE" = "Empieza creando un proyecto para encontrar tus planos aquí.";
+"HOME_EMPTY_TITLE" = "¡Tu primer jardín\nte está esperando!";
+"HOME_EMPTY_SUBTITLE" = "Aún no hay nada por aquí… Crea tu primer jardín para imaginar, colocar y hacer crecer tus plantas.";
+"HOME_EMPTY_TAGLINE" = "¿Empezamos juntos?";
 "PLANT_COUNT_FORMAT" = "%d plantas";
 "LAST_MODIFIED_FORMAT" = "Última modificación: %@";
 
 // Garden wizard
-"WIZARD_INTRO_TITLE" = "Construyamos juntos\ntu futuro jardín";
-"WIZARD_INTRO_SUBTITLE" = "Responde algunas preguntas para\npersonalizar tu espacio con nuestros\nconsejos expertos.";
 "WIZARD_STEP_PROGRESS_FORMAT" = "PASO %d DE %d";
 "WIZARD_STYLE_TITLE" = "¿Qué estilo te inspira?";
-"WIZARD_STYLE_SUBTITLE" = "Elige el ambiente que mejor encaje con tu espacio exterior.";
+"WIZARD_STYLE_SUBTITLE" = "Elige uno o varios ambientes para tu espacio.";
 "WIZARD_STYLE_MODERN_TITLE" = "Moderno y minimalista";
 "WIZARD_STYLE_FLORAL_TITLE" = "Floral y colorido";
 "WIZARD_STYLE_WILD_TITLE" = "Campestre y silvestre";
@@ -990,14 +989,14 @@
 "WIZARD_EXPOSURE_PARTIAL_SUBTITLE" = "Algunas horas de sol por la mañana o por la tarde.";
 "WIZARD_EXPOSURE_SHADE_SUBTITLE" = "Poco o ningún sol directo.";
 "WIZARD_EXPOSURE_UNKNOWN_SUBTITLE" = "Te ayudaremos a determinarlo más adelante.";
-"WIZARD_MAINTENANCE_TITLE" = "¿Cuánto mantenimiento quieres?";
-"WIZARD_MAINTENANCE_SUBTITLE" = "Sé sincero, no te juzgaremos. Indica cuánto tiempo quieres dedicar a tu jardín cada semana.";
-"WIZARD_MAINTENANCE_VERY_EASY_TITLE" = "Muy fácil";
-"WIZARD_MAINTENANCE_EASY_TITLE" = "Fácil";
-"WIZARD_MAINTENANCE_DEMANDING_TITLE" = "Exigente";
-"WIZARD_MAINTENANCE_VERY_EASY_SUBTITLE" = "Para quienes no tienen mucha mano con las plantas. Riego mínimo.";
-"WIZARD_MAINTENANCE_EASY_SUBTITLE" = "Un poco de atención, nada complicado.";
-"WIZARD_MAINTENANCE_DEMANDING_SUBTITLE" = "Para entusiastas dispuestos a dedicarle tiempo.";
+"WIZARD_MAINTENANCE_TITLE" = "Con las plantas, eres más bien…";
+"WIZARD_MAINTENANCE_SUBTITLE" = "¡No hay respuestas buenas ni malas!\nNos adaptamos a ti.";
+"WIZARD_MAINTENANCE_VERY_EASY_TITLE" = "Asesino de plantas";
+"WIZARD_MAINTENANCE_EASY_TITLE" = "Jardinero de domingo";
+"WIZARD_MAINTENANCE_DEMANDING_TITLE" = "Amante de las plantas";
+"WIZARD_MAINTENANCE_VERY_EASY_SUBTITLE" = "No tengo tiempo y me olvido de regar: necesito plantas indestructibles.";
+"WIZARD_MAINTENANCE_EASY_SUBTITLE" = "Me ocupo de ellas cuando tengo un rato, sin complicaciones.";
+"WIZARD_MAINTENANCE_DEMANDING_SUBTITLE" = "Me encanta mimar mis plantas y dedicarles tiempo.";
 "WIZARD_SAFETY_TITLE" = "¿Hay alguna restricción especial?";
 "WIZARD_SAFETY_SUBTITLE" = "Selección múltiple posible";
 "WIZARD_SAFETY_PETS_TITLE" = "Evitar plantas tóxicas para mascotas";
@@ -1533,7 +1532,6 @@
 "AR_CATALOG_CARE_LONG_BLOOM" = "Floración larga";
 "AR_EDIT_MODE_TITLE" = "Modo edición";
 "AR_EDIT_SELECTED_PLANT" = "Planta seleccionada";
-"AR_EDIT_EXIT" = "Salir de edición";
 "AR_EDIT_ROTATE" = "Girar planta";
 "AR_EDIT_SCALE_UP" = "Agrandar planta";
 "AR_EDIT_SCALE_DOWN" = "Reducir planta";

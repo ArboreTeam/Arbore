@@ -20,8 +20,7 @@ struct EntretienView: View {
                     if let care = care, hasAnyCareInfo(care) {
                         if let weekly = care.weekly, !weekly.isEmpty {
                             routineSection(
-                                icon: "clock.badge.checkmark",
-                                iconColor: Color(hex: "#22C55E"),
+                                icon: "icon3d_week",
                                 title: NSLocalizedString("ENTDETAIL_SECTION_WEEKLY_TITLE", comment: ""),
                                 tips: weekly
                             )
@@ -29,8 +28,7 @@ struct EntretienView: View {
 
                         if let monthly = care.monthly, !monthly.isEmpty {
                             routineSection(
-                                icon: "calendar",
-                                iconColor: Color(hex: "#FACC15"),
+                                icon: "icon3d_calendar",
                                 title: NSLocalizedString("ENTDETAIL_SECTION_MONTHLY_TITLE", comment: ""),
                                 tips: monthly
                             )
@@ -38,8 +36,7 @@ struct EntretienView: View {
 
                         if let yearly = care.yearly, !yearly.isEmpty {
                             routineSection(
-                                icon: "calendar.badge.exclamationmark",
-                                iconColor: Color(hex: "#FB923C"),
+                                icon: "icon3d_year",
                                 title: NSLocalizedString("ENTDETAIL_SECTION_YEARLY_TITLE", comment: ""),
                                 tips: yearly
                             )
@@ -47,8 +44,7 @@ struct EntretienView: View {
 
                         if let extra = care.extraTips, !extra.isEmpty {
                             routineSection(
-                                icon: "lightbulb.fill",
-                                iconColor: Color(hex: "#38BDF8"),
+                                icon: "icon3d_bulb",
                                 title: NSLocalizedString("ENTDETAIL_SECTION_EXTRA_TITLE", comment: ""),
                                 tips: extra
                             )
@@ -58,8 +54,7 @@ struct EntretienView: View {
                     } else {
                         // Aucune donnée -> message par défaut
                         CareSectionCard(
-                            icon: "brain.head.profile",
-                            iconColor: Color(hex: "#6366F1"),
+                            icon: "icon3d_pruning",
                             title: NSLocalizedString("ENTDETAIL_INFO_UNAVAILABLE_TITLE", comment: "")
                         ) {
                             Text(NSLocalizedString("ENTDETAIL_INFO_UNAVAILABLE_BODY", comment: ""))
@@ -122,9 +117,7 @@ struct EntretienView: View {
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .fill(Color.white.opacity(0.10))
                             .frame(width: 64, height: 64)
-                        Image(systemName: "brain.head.profile")
-                            .font(.system(size: 32))
-                            .foregroundColor(Color(hex: "#A855F7"))
+                        Icon3D(name: "icon3d_pruning", size: 38)
                     }
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -163,13 +156,11 @@ struct EntretienView: View {
 
     private func routineSection(
         icon: String,
-        iconColor: Color,
         title: String,
         tips: [String]
     ) -> some View {
         CareSectionCard(
             icon: icon,
-            iconColor: iconColor,
             title: title
         ) {
             VStack(alignment: .leading, spacing: 10) {
@@ -217,13 +208,11 @@ private struct CareSectionCard<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
 
     let icon: String
-    let iconColor: Color
     let title: String
     let content: Content
 
-    init(icon: String, iconColor: Color, title: String, @ViewBuilder content: () -> Content) {
+    init(icon: String, title: String, @ViewBuilder content: () -> Content) {
         self.icon = icon
-        self.iconColor = iconColor
         self.title = title
         self.content = content()
     }
@@ -241,14 +230,8 @@ private struct CareSectionCard<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(iconColor.opacity(0.18))
-                        .frame(width: 40, height: 40)
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(iconColor)
-                }
+                Icon3D(name: icon, size: 30)
+                    .frame(width: 40, height: 40)
 
                 Text(title)
                     .font(.system(size: 18, weight: .semibold))

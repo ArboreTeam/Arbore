@@ -967,17 +967,16 @@
 "HOME_CREATE_GARDEN_TITLE" = "Create a future garden";
 "HOME_CREATE_GARDEN_SUBTITLE" = "Answer a few questions, choose your plants, then place them in AR.";
 "HOME_YOUR_GARDENS" = "Your gardens";
-"HOME_EMPTY_TITLE" = "No garden yet";
-"HOME_EMPTY_SUBTITLE" = "Start by creating a project to find your plans here.";
+"HOME_EMPTY_TITLE" = "Your first garden\nis waiting for you!";
+"HOME_EMPTY_SUBTITLE" = "Nothing here yet… Create your first garden to imagine, place and grow your plants.";
+"HOME_EMPTY_TAGLINE" = "Shall we get started together?";
 "PLANT_COUNT_FORMAT" = "%d plants";
 "LAST_MODIFIED_FORMAT" = "Last modified: %@";
 
 // Garden wizard
-"WIZARD_INTRO_TITLE" = "Let's build\nyour future garden together";
-"WIZARD_INTRO_SUBTITLE" = "Answer a few questions to\npersonalize your space with our\nexpert advice.";
 "WIZARD_STEP_PROGRESS_FORMAT" = "STEP %d OF %d";
 "WIZARD_STYLE_TITLE" = "Which style inspires you?";
-"WIZARD_STYLE_SUBTITLE" = "Choose the mood that best fits your outdoor space.";
+"WIZARD_STYLE_SUBTITLE" = "Choose one or more moods for your space.";
 "WIZARD_STYLE_MODERN_TITLE" = "Modern & minimalist";
 "WIZARD_STYLE_FLORAL_TITLE" = "Floral & colorful";
 "WIZARD_STYLE_WILD_TITLE" = "Country & wild";
@@ -1010,14 +1009,14 @@
 "WIZARD_EXPOSURE_PARTIAL_SUBTITLE" = "A few hours of sun in the morning or evening.";
 "WIZARD_EXPOSURE_SHADE_SUBTITLE" = "Little or no direct sunlight.";
 "WIZARD_EXPOSURE_UNKNOWN_SUBTITLE" = "We'll help you figure it out later.";
-"WIZARD_MAINTENANCE_TITLE" = "How much care do you want?";
-"WIZARD_MAINTENANCE_SUBTITLE" = "Be honest, we won't judge. Tell us how much time you're ready to spend on your garden each week.";
-"WIZARD_MAINTENANCE_VERY_EASY_TITLE" = "Very easy";
-"WIZARD_MAINTENANCE_EASY_TITLE" = "Easy";
-"WIZARD_MAINTENANCE_DEMANDING_TITLE" = "Demanding";
-"WIZARD_MAINTENANCE_VERY_EASY_SUBTITLE" = "For people without a green thumb. Minimal watering.";
-"WIZARD_MAINTENANCE_EASY_SUBTITLE" = "A little attention, nothing complicated.";
-"WIZARD_MAINTENANCE_DEMANDING_SUBTITLE" = "For enthusiasts ready to spend time on it.";
+"WIZARD_MAINTENANCE_TITLE" = "When it comes to plants, you're more of a…";
+"WIZARD_MAINTENANCE_SUBTITLE" = "There's no right or wrong answer!\nWe'll adapt to you.";
+"WIZARD_MAINTENANCE_VERY_EASY_TITLE" = "Plant killer";
+"WIZARD_MAINTENANCE_EASY_TITLE" = "Weekend gardener";
+"WIZARD_MAINTENANCE_DEMANDING_TITLE" = "Proud green thumb";
+"WIZARD_MAINTENANCE_VERY_EASY_SUBTITLE" = "No time, and I forget to water: I need unkillable plants.";
+"WIZARD_MAINTENANCE_EASY_SUBTITLE" = "I look after them when I have a moment, no fuss.";
+"WIZARD_MAINTENANCE_DEMANDING_SUBTITLE" = "I love pampering my plants and spending time on them.";
 "WIZARD_SAFETY_TITLE" = "Any special constraints?";
 "WIZARD_SAFETY_SUBTITLE" = "Multiple selection possible";
 "WIZARD_SAFETY_PETS_TITLE" = "Avoid plants toxic to pets";
@@ -1553,7 +1552,6 @@
 "AR_CATALOG_CARE_LONG_BLOOM" = "Long flowering";
 "AR_EDIT_MODE_TITLE" = "Edit mode";
 "AR_EDIT_SELECTED_PLANT" = "Selected plant";
-"AR_EDIT_EXIT" = "Exit edit mode";
 "AR_EDIT_ROTATE" = "Rotate plant";
 "AR_EDIT_SCALE_UP" = "Scale plant up";
 "AR_EDIT_SCALE_DOWN" = "Scale plant down";

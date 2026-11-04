@@ -314,8 +314,7 @@ struct PlantDetailView: View {
     private func essentialsSection(t: PlantTranslation?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Image(systemName: "sparkle.magnifyingglass")
-                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                Icon3D(name: "icon3d_essentials", size: 20)
                 Text(L10n.t("PLANTDETAIL_ESSENTIALS_TITLE"))
                     .font(ArboreDesign.Typography.sectionTitle)
                     .foregroundColor(ArboreDesign.Colors.textPrimary)
@@ -330,31 +329,27 @@ struct PlantDetailView: View {
                 spacing: 10
             ) {
                 EssentialPlantInfoCard(
-                    icon: "sun.max.fill",
+                    icon: "icon3d_sun",
                     title: L10n.t("PLANTDETAIL_SUN_TITLE"),
-                    value: firstAvailable(t?.sun?.lightType, t?.sun?.durationPerDay),
-                    tint: ArboreDesign.Colors.accentGold
+                    value: firstAvailable(t?.sun?.lightType, t?.sun?.durationPerDay)
                 )
 
                 EssentialPlantInfoCard(
-                    icon: "drop.fill",
+                    icon: "icon3d_water",
                     title: L10n.t("PLANTDETAIL_WATER_TITLE"),
-                    value: firstAvailable(t?.water?.frequency, t?.water?.amount),
-                    tint: ArboreDesign.Colors.primaryGreen
+                    value: firstAvailable(t?.water?.frequency, t?.water?.amount)
                 )
 
                 EssentialPlantInfoCard(
-                    icon: "hand.raised.fill",
+                    icon: "icon3d_care",
                     title: L10n.t("PLANTDETAIL_CARE_TITLE"),
-                    value: firstAvailable(t?.care?.difficulty),
-                    tint: ArboreDesign.Colors.primaryGreen
+                    value: firstAvailable(t?.care?.difficulty)
                 )
 
                 EssentialPlantInfoCard(
-                    icon: "arrow.up.right",
+                    icon: "icon3d_growth",
                     title: L10n.t("PLANTDETAIL_GROWTH_TITLE"),
-                    value: firstAvailable(t?.lifeCycle?.growth, t?.soilAndPot?.repotFrequency),
-                    tint: ArboreDesign.Colors.accentGold
+                    value: firstAvailable(t?.lifeCycle?.growth, t?.soilAndPot?.repotFrequency)
                 )
             }
             .padding(.horizontal)
@@ -419,7 +414,7 @@ struct PlantDetailView: View {
             ) {
                 ForEach(0..<4, id: \.self) { _ in
                     VStack(alignment: .leading, spacing: 7) {
-                        SkeletonBlock(width: 30, height: 30, cornerRadius: 15)
+                        SkeletonBlock(width: 26, height: 26, cornerRadius: 13)
                         SkeletonBlock(width: 70, height: 12, cornerRadius: 6)
                         SkeletonBlock(height: 14, cornerRadius: 7)
                         SkeletonBlock(width: 92, height: 14, cornerRadius: 7)
@@ -450,7 +445,8 @@ struct PlantDetailView: View {
             VStack(spacing: 14) {
                 ForEach(0..<6, id: \.self) { _ in
                     HStack(spacing: 12) {
-                        SkeletonBlock(width: 38, height: 38, cornerRadius: 19)
+                        SkeletonBlock(width: 28, height: 28, cornerRadius: 8)
+                            .frame(width: 38)
                         VStack(alignment: .leading, spacing: 7) {
                             SkeletonBlock(width: 118, height: 16, cornerRadius: 8)
                             SkeletonBlock(width: 190, height: 12, cornerRadius: 6)
@@ -605,20 +601,14 @@ struct SkeletonBlock: View {
 // MARK: - ESSENTIAL CARD
 
 struct EssentialPlantInfoCard: View {
+    /// Nom de l'image dans `Icons3D`.
     let icon: String
     let title: String
     let value: String
-    let tint: Color
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(tint)
-                .frame(width: 30, height: 30)
-                .background(tint.opacity(colorScheme == .dark ? 0.18 : 0.12))
-                .clipShape(Circle())
+            Icon3D(name: icon, size: 26)
 
             Text(title)
                 .font(ArboreDesign.Typography.caption.weight(.semibold))
@@ -655,9 +645,8 @@ struct GeneralInfoGridView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
-                Image(systemName: "doc.text.below.ecg.fill")
-                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
-                    Text(L10n.t("PLANTDETAIL_CARE_GUIDE_TITLE"))
+                Icon3D(name: "icon3d_guide", size: 20)
+                Text(L10n.t("PLANTDETAIL_CARE_GUIDE_TITLE"))
                     .font(ArboreDesign.Typography.sectionTitle)
                     .foregroundColor(ArboreDesign.Colors.textPrimary)
             }
@@ -665,45 +654,39 @@ struct GeneralInfoGridView: View {
 
             VStack(spacing: 14) {
                 GeneralInfoCard(
-                    icon: "sun.max.fill",
+                    icon: "icon3d_sun",
                     title: L10n.t("PLANTDETAIL_SUN_TITLE"),
                     description: L10n.t("PLANTDETAIL_SUN_SUBTITLE"),
-                    color: ArboreDesign.Colors.accentGold,
                     destination: SoleilDetailView(sun: translation?.sun)
                 )
                 GeneralInfoCard(
-                    icon: "drop.fill",
+                    icon: "icon3d_water",
                     title: L10n.t("PLANTDETAIL_WATER_TITLE"),
                     description: L10n.t("PLANTDETAIL_WATER_SUBTITLE"),
-                    color: ArboreDesign.Colors.primaryGreen,
                     destination: EauDetailView(water: translation?.water, plantName: plantName)
                 )
                 GeneralInfoCard(
-                    icon: "leaf.fill",
+                    icon: "icon3d_soil",
                     title: L10n.t("PLANTDETAIL_SOIL_TITLE"),
                     description: L10n.t("PLANTDETAIL_SOIL_SUBTITLE"),
-                    color: ArboreDesign.Colors.primaryGreen,
                     destination: TerreDetailView(soil: translation?.soilAndPot, plantName: plantName)
                 )
                 GeneralInfoCard(
-                    icon: "cross.case.fill",
+                    icon: "icon3d_health",
                     title: L10n.t("PLANTDETAIL_HEALTH_TITLE"),
                     description: L10n.t("PLANTDETAIL_HEALTH_SUBTITLE"),
-                    color: ArboreDesign.Colors.danger,
                     destination: SanteDetailView(health: translation?.health, plantName: plantName)
                 )
                 GeneralInfoCard(
-                    icon: "calendar",
+                    icon: "icon3d_lifecycle",
                     title: L10n.t("PLANTDETAIL_LIFECYCLE_TITLE"),
                     description: L10n.t("PLANTDETAIL_LIFECYCLE_SUBTITLE"),
-                    color: ArboreDesign.Colors.accentGold,
                     destination: CycleDeVieView(lifecycle: translation?.lifeCycle)
                 )
                 GeneralInfoCard(
-                    icon: "brain.head.profile",
+                    icon: "icon3d_pruning",
                     title: L10n.t("PLANTDETAIL_CARE_TITLE"),
                     description: L10n.t("PLANTDETAIL_CARE_SUBTITLE"),
-                    color: ArboreDesign.Colors.primaryGreen,
                     destination: EntretienView(care: translation?.care)
                 )
             }
@@ -713,25 +696,18 @@ struct GeneralInfoGridView: View {
 }
 
 struct GeneralInfoCard<Destination: View>: View {
+    /// Nom de l'image dans `Icons3D`.
     let icon: String
     let title: String
     let description: String
-    let color: Color
     let destination: Destination
-    @Environment(\.colorScheme) private var colorScheme
     @EnvironmentObject var themeManager: ThemeManager
 
     var body: some View {
         NavigationLink(destination: destination) {
             HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(color.opacity(colorScheme == .dark ? 0.18 : 0.12))
-                        .frame(width: 38, height: 38)
-                    Image(systemName: icon)
-                        .foregroundColor(color)
-                        .font(.system(size: 18, weight: .medium))
-                }
+                Icon3D(name: icon, size: 28)
+                    .frame(width: 38)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)

@@ -20,6 +20,8 @@ et n'avait jamais consigné ce qu'il emprunte.
 | Vignettes des plantes | rendues à la volée depuis les modèles 3D | dérivées de ce qui précède | détenues |
 | Données de toxicité | `Plant.Flags.ToxicToPets` / `ToxicToChildren` | **ASPCA** | faits, attribués |
 | Estimation climatique | `ArboreBackend/climate.go` | interne | champ `Attribution` |
+| Icônes 3D de l'app : fiche plante et sous-pages, questionnaire de création, page Jardin (statistiques, entretien), page Réglages | `ArboreUi/ArboreUi/Assets/Assets.xcassets/Icons3D/` (préfixe `icon3d_`) | **Fluent Emoji** de Microsoft ([github.com/microsoft/fluentui-emoji](https://github.com/microsoft/fluentui-emoji)), versions 3D redimensionnées | licence MIT, notice embarquée dans `Assets/ThirdPartyNotices/FluentEmoji-LICENSE.txt` |
+| Illustration de l'accueil sans jardin (pousse souriante) | `ArboreUi/ArboreUi/Assets/Assets.xcassets/home_empty_garden.imageset/` | **fournie par l'équipe, origine à préciser** | à confirmer avant la soumission App Store |
 
 ## Ce que la licence Unsplash autorise, et ce qu'elle interdit
 

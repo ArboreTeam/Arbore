@@ -237,15 +237,26 @@ struct SettingsRow: View {
     let title: String
     var subtitle: String?
     var tint: Color = ArboreDesign.Colors.primaryGreen
+    /// Image dans `Icons3D`. Quand elle est fournie, elle remplace le
+    /// symbole SF sur une tuile neutre : l'icône porte déjà ses couleurs.
+    var icon3D: String?
 
     var body: some View {
         HStack(spacing: ArboreDesign.Spacing.sm) {
-            Image(systemName: systemImage)
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(tint)
-                .frame(width: 42, height: 42)
-                .background(tint.opacity(0.14))
-                .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
+            Group {
+                if let icon3D {
+                    Icon3D(name: icon3D, size: 28)
+                        .frame(width: 42, height: 42)
+                        .background(ArboreDesign.Colors.softSurface)
+                } else {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(tint)
+                        .frame(width: 42, height: 42)
+                        .background(tint.opacity(0.14))
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: ArboreDesign.Radius.medium, style: .continuous))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -515,6 +526,13 @@ struct SettingsIconBadge: View {
     }
 }
 
+extension SettingsRow {
+    /// Ligne à icône 3D (`Icons3D`).
+    init(icon3D: String, title: String, subtitle: String? = nil) {
+        self.init(systemImage: "", title: title, subtitle: subtitle, icon3D: icon3D)
+    }
+}
+
 struct SettingsInfoRow: View {
     let systemImage: String
     let title: String
@@ -582,5 +600,24 @@ struct SettingsDivider: View {
     var body: some View {
         Divider()
             .background(ArboreDesign.Colors.border)
+    }
+}
+
+// MARK: - Icône 3D
+
+/// Icône 3D issue de Fluent Emoji (Microsoft, licence MIT, notice dans
+/// `Assets/ThirdPartyNotices/FluentEmoji-LICENSE.txt`). Les images sont dans
+/// `Assets.xcassets/Icons3D`, préfixées `icon3d_`.
+struct Icon3D: View {
+    let name: String
+    var size: CGFloat = 24
+
+    var body: some View {
+        Image(name)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
     }
 }

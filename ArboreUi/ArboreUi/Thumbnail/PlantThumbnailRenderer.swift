@@ -59,9 +59,6 @@ struct PlantThumbnailFraming: Equatable {
 final class PlantThumbnailRenderer {
 
     private let arView: ARView
-    private let wallColor = UIColor(white: 0.72, alpha: 1.0)
-    private let floorFallbackColor = UIColor(red: 0.58, green: 0.57, blue: 0.52, alpha: 1.0)
-    private var floorTexture: TextureResource?
 
     // Auto-frame camera parameters. The plant is kept at its native USDZ
     // scale (real-world meters, just like AR placement) and the camera
@@ -77,11 +74,9 @@ final class PlantThumbnailRenderer {
         self.arView = ThumbnailRenderHost.shared.arView
         self.arView.frame = CGRect(x: 0, y: 0, width: 1024, height: 1280)
 
-        self.arView.environment.background = .color(wallColor)
+        self.arView.environment.background = .color(PlantThumbnailBackdrop.wall)
         self.arView.renderOptions.insert(.disableHDR)
         self.arView.environment.lighting.intensityExponent = 0.85
-
-        self.floorTexture = try? TextureResource.load(named: "studio_floor")
     }
 
     func render(usdzURL: URL, upAxis: String?, completion: @escaping (UIImage?) -> Void) {
@@ -130,42 +125,40 @@ final class PlantThumbnailRenderer {
                 let sceneScale = max(plantH, plantW, plantD, framing.cameraDistance)
                 let studioSize = sceneScale * 10
 
+                // Studio beige uni (`PlantThumbnailBackdrop`) : sol sans texture,
+                // qui reçoit l'ombre de la plante, et mur de la même famille.
                 let floorMesh = Self.makeTiledPlane(
                     width: studioSize,
                     depth: studioSize,
-                    uScale: studioSize * 0.8,
-                    vScale: studioSize * 0.8
+                    uScale: 1,
+                    vScale: 1
                 )
                 let floor = ModelEntity(mesh: floorMesh)
                 var floorMat = PhysicallyBasedMaterial()
-                if let floorTexture {
-                    floorMat.baseColor = .init(
-                        tint: UIColor(white: 0.98, alpha: 1.0),
-                        texture: .init(floorTexture)
-                    )
-                } else {
-                    floorMat.baseColor = .init(tint: floorFallbackColor)
-                }
+                floorMat.baseColor = .init(tint: PlantThumbnailBackdrop.floor)
                 floorMat.roughness = .init(floatLiteral: 0.95)
                 floorMat.metallic = .init(floatLiteral: 0.0)
                 floor.model?.materials = [floorMat]
                 floor.position = [0, -0.001, 0]
+                // Le sol reçoit l'ombre de la plante mais n'en projette pas :
+                // en s'ombrant lui-même, il se couvrait d'un grain en anneaux
+                // (shadow acne) que le sol uni rendait visible.
+                floor.components.set(DynamicLightShadowComponent(castsShadow: false))
 
                 let wallZ: Float = -(plantD + framing.cameraDistance * 0.3)
                 let wallMesh = Self.makeTiledPlane(
                     width: studioSize,
                     depth: studioSize,
-                    uScale: studioSize * 0.5,
-                    vScale: studioSize * 0.5
+                    uScale: 1,
+                    vScale: 1
                 )
                 let backdrop = ModelEntity(mesh: wallMesh)
-                // Keep the backdrop solid and identical to the ARView
-                // background. A textured wall used to produce a lighter band
-                // wherever the camera saw beyond the backdrop.
-                let wallMat = UnlitMaterial(color: wallColor)
-                backdrop.model?.materials = [wallMat]
+                // Mur uni et identique au fond de l'ARView, pour qu'aucune
+                // bande ne se voie là où la caméra dépasse le décor.
+                backdrop.model?.materials = [UnlitMaterial(color: PlantThumbnailBackdrop.wall)]
                 backdrop.position = [0, studioSize / 2, wallZ]
                 backdrop.orientation = simd_quatf(angle: .pi / 2, axis: [1, 0, 0])
+                backdrop.components.set(DynamicLightShadowComponent(castsShadow: false))
 
                 let light = DirectionalLight()
                 light.light.intensity = 18000

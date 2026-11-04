@@ -13,11 +13,8 @@ struct ScanMethodStepView: View {
     let onBack: () -> Void
 
     var body: some View {
-        ZStack {
-            Color.gardenBackground.ignoresSafeArea()
-
-            VStack(spacing: 24) {
-                // Titre
+        WizardStepScaffold {
+            VStack(alignment: .leading, spacing: 28) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(L10n.t("WIZARD_SCAN_TITLE"))
                         .font(.system(size: 26, weight: .bold))
@@ -27,44 +24,29 @@ struct ScanMethodStepView: View {
                         .font(.system(size: 15))
                         .foregroundColor(.secondary)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 24)
-                .padding(.top, 15)
 
-                // Cartes de choix
-                ScrollView {
-                    VStack(spacing: 16) {
-                        gardenMeasureCard
-                        roomScanCard
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 40)
-                    .padding(.top, 20)
+                VStack(spacing: 16) {
+                    gardenMeasureCard
+                    roomScanCard
                 }
-
-                Spacer()
-
-                // Boutons bas
-                VStack(spacing: 12) {
-                    Button {
-                        onStartScan()
-                    } label: {
-                        HStack {
-                            Text(L10n.t("WIZARD_SCAN_START"))
-                            Image(systemName: "arkit")
-                        }
-                    }
-                    .buttonStyle(PrimaryWizardButtonStyle(isEnabled: state.scanMethod != nil))
-                    .disabled(state.scanMethod == nil)
-
-                    Button(L10n.t("COMMON_BACK")) {
-                        onBack()
-                    }
-                    .buttonStyle(SecondaryWizardButtonStyle())
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 32)
             }
+            .padding(.horizontal, 24)
+        } actions: {
+            Button {
+                onStartScan()
+            } label: {
+                HStack {
+                    Text(L10n.t("WIZARD_SCAN_START"))
+                    Image(systemName: "arkit")
+                }
+            }
+            .buttonStyle(PrimaryWizardButtonStyle(isEnabled: state.scanMethod != nil))
+            .disabled(state.scanMethod == nil)
+
+            Button(L10n.t("COMMON_BACK")) {
+                onBack()
+            }
+            .buttonStyle(SecondaryWizardButtonStyle())
         }
     }
 
@@ -74,10 +56,9 @@ struct ScanMethodStepView: View {
     private var gardenMeasureCard: some View {
         ImprovedSelectableCard(
             isSelected: state.scanMethod == .gardenPerimeter,
-            systemImage: "ruler",
+            icon: "icon3d_triangular_ruler",
             title: L10n.t("WIZARD_SCAN_PERIMETER_TITLE"),
-            subtitle: L10n.t("WIZARD_SCAN_PERIMETER_SUBTITLE"),
-            gradient: [Color(hex: "#4A7C59"), Color(hex: "#2C5530")]
+            subtitle: L10n.t("WIZARD_SCAN_PERIMETER_SUBTITLE")
         ) {
             state.scanMethod = .gardenPerimeter
         }
@@ -89,12 +70,11 @@ struct ScanMethodStepView: View {
 
         return ImprovedSelectableCard(
             isSelected: state.scanMethod == .roomScan,
-            systemImage: "cube.transparent",
+            icon: "icon3d_phone",
             title: L10n.t("WIZARD_SCAN_ROOM_TITLE"),
             subtitle: isSupported
                 ? L10n.t("WIZARD_SCAN_ROOM_SUBTITLE")
-                : L10n.t("WIZARD_SCAN_ROOM_UNSUPPORTED"),
-            gradient: [Color(hex: "#3B82F6"), Color(hex: "#1D4ED8")]
+                : L10n.t("WIZARD_SCAN_ROOM_UNSUPPORTED")
         ) {
             if isSupported {
                 state.scanMethod = .roomScan

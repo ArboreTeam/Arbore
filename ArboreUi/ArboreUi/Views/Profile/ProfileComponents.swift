@@ -52,16 +52,15 @@ struct SubscriptionPlanCard: View {
 
 // MARK: - Setting Row Item
 struct SettingRowItem {
+    /// Image dans `Icons3D`.
     let icon: String
     let label: String
     let destination: AnyView
-    let iconColor: Color
 
-    init<V: View>(icon: String, label: String, destination: V, iconColor: Color = ArboreDesign.Colors.primaryGreen) {
+    init<V: View>(icon: String, label: String, destination: V) {
         self.icon = icon
         self.label = label
         self.destination = AnyView(destination)
-        self.iconColor = iconColor
     }
 }
 

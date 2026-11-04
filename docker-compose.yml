@@ -49,6 +49,12 @@ services:
       - MONGODB_DB_TEST=${MONGODB_DB_TEST:-arbore_test}
       - ARBORE_API_KEY=${ARBORE_API_KEY}
       - ARBORE_API_KEY_TEST=${ARBORE_API_KEY_TEST:-}
+      # Clé des routes `/internal/*` (#696). Non renseignée, elles RÉPONDENT
+      # 503 : une instance qui ne sert pas de robot n'a rien à configurer et
+      # n'expose pas la surface. Compose ne transmet que ce qui est déclaré
+      # ici — l'oubli de cette ligne est exactement la panne de #701.
+      - ARBORE_INTERNAL_KEY=${ARBORE_INTERNAL_KEY:-}
+      - ARBORE_INTERNAL_KEY_PATH=${ARBORE_INTERNAL_KEY_PATH:-}
       # Sentry (#388). Sans DSN, le SDK ne démarre pas et le backend se comporte
       # à l'identique — parité avec iOS et web.
       #
@@ -148,7 +154,18 @@ services:
     volumes:
       # Fichiers 3D USDZ (lecture seule)
       - ${MODELS_HOST_PATH:-./ArboreBackend/models}:/app/models:ro
-      # Thumbnails : bind mount sur le dossier existant de la VM (conserve les anciens thumbnails)
+      # Vignettes, en ÉCRITURE : le backend y écrit à chaque publication.
+      #
+      # ⚠️ `THUMBNAILS_HOST_PATH` DOIT être posée dès que deux environnements
+      # tournent sur la même machine. Le défaut ci-dessous est relatif au
+      # répertoire du fichier compose : avec un checkout par environnement il
+      # les sépare tout seul, mais avec UN checkout pour deux piles — le cas du
+      # nouveau VPS — les deux convergent vers le même répertoire et s'y
+      # écrasent, les fichiers portant l'identifiant de la fiche.
+      #
+      # Ce n'est pas théorique : les deux backends du nouveau VPS l'ont partagé
+      # en `rw` jusqu'au 2026-11-02 (#694, #434). `deploy.sh` refuse désormais
+      # de démarrer dans ce cas — voir `verifier_vignettes_cloisonnees`.
       - ${THUMBNAILS_HOST_PATH:-./ArboreBackend/models/thumbnails}:/app/thumbnails
       # Photos de fiche. Montées en lecture seule : elles sont déposées par la
       # migration, jamais écrites par le backend — aucune route ne les téléverse.
@@ -258,6 +275,12 @@ services:
       # répond 503 et n'écrit rien : une installation qui ne configure pas
       # l'atelier démarre exactement comme avant.
       - GENERATOR_DATA_DIR=/data/generator
+      # Environnements dont la page des vignettes montre le catalogue (#696).
+      # Compose ne transmet QUE ce qui est déclaré ici : posée dans `.env`
+      # mais absente de cette liste, la variable n'atteint pas le conteneur et
+      # la page affiche « aucun environnement déclaré » sans autre indice.
+      - VIGNETTES_ENVIRONNEMENTS=${VIGNETTES_ENVIRONNEMENTS:-}
+      - VIGNETTES_ENVIRONNEMENTS_PATH=${VIGNETTES_ENVIRONNEMENTS_PATH:-}
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${WEB_PORT:-3000}:3000"
     volumes:
@@ -311,6 +334,104 @@ services:
   # Les identifiants ci-dessous sont des valeurs de développement, volontairement
   # en clair : elles ne donnent accès qu'à un conteneur local sans données
   # réelles. Les surcharger via l'environnement si besoin.
+  # Rendu des vignettes du catalogue. (#694, #695)
+  #
+  # Sous profil, donc JAMAIS démarré par `docker compose up -d` : c'est un job,
+  # pas un service. Invocation explicite :
+  #
+  #   docker compose --profile outils run --rm vignettes
+  #   docker compose --profile outils run --rm vignettes --plantes <id>,<id>
+  #
+  # Aucun volume monté, et c'est délibéré. Il ne parle qu'à l'API : la prod
+  # sert ses assets depuis `r2` et dev depuis `filesystem`, donc un montage de
+  # répertoire ne marcherait pas sur la prod. Et c'est le backend qui recalcule
+  # `versions.thumbnail` sur les octets qu'il vient d'écrire (#687) — publier
+  # une empreinte qui ment devient impossible.
+  vignettes:
+    build:
+      context: ./vignettes
+      dockerfile: Dockerfile
+    image: ghcr.io/arboreteam/arbore-vignettes:${ARBORE_IMAGE_TAG:-latest}
+    container_name: arbore-${ARBORE_ENV:-prod}-vignettes
+    profiles: ["outils"]
+    restart: "no"
+    networks:
+      - arbore-net
+    environment:
+      # Le backend de CE déploiement, joint par le réseau interne : le job
+      # suit son environnement sans qu'on ait à lui donner une URL publique.
+      - ARBORE_API_BASE=http://backend:8080
+      - ARBORE_API_KEY=${ARBORE_API_KEY:-}
+      # Les routes `/internal/*` exigent les DEUX clés (#696). Plus aucune
+      # session Firebase : le compte de service administrateur qu'il aurait
+      # fallu créer était la mauvaise réponse — voir
+      # `ArboreBackend/middleware/internal_key.go`.
+      - ARBORE_INTERNAL_KEY=${ARBORE_INTERNAL_KEY:-}
+
+  # Ouvrier des vignettes : le même binaire, en veille sur la file de l'atelier.
+  #
+  # Pourquoi un ouvrier et pas un appel direct : le conteneur web n'a pas accès
+  # à Docker, et c'est très bien ainsi. Il dépose, l'ouvrier consomme —
+  # exactement le motif de l'ouvrier Colab pour les maillages (#696).
+  #
+  # Un ouvrier ne sert QU'UN environnement, par `ARBORE_ENV_NOM` : c'est la
+  # file où il puise. Les clés du backend ne sont pas dans sa configuration,
+  # l'atelier les joint à chaque tâche — un ouvrier de dev ne reçoit donc
+  # jamais de quoi écrire en production.
+  #
+  # Sous profil, donc jamais démarré par surprise. `docker compose --profile
+  # vignettes up -d vignettes-ouvrier` quand on le veut.
+  vignettes-ouvrier:
+    build:
+      context: ./vignettes
+      dockerfile: Dockerfile
+    image: ghcr.io/arboreteam/arbore-vignettes:${ARBORE_IMAGE_TAG:-latest}
+    container_name: arbore-${ARBORE_ENV:-prod}-vignettes-ouvrier
+    profiles: ["vignettes"]
+    restart: unless-stopped
+    command: ["--surveiller"]
+    networks:
+      - arbore-net
+    environment:
+      - ARBORE_ENV_NOM=${ARBORE_ENV:-prod}
+      - ATELIER_BASE=http://web:3000
+      # L'atelier REFUSE par un 404 tout ce qui ne se présente pas sous son
+      # hôte. Joint en interne, l'ouvrier enverrait `Host: web:3000` et
+      # prendrait un 404 à chaque appel. Mesuré le 2026-11-01 : 404 sans cet
+      # en-tête, 401 avec.
+      - ATELIER_HOTE=${GENERATOR_HOST:-generator.arbore.app}
+      # `GENERATOR_KEY` n'est PAS encore dans les secrets : l'atelier n'en
+      # stocke que l'empreinte, `GENERATOR_KEY_HASH`, et une empreinte ne
+      # permet pas d'ouvrir une session. La clé en clair doit être ajoutée à
+      # `ops/secrets/<env>.enc.env` pour que l'ouvrier puisse se connecter.
+      # Sans elle il s'arrête au démarrage en le disant, plutôt que de boucler
+      # sur des refus.
+      - ATELIER_CLE=${GENERATOR_KEY:-}
+      # Aucune clé de backend ici, volontairement : l'atelier joint l'adresse
+      # de l'API et ses deux clés à la tâche qu'il remet (#696). L'ouvrier n'a
+      # donc jamais en main de quoi écrire ailleurs que là où on l'envoie.
+    deploy:
+      resources:
+        limits:
+          # Un rendu Blender prend tout ce qu'on lui laisse. Sans plafond,
+          # l'ouvrier affame le backend qui partage la machine — et une passe
+          # de catalogue dure des heures, pas des secondes.
+          #
+          # Réglable, parce que le bon plafond dépend de la MACHINE et non du
+          # code. Mesuré le 2026-11-02 sur le VPS de dev (4 cœurs) : à 2,0, le
+          # conteneur oscille entre 136 % et 204 % — il TAPE le plafond, et
+          # Blender y ouvre 25 threads. Le plafond est donc le goulot, pas le
+          # moteur.
+          #
+          # Il n'y a pas de GPU sur ces machines (`/dev/dri` absent) : EEVEE
+          # rend en LOGICIEL, d'où des minutes par image là où un GPU donnerait
+          # des secondes. C'est la contrainte de fond ; le plafond ne fait que
+          # décider de la part de CPU qu'on lui concède.
+          #
+          # Laisser au moins un cœur au reste de la pile : le backend et le web
+          # partagent la machine, et une passe dure des heures.
+          cpus: "${VIGNETTES_CPUS:-2.0}"
+
   minio:
     image: minio/minio:latest
     container_name: arbore-${ARBORE_ENV:-prod}-minio

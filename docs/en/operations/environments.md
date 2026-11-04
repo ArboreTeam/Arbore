@@ -16,10 +16,82 @@ For provisioning, [`vps-bootstrap.md`](vps-bootstrap.md).
 | **prod** | `main` | `api.arbore.app`     | `arbore`     | manually  |
 | **dev**  | `dev`  | `api-dev.arbore.app` | `arbore_dev` | manually  |
 
-Both run **at the same time** on the same VPS, on separate ports, from two
-distinct git checkouts. They share neither version, secrets, nor data.
-
 Breaking dev has no effect on beta testers. That is its purpose.
+
+### Both environments live on the same machine, in two checkouts
+
+Recorded on 2026-11-04, **after** the #652 DNS cutover:
+
+| | machine | path | user |
+|---|---|---|---|
+| **prod** | Debian 12 VPS, `162.19.13.82` | `/home/debian/Arbore-prod` (`main`) | `debian` |
+| **dev** | the same machine | `/home/debian/Arbore` (`dev`) | `debian` |
+
+All four names — `api`, `web`, `generator`, `api-dev` — now resolve to this
+machine. The old Fedora VPS stays powered on until 2026-11-06 as a **fallback**:
+the records are proxied by Cloudflare, so going back is an origin-address
+change, immediate and with no redeploy.
+
+> **Deliberate naming asymmetry.** Production lives in `Arbore-prod` and dev in
+> `Arbore`, the opposite of the old machine. `deploy.sh` takes its image tag
+> from `git rev-parse HEAD` and its guard requires `main` for prod: a checkout
+> can only be on one branch at a time. The `dev` checkout was already in
+> service, and nothing that works moves during a migration.
+
+**And that is where the partitioning comes from.** Two separate checkouts give
+it for free, since the `docker-compose.yml` defaults are **relative to the
+compose file**.
+
+Do not mistake that property for a guarantee. Between 2026-10-21 and
+2026-11-02 the new machine held a **single** checkout for two compose stacks
+(`arbore-prod` and `arbore-dev`): the same defaults converged on the same
+directories, and both backends shared their thumbnail directory **writable**.
+What protects us today is a disk layout, not a barrier.
+
+#### What is partitioned, and what is not
+
+Recorded by `docker inspect` of the four containers, on 2026-11-03.
+
+| Mount | prod | dev | state |
+|---|---|---|---|
+| `/app/thumbnails` (rw) | `arbore-data/…/thumbnails` | `arbore-data/thumbnails-dev` | ✅ |
+| `/app/uploads/community` (rw) | checkout | `arbore-data/uploads-community-dev` | ✅ |
+| `/app/photos` (ro) | checkout | `arbore-data/photos-dev` | ✅ |
+| `/app/models` (ro) | `arbore-data/models` | **the same** | ⏳ migration |
+| `/run/secrets/*` (ro) | `arbore-data/secrets/` | **the same** | 🤝 accepted |
+| `/data/generator` (rw) | checkout | **the same** | 🤝 one workshop |
+
+**The writable mounts are partitioned**, except `/data/generator` — and that
+one is not a partitioning to do but a workshop that must run on **one** stack
+only. The code disables it wherever its keys are not laid down, so a single
+stack writes there.
+
+**The models wait for the migration**, and that is a choice: 6.7 GB and 176
+models on dev against 123 on prod. Copying them now would have to be redone
+when the meshes are transferred (#719 §2). The photos were partitioned right
+away because the directory is **empty on both sides** — nothing to copy,
+nothing to break.
+
+**The secrets that are read are shared on purpose**: the Firebase project is
+shared, and #434 lists it as an accepted overlap. What is partitioned is the
+**write**: `apply_secrets()` writes to `arbore-data/secrets-<env>` for every
+non-primary environment, `arbore-data/secrets` staying prod's. Without that,
+adding a dev.enc.json cipher file to give dev its own Firebase project would make **a dev
+deployment overwrite prod's service account** — and the reconciliation job
+(#393) runs every Sunday with `--apply`.
+
+#### The check at deploy time
+
+`deploy.sh` checks **eight** mounts on every `docker compose up`, at two
+severities:
+
+- **blocking** for a shared writable mount — the deployment stops. A warning
+  would get lost in the output, which is exactly what happened to the secrets
+  one (#690);
+- **reported** for a shared read-only mount — the line is printed on every
+  deployment, so the sharing stays a visible decision rather than an oversight.
+
+The rest of the tracking is in #434.
 
 ---
 
@@ -142,11 +214,11 @@ Deployment is **manual**, by choice: nobody ships to production without knowing
 it. On the VPS, one checkout per environment.
 
 ```sh
-# production
+# production — old VPS
 cd /home/fedora/Arbore && ./deploy.sh
 
-# development
-cd /home/fedora/Arbore-dev && ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
+# development — new VPS
+cd /home/debian/Arbore && ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
 ```
 
 Three traps, all hit for real:
@@ -157,8 +229,27 @@ refuses: `Checkout sur 'dev', attendu 'main' — déploiement refusé`. This gua
 branch silently. The default is `main`, so production does not set the variable.
 
 **Do not run `deploy.sh` under `sudo`.** The script handles Docker elevation
-itself. Under `sudo`, git switches to root's keys and `git pull` fails with a
-misleading `Permission denied (publickey)`.
+itself: the user does not need to be in the `docker` group.
+
+> ⚠️ **The symptom described here is gone, the reason is not.** This warning
+> announced a `Permission denied (publickey)` on `git pull`, back when the
+> remote used SSH. It moved to **public HTTPS**: under `sudo`, the pull now
+> **succeeds**. The warning went silent, and it was ignored all through
+> 2026-11-02.
+>
+> The two real consequences, measured that day:
+>
+> | | |
+> |---|---|
+> | `$HOME` becomes `/root` | the age key is not found, `apply_secrets` **warns then returns 0** — the deployment reports "finished" while running on the **old** secrets |
+> | files are written by root | **167 entries out of 1021** in `.git`, and the next manual `git pull` fails |
+>
+> Verified without `sudo`: secrets decrypted, images pulled, health 200, and
+> **0 root-owned entries** in `.git`.
+>
+> Since #716 the script tolerates being run under `sudo` — it recovers the real
+> user through `SUDO_USER` and works under that identity. That is a safety net,
+> not a licence: run it without.
 
 **Wait for images to be published.** `deploy.sh` pulls the image tagged
 `sha-<commit>`; if the publish workflow has not finished, the pull fails and the

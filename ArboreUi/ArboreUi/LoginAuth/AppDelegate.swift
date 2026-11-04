@@ -27,6 +27,15 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         NotificationManager.shared.configureCategories()
         UNUserNotificationCenter.current().delegate = self
 
+        // Purge unique des modèles mis en cache avant l'arrivée des empreintes
+        // (#294, #295). Ces fichiers portent le nom nu, rien ne dit quel
+        // contenu ils ont, et le chemin versionné ne les regardera jamais : ils
+        // occuperaient de la place sans plus jamais servir. Gardée par un
+        // drapeau, donc exécutée une seule fois par installation.
+        Task.detached(priority: .utility) {
+            await ModelCacheManager.shared.purgerSiAnterieurAuxEmpreintes()
+        }
+
         // Le contexte user Sentry suit l'état d'auth Firebase (login → UID,
         // logout → nil). Centralisé ici : inutile de toucher chaque écran de
         // connexion/déconnexion.
@@ -35,20 +44,6 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
                 SentryManager.setUser(uid: uid)
             } else {
                 SentryManager.clearUser()
-            }
-        }
-
-        // Release heavy RealityKit caches when iOS signals memory pressure.
-        // Without this, the singleton ThumbnailRenderHost's ARView accumulates
-        // GPU buffers from every rendered plant and the app gets jetsam'd.
-        NotificationCenter.default.addObserver(
-            forName: UIApplication.didReceiveMemoryWarningNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            Task { @MainActor in
-                ThumbnailRenderHost.shared.releaseScene()
-                print("⚠️ Memory warning: released thumbnail scene")
             }
         }
 

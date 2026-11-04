@@ -16,6 +16,7 @@
 #
 # Usage :
 #   bundle exec fastlane beta            # build interne (3 testeurs, immédiat)
+#   bundle exec fastlane beta_dev        # build interne, mais sur le backend de DEV
 #   bundle exec fastlane public_beta     # build externe (« Bêta privée », via Apple)
 #   bundle exec fastlane verifier_notes  # contrôle les notes sans rien livrer
 #   bundle exec fastlane notes build:33  # republie les notes d'une build en ligne
@@ -27,6 +28,9 @@
 #
 #   `beta`        → groupe « Internal QA », distribution immédiate après le
 #                   processing, aucune revue Apple.
+#   `beta_dev`    → même chose, mais sur le backend de DÉVELOPPEMENT. La cible
+#                   est portée par le schéma « ArboreUi Dev » (#456), donc par
+#                   la commande lancée — pas par un fichier édité avant.
 #   `public_beta` → groupe « Bêta privée », lien public TestFlight, soumission à
 #                   la Beta App Review. La build n'atteint personne tant
 #                   qu'Apple n'a pas approuvé, ce qui prend de quelques heures
@@ -34,6 +38,10 @@
 
 WORKSPACE = "ArboreUi/ArboreUi.xcworkspace"
 SCHEME    = "ArboreUi"
+# Schéma de la configuration « Dev » (#456) : même socle que Debug, mais pointe
+# le backend de développement. C'est lui qui porte la cible, et non un fichier
+# de secrets qu'on éditerait avant chaque build.
+SCHEME_DEV = "ArboreUi Dev"
 # Path absolu vers AuthKey.json — `__dir__` est le dossier du Fastfile,
 # robuste quelle que soit la cwd au moment de l'invocation (fastlane chdir
 # dans `fastlane/` au démarrage, donc un `./fastlane/AuthKey.json`
@@ -358,6 +366,69 @@ platform :ios do
     textes.each { |locale, texte| infos[locale] = { whats_new: texte } }
     infos["default"] = { whats_new: textes[DEFAULT_LOCALE] }
     infos
+  end
+
+  desc "Build DEV + upload TestFlight + distribution à « Internal QA »."
+  desc "Vise le backend de développement, via la configuration « Dev » (#456)."
+  lane :beta_dev do
+    # Sœur de `beta`, et volontairement presque identique. Une seule chose
+    # change : le SCHÉMA.
+    #
+    #   `beta`      -> schéma « ArboreUi »      -> configuration Release
+    #                  -> Secrets.xcconfig      -> api.arbore.app
+    #   `beta_dev`  -> schéma « ArboreUi Dev »  -> configuration Dev
+    #                  -> Secrets.dev.xcconfig  -> api-dev.arbore.app
+    #
+    # C'est le schéma qui porte la cible, pas un fichier qu'on édite avant de
+    # lancer. Rien à remettre en place après, donc rien à oublier — et aucun
+    # risque qu'un `public_beta` parte ensuite vers le backend de dev (#609).
+    unless File.exist?(File.expand_path("ArboreUi/Secrets.dev.xcconfig", REPO_ROOT))
+      UI.user_error!(
+        "ArboreUi/Secrets.dev.xcconfig absent.\n" \
+        "  cp ArboreUi/Secrets.dev.xcconfig.example ArboreUi/Secrets.dev.xcconfig\n" \
+        "  puis renseigne-le. Sans lui, la configuration « Dev » construirait " \
+        "sans clé d'API : l'application s'arrêterait au démarrage."
+      )
+    end
+
+    latest = latest_testflight_build_number(
+      api_key_path: AUTH_KEY,
+      version: get_version_number(xcodeproj: "ArboreUi/ArboreUi.xcodeproj")
+    )
+    increment_build_number(
+      xcodeproj: "ArboreUi/ArboreUi.xcodeproj",
+      build_number: latest + 1
+    )
+
+    build_app(
+      workspace: WORKSPACE,
+      scheme: SCHEME_DEV,
+      export_method: "app-store",
+      clean: true,
+      output_directory: "./fastlane/builds",
+      output_name: "Arbore.ipa",
+      include_symbols: true,
+      include_bitcode: false,
+      xcargs: "-allowProvisioningUpdates"
+    )
+
+    # Pas d'envoi des dSYM à Sentry : un build de dev pollue les versions d'un
+    # projet qui sert à lire les plantages des VRAIS testeurs. Les plantages
+    # d'un build interne se lisent dans Xcode, avec le binaire sous la main.
+
+    # Internal-only, exactement comme `beta` : pas de `groups`, pas de
+    # soumission. Le groupe « Internal QA » récupère la build automatiquement.
+    upload_to_testflight(
+      api_key_path: AUTH_KEY,
+      ipa: "./fastlane/builds/Arbore.ipa",
+      distribute_external: false,
+      skip_submission: true,
+      skip_waiting_for_build_processing: false,
+      changelog: "Build interne sur le backend de DEV (lane: beta_dev)."
+    )
+
+    UI.success("✅ Build #{latest + 1} livré à « Internal QA » — backend de DÉVELOPPEMENT.")
+    UI.important("   Les données vues dans cette build sont celles de dev, pas de la production.")
   end
 
   desc "Build + upload TestFlight + distribution au groupe EXTERNE « Bêta privée »."

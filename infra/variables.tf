@@ -75,9 +75,48 @@ variable "manage_zone_records" {
 variable "enable_dev_hostnames" {
   description = <<-EOT
     Créer les noms d'hôte de l'environnement de dev (`api-dev`).
-    Ils pointent la MÊME machine que la production : les deux piles cohabitent
-    sur le VPS, nginx les distingue par `server_name`.
+    Par défaut ils pointent la MÊME machine que la production : les deux piles
+    cohabitent sur le VPS, nginx les distingue par `server_name`.
+    Pour les faire pointer ailleurs, voir `dev_origin_ip`.
   EOT
   type        = bool
   default     = false
+}
+
+variable "generator_origin_ip" {
+  description = <<-EOT
+    Adresse IPv4 servant l'atelier 3D, quand elle DIFFÈRE de `origin_ip`.
+    Vide = l'atelier suit la production.
+
+    L'atelier est un OUTIL, pas une surface d'utilisateur : il n'est pas
+    appelé par l'app mobile. Il doit vivre là où se trouvent les modèles
+    qu'il produit, sinon chaque livraison demande un transfert à la main
+    entre deux machines (#652).
+
+    Le déplacer ne déplace aucune donnée de base : son état est un fichier,
+    `/data/generator/etat.json`, et son code n'accède pas à Mongo. Ce qui
+    bouge, c'est quel disque il lit.
+
+    Même contrainte que `origin_ip` : l'enregistrement reste proxifié.
+  EOT
+  type        = string
+  default     = ""
+}
+
+variable "dev_origin_ip" {
+  description = <<-EOT
+    Adresse IPv4 servant l'environnement de dev, quand elle DIFFÈRE de
+    `origin_ip`. Vide = dev suit la production, ce qui reste le cas normal.
+
+    Sa raison d'être est la migration de VPS (#652) : basculer `api-dev` seul
+    éprouve toute la chaîne Cloudflare — proxy, certificat d'origine, pare-feu
+    — contre la machine neuve, sans toucher au trafic réel. Sans cette
+    variable, les trois enregistrements partagent `origin_ip` et il faut tout
+    basculer d'un coup.
+
+    Même contrainte que `origin_ip` : l'enregistrement reste proxifié, sinon
+    le pare-feu d'origine rend la machine injoignable.
+  EOT
+  type        = string
+  default     = ""
 }

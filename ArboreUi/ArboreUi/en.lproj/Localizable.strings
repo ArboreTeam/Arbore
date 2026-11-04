@@ -1555,8 +1555,6 @@
 "AR_EDIT_SELECTED_PLANT" = "Selected plant";
 "AR_EDIT_EXIT" = "Exit edit mode";
 "AR_EDIT_ROTATE" = "Rotate plant";
-"AR_EDIT_SCALE_UP" = "Scale plant up";
-"AR_EDIT_SCALE_DOWN" = "Scale plant down";
 
 "SHOP_CATEGORY_PLANTS" = "Plants";
 "SHOP_CATEGORY_SOIL" = "Soil";

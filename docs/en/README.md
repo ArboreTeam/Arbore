@@ -42,6 +42,7 @@ The documentation is split into complementary views. Depending on what you are l
 | VPS provisioning (Docker · nginx · Mongo) | [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md) |
 | 3D asset storage (R2 · S3 · MinIO) | [`operations/asset-storage.md`](operations/asset-storage.md) |
 | LLM providers (free quotas, failover, RAG) | [`operations/llm-providers.md`](operations/llm-providers.md) |
+| Catalogue thumbnail rendering (Blender job) | [`operations/thumbnail-rendering.md`](operations/thumbnail-rendering.md) |
 | Architecture Decision Records (ADR) index | [`decisions/_index.md`](decisions/_index.md) |
 | App Store listing (multilingual) | [`../appstore-listing.md`](../appstore-listing.md) |
 | Definition of a domain or technical term | [`glossary.md`](glossary.md) |
@@ -119,5 +120,4 @@ The following files predate this structure and are isolated under [`../legacy/`]
 
 - [`../legacy/AR_CAMERA_BLACK_SCREEN_FIX.md`](../legacy/AR_CAMERA_BLACK_SCREEN_FIX.md) — AR camera black-screen fix notes
 - [`../legacy/CI-CD.md`](../legacy/CI-CD.md) — detailed historical CI/CD documentation
-- [`../legacy/DEBUG_MODE_VISUAL_SUMMARY.md`](../legacy/DEBUG_MODE_VISUAL_SUMMARY.md), [`../legacy/DEBUG_THUMBNAIL_MODE.md`](../legacy/DEBUG_THUMBNAIL_MODE.md) — thumbnail debug guides
 - [`../legacy/TROUBLESHOOTING.md`](../legacy/TROUBLESHOOTING.md) — CI troubleshooting guide

@@ -21,6 +21,7 @@ type Mesurable = {
   hauteurVegetal: number | null;
   rapportHD: number | null;
   potPlausible: boolean;
+  diametreFiche: number | null;
   taille: Taille | null;
 };
 
@@ -43,9 +44,18 @@ function hauteurProposee(m: Mesurable, diametre: number): { cm: number; exacte: 
 }
 
 function Ligne({ m, onEnregistre }: { m: Mesurable; onEnregistre: () => void }) {
-  const [diametre, setDiametre] = useState<number | ''>(m.taille?.diametrePotCm ?? '');
-  const [hauteur, setHauteur] = useState<string>(
-    m.taille ? String(m.taille.hauteurCm) : '');
+  // Une taille déjà saisie prime : elle a pu être corrigée à la main, et on
+  // n'écrase pas une décision par une proposition. Sinon la fiche d'origine
+  // pré-remplit — c'est la source la plus fiable, et la seule qui ne demande
+  // aucun jugement.
+  const [diametre, setDiametre] = useState<number | ''>(
+    m.taille?.diametrePotCm ?? m.diametreFiche ?? '');
+  const [hauteur, setHauteur] = useState<string>(() => {
+    if (m.taille) return String(m.taille.hauteurCm);
+    if (m.diametreFiche === null) return '';
+    const p = hauteurProposee(m, m.diametreFiche);
+    return p ? p.cm.toFixed(0) : '';
+  });
   const [stade, setStade] = useState<'jeune' | 'adulte'>(m.taille?.stade ?? 'adulte');
   const [occupe, setOccupe] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -82,7 +92,13 @@ function Ligne({ m, onEnregistre }: { m: Mesurable; onEnregistre: () => void }) 
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ plante: m.plante, taille: null }),
     }).catch(() => undefined);
-    setOccupe(false); setDiametre(''); setHauteur(''); onEnregistre();
+    setOccupe(false);
+    // Retour au pré-remplissage de la fiche, et non au vide : retirer une
+    // saisie ne doit pas faire disparaître une donnée qu'on possède toujours.
+    setDiametre(m.diametreFiche ?? '');
+    const p = m.diametreFiche === null ? null : hauteurProposee(m, m.diametreFiche);
+    setHauteur(p ? p.cm.toFixed(0) : '');
+    onEnregistre();
   };
 
   return (
@@ -120,6 +136,13 @@ function Ligne({ m, onEnregistre }: { m: Mesurable; onEnregistre: () => void }) 
             </button>
           ))}
         </div>
+        {m.diametreFiche !== null && (
+          <div className="mt-1 text-[11px] text-[#6E746B]">
+            Ø {m.diametreFiche} cm d&apos;après la fiche
+            {typeof diametre === 'number' && diametre !== m.diametreFiche
+              && ' · remplacé à la main'}
+          </div>
+        )}
         {propose && (
           <div className="mt-1 text-[11px] text-[#6E746B]">
             propose {propose.cm.toFixed(0)} cm

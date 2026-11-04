@@ -1,6 +1,6 @@
 # C4 — Level 3: Backend Components
 
-This view opens up the **Backend API** container (Go 1.25 + Gin) and exposes its main modules.
+This view opens up the **Backend API** container (Go 1.26 + Gin) and exposes its main modules.
 
 The code is organized around a `main.go` file (~2,500 lines) bundling type declarations, handlers and bootstrap, supplemented by:
 
@@ -56,7 +56,7 @@ flowchart TB
     class mongo,firebase_admin,apple,gemini,storage_ext ext
 ```
 
-The backend exposes **five distinct access levels**, defined in `buildRouter()`: **public** routes (no middleware), an **API-key-only** group, a **protected** group (API key *then* Firebase token), an **`account`** subgroup closed to guests, and an **`admin`** subgroup. This discipline is enforced by how the `router.Group(...)` calls are composed.
+The backend exposes **six distinct access levels**, defined in `buildRouter()`: **public** routes (no middleware), an **API-key-only** group, a **protected** group (API key *then* Firebase token), an **`account`** subgroup closed to guests, an **`admin`** subgroup, and an **`/internal`** group for callers that are not people (#696). This discipline is enforced by how the `router.Group(...)` calls are composed.
 
 `buildRouter()` is extracted from `main()` precisely so it is reachable from tests: how each route is classified across these groups is locked by an inventory test (#381), which fails until a newly added route is explicitly classified.
 
@@ -124,8 +124,9 @@ prove.
 | Endpoint | Handler | Notes |
 |---|---|---|
 | `POST /plants` | `createPlant` | Insertion (standard auth, no additional authz). |
-| `GET /plants` | `getPlants` | Full catalog. |
-| `GET /plants/:id` | `getPlantByID` | `ObjectIDFromHex` validation. |
+| `GET /plants` | `getPlants` | Full catalog. A `potless` plant is served with its default pot here too, as on the detail route: the invariant holds at the source, so no caller can forget it. |
+| `GET /plants/:id` | `getPlantByID` | `ObjectIDFromHex` validation. A `potless` plant is served with a `pot` field: the one from `?pot=<id>`, otherwise the default pot. |
+| `GET /pots` | `getPots` | Pot library. Fetched once by the client and kept: switching pots does not go back to the server. |
 
 #### Gardens domain (`/gardens`) — open to guests since #393
 
@@ -149,10 +150,73 @@ prove.
 
 | Endpoint | Handler | Notes |
 |---|---|---|
-| `GET /models/:filename` | inline (**protected**) | Serves the USDZ model. Rejects `..` / `/` / `\`, requires `.usdz`, `Content-Type: model/vnd.usdz+zip`. The `?lod=heavy` parameter serves the high-definition variant from `./models/heavy/` (see [`../3d-lod-architecture.md`](../3d-lod-architecture.md)). |
-| `POST /models/thumbnails/:plantId` | `uploadPlantThumbnail` | Restricted to `THUMBNAIL_UPLOAD_ALLOWED_UIDS`; PNG, max 100 MB, `plantId` validated. |
+| `GET /models/:filename` | `servePlantModel` (**protected**) | Serves the USDZ model. Rejects `..` / `/` / `\`, requires `.usdz`, `Content-Type: model/vnd.usdz+zip`. The `?lod=heavy` parameter serves the high-definition variant from `./models/heavy/` (see [`../3d-lod-architecture.md`](../3d-lod-architecture.md)). |
+| `POST /models/thumbnails/:plantId` | `uploadPlantThumbnail` (**admin**) | Under `RequireAdmin()`. PNG only, **8 MB** (`maxThumbnailBytes`), `plantId` validated as an ObjectID then rewritten from it. The backend **recomputes** `versions.thumbnail` on the bytes it just wrote (#687): publishing a fingerprint that lies becomes impossible. |
 
 > Unlike the thumbnail PNG (public), `GET /models/:filename` is in the **protected** group: viewing a 3D model requires both an API key **and** a Firebase token.
+
+> Until 2026-11-03 this table claimed a restriction by
+> `THUMBNAIL_UPLOAD_ALLOWED_UIDS` and a 100 MB limit. Neither exists in the
+> code: the variable appears nowhere, and the limit is 8 MB.
+
+### `/internal` group (API key + internal key, no Firebase)
+
+Added by #696, for callers that are **not people**: the thumbnail worker and
+the workshop, both on the internal network. A robot cannot hold a Firebase
+session.
+
+| Endpoint | Handler | Why |
+|---|---|---|
+| `GET /internal/plants` | `getPlants` | know which plants to render |
+| `GET /internal/models/:filename` | `servePlantModel` | download the USDZ model |
+| `POST /internal/models/thumbnails/:plantId` | `uploadPlantThumbnail` | upload the rendered thumbnail |
+| `POST /internal/test-accounts/verify` | `verifierCompteDeTest` | provision a test account with a **verified** email |
+
+The last one has no twin, and that is deliberate. Since #377 an unverified
+address is refused on every authenticated route except `POST /users` and
+`DELETE /users`. The iOS integration suites created throwaway accounts that no
+mailbox can validate: **ten tests out of twenty-seven** failed with
+`EMAIL_NOT_VERIFIED` the day they finally ran (2026-11-03, #725).
+
+`verifierCompteDeTest` sets `emailVerified` through the Admin SDK. **This is
+not a bypass of the gate**: the token issued afterwards really carries
+`email_verified: true`, and the check applies normally. A conforming account is
+provisioned rather than the rule being switched off.
+
+> **The option we rejected is worth writing down.** Keying the bypass to the
+> test API key would have been simpler — and would have lived **in
+> production**: recorded on 2026-11-03, `ARBORE_API_KEY_TEST` is present on the
+> prod backend. That key lives in CI and on developer machines; anyone holding
+> it could have acted without a verified address, and the gate would have
+> stopped being exercised by anyone.
+
+Two guards specific to this route, on top of the two keys: the address must
+belong to **`@arbore.test`** — a TLD reserved by RFC 2606, not resolvable, so
+it never designates a real person — and the route **creates nothing**. It marks
+an identity the caller has already created and whose password it holds.
+
+The other three are the **same handlers** as their authenticated twins, not copies:
+neither `getPlants` nor `uploadPlantThumbnail` reads any caller identity.
+`servePlantModel` was in fact extracted from a closure so it could be mounted
+**twice** from a single body — two copies would have meant two definitions of
+the path checks to keep in agreement.
+
+Three properties not to undo:
+
+- **Both keys are required together.** The API key alone — the one the iOS app
+  carries — does not open these routes. It is also the only thing that picks
+  the database: there is no second way to designate one.
+- **The internal key confers no role** and opens no account route. It replaces
+  the Firebase administrator service account that would otherwise have been
+  needed — a human account repurposed, with its password in the secret store
+  and the right to write the whole catalogue, in order to upload images.
+- **Key absent, the door closes.** `InternalKeyMiddleware` answers **503
+  `INTERNAL_ROUTES_DISABLED`**, whatever is presented. The trap is precise:
+  `ConstantTimeCompare(supplied, configured)` would judge an **empty** header
+  equal to an **empty** key. A test pins this by name.
+
+Production does not carry the key: it runs no worker, so the surface does not
+exist there.
 
 #### AI Assistant domain (`/chat`, `/diagnose`)
 

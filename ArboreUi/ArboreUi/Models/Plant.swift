@@ -21,10 +21,25 @@ struct Plant: Identifiable, Codable {
     /// inconnue et ne doit jamais devenir une compatibilité supposée.
     let botanicalProfile: PlantBotanicalProfile?
     let hasHeavy: Bool?    // true = une version 3D haute définition existe (LOD : swap depuis le léger en AR)
+    /// true = le maillage ne contient PAS son pot (sortie d'atelier recoupée).
+    /// nil/false = pot inclus dans le modèle, comportement historique.
+    let potless: Bool?
+    /// Socle mesuré où poser le pot. nil = pose non calculable, aucun pot servi.
+    let potBase: PlantPotBase?
+    /// Hauteur réelle de l'exemplaire, mesurée **depuis la terre** et non
+    /// depuis le bas du pot : le pot change, la plante non. nil = non mesurée,
+    /// on retombe alors sur la hauteur par défaut du placement.
+    let heightMeters: Double?
+    /// Empreintes du contenu des fichiers servis, pour l'invalidation du cache.
+    let versions: PlantAssetVersions?
+    /// Pot résolu par le serveur pour une plante recoupée. Présent seulement
+    /// sur la fiche détaillée : la liste du catalogue ne le porte pas.
+    let pot: Pot?
 
     enum CodingKeys: String, CodingKey {
         case id
         case name, type, imageURLs, description, modelURL, translations, generated, upAxis, source, sourceUrl, flags, botanicalProfile, hasHeavy
+        case potless, potBase, heightMeters, versions, pot
     }
 
     // Décode avec fallback safe
@@ -54,7 +69,15 @@ struct Plant: Identifiable, Codable {
         self.flags = try container.decodeIfPresent(PlantFlags.self, forKey: .flags)
         self.botanicalProfile = try container.decodeIfPresent(PlantBotanicalProfile.self, forKey: .botanicalProfile)
         self.hasHeavy = try container.decodeIfPresent(Bool.self, forKey: .hasHeavy)
+        self.potless = try container.decodeIfPresent(Bool.self, forKey: .potless)
+        self.potBase = try container.decodeIfPresent(PlantPotBase.self, forKey: .potBase)
+        self.heightMeters = try container.decodeIfPresent(Double.self, forKey: .heightMeters)
+        self.versions = try container.decodeIfPresent(PlantAssetVersions.self, forKey: .versions)
+        self.pot = try container.decodeIfPresent(Pot.self, forKey: .pot)
     }
+
+    /// Vrai si le maillage attend qu'on lui pose un pot.
+    var attendUnPot: Bool { potless == true }
 
     /// Clé dynamique : le bloc `translations` est indexé par code de langue,
     /// et rien ne borne l'ensemble des langues à l'avance.
@@ -306,6 +329,12 @@ extension Plant {
     /// Obtient l'URL locale du modèle 3D (télécharge depuis le backend si nécessaire)
     /// - Parameter forceDownload: Si true, force un nouveau téléchargement depuis le backend
     /// - Returns: L'URL locale du fichier USDZ
+    /// Empreinte du fichier servi pour ce niveau de détail, quand elle existe.
+    /// Elle indexe le cache : un contenu neuf devient un fichier neuf (#294).
+    func empreinte(pour lod: ModelLOD) -> String? {
+        lod == .heavy ? versions?.modelHeavy : versions?.model
+    }
+
     func getModelURL(forceDownload: Bool = false) async throws -> URL {
         let rawModelURL = modelURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         var candidates: [String] = []
@@ -348,7 +377,13 @@ extension Plant {
         // Essayer chaque candidat jusqu'à trouver un fichier valide côté backend
         for candidate in uniqueCandidates {
             do {
-                return try await ModelCacheManager.shared.getModelURL(for: candidate, forceDownload: forceDownload)
+                // L'empreinte ne vaut que pour le modelURL déclaré. Les
+                // candidats reconstruits depuis le nom de la plante visent un
+                // AUTRE fichier : leur coller cette empreinte ferait passer
+                // pour « à jour » un contenu qui n'a jamais été mesuré.
+                let version = (candidate == rawModelURL) ? empreinte(pour: .light) : nil
+                return try await ModelCacheManager.shared.getModelURL(
+                    for: candidate, version: version, forceDownload: forceDownload)
             } catch {
                 lastError = error
                 continue

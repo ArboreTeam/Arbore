@@ -180,94 +180,71 @@ class ModelCacheManagerTests: XCTestCase {
 
 class ModelCacheManagerIntegrationTests: XCTestCase {
 
-    let testPassword = "TestCache2026!"
-    var testEmail: String!
     var testUserUID: String?
 
-    private func ensureBackendIsReachableOrSkip() throws {
-        guard let url = URL(string: "\(AppConfig.baseURL)/health") else {
-            throw XCTSkip("ModelCacheManager integration tests skipped: invalid backend URL \(AppConfig.baseURL)")
-        }
-
-        let expectation = self.expectation(description: "Backend health check")
-        var isReachable = false
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 5
-
-        URLSession.shared.dataTask(with: request) { _, response, _ in
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
-                isReachable = true
-            }
-            expectation.fulfill()
-        }.resume()
-
-        wait(for: [expectation], timeout: 7.0)
-
-        if !isReachable {
-            throw XCTSkip("ModelCacheManager integration tests skipped: backend is unreachable at \(AppConfig.baseURL)")
-        }
-    }
-
-    override func setUpWithError() throws {
+    /// Session **invitée**, et non plus un compte email/mot de passe jetable.
+    ///
+    /// `/models/:filename` accepte les invités — c'est une route du catalogue,
+    /// pas du compte. L'ancienne fixture créait une adresse qu'elle ne
+    /// vérifiait jamais, et depuis le portillon d'email de #377 le backend
+    /// refusait les trois tests en `EMAIL_NOT_VERIFIED`. Ils ne l'ont jamais
+    /// signalé parce qu'ils ne tournaient pas (#725).
+    override func setUp() async throws {
         try LiveIntegrationTestGate.requireEnabled()
-        try ensureBackendIsReachableOrSkip()
+        try LiveIntegrationTestGate.requireBackendReachable(suite: "ModelCacheManager")
 
-        // Configuration Firebase
-        if FirebaseApp.app() == nil {
-            FirebaseApp.configure()
-        }
-
-        // Créer un user de test pour les requêtes authentifiées
-        testEmail = "test-cache-\(UUID().uuidString.lowercased())@arbore.test"
-
-        let createExpectation = XCTestExpectation(description: "Create test user")
-
-        Auth.auth().createUser(withEmail: testEmail, password: testPassword) { result, error in
-            if let error = error {
-                XCTFail("Failed to create test user: \(error)")
-                createExpectation.fulfill()
-                return
-            }
-
-            self.testUserUID = result?.user.uid
-
-            // Sign in
-            Auth.auth().signIn(withEmail: self.testEmail, password: self.testPassword) { _, signInError in
-                if let signInError = signInError {
-                    XCTFail("Failed to sign in test user: \(signInError)")
-                }
-                createExpectation.fulfill()
-            }
-        }
-
-        wait(for: [createExpectation], timeout: 30.0)
-
-        // Nettoyer le cache
-        let cacheExpectation = expectation(description: "Clear model cache")
-        Task {
-            try? await ModelCacheManager.shared.clearCache()
-            cacheExpectation.fulfill()
-        }
-        wait(for: [cacheExpectation], timeout: 10.0)
+        testUserUID = try await LiveIntegrationTestGate.ouvrirSessionInvitee().uid
+        try? await ModelCacheManager.shared.clearCache()
     }
 
     override func tearDown() async throws {
-        // Nettoyer le cache
         try await ModelCacheManager.shared.clearCache()
 
-        // Supprimer le user de Firebase
-        if let currentUser = Auth.auth().currentUser {
-            let deleteExpectation = XCTestExpectation(description: "Delete Firebase user")
-            currentUser.delete { _ in
-                deleteExpectation.fulfill()
-            }
-            await fulfillment(of: [deleteExpectation], timeout: 5.0)
+        // L'identité anonyme est supprimée, pas seulement déconnectée : une
+        // session invitée abandonnée laisse un uid que Firebase ne nettoie
+        // qu'au bout de trente jours, et que le job de réconciliation (#393)
+        // devrait ensuite ramasser. Autant ne pas en créer la dette.
+        if let courant = Auth.auth().currentUser {
+            try? await courant.delete()
+        }
+        testUserUID = nil
+    }
+
+    /// Un nom de modèle que le catalogue COURANT sert vraiment.
+    ///
+    /// Les tests codaient `Pothos.usdz` en dur. Ce fichier n'existe pas sur
+    /// dev — le catalogue y porte `Pothos_Dore_Vert.usdz` et consorts — et
+    /// les deux tests de téléchargement échouaient en 404 dès qu'on les a
+    /// enfin exécutés contre cet environnement (#725).
+    ///
+    /// Un nom en dur fait dépendre le test de QUEL catalogue répond. Lire le
+    /// premier modèle servi rend le test vrai partout, et c'est précisément
+    /// ce qu'il veut prouver : que le téléchargement fonctionne pour ce que
+    /// le catalogue annonce.
+    private func premierModeleDuCatalogue() async throws -> String {
+        guard let url = URL(string: "\(AppConfig.baseURL)/plants"),
+              let jeton = try await Auth.auth().currentUser?.getIDToken() else {
+            throw XCTSkip("session absente : impossible de lire le catalogue")
+        }
+        var requete = URLRequest(url: url)
+        requete.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
+        requete.setValue("Bearer \(jeton)", forHTTPHeaderField: "Authorization")
+
+        let (data, reponse) = try await URLSession.shared.data(for: requete)
+        let statut = (reponse as? HTTPURLResponse)?.statusCode ?? -1
+        guard statut == 200 else {
+            throw XCTSkip("GET /plants a rendu \(statut) : pas de catalogue à lire")
         }
 
-        testUserUID = nil
-        testEmail = nil
+        let fiches = try JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        // `_potless` est une variante recoupée, pas une entrée de catalogue à
+        // part : on prend le premier modèle nominal.
+        let nom = fiches?.compactMap { $0["modelURL"] as? String }
+            .first { !$0.isEmpty && !$0.contains("_potless") }
+        guard let nom else {
+            throw XCTSkip("le catalogue ne sert aucun modèle : rien à télécharger")
+        }
+        return nom
     }
 
     // MARK: - Real Backend Tests
@@ -282,7 +259,8 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
 
         do {
             // Act - Télécharger le modèle Pothos (le plus petit: 2 MB)
-            let modelURL = try await ModelCacheManager.shared.getModelURL(for: "Pothos.usdz")
+            let modele = try await premierModeleDuCatalogue()
+            let modelURL = try await ModelCacheManager.shared.getModelURL(for: modele)
 
             // Assert
             XCTAssertTrue(FileManager.default.fileExists(atPath: modelURL.path),
@@ -312,9 +290,11 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
         }
 
         do {
+            let modele = try await premierModeleDuCatalogue()
+
             // First download
             let startTime1 = Date()
-            let modelURL1 = try await ModelCacheManager.shared.getModelURL(for: "Pothos.usdz")
+            let modelURL1 = try await ModelCacheManager.shared.getModelURL(for: modele)
             let duration1 = Date().timeIntervalSince(startTime1)
 
             XCTAssertTrue(FileManager.default.fileExists(atPath: modelURL1.path),
@@ -322,7 +302,7 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
 
             // Second download (should use cache)
             let startTime2 = Date()
-            let modelURL2 = try await ModelCacheManager.shared.getModelURL(for: "Pothos.usdz")
+            let modelURL2 = try await ModelCacheManager.shared.getModelURL(for: modele)
             let duration2 = Date().timeIntervalSince(startTime2)
 
             XCTAssertEqual(modelURL1.path, modelURL2.path,
@@ -357,13 +337,17 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
     }
 
     func testModelCacheManager_WithoutAuth_ShouldFail() async {
-        // Test sans authentification Firebase
+        // Le nom est lu AVANT la déconnexion, et c'est ce qui donne du sens au
+        // test : avec un nom qui n'existe pas, l'échec serait un 404 et on ne
+        // saurait pas si l'absence d'authentification y est pour quelque
+        // chose. Avec un modèle réellement servi, seul le défaut d'auth peut
+        // faire échouer l'appel.
+        let modele = (try? await premierModeleDuCatalogue()) ?? "NonExistent.usdz"
 
-        // Sign out
         try? Auth.auth().signOut()
 
         do {
-            _ = try await ModelCacheManager.shared.getModelURL(for: "Pothos.usdz")
+            _ = try await ModelCacheManager.shared.getModelURL(for: modele)
             XCTFail("Should fail when not authenticated")
         } catch {
             // Devrait échouer (401 ou autre erreur d'auth)
@@ -371,12 +355,10 @@ class ModelCacheManagerIntegrationTests: XCTestCase {
             XCTAssertTrue(true, "Should fail without auth")
         }
 
-        // Re-sign in pour tearDown
-        let signInExpectation = XCTestExpectation(description: "Re-sign in")
-        Auth.auth().signIn(withEmail: testEmail, password: testPassword) { _, _ in
-            signInExpectation.fulfill()
-        }
-        wait(for: [signInExpectation], timeout: 5.0)
+        // Rouvrir une session pour que `tearDown` ait une identité à nettoyer.
+        // Une session invitée n'est pas rattrapable par mot de passe : on en
+        // ouvre une neuve, et c'est celle-là que tearDown supprimera.
+        try? await LiveIntegrationTestGate.ouvrirSessionInvitee()
     }
 }
 

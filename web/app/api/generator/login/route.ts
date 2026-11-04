@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { adresseClient, empreinteAttendue, hoteAtelier, secretSession } from '@/lib/generator/config';
+import { adresseClient, empreintesAttendues, hoteAtelier, secretSession } from '@/lib/generator/config';
 import { consommer, consulter, oublier } from '@/lib/generator/limite';
 import { COOKIE_SESSION, DUREE_SESSION_S, emettre, empreinte } from '@/lib/generator/session';
 
@@ -26,9 +26,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 });
   }
 
-  const attendue = empreinteAttendue();
+  const attendues = empreintesAttendues();
   const secret = secretSession();
-  if (!attendue || !secret) {
+  if (attendues.size === 0 || !secret) {
     // Mal configuré : on refuse plutôt que d'ouvrir. Un atelier sans clé
     // vaudrait un atelier sans porte.
     return NextResponse.json({ error: 'Atelier indisponible' }, { status: 503 });
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     fournie = '';
   }
 
-  const juste = fournie.length > 0 && (await empreinte(fournie)) === attendue;
+  const juste = fournie.length > 0 && attendues.has(await empreinte(fournie));
 
   if (!juste) {
     // On ne consomme un essai QUE sur échec : une connexion réussie ne doit

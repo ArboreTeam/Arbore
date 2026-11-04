@@ -46,6 +46,9 @@ erDiagram
         bool   generated "modèle 3D généré (IA)"
         string upAxis "Y ou Z"
         bool   hasHeavy "variante USDZ haute définition"
+        float  heightMeters "hauteur reelle depuis la terre"
+        bool   potless "maillage sans son pot"
+        object potBase "socle où poser le pot"
         object flags "PlantFlags embedded"
         string source "libellé de provenance optionnel"
         string sourceUrl "URL d'origine optionnelle"
@@ -157,6 +160,10 @@ Document du catalogue de plantes. Chaque plante embarque ses traductions multili
 | `generated` | bool (optionnel) | `true` si le modèle 3D est généré par IA (badge BETA, #84). |
 | `upAxis` | string (optionnel) | `"Y"` ou `"Z"` — rotation appliquée au chargement (#89). |
 | `hasHeavy` | bool (optionnel) | `true` si une variante USDZ **haute définition** existe (servie via `?lod=heavy`). Pilote le swap LOD en AR — cf. [`../3d-lod-architecture.md`](../3d-lod-architecture.md). |
+| `heightMeters` | float (optionnel) | Hauteur réelle de l'exemplaire, **mesurée depuis la terre** et non depuis le bas du pot : le pot change, la plante non. Son absence fait retomber le client sur sa constante de 0,5 m (`autoScaleTargetHeightMeters`), qui met toute plante à la même taille. |
+| `versions` | `AssetVersions` (optionnel) | Empreintes du contenu des fichiers servis. Pilotent l'invalidation du cache de l'appareil ; leur absence laisse le client sur son comportement actuel. |
+| `potless` | bool (optionnel) | `true` si le maillage **ne contient pas son pot** (sortie recoupée de l'atelier 3D). Absent ou `false` = pot inclus, comportement historique. |
+| `potBase` | `PotBase` (optionnel) | Socle mesuré par l'atelier : centre, rayon, hauteur de la lèvre, en unités du modèle. Sans lui, aucun pot n'est servi. |
 | `flags` | `PlantFlags` (optionnel) | Drapeaux legacy encore utilisés pour les filtres visuels et comme indice faible. Ils ne certifient plus seuls une compatibilité. |
 | `botanicalProfile` | `PlantBotanicalProfile` (optionnel) | Contraintes horticoles canoniques, structurées et sourcées champ par champ. Son absence force le verdict « Probablement compatible » ou « Non adaptée », jamais « Adaptée ». |
 | `source` | string (optionnel) | Libellé de provenance optionnel (catalogue curé vs entrées legacy/beta). |
@@ -267,6 +274,128 @@ Douze booléens historiques. Ils restent utiles pour la recherche et les filtres
 | `trailing` | Retombante. |
 | `compact` | Format compact. |
 | `airPurifying` | Dépolluante. |
+
+#### Sous-document `AssetVersions`
+
+Empreinte du contenu de chaque fichier servi pour la fiche : les huit premiers
+caractères hexadécimaux de son SHA-256. Elle pilote l'invalidation du cache de
+l'appareil (#294).
+
+| Champ | Type | Rôle |
+|---|---|---|
+| `model` | string (optionnel) | USDZ light. |
+| `modelHeavy` | string (optionnel) | USDZ heavy, servi via `?lod=heavy`. |
+| `thumbnail` | string (optionnel) | Vignette PNG. |
+| `thumbnailModel` | string (optionnel) | **Provenance** de la vignette : la version du MODÈLE dont elle est issue. |
+
+Un champ par fichier, parce que ce sont des fichiers distincts : remplacer le
+light ne doit pas faire retélécharger le heavy, qui pèse dix fois plus. Un champ
+absent signifie « empreinte non calculée » — le client retombe alors sur son
+comportement d'avant et ne perd pas son cache.
+
+##### `thumbnailModel` n'est pas une empreinte de fichier
+
+C'est le seul des quatre à ne pas résumer un fichier servi : il dit **de quoi**
+la vignette a été rendue. Il répond à « faut-il la refaire ? » — oui dès qu'il
+diffère de `model`.
+
+Il est **déclaré par le job de rendu**, pas calculé par le serveur, qui n'a pas
+rendu l'image ; `EmpreinteValide` contrôle donc sa forme avant de l'écrire.
+
+**Vide signifie « provenance inconnue », donc à refaire.** C'est l'état de
+toute vignette publiée avant #694, et de toute vignette republiée sans
+déclaration — auquel cas le serveur **retire** le champ au lieu de conserver
+une valeur devenue fausse. Traiter « je ne sais pas » comme « sans doute à
+jour » exclurait ces plantes des passes incrémentales définitivement, et le
+défaut serait invisible : l'image s'afficherait normalement.
+
+> ⚠️ **Il ne suit que le modèle, pas le moteur.** Un correctif de `rendre.py`
+> ne marque donc rien comme périmé, et impose une passe complète. Mesuré le
+> 2026-11-02 : les 123 vignettes d'une passe ont gardé un défaut de rendu que
+> la régénération incrémentale n'a pas vu. Suivi sur #694.
+
+##### Pourquoi une empreinte par fichier et non un compteur global
+
+Le cache iOS des modèles est indexé par **nom de fichier**, dans
+`Documents/Models/`, que la mise à jour d'une app ne vide pas. Un fichier
+réécrit sous le même nom n'atteint donc aucun appareil l'ayant déjà téléchargé :
+c'est #292, où les testeurs ont gardé des modèles gris jusqu'à réinstallation.
+
+La solution apparente — une constante de version dans le binaire — est déjà en
+place pour les vignettes, et #524 a mesuré ce qu'elle coûte. Elle est
+**globale** : la changer invalide tout le catalogue chez tout le monde pour
+corriger un seul fichier, soit 440 Mo en light. Et elle est **compilée** : la
+changer n'atteint personne sans une nouvelle livraison TestFlight, donc réparer
+un fichier côté serveur reste invisible.
+
+L'empreinte du contenu n'a aucun de ces deux défauts. Elle change quand les
+octets changent, jamais autrement, personne n'a à penser à l'incrémenter, et
+elle voyage avec la fiche — que le client lit déjà.
+
+Le GET conditionnel, l'autre piste de #294, est disponible côté serveur sans
+rien ajouter : `serveStorageObject` finit par `http.ServeContent`, qui émet
+`Last-Modified` et honore `If-Modified-Since`. Mais il coûte une requête par
+fichier et par contrôle, là où l'empreinte arrive avec le catalogue.
+
+#### Sous-document `PotBase`
+
+Le socle mesuré par l'atelier 3D, sur lequel le pot vient se poser. Toutes les
+valeurs sont en **unités du modèle de la plante**, pas en centimètres : le
+maillage n'est pas à l'échelle réelle.
+
+| Champ | Type | Rôle |
+|---|---|---|
+| `x`, `y`, `z` | float | Centre du socle ; `y` est la hauteur de la lèvre, où s'aligne le haut du pot. |
+| `radius` | float | Rayon du socle. C'est lui qui donne l'échelle du pot. |
+| `groundY` | float (optionnel) | Ligne de terre, pour l'anti-clipping du feuillage retombant (#185). Rarement mesuré à ce jour. |
+| `plantHeight` | float (optionnel) | Hauteur du végétal seul. |
+
+### `pots`
+
+Bibliothèque de pots, **libre** : un pot va sous n'importe quelle plante. Aucune
+compatibilité par plante n'est enregistrée, faute d'élément qui la justifie
+(question ouverte de #623).
+
+| Champ | Type | Rôle |
+|---|---|---|
+| `_id` | ObjectID | Identifiant servi tel quel au client. |
+| `name` | string | Libellé. |
+| `modelURL` | string | Nom de fichier USDZ, servi par `GET /models/:filename` comme ceux des plantes. |
+| `rimRadius` | float | Rayon du rebord, en unités du modèle **du pot**. |
+| `height` | float | Hauteur du pot. |
+| `default` | bool | Pot servi quand le client n'en demande aucun. |
+| `version` | string (optionnel) | Empreinte du contenu de son USDZ, même règle que `AssetVersions`. |
+
+##### Comment plante et pot se composent, et où le calcul se fait
+
+Une plante `potless` ne peut pas s'afficher seule. `GET /plants/:id` sert donc,
+dans la même charge, un champ `pot` — celui que `?pot=<id>` demande, sinon le
+pot par défaut. Un appel séparé serait toujours en série derrière celui de la
+plante, puisque le client ne sait qu'après coup qu'il lui faut un pot.
+
+La pose, elle, **n'est pas servie** : le pot est mis à l'échelle
+`potBase.radius / pot.rimRadius`, centré sur le socle, sa lèvre alignée sur
+`potBase.y`. Le client a les deux valeurs et fait la division.
+
+Ce partage n'est pas arbitraire. Changer de pot ne repasse jamais par le
+serveur : le socle est une mesure de la plante, indépendante du pot, et la
+bibliothèque se charge une fois puis se garde. L'aperçu du sélecteur est donc
+instantané et un jardin se rouvre hors ligne. Resservir la fiche entière —
+traductions, profil botanique, images — pour une division serait du gaspillage,
+et poser la règle des deux côtés la ferait diverger.
+
+Le serveur garde une seule responsabilité de calcul : **refuser** de servir un
+pot quand la pose n'a pas de sens — socle absent, rayon ou rebord nul. Une
+plante visiblement nue se répare ; un pot posé au hasard passe pour un bug d'AR.
+
+##### Pourquoi le modèle recoupé change de nom de fichier
+
+Le modèle sans pot ne remplace pas l'ancien : il se dépose à côté, suffixé
+`_potless`. Le cache iOS est indexé par **nom de fichier** et `Documents/Models/`
+survit aux mises à jour (#294) — réécrire un fichier sous le même nom
+n'atteindrait aucun appareil l'ayant déjà téléchargé. Et `GardenLocalStore`
+persiste `modelURLString` dans chaque jardin enregistré : l'ancien fichier doit
+rester servi, sinon les jardins déjà créés cassent.
 
 ### `gardens`
 

@@ -1,0 +1,9 @@
+# Chaine de reconstruction des maillages d'atelier (reatlas*.py).
+# Separee de requirements.txt : ces roues ne servent qu'a l'export des modeles,
+# pas au service web.
+numpy>=2.0
+scipy>=1.14
+pillow>=10.0
+xatlas>=0.0.11
+trimesh>=4.0
+fast_simplification>=0.2

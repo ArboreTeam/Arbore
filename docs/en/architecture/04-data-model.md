@@ -46,6 +46,9 @@ erDiagram
         bool   generated "3D model AI-generated"
         string upAxis "Y or Z"
         bool   hasHeavy "high-definition USDZ variant"
+        float  heightMeters "real height from the soil line"
+        bool   potless "mesh without its pot"
+        object potBase "base the pot sits on"
         object flags "PlantFlags embedded"
         string source "optional provenance label"
         string sourceUrl "optional origin URL"
@@ -157,6 +160,10 @@ Plant catalog document. Each plant embeds its multilingual translations so that 
 | `generated` | bool (optional) | `true` if the 3D model is AI-generated (BETA badge, #84). |
 | `upAxis` | string (optional) | `"Y"` or `"Z"` — rotation applied at load time (#89). |
 | `hasHeavy` | bool (optional) | `true` if a **high-definition** USDZ variant exists (served via `?lod=heavy`). Drives the LOD swap in AR — see [`../3d-lod-architecture.md`](../3d-lod-architecture.md). |
+| `heightMeters` | float (optional) | Real height of the specimen, **measured from the soil line**, not from the bottom of the pot: the pot changes, the plant does not. When absent, the client falls back on its 0.5 m constant (`autoScaleTargetHeightMeters`), which gives every plant the same size. |
+| `versions` | `AssetVersions` (optional) | Content fingerprints of the files served. They drive device cache invalidation; their absence leaves the client on its current behaviour. |
+| `potless` | bool (optional) | `true` if the mesh **does not contain its pot** (re-cut output of the 3D workshop). Absent or `false` means the pot is part of the mesh, the historical behaviour. |
+| `potBase` | `PotBase` (optional) | Base measured by the workshop: centre, radius, rim height, in model units. Without it, no pot is served. |
 | `flags` | `PlantFlags` (optional) | Legacy flags still used by visual filters and as weak evidence. They can no longer certify suitability on their own. |
 | `botanicalProfile` | `PlantBotanicalProfile` (optional) | Canonical horticultural constraints, structured and sourced per field. When absent, the verdict can only be “Probably compatible” or “Not suitable,” never “Suitable.” |
 | `source` | string (optional) | Optional provenance label (curated catalog vs legacy/beta entries). |
@@ -266,6 +273,128 @@ Twelve historical booleans. They remain useful for search and appearance filters
 | `trailing` | Trailing. |
 | `compact` | Compact size. |
 | `airPurifying` | Air-purifying. |
+
+#### `AssetVersions` sub-document
+
+Content fingerprint of each file served for the record: the first eight
+hexadecimal characters of its SHA-256. It drives device cache invalidation
+(#294).
+
+| Field | Type | Role |
+|---|---|---|
+| `model` | string (optional) | Light USDZ. |
+| `modelHeavy` | string (optional) | Heavy USDZ, served via `?lod=heavy`. |
+| `thumbnail` | string (optional) | PNG thumbnail. |
+| `thumbnailModel` | string (optional) | The thumbnail's **provenance**: the version of the MODEL it was rendered from. |
+
+One field per file, because they are distinct files: replacing the light one
+must not force a re-download of the heavy one, which is ten times larger. A
+missing field means “fingerprint not computed” — the client then falls back on
+its previous behaviour and keeps its cache.
+
+##### `thumbnailModel` is not a file fingerprint
+
+It is the only one of the four that does not summarise a served file: it says
+**what** the thumbnail was rendered from. It answers "does this need
+redoing?" — yes as soon as it differs from `model`.
+
+It is **declared by the rendering job**, not computed by the server, which did
+not render the image; `EmpreinteValide` therefore checks its shape before
+writing it.
+
+**Empty means "provenance unknown", therefore to be redone.** That is the state
+of every thumbnail published before #694, and of any thumbnail republished
+without a declaration — in which case the server **removes** the field rather
+than keeping a value that has become false. Treating "I don't know" as
+"probably up to date" would exclude those plants from incremental passes
+permanently, and the defect would be invisible: the image would display
+normally.
+
+> ⚠️ **It tracks the model only, not the renderer.** A fix to `rendre.py`
+> therefore marks nothing stale and forces a full pass. Measured on
+> 2026-11-02: all 123 thumbnails of one pass kept a rendering defect that
+> incremental regeneration did not see. Tracked on #694.
+
+##### Why a per-file fingerprint rather than a global counter
+
+The iOS model cache is keyed by **file name**, under `Documents/Models/`, which
+an app update does not clear. A file rewritten under the same name therefore
+reaches no device that already downloaded it: that is #292, where testers kept
+grey models until they reinstalled.
+
+The obvious fix — a version constant in the binary — is already in place for
+thumbnails, and #524 measured what it costs. It is **global**: changing it
+invalidates the whole catalog for everyone in order to fix a single file, 440 MB
+for the light models. And it is **compiled in**: changing it reaches nobody
+without a new TestFlight build, so fixing a file server-side stays invisible.
+
+A content fingerprint has neither flaw. It changes when the bytes change, never
+otherwise, nobody has to remember to bump it, and it travels with the record the
+client already reads.
+
+The conditional GET, the other path in #294, is available server-side at no
+cost: `serveStorageObject` ends in `http.ServeContent`, which emits
+`Last-Modified` and honours `If-Modified-Since`. But it costs one request per
+file per check, where the fingerprint rides along with the catalog.
+
+#### `PotBase` sub-document
+
+The base measured by the 3D workshop, where the pot sits. Every value is in
+**plant-model units**, not centimetres: the mesh is not at real-world scale.
+
+| Field | Type | Role |
+|---|---|---|
+| `x`, `y`, `z` | float | Base centre; `y` is the rim height, where the top of the pot lines up. |
+| `radius` | float | Base radius. This is what scales the pot. |
+| `groundY` | float (optional) | Soil line, for trailing-foliage anti-clipping (#185). Rarely measured so far. |
+| `plantHeight` | float (optional) | Height of the plant alone. |
+
+### `pots`
+
+Pot library, **unrestricted**: any pot goes under any plant. No per-plant
+compatibility is recorded, for want of evidence that it is needed (open question
+in #623).
+
+| Field | Type | Role |
+|---|---|---|
+| `_id` | ObjectID | Identifier served as-is to the client. |
+| `name` | string | Label. |
+| `modelURL` | string | USDZ file name, served by `GET /models/:filename` like plant models. |
+| `rimRadius` | float | Rim radius, in **pot**-model units. |
+| `height` | float | Pot height. |
+| `default` | bool | Pot served when the client asks for none. |
+| `version` | string (optional) | Content fingerprint of its USDZ, same rule as `AssetVersions`. |
+
+##### How plant and pot compose, and where the maths happens
+
+A `potless` plant cannot be displayed on its own. `GET /plants/:id` therefore
+serves a `pot` field in the same payload — the one `?pot=<id>` asks for, or the
+default. A separate call would always be serial behind the plant's, since the
+client only learns afterwards that it needs a pot.
+
+The fit itself is **not** served: the pot is scaled by
+`potBase.radius / pot.rimRadius`, centred on the base, its rim aligned with
+`potBase.y`. The client has both values and does the division.
+
+That split is deliberate. Switching pots never goes back to the server: the base
+is a measurement of the plant, independent of any pot, and the library is
+fetched once and kept. The picker preview is therefore instant and a garden
+reopens offline. Re-serving the whole record — translations, botanical profile,
+images — for one division would be waste, and stating the rule on both sides
+would let it drift.
+
+The server keeps exactly one computing duty: **refusing** to serve a pot when
+the fit is meaningless — missing base, zero radius or zero rim. A visibly bare
+plant can be fixed; a pot placed at random reads as an AR bug.
+
+##### Why the re-cut model changes file name
+
+The pot-less model does not replace the old one: it lands beside it, suffixed
+`_potless`. The iOS cache is keyed by **file name** and `Documents/Models/`
+survives app updates (#294) — rewriting a file under the same name would reach
+no device that already downloaded it. And `GardenLocalStore` persists
+`modelURLString` in every saved garden: the old file must stay served, or
+already-created gardens break.
 
 ### `gardens`
 

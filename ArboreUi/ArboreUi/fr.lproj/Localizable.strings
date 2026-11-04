@@ -1582,8 +1582,6 @@
 "AR_EDIT_SELECTED_PLANT" = "Plante sélectionnée";
 "AR_EDIT_EXIT" = "Quitter l'édition";
 "AR_EDIT_ROTATE" = "Tourner la plante";
-"AR_EDIT_SCALE_UP" = "Agrandir la plante";
-"AR_EDIT_SCALE_DOWN" = "Réduire la plante";
 
 "SHOP_CATEGORY_PLANTS" = "Plantes";
 "SHOP_CATEGORY_SOIL" = "Terreau";

@@ -29,6 +29,35 @@ resource "cloudflare_dns_record" "web" {
   ttl     = 1
 }
 
+# `generator.arbore.app` — l'atelier 3D.
+#
+# Servi par le MÊME conteneur Next.js que `web.arbore.app`, distingué par
+# `server_name` dans nginx.
+#
+# ⚠️ Il NE suit PLUS l'origine de la production. Vérifié le 2026-11-02 à
+# l'origine : nginx du nouveau VPS sert `generator.arbore.app` vers
+# `127.0.0.1:3001`, soit `arbore-dev-web`. L'atelier est un OUTIL, et il tourne
+# sur la pile de dev — `generator_origin_ip` doit donc rester renseignée tant
+# que c'est le cas.
+#
+# Il est resté HORS de ce répertoire du 2026-09-07 au 2026-10-21, alors qu'il
+# sert en production. La conséquence n'était pas théorique : changer `origin_ip`
+# aurait déplacé `api` et `web` en le laissant sur l'ancienne machine, et le
+# plan n'aurait rien signalé. Avec l'ancienne éteinte, l'atelier tombait (#652).
+#
+# `generator_origin_ip` quand elle est renseignée, `origin_ip` sinon — même
+# motif que `api_dev` plus bas. Troisième occurrence : si une quatrième
+# apparaît, il sera temps d'y substituer une seule variable `map` plutôt que
+# d'aligner une variable par enregistrement.
+resource "cloudflare_dns_record" "generator" {
+  zone_id = var.cloudflare_zone_id
+  name    = "generator.${var.domain}"
+  type    = "A"
+  content = var.generator_origin_ip != "" ? var.generator_origin_ip : var.origin_ip
+  proxied = true
+  ttl     = 1
+}
+
 # ── Environnements secondaires ────────────────────────────────────────────
 #
 # Déclarés dans CE state, pas dans un state par environnement.
@@ -45,12 +74,16 @@ resource "cloudflare_dns_record" "web" {
 #
 # Ce qui appartient VRAIMENT à un environnement — son bucket, son cluster —
 # justifiera un state séparé le jour où il existera.
+# `dev_origin_ip` quand elle est renseignée, `origin_ip` sinon : dev suit la
+# production par défaut, et peut en être détaché le temps d'une migration.
+# C'est ce qui permet d'éprouver une machine neuve derrière Cloudflare sans
+# déplacer le trafic réel (#652).
 resource "cloudflare_dns_record" "api_dev" {
   count   = var.enable_dev_hostnames ? 1 : 0
   zone_id = var.cloudflare_zone_id
   name    = "api-dev.${var.domain}"
   type    = "A"
-  content = var.origin_ip
+  content = var.dev_origin_ip != "" ? var.dev_origin_ip : var.origin_ip
   proxied = true
   ttl     = 1
 }

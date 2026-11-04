@@ -200,6 +200,37 @@ produit exactement une opération facturée. Une première version épargnait le
 signatures, ce qui la rendait inerte — avec un support qui sait signer, c'est la
 seule voie empruntée.
 
+### Une opération décomptée = une lecture réellement autorisée
+
+L'invariant a mis du temps à tenir, et ce qu'il a coûté vaut d'être écrit
+(#737). Une signature n'est décomptée que si elle **aboutit**.
+
+`serveStorageObject` tente la voie signée, puis retombe sur la lecture directe.
+Sur `filesystem`, la signature rend `ErrNoPresign` : aucune URL n'est remise,
+donc **rien n'est autorisé**. Tant qu'elle était décomptée quand même, un
+fichier servi coûtait **deux** opérations, dont une qui n'ouvrait aucune porte.
+
+Le plafond réel valait donc la moitié du plafond configuré, et seulement sur le
+support que la production utilise. Mesuré sur la machine neuve : `200 op/min`
+ne laissait passer que **100 vignettes**, et le catalogue en compte **123**.
+
+Ce n'est pas un relâchement du quota, c'est sa restauration : `200` veut
+désormais dire 200 opérations, alors qu'il en valait 100 par accident. La
+valeur configurée, elle, n'a pas bougé.
+
+> Le symptôme était masqué par le cache de bord, et c'est ce qui l'a laissé
+> vivre : Cloudflare met les vignettes en cache quatre heures, donc un parcours
+> de catalogue n'atteint l'origine qu'une fois. Cette durée est désormais posée
+> par l'application (`Cache-Control: public, max-age=14400`) et non seulement
+> par un réglage de tableau de bord — une protection qu'on peut lire dans le
+> code plutôt qu'un effet de bord.
+>
+> Elle n'est posée que sur les **deux routes publiques**, vignettes et photos
+> de fiche. `servePlantModel` partage le même `serveStorageObject` mais n'est
+> monté que sur des routes authentifiées : marquer `public` une réponse qui
+> exige une session serait une invitation à la mettre en cache pour tout le
+> monde.
+
 Le défaut de 200 par minute vient d'un calcul :
 
 ```

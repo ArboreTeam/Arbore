@@ -1,6 +1,6 @@
 # C4 — Level 3: Web Components
 
-This view opens the **Arbore Web** container (Next.js 13, App Router, React 18, TypeScript) deployed on `web.arbore.app`. The web app is a **companion** to the iOS app: gardens are **created on iOS** (AR placement); the web lets you browse the catalog, your gardens and their plants, a watering calendar, a seasonal guide, and manage your account (GDPR export / deletion).
+This view opens the **Arbore Web** container (Next.js 16, App Router, React 18, TypeScript) deployed on `web.arbore.app`. The web app is a **companion** to the iOS app: gardens are **created on iOS** (AR placement); the web lets you browse the catalog, your gardens and their plants, a watering calendar, a seasonal guide, and manage your account (GDPR export / deletion).
 
 For the container-level overview, see [`02-containers.md`](02-containers.md). For the backend it consumes, see [`03-components-backend.md`](03-components-backend.md).
 
@@ -59,6 +59,41 @@ Routing follows the App Router convention (`web/app/`). The root layout `web/app
 
 The app pages are client components (`'use client'`): they check the authentication state via `onAuthStateChange` and redirect to `/login` if the user is not signed in.
 
+### 1 bis. The 3D workshop (`/generator`)
+
+Absent from this document until 2026-11-02, although it accounts for **seven
+pages out of twenty-two** and twenty-eight API routes. It is served by the
+**same** container, on `generator.arbore.app`; nginx and then the middleware
+are what isolate it from `web.arbore.app`.
+
+| Page | Role |
+|---|---|
+| `/generator` | dashboard of the 3D generation chain |
+| `/generator/login` | key-based door, the only open page |
+| `/generator/sources` | input images deposited for generation |
+| `/generator/revue/[plante]` | adjudicating a produced mesh: accept, reject, re-run |
+| `/generator/galerie` | what has been produced |
+| `/generator/pots` | pot library |
+| `/generator/tailles` | measured real-world sizes |
+| `/generator/vignettes` | per-environment preview and thumbnail rendering (#696) |
+
+On the API side, `web/app/api/generator/` holds the task queue consumed by two
+distinct workers: the **Colab worker** for meshes (`taches/*`) and the
+**thumbnail worker** for images (`vignettes/*`). The pattern is the same in
+both cases — the workshop **deposits**, the worker **consumes** — because the
+web container has no access to Docker, and that is a good thing.
+
+**Its state lives on disk**, not in the database: `GENERATOR_DATA_DIR`
+(`/data/generator` inside the container) holds an `etat.json` and the
+artefacts, 4.6 GB on the dev machine. The store writes atomically and
+serialises its mutations, but **per process**: two stacks sharing that
+directory are not covered. See #434.
+
+**The workshop only exists where its key is set.** Without
+`GENERATOR_KEY_HASH` or `GENERATOR_SESSION_SECRET`, login is refused — "a
+workshop without a key would be a workshop without a door". That is what makes
+it possible to arm exactly one, on the stack of your choice.
+
 ### 2. Shell & error boundaries
 
 `web/app/error.tsx` (route error, captured to Sentry), `web/app/global-error.tsx` (root layout fallback), and `web/app/not-found.tsx` (404). The shell also exposes `OfflineBanner` and the accessibility link.
@@ -102,7 +137,7 @@ The browser therefore only ever calls **its own origin**: no CORS, and the API k
 
 | Aspect | Detail |
 |---|---|
-| Framework | Next.js 13 (App Router), React 18, TypeScript, Tailwind. `web/next.config.js`: `output: 'standalone'`, global security headers, no CSP (deferred). |
+| Framework | Next.js 16 (App Router), React 18, TypeScript, Tailwind. `web/next.config.js`: `output: 'standalone'`, global security headers, no CSP (deferred). |
 | Public variables | `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_APP_VERSION` (inlined at build time). |
 | Server variables | `BACKEND_API_URL`, `ARBORE_API_KEY` (never prefixed `NEXT_PUBLIC_`). Source of truth: `web/.env.example`. |
 | i18n | No i18n framework: **French-only** interface (`<html lang="fr">`); care content is read from the backend's `translations.fr.*`. |

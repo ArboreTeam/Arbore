@@ -12,125 +12,29 @@ import FirebaseAuth
 
 class RGPDEndpointsIntegrationTests: XCTestCase {
 
-    var testUserEmail: String!
-    var testUserPassword: String!
     var testUserUID: String?
 
-    override func setUpWithError() throws {
-        try super.setUpWithError()
-
+    /// Chaque test ouvre lui-même la session dont il a besoin — invitée ou
+    /// membre —, parce que cette suite couvre les DEUX parcours et qu'ils
+    /// n'ont pas les mêmes droits. Le `setUp` ne fait donc que les contrôles
+    /// communs.
+    override func setUp() async throws {
         try LiveIntegrationTestGate.requireEnabled()
-        try ensureBackendIsReachableOrSkip()
-
-        // Configure Firebase
-        if FirebaseApp.app() == nil {
-            FirebaseApp.configure()
-        }
-
-        // Create unique test user credentials
-        testUserEmail = "test.rgpd.\(UUID().uuidString.lowercased())@arbore.test"
-        testUserPassword = "TestPassword123!"
+        try LiveIntegrationTestGate.requireBackendReachable(suite: "RGPD")
+        if FirebaseApp.app() == nil { FirebaseApp.configure() }
     }
 
-    private func ensureBackendIsReachableOrSkip() throws {
-        guard let url = URL(string: "\(AppConfig.baseURL)/health") else {
-            throw XCTSkip("RGPD integration tests skipped: invalid backend URL \(AppConfig.baseURL)")
-        }
-
-        let expectation = self.expectation(description: "Backend health check")
-        var isReachable = false
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 5
-
-        URLSession.shared.dataTask(with: request) { _, response, _ in
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 {
-                isReachable = true
-            }
-            expectation.fulfill()
-        }.resume()
-
-        wait(for: [expectation], timeout: 7.0)
-
-        if !isReachable {
-            throw XCTSkip("RGPD integration tests skipped: backend is unreachable at \(AppConfig.baseURL)")
-        }
-    }
-
-    override func tearDownWithError() throws {
-        // Cleanup: delete test user if created
-        if let currentUser = Auth.auth().currentUser {
-            let expectation = self.expectation(description: "Delete test user")
-            currentUser.delete { error in
-                if let error = error {
-                    print("⚠️ Failed to delete test user: \(error)")
-                }
-                expectation.fulfill()
-            }
-            wait(for: [expectation], timeout: 10.0)
-        }
-
-        try super.tearDownWithError()
+    /// Le compte du test — invité ou membre jetable — part avec ses données.
+    /// Sans effet quand le test l'a déjà supprimé lui-même, ce qui est
+    /// précisément ce que `testAccountDeletion_SessionInvitee` fait.
+    override func tearDown() async throws {
+        await LiveIntegrationTestGate.fermerEtDetruireLaSessionDeTest()
+        testUserUID = nil
     }
 
     // MARK: - Helper Methods
 
-    private func createTestUser() async throws -> FirebaseAuth.User {
-        let expectation = self.expectation(description: "Create test user")
-        var createdUser: FirebaseAuth.User?
-        var authError: Error?
 
-        Auth.auth().createUser(withEmail: testUserEmail, password: testUserPassword) { result, error in
-            if let error = error {
-                authError = error
-            } else {
-                createdUser = result?.user
-            }
-            expectation.fulfill()
-        }
-
-        wait(for: [expectation], timeout: 10.0)
-
-        if let error = authError {
-            throw error
-        }
-
-        guard let user = createdUser else {
-            throw NSError(domain: "TestError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create user"])
-        }
-
-        testUserUID = user.uid
-        return user
-    }
-
-    private func signInTestUser() async throws -> FirebaseAuth.User {
-        let expectation = self.expectation(description: "Sign in test user")
-        var signedInUser: FirebaseAuth.User?
-        var authError: Error?
-
-        Auth.auth().signIn(withEmail: testUserEmail, password: testUserPassword) { result, error in
-            if let error = error {
-                authError = error
-            } else {
-                signedInUser = result?.user
-            }
-            expectation.fulfill()
-        }
-
-        wait(for: [expectation], timeout: 10.0)
-
-        if let error = authError {
-            throw error
-        }
-
-        guard let user = signedInUser else {
-            throw NSError(domain: "TestError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to sign in"])
-        }
-
-        testUserUID = user.uid
-        return user
-    }
 
     private func getFirebaseToken() async throws -> String {
         guard let user = Auth.auth().currentUser else {
@@ -163,33 +67,22 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
         return idToken
     }
 
-    private func createUserInBackend(uid: String, email: String, name: String, token: String) async throws {
-        let endpoint = "\(AppConfig.baseURL)/users"
-        guard let url = URL(string: endpoint) else {
-            throw NSError(domain: "TestError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"])
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let userData: [String: Any] = [
-            "uid": uid,
-            "email": email,
-            "name": name,
-            "createdAt": ISO8601DateFormatter().string(from: Date())
-        ]
-
-        request.httpBody = try JSONSerialization.data(withJSONObject: userData)
-
-        let (_, response) = try await URLSession.shared.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw NSError(domain: "TestError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create user in backend"])
-        }
+    /// Une erreur d'appel doit DIRE ce que le backend a répondu.
+    ///
+    /// Les messages précédents — « Failed to create garden » — ne
+    /// distinguaient pas un 401 d'un 403 ni d'un 500. Quand ces suites ont
+    /// enfin tourné, le 2026-11-03, il a fallu aller lire les journaux du
+    /// serveur pour savoir pourquoi dix tests échouaient. Le statut et le
+    /// corps suffisaient. (#725)
+    static func echecHTTP(_ appel: String, response: URLResponse?, data: Data) -> NSError {
+        let statut = (response as? HTTPURLResponse)?.statusCode
+        let corps = String(data: data, encoding: .utf8) ?? "<corps illisible>"
+        return NSError(
+            domain: "TestError", code: statut ?? -1,
+            userInfo: [NSLocalizedDescriptionKey:
+                "\(appel) a rendu \(statut.map(String.init) ?? "aucun statut") — \(corps)"])
     }
+
 
     private func createTestGarden(uid: String, token: String) async throws -> String {
         let endpoint = "\(AppConfig.baseURL)/gardens"
@@ -218,7 +111,7 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-            throw NSError(domain: "TestError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create garden"])
+            throw Self.echecHTTP("POST /gardens", response: response, data: data)
         }
 
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -249,81 +142,131 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
 
         request.httpBody = try JSONSerialization.data(withJSONObject: consentData)
 
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 201 else {
-            throw NSError(domain: "TestError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create consent"])
+            throw Self.echecHTTP("POST /consents", response: response, data: data)
         }
     }
 
     // MARK: - Data Export Tests
 
-    func testDataExport_WithValidUser_ShouldReturnCompleteData() async throws {
-        // Arrange
-        let user = try await createTestUser()
+    /// Un INVITÉ exporte ses jardins — Art. 15, et c'est le parcours que
+    /// #393 a rendu possible.
+    ///
+    /// Une session invitée n'a pas de document `users` : elle ne peut pas en
+    /// créer un (`POST /users` est fermé aux invités) ni écrire de
+    /// consentement. Elle détient néanmoins des jardins, et le droit d'accès
+    /// porte dessus. Répondre 404 au motif qu'il n'y a pas de profil
+    /// priverait son titulaire de données qui existent bel et bien — c'est
+    /// exactement ce que le handler commente et que ce test verrouille.
+    ///
+    /// L'ancienne version créait un compte email/mot de passe jamais vérifié
+    /// et échouait en `EMAIL_NOT_VERIFIED` dès `POST /gardens` (#725).
+    func testDataExport_SessionInvitee_ExporteSesJardinsSansProfil() async throws {
+        let invite = try await LiveIntegrationTestGate.ouvrirSessionInvitee()
         let token = try await getFirebaseToken()
 
-        // Create user in backend
-        try await createUserInBackend(uid: user.uid, email: user.email ?? "", name: "Test User", token: token)
+        _ = try await createTestGarden(uid: invite.uid, token: token)
+        try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        // Create test data
-        _ = try await createTestGarden(uid: user.uid, token: token)
-        try await createTestConsent(uid: user.uid, token: token)
+        let (data, response) = try await appelerExport(token: token)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
 
-        // Wait a bit for data to be saved
-        try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertNotNil(json?["exportDate"])
+        XCTAssertNotNil(json?["gardens"])
+        XCTAssertNotNil(json?["consents"])
 
-        // Act
-        let endpoint = "\(AppConfig.baseURL)/users/export"
-        guard let url = URL(string: endpoint) else {
-            XCTFail("Invalid URL")
-            return
+        let gardens = json?["gardens"] as? [[String: Any]]
+        XCTAssertGreaterThan(gardens?.count ?? 0, 0,
+                             "l'invité détient un jardin, l'export doit le rendre")
+
+        let metadata = json?["metadata"] as? [String: Any]
+        XCTAssertEqual(metadata?["hasProfile"] as? Bool, false,
+                       "l'absence de profil doit être DITE, pas masquée")
+        XCTAssertEqual(metadata?["format"] as? String, "JSON")
+        XCTAssertEqual(metadata?["version"] as? String, "1.0")
+
+        let userData = json?["user"] as? [String: Any]
+        XCTAssertEqual(userData?["uid"] as? String, invite.uid,
+                       "l'uid reste rendu même sans document utilisateur")
+    }
+
+    /// Un MEMBRE exporte son profil et ses consentements.
+    ///
+    /// Complément du test précédent : il couvre ce qu'un invité ne peut pas
+    /// avoir. Se saute proprement tant que le compte de test n'est pas
+    /// provisionné.
+    func testDataExport_SessionMembre_ExporteProfilEtConsentements() async throws {
+        let membre = try await LiveIntegrationTestGate.ouvrirSessionMembre()
+        let token = try await getFirebaseToken()
+
+        // Créer le document `users`, comme l'app le fait à CHAQUE connexion.
+        //
+        // Une identité Firebase fraîche n'en a pas : `hasProfile` vaut alors
+        // false et l'export ne porte que l'uid — ce qui est la bonne réponse
+        // du backend, et ce que le test invité vérifie par ailleurs. Sans
+        // cette étape, ce test-ci demanderait au backend un profil que
+        // personne n'a créé.
+        try await creerLeProfilBackend(membre: membre, token: token)
+        try await createTestConsent(uid: membre.uid, token: token)
+        try await Task.sleep(nanoseconds: 1_000_000_000)
+
+        let (data, response) = try await appelerExport(token: token)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let metadata = json?["metadata"] as? [String: Any]
+        XCTAssertEqual(metadata?["hasProfile"] as? Bool, true)
+
+        let userData = json?["user"] as? [String: Any]
+        XCTAssertEqual(userData?["uid"] as? String, membre.uid)
+        XCTAssertEqual(userData?["email"] as? String, membre.email)
+
+        let consents = json?["consents"] as? [[String: Any]]
+        XCTAssertGreaterThan(consents?.count ?? 0, 0)
+
+        // Le secret d'authentification Apple n'est PAS une donnée portable.
+        let corps = String(data: data, encoding: .utf8) ?? ""
+        XCTAssertFalse(corps.lowercased().contains("applerefreshtoken"),
+                       "l'export ne doit jamais contenir le jeton Apple")
+    }
+
+    /// Upsert du document utilisateur, le même geste que l'app à la connexion.
+    private func creerLeProfilBackend(membre: FirebaseAuth.User, token: String) async throws {
+        guard let url = URL(string: "\(AppConfig.baseURL)/users") else {
+            throw NSError(domain: "TestError", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "URL /users invalide"])
         }
+        var requete = URLRequest(url: url)
+        requete.httpMethod = "POST"
+        requete.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        requete.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
+        requete.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        requete.httpBody = try JSONSerialization.data(withJSONObject: [
+            "uid": membre.uid,
+            "email": membre.email ?? "",
+            "name": "Compte de test",
+            "createdAt": ISO8601DateFormatter().string(from: Date()),
+        ])
 
+        let (data, reponse) = try await URLSession.shared.data(for: requete)
+        guard (reponse as? HTTPURLResponse)?.statusCode == 200 else {
+            throw Self.echecHTTP("POST /users", response: reponse, data: data)
+        }
+    }
+
+    private func appelerExport(token: String) async throws -> (Data, URLResponse) {
+        guard let url = URL(string: "\(AppConfig.baseURL)/users/export") else {
+            throw NSError(domain: "TestError", code: -1,
+                          userInfo: [NSLocalizedDescriptionKey: "URL d'export invalide"])
+        }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        // Assert
-        guard let httpResponse = response as? HTTPURLResponse else {
-            XCTFail("Invalid response type")
-            return
-        }
-
-        XCTAssertEqual(httpResponse.statusCode, 200, "Should return 200 OK")
-
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        XCTAssertNotNil(json, "Should return valid JSON")
-
-        // Verify export structure
-        XCTAssertNotNil(json?["exportDate"], "Should include exportDate")
-        XCTAssertNotNil(json?["user"], "Should include user data")
-        XCTAssertNotNil(json?["gardens"], "Should include gardens")
-        XCTAssertNotNil(json?["consents"], "Should include consents")
-        XCTAssertNotNil(json?["metadata"], "Should include metadata")
-
-        // Verify user data
-        let userData = json?["user"] as? [String: Any]
-        XCTAssertEqual(userData?["uid"] as? String, user.uid, "Should include correct UID")
-        XCTAssertEqual(userData?["email"] as? String, user.email, "Should include correct email")
-
-        // Verify gardens array
-        let gardens = json?["gardens"] as? [[String: Any]]
-        XCTAssertNotNil(gardens, "Gardens should be an array")
-        XCTAssertGreaterThan(gardens?.count ?? 0, 0, "Should have at least 1 garden")
-
-        // Verify consents array
-        let consents = json?["consents"] as? [[String: Any]]
-        XCTAssertNotNil(consents, "Consents should be an array")
-        XCTAssertGreaterThan(consents?.count ?? 0, 0, "Should have at least 1 consent")
-
-        // Verify metadata
-        let metadata = json?["metadata"] as? [String: Any]
-        XCTAssertEqual(metadata?["format"] as? String, "JSON", "Format should be JSON")
-        XCTAssertEqual(metadata?["version"] as? String, "1.0", "Version should be 1.0")
+        return try await URLSession.shared.data(for: request)
     }
 
     func testDataExport_WithoutAuthentication_ShouldReturn401() async throws {
@@ -353,75 +296,61 @@ class RGPDEndpointsIntegrationTests: XCTestCase {
 
     // MARK: - Account Deletion Tests
 
-    func testAccountDeletion_WithValidUser_ShouldDeleteAllData() async throws {
-        // Arrange
-        let user = try await createTestUser()
+    /// Un INVITÉ supprime son compte et ses données — Art. 17.
+    ///
+    /// Ce test ne peut PAS utiliser le compte de test partagé : il détruit
+    /// l'identité. Il lui faut donc une identité jetable, donc non
+    /// vérifiable, donc invitée. Le découpage invité/membre de cette suite
+    /// n'est pas une commodité, il est forcé par là.
+    ///
+    /// Et c'est le parcours que #393 a voulu : les routes d'export et de
+    /// suppression sont sorties de `RequireAccount` parce qu'un invité ne
+    /// peut exercer ses droits que depuis sa session courante — il n'a
+    /// aucune identité à prouver ensuite.
+    func testAccountDeletion_SessionInvitee_SupprimeSesDonnees() async throws {
+        let invite = try await LiveIntegrationTestGate.ouvrirSessionInvitee()
         let token = try await getFirebaseToken()
 
-        // Create user in backend
-        try await createUserInBackend(uid: user.uid, email: user.email ?? "", name: "Test User", token: token)
+        _ = try await createTestGarden(uid: invite.uid, token: token)
+        try await Task.sleep(nanoseconds: 1_000_000_000)
 
-        // Create test data
-        let gardenId = try await createTestGarden(uid: user.uid, token: token)
-        try await createTestConsent(uid: user.uid, token: token)
+        // Les données existent avant la suppression. Sans ce contrôle, un
+        // « 0 jardin supprimé » passerait pour un succès.
+        let (avant, _) = try await appelerExport(token: token)
+        let jsonAvant = try JSONSerialization.jsonObject(with: avant) as? [String: Any]
+        let jardinsAvant = jsonAvant?["gardens"] as? [[String: Any]]
+        XCTAssertGreaterThan(jardinsAvant?.count ?? 0, 0,
+                             "rien à supprimer : le test ne prouverait rien")
 
-        // Wait a bit for data to be saved
-        try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
-
-        // Verify data exists before deletion
-        let exportBeforeEndpoint = "\(AppConfig.baseURL)/users/export"
-        guard let exportBeforeURL = URL(string: exportBeforeEndpoint) else {
-            XCTFail("Invalid URL")
-            return
+        guard let url = URL(string: "\(AppConfig.baseURL)/users") else {
+            XCTFail("URL invalide"); return
         }
+        var requete = URLRequest(url: url)
+        requete.httpMethod = "DELETE"
+        requete.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        requete.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
 
-        var exportBeforeRequest = URLRequest(url: exportBeforeURL)
-        exportBeforeRequest.httpMethod = "GET"
-        exportBeforeRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        exportBeforeRequest.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
-
-        let (dataBefore, _) = try await URLSession.shared.data(for: exportBeforeRequest)
-        let jsonBefore = try JSONSerialization.jsonObject(with: dataBefore) as? [String: Any]
-
-        let gardensBefore = jsonBefore?["gardens"] as? [[String: Any]]
-        let consentsBefore = jsonBefore?["consents"] as? [[String: Any]]
-
-        XCTAssertGreaterThan(gardensBefore?.count ?? 0, 0, "Should have gardens before deletion")
-        XCTAssertGreaterThan(consentsBefore?.count ?? 0, 0, "Should have consents before deletion")
-
-        // Act - Delete account
-        let deleteEndpoint = "\(AppConfig.baseURL)/users"
-        guard let deleteURL = URL(string: deleteEndpoint) else {
-            XCTFail("Invalid URL")
-            return
+        let (data, reponse) = try await URLSession.shared.data(for: requete)
+        guard let http = reponse as? HTTPURLResponse else {
+            XCTFail("réponse illisible"); return
         }
+        XCTAssertEqual(http.statusCode, 200,
+                       "corps : \(String(data: data, encoding: .utf8) ?? "")")
 
-        var deleteRequest = URLRequest(url: deleteURL)
-        deleteRequest.httpMethod = "DELETE"
-        deleteRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        deleteRequest.setValue(AppConfig.apiKey, forHTTPHeaderField: "X-API-Key")
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        XCTAssertNotNil(json?["message"])
+        XCTAssertGreaterThan(json?["gardensDeleted"] as? Int ?? 0, 0,
+                             "le jardin de l'invité doit être compté comme supprimé")
+        XCTAssertEqual(json?["authenticationDeleted"] as? Bool, true,
+                       "l'identité Firebase doit partir avec les données")
 
-        let (deleteData, deleteResponse) = try await URLSession.shared.data(for: deleteRequest)
-
-        // Assert deletion response
-        guard let deleteHttpResponse = deleteResponse as? HTTPURLResponse else {
-            XCTFail("Invalid response type")
-            return
-        }
-
-        XCTAssertEqual(deleteHttpResponse.statusCode, 200, "Should return 200 OK")
-
-        let deleteJson = try JSONSerialization.jsonObject(with: deleteData) as? [String: Any]
-        XCTAssertNotNil(deleteJson?["message"], "Should include success message")
-        XCTAssertNotNil(deleteJson?["gardensDeleted"], "Should report gardens deleted count")
-        XCTAssertNotNil(deleteJson?["consentsDeleted"], "Should report consents deleted count")
-
-        // Verify counts
-        let gardensDeleted = deleteJson?["gardensDeleted"] as? Int
-        let consentsDeleted = deleteJson?["consentsDeleted"] as? Int
-
-        XCTAssertGreaterThan(gardensDeleted ?? 0, 0, "Should have deleted at least 1 garden")
-        XCTAssertGreaterThan(consentsDeleted ?? 0, 0, "Should have deleted at least 1 consent")
+        // Et il ne reste rien : le jeton est encore valide quelques minutes,
+        // donc l'export doit répondre un export VIDE, pas une erreur.
+        let (apres, _) = try await appelerExport(token: token)
+        let jsonApres = try JSONSerialization.jsonObject(with: apres) as? [String: Any]
+        let jardinsApres = jsonApres?["gardens"] as? [[String: Any]]
+        XCTAssertEqual(jardinsApres?.count ?? 0, 0,
+                       "l'effacement doit être effectif, pas seulement annoncé")
     }
 
     func testAccountDeletion_WithoutAuthentication_ShouldReturn401() async throws {

@@ -8,7 +8,7 @@
 #   3. rotation des snapshots > 14 jours
 #   4. tirage des images ghcr (repli : build local)
 #   5. docker compose up -d  (backend + web)
-#   6. health check backend (localhost:8080/health) + web (localhost:3000/)
+#   6. health check backend (/health) + web, sur les ports de $ARBORE_ENV
 #
 # Codes de sortie :
 #   0   succès
@@ -48,6 +48,42 @@ SNAPSHOT_RETENTION_DAYS=14
 # l'environnement — un préfixe `VAR=val sudo …` est silencieusement perdu
 # (vérifié sur le VPS). Vider ce tableau suffit si docker tourne sans sudo.
 DOCKER_PRIVILEGE=( sudo )
+
+# ───── L'utilisateur réel derrière `sudo` ─────────────────────────────────
+#
+# Ce script se lance sous `sudo`, et `sudo` fait DEUX choses qui ont chacune
+# produit une panne silencieuse (#690) :
+#
+#   1. il remplace `$HOME` par `/root`. `apply_secrets` y cherchait la clé age,
+#      ne la trouvait pas, AVERTISSAIT puis rendait 0 — le déploiement
+#      s'annonçait « terminé » en tournant sur les ANCIENS secrets. Relevé le
+#      2026-11-02 : `ARBORE_INTERNAL_KEY` valait zéro caractère dans le
+#      conteneur, et les routes concernées répondaient 503 ;
+#
+#   2. il fait écrire les fichiers par root. `git pull` déposait donc des
+#      objets root dans un dépôt appartenant à l'utilisateur — 167 entrées sur
+#      1021. Le déploiement continuait de fonctionner, root écrivant partout ;
+#      la panne n'apparaissait qu'au premier `git pull` fait À LA MAIN, soit
+#      exactement quand on veut mettre à jour sans redéployer toute la pile.
+#
+# Les deux viennent de la même cause, d'où une seule correction : retrouver
+# l'utilisateur réel et travailler sous son identité pour ce qui lui
+# appartient.
+UTILISATEUR_REEL="${SUDO_USER:-$(id -un)}"
+FOYER_REEL="$(getent passwd "$UTILISATEUR_REEL" 2>/dev/null | cut -d: -f6 || true)"
+[ -n "$FOYER_REEL" ] || FOYER_REEL="$HOME"
+
+# git sous l'identité du propriétaire du checkout.
+#
+# N'intervient QUE si l'on est root et que l'utilisateur réel ne l'est pas :
+# lancé sans sudo, le script garde son comportement d'avant, à l'octet près.
+git_reel() {
+    if [ "$(id -u)" -eq 0 ] && [ "$UTILISATEUR_REEL" != "root" ]; then
+        sudo -u "$UTILISATEUR_REEL" git "$@"
+    else
+        git "$@"
+    fi
+}
 # Un projet compose PAR ENVIRONNEMENT (#434). Sans nom de projet, compose le
 # déduit du nom du répertoire — identique pour les deux piles, qui se
 # recycleraient mutuellement : démarrer dev arrêterait la production, sans
@@ -229,7 +265,7 @@ do_git_pull() {
         # Mode release : on récupère les étiquettes puis on se place dessus en
         # HEAD détachée. Pas de `git pull` — il n'a pas de sens hors d'une
         # branche, et une release ne doit surtout pas bouger.
-        if ! git fetch --tags --force --quiet origin; then
+        if ! git_reel fetch --tags --force --quiet origin; then
             fail "Impossible de récupérer les étiquettes"
             exit 1
         fi
@@ -238,12 +274,12 @@ do_git_pull() {
             fail "Étiquettes disponibles : $(git tag --list 'v*' --sort=-version:refname | head -5 | tr '\n' ' ')"
             exit 1
         fi
-        if ! git checkout --quiet --detach "refs/tags/$deploy_tag"; then
+        if ! git_reel checkout --quiet --detach "refs/tags/$deploy_tag"; then
             fail "Impossible de se placer sur '$deploy_tag'"
             exit 1
         fi
         ok "Release $deploy_tag ($(git rev-parse --short HEAD))"
-    elif ! git pull --ff-only; then
+    elif ! git_reel pull --ff-only; then
         fail "Erreur lors du git pull"
         if [ "$out_of_band" -gt 0 ]; then
             fail "Si un commit entrant touche ${OUT_OF_BAND_PATHS[*]}, git refuse d'écraser les"
@@ -291,7 +327,9 @@ do_git_pull() {
 apply_secrets() {
     local env_name="${ARBORE_ENV:-prod}"
     local enc_dir="$SCRIPT_DIR/ops/secrets"
-    local key_file="${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/arbore-$env_name.txt}"
+    # `$FOYER_REEL`, et non `$HOME` : sous sudo ce dernier vaut `/root`, où la
+    # clé n'est pas. Voir le bloc « utilisateur réel » en tête de fichier.
+    local key_file="${SOPS_AGE_KEY_FILE:-$FOYER_REEL/.config/sops/age/arbore-$env_name.txt}"
 
     [ -d "$enc_dir" ] || return 0
 
@@ -313,7 +351,33 @@ apply_secrets() {
     # porte ce nom — or le dépôt doit produire un déploiement sur N machines
     # (#401), et celles d'après février n'auront pas cet utilisateur.
     local data_dir="${ARBORE_DATA_DIR:-$(dirname "$SCRIPT_DIR")/arbore-data}"
+
+    # Suffixé par l'environnement, SAUF le primaire qui garde le chemin
+    # historique. (#434)
+    #
+    # Le chemin était commun aux deux piles, et c'est le point le plus coûteux
+    # du cloisonnement : il était à UN FICHIER de la panne. Les trois mappings
+    # autres que `.enc.env` sont sautés faute de source — `ops/secrets/` ne
+    # porte aujourd'hui que `dev.enc.env` —, donc rien n'écrase rien. Le jour
+    # où quelqu'un ajoute `dev.enc.json` pour donner à dev son propre projet
+    # Firebase, un déploiement de DEV écraserait le compte de service de la
+    # PROD. Et le job de réconciliation (#393) tourne chaque dimanche avec
+    # `--apply`.
+    #
+    # Le primaire ne bouge pas, donc il n'y a aucun fichier à déplacer sur les
+    # machines déjà déployées : la correction est sans effet observable
+    # aujourd'hui, et la panne n'existe plus demain. Même convention que
+    # `thumbnails-dev` et `uploads-community-dev`.
+    #
+    # Ce que ça ne fait PAS : séparer les secrets que les conteneurs LISENT.
+    # Ceux-là viennent des `*_HOST_PATH` du fichier d'environnement, et dev
+    # pointe délibérément sur ceux de prod — le projet Firebase est commun, et
+    # #434 le liste comme partage accepté. Ce qui est corrigé ici est
+    # l'ÉCRITURE, pas la lecture.
     local secrets_dir="$data_dir/secrets"
+    if [ "$env_name" != "${ARBORE_PRIMARY_ENV:-prod}" ]; then
+        secrets_dir="$data_dir/secrets-$env_name"
+    fi
 
     # Créé ici, parce que rien d'autre ne le crée : sur une machine vierge
     # `install` échoue faute de répertoire, le repli `sudo install` échoue pour
@@ -838,10 +902,119 @@ prepare_generator_dir() {
     fi
 }
 
+# Montages à ne pas partager entre deux environnements, et ce qu'on en fait.
+#
+# Format : VARIABLE|défaut relatif au compose|destination|sévérité
+#
+# Deux sévérités, parce que deux dangers de nature différente :
+#
+#   bloquant  montage en ÉCRITURE. Le partager, c'est laisser un environnement
+#             réécrire les données d'un autre — les vignettes portent
+#             l'identifiant de la fiche, pas celui de l'environnement. Échec,
+#             pas avertissement : un avertissement se perd dans la sortie, et
+#             c'est exactement ce qui est arrivé à celui des secrets (#690).
+#
+#   signalé   montage en LECTURE SEULE. Un environnement ne peut pas corrompre
+#             l'autre à travers lui, mais déposer un fichier pour l'un le rend
+#             visible chez l'autre — ce que la règle interdit. Ceux-là sont
+#             partagés AUJOURD'HUI et le bloquer casserait tout déploiement
+#             avant que les chemins ne soient séparés. On les RELÈVE donc à
+#             chaque déploiement, ce qui vaut mieux que de ne pas les regarder.
+#
+# L'inventaire est complet à dessein : il n'y en avait que deux, et les six
+# autres n'étaient contrôlés nulle part. Un montage absent de cette liste est
+# un montage dont personne ne dit s'il est partagé.
+MONTAGES_CLOISONNES=(
+    "THUMBNAILS_HOST_PATH|./ArboreBackend/models/thumbnails|/app/thumbnails|bloquant"
+    "LEGACY_COMMUNITY_UPLOADS_HOST_PATH|./ArboreBackend/uploads/community|/app/uploads/community|bloquant"
+    # Écriture, mais partagé aujourd'hui et ce n'est PAS un cloisonnement à
+    # faire : l'atelier est un outil, il ne doit tourner que sur UNE pile, et
+    # le code le désactive là où ses clés ne sont pas posées. Une seule pile y
+    # écrit donc. Signalé, pas bloquant, tant que la décision tient (#719).
+    "GENERATOR_DATA_HOST_PATH|./data/generator|/data/generator|signalé"
+    # 6,7 Go et 176 modèles contre 123 côté prod. La copie sera faite au
+    # transfert des maillages de la bascule (#719 §2) : la faire maintenant
+    # serait à refaire. Signalé jusque-là.
+    "MODELS_HOST_PATH|./ArboreBackend/models|/app/models|signalé"
+    "PHOTOS_HOST_PATH|./ArboreBackend/models/photos|/app/photos|signalé"
+    # Lus par les deux piles à dessein : le projet Firebase est commun, et #434
+    # le liste comme partage accepté. C'est l'ÉCRITURE qui est cloisonnée, dans
+    # `apply_secrets`. Relevés pour que ce partage reste une décision visible.
+    "FIREBASE_SERVICE_ACCOUNT_HOST_PATH|./arbore-firebase-adminsdk.json|/run/secrets/firebase-adminsdk.json|signalé"
+    "APPLE_SIWA_KEY_HOST_PATH|./AuthKey_A4X35PAX94.p8|/run/secrets/apple-siwa.p8|signalé"
+    "MASTER_ENCRYPTION_KEY_HOST_PATH|/dev/null|/run/secrets/master-encryption.key|signalé"
+)
+
+# Refuse de démarrer si un AUTRE environnement monte déjà le même répertoire de
+# données en écriture. (#694, #434)
+#
+# Ce n'est pas théorique : les deux backends du nouveau VPS ont partagé leur
+# répertoire de vignettes jusqu'au 2026-11-02. Et ce n'était pas une faute de
+# configuration — les défauts de `docker-compose.yml` sont RELATIFS au fichier
+# compose. L'ancien VPS, avec un checkout par environnement, les séparait tout
+# seul ; un checkout unique pour deux piles les fait converger, en silence.
+#
+# Un échec, pas un avertissement : un avertissement se perd dans la sortie, et
+# c'est précisément ce qui est arrivé à celui des secrets (#690).
+verifier_cloisonnement() {
+    local entree variable defaut destination severite voulu autre source
+    local partages=0
+    for entree in "${MONTAGES_CLOISONNES[@]}"; do
+        IFS="|" read -r variable defaut destination severite <<< "$entree"
+
+        voulu="$(grep "^$variable=" "$ENV_FILE" 2>/dev/null \
+                 | sed "s/^$variable=//" || true)"
+        [ -n "$voulu" ] || voulu="$SCRIPT_DIR/${defaut#./}"
+        # `/dev/null` est le défaut de plusieurs secrets facultatifs : toujours
+        # présent, donc aucun répertoire fantôme n'est créé. Deux piles qui
+        # n'ont ni l'une ni l'autre le fichier y pointent toutes les deux, et
+        # ce n'est PAS un partage de données — l'annoncer serait un faux
+        # positif à chaque déploiement.
+        [ "$voulu" = "/dev/null" ] && continue
+        # Ancré sur le répertoire du fichier compose, et non sur le répertoire
+        # COURANT : c'est ainsi que compose résout `./data/generator` ou
+        # `../arbore-data/models`. Le script fait bien `cd "$SCRIPT_DIR"` en
+        # tête, donc les deux coïncident aujourd'hui — mais le contrôle ne doit
+        # pas dépendre de ça pour dire vrai.
+        case "$voulu" in /*) ;; *) voulu="$SCRIPT_DIR/$voulu" ;; esac
+        # `-m` : le répertoire peut ne pas exister encore, compose le créerait.
+        voulu="$(realpath -m "$voulu")"
+
+        for autre in $("${DOCKER_PRIVILEGE[@]}" docker ps --format '{{.Names}}' 2>/dev/null \
+                       | grep -E '^arbore-.+-(backend|web)$' || true); do
+            case "$autre" in
+                "arbore-$ARBORE_ENV-backend"|"arbore-$ARBORE_ENV-web") continue ;;
+            esac
+            source="$("${DOCKER_PRIVILEGE[@]}" docker inspect "$autre" \
+                --format "{{range .Mounts}}{{if eq .Destination \"$destination\"}}{{.Source}}{{end}}{{end}}" \
+                2>/dev/null || true)"
+            [ -n "$source" ] || continue
+            [ "$(realpath -m "$source")" = "$voulu" ] || continue
+
+            if [ "$severite" = "bloquant" ]; then
+                fail "Données partagées avec $autre : $destination"
+                fail "  répertoire : $voulu"
+                fail "Deux environnements y écriraient les mêmes fichiers."
+                fail "Poser $variable dans $ENV_FILE, propre à « $ARBORE_ENV »."
+                exit 1
+            fi
+            warn "Partagé avec $autre : $destination ($voulu)"
+            partages=$((partages + 1))
+        done
+    done
+
+    if [ "$partages" -eq 0 ]; then
+        ok "Montages cloisonnés (${#MONTAGES_CLOISONNES[@]} contrôlés)"
+    else
+        warn "$partages montage(s) en lecture partagé(s) — connus, suivis en #434"
+    fi
+}
+
 do_docker_up() {
     step 5 "Redémarrage des containers..."
     drop_legacy_containers
     prepare_generator_dir
+    verifier_cloisonnement
     if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" ARBORE_IMAGE_TAG="$IMAGE_TAG" \
         docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" up -d backend web; then
         fail "docker compose up a échoué"
@@ -861,16 +1034,32 @@ do_show_logs() {
 
 # ───── [7/7] Health check ─────────────────────────────────────────
 #
-# Le backend expose /health en HTTP plain sur :8080 à ce stade
-# (cf. issue #121 pour la migration HTTPS). Le check est bloquant :
-# un health != 200 fait sortir en erreur pour signaler clairement
-# qu'il faut intervenir.
+# Le backend expose /health en HTTP plain sur le port de son
+# environnement (cf. issue #121 pour la migration HTTPS). Le check est
+# bloquant : un health != 200 fait sortir en erreur pour signaler
+# clairement qu'il faut intervenir.
 # La communauté est désactivée avant publication. Un 404 confirme que
 # l'ancienne surface publique n'est plus enregistrée par le backend.
+
+# Ports publies par l'environnement DEPLOYE, et non ceux de la production.
+#
+# `docker-compose.yml` les tient de `PORT` et `WEB_PORT`, qui valent 8080 et
+# 3000 par defaut et 8081 / 3001 cote dev. Les figer ici faisait interroger la
+# pile PRIMAIRE a chaque deploiement non primaire : un `ARBORE_ENV=dev`
+# annoncait « health 200 OK » en ayant mesure la production (#652).
+env_port() {
+    local nom="$1" defaut="$2" valeur=""
+    valeur="$(grep -E "^${nom}=" "$ENV_FILE" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"'"'"' \r')"
+    case "$valeur" in
+        ''|*[!0-9]*) printf '%s' "$defaut" ;;
+        *)           printf '%s' "$valeur" ;;
+    esac
+}
+
 check_community_disabled() {
     local code
     code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 \
-        http://localhost:8080/api/v1/community/feed || true)"
+        http://localhost:$(env_port PORT 8080)/api/v1/community/feed || true)"
 
     if [ "$code" = "404" ]; then
         ok "Community disabled (404 attendu)"
@@ -884,7 +1073,7 @@ check_community_disabled() {
 # pas le déploiement (le routage reverse-proxy / Cloudflare peut être posé après).
 check_web() {
     local code
-    code="$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:3000/ || echo "000")"
+    code="$(curl -fsS -o /dev/null -w '%{http_code}' --max-time 5 http://localhost:$(env_port WEB_PORT 3000)/ || echo "000")"
     if [ "$code" = "200" ]; then
         ok "Web health 200 OK"
     else
@@ -899,7 +1088,7 @@ do_health_check() {
     local http_code=""
 
     while [ "$attempts" -lt "$max_attempts" ]; do
-        http_code="$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:8080/health || echo "000")"
+        http_code="$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:$(env_port PORT 8080)/health || echo "000")"
         if [ "$http_code" = "200" ]; then
             ok "Backend health 200 OK"
             check_community_disabled

@@ -170,7 +170,7 @@ Il reste à poser la clé privée sur une machine neuve. **Aucun système n'y é
 
 Mais on passe de **24 valeurs à poser à la main à une seule**. C'est le minimum théorique.
 
-## ⚠️ Deux pièges
+## ⚠️ Pièges
 
 **Ne jamais déchiffrer `MASTER_ENCRYPTION_KEY` vers l'environnement.** Le code préfère déjà `MASTER_ENCRYPTION_KEY_PATH` parce qu'une variable est lisible par `docker inspect` et `/proc/<pid>/environ` — or cette clé déchiffre les refresh tokens Apple (audit #338 constat 4). Le déploiement doit écrire un **fichier**.
 
@@ -184,7 +184,96 @@ autre et remplacer l'empreinte. À ne pas confondre avec
 `GENERATOR_SESSION_SECRET`, qui est stocké comme valeur et donc relisible — le
 serveur en a besoin pour signer les sessions.
 
+### Une exception assumée : `GENERATOR_KEY` sur dev
+
+Depuis le 2026-11-01, `dev.enc.env` porte **aussi** `GENERATOR_KEY`, en clair
+une fois déchiffré. C'est une déviation de la règle ci-dessus, et elle se
+justifie ainsi.
+
+L'ouvrier des vignettes (#696) tourne **sur le serveur**, dans la même pile
+que l'atelier, et doit y ouvrir une session. L'ouvrier Colab, lui, est hors
+machine : sa clé vit dans les secrets Colab, et la règle tenait sans effort.
+
+Trois choses rendent l'exception acceptable :
+
+1. **Ce n'est pas la clé humaine.** `GENERATOR_KEY_HASH` accepte désormais
+   plusieurs empreintes, séparées par des virgules. Le robot a la sienne,
+   tirée au hasard. La clé de l'opérateur reste hors du serveur, comme avant.
+2. **Elle est révocable seule.** Retirer l'empreinte du robot de la liste lui
+   coupe l'accès sans déconnecter personne.
+3. **Le `.env` donne déjà bien davantage.** Qui le lit détient `MONGODB_URI`,
+   `ARBORE_API_KEY`, `GHCR_TOKEN` et les clés Apple — donc la base entière.
+   L'atelier n'est qu'une interface au-dessus de ces mêmes données : l'accès
+   marginal qu'ouvre cette clé est nul.
+
+Ce qui reste vrai, et qu'il ne faut pas défaire : **la clé de l'opérateur ne
+doit jamais rejoindre ce fichier.** Perdue, elle ne se retrouve pas ; partagée
+avec un robot, elle devient irrévocable sans déconnecter la personne.
+
+### `ARBORE_INTERNAL_KEY` — un secret qui ferme la porte par défaut
+
+Depuis le 2026-11-01, `dev.enc.env` porte aussi `ARBORE_INTERNAL_KEY` : la clé
+des routes `/internal/*` du backend, par lesquelles l'ouvrier des vignettes
+lit le catalogue et publie ses images sans session Firebase (#696).
+
+Elle est aussi reportée dans le champ `interne` de `VIGNETTES_ENVIRONNEMENTS`,
+puisque c'est l'atelier qui la remet à l'ouvrier avec chaque tâche. **Les deux
+doivent porter la même valeur** : le backend compare, l'atelier présente.
+
+Deux propriétés à ne pas défaire :
+
+- **Absente, la porte se ferme.** Les routes répondent 503, quoi qu'on leur
+  présente. C'est pourquoi `prod.enc.env` ne la porte **pas** : la prod ne fait
+  pas tourner d'ouvrier, donc la surface n'existe pas chez elle. Ne l'y ajouter
+  que le jour où un ouvrier y tournera.
+- **Elle ne remplace pas `ARBORE_API_KEY`.** Les routes internes exigent les
+  deux clés ensemble. Une clé d'API seule — celle que porte l'app iOS — n'y
+  donne pas accès.
+
+Elle ne confère **aucun rôle**. C'est tout l'objet du choix : la voie précédente
+réclamait un compte de service administrateur Firebase, donc un mot de passe de
+compte à stocker ici et le droit d'écrire tout le catalogue, pour déposer des
+images. Cette voie a été abandonnée.
+
 **Un projet Firebase par environnement.** Le job de réconciliation (#393) tourne chaque dimanche avec `--apply` et compare les uid Firebase à une base Mongo. Pointé vers le mauvais couple, **il vide la mauvaise base**. Aucune de ses quatre gardes ne couvre ce cas.
+
+### ⚠️ `sudo ./deploy.sh` ne déchiffre RIEN sans `SOPS_AGE_KEY_FILE`
+
+`apply_secrets()` cherche la clé age à
+`${SOPS_AGE_KEY_FILE:-$HOME/.config/sops/age/arbore-<env>.txt}`. Sous `sudo`,
+`$HOME` vaut **`/root`**, pas `/home/debian`. La clé y est introuvable, et la
+fonction **avertit puis rend 0** :
+
+```
+⚠️ Clé age introuvable (…) — secrets non déchiffrés, configuration en place conservée
+```
+
+Le déploiement continue, annonce « ✅ Déploiement terminé », et tourne avec les
+**anciens** secrets. Un secret fraîchement ajouté n'arrive jamais — ce qui s'est
+produit le 2026-11-02 avec `ARBORE_INTERNAL_KEY` : la variable valait zéro
+caractère dans le conteneur, et les routes internes répondaient 503.
+
+Passer la clé **explicitement** :
+
+```sh
+sudo -n ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev \
+  SOPS_AGE_KEY_FILE=/home/debian/.config/sops/age/arbore-dev.txt \
+  ./deploy.sh
+```
+
+Le signe qu'il a fonctionné, à chercher dans la sortie — un `tail` trop court le
+coupe :
+
+```
+✅ Secrets déchiffrés (dev) : 1 appliqué(s), 0 inchangé(s)
+```
+
+Et pour vérifier qu'une variable est bien arrivée, sans jamais la faire sortir :
+
+```sh
+sudo -n docker exec arbore-dev-backend \
+  sh -c 'printf "%s caracteres\n" "${#ARBORE_INTERNAL_KEY}"'
+```
 
 ## Déploiement
 

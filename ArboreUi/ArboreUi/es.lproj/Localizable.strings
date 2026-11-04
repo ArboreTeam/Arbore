@@ -1535,8 +1535,6 @@
 "AR_EDIT_SELECTED_PLANT" = "Planta seleccionada";
 "AR_EDIT_EXIT" = "Salir de edición";
 "AR_EDIT_ROTATE" = "Girar planta";
-"AR_EDIT_SCALE_UP" = "Agrandar planta";
-"AR_EDIT_SCALE_DOWN" = "Reducir planta";
 
 "SHOP_CATEGORY_PLANTS" = "Plantas";
 "SHOP_CATEGORY_SOIL" = "Sustrato";

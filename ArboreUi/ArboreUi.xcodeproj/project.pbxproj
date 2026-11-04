@@ -49,6 +49,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		030C6AB83006FD3DB48D715E /* Pods-ArboreUi.dev.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUi.dev.xcconfig"; path = "Target Support Files/Pods-ArboreUi/Pods-ArboreUi.dev.xcconfig"; sourceTree = "<group>"; };
 		3F862A6CC5CF6C38133DDCA2 /* Pods-ArboreUi.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-ArboreUi.debug.xcconfig"; path = "Target Support Files/Pods-ArboreUi/Pods-ArboreUi.debug.xcconfig"; sourceTree = "<group>"; };
 		77017A0C2FA0DF7E0092B63A /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		77017A0D2FA0DF9C0092B63A /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
@@ -79,6 +80,8 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		774C3B512ED1FFB100324E07 /* scanRoom */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = scanRoom;
 			sourceTree = "<group>";
 		};
@@ -92,11 +95,15 @@
 		};
 		77DD7AF02D84270800A6F6F1 /* ArboreUiTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = ArboreUiTests;
 			sourceTree = "<group>";
 		};
 		77DD7AFA2D84270800A6F6F1 /* ArboreUiUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = ArboreUiUITests;
 			sourceTree = "<group>";
 		};
@@ -181,6 +188,7 @@
 			children = (
 				3F862A6CC5CF6C38133DDCA2 /* Pods-ArboreUi.debug.xcconfig */,
 				8A86C1D02FDE68088598D900 /* Pods-ArboreUi.release.xcconfig */,
+				030C6AB83006FD3DB48D715E /* Pods-ArboreUi.dev.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -403,7 +411,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 7;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MARKETING_VERSION = 1.0;
@@ -551,7 +559,7 @@
 				CLANG_WARN_STRICT_PROTOTYPES = NO;
 				CODE_SIGN_ENTITLEMENTS = ArboreUi/ArboreUi.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_ASSET_PATHS = "\"ArboreUi/Preview Content\"";
 				DEVELOPMENT_TEAM = 582QH9652J;
 				ENABLE_PREVIEWS = YES;
@@ -576,7 +584,7 @@
 					"$(inherited)",
 					"$(inherited)",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				MTL_ENABLE_DEBUG_INFO = None;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -597,7 +605,7 @@
 				CLANG_WARN_STRICT_PROTOTYPES = NO;
 				CODE_SIGN_ENTITLEMENTS = ArboreUi/ArboreUi.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_ASSET_PATHS = "\"ArboreUi/Preview Content\"";
 				DEVELOPMENT_TEAM = 582QH9652J;
 				ENABLE_PREVIEWS = YES;
@@ -622,7 +630,7 @@
 					"$(inherited)",
 					"$(inherited)",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -636,7 +644,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 7;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MARKETING_VERSION = 1.0;
@@ -654,7 +662,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 7;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.2;
 				MARKETING_VERSION = 1.0;
@@ -671,7 +679,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 7;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ArboreUiUITests;
@@ -687,7 +695,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 7;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ArboreUiUITests;
@@ -775,7 +783,7 @@
 				CLANG_WARN_STRICT_PROTOTYPES = NO;
 				CODE_SIGN_ENTITLEMENTS = ArboreUi/ArboreUi.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 7;
 				DEVELOPMENT_ASSET_PATHS = "\"ArboreUi/Preview Content\"";
 				DEVELOPMENT_TEAM = 582QH9652J;
 				ENABLE_PREVIEWS = YES;
@@ -800,7 +808,7 @@
 					"$(inherited)",
 					"$(inherited)",
 				);
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 1.0.1;
 				MTL_ENABLE_DEBUG_INFO = None;
 				PRODUCT_BUNDLE_IDENTIFIER = com.arboreteam.arbore;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -815,7 +823,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 7;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ArboreUiUITests;

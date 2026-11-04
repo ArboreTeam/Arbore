@@ -16,11 +16,85 @@ Pour le provisionnement, [`vps-bootstrap.md`](vps-bootstrap.md).
 | **prod** | `main`  | `api.arbore.app`     | `arbore`        | manuellement       |
 | **dev**  | `dev`   | `api-dev.arbore.app` | `arbore_dev`    | manuellement       |
 
-Les deux tournent **en même temps** sur le même VPS, sur des ports distincts,
-depuis deux checkouts git séparés. Ils ne partagent ni la version, ni les
-secrets, ni les données.
-
 Casser le dev n'a aucun effet sur les bêta-testeurs. C'est sa raison d'être.
+
+### Les deux environnements sont sur la même machine, dans deux checkouts
+
+Relevé le 2026-11-04, **après** la bascule DNS de #652 :
+
+| | machine | chemin | utilisateur |
+|---|---|---|---|
+| **prod** | VPS Debian 12, `162.19.13.82` | `/home/debian/Arbore-prod` (`main`) | `debian` |
+| **dev** | la même machine | `/home/debian/Arbore` (`dev`) | `debian` |
+
+Les quatre noms — `api`, `web`, `generator`, `api-dev` — résolvent désormais
+sur cette machine. L'ancien VPS Fedora reste allumé jusqu'au 2026-11-06 comme
+**repli** : les enregistrements sont proxifiés par Cloudflare, donc y revenir
+est un changement d'adresse d'origine, immédiat et sans redéploiement.
+
+> **Asymétrie de nommage assumée.** La production est dans `Arbore-prod` et dev
+> dans `Arbore`, l'inverse de l'ancienne machine. `deploy.sh` tire son étiquette
+> d'image de `git rev-parse HEAD` et son garde-fou exige `main` pour prod : un
+> checkout ne peut être que sur une branche à la fois. Le checkout `dev` était
+> déjà en service, et rien de ce qui marche ne bouge pendant une migration.
+
+**Et le cloisonnement vient de là.** Deux checkouts séparés le donnent
+gratuitement, puisque les chemins par défaut de `docker-compose.yml` sont
+**relatifs au fichier compose**.
+
+C'est une propriété à ne pas confondre avec une garantie. Entre le 2026-10-21
+et le 2026-11-02, la machine neuve n'a tenu **qu'un seul** checkout pour deux
+piles compose (`arbore-prod` et `arbore-dev`) : les mêmes défauts les faisaient
+converger vers les mêmes répertoires, et les deux backends ont partagé leur
+répertoire de vignettes **en écriture**. Ce qui protège aujourd'hui est une
+disposition de disque, pas une barrière.
+
+#### Ce qui est cloisonné, et ce qui ne l'est pas
+
+Relevé par `docker inspect` des quatre conteneurs, le 2026-11-03.
+
+| Montage | prod | dev | état |
+|---|---|---|---|
+| `/app/thumbnails` (rw) | `arbore-data/…/thumbnails` | `arbore-data/thumbnails-dev` | ✅ |
+| `/app/uploads/community` (rw) | checkout | `arbore-data/uploads-community-dev` | ✅ |
+| `/app/photos` (ro) | checkout | `arbore-data/photos-dev` | ✅ |
+| `/app/models` (ro) | `arbore-data/models` | **le même** | ⏳ bascule |
+| `/run/secrets/*` (ro) | `arbore-data/secrets/` | **le même** | 🤝 assumé |
+| `/data/generator` (rw) | checkout | **le même** | 🤝 un seul atelier |
+
+**Les montages en écriture sont cloisonnés**, sauf `/data/generator` — et
+celui-là n'est pas un cloisonnement à faire mais un atelier qui ne doit tourner
+que sur **une** pile. Le code le désactive là où ses clés ne sont pas posées,
+donc une seule pile y écrit.
+
+**Les modèles attendent la bascule**, et c'est un choix : 6,7 Go et 176 modèles
+côté dev contre 123 côté prod. Les copier maintenant serait à refaire au
+transfert des maillages (#719 §2). Les photos, elles, ont été cloisonnées tout
+de suite parce que le répertoire est **vide des deux côtés** — rien à copier,
+rien à casser.
+
+**Les secrets lus sont communs à dessein** : le projet Firebase est partagé, et
+#434 le liste comme partage accepté. Ce qui est cloisonné, c'est l'**écriture** :
+`apply_secrets()` écrit dans `arbore-data/secrets-<env>` pour tout
+environnement non primaire, `arbore-data/secrets` restant celui de la prod.
+Sans cela, ajouter un chiffré dev.enc.json pour donner à dev son propre projet
+Firebase ferait **écraser le compte de service de la prod par un déploiement de
+dev** — et le job de réconciliation (#393) tourne chaque dimanche avec
+`--apply`.
+
+#### Le contrôle au déploiement
+
+`deploy.sh` vérifie les **huit** montages à chaque `docker compose up`, avec
+deux sévérités :
+
+- **bloquant** pour un montage en écriture partagé — le déploiement s'arrête.
+  Un avertissement se perdrait dans la sortie, et c'est exactement ce qui est
+  arrivé à celui des secrets (#690) ;
+- **signalé** pour un montage en lecture partagé — la ligne est affichée à
+  chaque déploiement, pour que le partage reste une décision visible et non un
+  oubli.
+
+Le reste du suivi est dans #434.
 
 ---
 
@@ -143,14 +217,14 @@ direct, et une PR promue depuis `dev` a déjà franchi le contrôle en amont.
 ## Déployer un environnement
 
 Le déploiement est **manuel**, par choix : personne ne pousse en production sans
-le savoir. Sur le VPS, un checkout par environnement.
+le savoir.
 
 ```sh
-# production
+# production — ancien VPS
 cd /home/fedora/Arbore && ./deploy.sh
 
-# développement
-cd /home/fedora/Arbore-dev && ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
+# développement — nouveau VPS
+cd /home/debian/Arbore && ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
 ```
 
 Trois pièges, tous rencontrés en vrai :
@@ -162,8 +236,27 @@ déployer cette branche sans rien signaler. Le défaut est `main`, et la
 production ne définit donc pas la variable.
 
 **Ne pas lancer `deploy.sh` avec `sudo`.** Le script gère lui-même l'élévation
-pour Docker. Sous `sudo`, git bascule sur les clés de root et le `git pull`
-échoue sur un `Permission denied (publickey)` trompeur.
+pour Docker : l'utilisateur n'a pas besoin d'être dans le groupe `docker`.
+
+> ⚠️ **Le symptôme décrit ici a disparu, pas la raison.** Cet avertissement
+> annonçait un `Permission denied (publickey)` sur le `git pull`, quand le
+> remote était en SSH. Il est passé en **HTTPS public** : sous `sudo`, le pull
+> **réussit** désormais. L'avertissement est devenu silencieux, et il a été
+> ignoré toute la journée du 2026-11-02.
+>
+> Les deux conséquences réelles, mesurées ce jour-là :
+>
+> | | |
+> |---|---|
+> | `$HOME` vaut `/root` | la clé age est introuvable, `apply_secrets` **avertit puis rend 0** — le déploiement s'annonce « terminé » en tournant sur les **anciens** secrets |
+> | les fichiers sont écrits par root | **167 entrées sur 1021** dans `.git`, et le premier `git pull` fait à la main échoue |
+>
+> Vérifié sans `sudo` : secrets déchiffrés, images tirées, santé à 200, et
+> **0 entrée root** dans `.git`.
+>
+> Depuis #716, le script tolère l'invocation sous `sudo` — il retrouve
+> l'utilisateur réel par `SUDO_USER` et travaille sous son identité. C'est un
+> filet, pas une permission : lancez-le sans.
 
 **Attendre la publication des images.** `deploy.sh` tire l'image étiquetée
 `sha-<commit>` ; si le workflow de publication n'a pas fini, le tirage échoue et

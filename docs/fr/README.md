@@ -42,6 +42,7 @@ La documentation est découpée en vues complémentaires. Selon l'information re
 | Provisionnement VPS (Docker · nginx · Mongo) | [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md) |
 | Stockage des assets 3D (R2 · S3 · MinIO) | [`operations/stockage-assets.md`](operations/stockage-assets.md) |
 | Fournisseurs LLM (quotas gratuits, bascule, RAG) | [`operations/fournisseurs-llm.md`](operations/fournisseurs-llm.md) |
+| Rendu des vignettes du catalogue (job Blender) | [`operations/vignettes-rendu.md`](operations/vignettes-rendu.md) |
 | Index des décisions d'architecture (ADR) | [`decisions/_index.md`](decisions/_index.md) |
 | Listing App Store (multilingue) | [`../appstore-listing.md`](../appstore-listing.md) |
 | Définition d'un terme métier ou technique | [`glossary.md`](glossary.md) |
@@ -119,5 +120,4 @@ Les fichiers suivants précèdent cette structure et sont isolés sous [`../lega
 
 - [`../legacy/AR_CAMERA_BLACK_SCREEN_FIX.md`](../legacy/AR_CAMERA_BLACK_SCREEN_FIX.md) — notes du fix écran noir caméra AR
 - [`../legacy/CI-CD.md`](../legacy/CI-CD.md) — documentation détaillée de la CI/CD historique
-- [`../legacy/DEBUG_MODE_VISUAL_SUMMARY.md`](../legacy/DEBUG_MODE_VISUAL_SUMMARY.md), [`../legacy/DEBUG_THUMBNAIL_MODE.md`](../legacy/DEBUG_THUMBNAIL_MODE.md) — guides de debug thumbnails
 - [`../legacy/TROUBLESHOOTING.md`](../legacy/TROUBLESHOOTING.md) — guide de dépannage CI

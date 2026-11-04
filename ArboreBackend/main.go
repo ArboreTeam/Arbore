@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -67,6 +68,38 @@ const (
 	maxAIImageBytes      = 6 << 20
 	maxPlantNameRunes    = 120
 	maxBulkPlantNames    = 10
+
+	// cacheDesActifsPublics : en-tête `Cache-Control` des vignettes et des
+	// photos de fiche, les deux seules routes d'actifs qui soient PUBLIQUES.
+	//
+	// Mesuré avant d'écrire ceci (#737) : Cloudflare met déjà ces réponses en
+	// cache quatre heures au bord, alors que l'origine n'envoyait AUCUN
+	// `Cache-Control`. La valeur venait donc d'un réglage de tableau de bord
+	// et de la mise en cache par extension de fichier — une protection par
+	// effet de bord, que personne ne lisait dans le code et qu'un changement
+	// de réglage aurait retirée sans bruit.
+	//
+	// 14400 s reprend exactement la valeur déjà effective : l'intention est de
+	// rendre explicite ce qui était implicite, pas de changer le comportement.
+	//
+	// Et ça compte pour le budget de la garde (#599) : le cache de bord est ce
+	// qui évite à un parcours de catalogue d'atteindre l'origine 123 fois.
+	// Mieux vaut que ce soit une décision.
+	//
+	// Volontairement PAS posé dans `serveStorageObject` : `servePlantModel`
+	// l'emprunte aussi, depuis des routes authentifiées (`protected` et
+	// `internal`). Marquer `public` une réponse qui exige une session serait
+	// une invitation à la mettre en cache pour tout le monde.
+	cacheDesActifsPublics = "public, max-age=14400"
+
+	// vignettesParMinute : plafond de `POST /models/thumbnails/:plantId`.
+	//
+	// Il doit laisser passer un catalogue ENTIER en une seule passe. La route
+	// partageait le limiteur des photos de profil, à dix par minute : une
+	// republication s'arrêtait à la dixième vignette et prenait ensuite
+	// quarante-neuf refus de suite. Le plafond d'une route de lot se mesure à
+	// la taille du lot, pas à ce qu'un humain fait à la main.
+	vignettesParMinute = 200
 )
 
 // getDatabaseForRequest retourne la *mongo.Database à utiliser pour la
@@ -114,8 +147,6 @@ func maybeLabelTestDoc(dbSelector string, doc interface{}) interface{} {
 	m["_createdAtUTC"] = time.Now().UTC()
 	return m
 }
-
-var thumbnailPlantIDRegex = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // buildCommit est le commit git à partir duquel ce binaire a été construit. Il
 // est injecté à la compilation :
@@ -276,6 +307,10 @@ type Plant struct {
 	Flags            *PlantFlags             `json:"flags,omitempty" bson:"flags,omitempty"`                       // drapeaux structurés pour la reco wizard (fiables, vs matching mots-clés)
 	BotanicalProfile *PlantBotanicalProfile  `json:"botanicalProfile,omitempty" bson:"botanicalProfile,omitempty"` // contraintes horticoles sourcées ; nil = fiche non auditée
 	HasHeavy         *bool                   `json:"hasHeavy,omitempty" bson:"hasHeavy,omitempty"`                 // true = une version haute définition existe (servie via /models/<file>?lod=heavy)
+	Potless          *bool                   `json:"potless,omitempty" bson:"potless,omitempty"`                   // true = le maillage ne contient PAS son pot (sortie d'atelier recoupée) ; nil/false = pot inclus, comportement historique
+	PotBase          *PotBase                `json:"potBase,omitempty" bson:"potBase,omitempty"`                   // socle mesuré où poser le pot ; nil = pose non calculable, aucun pot n'est servi
+	HeightMeters     *float64                `json:"heightMeters,omitempty" bson:"heightMeters,omitempty"`         // hauteur réelle de l'exemplaire, mesurée DEPUIS LA TERRE ; nil = le client retombe sur sa constante
+	Versions         *AssetVersions          `json:"versions,omitempty" bson:"versions,omitempty"`                 // empreintes du contenu des fichiers servis ; pilote l'invalidation du cache de l'appareil (#294)
 }
 
 // PlantFlags : drapeaux booléens structurés alimentant la reco du
@@ -1168,7 +1203,27 @@ func getPlants(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, plants)
+	// Une plante recoupée ne voyage jamais sans son pot, ici comme sur la fiche.
+	// L'invariant tient donc à la source, et aucun appelant ne peut l'oublier :
+	// catalogue, vignette ou AR reçoivent la même chose.
+	//
+	// Mesuré avant de le faire, parce que l'argument du poids était le seul à
+	// opposer : la réponse fait 3,3 Mo, et le pot sur les 52 plantes concernées
+	// y ajoute 7,1 Ko — deux dixièmes de pour cent. La bibliothèque est chargée
+	// UNE fois pour toute la liste, pas une fois par plante.
+	pots, err := chargerPots(c)
+	if err != nil {
+		// La bibliothèque indisponible ne doit pas emporter le catalogue.
+		log.Println("pots indisponibles, catalogue servi sans pots:", err)
+		c.JSON(http.StatusOK, plants)
+		return
+	}
+
+	reponses := make([]plantResponse, 0, len(plants))
+	for _, p := range plants {
+		reponses = append(reponses, composerPlante(p, pots, ""))
+	}
+	c.JSON(http.StatusOK, reponses)
 }
 
 func getPlantByID(c *gin.Context) {
@@ -1190,6 +1245,23 @@ func getPlantByID(c *gin.Context) {
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erreur lors de la récupération de la plante"})
+		return
+	}
+
+	// Une plante recoupée est servie avec un pot par défaut, sans quoi le client
+	// l'afficherait nue. Le paramètre `pot` sert au premier rendu d'un choix
+	// déjà connu (lien profond, jardin rouvert) ; le sélecteur, lui, recalcule
+	// en local sans repasser ici. Voir pots.go.
+	if sansPot(plant) {
+		pots, err := chargerPots(c)
+		if err != nil {
+			// La bibliothèque indisponible ne doit pas emporter la fiche : on
+			// sert la plante seule plutôt que de rendre une erreur.
+			log.Println("pots indisponibles, plante servie sans pot:", err)
+			c.JSON(http.StatusOK, plantResponse{Plant: plant})
+			return
+		}
+		c.JSON(http.StatusOK, composerPlante(plant, pots, c.Query("pot")))
 		return
 	}
 
@@ -1300,12 +1372,57 @@ func getUserPhoto(c *gin.Context) {
 	c.Data(http.StatusOK, contentType, data)
 }
 
+// servePlantModel sert un USDZ du catalogue.
+//
+// Nommé, et non plus une fermeture posée dans `buildRouter`, parce qu'il est
+// monté DEUX fois : sous `protected` pour l'app, et sous `/internal` pour
+// l'ouvrier de vignettes, qui a besoin du modèle pour le rendre et ne peut pas
+// tenir de session Firebase (#696). Les deux montages doivent servir exactement
+// le même fichier avec exactement les mêmes contrôles de chemin — d'où un seul
+// corps, et non une copie par groupe.
+func servePlantModel(c *gin.Context) {
+	filename := c.Param("filename")
+
+	// Sécurité: empêcher les path traversal attacks (parité avec le handler thumbnails)
+	if strings.Contains(filename, "..") || strings.ContainsAny(filename, "/\\") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid filename"})
+		return
+	}
+
+	// Vérifier que c'est bien un fichier .usdz
+	if !strings.HasSuffix(strings.ToLower(filename), ".usdz") {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Only .usdz files are allowed"})
+		return
+	}
+
+	// LOD: ?lod=heavy sert le modèle haute définition.
+	// (Une seule route : un sous-chemin /models/heavy/:filename ferait paniquer
+	// httprouter — collision wildcard ':filename' vs segment statique 'heavy'.)
+	bucket := BucketModelsLight
+	if c.Query("lod") == "heavy" {
+		bucket = BucketModelsHeavy
+	}
+
+	serveStorageObject(c,
+		StorageObject{Bucket: bucket, Name: filename},
+		"model/vnd.usdz+zip",
+		"Model not found")
+}
+
 func uploadPlantThumbnail(c *gin.Context) {
-	plantID := strings.TrimSpace(c.Param("plantId"))
-	if !thumbnailPlantIDRegex.MatchString(plantID) {
+	oid, ok := identifiantFiche(c.Param("plantId"))
+	if !ok {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid plant ID"})
 		return
 	}
+	// Reconstruit depuis l'ObjectID analysé, et non repris du paramètre d'URL.
+	//
+	// C'est ce qui fait que ni le nom du fichier écrit, ni la requête Mongo, ni
+	// les traces ne portent plus une valeur venue du client : `oid` est douze
+	// octets validés, et `Hex()` les réécrit. CodeQL le relevait à raison —
+	// « Database query built from user-controlled sources » —, et la ceinture
+	// de contrôles qui suivait ne valait que tant que personne ne l'enlevait.
+	plantID := oid.Hex()
 
 	file, _, err := c.Request.FormFile("thumbnail")
 	if err != nil {
@@ -1349,13 +1466,98 @@ func uploadPlantThumbnail(c *gin.Context) {
 		return
 	}
 
+	// L'empreinte se recalcule ICI, et pas plus tard.
+	//
+	// Sans elle, remplacer une vignette ne l'affiche sur aucun appareil :
+	// `PlantThumbnailCache` indexe par `versions.thumbnail` (#294), et un
+	// fichier réécrit sous le même nom ne change pas la clé de cache. C'est
+	// exactement #292, où les testeurs gardaient l'ancienne image jusqu'à
+	// réinstallation — et le quatrième contrôle que #524 réclamait avant
+	// publication. Le faire dans le handler, sur les octets qu'il vient
+	// d'écrire, est le seul endroit où on ne peut pas l'oublier.
+	empreinte, err := EmpreinteContenu(bytes.NewReader(imageBytes))
+	if err != nil {
+		// Le fichier EST écrit : on ne renvoie pas d'erreur, mais on dit que
+		// l'empreinte manque plutôt que de laisser croire au succès complet.
+		log.Printf("❌ empreinte de vignette (%s) non calculée : %v", plantID, err)
+		c.JSON(http.StatusOK, gin.H{
+			"message":        "Thumbnail uploaded, fingerprint not computed",
+			"plantId":        plantID,
+			"url":            "/models/thumbnails/" + plantID + ".png",
+			"versionUpdated": false,
+		})
+		return
+	}
+
+	// `versions.thumbnailModel` : la version du MODÈLE dont cette vignette est
+	// issue (#694). C'est ce qui rend la régénération incrémentale possible —
+	// une vignette est périmée quand `versions.model` ne lui correspond plus,
+	// et refaire les 123 pour une seule plante coûte près de neuf heures.
+	//
+	// Déclarée par l'appelant, donc contrôlée : le serveur ne peut pas la
+	// calculer, il n'a pas rendu l'image.
+	//
+	// ABSENTE, le champ est RETIRÉ, pas conservé. Une vignette republiée sans
+	// déclaration vient d'un rendu dont on ignore la source ; garder l'ancienne
+	// valeur en ferait un mensonge, et la plante serait exclue des re-rendus
+	// pour toujours. « Je ne sais pas » doit se traduire par « à refaire ».
+	maj := bson.M{"$set": bson.M{"versions.thumbnail": empreinte}}
+	if mv := strings.TrimSpace(c.Request.FormValue("modelVersion")); mv != "" {
+		if EmpreinteValide(mv) {
+			maj["$set"].(bson.M)["versions.thumbnailModel"] = mv
+		} else {
+			log.Printf("⚠️ modelVersion rejetée pour %s : forme invalide", plantID)
+			maj["$unset"] = bson.M{"versions.thumbnailModel": ""}
+		}
+	} else {
+		maj["$unset"] = bson.M{"versions.thumbnailModel": ""}
+	}
+
+	versionUpdated := false
+	res, err := getDatabaseForRequest(c).Collection("plants").UpdateOne(
+		c.Request.Context(),
+		bson.M{"_id": oid},
+		maj,
+	)
+	switch {
+	case err != nil:
+		log.Printf("❌ versions.thumbnail (%s) non enregistrée : %v", plantID, err)
+	case res.MatchedCount == 0:
+		log.Printf("⚠️ vignette %s écrite, mais aucune fiche ne porte cet identifiant", plantID)
+	default:
+		versionUpdated = true
+	}
+
 	// URL publique plutôt que chemin disque : le client en a l'usage, et
 	// l'emplacement réel n'a plus de sens une fois le stockage abstrait.
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Thumbnail uploaded",
-		"plantId": plantID,
-		"url":     "/models/thumbnails/" + plantID + ".png",
+		"message":        "Thumbnail uploaded",
+		"plantId":        plantID,
+		"url":            "/models/thumbnails/" + plantID + ".png",
+		"version":        empreinte,
+		"versionUpdated": versionUpdated,
 	})
+}
+
+// identifiantFiche : l'ObjectID que `plantId` désigne, ou l'échec.
+//
+// Stricte à dessein, et c'est un resserrement par rapport à l'ancien contrôle.
+//
+// J'avais d'abord accepté tout identifiant alphanumérique — `_id` posé à la
+// main compris — en me disant qu'il valait mieux ne pas refuser une fiche
+// valide. Mesuré sur le volume servi : les **123** vignettes en service portent
+// toutes un ObjectID de 24 caractères hexadécimaux, et la route n'a jamais reçu
+// autre chose. Le repli ne couvrait donc aucun cas réel, et il coûtait cher :
+// il faisait entrer une chaîne venue de l'URL dans un filtre Mongo.
+//
+// Exiger l'ObjectID rend du même coup la traversée de chemin impossible sur le
+// nom du fichier écrit, sans avoir à s'en souvenir.
+func identifiantFiche(brut string) (primitive.ObjectID, bool) {
+	oid, err := primitive.ObjectIDFromHex(strings.TrimSpace(brut))
+	if err != nil {
+		return primitive.NilObjectID, false
+	}
+	return oid, true
 }
 
 // ---------- GARDENS HANDLERS (NEW) ----------
@@ -1584,6 +1786,96 @@ func seedTestDBPlantsIfEmpty() {
 		return
 	}
 	fmt.Printf("🌱 Seed test DB : %d plantes copiées depuis prod.\n", len(docs))
+}
+
+// seedDevDBPlantsIfEmpty copie le catalogue de plantes du catalogue de
+// référence vers la base COURANTE si celle-ci est vide. Pendant du seed de la
+// base de test, pour l'environnement de dev (#491).
+//
+// Sans lui, `arbore_dev` est vide : un build TestFlight pointé sur l'API de dev
+// affiche une boutique sans plantes, et rien ne peut être essayé.
+//
+// Trois garde-fous, parce que la source est la PRODUCTION et qu'une erreur de
+// sens y écrirait :
+//
+//  1. la fonction ne s'exécute QUE si la base courante diffère du catalogue de
+//     référence. Sur la production, `MONGODB_DB` n'est pas défini, donc
+//     `prodDBName` vaut `arbore` — qui est aussi la source. Les deux étant
+//     égaux, la fonction refuse et ne lit même pas ;
+//  2. la source n'est jamais qu'un `Find`. Aucun chemin de ce code n'écrit
+//     dans le catalogue de référence ;
+//  3. la destination doit être vide. Un catalogue de dev déjà peuplé — ou
+//     retouché à la main — n'est jamais écrasé.
+//
+// Les `ObjectID` sont conservés, pour la même raison que le seed de test : les
+// références `PlacedPlant.plantId` des jardins créés côté dev restent valides.
+// doitSeeder décide si un seed est permis, sur les seuls noms de bases.
+//
+// Isolée du reste pour être éprouvable sans Mongo : c'est elle qui tient la
+// production hors de portée, donc elle mérite des tests qui ne dépendent
+// d'aucun service.
+//
+// Vrai uniquement si la destination est une base DIFFÉRENTE de la source. La
+// production a `arbore` des deux côtés — elle se refuse donc elle-même, sans
+// qu'aucune liste de noms ne soit écrite en dur.
+func doitSeeder(destination, source string) bool {
+	destination = strings.TrimSpace(destination)
+	source = strings.TrimSpace(source)
+	if destination == "" || source == "" {
+		return false
+	}
+	return destination != source
+}
+
+func seedDevDBPlantsIfEmpty() {
+	source := envOrDefault("MONGODB_SEED_FROM", "arbore")
+
+	// Garde-fou 1. C'est ce qui rend la production structurellement hors de
+	// portée : elle EST la source, donc elle se refuse elle-même.
+	if !doitSeeder(prodDBName, source) {
+		return
+	}
+	if client == nil {
+		return
+	}
+
+	cible := client.Database(prodDBName).Collection("plants")
+	count, err := cible.CountDocuments(context.Background(), bson.M{})
+	if err != nil {
+		log.Printf("⚠️  Comptage de %s.plants échoué : %v — seed sauté", prodDBName, err)
+		return
+	}
+	// Garde-fou 3.
+	if count > 0 {
+		fmt.Printf("ℹ️ %s.plants déjà peuplée (%d entrées), pas de seed.\n", prodDBName, count)
+		return
+	}
+
+	// Garde-fou 2 : lecture seule sur la source.
+	cursor, err := client.Database(source).Collection("plants").Find(context.Background(), bson.M{})
+	if err != nil {
+		log.Printf("⚠️  Lecture de %s.plants pour seed échouée : %v", source, err)
+		return
+	}
+	defer func() { _ = cursor.Close(context.Background()) }()
+
+	var docs []interface{}
+	for cursor.Next(context.Background()) {
+		var pl Plant
+		if err := cursor.Decode(&pl); err != nil {
+			continue
+		}
+		docs = append(docs, pl)
+	}
+	if len(docs) == 0 {
+		log.Printf("⚠️  Aucune plante dans %s à copier vers %s.", source, prodDBName)
+		return
+	}
+	if _, err := cible.InsertMany(context.Background(), docs); err != nil {
+		log.Printf("⚠️  Seed de %s.plants échoué : %v", prodDBName, err)
+		return
+	}
+	fmt.Printf("🌱 Seed %s : %d plantes copiées depuis %s.\n", prodDBName, len(docs), source)
 }
 
 // ---------- GEMINI PROXY STRUCTS & HANDLERS ----------
@@ -1977,6 +2269,14 @@ func connectMongoDatabases(ctx context.Context) error {
 	client = productionClient
 	fmt.Println("✅ Connecté à MongoDB (prod, DB " + prodDBName + ") !")
 
+	// Auto-seed du catalogue de dev si sa base est vide (#491). Appelé ici,
+	// et non dans le bloc de test plus bas : l'environnement de dev ne définit
+	// pas `MONGODB_URI_TEST`, donc l'y placer ne l'exécuterait jamais là où il
+	// sert. Sans effet sur la production, qui est sa propre source et se refuse
+	// (cf. garde-fou 1). `client` vient d'être assigné, ce dont cette fonction
+	// dépend.
+	seedDevDBPlantsIfEmpty()
+
 	// Connexion optionnelle pour la DB de test. Permet aux runs CI d'écrire
 	// dans `arbore_test` sans polluer la prod, via une seconde API key
 	// reconnue par APIKeyMiddleware (cf. issue #159 v2). Si MONGODB_URI_TEST
@@ -2050,6 +2350,19 @@ func buildRouter() *gin.Engine {
 	diagnosisMinuteLimiter := middleware.NewWindowLimiter(6, time.Minute)
 	diagnosisDailyQuota := middleware.NewTieredWindowLimiter(3, 20, 100, 24*time.Hour)
 	uploadMinuteLimiter := middleware.NewWindowLimiter(10, time.Minute)
+	// Un limiteur à part pour les vignettes, et non celui des photos de profil.
+	//
+	// Dix par minute est le bon plafond pour `/users/:uid/photo` : un humain qui
+	// change sa photo n'en envoie pas onze. Mais republier le catalogue est une
+	// opération de LOT — 123 vignettes — et le même plafond la coupait à la
+	// dixième, puis rendait 49 refus d'affilée. Partager le limiteur revenait à
+	// choisir entre affaiblir une protection destinée à tous les comptes et
+	// rendre la republication impossible.
+	//
+	// Celle-ci est déjà derrière `RequireAdmin()`, donc le plafond n'est plus là
+	// pour contenir un abus mais pour borner un emballement : de quoi passer un
+	// catalogue entier en une fois, avec de la marge, et pas davantage.
+	thumbnailUploadLimiter := middleware.NewWindowLimiter(vignettesParMinute, time.Minute)
 
 	configureCORS(router)
 
@@ -2073,6 +2386,7 @@ func buildRouter() *gin.Engine {
 			return
 		}
 
+		c.Header("Cache-Control", cacheDesActifsPublics)
 		serveStorageObject(c,
 			StorageObject{Bucket: BucketThumbnails, Name: filename},
 			"image/png",
@@ -2108,6 +2422,7 @@ func buildRouter() *gin.Engine {
 			return
 		}
 
+		c.Header("Cache-Control", cacheDesActifsPublics)
 		serveStorageObject(c,
 			StorageObject{Bucket: BucketPhotos, Name: filename},
 			contentType,
@@ -2192,6 +2507,9 @@ func buildRouter() *gin.Engine {
 		// Plants
 		protected.GET("/plants", getPlants)
 		protected.GET("/plants/:id", getPlantByID)
+		// Bibliothèque de pots : chargée une fois par le client, puis gardée.
+		// Changer de pot n'y repasse pas (voir pots.go).
+		protected.GET("/pots", getPots)
 
 		// Gardens
 		protected.POST("/gardens", createGarden)
@@ -2218,34 +2536,7 @@ func buildRouter() *gin.Engine {
 		account.GET("/consents/latest", getLatestUserConsents)
 
 		// Models 3D (USDZ files) - Protected endpoint
-		protected.GET("/models/:filename", func(c *gin.Context) {
-			filename := c.Param("filename")
-
-			// Sécurité: empêcher les path traversal attacks (parité avec le handler thumbnails)
-			if strings.Contains(filename, "..") || strings.ContainsAny(filename, "/\\") {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid filename"})
-				return
-			}
-
-			// Vérifier que c'est bien un fichier .usdz
-			if !strings.HasSuffix(strings.ToLower(filename), ".usdz") {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "Only .usdz files are allowed"})
-				return
-			}
-
-			// LOD: ?lod=heavy sert le modèle haute définition.
-			// (Une seule route : un sous-chemin /models/heavy/:filename ferait paniquer
-			// httprouter — collision wildcard ':filename' vs segment statique 'heavy'.)
-			bucket := BucketModelsLight
-			if c.Query("lod") == "heavy" {
-				bucket = BucketModelsHeavy
-			}
-
-			serveStorageObject(c,
-				StorageObject{Bucket: bucket, Name: filename},
-				"model/vnd.usdz+zip",
-				"Model not found")
-		})
+		protected.GET("/models/:filename", servePlantModel)
 	}
 
 	// Catalogue writes and cost-bearing plant generation require an explicit
@@ -2254,7 +2545,41 @@ func buildRouter() *gin.Engine {
 	admin.Use(middleware.RequireAdmin())
 	{
 		admin.POST("/plants", createPlant)
-		admin.POST("/models/thumbnails/:plantId", middleware.MaxBodyBytes(maxThumbnailBytes+(1<<20)), uploadMinuteLimiter.Middleware(), uploadPlantThumbnail)
+		admin.POST("/models/thumbnails/:plantId", middleware.MaxBodyBytes(maxThumbnailBytes+(1<<20)), thumbnailUploadLimiter.Middleware(), uploadPlantThumbnail)
+	}
+
+	// === ROUTES INTERNES (clé d'API + clé interne, sans Firebase) === (#696)
+	//
+	// Pour les appelants qui ne sont pas des personnes : l'ouvrier de vignettes
+	// et l'atelier, tous deux sur le réseau interne. Ils ne peuvent pas tenir
+	// une session Firebase, et leur en fabriquer une aurait voulu dire créer un
+	// compte administrateur de service — voir `middleware/internal_key.go` pour
+	// pourquoi c'est la mauvaise réponse.
+	//
+	// Les routes sont les MÊMES handlers que leurs jumelles authentifiées, pas
+	// des copies : `getPlants` et `uploadPlantThumbnail` ne lisent aucune
+	// identité d'appelant (vérifié : ni l'un ni l'autre ne touche à `uid`), donc
+	// rien ne change pour eux. Les dupliquer aurait créé deux définitions de
+	// « déposer une vignette » à garder d'accord.
+	//
+	// La clé d'API reste exigée EN PLUS de la clé interne. C'est elle qui
+	// choisit la base, et deux secrets valent mieux qu'un.
+	internalKey := secretFromFileOrEnv("ARBORE_INTERNAL_KEY")
+	internal := router.Group("/internal")
+	internal.Use(middleware.APIKeyMiddlewareWithKeys(apiKeyProd, apiKeyTest))
+	internal.Use(middleware.InternalKeyMiddleware(internalKey))
+	internal.Use(apiLimiter.Middleware())
+	internal.Use(middleware.MaxBodyBytes(maxJSONBodyBytes))
+	{
+		internal.GET("/plants", getPlants)
+		internal.GET("/models/:filename", servePlantModel)
+		internal.POST("/models/thumbnails/:plantId", middleware.MaxBodyBytes(maxThumbnailBytes+(1<<20)), thumbnailUploadLimiter.Middleware(), uploadPlantThumbnail)
+		// Provisionne un compte de test à email vérifié, pour que les suites
+		// d'intégration iOS puissent éprouver le parcours d'un MEMBRE sans
+		// boîte mail. Voir `test_accounts.go` : la route ne crée rien, se
+		// borne au domaine réservé `@arbore.test`, et n'existe pas en
+		// production puisque la clé interne n'y est pas posée.
+		internal.POST("/test-accounts/verify", verifierCompteDeTest)
 	}
 
 	return router

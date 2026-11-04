@@ -1,6 +1,6 @@
 # C4 — Niveau 3 : Composants Web
 
-Cette vue ouvre le container **Web Arbore** (Next.js 13, App Router, React 18, TypeScript) déployé sur `web.arbore.app`. Le web est un **compagnon** de l'application iOS : les jardins sont **créés sur iOS** (placement AR) ; le web permet de consulter le catalogue, ses jardins et leurs plantes, un calendrier d'arrosage, un guide saisonnier, et de gérer son compte (export / suppression RGPD).
+Cette vue ouvre le container **Web Arbore** (Next.js 16, App Router, React 18, TypeScript) déployé sur `web.arbore.app`. Le web est un **compagnon** de l'application iOS : les jardins sont **créés sur iOS** (placement AR) ; le web permet de consulter le catalogue, ses jardins et leurs plantes, un calendrier d'arrosage, un guide saisonnier, et de gérer son compte (export / suppression RGPD).
 
 Pour la vue d'ensemble des containers, consulter [`02-containers.md`](02-containers.md). Pour le backend qu'il consomme, voir [`03-components-backend.md`](03-components-backend.md).
 
@@ -59,6 +59,41 @@ Le routage suit la convention App Router (`web/app/`). Le layout racine `web/app
 
 Les pages applicatives sont des composants client (`'use client'`) : elles vérifient l'état d'authentification via `onAuthStateChange` et redirigent vers `/login` si l'utilisateur n'est pas connecté.
 
+### 1 bis. L'atelier 3D (`/generator`)
+
+Absent de ce document jusqu'au 2026-11-02, alors qu'il représente **sept pages
+sur vingt-deux** et vingt-huit routes d'API. Il est servi par le **même**
+container, sur `generator.arbore.app`, et c'est nginx puis le middleware qui
+l'isolent de `web.arbore.app`.
+
+| Page | Rôle |
+|---|---|
+| `/generator` | tableau de bord de la chaîne de génération 3D |
+| `/generator/login` | porte d'entrée par clé, seule page ouverte |
+| `/generator/sources` | images d'entrée déposées pour la génération |
+| `/generator/revue/[plante]` | arbitrage d'un maillage produit : valider, invalider, relancer |
+| `/generator/galerie` | ce qui a été produit |
+| `/generator/pots` | bibliothèque de pots |
+| `/generator/tailles` | tailles réelles relevées |
+| `/generator/vignettes` | aperçu par environnement et rendu des vignettes (#696) |
+
+Côté API, `web/app/api/generator/` porte la file de tâches consommée par deux
+ouvriers distincts : l'**ouvrier Colab** pour les maillages (`taches/*`) et
+l'**ouvrier de vignettes** pour les images (`vignettes/*`). Le motif est le
+même dans les deux cas — l'atelier **dépose**, l'ouvrier **consomme** — parce
+que le container web n'a pas accès à Docker, et que c'est très bien ainsi.
+
+**Son état vit sur disque**, pas en base : `GENERATOR_DATA_DIR` (`/data/generator`
+dans le container) porte un `etat.json` et les artefacts, soit 4,6 Go sur la
+machine de dev. Le dépôt écrit de façon atomique et sérialise ses mutations,
+mais **par processus** : deux piles qui partagent ce répertoire ne sont pas
+couvertes. Voir #434.
+
+**L'atelier n'existe que là où sa clé est posée.** Sans `GENERATOR_KEY_HASH` ni
+`GENERATOR_SESSION_SECRET`, la connexion est refusée — « un atelier sans clé
+vaudrait un atelier sans porte ». C'est ce qui permet de n'en armer qu'un, sur
+la pile de son choix.
+
 ### 2. Shell & frontières d'erreur
 
 `web/app/error.tsx` (erreur de route, capturée vers Sentry), `web/app/global-error.tsx` (repli du layout racine) et `web/app/not-found.tsx` (404). Le shell expose aussi `OfflineBanner` et le lien d'accessibilité.
@@ -102,7 +137,7 @@ Le navigateur n'appelle donc **que sa propre origine** : pas de CORS, et la clé
 
 | Aspect | Détail |
 |---|---|
-| Framework | Next.js 13 (App Router), React 18, TypeScript, Tailwind. `web/next.config.js` : `output: 'standalone'`, en-têtes de sécurité globaux, pas de CSP (différée). |
+| Framework | Next.js 16 (App Router), React 18, TypeScript, Tailwind. `web/next.config.js` : `output: 'standalone'`, en-têtes de sécurité globaux, pas de CSP (différée). |
 | Variables publiques | `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_APP_VERSION` (inlinées au build). |
 | Variables serveur | `BACKEND_API_URL`, `ARBORE_API_KEY` (jamais préfixées `NEXT_PUBLIC_`). Source de vérité : `web/.env.example`. |
 | i18n | Pas de framework i18n : interface **français uniquement** (`<html lang="fr">`) ; le contenu d'entretien est lu depuis `translations.fr.*` du backend. |

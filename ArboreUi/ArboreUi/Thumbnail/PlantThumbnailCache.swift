@@ -70,8 +70,26 @@ struct PlantThumbnailCache {
     /// à décoder. Descendre plus bas se verrait sur les écrans les plus denses.
     private static let cotePrepare: CGFloat = 720
 
-    private static func cle(_ plantID: String) -> NSString {
-        "\(plantID)_\(version)" as NSString
+    /// Clé de version d'UNE fiche : son empreinte quand on l'a, la constante
+    /// globale sinon.
+    ///
+    /// `version` est codée dans le binaire. Tant qu'elle seule gouverne le
+    /// cache, remplacer la vignette d'une plante n'atteint **aucun** appareil
+    /// l'ayant déjà affichée : il faut passer à `v23` et publier une build.
+    /// C'est le défaut que #294 a corrigé pour les modèles — `ModelCacheManager`
+    /// compose son nom avec `versions.model` — et qu'on n'avait jamais porté
+    /// sur les vignettes, si bien que `versions.thumbnail` était enregistrée en
+    /// base sans que rien ne la lise.
+    ///
+    /// Une empreinte absente rend exactement le comportement d'avant : le parc
+    /// ne perd pas son cache le jour où le serveur ne la sert pas encore.
+    static func cleDeVersion(_ empreinte: String?) -> String {
+        guard let empreinte, !empreinte.isEmpty else { return version }
+        return empreinte
+    }
+
+    private static func cle(_ plantID: String, _ empreinte: String?) -> NSString {
+        "\(plantID)_\(cleDeVersion(empreinte))" as NSString
     }
 
     private static func cout(_ image: UIImage) -> Int {
@@ -115,27 +133,48 @@ struct PlantThumbnailCache {
         verdicts.removeAllObjects()
     }
 
-    static func url(for plantID: String) -> URL {
-        directory.appendingPathComponent("\(plantID)_\(version).png")
+    static func url(for plantID: String, empreinte: String? = nil) -> URL {
+        directory.appendingPathComponent("\(plantID)_\(cleDeVersion(empreinte)).png")
     }
 
-    static func remoteURL(for plantID: String, baseURL: String) -> URL? {
+    static func remoteURL(for plantID: String, baseURL: String,
+                          empreinte: String? = nil) -> URL? {
         guard var components = URLComponents(
             string: "\(baseURL)/models/thumbnails/\(plantID).png"
         ) else {
             return nil
         }
 
-        components.queryItems = [URLQueryItem(name: "v", value: version)]
+        components.queryItems = [URLQueryItem(name: "v", value: cleDeVersion(empreinte))]
         return components.url
     }
 
-    static func exists(for plantID: String) -> Bool {
-        load(for: plantID) != nil
+    /// Fichier en cache pour cette fiche, quelle que soit sa clé de version.
+    ///
+    /// L'envoi depuis la page admin ne connaît que l'identifiant : il parcourt
+    /// `cachedPlantIDs()`, qui ne rend pas les empreintes. Reconstruire le nom
+    /// avec la constante globale ne trouverait plus le fichier dès qu'il a été
+    /// écrit sous une empreinte.
+    static func fichierEnCache(pour plantID: String) -> URL? {
+        guard let fichiers = try? FileManager.default.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]) else { return nil }
+        return fichiers.first { $0.lastPathComponent.hasPrefix("\(plantID)_")
+                                && $0.pathExtension == "png" }
     }
 
+    static func exists(for plantID: String, empreinte: String? = nil) -> Bool {
+        load(for: plantID, empreinte: empreinte) != nil
+    }
+
+    /// Identifiants des vignettes présentes sur le disque, quelle que soit leur
+    /// clé de version.
+    ///
+    /// Depuis que la clé peut être l'empreinte de la fiche, le suffixe n'est
+    /// plus connu d'avance : chercher `_v22.png` ne trouverait plus rien. On
+    /// coupe donc au DERNIER `_`, ce qui vaut tant qu'un identifiant de fiche
+    /// n'en contient pas — c'est un ObjectID hexadécimal, il n'en contient pas.
     static func cachedPlantIDs() -> [String] {
-        let suffix = "_\(version).png"
         guard let files = try? FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: nil,
@@ -145,9 +184,11 @@ struct PlantThumbnailCache {
         }
 
         let ids = files.compactMap { url -> String? in
-            let filename = url.lastPathComponent
-            guard filename.hasSuffix(suffix) else { return nil }
-            let id = String(filename.dropLast(suffix.count))
+            let nom = url.lastPathComponent
+            guard nom.hasSuffix(".png") else { return nil }
+            let sansExtension = String(nom.dropLast(4))
+            guard let coupe = sansExtension.lastIndex(of: "_") else { return nil }
+            let id = String(sansExtension[sansExtension.startIndex..<coupe])
             return id.isEmpty ? nil : id
         }
 
@@ -161,8 +202,8 @@ struct PlantThumbnailCache {
     /// pas sur la version réduite. Ses heuristiques échantillonnent des pixels à
     /// des positions précises — les juger sur une image redimensionnée
     /// changerait leur verdict, et une vignette légitime finirait effacée.
-    static func load(for plantID: String) -> UIImage? {
-        let k = cle(plantID)
+    static func load(for plantID: String, empreinte: String? = nil) -> UIImage? {
+        let k = cle(plantID, empreinte)
         if let deja = decodees.object(forKey: k) { return deja }
 
         let fileURL = url(for: plantID)
@@ -194,13 +235,14 @@ struct PlantThumbnailCache {
     }
 
     @discardableResult
-    static func save(_ image: UIImage, plantID: String) -> UIImage {
+    static func save(_ image: UIImage, plantID: String,
+                     empreinte: String? = nil) -> UIImage {
         let studioImage = needsStudioBackdrop(image)
             ? imageByCompositingStudioBackdrop(under: image)
             : image
         let cachedImage = applyingCurrentDesignMarker(to: studioImage)
         guard let data = cachedImage.pngData() else { return cachedImage }
-        let path = url(for: plantID)
+        let path = url(for: plantID, empreinte: empreinte)
         try? data.write(to: path)
         print("✅ PNG écrit:", path.path)
 
@@ -212,7 +254,7 @@ struct PlantThumbnailCache {
         // repayer lecture et décodage : `save` tourne déjà hors du thread
         // principal, c'est le bon endroit pour le faire. Le marqueur vient
         // d'être posé, donc le verdict est connu sans le calculer.
-        let k = cle(plantID)
+        let k = cle(plantID, empreinte)
         decodees.removeObject(forKey: k)
         verdicts.setObject(NSNumber(value: false), forKey: k)
         if let source = CGImageSourceCreateWithData(data as CFData, nil),

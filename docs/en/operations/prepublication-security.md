@@ -35,3 +35,37 @@ The route can be retried if Firebase fails after MongoDB deletions. The complete
 4. Ensure the Apple private key exists outside the repository and is readable only by the service.
 5. Test `/health`, `401`, `403`, `413`, and `429` responses, then a complete account deletion.
 6. Publish privacy policy version 2.2 before submitting the build to Apple.
+
+---
+
+## What has changed since — addendum of 2026-11-03
+
+This document is a **dated snapshot**, and that is a useful format: it states
+what was true on a date, not what is true today. Two facts have contradicted it
+since, found while auditing the codebase. They are recorded here rather than
+folded into the body, so as not to spoil the snapshot.
+
+**Uploading a thumbnail no longer always requires the administrator role.** The
+sentence "operations that … upload a thumbnail additionally require the
+administrator role" still holds for `POST /models/thumbnails/:plantId`. But
+#696 added `POST /internal/models/thumbnails/:plantId`, which requires **two
+keys** — `X-API-Key` and `X-Arbore-Internal-Key` — and **no role**.
+
+This is not a weakening: the internal key opens only three gestures (list the
+catalogue, read a model, upload a thumbnail), grants no role, opens no account
+route, and the API key alone is not enough. When absent, the routes answer 503
+— production does not carry it. Detail in
+[`../architecture/03-components-backend.md`](../architecture/03-components-backend.md).
+
+**The thumbnail upload ceiling went from 10 to 200 per minute.** The line
+"Uploads: 10 requests per minute" still holds for profile photos
+(`uploadMinuteLimiter`). Thumbnails have their own limiter,
+`vignettesParMinute = 200`, because republishing a catalogue has to go through
+in one pass: at ten per minute it stopped at the tenth and took forty-nine
+refusals in a row. A batch route's ceiling is measured by the size of the
+batch.
+
+The remaining values were re-checked against `main.go` on 2026-11-03 and hold:
+300/min public, 120/min authenticated, 20 and 100 for chat, 6 and 20 for
+diagnosis, 10 MiB JSON body, 5 MiB profile photo, 6 MiB diagnosis image, 8 MiB
+thumbnail.

@@ -12,6 +12,9 @@
 import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { BANDES, type Empreinte, type Profil } from './profil';
+import {
+  CLARTE_CIEL_MAX, REGLAGES_VIGNETTE, type ReglagesVignette, clarte, reglagesValides,
+} from './vignette';
 
 export type EtatTache = 'en_attente' | 'en_cours' | 'livree' | 'echec';
 
@@ -33,6 +36,34 @@ export type Tache = {
   depose: number;
   pris?: number;
   /** Identité de la réservation en cours. Voir `prendre`. */
+  reservation?: string;
+  livre?: number;
+  resultat?: Record<string, unknown>;
+  erreur?: string;
+};
+
+/**
+ * Une vignette à rendre.
+ *
+ * Tableau SÉPARÉ de `taches`, et ce n'est pas un rangement : `prendre()` rend
+ * la première tâche `en_attente` de `taches` sans filtrer, donc une tâche de
+ * vignette posée là serait réservée par l'ouvrier Colab, qui échouerait
+ * dessus.
+ *
+ * Une tâche par PLANTE, comme pour les maillages. Un lot unique couvrant le
+ * catalogue dépasserait l'expiration de réservation et serait remis en
+ * attente alors qu'il tourne encore — deux ouvriers sur le même travail.
+ */
+export type TacheVignette = {
+  id: string;
+  /** Environnement visé : les identifiants de plante n'y sont pas les mêmes. */
+  env: string;
+  /** Identifiant de la plante DANS le catalogue de cet environnement. */
+  plante: string;
+  reglages: ReglagesVignette;
+  etat: EtatTache;
+  depose: number;
+  pris?: number;
   reservation?: string;
   livre?: number;
   resultat?: Record<string, unknown>;
@@ -82,8 +113,12 @@ export type EmpreinteRangee = Empreinte & {
   mesure: number;
 };
 
+export type { ReglagesVignette };
+
 export type Etat = {
   taches: Tache[];
+  /** File de rendu des vignettes. Voir `TacheVignette`. */
+  vignettes?: TacheVignette[];
   /** Bibliothèque de pots, indexée par nom de fichier. */
   pots?: Record<string, Pot>;
   plantes: Record<string, {
@@ -147,12 +182,26 @@ export type Etat = {
     purge?: Purge;
   }>;
   /** Ce qu'on sait d'une source au-delà de son fichier. */
-  sources?: Record<string, { sansPot?: boolean }>;
+  sources?: Record<string, {
+    sansPot?: boolean;
+    /**
+     * Diamètre du pot, en centimètres, tel que la fiche d'origine le donne.
+     *
+     * C'est un FAIT, pas un jugement : il sert à pré-remplir la saisie de
+     * taille au lieu de la laisser à l'œil. Mesuré sur 26 plantes ayant les
+     * deux, la fiche et la saisie humaine concordent 26 fois sur 26 — tandis
+     * que l'estimation visuelle libre s'est trompée 2 fois sur 3.
+     *
+     * L'opérateur reste libre de le changer : la fiche propose, elle ne
+     * décide pas.
+     */
+    diametrePotCm?: number;
+  }>;
   /** Empreintes mesurées, indexées par « plante/fichier ». */
   empreintes?: Record<string, EmpreinteRangee>;
 };
 
-const VIDE: Etat = { taches: [], plantes: {} };
+const VIDE: Etat = { taches: [], plantes: {}, vignettes: [] };
 
 /**
  * Au-delà de ce délai, une tâche réservée retourne en attente.
@@ -597,9 +646,46 @@ export function sources(): Source[] {
 export function marquerSansPot(fichier: string, sansPot: boolean) {
   return muter((etat) => {
     const s = (etat.sources ??= {});
-    if (sansPot) (s[fichier] ??= {}).sansPot = true;
-    else delete s[fichier];
+    if (sansPot) {
+      (s[fichier] ??= {}).sansPot = true;
+    } else {
+      // Ne retirer QUE ce drapeau. Effacer l'entrée emporterait le diamètre
+      // de la fiche, qui n'a rien à voir avec lui — décocher « sans pot »
+      // perdrait silencieusement une donnée d'une autre nature.
+      const e = s[fichier];
+      if (e) {
+        delete e.sansPot;
+        // Une entrée vide ne porte plus d'information : on la retire pour que
+        // l'état ne se peuple pas de coquilles.
+        if (Object.keys(e).length === 0) delete s[fichier];
+      }
+    }
     return sansPot;
+  });
+}
+
+/**
+ * Enregistre le diamètre de pot donné par la fiche d'origine d'une source.
+ *
+ * Séparé de la saisie de taille à dessein : celle-ci est une décision de
+ * l'opérateur, celui-là un fait rattaché à la source. Les confondre ferait
+ * passer une donnée reçue pour un jugement, et on ne saurait plus lequel des
+ * deux a produit une valeur.
+ */
+export function noterDiametreFiche(fichier: string, diametreCm: number | null) {
+  return muter((etat) => {
+    const s = (etat.sources ??= {});
+    if (diametreCm === null || !Number.isFinite(diametreCm) || diametreCm <= 0) {
+      const e = s[fichier];
+      if (e) {
+        delete e.diametrePotCm;
+        if (Object.keys(e).length === 0) delete s[fichier];
+      }
+      return null;
+    }
+    const d = Math.round(diametreCm * 10) / 10;
+    (s[fichier] ??= {}).diametrePotCm = d;
+    return d;
   });
 }
 
@@ -647,6 +733,12 @@ export function lire(): Etat {
       taches: brut.taches ?? [], plantes: brut.plantes ?? {},
       pots: brut.pots ?? {}, sources: brut.sources ?? {},
       empreintes: brut.empreintes ?? {},
+      // `vignettes` DOIT figurer ici. `lire()` reconstruit l'état à partir de
+      // cette liste et jette tout le reste, puis `ecrire()` réécrit l'objet
+      // reconstruit : une clé oubliée serait silencieusement effacée au
+      // prochain dépôt de tâche de maillage — c'est-à-dire par l'activité
+      // normale de l'ouvrier Colab, qui n'a rien demandé.
+      vignettes: brut.vignettes ?? [],
     };
   } catch {
     return structuredClone(VIDE);
@@ -1277,6 +1369,13 @@ export type Mesurable = {
   /** Rapport hauteur/diamètre du pot, et s'il décrit un pot plausible. */
   rapportHD: number | null;
   potPlausible: boolean;
+  /**
+   * Diamètre donné par la fiche d'origine, quand elle le porte.
+   *
+   * Sert à pré-remplir la saisie : c'est la source la plus fiable dont on
+   * dispose, et la seule qui ne demande aucun jugement.
+   */
+  diametreFiche: number | null;
   taille: {
     hauteurCm: number; stade: 'jeune' | 'adulte';
     diametrePotCm?: number; pose: number;
@@ -1323,6 +1422,9 @@ export function mesurables(): Mesurable[] {
       rapportHD,
       potPlausible: rapportHD !== null
         && rapportHD >= HD_POT.min && rapportHD <= HD_POT.max,
+      // `nomFichier` et non `t.image` tel quel : `sources` est indexé par nom
+      // nu, alors que la tâche garde l'image telle qu'on la lui a donnée.
+      diametreFiche: nombre(etat.sources?.[nomFichier(t.image) ?? '']?.diametrePotCm),
       taille: etat.plantes[t.plante]?.taille ?? null,
     });
   }
@@ -1368,3 +1470,209 @@ export function noterTaille(plante: string, taille: Taille | null) {
     return { ok: true as const, taille: p.taille };
   });
 }
+
+// ── Galerie : tout ce que l'atelier a produit ────────────────────────────────
+
+/**
+ * Une plante telle qu'elle existe RÉELLEMENT sur le volume.
+ *
+ * La revue ne montre que ce qui attend un jugement. Rien ne permettait de
+ * revoir une plante déjà tranchée — et c'est ainsi qu'un palmier validé le
+ * 5 octobre a pu être servi avec une coupe réécrite le 15, sans que personne
+ * ne puisse le constater.
+ */
+export type EntreeGalerie = {
+  plante: string;
+  verdict: Verdict | null;
+  raison: string | null;
+  /** Coupe retenue, si le verdict en a nommé une. */
+  coupe: string | null;
+  /** Maillages présents sur le volume, du plus lourd au plus léger. */
+  maillages: Array<{ fichier: string; octets: number; modifie: number | null }>;
+  /** Aperçus PNG disponibles, pour montrer sans charger la 3D. */
+  apercus: string[];
+  /** Quand la plante a été tranchée. `purge.quand` en est le relevé le plus sûr. */
+  tranchee: number | null;
+  /** Quand la coupe retenue a été écrite sur le volume. */
+  coupeEcrite: number | null;
+  /**
+   * La coupe a été réécrite APRÈS le verdict.
+   *
+   * C'est le signal qui manquait : le verdict porte alors sur un maillage qui
+   * n'existe plus. Mesuré le 2026-10-22 — 58 coupes réécrites le 15 octobre,
+   * zéro plante marquée `recoupee`.
+   */
+  coupeApresVerdict: boolean;
+  graines: number[];
+  hauteurCm: number | null;
+};
+
+function modifieLe(plante: string, fichier: string): number | null {
+  try {
+    return statSync(cheminArtefact(plante, fichier)).mtimeMs;
+  } catch {
+    return null;
+  }
+}
+
+/** Tout ce que l'atelier a produit, trié par nom. */
+export function galerie(): EntreeGalerie[] {
+  const etat = lire();
+  const sorties: EntreeGalerie[] = [];
+
+  for (const [plante, p] of Object.entries(etat.plantes)) {
+    let fichiers: string[] = [];
+    let apercus: string[] = [];
+    try {
+      const tous = readdirSync(join(racine(), 'plantes', plante));
+      fichiers = tous.filter((f) => f.toLowerCase().endsWith('.glb'));
+      apercus = tous.filter((f) => f.toLowerCase().endsWith('.png')).sort();
+    } catch {
+      // Plante sans répertoire : elle a été purgée, ou n'a jamais rien livré.
+    }
+
+    const maillages = fichiers
+      .map((f) => ({ fichier: f, octets: tailleArtefact(plante, f) ?? 0, modifie: modifieLe(plante, f) }))
+      .sort((a, b) => b.octets - a.octets);
+
+    const tranchee = p.purge?.quand ?? null;
+    const coupe = p.coupe ?? null;
+    const coupeEcrite = coupe ? modifieLe(plante, coupe) : null;
+
+    sorties.push({
+      plante,
+      verdict: (p.verdict as Verdict | undefined) ?? null,
+      raison: p.raison ?? null,
+      coupe,
+      maillages,
+      apercus,
+      tranchee,
+      coupeEcrite,
+      // Une minute de marge : la purge suit le verdict de quelques
+      // millisecondes, et on ne veut pas signaler ce décalage-là.
+      coupeApresVerdict: Boolean(
+        tranchee && coupeEcrite && coupeEcrite > tranchee + 60_000,
+      ),
+      graines: p.graines ?? [],
+      hauteurCm: p.taille?.hauteurCm ?? null,
+    });
+  }
+
+  return sorties.sort((a, b) => a.plante.localeCompare(b.plante));
+}
+
+// ── File de rendu des vignettes ────────────────────────────────────────────
+//
+// Seconde file, posée sur le MÊME état que celle des maillages, mais dans un
+// tableau distinct. Les deux ouvriers ne se croisent donc jamais, alors que
+// les mutations restent sérialisées par `muter` — ce qui est exactement ce
+// qu'on veut : pas d'écrasement, pas de tâche prise deux fois.
+
+/**
+ * Expiration propre à la file des vignettes.
+ *
+ * Celle des maillages vaut 30 min et son commentaire dit pourquoi : une
+ * session Colab meurt vers 90 min et un appel CUDA bloquant ne s'interrompt
+ * pas. Un rendu de vignette se compte en minutes, pas en dizaines : 20 min
+ * laissent une marge large tout en reprenant vite un ouvrier mort.
+ */
+export const EXPIRATION_VIGNETTE_MS = 20 * 60 * 1000;
+
+/**
+ * Dépose une tâche par plante.
+ *
+ * Une plante déjà en attente ou en cours POUR LE MÊME environnement n'est pas
+ * redéposée : sans cette garde, cliquer deux fois rendrait deux fois la même
+ * vignette et la publierait deux fois.
+ */
+export function deposerVignettes(
+  env: string, plantes: string[], reglages: ReglagesVignette,
+): Promise<TacheVignette[]> {
+  return muter((etat) => {
+    const file = (etat.vignettes ??= []);
+    const enCours = new Set(
+      file.filter((t) => t.etat === 'en_attente' || t.etat === 'en_cours')
+        .filter((t) => t.env === env)
+        .map((t) => t.plante),
+    );
+    const posees: TacheVignette[] = [];
+    for (const plante of plantes) {
+      if (enCours.has(plante)) continue;
+      enCours.add(plante);
+      const tache: TacheVignette = {
+        id: identifiant(), env, plante, reglages,
+        etat: 'en_attente', depose: Date.now(),
+      };
+      file.push(tache);
+      posees.push(tache);
+    }
+    return posees;
+  });
+}
+
+function reprendreVignettesExpirees(etat: Etat, maintenant: number): number {
+  let reprises = 0;
+  for (const t of etat.vignettes ?? []) {
+    if (t.etat === 'en_cours' && maintenant - (t.pris ?? 0) > EXPIRATION_VIGNETTE_MS) {
+      t.etat = 'en_attente';
+      delete t.reservation;
+      reprises += 1;
+    }
+  }
+  return reprises;
+}
+
+/**
+ * Réserve une vignette à rendre, ou `null`. Même protocole que `prendre`.
+ *
+ * `env` restreint la prise à un environnement, et ce n'est pas un confort :
+ * publier demande un jeton admin propre à l'environnement visé. Un ouvrier
+ * unique servant dev ET prod devrait porter les identifiants des deux, ce qui
+ * reviendrait à donner à dev de quoi écrire en production. Chaque
+ * environnement fait donc tourner son ouvrier, avec ses seuls identifiants.
+ */
+export function prendreVignette(maintenant = Date.now(), env?: string) {
+  return muter((etat) => {
+    reprendreVignettesExpirees(etat, maintenant);
+    const tache = (etat.vignettes ?? [])
+      .find((t) => t.etat === 'en_attente' && (env === undefined || t.env === env));
+    if (!tache) return null;
+    tache.etat = 'en_cours';
+    tache.pris = maintenant;
+    // Comme pour les maillages : la livraison doit présenter la réservation.
+    // Une tâche expirée puis reprise garde son identifiant, et l'ouvrier
+    // bloqué livrerait par-dessus le travail de celui qui a repris.
+    tache.reservation = identifiant();
+    return { ...tache };
+  });
+}
+
+export function livrerVignette(id: string, reservation: string, resultat: Record<string, unknown>) {
+  return muter((etat) => {
+    const t = (etat.vignettes ?? []).find((x) => x.id === id);
+    if (!t || t.etat !== 'en_cours' || t.reservation !== reservation) return false;
+    delete t.reservation;
+    t.etat = 'livree';
+    t.resultat = resultat;
+    t.livre = Date.now();
+    return true;
+  });
+}
+
+export function echouerVignette(id: string, reservation: string, erreur: string) {
+  return muter((etat) => {
+    const t = (etat.vignettes ?? []).find((x) => x.id === id);
+    if (!t || t.reservation !== reservation) return false;
+    delete t.reservation;
+    t.etat = 'echec';
+    t.erreur = erreur.slice(0, 500);
+    return true;
+  });
+}
+
+/** La file, sans les jetons de réservation, pour le tableau de bord. */
+export function fileVignettes(): Omit<TacheVignette, 'reservation'>[] {
+  return (lire().vignettes ?? []).map(({ reservation, ...reste }) => reste);
+}
+
+export { CLARTE_CIEL_MAX, REGLAGES_VIGNETTE, clarte, reglagesValides };

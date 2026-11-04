@@ -7,10 +7,17 @@
 // on garde la possibilité de lancer un build de débogage CONTRE LA PRODUCTION,
 // ce qui est le seul moyen de reproduire un bug remonté par un bêta-testeur.
 //
-// Inclut le xcconfig Pods de DEBUG, pas un « Pods-….dev.xcconfig » : CocoaPods
-// ne génère un fichier que pour les configurations qu'il connaît, et exiger un
-// `pod install` avant tout build casserait un clone frais.
-#include "./Pods/Target Support Files/Pods-ArboreUi/Pods-ArboreUi.debug.xcconfig"
+// Inclut le xcconfig Pods de « Dev », généré parce que le Podfile DÉCLARE
+// cette configuration (`'Dev' => :debug`).
+//
+// La version précédente incluait celui de Debug, pour ne pas exiger un
+// `pod install`. Ça ne marchait pas : un xcconfig dit comment compiler, il ne
+// fait pas construire les CIBLES de Pods pour une configuration qu'elles n'ont
+// pas. L'archive échouait au link sur « framework 'Pods_ArboreUi' not found ».
+//
+// Et la crainte n'avait pas lieu d'être : `Pods/` est gitignoré, donc un clone
+// frais exige déjà `pod install` avant de construire quoi que ce soit.
+#include "./Pods/Target Support Files/Pods-ArboreUi/Pods-ArboreUi.dev.xcconfig"
 
 // Secrets propres à dev. Inclusion OPTIONNELLE (`#include?`) : son absence ne
 // casse pas le build, elle laisse les variables vides — et `AppConfig` retombe

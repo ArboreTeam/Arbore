@@ -3,6 +3,27 @@ Description=Restrict nginx :80 (origin) to Cloudflare IPs
 After=docker.service network-online.target
 Wants=network-online.target
 
+# nginx ne doit pas accepter de trafic avant que les regles existent.
+#
+# Mesure au redemarrage du 2026-10-21 sur la machine de migration (#652) :
+#
+#     16:21:33  nginx accepte
+#     16:21:35  cf-http-firewall applique
+#
+# Deux secondes, a CHAQUE demarrage, ou l'origine repond a tout internet. Un
+# `curl` depuis une adresse hors Cloudflare a bien recu une reponse pendant
+# cette fenetre -- c'est comme ca qu'elle a ete trouvee.
+#
+# `Before=` et non un drop-in sur nginx : `deploy.sh` installe chaque fichier
+# de `ops/systemd/` a plat, donc un sous-dossier `nginx.service.d/` casserait
+# sa boucle. L'ordonnancement systemd etant symetrique, le declarer ici
+# suffit, et garde la raison a cote du service concerne.
+#
+# Consequence assumee : nginx attend aussi `docker.service`, dont ce service
+# depend. C'est sans cout -- nginx ne fait que relayer vers les conteneurs,
+# donc il n'a rien a servir avant eux.
+Before=nginx.service
+
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/cf-http-firewall.sh

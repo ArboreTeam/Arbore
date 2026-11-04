@@ -214,9 +214,21 @@ c'est le cas normal et le défaut.
 
 ```hcl
 # envs/prod.ci.tfvars — versionné, donc le changement est relu en PR
-origin_ip     = "79.137.92.154"   # api + web : machine en service
-dev_origin_ip = "162.19.13.82"    # api-dev seul : machine neuve
+origin_ip     = "<machine en service>"   # api + web : inchangés
+dev_origin_ip = "<machine neuve>"        # api-dev seul : la machine à éprouver
 ```
+
+> Les adresses sont volontairement en gabarit ici. Dans le fichier versionné
+> elles sont littérales — c'est ce qui rend une bascule relisible en PR — mais
+> un exemple qui porte une adresse réelle finit par survivre à la machine, et
+> quelqu'un la recopie. La migration de #652 s'est conclue le 2026-11-04 : cet
+> exemple décrivait encore l'ancienne machine comme « en service » le lendemain.
+
+**Et pour conclure une bascule, revider ces variables.** Une fois `origin_ip`
+pointé sur la machine neuve, laisser `dev_origin_ip` à la même valeur littérale
+est une duplication qui se désynchronisera à la migration suivante : on
+corrigera `origin_ip` en croyant avoir tout fait. Vide signifie « suit
+`origin_ip` », et c'est l'état de repos.
 
 La PR qui porte ce diff reçoit son plan en commentaire. Il doit montrer
 **exactement une ressource, sans destruction** :

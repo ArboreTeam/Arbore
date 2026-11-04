@@ -151,34 +151,57 @@ exclusion of the commit read from `GET /health`.
 
 ## Environments
 
-Two independent stacks, **on two machines since the migration under way**
-(#652). They share the Firebase project; they share neither version, ports, nor
-environment file.
+Two independent stacks, **on a single machine since the 2026-11-04 cutover**
+(#652), in two distinct git checkouts. They share the Firebase project; they
+share neither version, ports, environment file, nor data directories.
 
 ```mermaid
 flowchart TB
-    subgraph old["Old VPS · 79.137.92.154 · Fedora"]
-        subgraph prod["arbore-prod · /home/fedora/Arbore · main"]
+    subgraph vps["Debian 12 VPS · 162.19.13.82 · GRA11"]
+        subgraph prod["arbore-prod · /home/debian/Arbore-prod · main"]
             p1["backend :8080"]
             p2["web :3000"]
         end
-        nginxA["nginx (host)"]
-    end
-    subgraph new["New VPS · 162.19.13.82 · Debian"]
         subgraph devenv["arbore-dev · /home/debian/Arbore · dev"]
             d1["backend :8081"]
             d2["web :3001"]
             d3["vignettes-ouvrier (profile)"]
         end
-        nginxB["nginx (host)"]
+        nginx["nginx (host)"]
     end
-    nginxA -->|api.arbore.app| p1
-    nginxA -->|web.arbore.app| p2
-    nginxB -->|api-dev.arbore.app| d1
-    nginxB -->|generator.arbore.app| d2
+    nginx -->|api.arbore.app| p1
+    nginx -->|web.arbore.app| p2
+    nginx -->|generator.arbore.app| p2
+    nginx -->|api-dev.arbore.app| d1
     prod -.->|arbore| mongo[("MongoDB Atlas")]
     devenv -.->|arbore_dev| mongo
 ```
+
+> ⚠️ **`generator.arbore.app` is served by the PRODUCTION stack (`:3000`), while
+> the `dev` branch declares `:3001` — and `main` wins.**
+>
+> nginx configuration is **machine-global**, so `deploy.sh` installs it only
+> from the **primary** environment, that is the production checkout on `main`
+> (see `do_apply_ops`). A `dev` deploy prints "host configuration unchanged" and
+> touches nothing.
+>
+> So `ops/nginx/generator.conf` on `dev` routes to `:3001` with an explicit
+> rationale — the workshop is a development tool and should get new code without
+> waiting for a promotion — but **that intent cannot take effect**: the file
+> that gets installed is `main`'s.
+>
+> Observed on 2026-11-03: the first production deploy on this machine replaced
+> the vhost laid down at bootstrap from the `dev` checkout (`:3001`) with
+> `main`'s (`:3000`), moving the workshop from one stack to the other with
+> nothing to signal it. The nginx log shows continuous `200`s before that
+> moment — the workshop was working, served by the dev stack.
+>
+> Until this is settled, **any vhost that must target a non-primary stack has to
+> be declared on `main`.**
+
+> The old Fedora VPS stays powered on until 2026-11-06 as a fallback. It
+> receives no traffic: verified with a tagged request, which landed on the new
+> machine and never on the old one.
 
 > The Python AI generator (`ai :8000`) appeared here until 2026-11-02. It was
 > **dropped on 2026-09-20** (#558).

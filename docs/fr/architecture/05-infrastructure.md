@@ -152,34 +152,58 @@ de réconciliation : simulation par défaut, fail-closed, refus si aucune
 
 ## Les environnements
 
-Deux piles indépendantes, **sur deux machines depuis la migration en cours**
-(#652). Elles partagent le projet Firebase ; elles ne partagent ni la version,
-ni les ports, ni le fichier d'environnement.
+Deux piles indépendantes, **sur une seule machine depuis la bascule du
+2026-11-04** (#652), dans deux checkouts git distincts. Elles partagent le
+projet Firebase ; elles ne partagent ni la version, ni les ports, ni le fichier
+d'environnement, ni leurs répertoires de données.
 
 ```mermaid
 flowchart TB
-    subgraph ancien["Ancien VPS · 79.137.92.154 · Fedora"]
-        subgraph prod["arbore-prod · /home/fedora/Arbore · main"]
+    subgraph vps["VPS Debian 12 · 162.19.13.82 · GRA11"]
+        subgraph prod["arbore-prod · /home/debian/Arbore-prod · main"]
             p1["backend :8080"]
             p2["web :3000"]
         end
-        nginxA["nginx (hôte)"]
-    end
-    subgraph neuf["Nouveau VPS · 162.19.13.82 · Debian"]
         subgraph devenv["arbore-dev · /home/debian/Arbore · dev"]
             d1["backend :8081"]
             d2["web :3001"]
             d3["vignettes-ouvrier (profil)"]
         end
-        nginxB["nginx (hôte)"]
+        nginx["nginx (hôte)"]
     end
-    nginxA -->|api.arbore.app| p1
-    nginxA -->|web.arbore.app| p2
-    nginxB -->|api-dev.arbore.app| d1
-    nginxB -->|generator.arbore.app| d2
+    nginx -->|api.arbore.app| p1
+    nginx -->|web.arbore.app| p2
+    nginx -->|generator.arbore.app| p2
+    nginx -->|api-dev.arbore.app| d1
     prod -.->|arbore| mongo[("MongoDB Atlas")]
     devenv -.->|arbore_dev| mongo
 ```
+
+> ⚠️ **`generator.arbore.app` est servi par la pile de PRODUCTION (`:3000`),
+> alors que la branche `dev` déclare `:3001` — et c'est `main` qui gagne.**
+>
+> La configuration nginx est **globale à la machine**, donc `deploy.sh` ne
+> l'installe que depuis l'environnement **primaire**, c'est-à-dire le checkout
+> de production sur `main` (voir `do_apply_ops`). Un déploiement `dev` affiche
+> « configuration hôte inchangée » et ne touche à rien.
+>
+> `ops/nginx/generator.conf` sur `dev` route donc vers `:3001` avec une
+> justification explicite — l'atelier est un outil de développement, il doit
+> recevoir le code neuf sans attendre une promotion — mais **cette intention ne
+> peut pas prendre effet** : le fichier qui s'installe est celui de `main`.
+>
+> Observé le 2026-11-03 : le premier déploiement de production sur cette machine
+> a remplacé le vhost posé au bootstrap depuis le checkout `dev` (`:3001`) par
+> celui de `main` (`:3000`), déplaçant l'atelier d'une pile à l'autre sans que
+> rien ne le signale. Le journal nginx montre des `200` continus avant ce
+> moment — l'atelier fonctionnait, servi par la pile dev.
+>
+> Tant que ce n'est pas tranché, **tout vhost devant viser une pile non
+> primaire doit être déclaré sur `main`.**
+
+> L'ancien VPS Fedora reste allumé jusqu'au 2026-11-06 comme repli. Il ne reçoit
+> plus de trafic : vérifié par une requête marquée, arrivée sur la machine neuve
+> et jamais sur l'ancienne.
 
 > Le générateur IA Python (`ai :8000`) figurait ici jusqu'au 2026-11-02. Il a
 > été **déposé le 2026-09-20** (#558).

@@ -18,28 +18,35 @@ For provisioning, [`vps-bootstrap.md`](vps-bootstrap.md).
 
 Breaking dev has no effect on beta testers. That is its purpose.
 
-### ⚠️ They are no longer on the same machine
+### Both environments live on the same machine, in two checkouts
 
-Recorded on 2026-11-02. The #652 migration is **under way**, and the two
-environments now live on two different VPSs:
+Recorded on 2026-11-04, **after** the #652 DNS cutover:
 
 | | machine | path | user |
 |---|---|---|---|
-| **prod** | old VPS, `79.137.92.154` | `/home/fedora/Arbore` | `fedora` |
-| **dev** | new VPS, `162.19.13.82` | `/home/debian/Arbore` | `debian` |
+| **prod** | Debian 12 VPS, `162.19.13.82` | `/home/debian/Arbore-prod` (`main`) | `debian` |
+| **dev** | the same machine | `/home/debian/Arbore` (`dev`) | `debian` |
 
-`generator.arbore.app` (the 3D workshop) and `api-dev.arbore.app` point at the
-**new** VPS; `api.arbore.app` and `web.arbore.app` at the old one.
+All four names — `api`, `web`, `generator`, `api-dev` — now resolve to this
+machine. The old Fedora VPS stays powered on until 2026-11-06 as a **fallback**:
+the records are proxied by Cloudflare, so going back is an origin-address
+change, immediate and with no redeploy.
 
-**And the layout changed in kind.** The old machine held two separate git
-checkouts — `Arbore` and `Arbore-dev` — which kept each environment's data
-apart without anyone having to think about it: the `docker-compose.yml`
-defaults are **relative to the compose file**.
+> **Deliberate naming asymmetry.** Production lives in `Arbore-prod` and dev in
+> `Arbore`, the opposite of the old machine. `deploy.sh` takes its image tag
+> from `git rev-parse HEAD` and its guard requires `main` for prod: a checkout
+> can only be on one branch at a time. The `dev` checkout was already in
+> service, and nothing that works moves during a migration.
 
-The new machine holds a **single checkout** for two compose stacks
-(`arbore-prod` and `arbore-dev`). The same defaults therefore converge on the
-same directories. That is what made both backends share their thumbnail
-directory **writable** until 2026-11-02.
+**And that is where the partitioning comes from.** Two separate checkouts give
+it for free, since the `docker-compose.yml` defaults are **relative to the
+compose file**.
+
+Do not mistake that property for a guarantee. Between 2026-10-21 and
+2026-11-02 the new machine held a **single** checkout for two compose stacks
+(`arbore-prod` and `arbore-dev`): the same defaults converged on the same
+directories, and both backends shared their thumbnail directory **writable**.
+What protects us today is a disk layout, not a barrier.
 
 #### What is partitioned, and what is not
 

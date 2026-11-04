@@ -18,28 +18,36 @@ Pour le provisionnement, [`vps-bootstrap.md`](vps-bootstrap.md).
 
 Casser le dev n'a aucun effet sur les bêta-testeurs. C'est sa raison d'être.
 
-### ⚠️ Ils ne sont plus sur la même machine
+### Les deux environnements sont sur la même machine, dans deux checkouts
 
-Relevé le 2026-11-02. La migration de #652 est **en cours**, et les deux
-environnements vivent désormais sur deux VPS différents :
+Relevé le 2026-11-04, **après** la bascule DNS de #652 :
 
 | | machine | chemin | utilisateur |
 |---|---|---|---|
-| **prod** | ancien VPS, `79.137.92.154` | `/home/fedora/Arbore` | `fedora` |
-| **dev** | nouveau VPS, `162.19.13.82` | `/home/debian/Arbore` | `debian` |
+| **prod** | VPS Debian 12, `162.19.13.82` | `/home/debian/Arbore-prod` (`main`) | `debian` |
+| **dev** | la même machine | `/home/debian/Arbore` (`dev`) | `debian` |
 
-`generator.arbore.app` (l'atelier 3D) et `api-dev.arbore.app` pointent sur le
-**nouveau** VPS ; `api.arbore.app` et `web.arbore.app` sur l'ancien.
+Les quatre noms — `api`, `web`, `generator`, `api-dev` — résolvent désormais
+sur cette machine. L'ancien VPS Fedora reste allumé jusqu'au 2026-11-06 comme
+**repli** : les enregistrements sont proxifiés par Cloudflare, donc y revenir
+est un changement d'adresse d'origine, immédiat et sans redéploiement.
 
-**Et la disposition a changé de nature.** L'ancienne machine tenait deux
-checkouts git séparés — `Arbore` et `Arbore-dev` —, ce qui séparait les données
-de chaque environnement sans que personne ait à y penser : les chemins par
-défaut de `docker-compose.yml` sont **relatifs au fichier compose**.
+> **Asymétrie de nommage assumée.** La production est dans `Arbore-prod` et dev
+> dans `Arbore`, l'inverse de l'ancienne machine. `deploy.sh` tire son étiquette
+> d'image de `git rev-parse HEAD` et son garde-fou exige `main` pour prod : un
+> checkout ne peut être que sur une branche à la fois. Le checkout `dev` était
+> déjà en service, et rien de ce qui marche ne bouge pendant une migration.
 
-La nouvelle machine n'a **qu'un seul checkout** pour deux piles compose
-(`arbore-prod` et `arbore-dev`). Les mêmes défauts les font donc converger vers
-les mêmes répertoires. C'est ce qui a fait partager aux deux backends leur
-répertoire de vignettes **en écriture** jusqu'au 2026-11-02.
+**Et le cloisonnement vient de là.** Deux checkouts séparés le donnent
+gratuitement, puisque les chemins par défaut de `docker-compose.yml` sont
+**relatifs au fichier compose**.
+
+C'est une propriété à ne pas confondre avec une garantie. Entre le 2026-10-21
+et le 2026-11-02, la machine neuve n'a tenu **qu'un seul** checkout pour deux
+piles compose (`arbore-prod` et `arbore-dev`) : les mêmes défauts les faisaient
+converger vers les mêmes répertoires, et les deux backends ont partagé leur
+répertoire de vignettes **en écriture**. Ce qui protège aujourd'hui est une
+disposition de disque, pas une barrière.
 
 #### Ce qui est cloisonné, et ce qui ne l'est pas
 

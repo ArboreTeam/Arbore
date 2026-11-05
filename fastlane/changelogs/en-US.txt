@@ -1,13 +1,16 @@
-This build is version 1.0.0, the one we intend to submit to the App Store.
+This build points at the production backend, which has just received the new 3D models and their pot. It is the first external build since 1.0.0, so there are two months of work to review.
 
-Nothing is new since build 37: the catalogue-grounded diagnosis, the assistant and the translations are unchanged. Only the version number moves from 0.1.12 to 1.0.0.
+The main change: 51 of the 123 plants now ship a recut model with no built-in pot. The app places a real planter under them, scaled to the plant's measured height, with no manual adjustment. A saved garden reopens with its pot.
 
-So a general pass is what we need, not a targeted test. If something bothers you, now is the moment to say so: once the submission is out, the smallest fix means another Apple review.
+One known defect, no need to report it: for those 51 plants, the catalogue thumbnail still shows the previous render, with the old pot. Thumbnails will be redone in a second pass. The mismatch is between the thumbnail and the 3D view, not in the plant itself.
 
-What to try first:
-1. Create a garden end to end: questionnaire, plant picks, AR placement.
-2. Run a health scan, then a conversation with the assistant.
-3. Browse the catalogue and open a few plant pages.
-4. Switch the app language in iOS settings and do another quick round.
+Also since 1.0.0: the app asks your permission before sending a photo or a message to the assistant, and the model cache refreshes on its own when a model changes on the server.
 
-Report any text still in French while the app runs in another language, and any screen that looks unfinished.
+What to test first:
+1. Create a garden end to end, then place several plants in augmented reality. Check that the pot matches the plant's scale and sits on the floor, without floating or sinking.
+2. Close the app and reopen the garden. Plants and pots should come back in the same place.
+3. Browse the catalogue and open about ten plants, comparing the thumbnail against the 3D model.
+4. Run a health scan and a conversation with the assistant, checking that permission is requested.
+5. Switch the app language in iOS settings and take another quick pass.
+
+Report any plant whose pot looks too large or too small, and give us its name. That is the least certain part of this build.

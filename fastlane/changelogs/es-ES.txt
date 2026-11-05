@@ -1,13 +1,16 @@
-Esta build es la versión 1.0.0, la que pensamos enviar a la App Store.
+Esta build apunta al backend de producción, que acaba de recibir los nuevos modelos 3D y su maceta. Es la primera build externa desde la 1.0.0, así que hay dos meses de trabajo que revisar.
 
-No hay nada nuevo desde la build 37: el diagnóstico apoyado en el catálogo, el asistente y las traducciones siguen igual. Solo cambia el número de versión, de 0.1.12 a 1.0.0.
+El cambio principal: 51 de las 123 plantas tienen ahora un modelo recortado, sin maceta integrada. La app les coloca una maceta real, a la altura realmente medida de la planta, sin ningún ajuste manual. Un jardín guardado se reabre con su maceta.
 
-Por eso nos interesa un repaso general y no una prueba concreta. Si algo te molesta, este es el momento de decirlo: una vez enviada la app, la menor corrección exige otra revisión de Apple.
+Un defecto conocido, no hace falta informarlo: en esas 51 plantas, la miniatura del catálogo muestra todavía el render anterior, con la maceta antigua. Las miniaturas se reharán en una segunda fase. La incoherencia está entre la miniatura y la vista 3D, no en la planta.
+
+También desde la 1.0.0: la app pide tu permiso antes de enviar una foto o un mensaje al asistente, y la caché de modelos se actualiza sola cuando un modelo cambia en el servidor.
 
 Qué probar primero:
-1. Crea un jardín de principio a fin: cuestionario, elección de plantas y colocación en RA.
-2. Haz un escaneo de salud y luego una conversación con el asistente.
-3. Recorre el catálogo y abre algunas fichas.
-4. Cambia el idioma de la app en los ajustes de iOS y da otra vuelta rápida.
+1. Crea un jardín de principio a fin y coloca varias plantas en realidad aumentada. Comprueba que la maceta está a la escala de la planta y apoyada en el suelo, sin flotar ni hundirse.
+2. Cierra la app y vuelve a abrir el jardín. Las plantas y sus macetas deben volver al mismo sitio.
+3. Recorre el catálogo y abre unas diez fichas, comparando la miniatura con el modelo 3D.
+4. Lanza un escaneo de salud y una conversación con el asistente, verificando que se pide el permiso.
+5. Cambia el idioma de la app en los ajustes de iOS y da otra vuelta rápida.
 
-Avisa de cualquier texto que siga en francés con la app en otro idioma, y de cualquier pantalla que parezca sin terminar.
+Informa de cualquier planta cuya maceta parezca demasiado grande o demasiado pequeña, indicando su nombre. Es la parte menos segura de esta build.

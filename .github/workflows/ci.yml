@@ -45,11 +45,11 @@ env:
   # sans cache, et la version réellement utilisée n'était pas celle affichée
   # (audit #338 constat 6). Trois endroits à tenir ensemble : ici, `go.mod` et
   # `ArboreBackend/Dockerfile`.
-  GO_VERSION: "1.26.10"
+  GO_VERSION: "1.27.3"
   PYTHON_VERSION: "3.11"
   # Alignée sur web/Dockerfile (node:24-alpine). Tester sur une version autre
   # que celle de l'image publiée, c'est tester autre chose que ce qui tourne.
-  NODE_VERSION: "24"
+  NODE_VERSION: "26"
   # latest-stable : chaque runner prend son Xcode le plus récent.
   # ios_ui tourne sur macos-15 → Xcode 26 (SDK iOS 26 requis pour Liquid Glass,
   # ex. .buttonStyle(.glass)). ios_ar reste sur macos-14 → Xcode 16.x.
@@ -243,7 +243,7 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           working-directory: ArboreBackend
-          version: v2.11.3
+          version: v2.15.0
           args: --timeout=5m
 
       # Vulnérabilités connues de la stdlib Go et des modules (audit #338

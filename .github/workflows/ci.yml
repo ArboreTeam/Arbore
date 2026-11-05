@@ -67,14 +67,13 @@ jobs:
       outillage: ${{ steps.filter.outputs.outillage }}
     steps:
       - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@v2
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
             backend:
               - 'ArboreBackend/**'
               - '.golangci.yml'
-              - '.github/workflows/ci.yml'
               - '.github/workflows/ci.yml'
             ios_ui:
               - 'ArboreUi/**'
@@ -92,6 +91,40 @@ jobs:
               - 'scripts/**'
               - 'vignettes/**'
               - '.github/workflows/ci.yml'
+
+      # Les cinq sorties, en clair, dans le journal de CHAQUE exécution.
+      #
+      # Ce job décide si `backend`, `ios_ui`, `ios_ar`, `web` et `outillage`
+      # tournent. Jusqu'ici, ses décisions ne se lisaient nulle part : il
+      # fallait les déduire de quels jobs apparaissaient ensuite — et un job
+      # absent est indiscernable d'un job sauté à bon droit.
+      #
+      # C'est une famille de pannes que ce dépôt a rencontrée trois fois :
+      # 58 tests Python que rien n'exécutait (#725), le téléversement Codecov
+      # mort derrière un `continue-on-error` (#747), et `cf-update-ranges`
+      # qui échouait derrière un repli codé en dur (#652). Chaque fois, la
+      # mesure existait et personne ne la voyait.
+      #
+      # Deux lignes de journal rendent la prochaine dérive lisible d'un coup
+      # d'œil, au lieu d'exiger une archéologie de la liste des jobs.
+      - name: 🎯 Ce que le filtre a décidé
+        run: |
+          echo "backend   = ${{ steps.filter.outputs.backend }}"
+          echo "ios_ui    = ${{ steps.filter.outputs.ios_ui }}"
+          echo "ios_ar    = ${{ steps.filter.outputs.ios_ar }}"
+          echo "web       = ${{ steps.filter.outputs.web }}"
+          echo "outillage = ${{ steps.filter.outputs.outillage }}"
+          {
+            echo "### 🎯 Filtre de chemins"
+            echo
+            echo "| cible | tourne |"
+            echo "|---|---|"
+            echo "| backend | ${{ steps.filter.outputs.backend }} |"
+            echo "| ios_ui | ${{ steps.filter.outputs.ios_ui }} |"
+            echo "| ios_ar | ${{ steps.filter.outputs.ios_ar }} |"
+            echo "| web | ${{ steps.filter.outputs.web }} |"
+            echo "| outillage | ${{ steps.filter.outputs.outillage }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   # Outillage Python — 58 tests que RIEN n'exécutait jusqu'au 2026-11-03.
   #

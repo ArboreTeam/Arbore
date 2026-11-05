@@ -69,7 +69,7 @@ binaire sort en 8 : App Store Connect refuse la build pour numéro déjà pris,
 après deux minutes d'archive et le téléversement complet.
 
 **Les lanes ne passent plus par agvtool.** `poser_build_number`, dans le
-Fastfile, écrit le numéro dans le `.pbxproj` et nulle part ailleurs, puis refuse
+Fastfile, écrit le numéro dans le `ArboreUi/ArboreUi.xcodeproj/project.pbxproj` et nulle part ailleurs, puis refuse
 de livrer si `Info.plist` ne référence plus la variable. Ne pas réintroduire
 `increment_build_number`.
 

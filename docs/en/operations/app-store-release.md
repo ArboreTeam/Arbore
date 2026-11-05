@@ -67,7 +67,7 @@ binary ships as 8: App Store Connect rejects the build as a duplicate build
 number, after two minutes of archiving and a full upload.
 
 **The lanes no longer go through agvtool.** `poser_build_number`, in the
-Fastfile, writes the number into the `.pbxproj` and nowhere else, then refuses
+Fastfile, writes the number into the `ArboreUi/ArboreUi.xcodeproj/project.pbxproj` and nowhere else, then refuses
 to ship if `Info.plist` no longer references the variable. Do not reintroduce
 `increment_build_number`.
 

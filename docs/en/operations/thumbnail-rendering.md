@@ -162,12 +162,17 @@ The same directory, writable, for both. `THUMBNAILS_HOST_PATH` was set nowhere.
   warning — a warning gets lost in the output, which is exactly what happened
   to the secrets one (#690).
 
-### What remains to settle before the #652 cutover
+### Settled on 2026-11-05: both databases use the same identifiers
 
 The 123 filenames are **identical** on both machines (same hash of the sorted
-list). The files are therefore the same set; whether the two **databases** use
-the same identifiers remains to be confirmed. Until that is settled, no shared
-directory should be considered.
+list). What remained was whether the two **databases** used the same record
+identifiers. They do: when porting the 51 recut plants from `arbore_dev` to
+`arbore`, **all 51 dev `_id`s existed in prod** (51/51), and the targeted
+document carried the same plant.
+
+For a given plant, the two thumbnail directories therefore hold a file with the
+**same name**, which makes partitioning not merely prudent but **mandatory**,
+and confirms this section's diagnosis. No sharing, under any condition.
 
 ## The pot, and why the server now serves its pose
 
@@ -358,6 +363,45 @@ environment", a diagnosis far harder to trace back to its cause.
 
 **Images** need no secret: `GET /models/thumbnails/:filename` is a public
 backend route.
+
+### Publishing to ANOTHER stack requires a network attachment
+
+`apiInterne` is a **container name**, and a container name only resolves on its
+own stack's network. A workshop publishing to two environments hosted by two
+separate stacks must therefore be attached to both networks.
+
+Measured on 2026-11-05 from `arbore-dev-vignettes-ouvrier`, before attachment:
+
+```
+backend-dev        200     http://backend:8080, its own network
+prod-by-name       000     http://arbore-prod-backend:8080
+host-gateway       000     http://host.docker.internal:8080
+gateway-ip         000     http://172.17.0.1:8080
+```
+
+The two stacks sit on `arbore-dev_arbore-net` and `arbore-prod_arbore-net`, and
+the backend port is published on `127.0.0.1` only, hence unreachable from a
+container, including through the gateway.
+
+`deploy.sh` handles it: `VIGNETTES_RESEAUX_CIBLES`, a comma or space separated
+list of networks, and `rattacher_ouvrier_aux_reseaux` connects the worker to
+each one after `up`, idempotently.
+
+```
+VIGNETTES_RESEAUX_CIBLES=arbore-prod_arbore-net
+```
+
+A missing network is **not fatal**: the target stack may be stopped while this
+one is being deployed. The warning says so, and the workshop will say so on the
+first task.
+
+Why not an entry in `docker-compose.yml`: the attachment is **conditional** (only
+the stack carrying the workshop needs it), and an external network declared in
+the compose file would have to exist everywhere, including on a development
+machine that runs a single stack.
+
+Why not the public URL: see the previous section, Cloudflare returns 403 to the
+worker's agent.
 
 ### What the page cannot do
 

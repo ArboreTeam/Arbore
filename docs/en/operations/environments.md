@@ -57,7 +57,7 @@ Recorded by `docker inspect` of the four containers, on 2026-11-03.
 | `/app/thumbnails` (rw) | `arbore-data/…/thumbnails` | `arbore-data/thumbnails-dev` | ✅ |
 | `/app/uploads/community` (rw) | checkout | `arbore-data/uploads-community-dev` | ✅ |
 | `/app/photos` (ro) | checkout | `arbore-data/photos-dev` | ✅ |
-| `/app/models` (ro) | `arbore-data/models` | **the same** | ⏳ migration |
+| `/app/models` (ro) | `arbore-data/models-prod` | `arbore-data/models-dev` | ✅ |
 | `/run/secrets/*` (ro) | `arbore-data/secrets/` | **the same** | 🤝 accepted |
 | `/data/generator` (rw) | checkout | **the same** | 🤝 one workshop |
 
@@ -66,11 +66,30 @@ one is not a partitioning to do but a workshop that must run on **one** stack
 only. The code disables it wherever its keys are not laid down, so a single
 stack writes there.
 
-**The models wait for the migration**, and that is a choice: 6.7 GB and 176
-models on dev against 123 on prod. Copying them now would have to be redone
-when the meshes are transferred (#719 §2). The photos were partitioned right
-away because the directory is **empty on both sides** — nothing to copy,
-nothing to break.
+**The models have been partitioned since 2026-11-05**, and measuring made the
+job far cheaper than expected. The shared directory held 6.7 GB, but each
+catalogue names only part of it:
+
+```
+prod   123 light (0.43 GB) + 123 heavy (4.06 GB)  =  4.49 GB
+dev    123 light (2.36 GB) +  72 heavy (2.47 GB)  =  4.83 GB
+```
+
+Only **what is used** was copied, not the 6.7 GB: partitioning was therefore the
+occasion not to duplicate #734's 1.9 GB of dead weight. Every file was verified
+by checksum, zero mismatch.
+
+The asymmetry in weight is instructive — dev's light models weigh five times
+prod's, because they are the **Trellis 2.0** ones, 41.6 MB each against 3.7 MB
+for the previous generation. Both environments were reading the same directory
+for opposite purposes.
+
+**The downside is accepted**: before, a model dropped into `arbore-data/models`
+appeared on both sides with no further action. Now it must be laid down in both.
+That is exactly what makes the partitioning useful, and what makes it a chore.
+
+The photos had been partitioned right away because the directory is **empty on
+both sides** — nothing to copy, nothing to break.
 
 **The secrets that are read are shared on purpose**: the Firebase project is
 shared, and #434 lists it as an accepted overlap. What is partitioned is the

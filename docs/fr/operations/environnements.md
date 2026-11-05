@@ -58,7 +58,7 @@ Relevé par `docker inspect` des quatre conteneurs, le 2026-11-03.
 | `/app/thumbnails` (rw) | `arbore-data/…/thumbnails` | `arbore-data/thumbnails-dev` | ✅ |
 | `/app/uploads/community` (rw) | checkout | `arbore-data/uploads-community-dev` | ✅ |
 | `/app/photos` (ro) | checkout | `arbore-data/photos-dev` | ✅ |
-| `/app/models` (ro) | `arbore-data/models` | **le même** | ⏳ bascule |
+| `/app/models` (ro) | `arbore-data/models-prod` | `arbore-data/models-dev` | ✅ |
 | `/run/secrets/*` (ro) | `arbore-data/secrets/` | **le même** | 🤝 assumé |
 | `/data/generator` (rw) | checkout | **le même** | 🤝 un seul atelier |
 
@@ -67,11 +67,31 @@ celui-là n'est pas un cloisonnement à faire mais un atelier qui ne doit tourne
 que sur **une** pile. Le code le désactive là où ses clés ne sont pas posées,
 donc une seule pile y écrit.
 
-**Les modèles attendent la bascule**, et c'est un choix : 6,7 Go et 176 modèles
-côté dev contre 123 côté prod. Les copier maintenant serait à refaire au
-transfert des maillages (#719 §2). Les photos, elles, ont été cloisonnées tout
-de suite parce que le répertoire est **vide des deux côtés** — rien à copier,
-rien à casser.
+**Les modèles sont cloisonnés depuis le 2026-11-05**, et la mesure a rendu
+l'opération bien moins chère que prévu. Le répertoire partagé portait 6,7 Go,
+mais chaque catalogue n'en nomme qu'une partie :
+
+```
+prod   123 legers (0,43 Go) + 123 heavy (4,06 Go)  =  4,49 Go
+dev    123 legers (2,36 Go) +  72 heavy (2,47 Go)  =  4,83 Go
+```
+
+Seul **l'utile** a été copié, pas les 6,7 Go : le cloisonnement a donc été
+l'occasion de ne pas dupliquer les 1,9 Go de poids mort de #734. Chaque fichier
+a été vérifié par empreinte, zéro écart.
+
+L'asymétrie des poids est instructive — les légers de dev pèsent cinq fois ceux
+de prod, parce que ce sont les **Trellis 2.0**, 41,6 Mo pièce contre 3,7 Mo pour
+l'ancienne génération. Les deux environnements lisaient le même répertoire pour
+des usages inverses.
+
+**Le revers est assumé** : avant, un modèle déposé dans `arbore-data/models`
+apparaissait des deux côtés sans rien faire. Désormais il faut le poser dans les
+deux. C'est précisément ce qui rend le cloisonnement utile, et ce qui le rend
+contraignant.
+
+Les photos, elles, avaient été cloisonnées tout de suite parce que le répertoire
+est **vide des deux côtés** — rien à copier, rien à casser.
 
 **Les secrets lus sont communs à dessein** : le projet Firebase est partagé, et
 #434 le liste comme partage accepté. Ce qui est cloisonné, c'est l'**écriture** :

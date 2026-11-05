@@ -50,6 +50,27 @@ when you discover an empty listing at submission time.
 and `".../YES"` messages agvtool prints here come from the same confusion: it
 looks for `INFOPLIST_FILE` and hits `GENERATE_INFOPLIST_FILE` values instead.
 
+### `increment_build_number` hardcodes `CFBundleVersion`, for the same reason
+
+`Info.plist` also references `$(CURRENT_PROJECT_VERSION)`, and
+`increment_build_number` goes through agvtool: same mechanism, on the other
+number. Measured on 2026-11-05 while shipping build 8:
+
+```diff
+- <string>$(CURRENT_PROJECT_VERSION)</string>
++ <string>8</string>
+```
+
+The consequence is worse than for `MARKETING_VERSION`. With the plist frozen,
+the next bump raises `CURRENT_PROJECT_VERSION` to 9 in the project while the
+binary ships as 8: App Store Connect rejects the build as a duplicate build
+number, after two minutes of archiving and a full upload.
+
+**The lanes no longer go through agvtool.** `poser_build_number`, in the
+Fastfile, writes the number into the `ArboreUi/ArboreUi.xcodeproj/project.pbxproj` and nowhere else, then refuses
+to ship if `Info.plist` no longer references the variable. Do not reintroduce
+`increment_build_number`.
+
 ### The build number restarts at 1 on a new version
 
 `latest_testflight_build_number` queries App Store Connect **for a given

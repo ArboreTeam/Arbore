@@ -1,13 +1,16 @@
-Dieser Build ist Version 1.0.0, die wir im App Store einreichen wollen.
+Diese Build greift auf das Produktions-Backend zu, das gerade die neuen 3D-Modelle und ihren Topf erhalten hat. Es ist die erste externe Build seit 1.0.0, es gibt also zwei Monate Arbeit zu prüfen.
 
-Seit Build 37 gibt es nichts Neues: die auf dem Katalog gestützte Diagnose, der Assistent und die Übersetzungen bleiben unverändert. Nur die Versionsnummer wechselt von 0.1.12 auf 1.0.0.
+Die wichtigste Änderung: 51 der 123 Pflanzen haben jetzt ein neu zugeschnittenes Modell ohne eingebauten Topf. Die App stellt sie in einen echten Übertopf, auf die tatsächlich gemessene Höhe der Pflanze skaliert, ohne jede manuelle Anpassung. Ein gespeicherter Garten öffnet sich wieder mit seinem Topf.
 
-Uns interessiert deshalb ein allgemeiner Durchgang, kein gezielter Test. Wenn dich etwas stört, ist jetzt der Moment, es zu sagen: nach der Einreichung kostet jede Korrektur eine neue Prüfung durch Apple.
+Ein bekannter Fehler, der nicht gemeldet werden muss: bei diesen 51 Pflanzen zeigt das Vorschaubild im Katalog noch die vorherige Darstellung mit dem alten Topf. Die Vorschaubilder werden in einem zweiten Schritt neu erzeugt. Die Abweichung liegt zwischen Vorschaubild und 3D-Ansicht, nicht an der Pflanze selbst.
+
+Ebenfalls seit 1.0.0: die App fragt um Erlaubnis, bevor ein Foto oder eine Nachricht an den Assistenten geht, und der Modell-Cache aktualisiert sich selbst, wenn sich ein Modell auf dem Server ändert.
 
 Was zuerst zu testen ist:
-1. Lege einen Garten von Anfang bis Ende an: Fragebogen, Pflanzenauswahl, Platzierung in AR.
-2. Führe einen Gesundheitsscan durch und danach ein Gespräch mit dem Assistenten.
-3. Sieh dir den Katalog an und öffne ein paar Pflanzenseiten.
-4. Stelle die App-Sprache in den iOS-Einstellungen um und mach eine weitere kurze Runde.
+1. Lege einen Garten von Anfang bis Ende an und platziere mehrere Pflanzen in Augmented Reality. Prüfe, ob der Topf zur Größe der Pflanze passt und auf dem Boden steht, ohne zu schweben oder einzusinken.
+2. Schließe die App und öffne den Garten erneut. Pflanzen und Töpfe müssen an derselben Stelle zurückkommen.
+3. Gehe den Katalog durch und öffne etwa zehn Pflanzen, und vergleiche dabei Vorschaubild und 3D-Modell.
+4. Starte einen Gesundheitsscan und ein Gespräch mit dem Assistenten, und prüfe, dass die Erlaubnis abgefragt wird.
+5. Stelle die Sprache der App in den iOS-Einstellungen um und gehe noch einmal kurz durch.
 
-Melde jeden Text, der auf Französisch bleibt, während die App in einer anderen Sprache läuft, und jeden Bildschirm, der unfertig wirkt.
+Melde jede Pflanze, deren Topf zu groß oder zu klein wirkt, und nenne uns ihren Namen. Das ist der unsicherste Teil dieser Build.

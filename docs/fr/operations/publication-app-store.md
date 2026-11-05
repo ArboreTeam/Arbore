@@ -52,6 +52,27 @@ soumettre.
 égarement : il cherche `INFOPLIST_FILE` et tombe sur les valeurs de
 `GENERATE_INFOPLIST_FILE`.
 
+### `increment_build_number` fige `CFBundleVersion`, pour la même raison
+
+`Info.plist` référence aussi `$(CURRENT_PROJECT_VERSION)`, et
+`increment_build_number` passe par agvtool : même mécanisme, sur l'autre numéro.
+Mesuré le 2026-11-05 en livrant la build 8 :
+
+```diff
+- <string>$(CURRENT_PROJECT_VERSION)</string>
++ <string>8</string>
+```
+
+La conséquence est pire que pour `MARKETING_VERSION`. Le plist figé, le bump
+suivant monte `CURRENT_PROJECT_VERSION` à 9 dans le projet pendant que le
+binaire sort en 8 : App Store Connect refuse la build pour numéro déjà pris,
+après deux minutes d'archive et le téléversement complet.
+
+**Les lanes ne passent plus par agvtool.** `poser_build_number`, dans le
+Fastfile, écrit le numéro dans le `ArboreUi/ArboreUi.xcodeproj/project.pbxproj` et nulle part ailleurs, puis refuse
+de livrer si `Info.plist` ne référence plus la variable. Ne pas réintroduire
+`increment_build_number`.
+
 ### Le numéro de build repart à 1 sur une nouvelle version
 
 `latest_testflight_build_number` interroge App Store Connect **pour une version

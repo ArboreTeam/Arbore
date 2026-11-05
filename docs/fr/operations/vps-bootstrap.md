@@ -590,6 +590,7 @@ Contenu appliqué, détaillé dans [`ops/README.md`](../../../ops/README.md) :
 
 | Tâche | Fréquence |
 |---|---|
+| `menage-docker.sh` (#652) | quotidienne, 03:00 UTC |
 | `cleanup-test-db.sh` | quotidienne, 04:00 UTC |
 | `cleanup-test-users.sh` (#160) | dimanche 04:00 UTC |
 | `reconcile-guests.sh --apply` (#393) | dimanche 05:00 UTC |
@@ -598,6 +599,54 @@ Contenu appliqué, détaillé dans [`ops/README.md`](../../../ops/README.md) :
 
 Le crontab précédent est sauvegardé dans `logs/crontab.bak.<horodatage>` avant
 tout écrasement.
+
+### Rétention Docker — ce qui a tué la machine précédente
+
+C'est la tâche la moins spectaculaire et la plus nécessaire. Mesure du
+2026-10-20 sur l'ancien VPS, disque de 49 Go :
+
+```
+Images          184   10,02 Go   dont 9,835 Go recuperables (98 %)
+Build Cache     164   23,10 Go   dont 23,10 Go recuperables
+```
+
+**34 Go récupérables sur 49**, alors que les vraies données faisaient 14 Go. La
+pression sur le disque qui a justifié la migration ne venait donc presque pas
+des données.
+
+Et la démonstration n'a pas tardé. Mesure du 2026-11-05 sur la machine
+**neuve**, deux semaines après sa mise en service :
+
+```
+Build Cache     136   27,80 Go   dont 24,68 Go recuperables
+```
+
+Déjà plus de cache que l'ancienne n'en avait jamais accumulé. **Un disque plus
+grand sans rétention, c'est un robinet de plus sur une baignoire sans bonde.**
+
+Le cache vient du chemin de **repli** de `deploy.sh`, qui construit localement
+quand les images `sha-` ne sont pas encore publiées sur ghcr. Chaque repli
+laisse des couches que rien ne reprend jamais : le déploiement suivant tire
+l'image depuis ghcr.
+
+| | fenêtre | pourquoi |
+|---|---|---|
+| cache de compilation | **72 h** | ne sert qu'au repli ; passé quelques jours les images `sha-` sont publiées et il ne sera plus relu |
+| images inutilisées | **14 jours** | permet un retour arrière sans retélécharger |
+
+Les deux portent un filtre `until=`, donc **un build en cours n'est jamais
+touché** : son cache a zéro heure d'âge. Aucune image utilisée par un conteneur
+n'est retirée — c'est une garantie du moteur, pas une précaution du script. Et
+rien n'est perdu : une image retirée vit sur ghcr, un cache retiré se
+reconstruit.
+
+> Les fenêtres se règlent par `RETENTION_CACHE_HEURES` et
+> `RETENTION_IMAGES_HEURES`, utiles pour éprouver le script sans rien
+> supprimer : une valeur démesurée le fait tout mesurer et ne rien retirer.
+
+Le journal porte le disque en clair à chaque passage —
+`logs/menage-docker.log` — parce que c'est la seule ligne qu'on relira six mois
+plus tard pour savoir si la rétention suffit encore.
 
 ### Vérifier après un déploiement
 
@@ -666,7 +715,8 @@ Cocher ces points avant de considérer le VPS opérationnel :
 - [ ] `curl -fsS http://localhost:3000/` → 200 OK (web)
 - [ ] `curl -fsS http://<VPS_IP>/health` → 200 OK (via nginx)
 - [ ] `mongosh "$MONGODB_URI" --quiet --eval 'db.users.countDocuments()'` → entier > 0
-- [ ] `crontab -l` contient les trois entrées, posées par `deploy.sh` depuis `ops/crontab` — jamais à la main
+- [ ] `crontab -l` contient les **quatre** entrées, posées par `deploy.sh` depuis `ops/crontab` — jamais à la main
+- [ ] `logs/menage-docker.log` existe après 24 h, et la ligne `disque :` montre que la rétention mord
 - [ ] `systemctl is-enabled cf-http-firewall.service cf-update-ranges.timer` → `enabled`
 - [ ] **`systemctl start cf-update-ranges.service && systemctl is-failed cf-update-ranges.service`
       → `inactive`**, et `/etc/cf-http-firewall/cf-ranges-v4.txt` existe.

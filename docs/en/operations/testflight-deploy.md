@@ -1,7 +1,7 @@
 # TestFlight Deploy — Fastlane
 
 Procedure for submitting a new iOS app build to TestFlight and
-automatically distributing it to the internal "Internal QA" group. Main
+automatically distributing it to the internal "Internal Testers" group. Main
 lane: `bundle exec fastlane beta`.
 
 The one-command pipeline:
@@ -10,7 +10,7 @@ The one-command pipeline:
 2. `xcodebuild archive` (export `app-store`)
 3. Upload to App Store Connect via the API Key
 4. Wait for Apple processing to finish (5-30 min)
-5. Distribute to the "Internal QA" group (no Beta App Review)
+5. Distribute to the "Internal Testers" group (no Beta App Review)
 
 ---
 
@@ -53,10 +53,10 @@ git check-ignore -v fastlane/AuthKey.json
 
 > ⚠️ If `git check-ignore` returns nothing, do NOT continue — the file would be committed on the next `git add .`. The gitleaks pre-commit hook should also catch it, but don't rely on that.
 
-### 3. Create the "Internal QA" group in App Store Connect
+### 3. Create the "Internal Testers" group in App Store Connect
 
 1. App Store Connect → ArboreUi → **TestFlight → Internal Testing → "+"**.
-2. Group Name: `Internal QA`.
+2. Group Name: `Internal Testers`.
 3. Check **"Enable automatic distribution"** — every new build will be pushed to them with no configuration on the Fastfile side.
 4. Add only active members who are authorized to test the build and, if needed,
    the internal review address. Maintain that list in App Store Connect rather
@@ -157,7 +157,7 @@ The command:
 - Archives the app (~ 3-5 min on M2/M3).
 - Uploads to App Store Connect (~ 30-60 s).
 - Waits for Apple processing to finish (5-30 min, can be longer if Apple's queue is loaded).
-- Automatically distributes to the "Internal QA" group.
+- Automatically distributes to the "Internal Testers" group.
 
 Total: 10-40 min depending on Apple processing.
 
@@ -178,7 +178,7 @@ Same flow as `beta`, with three differences that matter.
 
 | | `beta` | `public_beta` |
 |---|---|---|
-| group | Internal QA (3 testers) | Bêta privée (10 testers, public link) |
+| group | Internal Testers (3 testers) | Bêta privée (10 testers, public link) |
 | Apple review | none | Beta App Review |
 | delay before testers get it | after processing | after approval, hours to a day |
 

@@ -414,6 +414,32 @@ de développement qui n'a qu'une pile.
 Pourquoi pas l'URL publique : voir la section précédente, Cloudflare rend 403 à
 l'agent de l'ouvrier.
 
+### Un ouvrier par FILE, un seul atelier
+
+Un ouvrier ne sert qu'une file, celle de son `ARBORE_ENV_NOM` — le code refuse
+de démarrer sans elle : « un ouvrier ne sert qu'un environnement ». L'atelier,
+lui, en tient autant qu'il déclare d'environnements.
+
+Servir la file de prod demande donc un second **conteneur**, et non un second
+atelier. La distinction est tout l'enjeu : c'est l'**atelier** qui serait
+néfaste en double, avec deux `etat.json` et la question « lequel dit vrai ? ».
+Deux ouvriers qui puisent dans le même atelier n'ont pas ce problème.
+
+Mesuré le 2026-11-05 : 51 tâches déposées sur la file `prod` sont restées
+`en_attente` à 51/51, le seul ouvrier en service portant `ARBORE_ENV_NOM=dev`.
+
+Le service `vignettes-ouvrier-prod` porte son propre profil, pour qu'il ne
+démarre que là où on le déclare :
+
+```
+ARBORE_PROFILS=vignettes,vignettes-prod
+```
+
+Il vit sur la pile qui porte l'**atelier**, pas sur celle de production. Comme
+l'autre, il ne détient aucune clé de backend et reçoit tout de l'atelier ; il
+lui faut en revanche le rattachement réseau de la section précédente, que
+`deploy.sh` applique aux **deux** ouvriers.
+
 ### Ce que la page ne peut pas faire
 
 **Comparer la même plante entre deux environnements.** La page montre un

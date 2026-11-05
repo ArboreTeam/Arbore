@@ -403,6 +403,33 @@ machine that runs a single stack.
 Why not the public URL: see the previous section, Cloudflare returns 403 to the
 worker's agent.
 
+### One worker per QUEUE, a single workshop
+
+A worker serves exactly one queue, the one named by its `ARBORE_ENV_NOM` — the
+code refuses to start without it: "a worker serves only one environment". The
+workshop, in contrast, holds as many queues as it declares environments.
+
+Serving the prod queue therefore needs a second **container**, not a second
+workshop. That distinction is the whole point: it is the **workshop** that would
+be harmful in duplicate, with two `etat.json` files and the "which one is
+right?" question. Two workers drawing from the same workshop have no such
+problem.
+
+Measured on 2026-11-05: 51 tasks queued on `prod` stayed `en_attente` at 51/51,
+because the only running worker carried `ARBORE_ENV_NOM=dev`.
+
+The `vignettes-ouvrier-prod` service carries its own profile, so it only starts
+where it is declared:
+
+```
+ARBORE_PROFILS=vignettes,vignettes-prod
+```
+
+It lives on the stack carrying the **workshop**, not on the production stack.
+Like the other one it holds no backend key and receives everything from the
+workshop; it does need the network attachment from the previous section, which
+`deploy.sh` applies to **both** workers.
+
 ### What the page cannot do
 
 **Compare the same plant across two environments.** The page shows one

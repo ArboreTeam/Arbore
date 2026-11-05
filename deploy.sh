@@ -1096,19 +1096,29 @@ rattacher_ouvrier_aux_reseaux() {
     cibles="$(valeur_env_liste VIGNETTES_RESEAUX_CIBLES)"
     [ -z "$cibles" ] && return 0
 
-    conteneur="arbore-${ARBORE_ENV}-vignettes-ouvrier"
-    if ! "${DOCKER_PRIVILEGE[@]}" docker inspect "$conteneur" >/dev/null 2>&1; then
-        warn "VIGNETTES_RESEAUX_CIBLES posée, mais $conteneur ne tourne pas — rien à rattacher"
+    # TOUS les ouvriers de la pile, et non le seul principal : celui qui sert la
+    # file de prod en est un seconds, et c'est LUI qui a besoin du réseau visé.
+    local -a ouvriers=()
+    local candidat
+    for candidat in "arbore-${ARBORE_ENV}-vignettes-ouvrier" \
+                    "arbore-${ARBORE_ENV}-vignettes-ouvrier-prod"; do
+        "${DOCKER_PRIVILEGE[@]}" docker inspect "$candidat" >/dev/null 2>&1 \
+            && ouvriers+=( "$candidat" )
+    done
+
+    if [ "${#ouvriers[@]}" -eq 0 ]; then
+        warn "VIGNETTES_RESEAUX_CIBLES posée, mais aucun ouvrier ne tourne — rien à rattacher"
         return 0
     fi
 
+    for conteneur in "${ouvriers[@]}"; do
     for reseau in $cibles; do
         [ -z "$reseau" ] && continue
 
         if ! "${DOCKER_PRIVILEGE[@]}" docker network inspect "$reseau" >/dev/null 2>&1; then
             # Non bloquant : la pile visée peut être arrêtée au moment où
             # celle-ci se déploie. L'atelier le dira à la première tâche.
-            warn "Réseau « $reseau » absent — ouvrier non rattaché, les tâches vers cet environnement échoueront"
+            warn "Réseau « $reseau » absent — $conteneur non rattaché, les tâches vers cet environnement échoueront"
             continue
         fi
 
@@ -1116,23 +1126,34 @@ rattacher_ouvrier_aux_reseaux() {
             --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null)"
         case " $rattaches " in
             *" $reseau "*)
-                ok "Ouvrier déjà rattaché à « $reseau »"
+                ok "$conteneur déjà rattaché à « $reseau »"
                 continue
                 ;;
         esac
 
         if "${DOCKER_PRIVILEGE[@]}" docker network connect "$reseau" "$conteneur"; then
-            ok "Ouvrier rattaché à « $reseau »"
+            ok "$conteneur rattaché à « $reseau »"
         else
-            fail "Rattachement de l'ouvrier à « $reseau » impossible"
+            fail "Rattachement de $conteneur à « $reseau » impossible"
         fi
+    done
     done
 }
 
 # Valeur d'une variable du fichier d'environnement, virgules et espaces rendus
 # interchangeables. Même lecture que `profils_declares`, pour une liste.
 valeur_env_liste() {
-    grep -E "^${1}=" "$ENV_FILE" 2>/dev/null \
+    # `|| true` indispensable : `grep` rend 1 quand il ne trouve rien, et avec
+    # `set -o pipefail` le pipeline hérite de ce 1. L'affectation
+    # `x="$(valeur_env_liste …)"` en prend alors le code, et `set -e` tue le
+    # script — SANS un mot, puisque rien n'a été écrit. C'est exactement ce qui
+    # a fait sortir le déploiement de prod en code 1 le 2026-11-05, après que
+    # tout le travail utile était fait, en sautant le contrôle de santé final.
+    #
+    # `profils_declares` a la même forme et n'a jamais échoué : son appelant
+    # l'emploie dans un `for … in $(…)`, position où le code de la substitution
+    # ne déclenche pas `set -e`. Une affectation, elle, le déclenche.
+    { grep -E "^${1}=" "$ENV_FILE" 2>/dev/null || true; } \
         | tail -1 | cut -d= -f2- | tr -d '"'"'"'\r' | tr ',' ' '
 }
 
@@ -1150,6 +1171,7 @@ do_docker_up() {
         drapeaux+=( --profile "$profil" )
         case "$profil" in
             vignettes) services+=( vignettes-ouvrier ) ;;
+            vignettes-prod) services+=( vignettes-ouvrier-prod ) ;;
             *) warn "Profil « $profil » déclaré mais sans service connu de deploy.sh" ;;
         esac
     done

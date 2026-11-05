@@ -1,11 +1,14 @@
 import Link from 'next/link';
-import { Instagram, Linkedin, Github, Leaf } from 'lucide-react';
+import { Leaf } from 'lucide-react';
 
 export function Footer() {
   return (
     <footer className="bg-primary text-primary-foreground">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-10 md:grid-cols-4">
+        {/* Trois colonnes depuis le retrait du bloc « Suivez-nous » (#756) :
+            ses trois boutons pointaient sur `href="#"` et ne menaient nulle
+            part. Le compte reste a ajuster si un vrai canal y entre un jour. */}
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-3">
           <div>
             <div className="mb-4 flex items-center gap-2.5">
               <div className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-white/15">
@@ -33,21 +36,6 @@ export function Footer() {
               <li><a href="https://arbore.app/terms" className="text-primary-foreground/70 transition-colors hover:text-primary-foreground">Conditions d&apos;utilisation</a></li>
               <li><a href="https://arbore.app/privacy" className="text-primary-foreground/70 transition-colors hover:text-primary-foreground">Confidentialité</a></li>
             </ul>
-          </div>
-
-          <div>
-            <h3 className="mb-4 font-display font-bold">Suivez-nous</h3>
-            <div className="flex gap-3">
-              {[Instagram, Linkedin, Github].map((Icon, i) => (
-                <a
-                  key={i}
-                  href="#"
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 transition-colors hover:bg-white/20"
-                >
-                  <Icon className="h-5 w-5" />
-                </a>
-              ))}
-            </div>
           </div>
         </div>
 

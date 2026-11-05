@@ -54,7 +54,7 @@ jobs:
         working-directory: infra
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -88,7 +88,7 @@ jobs:
         working-directory: infra
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Secrets présents ?
         id: gate
@@ -234,7 +234,7 @@ jobs:
         working-directory: infra
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Secrets présents ?
         id: gate

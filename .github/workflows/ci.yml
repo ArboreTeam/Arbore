@@ -66,7 +66,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       outillage: ${{ steps.filter.outputs.outillage }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v2
         id: filter
         with:
@@ -110,7 +110,7 @@ jobs:
     name: 🐍 Outillage (Python)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           # Alignée sur `vignettes/Dockerfile`, qui exécute `publier.py` en
@@ -131,7 +131,7 @@ jobs:
     
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Setup Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v7
@@ -186,13 +186,25 @@ jobs:
                     f"fige le terrain gagné.")
           PY
 
-      - name: 📊 Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        continue-on-error: true
-        with:
-          file: ./ArboreBackend/coverage.out
-          flags: backend
-          name: backend-coverage
+      # Le téléversement vers Codecov a été RETIRÉ ici (#747).
+      #
+      # Il échouait à chaque exécution depuis toujours, et `continue-on-error`
+      # le masquait. Journal du job du 2026-11-04 :
+      #
+      #   warning -- Branch `dev` is protected but no token was provided
+      #   error   -- Commit creating failed: {"message":"Token required -
+      #              not valid tokenless upload"}
+      #
+      # Aucun secret CODECOV_* n'existe, et le dépôt est privé : le
+      # téléversement sans jeton est refusé. Le step mesurait donc une
+      # couverture que personne ne recevait.
+      #
+      # Ce qui fait le travail à sa place est le CLIQUET juste au-dessus
+      # (#731), et il le fait mieux : il FAIT ÉCHOUER la CI quand la
+      # couverture recule, ce que Codecov n'a jamais fait ici.
+      #
+      # Le remettre demande un jeton ET de corriger `file:` en `files:`,
+      # renommé à partir de la v5 — c'est consigné dans #747, pas perdu.
 
       - name: 🔍 Lint code with golangci-lint
         uses: golangci/golangci-lint-action@v9
@@ -261,7 +273,7 @@ jobs:
     
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Setup Xcode ${{ env.XCODE_VERSION }}
         uses: maxim-lobanov/setup-xcode@v1
@@ -280,7 +292,7 @@ jobs:
           bundler-cache: false
 
       - name: 📦 Cache CocoaPods
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ArboreUi/Pods
@@ -670,7 +682,7 @@ jobs:
     
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Setup Xcode ${{ env.XCODE_VERSION }}
         uses: maxim-lobanov/setup-xcode@v1
@@ -747,7 +759,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Setup Node ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
@@ -809,7 +821,7 @@ jobs:
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         
       # Rapport complet vers l'onglet Security : non bloquant par nature, il sert
       # à la visibilité et à l'historique.

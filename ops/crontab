@@ -18,3 +18,16 @@
 # Réconciliation Firebase <-> Mongo (#393), dimanche 05:00 UTC.
 # ATTENTION : --apply supprime réellement. Sans ce drapeau, le job simule.
 0 5 * * 0 __ARBORE_ROOT__/ArboreBackend/scripts/reconcile-guests.sh --apply >> __ARBORE_ROOT__/logs/reconcile-guests.log 2>&1
+
+# Rétention du cache de compilation et des images Docker (#652), chaque nuit à
+# 03:00 UTC — AVANT les autres tâches, pour que le disque soit au plus large
+# quand le snapshot de base et les tirages d'images arrivent.
+#
+# C'est le cache de compilation qui a tué l'ancienne machine : 23 Go sur un
+# disque de 49. Sans cette ligne, un disque de 100 Go se remplit de la même
+# façon, juste plus lentement — et la machine neuve en avait déjà accumulé
+# 27,8 Go en deux semaines.
+#
+# Les filtres `until=` garantissent qu'un build en cours n'est jamais touché :
+# son cache a zéro heure d'âge, donc il n'est pas éligible au retrait.
+0 3 * * * __ARBORE_ROOT__/scripts/menage-docker.sh >> __ARBORE_ROOT__/logs/menage-docker.log 2>&1

@@ -1063,6 +1063,79 @@ verifier_images_a_jour() {
     fi
 }
 
+# Rattache l'ouvrier de vignettes aux réseaux des environnements qu'il publie.
+#
+# UN SEUL atelier publie sur N environnements, délibérément : deux ateliers
+# voudraient deux `etat.json`, et « lequel dit vrai ? » avait produit 54
+# empreintes fausses. C'est la correction du 2026-11-02 de #719, et elle prime
+# sur le point « démarrer un ouvrier par environnement » de la même issue.
+#
+# Mais l'atelier joint à chaque tâche l'adresse INTERNE du backend visé (#696),
+# et cette adresse est un nom de conteneur : `http://arbore-prod-backend:8080`.
+# Or chaque pile a son réseau, et le port du backend n'est publié que sur
+# `127.0.0.1`. Mesuré le 2026-11-05 depuis `arbore-dev-vignettes-ouvrier` :
+#
+#     backend-dev        200     (son propre réseau)
+#     prod-par-nom       000     autre réseau
+#     passerelle-hote    000     host.docker.internal
+#     gateway-ip         000     172.17.0.1
+#
+# Sans rattachement, l'ouvrier ne joint donc que SON backend.
+#
+# Pourquoi pas l'URL publique : Cloudflare refuse l'agent de l'ouvrier. Mesuré
+# sur dev, mêmes clés et même URL, `curl` 200 contre `Python-urllib` 403. Et
+# faire sortir vers le CDN un robot qui tourne sur la même machine coûterait
+# 2,6 Mo par plante, fois 123.
+#
+# `docker network connect` plutôt qu'une entrée du compose : le rattachement
+# est CONDITIONNEL (seule la pile qui porte l'atelier en a besoin) et un réseau
+# externe déclaré dans le compose devrait exister partout, y compris sur un
+# poste de développement qui n'a qu'une pile.
+rattacher_ouvrier_aux_reseaux() {
+    local cibles conteneur reseau rattaches
+    cibles="$(valeur_env_liste VIGNETTES_RESEAUX_CIBLES)"
+    [ -z "$cibles" ] && return 0
+
+    conteneur="arbore-${ARBORE_ENV}-vignettes-ouvrier"
+    if ! "${DOCKER_PRIVILEGE[@]}" docker inspect "$conteneur" >/dev/null 2>&1; then
+        warn "VIGNETTES_RESEAUX_CIBLES posée, mais $conteneur ne tourne pas — rien à rattacher"
+        return 0
+    fi
+
+    for reseau in $cibles; do
+        [ -z "$reseau" ] && continue
+
+        if ! "${DOCKER_PRIVILEGE[@]}" docker network inspect "$reseau" >/dev/null 2>&1; then
+            # Non bloquant : la pile visée peut être arrêtée au moment où
+            # celle-ci se déploie. L'atelier le dira à la première tâche.
+            warn "Réseau « $reseau » absent — ouvrier non rattaché, les tâches vers cet environnement échoueront"
+            continue
+        fi
+
+        rattaches="$("${DOCKER_PRIVILEGE[@]}" docker inspect "$conteneur" \
+            --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null)"
+        case " $rattaches " in
+            *" $reseau "*)
+                ok "Ouvrier déjà rattaché à « $reseau »"
+                continue
+                ;;
+        esac
+
+        if "${DOCKER_PRIVILEGE[@]}" docker network connect "$reseau" "$conteneur"; then
+            ok "Ouvrier rattaché à « $reseau »"
+        else
+            fail "Rattachement de l'ouvrier à « $reseau » impossible"
+        fi
+    done
+}
+
+# Valeur d'une variable du fichier d'environnement, virgules et espaces rendus
+# interchangeables. Même lecture que `profils_declares`, pour une liste.
+valeur_env_liste() {
+    grep -E "^${1}=" "$ENV_FILE" 2>/dev/null \
+        | tail -1 | cut -d= -f2- | tr -d '"'"'"'\r' | tr ',' ' '
+}
+
 do_docker_up() {
     step 5 "Redémarrage des containers..."
     drop_legacy_containers
@@ -1090,6 +1163,7 @@ do_docker_up() {
     fi
     ok "Containers redémarrés"
     verifier_images_a_jour
+    rattacher_ouvrier_aux_reseaux
     echo
 }
 

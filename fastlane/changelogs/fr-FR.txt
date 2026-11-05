@@ -1,13 +1,16 @@
-Cette build est la version 1.0.0, celle que nous comptons soumettre à l'App Store.
+Cette build vise le backend de production, qui vient de recevoir les nouveaux modèles 3D et leur pot. C'est la première build externe depuis la 1.0.0 : il y a deux mois de travail à relire.
 
-Rien de nouveau depuis la build 37 : le diagnostic ancré sur le catalogue, l'assistant et les traductions sont inchangés. Seul le numéro de version passe de 0.1.12 à 1.0.0.
+Le changement principal : 51 des 123 plantes ont désormais un modèle recoupé, sans pot intégré. L'app leur pose un vrai cache-pot, à la taille réellement mesurée de la plante, sans aucun réglage manuel. Un jardin enregistré se rouvre avec son pot.
 
-C'est donc une relecture générale qui nous intéresse, pas un test ciblé. Si quelque chose vous gêne, c'est le moment de le dire : une fois la soumission partie, la moindre correction demandera une nouvelle revue Apple.
+Un défaut connu, inutile de le signaler : pour ces 51 plantes, la vignette du catalogue montre encore le rendu précédent, avec l'ancien pot. Les vignettes seront refaites dans un second temps. L'incohérence est entre la vignette et la vue 3D, pas dans la plante elle-même.
+
+Aussi depuis la 1.0.0 : l'app demande votre autorisation avant d'envoyer une photo ou un message à l'assistant, et le cache des modèles se rafraîchit tout seul quand un modèle change sur le serveur.
 
 À tester en priorité :
-1. Créez un jardin de bout en bout : questionnaire, choix des plantes, placement en RA.
-2. Lancez un scan santé, puis un échange avec l'assistant.
-3. Parcourez le catalogue et ouvrez quelques fiches.
-4. Changez la langue de l'app dans les réglages iOS et refaites un tour rapide.
+1. Créez un jardin de bout en bout, puis placez plusieurs plantes en réalité augmentée. Regardez si le pot est à l'échelle de la plante et posé au sol, sans flotter ni s'enfoncer.
+2. Fermez l'app, rouvrez le jardin. Les plantes et leurs pots doivent revenir au même endroit.
+3. Parcourez le catalogue et ouvrez une dizaine de fiches, en comparant la vignette et le modèle 3D.
+4. Lancez un scan santé et un échange avec l'assistant, en vérifiant que l'autorisation vous est bien demandée.
+5. Changez la langue de l'app dans les réglages iOS et refaites un tour rapide.
 
-Signalez tout texte resté en français alors que l'app est dans une autre langue, et tout écran qui paraît inachevé.
+Signalez les plantes dont le pot paraît trop grand ou trop petit, en nous donnant leur nom. C'est le point le plus incertain de cette build.

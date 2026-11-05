@@ -168,12 +168,18 @@ définie nulle part.
   avertissement — un avertissement se perd dans la sortie, c'est exactement ce
   qui est arrivé à celui des secrets (#690).
 
-### Ce qui reste à trancher avant la bascule de #652
+### Tranché le 2026-11-05 : les deux bases emploient les mêmes identifiants
 
 Les 123 noms de fichiers sont **identiques** sur les deux machines (même
-empreinte de la liste triée). Les fichiers sont donc le même jeu ; que les deux
-**bases** emploient les mêmes identifiants reste à confirmer. Tant que ce n'est
-pas tranché, aucune mutualisation de répertoire ne doit être envisagée.
+empreinte de la liste triée). Restait à savoir si les deux **bases** employaient
+les mêmes identifiants de fiche. Elles le font : en portant les 51 plantes
+recoupées de `arbore_dev` vers `arbore`, les **51 `_id` de dev existaient tous
+en prod** (51/51), et le document visé portait bien la même plante.
+
+Les deux répertoires de vignettes contiennent donc, pour une même plante, un
+fichier de **même nom** — ce qui rend le cloisonnement non pas prudent mais
+**obligatoire**, et confirme le diagnostic de cette section. Aucune
+mutualisation, à aucune condition.
 
 ## Le pot, et pourquoi le serveur sert désormais sa pose
 
@@ -367,6 +373,46 @@ bien plus difficile à relier à sa cause.
 
 Les **images**, elles, ne demandent aucun secret :
 `GET /models/thumbnails/:filename` est une route publique du backend.
+
+### Publier sur une AUTRE pile exige un rattachement réseau
+
+`apiInterne` est un **nom de conteneur**, et un nom de conteneur ne se résout
+que sur le réseau de sa pile. Un atelier qui publie sur deux environnements
+hébergés par deux piles distinctes doit donc être rattaché aux deux réseaux.
+
+Mesuré le 2026-11-05 depuis `arbore-dev-vignettes-ouvrier`, avant
+rattachement :
+
+```
+backend-dev        200     http://backend:8080, son propre réseau
+prod-par-nom       000     http://arbore-prod-backend:8080
+passerelle-hote    000     http://host.docker.internal:8080
+gateway-ip         000     http://172.17.0.1:8080
+```
+
+Les deux piles sont sur `arbore-dev_arbore-net` et `arbore-prod_arbore-net`, et
+le port du backend n'est publié que sur `127.0.0.1` — donc inatteignable depuis
+un conteneur, y compris par la passerelle.
+
+`deploy.sh` s'en charge : `VIGNETTES_RESEAUX_CIBLES`, liste de réseaux séparés
+par des virgules ou des espaces, et `rattacher_ouvrier_aux_reseaux` connecte
+l'ouvrier à chacun après le `up`, de façon idempotente.
+
+```
+VIGNETTES_RESEAUX_CIBLES=arbore-prod_arbore-net
+```
+
+Un réseau absent **n'est pas bloquant** : la pile visée peut être arrêtée
+pendant qu'on déploie celle-ci. L'avertissement le dit, et l'atelier le dira à
+la première tâche.
+
+Pourquoi pas une entrée du `docker-compose.yml` : le rattachement est
+**conditionnel** — seule la pile qui porte l'atelier en a besoin — et un réseau
+externe déclaré dans le compose devrait exister partout, y compris sur un poste
+de développement qui n'a qu'une pile.
+
+Pourquoi pas l'URL publique : voir la section précédente, Cloudflare rend 403 à
+l'agent de l'ouvrier.
 
 ### Ce que la page ne peut pas faire
 

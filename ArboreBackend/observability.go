@@ -64,6 +64,39 @@ func initSentry() {
 		// les en-têtes de requête aux événements. Le journal d'accès tronque
 		// justement l'IP en /24 depuis #385 (donnée personnelle, CJUE Breyer
 		// C-582/14) : envoyer l'IP entière à un tiers annulerait cette mesure.
+		//
+		// DÉPRÉCIÉ DEPUIS sentry-go 0.50.0, ET POURTANT CONSERVÉ. Le SDK
+		// renvoie vers `DataCollection`, mais la migration ne peut PAS
+		// reproduire ce réglage — vérifié dans `data_collection.go` du SDK.
+		//
+		// `legacyDataCollection(false)` résout en :
+		//
+		//     UserInfo:       Set(false)
+		//     HTTPBodies:     []BodyType{}
+		//     Cookies:        Mode: CollectionOff
+		//     HTTPHeaders:    requête et réponse en CollectionDenyList
+		//     QueryParams:    Mode: CollectionDenyList
+		//     sensitiveTerms: extendedSensitiveTerms
+		//
+		// La dernière ligne est le problème : `sensitiveTerms` est un champ
+		// NON EXPORTÉ, et `extendedSensitiveTerms` vaut
+		// `{"forwarded", "-ip", "remote-", "via", "-user"}` — c'est-à-dire
+		// exactement ce qui écarte les en-têtes de transfert d'IP et les
+		// identifiants d'utilisateur. Le SDK le dit lui-même : « additional
+		// privacy terms [...] used for backwards compatibility with
+		// SendDefaultPII=false ».
+		//
+		// Un `DataCollection` écrit à la main depuis l'extérieur du paquet ne
+		// peut donc pas poser ces termes. Suivre l'avertissement de dépréciation
+		// nous rendrait plus bavards, pas plus propres.
+		//
+		// Les défauts de `DataCollection` vont d'ailleurs dans le mauvais sens :
+		// `UserInfo` vaut `true`, les en-têtes et paramètres sont collectés sauf
+		// clés sensibles, et les corps HTTP le sont tous. Une migration
+		// distraite ouvrirait les vannes.
+		//
+		// À revoir quand le SDK exposera un équivalent — suivi en #750.
+		//nolint:staticcheck // SA1019 : voir ci-dessus, la migration perdrait extendedSensitiveTerms
 		SendDefaultPII: false,
 
 		// Pas d'échantillonnage des performances pour l'instant. Le besoin est

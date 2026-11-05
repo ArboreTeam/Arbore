@@ -45,11 +45,11 @@ env:
   # sans cache, et la version réellement utilisée n'était pas celle affichée
   # (audit #338 constat 6). Trois endroits à tenir ensemble : ici, `go.mod` et
   # `ArboreBackend/Dockerfile`.
-  GO_VERSION: "1.26.10"
+  GO_VERSION: "1.27.3"
   PYTHON_VERSION: "3.11"
   # Alignée sur web/Dockerfile (node:24-alpine). Tester sur une version autre
   # que celle de l'image publiée, c'est tester autre chose que ce qui tourne.
-  NODE_VERSION: "24"
+  NODE_VERSION: "26"
   # latest-stable : chaque runner prend son Xcode le plus récent.
   # ios_ui tourne sur macos-15 → Xcode 26 (SDK iOS 26 requis pour Liquid Glass,
   # ex. .buttonStyle(.glass)). ios_ar reste sur macos-14 → Xcode 16.x.
@@ -66,15 +66,14 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       outillage: ${{ steps.filter.outputs.outillage }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@v2
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
             backend:
               - 'ArboreBackend/**'
               - '.golangci.yml'
-              - '.github/workflows/ci.yml'
               - '.github/workflows/ci.yml'
             ios_ui:
               - 'ArboreUi/**'
@@ -93,6 +92,40 @@ jobs:
               - 'vignettes/**'
               - '.github/workflows/ci.yml'
 
+      # Les cinq sorties, en clair, dans le journal de CHAQUE exécution.
+      #
+      # Ce job décide si `backend`, `ios_ui`, `ios_ar`, `web` et `outillage`
+      # tournent. Jusqu'ici, ses décisions ne se lisaient nulle part : il
+      # fallait les déduire de quels jobs apparaissaient ensuite — et un job
+      # absent est indiscernable d'un job sauté à bon droit.
+      #
+      # C'est une famille de pannes que ce dépôt a rencontrée trois fois :
+      # 58 tests Python que rien n'exécutait (#725), le téléversement Codecov
+      # mort derrière un `continue-on-error` (#747), et `cf-update-ranges`
+      # qui échouait derrière un repli codé en dur (#652). Chaque fois, la
+      # mesure existait et personne ne la voyait.
+      #
+      # Deux lignes de journal rendent la prochaine dérive lisible d'un coup
+      # d'œil, au lieu d'exiger une archéologie de la liste des jobs.
+      - name: 🎯 Ce que le filtre a décidé
+        run: |
+          echo "backend   = ${{ steps.filter.outputs.backend }}"
+          echo "ios_ui    = ${{ steps.filter.outputs.ios_ui }}"
+          echo "ios_ar    = ${{ steps.filter.outputs.ios_ar }}"
+          echo "web       = ${{ steps.filter.outputs.web }}"
+          echo "outillage = ${{ steps.filter.outputs.outillage }}"
+          {
+            echo "### 🎯 Filtre de chemins"
+            echo
+            echo "| cible | tourne |"
+            echo "|---|---|"
+            echo "| backend | ${{ steps.filter.outputs.backend }} |"
+            echo "| ios_ui | ${{ steps.filter.outputs.ios_ui }} |"
+            echo "| ios_ar | ${{ steps.filter.outputs.ios_ar }} |"
+            echo "| web | ${{ steps.filter.outputs.web }} |"
+            echo "| outillage | ${{ steps.filter.outputs.outillage }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # Outillage Python — 58 tests que RIEN n'exécutait jusqu'au 2026-11-03.
   #
   # Ils existaient, ils passaient, et aucun job ne les lançait : `grep -rn
@@ -110,7 +143,7 @@ jobs:
     name: 🐍 Outillage (Python)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           # Alignée sur `vignettes/Dockerfile`, qui exécute `publier.py` en
@@ -131,7 +164,7 @@ jobs:
     
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Setup Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v7
@@ -186,19 +219,31 @@ jobs:
                     f"fige le terrain gagné.")
           PY
 
-      - name: 📊 Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        continue-on-error: true
-        with:
-          file: ./ArboreBackend/coverage.out
-          flags: backend
-          name: backend-coverage
+      # Le téléversement vers Codecov a été RETIRÉ ici (#747).
+      #
+      # Il échouait à chaque exécution depuis toujours, et `continue-on-error`
+      # le masquait. Journal du job du 2026-11-04 :
+      #
+      #   warning -- Branch `dev` is protected but no token was provided
+      #   error   -- Commit creating failed: {"message":"Token required -
+      #              not valid tokenless upload"}
+      #
+      # Aucun secret CODECOV_* n'existe, et le dépôt est privé : le
+      # téléversement sans jeton est refusé. Le step mesurait donc une
+      # couverture que personne ne recevait.
+      #
+      # Ce qui fait le travail à sa place est le CLIQUET juste au-dessus
+      # (#731), et il le fait mieux : il FAIT ÉCHOUER la CI quand la
+      # couverture recule, ce que Codecov n'a jamais fait ici.
+      #
+      # Le remettre demande un jeton ET de corriger `file:` en `files:`,
+      # renommé à partir de la v5 — c'est consigné dans #747, pas perdu.
 
       - name: 🔍 Lint code with golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
           working-directory: ArboreBackend
-          version: v2.11.3
+          version: v2.15.0
           args: --timeout=5m
 
       # Vulnérabilités connues de la stdlib Go et des modules (audit #338
@@ -261,7 +306,7 @@ jobs:
     
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Setup Xcode ${{ env.XCODE_VERSION }}
         uses: maxim-lobanov/setup-xcode@v1
@@ -280,7 +325,7 @@ jobs:
           bundler-cache: false
 
       - name: 📦 Cache CocoaPods
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ArboreUi/Pods
@@ -670,7 +715,7 @@ jobs:
     
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Setup Xcode ${{ env.XCODE_VERSION }}
         uses: maxim-lobanov/setup-xcode@v1
@@ -747,7 +792,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Setup Node ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
@@ -809,7 +854,7 @@ jobs:
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         
       # Rapport complet vers l'onglet Security : non bloquant par nature, il sert
       # à la visibilité et à l'historique.

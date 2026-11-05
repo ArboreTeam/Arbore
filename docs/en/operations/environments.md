@@ -54,9 +54,9 @@ Recorded by `docker inspect` of the four containers, on 2026-11-03.
 
 | Mount | prod | dev | state |
 |---|---|---|---|
-| `/app/thumbnails` (rw) | `arbore-data/…/thumbnails` | `arbore-data/thumbnails-dev` | ✅ |
-| `/app/uploads/community` (rw) | checkout | `arbore-data/uploads-community-dev` | ✅ |
-| `/app/photos` (ro) | checkout | `arbore-data/photos-dev` | ✅ |
+| `/app/thumbnails` (rw) | `arbore-data/thumbnails-prod` | `arbore-data/thumbnails-dev` | ✅ |
+| `/app/uploads/community` (rw) | `arbore-data/uploads-community-prod` | `arbore-data/uploads-community-dev` | ✅ |
+| `/app/photos` (ro) | `arbore-data/photos-prod` | `arbore-data/photos-dev` | ✅ |
 | `/app/models` (ro) | `arbore-data/models-prod` | `arbore-data/models-dev` | ✅ |
 | `/run/secrets/*` (ro) | `arbore-data/secrets/` | **the same** | 🤝 accepted |
 | `/data/generator` (rw) | checkout | **the same** | 🤝 one workshop |

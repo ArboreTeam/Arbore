@@ -243,7 +243,7 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           working-directory: ArboreBackend
-          version: v2.11.3
+          version: v2.15.0
           args: --timeout=5m
 
       # Vulnérabilités connues de la stdlib Go et des modules (audit #338

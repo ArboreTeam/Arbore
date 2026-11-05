@@ -66,7 +66,7 @@ jobs:
       web: ${{ steps.filter.outputs.web }}
       outillage: ${{ steps.filter.outputs.outillage }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v2
         id: filter
         with:
@@ -110,7 +110,7 @@ jobs:
     name: 🐍 Outillage (Python)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           # Alignée sur `vignettes/Dockerfile`, qui exécute `publier.py` en
@@ -131,7 +131,7 @@ jobs:
     
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Setup Go ${{ env.GO_VERSION }}
         uses: actions/setup-go@v7
@@ -261,7 +261,7 @@ jobs:
     
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Setup Xcode ${{ env.XCODE_VERSION }}
         uses: maxim-lobanov/setup-xcode@v1
@@ -280,7 +280,7 @@ jobs:
           bundler-cache: false
 
       - name: 📦 Cache CocoaPods
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ArboreUi/Pods
@@ -670,7 +670,7 @@ jobs:
     
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Setup Xcode ${{ env.XCODE_VERSION }}
         uses: maxim-lobanov/setup-xcode@v1
@@ -747,7 +747,7 @@ jobs:
 
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🔧 Setup Node ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
@@ -809,7 +809,7 @@ jobs:
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
     steps:
       - name: 📥 Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         
       # Rapport complet vers l'onglet Security : non bloquant par nature, il sert
       # à la visibilité et à l'historique.

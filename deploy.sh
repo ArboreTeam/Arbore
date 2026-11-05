@@ -7,7 +7,8 @@
 #   2. mongodump pre-deploy → backups/daily/arbore-predeploy-<ISO>.tar.gz
 #   3. rotation des snapshots > 14 jours
 #   4. tirage des images ghcr (repli : build local)
-#   5. docker compose up -d  (backend + web)
+#   5. docker compose up -d  (backend + web + profils declares par ARBORE_PROFILS),
+#      puis releve des conteneurs en marche sur une image perimee
 #   6. health check backend (/health) + web, sur les ports de $ARBORE_ENV
 #
 # Codes de sortie :
@@ -1010,17 +1011,85 @@ verifier_cloisonnement() {
     fi
 }
 
+# Profils compose que CET environnement déclare vouloir tenir à jour (#694).
+#
+# `docker-compose.yml` en porte trois, de natures différentes :
+#
+#   vignettes  ouvrier de rendu, service DURABLE qui doit suivre la pile
+#   outils     `vignettes`, outil à passage unique — n'a rien à faire en `up -d`
+#   dev        minio, qui ne sert a RIEN ici : prod ET dev sont sur
+#              STORAGE_PROVIDER=filesystem, donc aucun support S3 a emuler
+#
+# Un `up -d` sans service nommé démarrerait les trois dès qu'un profil est
+# actif : un MinIO dont personne ne veut, et un outil à passage unique qu'on
+# relancerait en boucle. D'où une liste EXPLICITE plutôt qu'un
+# `COMPOSE_PROFILES` global — même raison que pour `SENTRY_ENVIRONMENT` :
+# l'environnement est fourni, jamais déduit.
+#
+# Vide par défaut : le comportement d'avant, à l'identique, pour qui n'a rien
+# déclaré.
+profils_declares() {
+    grep -E "^ARBORE_PROFILS=" "$ENV_FILE" 2>/dev/null \
+        | tail -1 | cut -d= -f2- | tr -d '"'"'"'\r' | tr ',' ' '
+}
+
+# Relève l'écart d'image, SANS le corriger (#694, option 2).
+#
+# L'option 1 ci-dessus ferme le cas de l'ouvrier. Celle-ci attrape ceux qu'on
+# ajoutera demain, et c'est elle qui compte sur la durée : un conteneur de la
+# pile qui tourne sur une image périmée est exactement le mode d'échec de #690
+# — du code ancien en service, et rien qui le signale.
+#
+# Seuls les conteneurs EN MARCHE sont comparés : l'outil à passage unique
+# dort légitimement sur une vieille image, ce n'est pas une dérive.
+verifier_images_a_jour() {
+    local attendu="$IMAGE_TAG" nom image ecarts=0 total=0
+    while read -r nom image; do
+        [ -z "$nom" ] && continue
+        total=$((total + 1))
+        case "$image" in
+            *":$attendu") ;;
+            *) warn "Image périmée : $nom sur ${image##*:} au lieu de $attendu"
+               ecarts=$((ecarts + 1)) ;;
+        esac
+    done < <("${DOCKER_PRIVILEGE[@]}" docker ps \
+                --filter "name=^${COMPOSE_PROJECT}-" \
+                --format '{{.Names}} {{.Image}}' 2>/dev/null || true)
+
+    if [ "$ecarts" -eq 0 ]; then
+        ok "Images à jour ($total conteneur(s) en marche sur $attendu)"
+    else
+        warn "$ecarts conteneur(s) sur une image périmée — suivi en #694"
+    fi
+}
+
 do_docker_up() {
     step 5 "Redémarrage des containers..."
     drop_legacy_containers
     prepare_generator_dir
     verifier_cloisonnement
+
+    local -a services=( backend web )
+    local -a drapeaux=()
+    local profil
+    for profil in $(profils_declares); do
+        [ -z "$profil" ] && continue
+        drapeaux+=( --profile "$profil" )
+        case "$profil" in
+            vignettes) services+=( vignettes-ouvrier ) ;;
+            *) warn "Profil « $profil » déclaré mais sans service connu de deploy.sh" ;;
+        esac
+    done
+    [ "${#drapeaux[@]}" -gt 0 ] && ok "Profils suivis : $(profils_declares)"
+
     if ! "${DOCKER_PRIVILEGE[@]}" ARBORE_ENV="$ARBORE_ENV" ARBORE_IMAGE_TAG="$IMAGE_TAG" \
-        docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" up -d backend web; then
+        docker compose -p "$COMPOSE_PROJECT" --env-file "$ENV_FILE" \
+        "${drapeaux[@]}" up -d "${services[@]}"; then
         fail "docker compose up a échoué"
         exit 1
     fi
     ok "Containers redémarrés"
+    verifier_images_a_jour
     echo
 }
 

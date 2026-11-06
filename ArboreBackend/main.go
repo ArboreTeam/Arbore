@@ -346,6 +346,40 @@ type PlantStringFact struct {
 	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`
 }
 
+// PlantToxicityFact porte un verdict de toxicité en VALEUR CLOSE, et la prose
+// qui l'explique à côté.
+//
+// Le champ annonçait déjà ces quatre valeurs en commentaire, mais il était typé
+// `string` libre et les écrivains y ont mis des phrases sourcées. Le client en
+// avait tiré un analyseur de sous-chaînes, qui s'inversait : « unsafe »
+// contient « safe » (#778). Un verdict de sécurité se stocke, il ne se lit pas
+// dans de la prose — d'où `Value` fermé et `Detail` purement informatif.
+type PlantToxicityFact struct {
+	Value    string             `json:"value" bson:"value"`
+	Detail   string             `json:"detail,omitempty" bson:"detail,omitempty"`
+	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`
+}
+
+// verdictsToxiciteValides est le vocabulaire fermé de PlantToxicityFact.Value.
+//
+// `irritant` est distinct de `toxic` parce que les sources le distinguent ; le
+// client les traite tous deux comme une atteinte. `unknown` est une valeur de
+// plein droit, et non l'absence du champ : elle dit qu'on a cherché sans
+// trouver, ce qu'aucun booléen ne sait exprimer.
+var verdictsToxiciteValides = map[string]struct{}{
+	"safe":     {},
+	"toxic":    {},
+	"irritant": {},
+	"unknown":  {},
+}
+
+// VerdictToxiciteValide dit si une valeur appartient au vocabulaire fermé.
+// Une valeur inconnue doit être traitée comme `unknown`, jamais comme `safe`.
+func VerdictToxiciteValide(v string) bool {
+	_, ok := verdictsToxiciteValides[strings.ToLower(strings.TrimSpace(v))]
+	return ok
+}
+
 type PlantStringListFact struct {
 	Value    []string           `json:"value" bson:"value"`
 	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`
@@ -380,8 +414,8 @@ type PlantBotanicalProfile struct {
 	WindTolerance          *PlantStringFact     `json:"windTolerance,omitempty" bson:"windTolerance,omitempty"`
 	DroughtTolerance       *PlantStringFact     `json:"droughtTolerance,omitempty" bson:"droughtTolerance,omitempty"`
 	SaltTolerance          *PlantStringFact     `json:"saltTolerance,omitempty" bson:"saltTolerance,omitempty"`
-	PetToxicity            *PlantStringFact     `json:"petToxicity,omitempty" bson:"petToxicity,omitempty"`
-	ChildToxicity          *PlantStringFact     `json:"childToxicity,omitempty" bson:"childToxicity,omitempty"`
+	PetToxicity            *PlantToxicityFact   `json:"petToxicity,omitempty" bson:"petToxicity,omitempty"`
+	ChildToxicity          *PlantToxicityFact   `json:"childToxicity,omitempty" bson:"childToxicity,omitempty"`
 	SchemaVersion          *int                 `json:"schemaVersion,omitempty" bson:"schemaVersion,omitempty"`
 }
 

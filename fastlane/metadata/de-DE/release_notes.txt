@@ -1,9 +1,9 @@
-Willkommen bei Arbore!
+Naturgetreuere Pflanzen, in ihrer echten Größe platziert.
 
-• Gestalte deinen Garten in AR: platziere maßstabsgetreue 3D-Pflanzen in deinem Raum und ordne sie frei an.
-• Verbesserte automatische Platzierung, die deine Pflanzen für dich anordnet.
-• Persönliche Pflanzen-Vorschläge über einen kurzen Fragebogen.
-• Pflanzenkatalog mit Pflegeanleitungen und Gieß-Erinnerungen.
-• Anmeldung mit Apple oder Google.
+• Neue 3D-Modelle für einen Teil des Katalogs, deutlich detaillierter.
+• Pflanzen werden in ihrer tatsächlichen Höhe platziert, am Exemplar gemessen, ohne dass Sie etwas einstellen müssen.
+• Viele von ihnen stehen jetzt in einem Übertopf, der automatisch unter die Pflanze gesetzt wird.
+• Ein gespeicherter Garten öffnet sich wieder mit seinen Töpfen, genau dort, wo Sie sie gelassen haben.
+• Die App fragt um Erlaubnis, bevor ein Foto oder eine Nachricht an den Assistenten geht.
 
-Danke fürs Testen – dein Feedback gestaltet die Zukunft!
+Ihre Rückmeldung zum Aussehen der Pflanzen interessiert uns besonders.

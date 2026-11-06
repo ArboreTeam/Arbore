@@ -1,9 +1,9 @@
-Welcome to Arbore!
+Truer plants, placed at their real size.
 
-• Design your garden in AR: place true-to-scale 3D plants in your space and arrange them freely.
-• Smarter automatic placement that lays out your selected plants for you.
-• Personalized plant suggestions from a quick questionnaire.
-• Plant catalog with care guides and watering reminders.
-• Sign in with Apple or Google.
+• New 3D models for part of the catalog, noticeably more detailed.
+• Plants are placed at their real height, measured on the specimen, with nothing for you to adjust.
+• Many of them now sit in a planter, placed automatically under the plant.
+• A saved garden reopens with its planters, exactly where you left them.
+• The app asks your permission before sending a photo or a message to the assistant.
 
-Thanks for testing — your feedback shapes what comes next!
+We are especially interested in your feedback on how the plants look.

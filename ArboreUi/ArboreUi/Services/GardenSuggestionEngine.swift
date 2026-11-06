@@ -74,7 +74,19 @@ final class GardenSuggestionEngine {
         // lowers ranking and remains visible instead of receiving a neutral
         // score through the obsolete style/exposure/soil axes.
         let evaluator = PlantSuitabilityEvaluator(wizard: wizard)
+
+        // Barrière de sûreté AVANT le classement, et plus stricte que celle des
+        // catalogues : ce moteur PROPOSE, il n'offre pas à parcourir.
+        //
+        // `isRecommended` ne suffisait pas. Une toxicité non établie n'ajoute
+        // qu'une clé `missing` sans critère : le niveau tombe à `.needsReview`,
+        // mais `isRecommended` accepte `.needsReview` dès 0,55 de score. Une
+        // plante aux autres axes solides et à la toxicité INCONNUE pouvait donc
+        // être recommandée à un foyer qui avait demandé l'inverse — la forme
+        // exacte de la régression #488, par un autre chemin (#783).
+        let contrainteFoyer = Plant.HouseholdSafetyRequirement(wizardSafety: wizard.safety)
         let scored = plants.compactMap { plant -> ScoredPlant? in
+            guard plant.isAdmitted(by: .offerable, requirement: contrainteFoyer) else { return nil }
             let suitability = evaluator.evaluate(plant)
             guard suitability.isRecommended else { return nil }
 

@@ -1,9 +1,9 @@
-Bienvenue dans Arbore !
+Des plantes plus fidèles, et posées à leur vraie taille.
 
-• Concevez votre jardin en RA : placez des plantes 3D à l'échelle dans votre espace et disposez-les librement.
-• Placement automatique amélioré qui agence vos plantes pour vous.
-• Suggestions de plantes personnalisées via un court questionnaire.
-• Catalogue de plantes avec guides d'entretien et rappels d'arrosage.
-• Connexion avec Apple ou Google.
+• Nouveaux modèles 3D pour une partie du catalogue, nettement plus détaillés.
+• Les plantes sont placées à leur hauteur réelle, mesurée sur l'exemplaire, sans réglage de votre part.
+• Beaucoup d'entre elles reposent désormais dans un cache-pot, posé automatiquement sous la plante.
+• Un jardin enregistré se rouvre avec ses pots, à l'endroit exact où vous les aviez laissés.
+• L'app demande votre autorisation avant d'envoyer une photo ou un message à l'assistant.
 
-Merci de tester — vos retours façonnent la suite !
+Vos retours sur le rendu des plantes nous intéressent particulièrement.

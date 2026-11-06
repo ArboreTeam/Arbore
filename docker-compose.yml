@@ -432,6 +432,51 @@ services:
           # partagent la machine, et une passe dure des heures.
           cpus: "${VIGNETTES_CPUS:-2.0}"
 
+  # Ouvrier de la file « prod », hébergé par la pile qui porte l'ATELIER.
+  #
+  # Un ouvrier ne sert QU'UNE file, celle de `ARBORE_ENV_NOM` — le code le dit :
+  # « un ouvrier ne sert qu'un environnement ». Or l'atelier en tient N. Servir
+  # la file de prod demande donc un second CONTENEUR, et non un second atelier :
+  # c'est l'atelier qui serait néfaste en double, avec deux `etat.json` et la
+  # question « lequel dit vrai ? » qui avait produit 54 empreintes fausses
+  # (#719, correction du 2026-11-02).
+  #
+  # Mesuré le 2026-11-05 : 51 tâches déposées sur la file `prod` sont restées
+  # `en_attente` à 51/51, le seul ouvrier en service portant `ARBORE_ENV_NOM=dev`.
+  #
+  # Sous son PROPRE profil, pour qu'il ne démarre que là où on le déclare :
+  # `ARBORE_PROFILS=vignettes,vignettes-prod`. Il n'a donc aucune existence sur
+  # la pile de production, qui ne porte pas l'atelier.
+  #
+  # Comme l'autre, il ne détient aucune clé de backend : l'atelier joint
+  # l'adresse de l'API et ses deux clés à chaque tâche (#696). Il lui faut en
+  # revanche un chemin réseau vers le backend visé, posé par
+  # `VIGNETTES_RESEAUX_CIBLES` et `rattacher_ouvrier_aux_reseaux` de `deploy.sh`.
+  vignettes-ouvrier-prod:
+    build:
+      context: ./vignettes
+      dockerfile: Dockerfile
+    image: ghcr.io/arboreteam/arbore-vignettes:${ARBORE_IMAGE_TAG:-latest}
+    container_name: arbore-${ARBORE_ENV:-prod}-vignettes-ouvrier-prod
+    profiles: ["vignettes-prod"]
+    restart: unless-stopped
+    command: ["--surveiller"]
+    networks:
+      - arbore-net
+    environment:
+      # La FILE puisée, et elle seule. Fixe : ce service existe pour celle-là.
+      - ARBORE_ENV_NOM=prod
+      - ATELIER_BASE=http://web:3000
+      - ATELIER_HOTE=${GENERATOR_HOST:-generator.arbore.app}
+      - ATELIER_CLE=${GENERATOR_KEY:-}
+    deploy:
+      resources:
+        limits:
+          # Même plafond que l'autre ouvrier, et la même raison : laisser au
+          # moins un cœur au reste. Les deux ne travaillent jamais ensemble en
+          # pratique, chacun n'ayant que sa file, mais rien ne l'interdit.
+          cpus: "${VIGNETTES_CPUS:-2.0}"
+
   minio:
     image: minio/minio:latest
     container_name: arbore-${ARBORE_ENV:-prod}-minio

@@ -2098,3 +2098,22 @@
 "CHATBOT_RENAME_PLACEHOLDER" = "Titel";
 "CHATBOT_INPUT_PLACEHOLDER" = "Deine Frage…";
 "CHATBOT_ANALYSE_THIS_PLANT" = "Analysiere diese Pflanze";
+
+
+/* MARK: - Securite du foyer (toxicite) */
+"PLANTDETAIL_TOXICITY_TITLE" = "Sicherheit im Haushalt";
+"PLANTDETAIL_TOXICITY_SUBTITLE" = "Tiere und Kinder: was die Quellen sagen";
+"TOXICITY_NAV_TITLE" = "Sicherheit im Haushalt";
+"TOXICITY_SECTION_PETS_TITLE" = "Für Tiere";
+"TOXICITY_SECTION_CHILDREN_TITLE" = "Für Kinder";
+"TOXICITY_VERDICT_TOXIC" = "Giftig";
+"TOXICITY_VERDICT_IRRITANT" = "Reizend";
+"TOXICITY_VERDICT_SAFE" = "Keine bekannte Gefahr";
+"TOXICITY_VERDICT_UNKNOWN" = "Giftigkeit nicht geklärt";
+"TOXICITY_UNKNOWN_ADVICE_PETS" = "Keine der geprüften veterinärmedizinischen Datenbanken führt diese Pflanze. Das ist keine Unbedenklichkeitsgarantie: Fragen Sie Ihre Tierärztin oder Ihren Tierarzt, bevor Sie sie in Reichweite eines Tieres stellen.";
+"TOXICITY_UNKNOWN_ADVICE_CHILDREN" = "Keine der geprüften Datenbanken führt diese Pflanze. Das ist keine Unbedenklichkeitsgarantie: Prüfen Sie selbst nach, und rufen Sie bei Verschlucken sofort eine Giftnotrufzentrale an.";
+"TOXICITY_SOURCE_AND_DATE" = "Quelle: %@ — geprüft am %@";
+"TOXICITY_SOURCE_ONLY" = "Quelle: %@";
+"TOXICITY_REVIEWED_ONLY" = "Geprüft am %@";
+"TOXICITY_DISCLAIMER_TITLE" = "Was diese Angabe wert ist";
+"TOXICITY_DISCLAIMER_BODY" = "Jedes Urteil stammt aus einer benannten, datierten Quelle und wird nie abgeleitet. Widersprechen sich die Quellen, behalten wir die vorsichtigere und nennen die andere. Das ersetzt weder Tierarzt noch Arzt: Rufen Sie bei Verschlucken eine Giftnotrufzentrale an.";

@@ -2094,3 +2094,22 @@
 "CHATBOT_RENAME_PLACEHOLDER" = "Título";
 "CHATBOT_INPUT_PLACEHOLDER" = "Tu pregunta…";
 "CHATBOT_ANALYSE_THIS_PLANT" = "Analiza esta planta";
+
+
+/* MARK: - Securite du foyer (toxicite) */
+"PLANTDETAIL_TOXICITY_TITLE" = "Seguridad del hogar";
+"PLANTDETAIL_TOXICITY_SUBTITLE" = "Animales y niños: lo que dicen las fuentes";
+"TOXICITY_NAV_TITLE" = "Seguridad del hogar";
+"TOXICITY_SECTION_PETS_TITLE" = "Para los animales";
+"TOXICITY_SECTION_CHILDREN_TITLE" = "Para los niños";
+"TOXICITY_VERDICT_TOXIC" = "Tóxica";
+"TOXICITY_VERDICT_IRRITANT" = "Irritante";
+"TOXICITY_VERDICT_SAFE" = "Sin peligro conocido";
+"TOXICITY_VERDICT_UNKNOWN" = "Toxicidad no establecida";
+"TOXICITY_UNKNOWN_ADVICE_PETS" = "Ninguna de las bases veterinarias consultadas cubre esta planta. No es una garantía de inocuidad: consulte a su veterinario antes de colocarla al alcance de un animal.";
+"TOXICITY_UNKNOWN_ADVICE_CHILDREN" = "Ninguna de las bases consultadas cubre esta planta. No es una garantía de inocuidad: compruébelo usted mismo y, en caso de ingestión, llame de inmediato a un centro de toxicología.";
+"TOXICITY_SOURCE_AND_DATE" = "Fuente: %@ — consultada el %@";
+"TOXICITY_SOURCE_ONLY" = "Fuente: %@";
+"TOXICITY_REVIEWED_ONLY" = "Consultada el %@";
+"TOXICITY_DISCLAIMER_TITLE" = "Qué valor tiene esta información";
+"TOXICITY_DISCLAIMER_BODY" = "Cada veredicto procede de una fuente nombrada y fechada, nunca deducido. Cuando las fuentes se contradicen, conservamos la más prudente y citamos la otra. Esto no sustituye ni al veterinario ni al médico: en caso de ingestión, llame a un centro de toxicología.";

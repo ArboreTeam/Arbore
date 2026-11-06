@@ -1524,6 +1524,26 @@ struct GardenDetailsPage: View {
             }
         }
 
+        // Politique de cette surface : le catalogue d'achat d'un jardin
+        // existant. Le questionnaire a été rempli à la création du jardin, et
+        // sa contrainte de sûreté s'applique donc ici comme dans le catalogue
+        // AR — même prédicat, même décision sur le conflit.
+        //
+        // Jusqu'ici cette surface n'utilisait la compatibilité que pour TRIER
+        // (voir `matchedIDs` plus bas) : une plante toxique y apparaissait,
+        // simplement plus bas dans la liste, alors que le jardin avait déclaré
+        // vouloir l'éviter (#783).
+        //
+        // Reste à faire : contrairement au catalogue AR, cette surface
+        // n'affiche aucun badge de compatibilité. Une toxicité NON ÉTABLIE y
+        // passe donc en silence, ce que la règle « ne jamais être silencieux »
+        // interdit. Le marqueur demande du travail d'interface, suivi en #783.
+        if let contrainteFoyer = gardenDetails.map({
+            Plant.HouseholdSafetyRequirement(wizardSafety: $0.wizard.safety)
+        }), !contrainteFoyer.isEmpty {
+            plants = plants.filter { $0.isAdmitted(by: .browsable, requirement: contrainteFoyer) }
+        }
+
         // Le catalogue d'achat éventuel suit le même verdict environnemental
         // que l'AR. L'évaluation reste indexée une seule fois par plante.
         let matchedIDs: Set<String> = suitabilityEvaluator.map { evaluator in

@@ -666,6 +666,121 @@ extension Plant {
         return nil
     }
 
+    /// Contrainte de sûreté déclarée par le questionnaire du jardin.
+    ///
+    /// Elle existe pour qu'un seul endroit lise les libellés du questionnaire.
+    /// Il y en avait trois, avec trois tolérances différentes :
+    /// `WizardPlantFilter` comparait la chaîne entière
+    /// (« Éviter les plantes toxiques pour les animaux »), les deux
+    /// `appendSafetyCriteria` cherchaient « animaux » ou « pets » après
+    /// normalisation. Un libellé retouché aurait désarmé l'un sans toucher aux
+    /// autres, en silence.
+    struct HouseholdSafetyRequirement: Equatable {
+        let pets: Bool
+        let children: Bool
+
+        var isEmpty: Bool { !pets && !children }
+
+        init(pets: Bool, children: Bool) {
+            self.pets = pets
+            self.children = children
+        }
+
+        /// Lit les réponses du questionnaire, dans les quatre langues servies.
+        init(wizardSafety: [String]?) {
+            guard let brut = wizardSafety, !brut.isEmpty else {
+                self.init(pets: false, children: false)
+                return
+            }
+            let valeurs = brut.map {
+                $0.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+                    .lowercased()
+            }
+            // « Aucune contrainte » est une réponse, pas une absence.
+            if valeurs.contains(where: { $0.contains("aucune contrainte") || $0.contains("none") }) {
+                self.init(pets: false, children: false)
+                return
+            }
+            self.init(
+                pets: valeurs.contains { $0.contains("animaux") || $0.contains("pets") },
+                children: valeurs.contains { $0.contains("enfants") || $0.contains("children") }
+            )
+        }
+    }
+
+    /// Réponse d'une plante à une contrainte de sûreté. Trois branches, et pas
+    /// un booléen : un booléen force à ranger l'inconnu avec l'un des deux, et
+    /// c'est exactement le piège qui traverse ces données — `toxicToPets:
+    /// false` a longtemps voulu dire à la fois « prouvé sûr » et
+    /// « pas recherché ».
+    enum SafetyOutcome: Equatable {
+        /// Le fait est connu, et compatible avec la contrainte.
+        case satisfied
+        /// Le fait est connu, et incompatible.
+        case conflict
+        /// Le fait n'est pas établi. L'incertitude est la nôtre, pas celle de
+        /// la plante : 44 fiches du catalogue sont dans ce cas.
+        case undetermined
+    }
+
+    /// LE prédicat de sûreté. Unique, et sans politique d'affichage.
+    ///
+    /// La distinction porte tout le reste : ceci répond « cette plante est-elle
+    /// compatible ? », un fait qui ne dépend d'aucun écran. Ce qu'on en fait —
+    /// masquer, marquer, déclasser — est une politique, elle dépend de l'écran,
+    /// et elle s'écrit chez l'appelant.
+    ///
+    /// Le plus défavorable des publics demandés l'emporte : un conflit sur un
+    /// seul suffit, et à défaut de conflit un seul indéterminé suffit.
+    func safetyOutcome(for requirement: HouseholdSafetyRequirement) -> SafetyOutcome {
+        guard !requirement.isEmpty else { return .satisfied }
+
+        var verdicts: [ToxicityVerdict?] = []
+        if requirement.pets { verdicts.append(petToxicity()) }
+        if requirement.children { verdicts.append(childToxicity()) }
+
+        if verdicts.contains(where: { $0 == .toxic }) { return .conflict }
+        if verdicts.contains(where: { $0 == nil }) { return .undetermined }
+        return .satisfied
+    }
+
+    /// Les deux politiques, NOMMÉES.
+    ///
+    /// L'asymétrie entre « je te propose ceci » et « tu peux parcourir ceci »
+    /// est un choix, et elle doit se lire comme tel plutôt que se déduire d'un
+    /// filtre en ligne. Le prédicat, lui, reste unique et sans politique.
+    enum HouseholdSafetyPolicy {
+        /// Ce que l'utilisateur PARCOURT : catalogues.
+        ///
+        /// Masque le conflit — il vient de déclarer la contrainte. Laisse voir
+        /// l'indéterminé, marqué : l'incertitude est la nôtre, pas celle de la
+        /// plante, et 44 fiches du catalogue sont dans ce cas. Les masquer
+        /// priverait d'autant de choix tout en cachant notre trou de données.
+        case browsable
+        /// Ce que l'app PROPOSE : moteur de suggestions.
+        ///
+        /// Masque le conflit ET l'indéterminé. Quand on recommande, on engage
+        /// sa parole ; parcourir n'engage que le regard.
+        case offerable
+
+        func admits(_ outcome: SafetyOutcome) -> Bool {
+            switch (self, outcome) {
+            case (_, .satisfied): return true
+            case (_, .conflict): return false
+            case (.browsable, .undetermined): return true
+            case (.offerable, .undetermined): return false
+            }
+        }
+    }
+
+    /// Cette plante passe-t-elle la politique de cette surface ?
+    func isAdmitted(
+        by policy: HouseholdSafetyPolicy,
+        requirement: HouseholdSafetyRequirement
+    ) -> Bool {
+        policy.admits(safetyOutcome(for: requirement))
+    }
+
     /// Toxicité pour les enfants, ou `nil` si elle n'est pas établie.
     ///
     /// Même contrat que `petToxicity()`. Les fiches historiques ne portaient

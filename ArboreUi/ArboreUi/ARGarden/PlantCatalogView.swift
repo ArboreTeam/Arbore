@@ -39,6 +39,30 @@ struct PlantCatalogARView: View {
             list = list.filter { filters.matches($0.traits) }
         }
 
+        // Politique de CETTE surface — ce que l'utilisateur parcourt.
+        //
+        // Le prédicat vit dans `Plant.safetyOutcome(for:)` et ne dépend
+        // d'aucun écran ; ce qu'on en fait dépend de celui-ci. Ici :
+        //
+        //   `.conflict`     masquée. L'utilisateur vient de déclarer la
+        //                   contrainte dans le questionnaire : lui proposer
+        //                   l'inverse rompt une promesse, et les conséquences
+        //                   ne sont pas les siennes mais celles de son animal
+        //                   ou de son enfant.
+        //   `.undetermined` visible, et marquée par son badge de compatibilité.
+        //                   L'incertitude est la NÔTRE, pas celle de la plante :
+        //                   44 fiches du catalogue sont dans ce cas. Les
+        //                   masquer priverait d'autant de choix tout en cachant
+        //                   notre propre trou de données.
+        //
+        // Jusqu'ici cette surface n'appliquait RIEN en portée « tout » : une
+        // plante toxique y était listée sans que la contrainte déclarée ne
+        // change quoi que ce soit (#783).
+        let safetyRequirement = Plant.HouseholdSafetyRequirement(wizardSafety: wizard.safety)
+        if !safetyRequirement.isEmpty {
+            list = list.filter { $0.plant.isAdmitted(by: .browsable, requirement: safetyRequirement) }
+        }
+
         if scope == .adapted {
             list = list.filter { $0.suitability.isRecommended }
         }

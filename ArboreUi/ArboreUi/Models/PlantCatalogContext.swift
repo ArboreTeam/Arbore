@@ -594,7 +594,7 @@ struct PlantSuitabilityEvaluator {
     }
 
     private func appendToxicityCriterion(
-        fact: PlantFact<String>?,
+        fact: PlantToxicityFact?,
         legacyToxic: Bool?,
         safeReason: String,
         conflictReason: String,
@@ -604,12 +604,17 @@ struct PlantSuitabilityEvaluator {
     ) {
         if let fact {
             markEvidence(fact.evidence, missing: &missing)
-            let value = normalized(fact.value)
-            if containsAny(value, ["safe", "non toxic", "non-toxic", "not toxic"]) {
+            // Le verdict est lu, pas deviné. Cette branche refaisait ici le
+            // même test de sous-chaîne que `Plant`, avec les mêmes listes dans
+            // le même ordre — donc le même piège, « unsafe » contenant
+            // « safe » (#778). Deux copies d'une décision de sécurité, c'était
+            // une copie de trop (#780).
+            switch fact.verdict {
+            case .safe:
                 criteria.append(.positive(safeReason))
-            } else if containsAny(value, ["toxic", "irritant", "danger", "poison"]) {
+            case .toxic:
                 criteria.append(.critical(conflictReason))
-            } else {
+            case nil:
                 missing.append(missingKey)
             }
         } else if legacyToxic == true {

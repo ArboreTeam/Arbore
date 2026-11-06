@@ -199,6 +199,9 @@ final class PlantCareDifficultyTests: XCTestCase {
 
 final class PlantToxicityTests: XCTestCase {
 
+    /// `petToxicity` prend une valeur du vocabulaire clos — `safe`, `toxic`,
+    /// `irritant`, `unknown` — et non plus une phrase. Le verdict est stocké
+    /// depuis #778 ; aucune prose n'est analysée.
     private func makePlant(petToxicity: String? = nil,
                            toxicToPetsFlag: Bool? = nil) throws -> Plant {
         var profile = ""
@@ -239,15 +242,17 @@ final class PlantToxicityTests: XCTestCase {
     // MARK: - Résolution
 
     func testLeProfilBotaniquePrimeSurLesFlags() throws {
-        // Le flag dit « sûre », l'ASPCA dit « toxique ». L'autorité l'emporte.
-        let p = try makePlant(petToxicity: "toxic to dogs, cats, horses", toxicToPetsFlag: false)
+        // Le flag dit « sûre », la source dit « toxique ». L'autorité l'emporte.
+        let p = try makePlant(petToxicity: "toxic", toxicToPetsFlag: false)
         XCTAssertEqual(p.petToxicity(), .toxic)
     }
 
-    /// « non-toxic » contient « toxic » : l'ordre d'évaluation doit protéger
-    /// contre cette lecture naïve.
-    func testNonToxiqueNEstPasLuCommeToxique() throws {
-        XCTAssertEqual(try makePlant(petToxicity: "non-toxic").petToxicity(), .safe)
+    /// Le piège de sous-chaîne qu'il fallait contourner — « non-toxic »
+    /// contient « toxic » — n'existe plus : le verdict est une valeur close,
+    /// pas une phrase à relire. Les inversions que l'analyseur produisait sont
+    /// couvertes par `PlantToxicityVerdictTests` (#778).
+    func testUnVerdictSurEstLuSur() throws {
+        XCTAssertEqual(try makePlant(petToxicity: "safe").petToxicity(), .safe)
     }
 
     func testReplieSurLesFlagsQuandLeProfilManque() throws {
@@ -258,13 +263,13 @@ final class PlantToxicityTests: XCTestCase {
     // MARK: - Le filtre
 
     func testUnePlanteToxiqueEstExclue() throws {
-        let p = try makePlant(petToxicity: "toxic to dogs, cats, horses")
+        let p = try makePlant(petToxicity: "toxic")
         let wizard = GardenWizardDTO(style: "", spaceType: "", safety: ["Éviter les plantes toxiques pour les animaux"])
         XCTAssertFalse(WizardPlantFilter(wizard: wizard).matches(plant: p, locale: "fr"))
     }
 
     func testUnePlanteSureEstConservee() throws {
-        let p = try makePlant(petToxicity: "non-toxic")
+        let p = try makePlant(petToxicity: "safe")
         let wizard = GardenWizardDTO(style: "", spaceType: "", safety: ["Éviter les plantes toxiques pour les animaux"])
         XCTAssertTrue(WizardPlantFilter(wizard: wizard).matches(plant: p, locale: "fr"))
     }

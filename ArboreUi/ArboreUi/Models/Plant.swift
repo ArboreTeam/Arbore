@@ -223,6 +223,67 @@ struct PlantFact<Value: Codable & Equatable>: Codable, Equatable {
     let evidence: PlantDataEvidence?
 }
 
+/// Verdict de toxicité STOCKÉ, en valeurs closes.
+///
+/// Le schéma annonçait déjà ces quatre valeurs. Les écrivains ont pourtant
+/// rempli le champ de prose sourcée, et le client avait poussé un analyseur de
+/// sous-chaînes pour s'en sortir. Cet analyseur était inversable — « unsafe »
+/// contient « safe » — et aucun ordre de passes ne rend sûre une décision de
+/// sécurité tirée d'une chaîne libre (#778). Le verdict est donc une donnée,
+/// pas une lecture.
+enum PlantToxicityValue: String, Codable, Equatable {
+    case safe
+    case toxic
+    case irritant
+    case unknown
+
+    /// Toute valeur non reconnue devient `unknown`, jamais `safe`.
+    ///
+    /// C'est ce qui rend la migration sans danger : les fiches historiques
+    /// portent de la prose dans ce champ, elle se décode en « inconnu », et la
+    /// plante retombe sur ses drapeaux au lieu d'être déclarée inoffensive par
+    /// accident. Un décodage strict ferait au contraire échouer tout le profil
+    /// botanique de la fiche.
+    init(from decoder: Decoder) throws {
+        let brut = try decoder.singleValueContainer().decode(String.self)
+        let cle = brut.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        self = PlantToxicityValue(rawValue: cle) ?? .unknown
+    }
+}
+
+/// Fait de toxicité : le verdict qui décide, et la prose qui explique.
+///
+/// `detail` porte la phrase sourcée produite par la recherche. Elle est
+/// informative — rien ne la lit pour décider.
+struct PlantToxicityFact: Codable, Equatable {
+    let value: PlantToxicityValue
+    let detail: String?
+    let evidence: PlantDataEvidence?
+
+    /// Un `value` absent vaut « inconnu », et ne fait pas échouer le décodage.
+    ///
+    /// Sans ça, une fiche dont le champ serait vide emporterait avec elle TOUT
+    /// son profil botanique — soleil, température, dimensions — pour une seule
+    /// clé manquante. Le profil est optionnel de bout en bout précisément pour
+    /// se migrer par morceaux.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        value = try c.decodeIfPresent(PlantToxicityValue.self, forKey: .value) ?? .unknown
+        detail = try c.decodeIfPresent(String.self, forKey: .detail)
+        evidence = try c.decodeIfPresent(PlantDataEvidence.self, forKey: .evidence)
+    }
+
+    /// Le verdict exploitable, ou `nil` quand il n'est pas établi.
+    /// `irritant` compte comme toxique : c'est une atteinte, pas une nuance.
+    var verdict: Plant.ToxicityVerdict? {
+        switch value {
+        case .safe: return .safe
+        case .toxic, .irritant: return .toxic
+        case .unknown: return nil
+        }
+    }
+}
+
 struct PlantRangeFact: Codable, Equatable {
     let minimum: Double?
     let maximum: Double?
@@ -253,9 +314,11 @@ struct PlantBotanicalProfile: Codable, Equatable {
     let windTolerance: PlantFact<String>?
     let droughtTolerance: PlantFact<String>?
     let saltTolerance: PlantFact<String>?
-    /// Expected values: `safe`, `toxic`, `irritant`, `unknown`.
-    let petToxicity: PlantFact<String>?
-    let childToxicity: PlantFact<String>?
+    /// Verdicts STOCKÉS, en valeurs closes (`safe`, `toxic`, `irritant`,
+    /// `unknown`). Ces quatre valeurs étaient déjà le contrat annoncé ici ;
+    /// elles sont désormais typées, donc ni devinées ni analysées (#778).
+    let petToxicity: PlantToxicityFact?
+    let childToxicity: PlantToxicityFact?
     /// Incremented when the canonical schema changes.
     let schemaVersion: Int?
 }
@@ -533,21 +596,25 @@ extension Plant {
     ///
     /// Deux sources, dans cet ordre :
     ///
-    /// 1. `botanicalProfile.petToxicity` — faisant autorité, avec sa provenance.
-    ///    Renseignée depuis l'ASPCA sur 38 fiches (#489).
-    /// 2. `flags.toxicToPets` — issue de l'enrichissement botanique, présente
-    ///    sur 98 fiches. Confrontée à l'ASPCA sur les 30 fiches couvertes par
-    ///    les deux : **30 accords, 0 désaccord**. C'est ce contrôle qui autorise
-    ///    à lire son `false` comme « sûre » et non comme « non recherchée ».
+    /// 1. `botanicalProfile.petToxicity.value` — le verdict STOCKÉ, en valeur
+    ///    close, avec sa provenance. Rien n'est analysé : le champ dit
+    ///    `safe`, `toxic`, `irritant` ou `unknown`, et c'est tout.
+    /// 2. `flags.toxicToPets` — repli pour les fiches qui n'ont pas encore de
+    ///    verdict stocké, et pour celles dont le verdict est `unknown`.
     ///
     /// **`nil` signifie « non établie ».** Contrairement au filtre de difficulté
     /// (#485), où l'inconnu n'exclut pas, l'inconnu doit ici EXCLURE : le coût
     /// des deux erreurs n'est pas le même. Masquer une plante inoffensive prive
     /// d'un choix ; en proposer une toxique à quelqu'un qui a demandé le
     /// contraire rompt une promesse.
+    ///
+    /// Le `false` du repli reste ambigu — il a longtemps voulu dire à la fois
+    /// « sûre » et « non recherchée ». La convention de remplissage lève
+    /// désormais le drapeau sur une toxicité non tranchée, ce qui rend ce repli
+    /// prudent ; le trancher pour de bon demande une migration, suivie en #780.
     func petToxicity() -> ToxicityVerdict? {
-        if let fact = botanicalProfile?.petToxicity, let v = Self.verdict(from: fact.value) {
-            return v
+        if let verdict = botanicalProfile?.petToxicity?.verdict {
+            return verdict
         }
         if let flags = flags {
             return flags.toxicToPets ? .toxic : .safe
@@ -557,13 +624,13 @@ extension Plant {
 
     /// Toxicité pour les enfants, ou `nil` si elle n'est pas établie.
     ///
-    /// Aucune fiche ne porte `childToxicity` : l'ASPCA ne couvre que chiens,
-    /// chats et chevaux, et l'extrapoler aurait été inventer (#489). La source
-    /// est donc `flags.toxicToChildren` seule, en attendant une référence
-    /// dédiée.
+    /// Même contrat que `petToxicity()`. Les fiches historiques ne portaient
+    /// pas ce champ — l'ASPCA ne couvre que chiens, chats et chevaux, et
+    /// l'extrapoler aurait été inventer (#489) ; la recherche de 2026-11 le
+    /// renseigne depuis des sources distinctes, dont NC State Extension.
     func childToxicity() -> ToxicityVerdict? {
-        if let fact = botanicalProfile?.childToxicity, let v = Self.verdict(from: fact.value) {
-            return v
+        if let verdict = botanicalProfile?.childToxicity?.verdict {
+            return verdict
         }
         if let flags = flags {
             return flags.toxicToChildren ? .toxic : .safe
@@ -571,19 +638,4 @@ extension Plant {
         return nil
     }
 
-    /// Lit un verdict dans la formulation libre d'un fait.
-    ///
-    /// La valeur n'est pas un énuméré : l'ASPCA donne « toxic to dogs, cats,
-    /// horses » ou « non-toxic ». La négation est testée EN PREMIER, sans quoi
-    /// « non-toxic » serait lu comme toxique — il contient « toxic ».
-    private static func verdict(from raw: String) -> ToxicityVerdict? {
-        let v = raw.lowercased()
-        if ["non-toxic", "non toxic", "not toxic", "safe"].contains(where: v.contains) {
-            return .safe
-        }
-        if ["toxic", "irritant", "danger", "poison"].contains(where: v.contains) {
-            return .toxic
-        }
-        return nil
-    }
 }

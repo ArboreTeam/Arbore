@@ -24,7 +24,11 @@ struct WizardPlantFilter {
         // 3. Maintenance → Plant.careDifficulty (care.difficulty, repli flags.easyCare)
         if !matchesMaintenance(plant: plant, locale: locale) { return false }
 
-        // 4. Safety → flags.toxicToPets/Children (fallback: toxic keywords)
+        // 4. Safety → verdict STOCKÉ (botanicalProfile), repli flags.
+        //    Aucun mot-clé, aucune prose : il n'y a jamais eu de repli par
+        //    mots-clés ici, et ce commentaire l'a laissé croire assez
+        //    longtemps pour qu'une passe de remplissage reformule dix
+        //    descriptions en croyant nourrir ce filtre (#780).
         if !matchesSafety(plant: plant, translation: translation) { return false }
 
         // 5. Soil → flags.drought/humidity (fallback: soilAndPot.substrate)

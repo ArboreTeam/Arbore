@@ -207,13 +207,57 @@ struct PlantFlags: Codable {
 
 /// Provenance attached to an individual botanical value. Keeping provenance
 /// per field avoids presenting a partly sourced plant sheet as fully verified.
+/// Confiance accordée à une valeur, en vocabulaire fermé et ORDONNÉ.
+///
+/// Le champ était une chaîne libre, et le lecteur exigeait l'égalité exacte
+/// avec `high` tandis que les écrivains produisaient `authoritative`,
+/// `authoritative-genus` et `derived`. Aucune des trois ne correspondait :
+/// chaque contrôle de provenance échouait, et **plus aucune plante ne pouvait
+/// être déclarée adaptée** (#647 §1).
+///
+/// La mesure a montré que les deux vocabulaires ne divergeaient pas par
+/// négligence — la coupure suivait exactement les champs. La toxicité venait
+/// d'une source nommée (`authoritative`, 13 valeurs ; `authoritative-genus`,
+/// 25), les trois axes horticoles étaient tous `derived` (335). L'un disait
+/// d'où vient la valeur, l'autre combien on lui fait confiance. D'où la
+/// correspondance appliquée en base : `authoritative` → `high`,
+/// `authoritative-genus` → `moderate`, `derived` → `low`.
+enum PlantDataReliability: String, Codable, Comparable {
+    case low
+    case moderate
+    case high
+
+    private var rang: Int {
+        switch self {
+        case .low: return 0
+        case .moderate: return 1
+        case .high: return 2
+        }
+    }
+
+    static func < (lhs: Self, rhs: Self) -> Bool { lhs.rang < rhs.rang }
+
+    /// Une valeur non reconnue vaut le PLANCHER, jamais le plafond.
+    ///
+    /// Une provenance a été consignée, mais son mot de confiance nous est
+    /// inconnu : la traiter comme la plus faible est le seul choix qui ne
+    /// surclasse rien. L'absence du champ, elle, reste `nil` et continue de
+    /// faire échouer le contrôle — ne pas écrire de provenance et en écrire une
+    /// qu'on ne sait pas lire sont deux situations différentes.
+    init(from decoder: Decoder) throws {
+        let brut = try decoder.singleValueContainer().decode(String.self)
+        let cle = brut.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        self = PlantDataReliability(rawValue: cle) ?? .low
+    }
+}
+
 struct PlantDataEvidence: Codable, Equatable {
     let sourceName: String?
     let sourceURL: String?
     /// ISO-8601 date (`YYYY-MM-DD` or a full timestamp).
     let reviewedAt: String?
-    /// Expected values: `high`, `medium`, `low`.
-    let reliability: String?
+    /// `low`, `moderate` ou `high`. `nil` = aucune provenance consignée.
+    let reliability: PlantDataReliability?
 }
 
 /// A sourced scalar value. Generic facts keep the JSON schema consistent

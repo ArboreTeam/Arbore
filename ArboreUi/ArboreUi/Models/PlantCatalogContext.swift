@@ -603,7 +603,9 @@ struct PlantSuitabilityEvaluator {
         missing: inout [String]
     ) {
         if let fact {
-            markEvidence(fact.evidence, missing: &missing)
+            // Seul axe à exiger plus que le plancher : une source nommée, au
+            // moins au niveau du genre.
+            markEvidence(fact.evidence, minimum: .moderate, missing: &missing)
             // Le verdict est lu, pas deviné. Cette branche refaisait ici le
             // même test de sous-chaîne que `Plant`, avec les mêmes listes dans
             // le même ordre — donc le même piège, « unsafe » contenant
@@ -881,12 +883,39 @@ struct PlantSuitabilityEvaluator {
             .max()
     }
 
-    private func markEvidence(_ evidence: PlantDataEvidence?, missing: inout [String]) {
+    /// Exige une provenance, et une confiance AU MOINS égale à `minimum`.
+    ///
+    /// Le seuil dépend de l'axe, et cette asymétrie est le cœur du réglage :
+    /// un arrosage déduit qui se trompe coûte une plante maussade, une
+    /// toxicité qui se trompe coûte un animal. Le dépôt écrivait déjà ce
+    /// raisonnement ailleurs — `matchesSafety`, la doc de `petToxicity()` —
+    /// mais le contrôle de provenance, lui, exigeait `high` de TOUS les axes.
+    ///
+    /// Comme les trois axes horticoles sont tous `derived` → `low` et que la
+    /// toxicité est `moderate` au mieux sur 25 des 38 fiches, cet unique seuil
+    /// échouait partout : aucune plante ne pouvait atteindre `.suitable`.
+    ///
+    /// - `low` par défaut, donc pour le soleil, l'eau, le drainage, les
+    ///   dimensions, le vent, le sel, la température.
+    /// - `moderate` pour la toxicité, décidé le 2026-11-06 : l'autorité au
+    ///   niveau du GENRE est acceptée. Avec `high` strict, 13 plantes du
+    ///   catalogue seraient certifiables ; avec le genre, 38. L'ASPCA fiche
+    ///   elle-même certaines espèces au genre — « Mentha sp. » là où le thym
+    ///   est « Thymus vulgaris ».
+    ///
+    /// Un `reliability` absent échoue quel que soit le seuil : ne rien
+    /// consigner n'est pas une confiance faible, c'est une absence de source.
+    private func markEvidence(
+        _ evidence: PlantDataEvidence?,
+        minimum: PlantDataReliability = .low,
+        missing: inout [String]
+    ) {
         guard let evidence,
               !(evidence.sourceName?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
                 || !(evidence.sourceURL?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true),
               !(evidence.reviewedAt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true),
-              normalized(evidence.reliability ?? "") == "high" else {
+              let fiabilite = evidence.reliability,
+              fiabilite >= minimum else {
             missing.append("AR_CATALOG_MISSING_VERIFIED_SOURCE")
             return
         }

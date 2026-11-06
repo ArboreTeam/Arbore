@@ -341,6 +341,50 @@ type PlantDataEvidence struct {
 	Reliability string `json:"reliability,omitempty" bson:"reliability,omitempty"`
 }
 
+// fiabilitesValides est le vocabulaire fermé de PlantDataEvidence.Reliability.
+//
+// Il est ORDONNÉ : `low` < `moderate` < `high`. Le client exige une confiance
+// minimale qui dépend de l'axe — `low` pour le soleil, l'eau et le drainage,
+// `moderate` pour la toxicité, parce qu'un arrosage déduit qui se trompe coûte
+// une plante maussade et qu'une toxicité qui se trompe coûte un animal.
+//
+// Avant #780, ce champ était libre : le lecteur exigeait l'égalité exacte avec
+// `high` pendant que les écrivains produisaient `authoritative`,
+// `authoritative-genus` et `derived`. Aucune des trois ne correspondait, donc
+// chaque contrôle de provenance échouait et aucune plante ne pouvait être
+// déclarée adaptée. La base a été migrée : `authoritative` → `high`,
+// `authoritative-genus` → `moderate`, `derived` → `low`.
+var fiabilitesValides = map[string]int{
+	"low":      0,
+	"moderate": 1,
+	"high":     2,
+}
+
+// FiabiliteValide dit si une valeur appartient au vocabulaire fermé.
+// Une valeur inconnue doit être traitée comme `low`, jamais comme `high`.
+func FiabiliteValide(v string) bool {
+	_, ok := fiabilitesValides[strings.ToLower(strings.TrimSpace(v))]
+	return ok
+}
+
+// FiabiliteAuMoins dit si `v` atteint le seuil `minimum`. Une valeur hors
+// vocabulaire vaut le plancher, et une chaîne vide n'atteint aucun seuil :
+// ne rien consigner n'est pas une confiance faible, c'est une absence de source.
+func FiabiliteAuMoins(v, minimum string) bool {
+	if strings.TrimSpace(v) == "" {
+		return false
+	}
+	seuil, ok := fiabilitesValides[strings.ToLower(strings.TrimSpace(minimum))]
+	if !ok {
+		return false
+	}
+	rang, ok := fiabilitesValides[strings.ToLower(strings.TrimSpace(v))]
+	if !ok {
+		rang = 0 // hors vocabulaire : le plancher
+	}
+	return rang >= seuil
+}
+
 type PlantStringFact struct {
 	Value    string             `json:"value" bson:"value"`
 	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`

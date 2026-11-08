@@ -26,6 +26,38 @@ Defined in `PlantCatalogContext.swift`, each a filterable `enum`:
 
 The garden style (former wizard step) is meant to live **here, as a filter**, rather than as a step in the creation flow.
 
+## Where the dimensions come from (#792)
+
+**They are read, no longer inferred.** Each dimension maps to a stored field of
+`botanicalProfile`, as a closed, sourced value.
+
+Until #792, seven `PlantCatalogContext` functions derived them by matching
+keywords against the plant's **translated description**. Three measured
+consequences:
+
+- `size()` depended on the **display language** — the same plant could be
+  `large` in French and `unknown` in German;
+- `isFlowering()` read `flags.flowering`, then, if the flag was `false`, fell
+  back to prose: a description mentioning "flower" was enough to declare the
+  plant flowering, and the flag's `false` asserted nothing;
+- the `size()` keyword list contained `"mini "` **with a trailing space**, a
+  guard added after the fact against false matches.
+
+Those functions are deleted. The criterion's guard is one command:
+
+```sh
+grep -rn "containsAny\|searchableText" ArboreUi/ArboreUi/   # must stay empty
+```
+
+**Three dimensions return nothing today**, for lack of a closed source, and
+that is deliberate: `colors` (no source in the corpus), the `variegated` /
+`evergreen` / `fragrant` appearances, and the `upright` / `spreading` habits.
+They used to be **guessed** — the "upright habit" filter actually returned the
+whole catalogue, because `.upright` was inserted by default when nothing was
+found. Offering a choice no data can answer is worse than not offering it:
+that is the doctrine already applied to `FilterView.difficultyOptions`, to be
+extended here.
+
 ## Compatibility evaluation (`PlantSuitabilityEvaluator`)
 
 The evaluator aggregates several **criteria**, each producing a score, then derives an overall level:

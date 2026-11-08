@@ -657,14 +657,38 @@ extension Plant {
     /// désormais le drapeau sur une toxicité non tranchée, ce qui rend ce repli
     /// prudent ; le trancher pour de bon demande une migration, suivie en #780.
     func petToxicity() -> ToxicityVerdict? {
-        if let verdict = botanicalProfile?.petToxicity?.verdict {
-            return verdict
-        }
-        if let flags = flags {
-            return flags.toxicToPets ? .toxic : .safe
-        }
-        return nil
+        verdict(botanicalProfile?.petToxicity, repli: flags?.toxicToPets)
     }
+
+    /// LE REPLI, et ses deux règles — chacune a été violée (#792).
+    ///
+    /// 1. **Un fait PRÉSENT fait autorité, y compris quand il dit `unknown`.**
+    ///    `unknown` signifie « on a cherché sans trouver », ce qu'aucun booléen
+    ///    ne sait dire. Le contrat de remplissage impose en plus de LEVER le
+    ///    drapeau par prudence sur un verdict non établi — donc retomber sur
+    ///    lui transformait l'absence mesurée en `.toxic`, puis en `conflict`,
+    ///    et la plante disparaissait du catalogue. Mesuré avant correction :
+    ///    199 axes concernés, 108 plantes masquées à tort alors qu'aucun de
+    ///    leurs axes n'est toxique. C'est l'inverse exact de ce que la
+    ///    politique `.browsable` énonce.
+    ///
+    /// 2. **Le `false` d'un drapeau ne vaut PAS une innocuité démontrée.** Il a
+    ///    voulu dire à la fois « prouvé sûr » et « pas recherché » sur 65
+    ///    fiches. Rendre `.safe` dessus, c'est l'affirmation la plus dangereuse
+    ///    du fichier — celle que #778 a retirée des données et qui survivait
+    ///    ici.
+    private func verdict(
+        _ fait: PlantToxicityFact?,
+        repli drapeau: Bool?
+    ) -> ToxicityVerdict? {
+        if let fait {
+            // Le fait existe : il décide, même pour dire qu'il ne sait pas.
+            return fait.verdict
+        }
+        // Sans fait, seul le `true` du drapeau porte une information.
+        return drapeau == true ? .toxic : nil
+    }
+
 
     /// Contrainte de sûreté déclarée par le questionnaire du jardin.
     ///
@@ -788,13 +812,7 @@ extension Plant {
     /// l'extrapoler aurait été inventer (#489) ; la recherche de 2026-11 le
     /// renseigne depuis des sources distinctes, dont NC State Extension.
     func childToxicity() -> ToxicityVerdict? {
-        if let verdict = botanicalProfile?.childToxicity?.verdict {
-            return verdict
-        }
-        if let flags = flags {
-            return flags.toxicToChildren ? .toxic : .safe
-        }
-        return nil
+        verdict(botanicalProfile?.childToxicity, repli: flags?.toxicToChildren)
     }
 
 }

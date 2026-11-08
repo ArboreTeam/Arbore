@@ -1513,6 +1513,8 @@
 "AR_CATALOG_COLOR_PURPLE" = "Violett";
 "AR_CATALOG_COLOR_BLUE" = "Blau";
 "AR_CATALOG_COLOR_GREEN" = "Grün";
+"AR_CATALOG_COLOR_SILVER" = "Silbern";
+"AR_CATALOG_COLOR_BROWN" = "Braun";
 "AR_CATALOG_COLOR_DARK" = "Dunkel";
 "AR_CATALOG_SCALE_TITLE" = "Gewünschtes Volumen";
 "AR_CATALOG_SCALE_COMPACT" = "Kompaktes Format";

@@ -858,6 +858,11 @@ extension PlantCatalogColor {
         case .purple: return Color(red: 0.50, green: 0.26, blue: 0.65)
         case .blue: return Color(red: 0.22, green: 0.48, blue: 0.82)
         case .green: return Color(red: 0.23, green: 0.55, blue: 0.31)
+        // Gris-vert légèrement désaturé : le feuillage de l'olivier ou de la
+        // lavande, et non un gris neutre.
+        case .silver: return Color(red: 0.70, green: 0.74, blue: 0.70)
+        // Brun cuivré des laîches de couleur, distinct de `orange`.
+        case .brown: return Color(red: 0.49, green: 0.34, blue: 0.21)
         case .dark: return Color(red: 0.12, green: 0.15, blue: 0.13)
         }
     }

@@ -3692,19 +3692,39 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 let midZ  = (minZ + maxZ) / 2
 
                 // ── Tri des plantes par besoin en lumière ──────────────────────
+                //
                 // Valeur : 2 = plein soleil, 1 = mi-ombre, 0 = ombre.
-                // On utilise le nom comme heuristique (pas de modèle Plant dédié).
+                //
+                // Lu depuis `botanicalProfile.directSunHours` (#792). Ce qui
+                // précédait : 29 noms de genres botaniques en dur — « cactus »,
+                // « monstera », « zamioculcas » — appariés sur `plant.name`, et
+                // un commentaire qui avouait le manque, « pas de modèle Plant
+                // dédié ». Le modèle existe désormais, renseigné sur 920 fiches.
+                //
+                // Trois défauts tombent avec la liste : elle n'était jamais
+                // étendue quand le catalogue grandissait, elle appariait sans
+                // frontière de mot, et elle décidait d'une POSE — une plante
+                // d'ombre rangée en zone exposée se voit, contrairement à un
+                // badge inexact.
+                //
+                // Les seuils sont ceux de `appendSunlightCriterion` : les deux
+                // endroits doivent dire la même chose d'une même plante.
                 func lightNeed(_ plant: Plant) -> Int {
-                    let name = plant.name.lowercased()
-                    let sunKw = ["soleil", "cactus", "succulente", "lavande", "rosier",
-                                 "tomate", "basilic", "géranium", "pelargonium",
-                                 "agave", "yucca", "bougainvillée", "palm", "olivier"]
-                    let shdKw = ["fougère", "hostas", "begonia", "impatiens",
-                                 "monstera", "pothos", "alocasia", "ficus",
-                                 "calathea", "dieffenbachia", "broméliacée", "ivy",
-                                 "lierre", "spathiphyllum", "zamioculcas"]
-                    if sunKw.contains(where: { name.contains($0) }) { return 2 }
-                    if shdKw.contains(where: { name.contains($0) }) { return 0 }
+                    if let sun = plant.botanicalProfile?.directSunHours, sun.hasValue {
+                        // Une borne absente ne borne rien : minimum nil vaut 0,
+                        // maximum nil vaut 24. C'est la lecture de
+                        // `appendSunlightCriterion`, reprise telle quelle.
+                        if (sun.minimum ?? 0) >= 6 { return 2 }
+                        if (sun.maximum ?? 24) <= 3 { return 0 }
+                        return 1
+                    }
+                    // Sans fait, seul le `true` d'un drapeau informe — son
+                    // `false` a voulu dire à la fois « non » et « pas
+                    // recherché ». Même règle que `verdict(_:repli:)`.
+                    if plant.flags?.fullSunTolerant == true { return 2 }
+                    if plant.flags?.shadeTolerant == true { return 0 }
+                    // Rien de connu : rang neutre. La plante est placée sans
+                    // préférence plutôt que selon une devinette.
                     return 1
                 }
 

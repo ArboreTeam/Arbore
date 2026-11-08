@@ -94,7 +94,7 @@ func TestLeVocabulaireDesButsEstCeluiDuClient(t *testing.T) {
 }
 
 func TestLeVocabulaireDesCouleursEstCeluiDuClient(t *testing.T) {
-	attendues := []string{"white", "yellow", "orange", "red", "pink", "purple", "blue", "green", "dark"}
+	attendues := []string{"white", "yellow", "orange", "red", "pink", "purple", "blue", "green", "silver", "brown", "dark"}
 	for _, v := range attendues {
 		if !CouleurPlanteValide(v) {
 			t.Errorf("%q devrait appartenir au vocabulaire des couleurs", v)

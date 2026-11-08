@@ -672,6 +672,16 @@ enum PlantCatalogKind: String, CaseIterable, Hashable, Identifiable {
     var id: String { rawValue }
 }
 
+/// Les couleurs filtrables, en valeurs closes.
+///
+/// `silver` et `brown` ont été ajoutés après le premier remplissage, qui a
+/// mesuré leur absence : les bases horticoles traitent `Gray/Silver` et
+/// `Brown/Copper` comme des couleurs de feuille de plein droit, et 78 fiches
+/// étaient mal décrites sans elles — dont les 14 `Olea europaea`, ramenées à
+/// `green`, ce qui perd le gris-argent qui fait l'olivier.
+///
+/// `dark` reste réservé au presque-noir, conformément à son nuancier. Un
+/// feuillage pourpre sombre relève de `purple`, pas de `dark`.
 enum PlantCatalogColor: String, CaseIterable, Hashable, Identifiable {
     case white
     case yellow
@@ -681,6 +691,8 @@ enum PlantCatalogColor: String, CaseIterable, Hashable, Identifiable {
     case purple
     case blue
     case green
+    case silver
+    case brown
     case dark
 
     var id: String { rawValue }

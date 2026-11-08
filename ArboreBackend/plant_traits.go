@@ -144,6 +144,22 @@ var butsValides = indexVocabulaire([]string{
 // couleursValides est le vocabulaire fermé de `Colors`, relevé de
 // `PlantCatalogColor`. `variegated` et `flowering` n'y sont pas : ils relèvent
 // de l'apparence et du trait `flowering`, pas d'une couleur.
+//
+// `silver` et `brown` ont été ajoutés après le premier lot de remplissage, qui
+// a mesuré ce que leur absence coûtait : les bases horticoles traitent
+// `Gray/Silver` et `Brown/Copper` comme des couleurs de feuille de plein
+// droit, et **78 fiches** du corpus étaient mal décrites sans elles.
+//
+// Deux cas ont tranché la question. `Olea europaea` (14 fiches) est donnée
+// `Gray/Silver; Green` : la ramener à `green` perd exactement ce qui fait
+// qu'un olivier ressemble à un olivier. Et `Salvia yangii` porte
+// `Gray/Silver` comme SEULE couleur de feuille — sans `silver`, aucune valeur
+// n'était disponible pour son feuillage.
+//
+// Les laîches de couleur (`Carex`, `Brown/Copper; Green; Red/Burgundy`)
+// n'avaient elles non plus aucune valeur juste ; le lot les a laissées vides
+// plutôt que d'écrire `orange`, qui aurait été une approximation et non une
+// couleur dominante.
 var couleursValides = indexVocabulaire([]string{
 	"white",
 	"yellow",
@@ -153,6 +169,8 @@ var couleursValides = indexVocabulaire([]string{
 	"purple",
 	"blue",
 	"green",
+	"silver",
+	"brown",
 	"dark",
 })
 

@@ -1509,6 +1509,8 @@
 "AR_CATALOG_COLOR_PURPLE" = "Morado";
 "AR_CATALOG_COLOR_BLUE" = "Azul";
 "AR_CATALOG_COLOR_GREEN" = "Verde";
+"AR_CATALOG_COLOR_SILVER" = "Plateado";
+"AR_CATALOG_COLOR_BROWN" = "Marrón";
 "AR_CATALOG_COLOR_DARK" = "Oscuro";
 "AR_CATALOG_SCALE_TITLE" = "Volumen deseado";
 "AR_CATALOG_SCALE_COMPACT" = "Formato compacto";

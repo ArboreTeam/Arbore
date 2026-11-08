@@ -3707,15 +3707,16 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 // d'ombre rangée en zone exposée se voit, contrairement à un
                 // badge inexact.
                 //
-                // Les seuils sont ceux de `appendSunlightCriterion` : les deux
-                // endroits doivent dire la même chose d'une même plante.
+                // Les seuils viennent de `PlantThresholds.Light` (#793) —
+                // recopiés ici à l'origine, ce qui ne tenait l'invariant que par
+                // la discipline.
                 func lightNeed(_ plant: Plant) -> Int {
                     if let sun = plant.botanicalProfile?.directSunHours, sun.hasValue {
                         // Une borne absente ne borne rien : minimum nil vaut 0,
                         // maximum nil vaut 24. C'est la lecture de
                         // `appendSunlightCriterion`, reprise telle quelle.
-                        if (sun.minimum ?? 0) >= 6 { return 2 }
-                        if (sun.maximum ?? 24) <= 3 { return 0 }
+                        if (sun.minimum ?? 0) >= PlantThresholds.Light.fullSunMinHours { return 2 }
+                        if (sun.maximum ?? 24) <= PlantThresholds.Light.shadeMaxHours { return 0 }
                         return 1
                     }
                     // Sans fait, seul le `true` d'un drapeau informe — son

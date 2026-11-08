@@ -20,7 +20,8 @@ struct PlantSuitability: Equatable {
 
     var isRecommended: Bool {
         level == .suitable
-            || (level == .needsReview && evaluatedCriteriaCount > 0 && (score ?? 0) >= 0.55)
+            || (level == .needsReview && evaluatedCriteriaCount > 0
+                && (score ?? 0) >= PlantThresholds.Scoring.reviewableFloor)
     }
 }
 
@@ -189,13 +190,13 @@ struct PlantSuitabilityEvaluator {
         let tolerances = traits.sunlightTolerances
         guard tolerances.hasKnownValue else { return }
 
-        if gardenRange.upperBound <= 3 {
+        if gardenRange.upperBound <= PlantThresholds.Light.shadeMaxHours {
             criteria.append(
                 tolerances.shade
                     ? .positive(0.70, "AR_CATALOG_REASON_LIGHT_MATCH")
                     : .warning(0.20, "AR_CATALOG_REASON_SHADE_CONFLICT")
             )
-        } else if gardenRange.lowerBound >= 6 {
+        } else if gardenRange.lowerBound >= PlantThresholds.Light.fullSunMinHours {
             criteria.append(
                 tolerances.fullSun
                     ? .positive(0.70, "AR_CATALOG_REASON_LIGHT_MATCH")
@@ -374,13 +375,15 @@ struct PlantSuitabilityEvaluator {
         let longestInterval = fact.maximum ?? fact.minimum ?? 0
         switch capacity {
         case .low:
-            if longestInterval >= 7 {
+            // Lisait 7 quand le filtre exigeait 10 : c'était la
+            // contradiction de #793. Les deux lisent désormais la même borne.
+            if longestInterval >= PlantThresholds.Watering.sparseMinDays {
                 criteria.append(.positive("AR_CATALOG_REASON_WATERING_MATCH"))
             } else {
                 criteria.append(.warning(0.25, "AR_CATALOG_REASON_WATERING_CONFLICT"))
             }
         case .regular:
-            if longestInterval >= 3 {
+            if longestInterval >= PlantThresholds.Watering.moderateMinDays {
                 criteria.append(.positive("AR_CATALOG_REASON_WATERING_MATCH"))
             } else {
                 criteria.append(.warning(0.50, "AR_CATALOG_REASON_WATERING_CONFLICT"))
@@ -947,8 +950,8 @@ enum PlantCatalogTraits {
     static func sunlightTolerances(for plant: Plant) -> SunlightTolerances {
         if let heures = plant.botanicalProfile?.directSunHours, heures.hasValue {
             return SunlightTolerances(
-                shade: (heures.minimum ?? 0) <= 3,
-                fullSun: (heures.maximum ?? 24) >= 6
+                shade: (heures.minimum ?? 0) <= PlantThresholds.Light.shadeMaxHours,
+                fullSun: (heures.maximum ?? 24) >= PlantThresholds.Light.fullSunMinHours
             )
         }
 

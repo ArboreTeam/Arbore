@@ -105,41 +105,43 @@ struct PlantFilters: Equatable {
 }
 
 extension PlantLightNeed {
-    /// Bornes 3 h et 6 h de lumière directe.
-    ///
-    /// Elles ne sont pas inventées ici : ce sont celles que
-    /// `PlantSuitabilityEvaluator.appendSunlightCriterion` applique déjà au
-    /// jardin de l'utilisateur. Un seul jeu de bornes pour les deux côtés,
-    /// sinon le catalogue et le questionnaire se contrediraient.
+    /// Les bornes viennent de `PlantThresholds.Light` (#793) — le même
+    /// jeu que l'évaluateur de compatibilité et que la pose AR, pour qu'un
+    /// filtre ne puisse pas écarter ce qu'une recommandation vient de
+    /// proposer.
     func admits(_ heures: PlantRangeFact?) -> Bool {
         guard let heures, heures.hasValue else { return true }
         let minimum = heures.minimum ?? 0
         let maximum = heures.maximum ?? 24
 
         switch self {
-        case .low: return minimum <= 3
-        case .medium: return minimum <= 6 && maximum >= 3
-        case .high: return maximum >= 6
+        case .low: return minimum <= PlantThresholds.Light.shadeMaxHours
+        case .medium:
+            return minimum <= PlantThresholds.Light.fullSunMinHours
+                && maximum >= PlantThresholds.Light.shadeMaxHours
+        case .high: return maximum >= PlantThresholds.Light.fullSunMinHours
         }
     }
 }
 
 extension PlantWateringNeed {
-    /// Bornes d'intervalle entre deux arrosages, en jours.
+    /// Les bornes viennent de `PlantThresholds.Watering` (#793).
     ///
-    /// Trois seaux pour trois boutons : « souvent » au plus 3 jours,
-    /// « modéré » de 4 à 9, « peu » à partir de 10. Les bornes sont DÉCLARÉES
-    /// ici, visibles et discutables, plutôt que dispersées dans des listes de
-    /// mots-clés par langue où elles n'existaient pas du tout.
+    /// Elles y vivaient auparavant en dur, et l'évaluateur de compatibilité
+    /// en portait d'AUTRES : il se satisfaisait de 7 jours là où ce filtre
+    /// exigeait 10. Une plante à 7–8 jours était donc un bon choix pour
+    /// l'évaluateur et invisible pour le filtre.
     func admits(_ intervalle: PlantRangeFact?) -> Bool {
         guard let intervalle, intervalle.hasValue else { return true }
         let minimum = intervalle.minimum ?? 0
         let maximum = intervalle.maximum ?? .greatestFiniteMagnitude
 
         switch self {
-        case .high: return minimum <= 3
-        case .medium: return minimum <= 9 && maximum >= 4
-        case .low: return maximum >= 10
+        case .high: return minimum <= PlantThresholds.Watering.frequentMaxDays
+        case .medium:
+            return minimum <= PlantThresholds.Watering.moderateMaxDays
+                && maximum >= PlantThresholds.Watering.moderateMinDays
+        case .low: return maximum >= PlantThresholds.Watering.sparseMinDays
         }
     }
 }

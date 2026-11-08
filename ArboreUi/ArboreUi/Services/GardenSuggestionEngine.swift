@@ -96,8 +96,12 @@ final class GardenSuggestionEngine {
             let suitability = evaluator.evaluate(plant)
             guard suitability.isRecommended else { return nil }
 
-            let confidencePenalty = suitability.level == .suitable ? 1.0 : 0.78
-            let missingPenalty = min(Double(suitability.missingDataKeys.count) * 0.025, 0.20)
+            let confidencePenalty = suitability.level == .suitable
+                ? 1.0 : PlantThresholds.Scoring.unconfirmedConfidence
+            let missingPenalty = min(
+                Double(suitability.missingDataKeys.count) * PlantThresholds.Scoring.missingDataPenalty,
+                PlantThresholds.Scoring.missingDataPenaltyCap
+            )
             let score = max(0, (suitability.score ?? 0) * confidencePenalty - missingPenalty)
             let reasonKeys = suitability.positiveReasonKeys + suitability.warningReasonKeys
             let reasons = reasonKeys.isEmpty
@@ -146,12 +150,12 @@ final class GardenSuggestionEngine {
             guard selected.count < count else { break }
 
             // Skip plants with very low scores
-            guard sp.score > 0.25 else { continue }
+            guard sp.score > PlantThresholds.Scoring.minimumSuggestionScore else { continue }
 
             // Diversity rule: max 2 plants of the same base type
-            let baseType = normalizeType(sp.plant.type)
+            let baseType = diversityKey(sp.plant)
             let currentCount = usedTypes[baseType, default: 0]
-            if currentCount >= 2 { continue }
+            if currentCount >= PlantThresholds.Scoring.maxPlantsPerKind { continue }
 
             // Classify by category
             let category = classifyPlant(sp.plant)
@@ -183,6 +187,30 @@ final class GardenSuggestionEngine {
     }
 
     /// Normalize plant type for diversity tracking.
+    /// La clé de groupement de la règle de diversité.
+    ///
+    /// Elle lit `kinds`, la valeur close, et non plus le `type` en texte
+    /// libre (#793). Ce qui précédait normalisait deux chaînes FRANÇAISES en
+    /// dur — « plante d'intérieur » et « plante grimpante » — donc pour une
+    /// fiche en anglais seul, 877 sur 1021, la normalisation ne faisait rien
+    /// et le groupement tombait sur la valeur brute. La règle « au maximum
+    /// deux plantes de même nature » ne tenait pas de la même façon selon la
+    /// langue de la fiche.
+    ///
+    /// Une plante porte parfois plusieurs natures ; on groupe sur la première
+    /// dans l'ordre du vocabulaire, ce qui est stable d'une exécution à
+    /// l'autre — contrairement à l'ordre d'un `Set`.
+    private func diversityKey(_ plant: Plant) -> String {
+        let natures = plant.botanicalProfile?.kinds?.values ?? []
+        if let premiere = PlantCatalogKind.allCases.first(where: natures.contains) {
+            return premiere.rawValue
+        }
+        // Repli tant que des fiches sont sans `kinds` — 40 aujourd'hui. Il
+        // reste sensible à la langue, mais il ne s'applique plus qu'à elles.
+        return normalizeType(plant.type)
+    }
+
+    /// Repli du groupement, pour les seules fiches sans `kinds`.
     private func normalizeType(_ type: String) -> String {
         type.lowercased()
             .replacingOccurrences(of: "plante d'intérieur", with: "intérieur")
@@ -251,7 +279,7 @@ final class GardenSuggestionEngine {
             ?? L10n.t("SUGGESTION_SUMMARY_STYLE_CUSTOM")
 
         let quality: String
-        if avgScore > 0.75 {
+        if avgScore > PlantThresholds.Scoring.wellMatchedGardenScore {
             quality = L10n.t("SUGGESTION_SUMMARY_QUALITY_EXCELLENT")
         } else if avgScore > 0.5 {
             quality = L10n.t("SUGGESTION_SUMMARY_QUALITY_GOOD")

@@ -472,16 +472,30 @@ struct PlantClosedValues<Value>: Codable, Equatable
 where Value: RawRepresentable & Hashable & CaseIterable, Value.RawValue == String {
     let values: Set<Value>
     let rejected: [String]
+    /// Ce que la source précise autour de la valeur close.
+    ///
+    /// Sur les couleurs, il porte le NIVEAU TAXONOMIQUE atteint : la source a
+    /// fiché le cultivar, ou seulement l'espèce. La distinction compte —
+    /// *Photinia × fraseri* n'est pas rouge, 'Red Robin' l'est — et elle
+    /// vivait dans `evidence.sourceName` faute d'un champ pour la porter.
+    let detail: String?
     let evidence: PlantDataEvidence?
 
-    init(_ values: Set<Value>, rejected: [String] = [], evidence: PlantDataEvidence? = nil) {
+    init(
+        _ values: Set<Value>,
+        rejected: [String] = [],
+        detail: String? = nil,
+        evidence: PlantDataEvidence? = nil
+    ) {
         self.values = values
         self.rejected = rejected
+        self.detail = detail
         self.evidence = evidence
     }
 
     private enum CodingKeys: String, CodingKey {
         case value
+        case detail
         case evidence
     }
 
@@ -494,6 +508,7 @@ where Value: RawRepresentable & Hashable & CaseIterable, Value.RawValue == Strin
                 try? conteneur.decode(String.self, forKey: .value)
             }
             (values, rejected) = PlantClosedValues.trier(bruts)
+            detail = (try? conteneur.decodeIfPresent(String.self, forKey: .detail)) ?? nil
             evidence = (try? conteneur.decodeIfPresent(PlantDataEvidence.self, forKey: .evidence)) ?? nil
             return
         }
@@ -507,12 +522,14 @@ where Value: RawRepresentable & Hashable & CaseIterable, Value.RawValue == Strin
             try? singleton?.decode(String.self)
         }
         (values, rejected) = PlantClosedValues.trier(bruts)
+        detail = nil
         evidence = nil
     }
 
     func encode(to encoder: Encoder) throws {
         var conteneur = encoder.container(keyedBy: CodingKeys.self)
         try conteneur.encode(values.map(\.rawValue).sorted(), forKey: .value)
+        try conteneur.encodeIfPresent(detail, forKey: .detail)
         try conteneur.encodeIfPresent(evidence, forKey: .evidence)
     }
 

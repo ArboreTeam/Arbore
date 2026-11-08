@@ -442,8 +442,22 @@ type PlantTraitFact struct {
 	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`
 }
 
+// PlantStringListFact est un fait de liste en valeurs closes.
+//
+// `Detail` a été ajouté après le premier remplissage des couleurs, qui en
+// avait besoin et ne l'avait pas : il devait dire, par fiche, si la source
+// avait fiché LE CULTIVAR ou seulement L'ESPÈCE — *Photinia × fraseri* n'est
+// pas rouge, 'Red Robin' l'est. Faute de champ, la mention était écrite dans
+// `Evidence.SourceName`, qui devenait un commentaire plutôt qu'un nom de
+// source, sur 711 fiches.
+//
+// C'est le même rôle que le `Detail` de `PlantStringFact` et de
+// `PlantToxicityFact` : la valeur close dit CE QUE c'est, le détail dit ce que
+// la source précise autour. Une clé `detail` posée ici avant cet ajout était
+// silencieusement perdue au premier aller-retour.
 type PlantStringListFact struct {
 	Value    []string           `json:"value" bson:"value"`
+	Detail   string             `json:"detail,omitempty" bson:"detail,omitempty"`
 	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`
 }
 

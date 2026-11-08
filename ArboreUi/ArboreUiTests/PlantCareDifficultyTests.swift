@@ -255,9 +255,26 @@ final class PlantToxicityTests: XCTestCase {
         XCTAssertEqual(try makePlant(petToxicity: "safe").petToxicity(), .safe)
     }
 
+    /// RÉÉCRIT (#792). Ce test affirmait qu'un drapeau BAISSÉ rend `.safe`.
+    ///
+    /// C'était le piège historique inscrit comme exigence, pour la quatrième
+    /// fois dans cette suite de tests : le `false` d'un drapeau a voulu dire à
+    /// la fois « prouvé sûr » et « pas recherché » sur 65 fiches du catalogue.
+    /// Seul son `true` porte une information.
+    ///
+    /// Il avait survécu aux trois autres corrections parce qu'il vit dans
+    /// `PlantCareDifficultyTests.swift` mais appartient à la classe
+    /// `PlantToxicityTests` — et `-only-testing` cible les CLASSES, pas les
+    /// fichiers. Lancer la suite voisine ne l'exerçait jamais.
     func testReplieSurLesFlagsQuandLeProfilManque() throws {
-        XCTAssertEqual(try makePlant(toxicToPetsFlag: true).petToxicity(), .toxic)
-        XCTAssertEqual(try makePlant(toxicToPetsFlag: false).petToxicity(), .safe)
+        XCTAssertEqual(
+            try makePlant(toxicToPetsFlag: true).petToxicity(), .toxic,
+            "sans profil, un drapeau levé avertit"
+        )
+        XCTAssertNil(
+            try makePlant(toxicToPetsFlag: false).petToxicity(),
+            "un drapeau baissé ne vaut pas une innocuité démontrée"
+        )
     }
 
     // MARK: - Le prédicat

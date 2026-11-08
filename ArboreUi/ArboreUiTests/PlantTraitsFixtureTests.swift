@@ -47,6 +47,45 @@ final class PlantTraitsFixtureTests: XCTestCase {
             let verdictChild: String?
             let issue: [String: String]
             let admis: [String: Bool]
+            /// Les traits de #792. Une clé absente de ce bloc n'est pas
+            /// affirmée par le cas.
+            let traits: [String: TraitAttendu]?
+            /// Le cas doit être REFUSÉ à l'écriture, côté backend. iOS ne
+            /// l'écrit pas ; ce qu'il affirme ici, c'est l'autre moitié du
+            /// contrat — la lecture reste indulgente et tombe vers le
+            /// plancher au lieu d'échouer.
+            let ecritureRefusee: Bool?
+        }
+    }
+
+    /// Un trait attendu, sous les deux formes que la fixture emploie : une
+    /// valeur close pour les scalaires, un objet pour les listes.
+    ///
+    /// Les listes ne portent pas `unknown` : c'est `renseignee: false` qui dit
+    /// qu'aucun fait n'existe. Une liste VIDE renseignée est une affirmation —
+    /// « on a cherché, aucune valeur ne s'applique » — et un lecteur qui
+    /// confondrait les deux affirmerait à notre place.
+    private enum TraitAttendu: Decodable {
+        case scalaire(String)
+        case liste(renseignee: Bool, valeurs: [String], rejetees: [String])
+
+        private struct Liste: Decodable {
+            let renseignee: Bool
+            let valeurs: [String]?
+            let rejetees: [String]?
+        }
+
+        init(from decoder: Decoder) throws {
+            if let valeur = try? decoder.singleValueContainer().decode(String.self) {
+                self = .scalaire(valeur)
+                return
+            }
+            let liste = try Liste(from: decoder)
+            self = .liste(
+                renseignee: liste.renseignee,
+                valeurs: liste.valeurs ?? [],
+                rejetees: liste.rejetees ?? []
+            )
         }
     }
 
@@ -326,6 +365,209 @@ final class PlantTraitsFixtureTests: XCTestCase {
                 p.isAdmitted(by: .offerable, requirement: exigence(contrainte)),
                 "la prose a rendu « prose_qui_ment » proposable sous « \(contrainte) »"
             )
+        }
+    }
+
+    // MARK: - Les traits, en valeurs closes (#792)
+
+    /// Les sept tri-états et le gabarit, lus depuis la fiche et comparés à ce
+    /// que la fixture affirme — la même table que celle que lit le backend.
+    ///
+    /// Les tri-états sont lus AVEC le repli par drapeau, puisque c'est ce que
+    /// l'application lit : un fait présent fait autorité même quand il dit
+    /// `unknown`, et seul le `true` d'un drapeau informe — son `false` rend
+    /// `unknown`, jamais `no`.
+    func testLesTraitsScalairesSontCeuxQueLaFixtureAffirme() throws {
+        var casCouverts = 0
+        for cas in try Self.charger().plantes {
+            guard let attendus = cas.attendu.traits else { continue }
+            let p = try plante(cas)
+            for (cle, attendu) in attendus {
+                guard case .scalaire(let valeur) = attendu else { continue }
+                casCouverts += 1
+                XCTAssertEqual(
+                    try lectureScalaire(cle, de: p), valeur,
+                    "« \(cas.id) » · \(cle) — \(cas.pourquoi)"
+                )
+            }
+        }
+        XCTAssertGreaterThan(casCouverts, 0, "la fixture ne porte plus aucun trait scalaire")
+    }
+
+    /// Les quatre listes, avec la distinction qu'aucune liste ne porte seule :
+    /// renseignée ou absente, ses valeurs retenues, et ses valeurs écartées.
+    func testLesTraitsEnListeSontCeuxQueLaFixtureAffirme() throws {
+        var casCouverts = 0
+        for cas in try Self.charger().plantes {
+            guard let attendus = cas.attendu.traits else { continue }
+            let p = try plante(cas)
+            for (cle, attendu) in attendus {
+                guard case .liste(let renseignee, let valeurs, let rejetees) = attendu else { continue }
+                casCouverts += 1
+                let lue = try lectureListe(cle, de: p)
+
+                XCTAssertEqual(
+                    lue != nil, renseignee,
+                    "« \(cas.id) » · \(cle) : le fait devrait être "
+                    + (renseignee ? "RENSEIGNÉ" : "ABSENT")
+                    + " — une liste vide renseignée affirme, une liste absente ne dit rien — \(cas.pourquoi)"
+                )
+                guard let lue else { continue }
+                XCTAssertEqual(
+                    lue.valeurs.sorted(), valeurs.sorted(),
+                    "« \(cas.id) » · \(cle) valeurs retenues — \(cas.pourquoi)"
+                )
+                XCTAssertEqual(
+                    lue.rejetees.sorted(), rejetees.sorted(),
+                    "« \(cas.id) » · \(cle) valeurs écartées : un intrus doit être écarté "
+                    + "ET consignable, pas effacé — \(cas.pourquoi)"
+                )
+            }
+        }
+        XCTAssertGreaterThan(casCouverts, 0, "la fixture ne porte plus aucun trait en liste")
+    }
+
+    /// **Le cas qui prouve qu'on ne parse plus les traits.**
+    ///
+    /// Sa prose affirme, dans deux langues, l'inverse de chacune de ses cinq
+    /// valeurs stockées : facile, grimpante, retombante, compacte, fleurie.
+    /// Ses drapeaux l'affirment aussi. Les faits stockés disent `no` cinq fois,
+    /// et ce sont eux qui décident.
+    func testUneProseQuiMentSurLesTraitsNeChangeAucunTrait() throws {
+        guard let cas = try Self.charger().plantes.first(where: { $0.id == "prose_qui_ment_sur_les_traits" }) else {
+            return XCTFail("cas « prose_qui_ment_sur_les_traits » absent de la fixture")
+        }
+        let p = try plante(cas)
+
+        // La prose est bien là, et elle affirme l'inverse — sinon le test ne
+        // prouverait rien.
+        let anglais = (p.translations["en"]?.description ?? "").lowercased()
+        for mot in ["easy-care", "climbing", "trailing", "compact", "flowers"] {
+            XCTAssertTrue(anglais.contains(mot),
+                          "la prose doit contenir « \(mot) » pour que ce test ait un sens")
+        }
+        // Et les drapeaux aussi.
+        XCTAssertEqual(p.flags?.climbing, true)
+        XCTAssertEqual(p.flags?.flowering, true)
+        XCTAssertEqual(p.flags?.easyCare, true)
+
+        // Rien n'y change.
+        XCTAssertEqual(p.trait(.easyCare), false)
+        XCTAssertEqual(p.trait(.climbing), false)
+        XCTAssertEqual(p.trait(.trailing), false)
+        XCTAssertEqual(p.trait(.compact), false)
+        XCTAssertEqual(p.trait(.flowering), false)
+        XCTAssertEqual(PlantCatalogTraits.size(for: p), .large)
+        XCTAssertEqual(PlantCatalogTraits.habits(for: p), [],
+                       "ni grimpant ni retombant : le port n'affirme rien")
+        XCTAssertEqual(PlantCatalogTraits.appearances(for: p), [.decorativeFoliage])
+    }
+
+    // MARK: - La capacité de pose ne vient plus du nom
+
+    /// Une plante qui SE SUSPEND et dont le nom ne contient aucun des 25
+    /// mots-clés de l'ancienne liste.
+    ///
+    /// C'était le défaut le plus conséquent : une capacité absente de la liste
+    /// n'était pas inconnue, elle était NIÉE, et le geste devenait
+    /// indisponible.
+    func testUnePlanteSuspendueSansMotCleSupporteLePlafond() throws {
+        guard let cas = try Self.charger().plantes.first(where: { $0.id == "suspendue_sans_mot_cle" }) else {
+            return XCTFail("cas « suspendue_sans_mot_cle » absent de la fixture")
+        }
+        let p = try plante(cas)
+
+        XCTAssertEqual(
+            PlantPlacementCompatibility.supportedModes(for: p), [.floor, .ceiling],
+            "son `placement` stocké dit sol et plafond"
+        )
+        XCTAssertTrue(PlantPlacementCompatibility.isHangingCapable(p))
+        XCTAssertFalse(PlantPlacementCompatibility.isWallCapable(p),
+                       "une liste présente qui ne contient pas `wall` est une affirmation, pas un silence")
+    }
+
+    /// Une plante qui NE grimpe pas et dont la prose nomme le lierre et le
+    /// Hoya — deux mots-clés de mur de l'ancienne liste — pour dire
+    /// précisément qu'elle ne grimpe pas.
+    func testUnLierreDansLaProseNeRendPasUnePlantePosableAuMur() throws {
+        guard let cas = try Self.charger().plantes.first(where: { $0.id == "lierre_dans_la_prose" }) else {
+            return XCTFail("cas « lierre_dans_la_prose » absent de la fixture")
+        }
+        let p = try plante(cas)
+
+        let fr = (p.translations["fr"]?.description ?? "").lowercased()
+        XCTAssertTrue(fr.contains("lierre") && fr.contains("hoya"),
+                      "la prose doit nommer les deux mots-clés, sinon ce test ne prouve rien")
+
+        XCTAssertEqual(PlantPlacementCompatibility.supportedModes(for: p), [.floor])
+        XCTAssertFalse(PlantPlacementCompatibility.isWallCapable(p),
+                       "« lierre » et « hoya » dans la prose rendaient cette plante posable au mur")
+        XCTAssertFalse(PlantPlacementCompatibility.isHangingCapable(p))
+    }
+
+    // MARK: - Lecture indulgente, écriture refusée
+
+    /// Les deux moitiés du contrat, affirmées depuis le même fichier.
+    ///
+    /// Un cas marqué `ecritureRefusee` doit être REFUSÉ par le backend à
+    /// l'écriture — c'est son test Go qui l'affirme. Côté lecture, la même
+    /// fiche doit se décoder SANS échec et tomber vers le plancher : une fiche
+    /// rejetée au décodage disparaîtrait du catalogue sans que rien ne le dise.
+    func testUneFicheRefuseeALEcritureSeLitQuandMemeVersLePlancher() throws {
+        var casCouverts = 0
+        for cas in try Self.charger().plantes where cas.attendu.ecritureRefusee == true {
+            casCouverts += 1
+            let p = try plante(cas)
+
+            XCTAssertNotNil(p.botanicalProfile,
+                            "« \(cas.id) » : le profil ne doit pas être emporté par une valeur inconnue")
+            for trait in Plant.DescriptiveTrait.allCases {
+                XCTAssertNotEqual(
+                    p.trait(trait), true,
+                    "« \(cas.id) » · \(trait) : une valeur hors vocabulaire ne doit JAMAIS "
+                    + "devenir une affirmation"
+                )
+            }
+        }
+        XCTAssertGreaterThan(casCouverts, 0,
+                             "la fixture ne porte plus aucun cas refusé à l'écriture")
+    }
+
+    // MARK: - Lecture d'un trait nommé par la fixture
+
+    private func lectureScalaire(_ cle: String, de p: Plant) throws -> String {
+        if cle == "size" { return PlantCatalogTraits.size(for: p).rawValue }
+        guard let trait = Self.triEtats[cle] else {
+            throw XCTSkip("trait scalaire inconnu de ce lecteur : « \(cle) »")
+        }
+        switch p.trait(trait) {
+        case .some(true): return "yes"
+        case .some(false): return "no"
+        case .none: return "unknown"
+        }
+    }
+
+    private static let triEtats: [String: Plant.DescriptiveTrait] = [
+        "flowering": .flowering,
+        "easyCare": .easyCare,
+        "compact": .compact,
+        "climbing": .climbing,
+        "trailing": .trailing,
+        "humidityLoving": .humidityLoving,
+        "airPurifying": .airPurifying,
+    ]
+
+    private func lectureListe(
+        _ cle: String,
+        de p: Plant
+    ) throws -> (valeurs: [String], rejetees: [String])? {
+        let profil = p.botanicalProfile
+        switch cle {
+        case "kinds": return profil?.kinds.map { ($0.values.map(\.rawValue), $0.rejected) }
+        case "goals": return profil?.goals.map { ($0.values.map(\.rawValue), $0.rejected) }
+        case "colors": return profil?.colors.map { ($0.values.map(\.rawValue), $0.rejected) }
+        case "placement": return profil?.placement.map { ($0.values.map(\.rawValue), $0.rejected) }
+        default: throw XCTSkip("trait en liste inconnu de ce lecteur : « \(cle) »")
         }
     }
 }

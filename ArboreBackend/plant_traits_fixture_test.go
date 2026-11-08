@@ -17,25 +17,60 @@ import (
 // diverge, et c'est précisément ce qu'on cherche à rendre impossible.
 
 type casFixture struct {
-	ID       string            `json:"id"`
-	Nom      string            `json:"nom"`
-	Pourquoi string            `json:"pourquoi"`
-	Profil   *profilFixture    `json:"profil"`
-	Flags    map[string]bool   `json:"flags"`
-	Prose    map[string]string `json:"prose"`
-	Attendu  attenduFixture    `json:"attendu"`
+	ID       string                 `json:"id"`
+	Nom      string                 `json:"nom"`
+	Pourquoi string                 `json:"pourquoi"`
+	Profil   *PlantBotanicalProfile `json:"profil"`
+	Flags    map[string]bool        `json:"flags"`
+	Prose    map[string]string      `json:"prose"`
+	Attendu  attenduFixture         `json:"attendu"`
 }
 
-type profilFixture struct {
-	PetToxicity   *PlantToxicityFact `json:"petToxicity"`
-	ChildToxicity *PlantToxicityFact `json:"childToxicity"`
-}
+// `profil` se décode dans le VRAI type du schéma, et non dans un sous-ensemble
+// écrit pour le test : la fixture prouve au passage qu'elle est une fiche
+// valide, et un champ qu'on ajouterait au schéma sans l'ajouter ici ne pourrait
+// pas passer inaperçu.
 
 type attenduFixture struct {
 	VerdictPet   *string           `json:"verdictPet"`
 	VerdictChild *string           `json:"verdictChild"`
 	Issue        map[string]string `json:"issue"`
 	Admis        map[string]bool   `json:"admis"`
+	// Traits : la valeur LUE attendue pour chaque trait que le cas affirme.
+	// Une clé absente n'est pas affirmée — un cas n'a pas à se prononcer sur
+	// les douze champs pour se prononcer sur un seul.
+	Traits *traitsAttendus `json:"traits"`
+	// EcritureRefusee : la fiche doit être REFUSÉE à l'écriture. La lecture est
+	// indulgente, l'écriture ne l'est pas, et les deux sont affirmées depuis le
+	// même fichier parce qu'elles ne se ressemblent pas.
+	EcritureRefusee bool `json:"ecritureRefusee"`
+}
+
+// traitsAttendus : des pointeurs, pour distinguer « la valeur attendue est
+// `unknown` » de « ce cas ne se prononce pas ». Sans eux, le zéro de Go
+// transformerait chaque silence du cas en assertion.
+type traitsAttendus struct {
+	Size           *string `json:"size"`
+	Flowering      *string `json:"flowering"`
+	EasyCare       *string `json:"easyCare"`
+	Compact        *string `json:"compact"`
+	Climbing       *string `json:"climbing"`
+	Trailing       *string `json:"trailing"`
+	HumidityLoving *string `json:"humidityLoving"`
+	AirPurifying   *string `json:"airPurifying"`
+
+	Kinds     *listeAttendue `json:"kinds"`
+	Goals     *listeAttendue `json:"goals"`
+	Colors    *listeAttendue `json:"colors"`
+	Placement *listeAttendue `json:"placement"`
+}
+
+// listeAttendue porte `renseignee` parce qu'une liste vide et une liste absente
+// ne disent pas la même chose, et qu'aucune liste JSON ne les distingue.
+type listeAttendue struct {
+	Renseignee bool     `json:"renseignee"`
+	Valeurs    []string `json:"valeurs"`
+	Rejetees   []string `json:"rejetees"`
 }
 
 type fixturePartagee struct {
@@ -66,14 +101,8 @@ func verdictsDuCas(c casFixture) (animaux, enfants VerdictToxicite) {
 	if c.Profil != nil {
 		fPet, fChild = c.Profil.PetToxicity, c.Profil.ChildToxicity
 	}
-	var dPet, dChild *bool
-	if c.Flags != nil {
-		v := c.Flags["toxicToPets"]
-		dPet = &v
-		w := c.Flags["toxicToChildren"]
-		dChild = &w
-	}
-	return VerdictAvecRepli(fPet, dPet), VerdictAvecRepli(fChild, dChild)
+	return VerdictAvecRepli(fPet, drapeauDuCas(c.Flags, "toxicToPets")),
+		VerdictAvecRepli(fChild, drapeauDuCas(c.Flags, "toxicToChildren"))
 }
 
 func exigenceDe(nom string) ExigenceFoyer {
@@ -146,9 +175,213 @@ func TestFixtureLesGardesAntiRegressionSontPresentes(t *testing.T) {
 	for _, c := range chargerFixture(t).Plantes {
 		vus[c.ID] = true
 	}
-	for _, id := range []string{"prose_qui_ment", "nom_qui_ment"} {
+	for _, id := range []string{"prose_qui_ment", "nom_qui_ment", "prose_qui_ment_sur_les_traits", "lierre_dans_la_prose"} {
 		if !vus[id] {
 			t.Errorf("cas « %s » absent : rien ne prouve qu'on ne lit plus le texte", id)
+		}
+	}
+}
+
+// drapeauDuCas rend le drapeau nommé, ou nil s'il est ABSENT du document.
+//
+// La distinction compte : un drapeau absent n'est pas un drapeau baissé. Rendre
+// `false` pour une clé qui n'existe pas reviendrait à affirmer à la place de la
+// fiche, et c'est tout ce que cette issue retire.
+func drapeauDuCas(flags map[string]bool, nom string) *bool {
+	if flags == nil {
+		return nil
+	}
+	v, ok := flags[nom]
+	if !ok {
+		return nil
+	}
+	return &v
+}
+
+// La prose d'accompagnement d'un trait est conservée et n'est JAMAIS lue pour
+// décider : le cas `floraison_niee` porte « Feuillage decoratif » en `detail`
+// et son verdict stocké dit `no`. Si un jour le `detail` pesait sur la lecture,
+// le parsing serait revenu par la petite porte.
+func TestFixtureLaProseDAccompagnementNeDecideDeRien(t *testing.T) {
+	trouve := false
+	for _, c := range chargerFixture(t).Plantes {
+		if c.Profil == nil || c.Profil.Flowering == nil || c.Profil.Flowering.Detail == "" {
+			continue
+		}
+		trouve = true
+		avec := TraitDepuisFait(c.Profil.Flowering)
+		sans := TraitDepuisFait(&PlantTraitFact{Value: c.Profil.Flowering.Value})
+		if avec != sans {
+			t.Errorf("%s · flowering : %q avec le detail, %q sans — le detail a pesé (%s)",
+				c.ID, avec, sans, c.Pourquoi)
+		}
+	}
+	if !trouve {
+		t.Error("aucun cas ne porte de prose d'accompagnement : rien ne prouve qu'elle ne décide pas")
+	}
+}
+
+func TestFixtureLesTraitsScalairesLusSontCeuxAffirmes(t *testing.T) {
+	for _, c := range chargerFixture(t).Plantes {
+		attendus := c.Attendu.Traits
+		if attendus == nil {
+			continue
+		}
+		var p PlantBotanicalProfile
+		if c.Profil != nil {
+			p = *c.Profil
+		}
+
+		// La taille se lit du seul fait : aucun drapeau ne dit une taille.
+		if attendus.Size != nil {
+			if got := TailleDepuisFait(p.Size); got != *attendus.Size {
+				t.Errorf("%s · size : %q, attendu %q (%s)", c.ID, got, *attendus.Size, c.Pourquoi)
+			}
+		}
+
+		triEtats := []struct {
+			nom     string
+			fait    *PlantTraitFact
+			attendu *string
+		}{
+			{"flowering", p.Flowering, attendus.Flowering},
+			{"easyCare", p.EasyCare, attendus.EasyCare},
+			{"compact", p.Compact, attendus.Compact},
+			{"climbing", p.Climbing, attendus.Climbing},
+			{"trailing", p.Trailing, attendus.Trailing},
+			{"humidityLoving", p.HumidityLoving, attendus.HumidityLoving},
+			{"airPurifying", p.AirPurifying, attendus.AirPurifying},
+		}
+		for _, tr := range triEtats {
+			if tr.attendu == nil {
+				continue
+			}
+			got := TraitAvecRepli(tr.fait, drapeauDuCas(c.Flags, tr.nom))
+			if got != *tr.attendu {
+				t.Errorf("%s · %s : %q, attendu %q (%s)", c.ID, tr.nom, got, *tr.attendu, c.Pourquoi)
+			}
+		}
+	}
+}
+
+func TestFixtureLesTraitsEnListeLusSontCeuxAffirmes(t *testing.T) {
+	for _, c := range chargerFixture(t).Plantes {
+		attendus := c.Attendu.Traits
+		if attendus == nil {
+			continue
+		}
+		var p PlantBotanicalProfile
+		if c.Profil != nil {
+			p = *c.Profil
+		}
+		listes := []struct {
+			nom     string
+			lue     ListeFermee
+			attendu *listeAttendue
+		}{
+			{"kinds", NaturesDepuisFait(p.Kinds), attendus.Kinds},
+			{"goals", ButsDepuisFait(p.Goals), attendus.Goals},
+			{"colors", CouleursDepuisFait(p.Colors), attendus.Colors},
+			{"placement", PosesDepuisFait(p.Placement), attendus.Placement},
+		}
+		for _, l := range listes {
+			if l.attendu == nil {
+				continue
+			}
+			if l.lue.Renseignee != l.attendu.Renseignee {
+				t.Errorf("%s · %s : renseignee=%v, attendu %v (%s)",
+					c.ID, l.nom, l.lue.Renseignee, l.attendu.Renseignee, c.Pourquoi)
+			}
+			if !memesValeurs(l.lue.Valeurs, l.attendu.Valeurs) {
+				t.Errorf("%s · %s : %v, attendu %v (%s)",
+					c.ID, l.nom, l.lue.Valeurs, l.attendu.Valeurs, c.Pourquoi)
+			}
+			if !memesValeurs(l.lue.Rejetees, l.attendu.Rejetees) {
+				t.Errorf("%s · %s : rejetees %v, attendu %v (%s)",
+					c.ID, l.nom, l.lue.Rejetees, l.attendu.Rejetees, c.Pourquoi)
+			}
+		}
+	}
+}
+
+// memesValeurs compare dans l'ORDRE : l'ordre d'origine du vocabulaire est
+// conservé par la lecture, et une liste réordonnée se verrait ici.
+func memesValeurs(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// L'écriture refuse là où la lecture écarte, et le même fichier affirme les
+// deux. Le test est bilatéral : une fiche qui ne déclare pas de refus ne doit
+// pas en déclencher, sinon la validation s'étendrait sans que personne le voie.
+func TestFixtureLEcritureEstRefuseeExactementOuCestAffirme(t *testing.T) {
+	for _, c := range chargerFixture(t).Plantes {
+		fautes := ValiderTraitsDuProfil(c.Profil)
+		refusee := len(fautes) > 0
+		if refusee != c.Attendu.EcritureRefusee {
+			t.Errorf("%s : refus à l'écriture = %v (%v), attendu %v (%s)",
+				c.ID, refusee, fautes, c.Attendu.EcritureRefusee, c.Pourquoi)
+		}
+	}
+}
+
+// Les démonstrations que l'issue #792 exige du fichier, vérifiées sur le
+// fichier lui-même : un cas qu'on retirerait par mégarde ferait tomber ce test
+// plutôt que de laisser un trou silencieux dans la couverture.
+func TestFixtureCouvreLesDemonstrationsExigees(t *testing.T) {
+	var traitInconnu, traitNie, listeVideAffirmee, listeAbsente, horsVocabulaire bool
+	for _, c := range chargerFixture(t).Plantes {
+		a := c.Attendu.Traits
+		if a == nil {
+			continue
+		}
+		for _, v := range []*string{a.Size, a.Flowering, a.EasyCare, a.Compact, a.Climbing, a.Trailing, a.HumidityLoving, a.AirPurifying} {
+			if v == nil {
+				continue
+			}
+			if *v == "unknown" {
+				traitInconnu = true
+			}
+			if *v == "no" {
+				traitNie = true
+			}
+		}
+		for _, l := range []*listeAttendue{a.Kinds, a.Goals, a.Colors, a.Placement} {
+			if l == nil {
+				continue
+			}
+			if !l.Renseignee {
+				listeAbsente = true
+			}
+			if l.Renseignee && len(l.Valeurs) == 0 && len(l.Rejetees) == 0 {
+				listeVideAffirmee = true
+			}
+			if len(l.Rejetees) > 0 {
+				horsVocabulaire = true
+			}
+		}
+		if c.Attendu.EcritureRefusee {
+			horsVocabulaire = true
+		}
+	}
+
+	exigences := map[string]bool{
+		"un trait `unknown`":                      traitInconnu,
+		"un `no` explicite":                       traitNie,
+		"une liste VIDE affirmée":                 listeVideAffirmee,
+		"une liste ABSENTE, distincte de la vide": listeAbsente,
+		"une valeur hors vocabulaire":             horsVocabulaire,
+	}
+	for quoi, couvert := range exigences {
+		if !couvert {
+			t.Errorf("le fichier de cas ne porte plus %s : la démonstration manque", quoi)
 		}
 	}
 }

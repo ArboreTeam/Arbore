@@ -116,7 +116,7 @@ struct PlantCatalogPreferenceSheet: View {
             ]
         case .garden:
             return [
-                .tree, .shrub, .perennial, .annual, .grass,
+                .tree, .shrub, .conifer, .perennial, .annual, .grass,
                 .groundcover, .climbing, .aromaticEdible, .floweringPlant
             ]
         case .none:
@@ -798,6 +798,7 @@ extension PlantCatalogKind {
         case .groundcover: return "AR_CATALOG_KIND_GROUNDCOVER"
         case .climbing: return "AR_CATALOG_KIND_CLIMBING"
         case .aromaticEdible: return "AR_CATALOG_KIND_EDIBLE"
+        case .conifer: return "AR_CATALOG_KIND_CONIFER"
         }
     }
 
@@ -817,6 +818,7 @@ extension PlantCatalogKind {
         case .groundcover: return "square.grid.3x3.fill"
         case .climbing: return "arrow.up.right"
         case .aromaticEdible: return "carrot.fill"
+        case .conifer: return "triangle.fill"
         }
     }
 }

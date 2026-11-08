@@ -195,12 +195,11 @@ struct CatalogueView: View {
             result = result.filter { $0.name.lowercased().contains(searchText.lowercased()) }
         }
         
-        // Filtre par critères (lumière, eau, difficulté)
+        // Filtre par critères (lumière, eau, difficulté).
+        // Aucune langue n'est passée : le filtre lit `botanicalProfile`, qui
+        // est le même pour tous les lecteurs (#792).
         if filters.isActive {
-            let locale = Locale.current.language.languageCode?.identifier ?? "fr"
-            result = result.filter { plant in
-                filters.matches(plant: plant, locale: locale)
-            }
+            result = result.filter { filters.matches($0) }
         }
         
         return result

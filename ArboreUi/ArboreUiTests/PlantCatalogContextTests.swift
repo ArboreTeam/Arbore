@@ -57,11 +57,22 @@ final class PlantCatalogContextTests: XCTestCase {
         XCTAssertFalse(result.isRecommended)
     }
 
-    func testManualFiltersUseStructuredPlantTraits() throws {
+    /// Réécrit avec #792 : les traits viennent des champs CLOS, plus des
+    /// drapeaux ni de la prose.
+    ///
+    /// La version précédente passait `easyCare: true, flowering: true,
+    /// compact: true` en drapeaux et s'appelait
+    /// « useStructuredPlantTraits » — mais un drapeau n'est structuré qu'à
+    /// moitié : son `false` faisait retomber sur les mots-clés.
+    func testManualFiltersUseStoredClosedTraits() throws {
         let plant = try makePlant(
-            easyCare: true,
-            flowering: true,
-            compact: true
+            includeFlags: false,
+            botanicalProfile: [
+                "schemaVersion": 1,
+                "size": sourcedFact("small"),
+                "flowering": sourcedFact("yes"),
+                "easyCare": sourcedFact("yes")
+            ]
         )
         var filters = PlantCatalogFilters()
         filters.appearances = [.flowering]
@@ -75,22 +86,40 @@ final class PlantCatalogContextTests: XCTestCase {
     }
 
     func testPreferencesAreOrWithinAGroupAndAndBetweenGroups() throws {
-        let plant = try makePlant(flowering: true)
+        let plant = try makePlant(
+            includeFlags: false,
+            botanicalProfile: [
+                "schemaVersion": 1,
+                "goals": sourcedFact(["addColor"]),
+                "kinds": sourcedFact(["floweringPlant"])
+            ]
+        )
         var filters = PlantCatalogFilters()
+        // OU à l'intérieur d'un groupe : un seul but suffit.
         filters.goals = [.addColor, .createPrivacy]
 
         XCTAssertTrue(filters.matches(plant))
 
+        // ET entre les groupes : la nature demandée doit aussi correspondre.
         filters.kinds = [.tree]
         XCTAssertFalse(filters.matches(plant))
     }
 
-    func testLowWaterPreferenceUsesStructuredDroughtFlag() throws {
-        let plant = try makePlant(droughtTolerant: true)
+    /// Le besoin en eau faible se lit sur `droughtTolerance`, un champ au
+    /// vocabulaire fermé, et non sur le drapeau `droughtTolerant`.
+    func testLowWaterPreferenceUsesStoredDroughtTolerance() throws {
+        let plant = try makePlant(
+            includeFlags: false,
+            botanicalProfile: ["schemaVersion": 1, "droughtTolerance": sourcedFact("high")]
+        )
         var filters = PlantCatalogFilters()
         filters.careOptions = [.lowWater]
 
         XCTAssertTrue(filters.matches(plant))
+
+        let inconnue = try makePlant(id: "inconnue", includeFlags: false)
+        XCTAssertFalse(filters.matches(inconnue),
+                       "un critère non établi ne satisfait pas une demande")
     }
 
     func testIndexedTraitsProduceTheSameSuitabilityAndFilterResult() throws {
@@ -102,10 +131,14 @@ final class PlantCatalogContextTests: XCTestCase {
             )
         )
         let plant = try makePlant(
-            easyCare: true,
-            shadeTolerant: true,
-            flowering: true,
-            compact: true
+            includeFlags: false,
+            botanicalProfile: [
+                "schemaVersion": 1,
+                "size": sourcedFact("small"),
+                "flowering": sourcedFact("yes"),
+                "easyCare": sourcedFact("yes"),
+                "directSunHours": sourcedRange(minimum: 0, maximum: 2, unit: "hours/day")
+            ]
         )
         let traits = PlantCatalogTraits.snapshot(for: plant)
         let evaluator = PlantSuitabilityEvaluator(wizard: wizard)

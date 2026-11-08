@@ -6,6 +6,21 @@
 import XCTest
 @testable import ArboreUi
 
+// Réécrite avec #792.
+//
+// Les quatre tests précédents affirmaient le défaut comme exigence. L'un
+// s'appelait `test_namedTrailingCatalogPlants_supportCeilingMode` et vérifiait
+// que « Ceropegia Woodii », « Hoya Bella », « Hoya Linearis »,
+// « Philodendron scandens » et « Pothos pictum » supportaient le plafond — par
+// leur NOM. Un autre affirmait qu'un « Ficus lyrata » ne le supportait pas, et
+// qu'un « Lierre » tenait au mur. La suite de tests inscrivait donc comme
+// contrat une taxonomie botanique écrite en dur dans du code d'interface, et un
+// appariement sans frontière de mot.
+//
+// Ce qui est vérifié désormais : la capacité de pose vient du champ clos
+// `botanicalProfile.placement`, et à défaut du repli par drapeaux dont seul le
+// `true` informe.
+
 final class PlantPlacementCompatibilityTests: XCTestCase {
 
     func test_availablePlacementModes_areFloorWallCeilingOnly() {
@@ -15,75 +30,127 @@ final class PlantPlacementCompatibilityTests: XCTestCase {
         XCTAssertTrue(ARPlacementMode.floor.acceptedSurfaceTypes.contains(.windowsill))
     }
 
-    func test_namedTrailingCatalogPlants_supportCeilingMode() throws {
-        let names = [
-            "Ceropegia Woodii",
-            "Hoya Bella",
-            "Hoya Linearis",
-            "Philodendron scandens",
-            "Pothos pictum"
-        ]
+    // MARK: - Le champ clos décide
 
-        for name in names {
-            let plant = try makePlant(name: name, type: "Plante d'interieur")
-            XCTAssertTrue(
-                PlantPlacementCompatibility.supports(plant, mode: .ceiling),
-                "\(name) should be available for ceiling placement"
-            )
-        }
+    func testLeChampPlacementDecideDesModesAdmis() throws {
+        let suspendue = try plante(placement: ["floor", "ceiling"])
+        let murale = try plante(placement: ["wall"])
+        let auSol = try plante(placement: ["floor"])
+
+        XCTAssertEqual(PlantPlacementCompatibility.supportedModes(for: suspendue), [.floor, .ceiling])
+        XCTAssertEqual(PlantPlacementCompatibility.supportedModes(for: murale), [.floor, .wall])
+        XCTAssertEqual(PlantPlacementCompatibility.supportedModes(for: auSol), [.floor])
     }
 
-    func test_climbingAndTrailingPlants_supportWallMode() throws {
-        let pothos = try makePlant(name: "Pothos pictum", type: "Liane retombante")
-        let ivy = try makePlant(name: "Lierre", type: "Plante grimpante")
-
-        XCTAssertTrue(PlantPlacementCompatibility.supports(pothos, mode: .wall))
-        XCTAssertTrue(PlantPlacementCompatibility.supports(ivy, mode: .wall))
+    /// Le sol est toujours admis : poser une plante au sol ne demande aucune
+    /// capacité particulière, et c'est le seul mode dont l'absence de donnée
+    /// ne peut pas produire un geste impossible.
+    func testLeSolEstToujoursAdmisMemeQuandLaListeNeLeNommePas() throws {
+        let murale = try plante(placement: ["wall"])
+        XCTAssertTrue(PlantPlacementCompatibility.supports(murale, mode: .floor))
     }
 
-    func test_regularFloorPlant_doesNotSupportWallOrCeiling() throws {
-        let ficus = try makePlant(name: "Ficus lyrata", type: "Arbuste d'interieur")
+    /// **Une liste présente qui ne nomme pas un mode est une affirmation**, pas
+    /// un silence : elle refuse, et aucun drapeau ne vient la contredire.
+    func testUneListePresenteRefuseCeQuElleNeNommePasMemeContreLesDrapeaux() throws {
+        let auSol = try plante(placement: ["floor"], drapeaux: ["climbing": true, "trailing": true])
 
-        XCTAssertTrue(PlantPlacementCompatibility.supports(ficus, mode: .floor))
-        XCTAssertFalse(PlantPlacementCompatibility.supports(ficus, mode: .wall))
-        XCTAssertFalse(PlantPlacementCompatibility.supports(ficus, mode: .ceiling))
+        XCTAssertEqual(PlantPlacementCompatibility.supportedModes(for: auSol), [.floor])
+        XCTAssertFalse(PlantPlacementCompatibility.isWallCapable(auSol),
+                       "le champ stocké prime sur le drapeau, toujours")
+        XCTAssertFalse(PlantPlacementCompatibility.isHangingCapable(auSol))
     }
 
-    func test_structuredFlags_enableSpecialModes() throws {
-        let trailing = try makePlant(
-            name: "Curated trailing plant",
-            type: "Indoor",
-            flags: ["trailing": true]
+    /// Une liste présente et VIDE affirme qu'aucun mode spécial ne s'applique.
+    func testUneListePresenteEtVideNOuvreAucunMode() throws {
+        let aucun = try plante(placement: [], drapeaux: ["trailing": true])
+        XCTAssertEqual(PlantPlacementCompatibility.supportedModes(for: aucun), [.floor])
+    }
+
+    /// Une valeur hors vocabulaire est écartée et ne devient pas une capacité.
+    func testUneValeurDePlacementHorsVocabulaireNOuvreAucunMode() throws {
+        let futur = try plante(placement: ["balcony", "ceiling"])
+
+        XCTAssertEqual(PlantPlacementCompatibility.supportedModes(for: futur), [.floor, .ceiling],
+                       "« balcony » est écarté, « ceiling » est retenu")
+        XCTAssertEqual(futur.botanicalProfile?.placement?.rejected, ["balcony"])
+    }
+
+    // MARK: - Le repli par drapeaux, sans le champ
+
+    func testSansChampLesDrapeauxServentDeRepliEtSeulLeurTrueInforme() throws {
+        let retombante = try plante(drapeaux: ["trailing": true])
+        let grimpante = try plante(drapeaux: ["climbing": true])
+
+        XCTAssertEqual(PlantPlacementCompatibility.supportedModes(for: retombante),
+                       [.floor, .wall, .ceiling])
+        XCTAssertEqual(PlantPlacementCompatibility.supportedModes(for: grimpante),
+                       [.floor, .wall],
+                       "grimper tient au mur, pas au plafond")
+    }
+
+    /// Sans champ et sans drapeau levé, seul le sol est admis — et c'est le
+    /// bon défaut : il ne propose jamais un geste impossible.
+    func testSansChampNiDrapeauSeulLeSolEstAdmis() throws {
+        let nue = try plante()
+        XCTAssertEqual(PlantPlacementCompatibility.supportedModes(for: nue), [.floor])
+    }
+
+    /// Un drapeau BAISSÉ ne prouve rien, et surtout ne fait plus retomber sur
+    /// des mots-clés.
+    func testUnDrapeauBaisseNeFaitPlusRetomberSurLeNom() throws {
+        let pothos = try plante(
+            nom: "Pothos pictus Hoya Ceropegia woodii lierre",
+            type: "Liane retombante grimpante suspendue",
+            drapeaux: ["climbing": false, "trailing": false]
         )
-        let climbing = try makePlant(
-            name: "Curated climbing plant",
-            type: "Indoor",
-            flags: ["climbing": true]
-        )
 
-        XCTAssertTrue(PlantPlacementCompatibility.supports(trailing, mode: .ceiling))
-        XCTAssertTrue(PlantPlacementCompatibility.supports(trailing, mode: .wall))
-        XCTAssertTrue(PlantPlacementCompatibility.supports(climbing, mode: .wall))
+        XCTAssertEqual(PlantPlacementCompatibility.supportedModes(for: pothos), [.floor],
+                       "cinq mots-clés de l'ancienne liste dans le nom, et plus aucun effet")
     }
 
-    private func makePlant(
-        name: String,
-        type: String,
-        description: String = "",
-        flags: [String: Bool] = [:]
+    // MARK: - Fabrique
+
+    private func plante(
+        nom: String = "Plante de test",
+        type: String = "Plant",
+        placement: [String]? = nil,
+        drapeaux: [String: Bool] = [:]
     ) throws -> Plant {
         var json: [String: Any] = [
             "id": UUID().uuidString,
-            "name": name,
+            "name": nom,
             "type": type,
             "imageURLs": [],
-            "description": description,
-            "modelURL": "\(name).usdz",
+            "description": "",
+            "modelURL": "test.usdz",
             "translations": [:]
         ]
 
-        if !flags.isEmpty {
-            json["flags"] = flags
+        if let placement {
+            json["botanicalProfile"] = [
+                "schemaVersion": 1,
+                "placement": [
+                    "value": placement,
+                    "evidence": [
+                        "sourceName": "mesure d'atelier",
+                        "sourceURL": "https://example.test/plant",
+                        "reviewedAt": "2026-11-08",
+                        "reliability": "high"
+                    ]
+                ]
+            ]
+        }
+
+        if !drapeaux.isEmpty {
+            var complets: [String: Bool] = [
+                "toxicToPets": false, "toxicToChildren": false, "easyCare": false,
+                "shadeTolerant": false, "fullSunTolerant": false, "droughtTolerant": false,
+                "humidityLoving": false, "flowering": false, "climbing": false,
+                "trailing": false, "compact": false, "airPurifying": false
+            ]
+            for (cle, valeur) in drapeaux { complets[cle] = valeur }
+            json["flags"] = complets
         }
 
         let data = try JSONSerialization.data(withJSONObject: json, options: [])

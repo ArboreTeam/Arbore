@@ -1497,6 +1497,7 @@
 "AR_CATALOG_KIND_GROUNDCOVER" = "Bodendecker";
 "AR_CATALOG_KIND_CLIMBING" = "Kletterpflanze";
 "AR_CATALOG_KIND_EDIBLE" = "Kraut oder essbare Pflanze";
+"AR_CATALOG_KIND_CONIFER" = "Nadelbaum";
 "AR_CATALOG_APPEARANCE_TRAITS_TITLE" = "Aussehen";
 "AR_CATALOG_APPEARANCE_FLOWERING" = "Blühend";
 "AR_CATALOG_APPEARANCE_VARIEGATED" = "Panaschierte Blätter";

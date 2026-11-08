@@ -63,6 +63,12 @@ final class GardenSuggestionEngine {
 
     /// Generate a garden suggestion from wizard filters and the full plant catalogue.
     /// This runs 100% on-device and is designed to complete in < 100ms.
+    /// **`locale` ne décide plus de rien.** Aucun classement, aucune
+    /// catégorie, aucun écart de sûreté n'en dépend : la composition ne lit
+    /// que des valeurs closes, identiques pour tous les lecteurs (#792). Les
+    /// libellés et les résumés restent localisés, mais par `L10n`. Le
+    /// paramètre est conservé pour ne pas casser les appelants ; il est
+    /// délibérément inutilisé, et c'est le but.
     func suggest(
         from wizard: GardenWizardDTO,
         plants: [Plant],
@@ -103,11 +109,7 @@ final class GardenSuggestionEngine {
         .sorted { $0.score > $1.score }
 
         // 2. Apply composition rules (diversity, height mix, style-aware count)
-        let composed = applyCompositionRules(
-            scored: scored,
-            wizard: wizard,
-            locale: locale
-        )
+        let composed = applyCompositionRules(scored: scored, wizard: wizard)
 
         // 3. Build suggestion
         let avgScore = composed.isEmpty ? 0 : composed.map(\.score).reduce(0, +) / Double(composed.count)
@@ -132,8 +134,7 @@ final class GardenSuggestionEngine {
     /// Apply diversity & style-aware composition rules to produce a balanced garden.
     private func applyCompositionRules(
         scored: [ScoredPlant],
-        wizard: GardenWizardDTO,
-        locale: String
+        wizard: GardenWizardDTO
     ) -> [SuggestedPlant] {
 
         // Determine target count based on style
@@ -153,7 +154,7 @@ final class GardenSuggestionEngine {
             if currentCount >= 2 { continue }
 
             // Classify by category
-            let category = classifyPlant(sp.plant, locale: locale)
+            let category = classifyPlant(sp.plant)
 
             let suggested = SuggestedPlant(
                 id: sp.plant.id,
@@ -189,28 +190,39 @@ final class GardenSuggestionEngine {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Classify a plant by height/role category based on keywords in its data.
-    private func classifyPlant(_ plant: Plant, locale: String) -> SuggestedPlant.PlantCategory {
-        let name = plant.name.lowercased()
-        let type = plant.type.lowercased()
-        let desc = plant.translations[locale]?.description.lowercased() ?? ""
-        let combined = name + " " + type + " " + desc
+    /// Classe une plante par rôle de composition, depuis ses valeurs CLOSES.
+    ///
+    /// Cette fonction concaténait le nom, le type et la **description
+    /// traduite**, puis y cherchait des mots-clés. La catégorie d'une plante
+    /// dépendait donc de la formulation retenue par un traducteur — et d'un
+    /// appariement sans frontière de mot, dont la conséquence était mesurable
+    /// sur le catalogue : `mousse` appariait « tuteur **mousse** », donc le
+    /// `Monstera_Deliciosa_Pot_Tuteur_Mousse` et le
+    /// `Pothos_Dore_Vert_Sur_Tuteur_Mousse` étaient classés **couvre-sol**
+    /// parce que leur nom contenait le mot (#792).
+    ///
+    /// L'ordre des branches reste celui d'avant — le rôle le plus spécifique
+    /// d'abord — mais chaque test lit `kinds`, `goals` ou `size`.
+    private func classifyPlant(_ plant: Plant) -> SuggestedPlant.PlantCategory {
+        let traits = PlantCatalogTraits.snapshot(for: plant)
 
-        if combined.contains("grimpant") || combined.contains("climbing") || combined.contains("lierre") || combined.contains("ivy") {
+        if traits.kinds.contains(.climbing) || traits.goals.contains(.coverWall) {
             return .climbing
         }
-        if combined.contains("couvre-sol") || combined.contains("ground") || combined.contains("mousse") || combined.contains("moss") {
+        if traits.kinds.contains(.groundcover) || traits.goals.contains(.coverGround) {
             return .groundCover
         }
-        if combined.contains("arbre") || combined.contains("tree") || combined.contains("palmier")
-            || combined.contains("palm") || combined.contains("figuier") || combined.contains("olivier") {
+        if !traits.kinds.isDisjoint(with: [.tree, .palm, .conifer]) || traits.size == .large {
             return .tall
         }
-        if combined.contains("succulente") || combined.contains("succulent") || combined.contains("cactus")
-            || combined.contains("couvre") || combined.contains("mini") || combined.contains("petit") {
+        if traits.kinds.contains(.cactusSucculent) || traits.size == .small {
             return .low
         }
 
+        // `.medium` reste le défaut, et c'est assumé : une plante dont la
+        // nature et le gabarit ne sont pas établis occupe le rôle du milieu
+        // plutôt que de disparaître de la composition. C'est un défaut
+        // d'AFFICHAGE, pas un trait affirmé sur la fiche.
         return .medium
     }
 

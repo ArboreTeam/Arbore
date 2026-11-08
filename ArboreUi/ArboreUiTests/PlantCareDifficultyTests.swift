@@ -74,9 +74,9 @@ final class PlantCareDifficultyTests: XCTestCase {
     /// Le filtre du catalogue ne masque pas ce qu'il ne sait pas juger.
     func testFiltreNExclutPasUnePlanteDeDifficulteInconnue() throws {
         let plant = try makePlant()
-        let filters = PlantFilters(lightType: nil, waterFrequency: nil, difficulty: "Facile")
+        let filters = PlantFilters(difficulty: .easy)
 
-        XCTAssertTrue(filters.matches(plant: plant, locale: "fr"),
+        XCTAssertTrue(filters.matches(plant),
                       "Une difficulté inconnue ne doit pas exclure la plante — c'est le bug de #485")
     }
 
@@ -126,17 +126,17 @@ final class PlantCareDifficultyTests: XCTestCase {
 
     func testFiltreExclutUnNiveauQuiNeCorrespondPas() throws {
         let exigeante = try makePlant(careDifficulty: "Exigeant")
-        let filters = PlantFilters(lightType: nil, waterFrequency: nil, difficulty: "Facile")
+        let filters = PlantFilters(difficulty: .easy)
 
-        XCTAssertFalse(filters.matches(plant: exigeante, locale: "fr"),
+        XCTAssertFalse(filters.matches(exigeante),
                        "Une plante exigeante doit être exclue d'un filtre « Facile »")
     }
 
     func testFiltreConserveUnNiveauQuiCorrespond() throws {
         let facile = try makePlant(careDifficulty: "Facile")
-        let filters = PlantFilters(lightType: nil, waterFrequency: nil, difficulty: "Facile")
+        let filters = PlantFilters(difficulty: .easy)
 
-        XCTAssertTrue(filters.matches(plant: facile, locale: "fr"))
+        XCTAssertTrue(filters.matches(facile))
     }
 
     // MARK: - Les options proposées suivent les données
@@ -180,9 +180,9 @@ final class PlantCareDifficultyTests: XCTestCase {
     /// Sans critère sélectionné, le filtre laisse tout passer.
     func testAucunCritereNExcluRien() throws {
         let plant = try makePlant(careDifficulty: "Exigeant")
-        let filters = PlantFilters(lightType: nil, waterFrequency: nil, difficulty: nil)
+        let filters = PlantFilters()
 
-        XCTAssertTrue(filters.matches(plant: plant, locale: "fr"))
+        XCTAssertTrue(filters.matches(plant))
     }
 }
 

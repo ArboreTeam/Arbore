@@ -13,7 +13,28 @@
     "CONVENTION : `attendu.issue` donne le resultat du predicat de surete pour",
     "chacune des quatre contraintes possibles du questionnaire, et",
     "`attendu.admis` ce que chaque politique en fait. `null` sur un verdict",
-    "signifie NON ETABLI, jamais `safe`."
+    "signifie NON ETABLI, jamais `safe`.",
+    "",
+    "TRAITS (#792) : `attendu.traits` donne la valeur LUE pour chaque trait",
+    "demande. Une cle absente de ce bloc n'est pas affirmee par le cas.",
+    "",
+    "  - traits scalaires (`size` et les sept tri-etats) : une valeur du",
+    "    vocabulaire ferme. Le plancher est `unknown`, jamais une valeur",
+    "    affirmative. Les sept tri-etats sont lus AVEC le repli par drapeau :",
+    "    un fait present fait autorite meme quand il dit `unknown`, et seul le",
+    "    `true` d'un drapeau informe : son `false` rend `unknown`, pas `no`.",
+    "  - traits en liste (`kinds`, `goals`, `colors`, `placement`) :",
+    "    `renseignee` dit si le fait EXISTE, `valeurs` ce qui a ete retenu, et",
+    "    `rejetees` ce qui a ete ecarte faute d'appartenir au vocabulaire.",
+    "    Une liste VIDE renseignee est une affirmation (« on a cherche, aucune",
+    "    valeur ne s'applique ») ; une liste ABSENTE est un silence. Les listes",
+    "    ne portent pas `unknown` comme valeur : c'est `renseignee: false` qui",
+    "    le dit.",
+    "",
+    "`attendu.ecritureRefusee` : le cas doit etre REFUSE a l'ecriture. La",
+    "lecture est indulgente et ecarte ce qu'elle ne comprend pas ; l'ecriture",
+    "refuse au lieu de corriger en silence. Les deux comportements sont",
+    "affirmes depuis le meme fichier parce qu'ils ne se ressemblent pas."
   ],
 
   "contraintes": ["aucune", "animaux", "enfants", "les_deux"],
@@ -197,16 +218,296 @@
     {
       "id": "nom_qui_ment",
       "nom": "Monstera Deliciosa Pot Tuteur Mousse",
-      "pourquoi": "Son NOM contient « mousse », ce qui la classait couvre-sol par appariement de mots-cles. Aucune decision ne doit dependre de son nom.",
+      "pourquoi": "Son NOM contient « mousse », ce qui la classait couvre-sol par appariement de mots-cles. Aucune decision ne doit dependre de son nom. Ses `kinds` stockes ne contiennent PAS `groundcover`, et la liste attendue est exacte : si `groundcover` y revient, le cas tombe.",
       "profil": {
         "petToxicity": { "value": "toxic", "detail": "ASPCA : oxalates de calcium insolubles.", "evidence": { "sourceName": "ASPCA", "reviewedAt": "2026-11-07", "reliability": "high" } },
-        "childToxicity": { "value": "irritant", "detail": "NC State : severite basse.", "evidence": { "sourceName": "NC State Extension", "reviewedAt": "2026-11-07", "reliability": "high" } }
+        "childToxicity": { "value": "irritant", "detail": "NC State : severite basse.", "evidence": { "sourceName": "NC State Extension", "reviewedAt": "2026-11-07", "reliability": "high" } },
+        "size": { "value": "large", "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "kinds": { "value": ["greenPlant", "climbing"], "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "goals": { "value": ["addVolume", "focalPoint"], "evidence": { "sourceName": "usages du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "placement": { "value": ["floor"], "evidence": { "sourceName": "mesure d'atelier", "reviewedAt": "2026-11-08", "reliability": "high" } }
+      },
+      "flags": { "toxicToPets": true, "toxicToChildren": true, "climbing": true },
+      "attendu": {
+        "verdictPet": "toxic", "verdictChild": "toxic",
+        "issue": { "aucune": "satisfied", "animaux": "conflict", "enfants": "conflict", "les_deux": "conflict" },
+        "admis": { "browsable_animaux": false, "offerable_animaux": false, "browsable_enfants": false, "offerable_enfants": false },
+        "traits": {
+          "size": "large",
+          "kinds": { "renseignee": true, "valeurs": ["greenPlant", "climbing"] },
+          "goals": { "renseignee": true, "valeurs": ["addVolume", "focalPoint"] },
+          "colors": { "renseignee": false },
+          "placement": { "renseignee": true, "valeurs": ["floor"] },
+          "climbing": "yes"
+        }
+      }
+    },
+    {
+      "id": "taille_non_etablie",
+      "nom": "Ficus lyrata",
+      "pourquoi": "Sa taille est `unknown` STOCKE : on a regarde sans conclure, et ce n'est pas la meme chose qu'un champ vide. Son `compact` n'a aucun fait et son drapeau est BAISSE : il vaut `unknown` et non `no`, parce qu'un drapeau baisse n'a jamais prouve une negation.",
+      "profil": {
+        "petToxicity": { "value": "toxic", "detail": "ASPCA : latex irritant, Ficus lyrata.", "evidence": { "sourceName": "ASPCA", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "childToxicity": { "value": "irritant", "detail": "NC State : severite basse, latex.", "evidence": { "sourceName": "NC State Extension", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "size": { "value": "unknown", "evidence": { "sourceName": "absence mesuree", "reviewedAt": "2026-11-08", "reliability": "low" } }
+      },
+      "flags": { "toxicToPets": true, "toxicToChildren": true, "compact": false },
+      "attendu": {
+        "verdictPet": "toxic", "verdictChild": "toxic",
+        "issue": { "aucune": "satisfied", "animaux": "conflict", "enfants": "conflict", "les_deux": "conflict" },
+        "admis": { "browsable_animaux": false, "offerable_animaux": false, "browsable_enfants": false, "offerable_enfants": false },
+        "traits": { "size": "unknown", "compact": "unknown" }
+      }
+    },
+    {
+      "id": "floraison_niee",
+      "nom": "Calathea orbifolia",
+      "pourquoi": "LE `no` EXPLICITE. Sa source dit « Feuillage decoratif » au champ « Periode de floraison » : c'est une affirmation, pas un silence, et elle doit se distinguer de `unknown`. Son drapeau `flowering` est LEVE par erreur, et le fait stocke le bat.",
+      "profil": {
+        "petToxicity": { "value": "safe", "detail": "ASPCA : Calathea non toxique pour chiens et chats.", "evidence": { "sourceName": "ASPCA", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "childToxicity": { "value": "safe", "detail": "NC State : aucune section Poison.", "evidence": { "sourceName": "NC State Extension", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "size": { "value": "medium", "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "kinds": { "value": ["greenPlant"], "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "colors": { "value": ["green", "white"], "evidence": { "sourceName": "fiche source", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "flowering": { "value": "no", "detail": "Champ « Periode de floraison » de la fiche source : « Feuillage decoratif ». La prose est conservee a cote du verdict, et rien ne la lit pour decider.", "evidence": { "sourceName": "fiche source, champ Periode de floraison", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "easyCare": { "value": "no", "evidence": { "sourceName": "fiche source, difficulte confirmee", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "humidityLoving": { "value": "yes", "evidence": { "sourceName": "fiche source", "reviewedAt": "2026-11-08", "reliability": "moderate" } }
+      },
+      "flags": { "toxicToPets": false, "toxicToChildren": false, "flowering": true, "easyCare": true },
+      "attendu": {
+        "verdictPet": "safe", "verdictChild": "safe",
+        "issue": { "aucune": "satisfied", "animaux": "satisfied", "enfants": "satisfied", "les_deux": "satisfied" },
+        "admis": { "browsable_animaux": true, "offerable_animaux": true, "browsable_enfants": true, "offerable_enfants": true },
+        "traits": {
+          "size": "medium",
+          "flowering": "no",
+          "easyCare": "no",
+          "humidityLoving": "yes",
+          "airPurifying": "unknown",
+          "kinds": { "renseignee": true, "valeurs": ["greenPlant"] },
+          "colors": { "renseignee": true, "valeurs": ["green", "white"] }
+        }
+      }
+    },
+    {
+      "id": "liste_vide_et_liste_absente",
+      "nom": "Pilea peperomioides",
+      "pourquoi": "LA DISTINCTION QUE AUCUNE LISTE NE PORTE SEULE : ses `goals` sont une liste VIDE renseignee (on a cherche, aucun but du vocabulaire ne s'applique), et ses `colors` sont ABSENTES, ce qui ne dit rien du tout. Un lecteur qui confondrait les deux affirmerait a notre place.",
+      "profil": {
+        "petToxicity": { "value": "safe", "detail": "ASPCA : Pilea non toxique.", "evidence": { "sourceName": "ASPCA", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "childToxicity": { "value": "unknown", "detail": "Aucune base pediatrique ne couvre Pilea peperomioides.", "evidence": { "sourceName": "absence mesuree", "reviewedAt": "2026-11-08", "reliability": "low" } },
+        "size": { "value": "small", "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "kinds": { "value": ["greenPlant"], "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "goals": { "value": [], "evidence": { "sourceName": "usages du catalogue : aucun usage retenu", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "placement": { "value": ["floor"], "evidence": { "sourceName": "mesure d'atelier", "reviewedAt": "2026-11-08", "reliability": "high" } }
+      },
+      "flags": { "toxicToPets": false, "toxicToChildren": false },
+      "attendu": {
+        "verdictPet": "safe", "verdictChild": null,
+        "issue": { "aucune": "satisfied", "animaux": "satisfied", "enfants": "undetermined", "les_deux": "undetermined" },
+        "admis": { "browsable_animaux": true, "offerable_animaux": true, "browsable_enfants": true, "offerable_enfants": false },
+        "traits": {
+          "size": "small",
+          "kinds": { "renseignee": true, "valeurs": ["greenPlant"] },
+          "goals": { "renseignee": true, "valeurs": [] },
+          "colors": { "renseignee": false },
+          "placement": { "renseignee": true, "valeurs": ["floor"] }
+        }
+      }
+    },
+    {
+      "id": "traits_hors_vocabulaire",
+      "nom": "Fiche d'un futur schema de traits",
+      "pourquoi": "HORS VOCABULAIRE, DES DEUX COTES DU CONTRAT. A la lecture, chaque valeur inconnue tombe vers le PLANCHER : les scalaires rendent `unknown`, les listes ecartent l'intrus sans emporter la fiche entiere. A l'ECRITURE, la meme fiche est REFUSEE : corriger en silence perdrait la trace de ce que l'ecrivain croyait ecrire.",
+      "profil": {
+        "size": { "value": "enorme", "evidence": { "sourceName": "schema futur", "reviewedAt": "2026-11-08", "reliability": "low" } },
+        "flowering": { "value": "maybe", "evidence": { "sourceName": "schema futur", "reviewedAt": "2026-11-08", "reliability": "low" } },
+        "kinds": { "value": ["shrub", "bonsai"], "evidence": { "sourceName": "schema futur", "reviewedAt": "2026-11-08", "reliability": "low" } },
+        "goals": { "value": ["addColor", "zen-garden"], "evidence": { "sourceName": "schema futur", "reviewedAt": "2026-11-08", "reliability": "low" } },
+        "placement": { "value": ["balcony"], "evidence": { "sourceName": "schema futur", "reviewedAt": "2026-11-08", "reliability": "low" } }
+      },
+      "flags": null,
+      "attendu": {
+        "verdictPet": null, "verdictChild": null,
+        "issue": { "aucune": "satisfied", "animaux": "undetermined", "enfants": "undetermined", "les_deux": "undetermined" },
+        "admis": { "browsable_animaux": true, "offerable_animaux": false, "browsable_enfants": true, "offerable_enfants": false },
+        "ecritureRefusee": true,
+        "traits": {
+          "size": "unknown",
+          "flowering": "unknown",
+          "kinds": { "renseignee": true, "valeurs": ["shrub"], "rejetees": ["bonsai"] },
+          "goals": { "renseignee": true, "valeurs": ["addColor"], "rejetees": ["zen-garden"] },
+          "placement": { "renseignee": true, "valeurs": [], "rejetees": ["balcony"] }
+        }
+      }
+    },
+    {
+      "id": "conifere",
+      "nom": "If commun",
+      "pourquoi": "LA VALEUR AJOUTEE AU VOCABULAIRE. 39 fiches portaient le port `conifere` sans aucune cible : le rabattre sur `tree` ou `shrub` perdait une distinction que l'utilisateur voit. Si `conifer` quitte le vocabulaire, ce cas tombe.",
+      "profil": {
+        "petToxicity": { "value": "toxic", "detail": "ASPCA : taxine, Taxus spp., atteinte cardiaque.", "evidence": { "sourceName": "ASPCA", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "childToxicity": { "value": "toxic", "detail": "NC State : severite elevee, toutes parties sauf l'arille.", "evidence": { "sourceName": "NC State Extension", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "size": { "value": "large", "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "kinds": { "value": ["conifer"], "evidence": { "sourceName": "typologie du catalogue, port conifere", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "goals": { "value": ["createPrivacy"], "evidence": { "sourceName": "usages du catalogue : haie", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "placement": { "value": ["floor"], "evidence": { "sourceName": "mesure d'atelier", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "flowering": { "value": "no", "evidence": { "sourceName": "fiche source : feuillage persistant", "reviewedAt": "2026-11-08", "reliability": "moderate" } }
       },
       "flags": { "toxicToPets": true, "toxicToChildren": true },
       "attendu": {
         "verdictPet": "toxic", "verdictChild": "toxic",
         "issue": { "aucune": "satisfied", "animaux": "conflict", "enfants": "conflict", "les_deux": "conflict" },
-        "admis": { "browsable_animaux": false, "offerable_animaux": false, "browsable_enfants": false, "offerable_enfants": false }
+        "admis": { "browsable_animaux": false, "offerable_animaux": false, "browsable_enfants": false, "offerable_enfants": false },
+        "traits": {
+          "size": "large",
+          "flowering": "no",
+          "kinds": { "renseignee": true, "valeurs": ["conifer"] },
+          "goals": { "renseignee": true, "valeurs": ["createPrivacy"] },
+          "placement": { "renseignee": true, "valeurs": ["floor"] }
+        }
+      }
+    },
+    {
+      "id": "suspendue_sans_mot_cle",
+      "nom": "Chlorophytum comosum Bonnie",
+      "pourquoi": "ELLE SE SUSPEND, ET SON NOM NE CONTIENT AUCUN DES 25 MOTS-CLES de l'ancienne liste de suspension. Une capacite de pose absente de la liste n'etait pas une capacite inconnue : c'etait une capacite NIEE, et le geste devenait indisponible.",
+      "profil": {
+        "petToxicity": { "value": "safe", "detail": "ASPCA : Chlorophytum comosum non toxique.", "evidence": { "sourceName": "ASPCA", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "childToxicity": { "value": "safe", "detail": "NC State : aucune section Poison.", "evidence": { "sourceName": "NC State Extension", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "size": { "value": "small", "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "kinds": { "value": ["greenPlant"], "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "goals": { "value": ["createCascade"], "evidence": { "sourceName": "typologie du catalogue, port retombante", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "placement": { "value": ["floor", "ceiling"], "evidence": { "sourceName": "mesure d'atelier", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "trailing": { "value": "yes", "evidence": { "sourceName": "typologie du catalogue, port retombante", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "climbing": { "value": "no", "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } }
+      },
+      "flags": { "toxicToPets": false, "toxicToChildren": false },
+      "attendu": {
+        "verdictPet": "safe", "verdictChild": "safe",
+        "issue": { "aucune": "satisfied", "animaux": "satisfied", "enfants": "satisfied", "les_deux": "satisfied" },
+        "admis": { "browsable_animaux": true, "offerable_animaux": true, "browsable_enfants": true, "offerable_enfants": true },
+        "traits": {
+          "size": "small",
+          "trailing": "yes",
+          "climbing": "no",
+          "goals": { "renseignee": true, "valeurs": ["createCascade"] },
+          "placement": { "renseignee": true, "valeurs": ["floor", "ceiling"] }
+        }
+      }
+    },
+    {
+      "id": "lierre_dans_la_prose",
+      "nom": "Fittonia albivenis",
+      "pourquoi": "Sa prose NOMME le lierre et le Hoya pour dire qu'elle ne grimpe PAS. L'ancien appariement y voyait deux mots-cles de mur et la declarait posable au mur : pas un badge inexact, un geste impossible. Les valeurs stockees disent `no` et `floor`, et ce sont elles qui decident.",
+      "profil": {
+        "petToxicity": { "value": "safe", "detail": "ASPCA : Fittonia non toxique.", "evidence": { "sourceName": "ASPCA", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "childToxicity": { "value": "safe", "detail": "NC State : aucune section Poison.", "evidence": { "sourceName": "NC State Extension", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "kinds": { "value": ["greenPlant", "groundcover"], "evidence": { "sourceName": "usages du catalogue : couvre-sol", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "placement": { "value": ["floor"], "evidence": { "sourceName": "mesure d'atelier", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "climbing": { "value": "no", "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "trailing": { "value": "no", "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } }
+      },
+      "flags": { "toxicToPets": false, "toxicToChildren": false },
+      "prose": {
+        "fr": "Contrairement au Hoya carnosa et au lierre, le Fittonia ne grimpe pas : il tapisse. On le confond souvent avec une plante grimpante en suspension.",
+        "en": "Unlike Hoya carnosa or English ivy, this is not a climber or a vine: it creeps."
+      },
+      "attendu": {
+        "verdictPet": "safe", "verdictChild": "safe",
+        "issue": { "aucune": "satisfied", "animaux": "satisfied", "enfants": "satisfied", "les_deux": "satisfied" },
+        "admis": { "browsable_animaux": true, "offerable_animaux": true, "browsable_enfants": true, "offerable_enfants": true },
+        "traits": {
+          "climbing": "no",
+          "trailing": "no",
+          "kinds": { "renseignee": true, "valeurs": ["greenPlant", "groundcover"] },
+          "placement": { "renseignee": true, "valeurs": ["floor"] }
+        }
+      }
+    },
+    {
+      "id": "prose_qui_ment_sur_les_traits",
+      "nom": "Alocasia zebrina",
+      "pourquoi": "LE CAS QUI PROUVE QU'ON NE PARSE PLUS LES TRAITS. Sa prose la dit facile, grimpante, retombante, compacte et abondamment fleurie ; ses drapeaux herites disent `true` sur les cinq ; ses cinq valeurs stockees disent `no`. Dix affirmations contre cinq, et c'est la valeur stockee qui gagne a chaque fois. Si ce cas tombe, un chemin de derivation est revenu.",
+      "profil": {
+        "petToxicity": { "value": "toxic", "detail": "ASPCA : oxalates de calcium insolubles, Alocasia spp.", "evidence": { "sourceName": "ASPCA", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "childToxicity": { "value": "irritant", "detail": "NC State : severite basse a moyenne, sap irritant.", "evidence": { "sourceName": "NC State Extension", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "size": { "value": "large", "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "kinds": { "value": ["greenPlant"], "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "placement": { "value": ["floor"], "evidence": { "sourceName": "mesure d'atelier", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "flowering": { "value": "no", "evidence": { "sourceName": "fiche source, champ Periode de floraison : Feuillage decoratif", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "easyCare": { "value": "no", "evidence": { "sourceName": "fiche source, difficulte confirmee", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "compact": { "value": "no", "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "climbing": { "value": "no", "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } },
+        "trailing": { "value": "no", "evidence": { "sourceName": "typologie du catalogue", "reviewedAt": "2026-11-08", "reliability": "moderate" } }
+      },
+      "flags": { "toxicToPets": true, "toxicToChildren": true, "easyCare": true, "flowering": true, "climbing": true, "trailing": true, "compact": true },
+      "prose": {
+        "en": "An easy-care climbing beauty, trailing beautifully from hanging baskets, compact enough for a small flat, with masses of fragrant white flowers all summer. Perfect for beginners, and completely harmless.",
+        "fr": "Une grimpante tres facile, retombante et compacte, a la floraison blanche abondante. Ideale pour debuter, et sans aucun danger."
+      },
+      "attendu": {
+        "verdictPet": "toxic", "verdictChild": "toxic",
+        "issue": { "aucune": "satisfied", "animaux": "conflict", "enfants": "conflict", "les_deux": "conflict" },
+        "admis": { "browsable_animaux": false, "offerable_animaux": false, "browsable_enfants": false, "offerable_enfants": false },
+        "traits": {
+          "size": "large",
+          "flowering": "no",
+          "easyCare": "no",
+          "compact": "no",
+          "climbing": "no",
+          "trailing": "no",
+          "kinds": { "renseignee": true, "valeurs": ["greenPlant"] },
+          "placement": { "renseignee": true, "valeurs": ["floor"] }
+        }
+      }
+    },
+    {
+      "id": "traits_sans_fait_drapeau_leve",
+      "nom": "Pothos dore",
+      "pourquoi": "Fiche anterieure au contrat : aucun fait de trait, seulement des drapeaux. Le repli rend `yes` sur ceux qui sont LEVES, et `unknown` sur ceux qui sont absents du document : il ne remplit que ce qu'il sait. Ses listes restent non renseignees : aucun drapeau ne sait dire une nature ni une couleur.",
+      "profil": null,
+      "flags": { "toxicToPets": true, "toxicToChildren": true, "climbing": true, "trailing": true, "airPurifying": true, "easyCare": true },
+      "attendu": {
+        "verdictPet": "toxic", "verdictChild": "toxic",
+        "issue": { "aucune": "satisfied", "animaux": "conflict", "enfants": "conflict", "les_deux": "conflict" },
+        "admis": { "browsable_animaux": false, "offerable_animaux": false, "browsable_enfants": false, "offerable_enfants": false },
+        "traits": {
+          "size": "unknown",
+          "climbing": "yes",
+          "trailing": "yes",
+          "airPurifying": "yes",
+          "easyCare": "yes",
+          "flowering": "unknown",
+          "humidityLoving": "unknown",
+          "compact": "unknown",
+          "kinds": { "renseignee": false },
+          "goals": { "renseignee": false },
+          "colors": { "renseignee": false },
+          "placement": { "renseignee": false }
+        }
+      }
+    },
+    {
+      "id": "trait_unknown_et_drapeau_leve",
+      "nom": "Spathiphyllum wallisii",
+      "pourquoi": "LA COMBINAISON QUE L'INTUITION NE SUGGERE PAS et que le contrat de donnees produit : un fait qui dit `unknown` ET un drapeau leve. Le fait present fait autorite, meme en disant `unknown`, et consulter le drapeau par-dessus transformerait une absence MESUREE en affirmation. C'est exactement ce defaut qui masquait 108 plantes du catalogue sur l'axe toxicite. Son `trailing` ajoute le miroir : fait absent et drapeau BAISSE valent `unknown`, jamais `no`.",
+      "profil": {
+        "petToxicity": { "value": "toxic", "detail": "ASPCA : oxalates de calcium insolubles.", "evidence": { "sourceName": "ASPCA", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "childToxicity": { "value": "irritant", "detail": "NC State : severite basse.", "evidence": { "sourceName": "NC State Extension", "reviewedAt": "2026-11-08", "reliability": "high" } },
+        "climbing": { "value": "unknown", "evidence": { "sourceName": "absence mesuree", "reviewedAt": "2026-11-08", "reliability": "low" } },
+        "flowering": { "value": "yes", "evidence": { "sourceName": "fiche source, champ Periode de floraison : printemps a automne", "reviewedAt": "2026-11-08", "reliability": "moderate" } }
+      },
+      "flags": { "toxicToPets": true, "toxicToChildren": true, "climbing": true, "trailing": false },
+      "attendu": {
+        "verdictPet": "toxic", "verdictChild": "toxic",
+        "issue": { "aucune": "satisfied", "animaux": "conflict", "enfants": "conflict", "les_deux": "conflict" },
+        "admis": { "browsable_animaux": false, "offerable_animaux": false, "browsable_enfants": false, "offerable_enfants": false },
+        "traits": {
+          "climbing": "unknown",
+          "trailing": "unknown",
+          "flowering": "yes"
+        }
       }
     }
   ]

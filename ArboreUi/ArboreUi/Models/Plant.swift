@@ -339,6 +339,216 @@ struct PlantRangeFact: Codable, Equatable {
     }
 }
 
+// MARK: - Traits descriptifs, en valeurs closes (#792)
+
+/// Valeur d'un trait descriptif, en TROIS états.
+///
+/// Un booléen ne sait dire qu'une moitié de la vérité. `flowering: false`
+/// voulait dire à la fois « ne fleurit pas » et « personne n'a regardé », et
+/// l'ancienne lecture retombait sur la prose dès que le drapeau était baissé :
+/// une description qui mentionnait « fleur » suffisait à déclarer la plante
+/// fleurie. C'est la forme exacte du `toxicToPets: false` que #778 a retirée
+/// des données et que #792 retire des onze autres champs.
+///
+/// Les trois états séparent l'affirmation du silence. `unknown` est une
+/// réponse — « on a cherché sans trouver » — ce qu'aucun booléen ne sait dire.
+enum PlantTraitValue: String, Codable, Equatable, CaseIterable {
+    case yes
+    case no
+    case unknown
+
+    /// Décodage indulgent vers le PLANCHER : toute valeur hors vocabulaire
+    /// devient `unknown`, jamais `yes`.
+    ///
+    /// Le plancher est aussi la règle pour un booléen JSON qu'un schéma
+    /// intermédiaire laisserait passer : seul son `true` informe, son `false`
+    /// vaut `unknown`. C'est exactement le contrat du repli par drapeau — un
+    /// drapeau baissé ne prouve rien (#792).
+    init(from decoder: Decoder) throws {
+        let conteneur = try decoder.singleValueContainer()
+        if let brut = try? conteneur.decode(String.self) {
+            let cle = brut.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            self = PlantTraitValue(rawValue: cle) ?? .unknown
+            return
+        }
+        if let booleen = try? conteneur.decode(Bool.self) {
+            self = booleen ? .yes : .unknown
+            return
+        }
+        self = .unknown
+    }
+}
+
+/// Trait descriptif : la valeur close qui décide, et la prose qui explique.
+///
+/// `detail` porte la phrase sourcée. Elle est informative — rien ne la lit
+/// pour décider.
+struct PlantTraitFact: Codable, Equatable {
+    let value: PlantTraitValue
+    let detail: String?
+    let evidence: PlantDataEvidence?
+
+    /// Deux formes acceptées, et aucune ne fait échouer la fiche entière :
+    /// l'objet sourcé complet, ou la valeur close seule (`"flowering": "yes"`).
+    /// Un `value` absent vaut `unknown`, comme pour la toxicité : une seule clé
+    /// manquante ne doit pas emporter tout le profil botanique.
+    init(from decoder: Decoder) throws {
+        if let conteneur = try? decoder.container(keyedBy: CodingKeys.self) {
+            value = ((try? conteneur.decodeIfPresent(PlantTraitValue.self, forKey: .value)) ?? nil) ?? .unknown
+            detail = (try? conteneur.decodeIfPresent(String.self, forKey: .detail)) ?? nil
+            evidence = (try? conteneur.decodeIfPresent(PlantDataEvidence.self, forKey: .evidence)) ?? nil
+            return
+        }
+        value = (try? PlantTraitValue(from: decoder)) ?? .unknown
+        detail = nil
+        evidence = nil
+    }
+
+    /// `true`, `false`, ou `nil` quand le trait n'est pas établi.
+    /// **`nil` n'est pas une valeur affirmative** et ne doit jamais se lire
+    /// comme un `false`.
+    var affirmation: Bool? {
+        switch value {
+        case .yes: return true
+        case .no: return false
+        case .unknown: return nil
+        }
+    }
+}
+
+/// Gabarit stocké, avec sa provenance.
+///
+/// Le champ est un fait sourcé — `{ "value": "small", "evidence": { … } }` —
+/// et non une chaîne nue, parce que **l'`evidence` n'est pas un ornement** :
+/// tout ce corpus repose sur le fait qu'une valeur dise d'où elle vient, quand
+/// elle a été revue et à quel degré de confiance. Un trait sans provenance est
+/// ce que #782 a interdit sur les autres axes, et c'est la provenance que la
+/// carte de #790 montre à l'utilisateur. Une forme qui la jetterait ferait
+/// perdre à `size` ce que `petToxicity` a gagné.
+struct PlantSizeFact: Codable, Equatable {
+    let value: PlantCatalogSize
+    let detail: String?
+    let evidence: PlantDataEvidence?
+
+    /// La forme canonique est l'objet sourcé. La valeur close seule reste
+    /// lisible par tolérance — elle ne doit pas faire échouer tout le profil —
+    /// mais elle arrive alors sans provenance, ce qui se verra en aval.
+    init(from decoder: Decoder) throws {
+        if let conteneur = try? decoder.container(keyedBy: CodingKeys.self) {
+            value = ((try? conteneur.decodeIfPresent(PlantCatalogSize.self, forKey: .value)) ?? nil) ?? .unknown
+            detail = (try? conteneur.decodeIfPresent(String.self, forKey: .detail)) ?? nil
+            evidence = (try? conteneur.decodeIfPresent(PlantDataEvidence.self, forKey: .evidence)) ?? nil
+            return
+        }
+        value = (try? PlantCatalogSize(from: decoder)) ?? .unknown
+        detail = nil
+        evidence = nil
+    }
+}
+
+/// Ensemble de valeurs CLOSES, sourcé, décodé élément par élément.
+///
+/// La forme canonique est celle de tous les autres faits du profil —
+/// `{ "value": ["fern", "shrub"], "evidence": { … } }` — et pour la même
+/// raison que `PlantSizeFact` ci-dessus : une liste de traits sans provenance
+/// n'est pas une donnée vérifiable.
+///
+/// Quatre propriétés, et chacune a une raison :
+///
+/// - **Indulgent vers le plancher** : un élément hors vocabulaire est écarté,
+///   jamais rabattu sur une valeur voisine. Inventer un trait est pire que ne
+///   pas en avoir.
+/// - **Jamais fatal** : décoder strictement ferait disparaître la fiche
+///   entière du catalogue pour un seul mot inconnu, sans que rien ne le dise.
+/// - **Absente ≠ vide.** Un champ ABSENT se lit « on n'a pas cherché » et
+///   laisse jouer le repli ; un champ PRÉSENT dont la liste est vide se lit
+///   « on a cherché, rien ne s'applique » et décide. La distinction est
+///   portée par l'optionnalité du champ dans le profil, donc elle survit à
+///   l'aller-retour JSON. Il n'y a pas de valeur `unknown` dans ces
+///   vocabulaires : l'absence se dit par le fait absent.
+/// - **Les éléments écartés sont conservés** dans `rejected` : un vocabulaire
+///   qui divergerait du backend doit pouvoir se voir plutôt que de s'effacer.
+struct PlantClosedValues<Value>: Codable, Equatable
+where Value: RawRepresentable & Hashable & CaseIterable, Value.RawValue == String {
+    let values: Set<Value>
+    let rejected: [String]
+    let evidence: PlantDataEvidence?
+
+    init(_ values: Set<Value>, rejected: [String] = [], evidence: PlantDataEvidence? = nil) {
+        self.values = values
+        self.rejected = rejected
+        self.evidence = evidence
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case value
+        case evidence
+    }
+
+    init(from decoder: Decoder) throws {
+        // Forme canonique : l'objet sourcé.
+        if let conteneur = try? decoder.container(keyedBy: CodingKeys.self) {
+            let bruts = PlantClosedValues.chaines {
+                try? conteneur.decode([String].self, forKey: .value)
+            } ouSeule: {
+                try? conteneur.decode(String.self, forKey: .value)
+            }
+            (values, rejected) = PlantClosedValues.trier(bruts)
+            evidence = (try? conteneur.decodeIfPresent(PlantDataEvidence.self, forKey: .evidence)) ?? nil
+            return
+        }
+
+        // Tolérance : un tableau nu, ou une valeur unique. Les deux arrivent
+        // sans provenance.
+        let singleton = try? decoder.singleValueContainer()
+        let bruts = PlantClosedValues.chaines {
+            try? singleton?.decode([String].self)
+        } ouSeule: {
+            try? singleton?.decode(String.self)
+        }
+        (values, rejected) = PlantClosedValues.trier(bruts)
+        evidence = nil
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var conteneur = encoder.container(keyedBy: CodingKeys.self)
+        try conteneur.encode(values.map(\.rawValue).sorted(), forKey: .value)
+        try conteneur.encodeIfPresent(evidence, forKey: .evidence)
+    }
+
+    private static func chaines(
+        _ liste: () -> [String]??,
+        ouSeule seule: () -> String??
+    ) -> [String] {
+        if let valeurs = liste() ?? nil { return valeurs }
+        if let valeur = seule() ?? nil { return [valeur] }
+        return []
+    }
+
+    private static func trier(_ bruts: [String]) -> (Set<Value>, [String]) {
+        var retenues = Set<Value>()
+        var ecartees: [String] = []
+        for brut in bruts {
+            if let valeur = PlantClosedValues.lire(brut) {
+                retenues.insert(valeur)
+            } else {
+                ecartees.append(brut)
+            }
+        }
+        return (retenues, ecartees)
+    }
+
+    /// Appariement sur la valeur close ENTIÈRE, insensible à la casse et aux
+    /// espaces de bord — jamais sur une sous-chaîne. C'est la différence avec
+    /// les listes de mots-clés que ce type remplace : `contains("hoya")`
+    /// appariait n'importe quelle chaîne contenant ces quatre lettres.
+    private static func lire(_ brut: String) -> Value? {
+        let cle = brut.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !cle.isEmpty else { return nil }
+        return Value.allCases.first { $0.rawValue.lowercased() == cle }
+    }
+}
+
 /// Canonical compatibility profile. Free-form prose remains useful for the
 /// detail sheet, but only these sourced fields may certify a plant as adapted.
 struct PlantBotanicalProfile: Codable, Equatable {
@@ -363,6 +573,43 @@ struct PlantBotanicalProfile: Codable, Equatable {
     /// elles sont désormais typées, donc ni devinées ni analysées (#778).
     let petToxicity: PlantToxicityFact?
     let childToxicity: PlantToxicityFact?
+
+    // MARK: Traits descriptifs (#792)
+    //
+    // Ils vivent ici, à côté de la toxicité, et pour la même raison : un trait
+    // de la plante ne dépend pas de la langue du lecteur. `size()` cherchait
+    // « arbuste », « shrub », « strauch » dans le texte TRADUIT — la même
+    // plante pouvait donc être `large` en français et `unknown` en allemand,
+    // selon la formulation retenue par le traducteur.
+    //
+    // Chaque champ est optionnel de bout en bout : un champ absent vaut
+    // `unknown`, et `unknown` n'est pas une valeur affirmative.
+
+    /// Gabarit. `nil` = champ absent, ce qui se lit comme `unknown`.
+    let size: PlantSizeFact?
+    /// Nature botanique. Deux sources côté remplissage (le `port` de #777 et
+    /// les `usages` pour `groundcover`), une seule valeur close ici.
+    let kinds: PlantClosedValues<PlantCatalogKind>?
+    /// Usages visés, en valeurs closes. Composés autrefois des traits devinés.
+    let goals: PlantClosedValues<PlantCatalogGoal>?
+    let colors: PlantClosedValues<PlantCatalogColor>?
+    /// Capacité PHYSIQUE de pose, le champ le plus conséquent des six.
+    ///
+    /// Il remplace deux listes de mots-clés qui embarquaient des genres
+    /// botaniques en dur (`pothos`, `hoya`, `rhipsalis`) et appariaient sans
+    /// frontière de mot. Une erreur ici ne donne pas un badge faux mais un
+    /// geste impossible : une plante déclarée posable au mur alors qu'elle ne
+    /// l'est pas.
+    let placement: PlantClosedValues<ARPlacementMode>?
+
+    let flowering: PlantTraitFact?
+    let easyCare: PlantTraitFact?
+    let compact: PlantTraitFact?
+    let climbing: PlantTraitFact?
+    let trailing: PlantTraitFact?
+    let humidityLoving: PlantTraitFact?
+    let airPurifying: PlantTraitFact?
+
     /// Incremented when the canonical schema changes.
     let schemaVersion: Int?
 }
@@ -571,7 +818,7 @@ fileprivate struct PlantFallback {
 extension Plant {
 
     /// Niveau d'entretien d'une plante, tel qu'un filtre peut l'exploiter.
-    enum CareDifficulty {
+    enum CareDifficulty: String, CaseIterable, Hashable {
         case easy
         case moderate
         case demanding
@@ -592,6 +839,20 @@ extension Plant {
     /// donnée comme un échec de correspondance et excluait donc la totalité du
     /// catalogue. Un filtre ne doit jamais cacher ce qu'il ne sait pas juger.
     func careDifficulty(locale: String = "fr") -> CareDifficulty? {
+        // 0. Le FAIT stocké d'abord, quand il existe (#792). Une valeur close
+        //    ne dépend ni de la langue ni de la formulation d'un traducteur,
+        //    donc elle précède les deux sources historiques. `unknown`
+        //    n'affirme rien et laisse la lecture continuer ; `no` dit « pas
+        //    facile », pas « intermédiaire » — le champ ne porte que deux
+        //    affirmations, ce que `care.difficulty` sait faire en trois.
+        //
+        //    Le DRAPEAU, lui, reste en dernier : `care.difficulty` distingue
+        //    trois niveaux là où `flags.easyCare` n'en connaît que deux, donc
+        //    il passe avant (le repli est consulté plus bas, inchangé).
+        if let facile = botanicalProfile?.easyCare?.affirmation {
+            return facile ? .easy : .demanding
+        }
+
         // La langue demandée d'abord, puis n'importe quelle autre.
         //
         // La difficulté est une CATÉGORIE, pas de la prose : la lire dans une
@@ -815,4 +1076,67 @@ extension Plant {
         verdict(botanicalProfile?.childToxicity, repli: flags?.toxicToChildren)
     }
 
+}
+
+// MARK: - Lecture des traits descriptifs (#792)
+
+extension Plant {
+
+    /// Les sept traits jadis booléens, nommés.
+    ///
+    /// Les nommer dans une énumération fermée plutôt que d'exposer sept
+    /// méthodes est ce qui permet d'écrire l'ordre de lecture UNE fois. Il
+    /// avait été écrit douze fois, chacune avec sa propre tolérance, et le
+    /// repli par drapeau portait deux défauts que personne n'avait relus (voir
+    /// `verdict(_:repli:)`).
+    enum DescriptiveTrait: CaseIterable {
+        case flowering
+        case easyCare
+        case compact
+        case climbing
+        case trailing
+        case humidityLoving
+        case airPurifying
+    }
+
+    /// Lecture d'un trait, en TROIS états : `true`, `false`, `nil`.
+    ///
+    /// Même ordre que `petToxicity()`, et pour les mêmes raisons :
+    ///
+    /// 1. le fait STOCKÉ décide, y compris quand il dit `unknown` ;
+    /// 2. sans fait, seul le `true` du drapeau porte une information ;
+    /// 3. son `false` ne prouve rien — il a voulu dire à la fois
+    ///    « non » et « pas recherché ».
+    ///
+    /// **Aucune prose n'est lue.** C'est tout l'objet de #792 : la lecture
+    /// précédente retombait sur douze à vingt mots-clés dans le texte traduit
+    /// dès que le drapeau était baissé, ce qui rendait le trait dépendant de
+    /// la langue du lecteur et de la formulation d'un traducteur.
+    func trait(_ which: DescriptiveTrait) -> Bool? {
+        switch which {
+        case .flowering:
+            return lire(botanicalProfile?.flowering, repli: flags?.flowering)
+        case .easyCare:
+            return lire(botanicalProfile?.easyCare, repli: flags?.easyCare)
+        case .compact:
+            return lire(botanicalProfile?.compact, repli: flags?.compact)
+        case .climbing:
+            return lire(botanicalProfile?.climbing, repli: flags?.climbing)
+        case .trailing:
+            return lire(botanicalProfile?.trailing, repli: flags?.trailing)
+        case .humidityLoving:
+            return lire(botanicalProfile?.humidityLoving, repli: flags?.humidityLoving)
+        case .airPurifying:
+            return lire(botanicalProfile?.airPurifying, repli: flags?.airPurifying)
+        }
+    }
+
+    private func lire(_ fait: PlantTraitFact?, repli drapeau: Bool?) -> Bool? {
+        if let fait {
+            // Le fait existe : il décide, même pour dire qu'il ne sait pas.
+            return fait.affirmation
+        }
+        // Sans fait, seul le `true` du drapeau porte une information.
+        return drapeau == true ? true : nil
+    }
 }

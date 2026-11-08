@@ -269,7 +269,7 @@ traducteur.
 | `size` | `PlantTraitFact` | `small` · `medium` · `large` · `unknown` |
 | `kinds` | `PlantStringListFact` | 15 valeurs, de `greenPlant` à `conifer` |
 | `goals` | `PlantStringListFact` | 9 valeurs, de `addColor` à `focalPoint` |
-| `colors` | `PlantStringListFact` | 9 valeurs |
+| `colors` | `PlantStringListFact` | **11 valeurs** — les neuf d'origine plus `silver` et `brown` |
 | `placement` | `PlantStringListFact` | `floor` · `wall` · `ceiling` |
 | `flowering` · `easyCare` · `compact` · `climbing` · `trailing` · `humidityLoving` · `airPurifying` | `PlantTraitFact` | `yes` · `no` · `unknown` |
 
@@ -288,6 +288,24 @@ Trois règles gouvernent leur lecture, et chacune a été violée avant #792 :
   Avant #792, un `unknown` retombait sur un drapeau levé par prudence et
   devenait un conflit : 199 axes concernés, **108 plantes masquées à tort** du
   catalogue.
+
+`silver` et `brown` ont été ajoutés après le premier remplissage, qui a mesuré
+ce que leur absence coûtait : les bases horticoles traitent `Gray/Silver` et
+`Brown/Copper` comme des couleurs de feuille de plein droit, et **78 fiches**
+étaient mal décrites sans elles. `Olea europaea` est donnée `Gray/Silver;
+Green` — la ramener à `green` perdait ce qui fait qu'un olivier ressemble à un
+olivier — et `Salvia yangii` porte `Gray/Silver` comme **seule** couleur de
+feuille, donc aucune valeur n'était disponible pour son feuillage.
+
+`dark` est réservé au presque-noir ; un feuillage pourpre sombre relève de
+`purple`. Aucune fiche ne le porte aujourd'hui.
+
+**Les faits de liste portent un `detail`.** `PlantStringListFact` ne l'avait
+pas, quand `PlantStringFact` et `PlantToxicityFact` l'ont : une clé `detail`
+posée sur une liste était donc silencieusement perdue. Sur les couleurs, ce
+champ dit le **niveau taxonomique** atteint — la source a fiché le cultivar, ou
+seulement l'espèce. La distinction compte : *Photinia × fraseri* n'est pas
+rouge, 'Red Robin' l'est. 800 fiches la portent.
 
 `schemaVersion` passe à **2**. Aucun lecteur ne l'exploite aujourd'hui — ni
 iOS, ni le web — et aucun écrivain ne le pose : la valeur est déclarative,

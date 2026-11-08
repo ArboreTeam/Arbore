@@ -267,7 +267,7 @@ and `unknown` in German, depending on the translator's wording.
 | `size` | `PlantTraitFact` | `small` · `medium` · `large` · `unknown` |
 | `kinds` | `PlantStringListFact` | 15 values, from `greenPlant` to `conifer` |
 | `goals` | `PlantStringListFact` | 9 values, from `addColor` to `focalPoint` |
-| `colors` | `PlantStringListFact` | 9 values |
+| `colors` | `PlantStringListFact` | **11 values** — the original nine plus `silver` and `brown` |
 | `placement` | `PlantStringListFact` | `floor` · `wall` · `ceiling` |
 | `flowering` · `easyCare` · `compact` · `climbing` · `trailing` · `humidityLoving` · `airPurifying` | `PlantTraitFact` | `yes` · `no` · `unknown` |
 
@@ -285,6 +285,24 @@ Three rules govern how they are read, and each was violated before #792:
   Before #792 an `unknown` fell through to a flag raised out of caution and
   became a conflict: 199 axes affected, **108 plants wrongly hidden** from the
   catalogue.
+
+`silver` and `brown` were added after the first fill measured what their
+absence cost: horticultural databases treat `Gray/Silver` and `Brown/Copper` as
+leaf colours in their own right, and **78 records** were misdescribed without
+them. `Olea europaea` is given `Gray/Silver; Green` — reducing it to `green`
+lost what makes an olive tree look like an olive tree — and `Salvia yangii`
+carries `Gray/Silver` as its **only** leaf colour, so no value was available
+for its foliage.
+
+`dark` is reserved for near-black; dark purple foliage belongs to `purple`. No
+record carries it today.
+
+**List facts carry a `detail`.** `PlantStringListFact` had none, where
+`PlantStringFact` and `PlantToxicityFact` do: a `detail` key set on a list was
+therefore silently lost. On colours, that field states the **taxonomic level**
+reached — the source documented the cultivar, or only the species. The
+distinction matters: *Photinia × fraseri* is not red, 'Red Robin' is. 800
+records carry it.
 
 `schemaVersion` moves to **2**. No reader exploits it today — neither iOS nor
 the web — and no writer sets it: the value is declarative, it lets a reader

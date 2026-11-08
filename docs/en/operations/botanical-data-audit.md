@@ -24,7 +24,8 @@ production imports as 3D models are generated:
 | `flowering` | 398 | "Période de floraison" field |
 | `droughtTolerance` | 320 | "Résistant au sec" field, **positive only** |
 | `plantingDistanceCm` | 258 | "Distance de plantation" field |
-| `colors` | **0** | *no closed source exists in the corpus* |
+| `colors` | **841** | NC State Plant Toolbox, Missouri Botanical Garden |
+| `wateringIntervalDays` | **627** | watering classes defined by university extensions |
 
 **None of these values is derived from prose.** Each comes from a named
 toxicology database, a structured field of the product page, or a closed
@@ -32,12 +33,35 @@ typology. That is the point of #792, and an automated guard checks it: a test
 opens the fill scripts and rejects any access to `description`, `translations`
 or `name`.
 
-### Two measured gaps, not to be rediscovered
+### Two research batches, and the ceilings they hit
 
-**`colors` has no source at all.** The only colour-bearing field is `feuillage`
-— 461 records, 73 distinct values, free prose ("FEUILLAGE PANACHÉ DE JAUNE").
-The colour filter will therefore filter nothing until a source exists, or until
-we accept that.
+**`colors` had no source in the corpus** — the `feuillage` field is free prose,
+the very path #792 closes. The values therefore come from two external
+databases, indexed rather than keyword-queried: NC State's `sitemap` (18,196
+taxon slugs, often at cultivar level) and MOBOT's Plant Finder. The remaining
+180 records are either plants **sold by colour** — the source gives six to eight
+colours for a *Verbena* — or assortments **with no taxon**.
+
+Half the work was **refusing**: 28 groups mention *silver*, *gray* or *bronze*
+on their page without the colour being on the visible face — underside, vein,
+autumn colour, bark, or a cultivar other than the record's.
+
+**`wateringIntervalDays` hits a position, not a gap.** Serious horticultural
+databases decline to publish a calendar. Clemson HGIC, verbatim: "A common
+question from gardeners is 'How often should I water my plants?' **There is no
+pat answer to this question.**" Missouri Botanical Garden: "you cannot water by
+the calendar."
+
+Measured: **320 RHS growing guides probed, 22 exist, only 3 give an interval in
+days.** The values therefore come from **watering classes the sources define
+themselves** — trees and shrubs, perennials, cacti, orchids, herbs — not from
+per-species verdicts. That is why `low` dominates reliability on this axis: it
+says exactly "named source, unnamed taxon". Searching further will not yield
+more.
+
+Two figures were refused for the same reason the old script derived badly:
+"1 inch of water per week" is a **volume**, and the sub-daily frequencies found
+described **the container**, not the plant.
 
 **Reliability stays low on the horticultural axes.** Fields pulled from the
 product page carry `reliability: "low"`: a merchant's figure, good for bounding

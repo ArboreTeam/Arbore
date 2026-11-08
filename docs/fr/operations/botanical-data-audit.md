@@ -24,7 +24,8 @@ production importe au fil des générations 3D :
 | `flowering` | 398 | champ « Période de floraison » |
 | `droughtTolerance` | 320 | champ « Résistant au sec », **positif seulement** |
 | `plantingDistanceCm` | 258 | champ « Distance de plantation » |
-| `colors` | **0** | *aucune source close n'existe dans le corpus* |
+| `colors` | **841** | NC State Plant Toolbox, Missouri Botanical Garden |
+| `wateringIntervalDays` | **627** | classes d'arrosage définies par les extensions universitaires |
 
 **Aucune de ces valeurs n'est dérivée d'une prose.** Toutes viennent soit d'une
 base toxicologique nommée, soit d'un champ structuré de la page produit, soit
@@ -32,12 +33,37 @@ d'une typologie fermée. C'est l'objet de #792, et une garde automatisée le
 vérifie : un test ouvre les fichiers de remplissage et refuse tout accès à
 `description`, `translations` ou `name`.
 
-### Deux trous mesurés, à ne pas découvrir deux fois
+### Deux lots de recherche, et les plafonds qu'ils ont trouvés
 
-**`colors` n'a aucune source**, nulle part. Le seul champ parlant de couleur est
-`feuillage` — 461 fiches, 73 valeurs distinctes, en prose libre (« FEUILLAGE
-PANACHÉ DE JAUNE »). Le filtre par couleur ne filtrera donc rien tant qu'une
-source n'existe pas, ou tant qu'on ne l'assume pas.
+**`colors` n'avait aucune source dans le corpus** — le champ `feuillage` est de
+la prose libre, et c'est le chemin que #792 ferme. Les valeurs viennent donc de
+deux bases externes, indexées plutôt qu'interrogées au mot-clé : le `sitemap`
+de NC State (18 196 slugs de taxons, souvent au niveau cultivar) et le Plant
+Finder de MOBOT. Les 180 fiches restantes sont soit des plantes **vendues au
+coloris** — la source donne six à huit couleurs pour une *Verbena* — soit des
+assortiments **sans taxon**.
+
+La moitié du travail a été de **refuser** : 28 groupes mentionnent *silver*,
+*gray* ou *bronze* sur leur page sans que la couleur soit sur la face visible —
+face inférieure, nervure, couleur d'automne, écorce, ou un autre cultivar que
+celui de la fiche.
+
+**`wateringIntervalDays` butte sur une position, pas sur un manque.** Les bases
+horticoles sérieuses refusent de publier un calendrier. Clemson HGIC, verbatim :
+« A common question from gardeners is "How often should I water my plants?"
+**There is no pat answer to this question.** » Missouri Botanical Garden : « you
+cannot water by the calendar ».
+
+Mesuré : **320 fiches de culture RHS sondées, 22 existent, 3 seulement donnent
+un intervalle en jours.** Les valeurs viennent donc de **classes d'arrosage que
+les sources définissent elles-mêmes** — arbres et arbustes, vivaces, cactées,
+orchidées, aromatiques — et non de verdicts par espèce. C'est pourquoi `low`
+domine la fiabilité sur cet axe : il dit exactement « source nommée, taxon non
+nommé ». Chercher davantage ne rendra pas plus.
+
+Deux chiffres ont été refusés pour la même raison que l'ancien script dérivait
+mal : « 1 inch of water per week » est un **volume**, et les fréquences
+sub-journalières trouvées décrivaient **le contenant** et non la plante.
 
 **La fiabilité reste basse sur les axes horticoles.** Les champs tirés de la
 page produit portent `reliability: "low"` : c'est un chiffre de marchand, bon

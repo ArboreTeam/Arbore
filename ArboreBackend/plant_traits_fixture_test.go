@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -81,6 +82,8 @@ type fixturePartagee struct {
 func chargerFixture(t *testing.T) fixturePartagee {
 	t.Helper()
 	chemin := filepath.Join("..", "fixtures", "plant-traits.json")
+	// #nosec G304 — le chemin est construit ci-dessus a partir de
+	// constantes de ce test, il ne vient d'aucune entree.
 	brut, err := os.ReadFile(chemin)
 	if err != nil {
 		t.Skipf("fixture partagée introuvable (%v) — le test n'a de sens qu'avec elle", err)
@@ -131,7 +134,7 @@ func issueDe(nom string) IssueSurete {
 
 // nomVerdict traduit vers le vocabulaire STOCKÉ, celui que la fixture affirme.
 // `nil` y signifie non établi, et jamais « sûre ».
-func nomVerdict(v VerdictToxicite, f *PlantToxicityFact) *string {
+func nomVerdict(v VerdictToxicite) *string {
 	if v == ToxiciteNonEtablie {
 		return nil
 	}
@@ -306,16 +309,13 @@ func TestFixtureLesTraitsEnListeLusSontCeuxAffirmes(t *testing.T) {
 
 // memesValeurs compare dans l'ORDRE : l'ordre d'origine du vocabulaire est
 // conservé par la lecture, et une liste réordonnée se verrait ici.
+//
+// `slices.Equal` fait exactement ça. La boucle écrite à la main qu'il remplace
+// gardait sa longueur avant d'indexer, donc elle était correcte — mais `gosec`
+// ne pouvait pas le voir et signalait un G602. Un appel de la bibliothèque
+// standard le dit mieux, au linter comme au lecteur.
 func memesValeurs(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+	return slices.Equal(a, b)
 }
 
 // L'écriture refuse là où la lecture écarte, et le même fichier affirme les
@@ -389,14 +389,10 @@ func TestFixtureCouvreLesDemonstrationsExigees(t *testing.T) {
 func TestFixtureLesVerdictsSontCeuxAffirmes(t *testing.T) {
 	for _, c := range chargerFixture(t).Plantes {
 		animaux, enfants := verdictsDuCas(c)
-		var fPet, fChild *PlantToxicityFact
-		if c.Profil != nil {
-			fPet, fChild = c.Profil.PetToxicity, c.Profil.ChildToxicity
-		}
-		if got := nomVerdict(animaux, fPet); !memeVerdict(got, c.Attendu.VerdictPet) {
+		if got := nomVerdict(animaux); !memeVerdict(got, c.Attendu.VerdictPet) {
 			t.Errorf("%s — axe animal : %v, attendu %v (%s)", c.ID, deref(got), deref(c.Attendu.VerdictPet), c.Pourquoi)
 		}
-		if got := nomVerdict(enfants, fChild); !memeVerdict(got, c.Attendu.VerdictChild) {
+		if got := nomVerdict(enfants); !memeVerdict(got, c.Attendu.VerdictChild) {
 			t.Errorf("%s — axe enfant : %v, attendu %v (%s)", c.ID, deref(got), deref(c.Attendu.VerdictChild), c.Pourquoi)
 		}
 	}
@@ -425,7 +421,9 @@ func TestFixtureLesPolitiquesAdmettentCeQuiEstAffirme(t *testing.T) {
 		animaux, enfants := verdictsDuCas(c)
 		for cle, attendu := range c.Attendu.Admis {
 			politique := Parcourable
-			contrainte := cle
+			// Pas de valeur initiale : les trois branches ci-dessous
+			// l'affectent ou sortent, donc l'initialiser était du code mort.
+			var contrainte string
 			if len(cle) > len("offerable_") && cle[:len("offerable_")] == "offerable_" {
 				politique, contrainte = Proposable, cle[len("offerable_"):]
 			} else if len(cle) > len("browsable_") && cle[:len("browsable_")] == "browsable_" {

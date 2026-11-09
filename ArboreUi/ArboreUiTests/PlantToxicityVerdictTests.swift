@@ -36,15 +36,48 @@ final class PlantToxicityVerdictTests: XCTestCase {
 
     // MARK: - « unknown » retombe sur les drapeaux, et n'affirme rien
 
-    func testUnknownRetombeSurLesDrapeaux() throws {
-        XCTAssertEqual(
+    /// RÉÉCRIT (#792). Ce test affirmait « un verdict non établi doit laisser
+    /// le repli décider », et son pendant enfant allait jusqu'à affirmer
+    /// qu'un `unknown` avec drapeau BAISSÉ vaut `.safe`.
+    ///
+    /// Les deux étaient faux, et le second était le piège historique inscrit
+    /// comme exigence.
+    ///
+    /// Un fait PRÉSENT fait autorité, y compris quand il dit `unknown` : il
+    /// signifie « on a cherché sans trouver », ce qu'aucun booléen ne sait
+    /// dire. Et le contrat de remplissage impose de LEVER le drapeau par
+    /// prudence sur un verdict non établi — donc retomber dessus
+    /// transformait l'absence mesurée en `.toxic`, puis en conflit, et la
+    /// plante disparaissait du catalogue. Mesuré : 199 axes, 108 plantes
+    /// masquées à tort.
+    ///
+    /// Le repli ne sert plus qu'aux fiches SANS profil.
+    func testUnFaitPresentDecideMemePourDireQuIlNeSaitPas() throws {
+        XCTAssertNil(
             try plant(petToxicity: "unknown", toxicToPets: true).petToxicity(),
-            .toxic,
-            "un verdict non établi doit laisser le repli décider"
+            "le profil dit « non établi » : le drapeau ne doit pas le transformer en toxique"
+        )
+        XCTAssertNil(
+            try plant(petToxicity: "unknown", toxicToPets: false).petToxicity(),
+            "et pas davantage en « sûre »"
         )
         XCTAssertNil(
             try plant(petToxicity: "unknown", includeFlags: false).petToxicity(),
             "sans verdict ni drapeau, la toxicité n'est pas établie — et nil n'est pas « sûre »"
+        )
+    }
+
+    /// Le repli existe encore, pour les fiches antérieures au contrat.
+    /// Seul le `true` du drapeau porte une information.
+    func testSansProfilSeulLeDrapeauLeveInforme() throws {
+        XCTAssertEqual(
+            try plant(toxicToPets: true).petToxicity(), .toxic,
+            "sans profil, un drapeau levé avertit"
+        )
+        XCTAssertNil(
+            try plant(toxicToPets: false).petToxicity(),
+            "un drapeau BAISSÉ ne vaut pas une innocuité démontrée : il a voulu "
+            + "dire à la fois « prouvé sûr » et « pas recherché » sur 65 fiches"
         )
     }
 
@@ -53,13 +86,17 @@ final class PlantToxicityVerdictTests: XCTestCase {
         // d'avant 2026-11 ne portaient aucun `childToxicity` — l'ASPCA ne
         // couvre que chiens, chats et chevaux — et retombaient donc toujours
         // sur le drapeau.
-        XCTAssertEqual(
+        XCTAssertNil(
             try plant(childToxicity: "unknown", toxicToChildren: true).childToxicity(),
-            .toxic
+            "le fait décide, même pour dire qu'il ne sait pas"
+        )
+        XCTAssertNil(
+            try plant(childToxicity: "unknown", toxicToChildren: false).childToxicity(),
+            "et surtout pas `.safe` — c'était l'affirmation la plus dangereuse du fichier"
         )
         XCTAssertEqual(
-            try plant(childToxicity: "unknown", toxicToChildren: false).childToxicity(),
-            .safe
+            try plant(toxicToChildren: true).childToxicity(), .toxic,
+            "sans profil en revanche, le drapeau levé reprend la main"
         )
         XCTAssertNil(
             try plant(childToxicity: "unknown", includeFlags: false).childToxicity()
@@ -106,7 +143,10 @@ final class PlantToxicityVerdictTests: XCTestCase {
                 p.petToxicity(), .safe,
                 "« \(phrase) » ne doit jamais être lue comme sûre"
             )
-            XCTAssertEqual(p.petToxicity(), .toxic, "ici c'est le drapeau qui tranche")
+            XCTAssertNil(
+                p.petToxicity(),
+                "elle ne doit pas non plus être lue comme toxique : on ne sait pas"
+            )
         }
     }
 
@@ -116,7 +156,10 @@ final class PlantToxicityVerdictTests: XCTestCase {
             + "Olea europaea either way, so treat it as potentially toxic "
             + "rather than proven harmless"
         let p = try plant(petToxicity: "unknown", detail: detail, toxicToPets: true)
-        XCTAssertEqual(p.petToxicity(), .toxic)
+        XCTAssertNil(
+            p.petToxicity(),
+            "« rather than proven harmless » décrit une absence : elle reste une absence"
+        )
     }
 
     // MARK: - Migration : la prose historique se décode en « inconnu »
@@ -131,7 +174,10 @@ final class PlantToxicityVerdictTests: XCTestCase {
         )
         XCTAssertNotNil(p.botanicalProfile, "le profil doit survivre au décodage")
         XCTAssertEqual(p.botanicalProfile?.petToxicity?.value, .unknown)
-        XCTAssertEqual(p.petToxicity(), .toxic, "le drapeau reprend la main")
+        XCTAssertNil(
+            p.petToxicity(),
+            "une prose qui ne se décode pas vaut « non établi » — ni sûre, ni toxique"
+        )
     }
 
     func testLaProseHistoriqueNeRendJamaisSurUneFicheSansDrapeau() throws {

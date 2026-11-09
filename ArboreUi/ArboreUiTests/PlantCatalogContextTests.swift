@@ -57,11 +57,22 @@ final class PlantCatalogContextTests: XCTestCase {
         XCTAssertFalse(result.isRecommended)
     }
 
-    func testManualFiltersUseStructuredPlantTraits() throws {
+    /// Réécrit avec #792 : les traits viennent des champs CLOS, plus des
+    /// drapeaux ni de la prose.
+    ///
+    /// La version précédente passait `easyCare: true, flowering: true,
+    /// compact: true` en drapeaux et s'appelait
+    /// « useStructuredPlantTraits » — mais un drapeau n'est structuré qu'à
+    /// moitié : son `false` faisait retomber sur les mots-clés.
+    func testManualFiltersUseStoredClosedTraits() throws {
         let plant = try makePlant(
-            easyCare: true,
-            flowering: true,
-            compact: true
+            includeFlags: false,
+            botanicalProfile: [
+                "schemaVersion": 1,
+                "size": sourcedFact("small"),
+                "flowering": sourcedFact("yes"),
+                "easyCare": sourcedFact("yes")
+            ]
         )
         var filters = PlantCatalogFilters()
         filters.appearances = [.flowering]
@@ -75,22 +86,40 @@ final class PlantCatalogContextTests: XCTestCase {
     }
 
     func testPreferencesAreOrWithinAGroupAndAndBetweenGroups() throws {
-        let plant = try makePlant(flowering: true)
+        let plant = try makePlant(
+            includeFlags: false,
+            botanicalProfile: [
+                "schemaVersion": 1,
+                "goals": sourcedFact(["addColor"]),
+                "kinds": sourcedFact(["floweringPlant"])
+            ]
+        )
         var filters = PlantCatalogFilters()
+        // OU à l'intérieur d'un groupe : un seul but suffit.
         filters.goals = [.addColor, .createPrivacy]
 
         XCTAssertTrue(filters.matches(plant))
 
+        // ET entre les groupes : la nature demandée doit aussi correspondre.
         filters.kinds = [.tree]
         XCTAssertFalse(filters.matches(plant))
     }
 
-    func testLowWaterPreferenceUsesStructuredDroughtFlag() throws {
-        let plant = try makePlant(droughtTolerant: true)
+    /// Le besoin en eau faible se lit sur `droughtTolerance`, un champ au
+    /// vocabulaire fermé, et non sur le drapeau `droughtTolerant`.
+    func testLowWaterPreferenceUsesStoredDroughtTolerance() throws {
+        let plant = try makePlant(
+            includeFlags: false,
+            botanicalProfile: ["schemaVersion": 1, "droughtTolerance": sourcedFact("high")]
+        )
         var filters = PlantCatalogFilters()
         filters.careOptions = [.lowWater]
 
         XCTAssertTrue(filters.matches(plant))
+
+        let inconnue = try makePlant(id: "inconnue", includeFlags: false)
+        XCTAssertFalse(filters.matches(inconnue),
+                       "un critère non établi ne satisfait pas une demande")
     }
 
     func testIndexedTraitsProduceTheSameSuitabilityAndFilterResult() throws {
@@ -102,10 +131,14 @@ final class PlantCatalogContextTests: XCTestCase {
             )
         )
         let plant = try makePlant(
-            easyCare: true,
-            shadeTolerant: true,
-            flowering: true,
-            compact: true
+            includeFlags: false,
+            botanicalProfile: [
+                "schemaVersion": 1,
+                "size": sourcedFact("small"),
+                "flowering": sourcedFact("yes"),
+                "easyCare": sourcedFact("yes"),
+                "directSunHours": sourcedRange(minimum: 0, maximum: 2, unit: "hours/day")
+            ]
         )
         let traits = PlantCatalogTraits.snapshot(for: plant)
         let evaluator = PlantSuitabilityEvaluator(wizard: wizard)
@@ -268,6 +301,67 @@ final class PlantCatalogContextTests: XCTestCase {
 
         XCTAssertEqual(result.level, .unsuitable)
         XCTAssertTrue(result.warningReasonKeys.contains("AR_CATALOG_REASON_POT_SIZE_CONFLICT"))
+    }
+
+    // MARK: - L'évaluateur et le filtre disent la même chose (#793)
+
+    /// **L'invariant qui manquait, et le défaut qu'il attrape.**
+    ///
+    /// L'évaluateur de compatibilité et le filtre du catalogue lisaient DEUX
+    /// bornes différentes pour la même intention. Le filtre définissait « peu
+    /// d'arrosage » à partir de 10 jours ; l'évaluateur se satisfaisait de 7.
+    ///
+    /// Conséquence pour l'utilisateur : une plante dont l'intervalle est de 7
+    /// à 8 jours était annoncée **bon choix** par la recommandation et
+    /// **masquée** par le filtre. Il recevait un conseil qui ne survivait pas
+    /// à son propre réglage.
+    ///
+    /// Ce test n'affirme pas la VALEUR de la borne — elle vit dans
+    /// `PlantThresholds` et peut être rejugée. Il affirme leur ACCORD : ce que
+    /// l'évaluateur appelle un bon choix, le filtre doit le montrer. C'est la
+    /// propriété qui était fausse, et aucun test ne l'exerçait parce que
+    /// chacun des deux côtés était testé seul.
+    func testCeQueLEvaluateurAppelleUnBonChoixLeFiltreLeMontre() throws {
+        var wizard = makeWizard(
+            sunlight: GardenSunlightDTO(
+                minimumHours: 4,
+                maximumHours: 5,
+                metadata: GardenValueMetadataDTO(source: .inferred, confidence: .medium)
+            )
+        )
+        wizard.conditionalAnswers = GardenConditionalAnswersDTO(wateringCapacity: .low)
+        let evaluateur = PlantSuitabilityEvaluator(wizard: wizard)
+
+        var filtres = PlantFilters()
+        filtres.water = .low
+
+        // On balaie des intervalles de part et d'autre des deux anciennes
+        // bornes, 7 et 10, pour que le désaccord ne puisse pas se cacher
+        // entre elles.
+        for (minimum, maximum) in [
+            (1.0, 2.0), (3.0, 4.0), (5.0, 6.0), (7.0, 8.0),
+            (9.0, 10.0), (14.0, 30.0), (30.0, 30.0)
+        ] {
+            let plante = try makePlant(
+                id: "arrosage-\(Int(minimum))",
+                botanicalProfile: ["wateringIntervalDays": [
+                    "minimum": minimum, "maximum": maximum, "unit": "days"
+                ]]
+            )
+
+            let verdict = evaluateur.evaluate(plante)
+            let annoncéeBonChoix = verdict.positiveReasonKeys
+                .contains("AR_CATALOG_REASON_WATERING_MATCH")
+            let montréeParLeFiltre = filtres.matches(plante)
+
+            if annoncéeBonChoix {
+                XCTAssertTrue(
+                    montréeParLeFiltre,
+                    "intervalle \(minimum)–\(maximum) j : annoncée bon choix pour un "
+                    + "utilisateur peu disponible, mais écartée par son propre filtre"
+                )
+            }
+        }
     }
 
     private func makeWizard(sunlight: GardenSunlightDTO) -> GardenWizardDTO {

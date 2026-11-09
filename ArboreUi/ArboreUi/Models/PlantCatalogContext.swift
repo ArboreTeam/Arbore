@@ -20,7 +20,8 @@ struct PlantSuitability: Equatable {
 
     var isRecommended: Bool {
         level == .suitable
-            || (level == .needsReview && evaluatedCriteriaCount > 0 && (score ?? 0) >= 0.55)
+            || (level == .needsReview && evaluatedCriteriaCount > 0
+                && (score ?? 0) >= PlantThresholds.Scoring.reviewableFloor)
     }
 }
 
@@ -65,7 +66,7 @@ struct PlantSuitabilityEvaluator {
             missing.append("AR_CATALOG_MISSING_BOTANICAL_PROFILE")
         }
 
-        appendSpaceCriterion(plant: plant, traits: traits, criteria: &criteria, missing: &missing)
+        appendSpaceCriterion(plant: plant, criteria: &criteria, missing: &missing)
         appendSunlightCriterion(plant: plant, traits: traits, criteria: &criteria, missing: &missing)
         appendTemperatureCriterion(plant: plant, criteria: &criteria, missing: &missing)
         appendSafetyCriteria(plant: plant, criteria: &criteria, missing: &missing)
@@ -113,9 +114,17 @@ struct PlantSuitabilityEvaluator {
         )
     }
 
+    /// Milieu de culture, lu sur `environments` — un champ clos (`indoor`,
+    /// `outdoor`, `both`) rempli sur 1021 fiches sur 1021.
+    ///
+    /// Le repli textuel qui vivait ici cherchait « plante d'intérieur »,
+    /// « houseplant », « zimmerpflanze » dans la prose traduite. Il ne
+    /// s'exécutait déjà plus — le champ est complet — et il est retiré plutôt
+    /// que laissé en embuscade pour la prochaine fiche importée sans
+    /// `environments` (#792). Sans le fait, le critère est MANQUANT, pas
+    /// deviné.
     private func appendSpaceCriterion(
         plant: Plant,
-        traits: PlantCatalogTraitsSnapshot,
         criteria: inout [Criterion],
         missing: inout [String]
     ) {
@@ -125,26 +134,17 @@ struct PlantSuitabilityEvaluator {
         }
 
         let expected = space == .interior ? "indoor" : "outdoor"
-        if let fact = plant.botanicalProfile?.environments {
-            markEvidence(fact.evidence, missing: &missing)
-            let values = Set(fact.value.map(normalized))
-            if values.contains(expected) || values.contains("both") {
-                criteria.append(.positive("AR_CATALOG_REASON_SPACE_MATCH"))
-            } else {
-                criteria.append(.critical("AR_CATALOG_REASON_SPACE_CONFLICT"))
-            }
+        guard let fact = plant.botanicalProfile?.environments else {
+            missing.append("AR_CATALOG_MISSING_ENVIRONMENT")
             return
         }
 
-        let text = traits.searchableText
-        let indoor = containsAny(text, ["plante d'interieur", "indoor plant", "houseplant", "zimmerpflanze", "planta de interior"])
-        let outdoor = containsAny(text, ["plante d'exterieur", "outdoor plant", "garden plant", "gartenpflanze", "planta de exterior"])
-        missing.append("AR_CATALOG_MISSING_ENVIRONMENT")
-
-        if (expected == "indoor" && indoor) || (expected == "outdoor" && outdoor) {
-            criteria.append(.positive(0.72, "AR_CATALOG_REASON_SPACE_MATCH"))
-        } else if (expected == "indoor" && outdoor) || (expected == "outdoor" && indoor) {
-            criteria.append(.warning(0.20, "AR_CATALOG_REASON_SPACE_CONFLICT"))
+        markEvidence(fact.evidence, missing: &missing)
+        let values = Set(fact.value.map(normalized))
+        if values.contains(expected) || values.contains("both") {
+            criteria.append(.positive("AR_CATALOG_REASON_SPACE_MATCH"))
+        } else {
+            criteria.append(.critical("AR_CATALOG_REASON_SPACE_CONFLICT"))
         }
     }
 
@@ -190,13 +190,13 @@ struct PlantSuitabilityEvaluator {
         let tolerances = traits.sunlightTolerances
         guard tolerances.hasKnownValue else { return }
 
-        if gardenRange.upperBound <= 3 {
+        if gardenRange.upperBound <= PlantThresholds.Light.shadeMaxHours {
             criteria.append(
                 tolerances.shade
                     ? .positive(0.70, "AR_CATALOG_REASON_LIGHT_MATCH")
                     : .warning(0.20, "AR_CATALOG_REASON_SHADE_CONFLICT")
             )
-        } else if gardenRange.lowerBound >= 6 {
+        } else if gardenRange.lowerBound >= PlantThresholds.Light.fullSunMinHours {
             criteria.append(
                 tolerances.fullSun
                     ? .positive(0.70, "AR_CATALOG_REASON_LIGHT_MATCH")
@@ -375,13 +375,15 @@ struct PlantSuitabilityEvaluator {
         let longestInterval = fact.maximum ?? fact.minimum ?? 0
         switch capacity {
         case .low:
-            if longestInterval >= 7 {
+            // Lisait 7 quand le filtre exigeait 10 : c'était la
+            // contradiction de #793. Les deux lisent désormais la même borne.
+            if longestInterval >= PlantThresholds.Watering.sparseMinDays {
                 criteria.append(.positive("AR_CATALOG_REASON_WATERING_MATCH"))
             } else {
                 criteria.append(.warning(0.25, "AR_CATALOG_REASON_WATERING_CONFLICT"))
             }
         case .regular:
-            if longestInterval >= 3 {
+            if longestInterval >= PlantThresholds.Watering.moderateMinDays {
                 criteria.append(.positive("AR_CATALOG_REASON_WATERING_MATCH"))
             } else {
                 criteria.append(.warning(0.50, "AR_CATALOG_REASON_WATERING_CONFLICT"))
@@ -603,10 +605,9 @@ struct PlantSuitabilityEvaluator {
         return keys.filter { seen.insert($0).inserted }
     }
 
-    private func containsAny(_ text: String, _ candidates: [String]) -> Bool {
-        candidates.contains { text.contains($0) }
-    }
-
+    /// Normalisation d'une valeur CLOSE (`indoor`, `fast`, `high`…) avant
+    /// comparaison par égalité. Ce n'est pas de l'analyse de prose : il n'y a
+    /// plus aucun `contains` sur un texte de fiche dans ce fichier (#792).
     private func normalized(_ value: String) -> String {
         value
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
@@ -615,11 +616,26 @@ struct PlantSuitabilityEvaluator {
     }
 }
 
-enum PlantCatalogSize: String {
+/// Gabarit, en vocabulaire fermé. Il portait DÉJÀ `unknown`, ce qui donne le
+/// modèle aux autres : l'inconnu est une valeur du vocabulaire, pas une
+/// absence qu'on rabat sur un voisin.
+enum PlantCatalogSize: String, Codable, CaseIterable, Hashable {
     case small
     case medium
     case large
     case unknown
+
+    /// Décodage indulgent vers le PLANCHER. `unknown` EST le plancher ici : il
+    /// n'affirme rien, et c'est ce qui rend la migration sans danger.
+    init(from decoder: Decoder) throws {
+        let conteneur = try decoder.singleValueContainer()
+        guard let brut = try? conteneur.decode(String.self) else {
+            self = .unknown
+            return
+        }
+        let cle = brut.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        self = PlantCatalogSize(rawValue: cle) ?? .unknown
+    }
 }
 
 enum PlantCatalogGoal: String, CaseIterable, Hashable, Identifiable {
@@ -651,10 +667,24 @@ enum PlantCatalogKind: String, CaseIterable, Hashable, Identifiable {
     case groundcover
     case climbing
     case aromaticEdible
+    /// Ajouté avec #792 : la typologie de #777 porte `conifere` sur 39 fiches
+    /// et le vocabulaire n'avait aucune cible. Le rabattre sur `tree` ou
+    /// `shrub` perdrait une distinction que l'utilisateur voit.
+    case conifer
 
     var id: String { rawValue }
 }
 
+/// Les couleurs filtrables, en valeurs closes.
+///
+/// `silver` et `brown` ont été ajoutés après le premier remplissage, qui a
+/// mesuré leur absence : les bases horticoles traitent `Gray/Silver` et
+/// `Brown/Copper` comme des couleurs de feuille de plein droit, et 78 fiches
+/// étaient mal décrites sans elles — dont les 14 `Olea europaea`, ramenées à
+/// `green`, ce qui perd le gris-argent qui fait l'olivier.
+///
+/// `dark` reste réservé au presque-noir, conformément à son nuancier. Un
+/// feuillage pourpre sombre relève de `purple`, pas de `dark`.
 enum PlantCatalogColor: String, CaseIterable, Hashable, Identifiable {
     case white
     case yellow
@@ -664,6 +694,8 @@ enum PlantCatalogColor: String, CaseIterable, Hashable, Identifiable {
     case purple
     case blue
     case green
+    case silver
+    case brown
     case dark
 
     var id: String { rawValue }
@@ -712,12 +744,20 @@ enum PlantCatalogCareOption: String, CaseIterable, Hashable, Identifiable {
     var id: String { rawValue }
 }
 
-/// Immutable index of all catalog signals inferred from a plant. Building it
-/// once is more expensive than a direct flag lookup, but all subsequent
-/// searches, filters and suitability evaluations become simple set/string
-/// operations.
+
+/// Projection immuable des traits CLOS d'une plante.
+///
+/// Elle ne dérive plus rien : chaque champ est soit une valeur stockée sur la
+/// fiche, soit un repli explicitement nommé sur un autre fait clos. La version
+/// précédente relançait sept familles d'inférence par plante — `kinds` seul
+/// balayait 36 motifs dans la prose des quatre langues — ce qui avait coûté un
+/// gel de 2 000 ms au questionnaire (#499). Le coût disparaît avec la
+/// dérivation : il n'y a plus rien à mémoïser, et plus aucune clé de cache à
+/// tenir juste.
+///
+/// Les champs tri-états sont des `Bool?` : `nil` signifie « non établi » et ne
+/// doit jamais se lire comme un `false`.
 struct PlantCatalogTraitsSnapshot {
-    let searchableText: String
     let sunlightTolerances: PlantCatalogTraits.SunlightTolerances
     let goals: Set<PlantCatalogGoal>
     let kinds: Set<PlantCatalogKind>
@@ -725,11 +765,11 @@ struct PlantCatalogTraitsSnapshot {
     let appearances: Set<PlantCatalogAppearance>
     let size: PlantCatalogSize
     let habits: Set<PlantCatalogHabit>
-    let isEasyCare: Bool
-    let needsLittleWater: Bool
-    let isSlowGrowing: Bool
-    let needsLittlePruning: Bool
-    let hasLongBloom: Bool
+    let isEasyCare: Bool?
+    let needsLittleWater: Bool?
+    let isSlowGrowing: Bool?
+    let needsLittlePruning: Bool?
+    let hasLongBloom: Bool?
 }
 
 struct PlantCatalogFilters: Equatable {
@@ -792,18 +832,21 @@ struct PlantCatalogFilters: Equatable {
 
         if !habits.isEmpty, habits.isDisjoint(with: traits.habits) { return false }
 
-        if careLevel == .minimal, !traits.isEasyCare { return false }
+        // `== true` et non `!= false` : un trait non établi ne satisfait PAS
+        // un critère demandé. Le filtre ne devine pas, il n'affirme que ce
+        // qu'il sait (#792).
+        if careLevel == .minimal, traits.isEasyCare != true { return false }
 
         for option in careOptions {
             switch option {
             case .lowWater:
-                if !traits.needsLittleWater { return false }
+                if traits.needsLittleWater != true { return false }
             case .slowGrowth:
-                if !traits.isSlowGrowing { return false }
+                if traits.isSlowGrowing != true { return false }
             case .littlePruning:
-                if !traits.needsLittlePruning { return false }
+                if traits.needsLittlePruning != true { return false }
             case .longBloom:
-                if !traits.hasLongBloom { return false }
+                if traits.hasLongBloom != true { return false }
             }
         }
 
@@ -811,92 +854,19 @@ struct PlantCatalogFilters: Equatable {
     }
 }
 
-enum PlantCatalogTraits {
-    /// Text normalization is the most expensive part of trait inference. An
-    /// `NSCache` is thread-safe and lets the one-time index reuse the exact same
-    /// normalized text across all inference families.
-    private static let searchableTextCache = NSCache<NSString, NSString>()
-
-    /// Caching the normalized text was not enough: `snapshot(for:)` re-ran every
-    /// inference family on every call — `kinds` alone performs 36 substring
-    /// scans over the plant's prose in all four languages. The garden wizard
-    /// evaluates the whole catalog at once, so the cost landed on the main
-    /// thread as a 2-second hang (#499).
-    ///
-    /// A plant's traits do not change between two evaluations, so the snapshot
-    /// is memoized like the text it derives from. `NSCache` stores objects, and
-    /// the snapshot is a struct, hence the box.
-    private final class SnapshotBox {
-        let value: PlantCatalogTraitsSnapshot
-        init(_ value: PlantCatalogTraitsSnapshot) { self.value = value }
-    }
-
-    private static let snapshotCache = NSCache<NSString, SnapshotBox>()
-
-    /// The identifier alone is not a sound cache key. A snapshot is derived
-    /// from the plant's prose *and* its flags, and the same id can carry a
-    /// different payload within one process — a catalog refresh after the data
-    /// was edited server-side, or two fixtures sharing an id in a test. Folding
-    /// the flags into the key makes the memoization observe what it depends on
-    /// rather than assume it never changes.
-    private static func cacheKey(for plant: Plant) -> NSString {
-        guard let flags = plant.flags else { return "\(plant.id)|-" as NSString }
-        let bits = [
-            flags.toxicToPets, flags.toxicToChildren, flags.easyCare,
-            flags.shadeTolerant, flags.fullSunTolerant, flags.droughtTolerant,
-            flags.humidityLoving, flags.flowering, flags.climbing,
-            flags.trailing, flags.compact, flags.airPurifying
-        ].map { $0 ? "1" : "0" }.joined()
-        return "\(plant.id)|\(bits)" as NSString
-    }
-
-    struct SunlightTolerances {
-        let shade: Bool
-        let fullSun: Bool
-
-        var hasKnownValue: Bool { shade || fullSun }
-    }
-
-    /// Both caches are purged together: a snapshot is derived from the
-    /// searchable text, so keeping one while dropping the other would serve
-    /// traits computed from prose that no longer exists.
-    static func clearCaches() {
-        searchableTextCache.removeAllObjects()
-        snapshotCache.removeAllObjects()
-    }
-
-    static func snapshot(for plant: Plant) -> PlantCatalogTraitsSnapshot {
-        let key = cacheKey(for: plant)
-        if let cached = snapshotCache.object(forKey: key) {
-            return cached.value
-        }
-
-        let value = PlantCatalogTraitsSnapshot(
-            searchableText: searchableText(for: plant),
-            sunlightTolerances: sunlightTolerances(for: plant),
-            goals: goals(for: plant),
-            kinds: kinds(for: plant),
-            colors: colors(for: plant),
-            appearances: appearances(for: plant),
-            size: size(for: plant),
-            habits: habits(for: plant),
-            isEasyCare: isEasyCare(plant),
-            needsLittleWater: needsLittleWater(plant),
-            isSlowGrowing: isSlowGrowing(plant),
-            needsLittlePruning: needsLittlePruning(plant),
-            hasLongBloom: hasLongBloom(plant)
-        )
-
-        snapshotCache.setObject(SnapshotBox(value), forKey: key)
-        return value
-    }
-
-    static func searchableText(for plant: Plant) -> String {
-        let cacheKey = plant.id as NSString
-        if let cached = searchableTextCache.object(forKey: cacheKey) {
-            return cached as String
-        }
-
+/// Index de RECHERCHE, et rien d'autre.
+///
+/// Ce texte sert à apparier ce que l'utilisateur TAPE dans la barre de
+/// recherche. C'est de l'analyse d'entrée utilisateur — comme le `contientMots`
+/// du backend qui retrouve une fiche nommée dans un message de chat — et non de
+/// la dérivation sur nos propres données.
+///
+/// **Aucune décision de trait, de filtre, de sûreté ou de capacité de pose ne
+/// doit le lire.** C'est précisément ce que faisaient les sept familles
+/// d'inférence que #792 a retirées, et c'est pourquoi l'index porte désormais
+/// un nom qui dit son seul usage légitime.
+enum PlantSearchIndex {
+    static func text(for plant: Plant) -> String {
         var parts = [plant.name, plant.type, plant.description]
 
         for translation in plant.translations.values {
@@ -911,244 +881,228 @@ enum PlantCatalogTraits {
             if let difficulty = translation.care?.difficulty { parts.append(difficulty) }
         }
 
-        let value = normalized(parts.joined(separator: " "))
-        searchableTextCache.setObject(value as NSString, forKey: cacheKey)
-        return value
-    }
-
-    static func sunlightTolerances(for plant: Plant) -> SunlightTolerances {
-        if let flags = plant.flags, flags.shadeTolerant || flags.fullSunTolerant {
-            return SunlightTolerances(shade: flags.shadeTolerant, fullSun: flags.fullSunTolerant)
-        }
-
-        let text = searchableText(for: plant)
-        let shade = containsAny(text, [
-            "ombre", "mi-ombre", "lumiere indirecte", "faible luminosite",
-            "shade", "partial shade", "indirect light", "low light",
-            "schatten", "indirektes licht", "sombra", "luz indirecta"
-        ])
-        let fullSun = containsAny(text, [
-            "plein soleil", "soleil direct", "full sun", "direct sunlight",
-            "volle sonne", "sonne direkt", "pleno sol", "sol directo"
-        ])
-        return SunlightTolerances(shade: shade, fullSun: fullSun)
-    }
-
-    static func size(for plant: Plant) -> PlantCatalogSize {
-        if plant.flags?.compact == true { return .small }
-
-        let text = searchableText(for: plant)
-        if containsAny(text, [
-            "compact", "miniature", "mini ", "nain", "naine", "bonsai",
-            "small plant", "dwarf", "kleinwuchsig", "pequena"
-        ]) {
-            return .small
-        }
-        if containsAny(text, [
-            "grand arbre", "petit arbre", "arbre d'ornement", "arbuste", "palmier",
-            "large tree", "small tree", "ornamental tree", "shrub", "palm tree",
-            "hoher baum", "strauch", "palme", "arbol", "arbusto", "palmera"
-        ]) {
-            return .large
-        }
-        if containsAny(text, [
-            "taille moyenne", "medium-sized", "medium size", "mittelgross", "tamano medio"
-        ]) {
-            return .medium
-        }
-
-        let inferredKinds = kinds(for: plant)
-        if !inferredKinds.isDisjoint(with: [.tree, .shrub, .palm]) { return .large }
-        if !inferredKinds.isEmpty { return .medium }
-        return .unknown
-    }
-
-    static func isFlowering(_ plant: Plant) -> Bool {
-        if plant.flags?.flowering == true { return true }
-        let text = searchableText(for: plant)
-        return containsAny(text, [
-            "floraison", "fleuri", "fleur", "colore", "flowering", "flower",
-            "colorful", "blute", "bluhend", "floracion", "flor"
-        ])
-    }
-
-    static func isEasyCare(_ plant: Plant) -> Bool {
-        if plant.flags?.easyCare == true { return true }
-        let text = searchableText(for: plant)
-        return containsAny(text, [
-            "facile d'entretien", "entretien facile", "debutant", "peu exigeant",
-            "easy care", "easy-care", "beginner", "low maintenance",
-            "pflegeleicht", "anfanger", "facil de cuidar", "principiante"
-        ])
-    }
-
-    static func goals(for plant: Plant) -> Set<PlantCatalogGoal> {
-        let text = searchableText(for: plant)
-        let inferredKinds = kinds(for: plant)
-        var values = Set<PlantCatalogGoal>()
-
-        if isFlowering(plant) || !colors(for: plant).isEmpty { values.insert(.addColor) }
-        if size(for: plant) == .large
-            || plant.flags?.climbing == true
-            || containsAny(text, ["brise-vue", "brise vue", "haie", "privacy", "screening", "sichtschutz", "privacidad"]) {
-            values.insert(.createPrivacy)
-        }
-        if size(for: plant) == .large || !inferredKinds.isDisjoint(with: [.tree, .shrub, .palm]) {
-            values.insert(.addVolume)
-        }
-        if plant.flags?.climbing == true || PlantPlacementCompatibility.isWallCapable(plant) {
-            values.insert(.coverWall)
-        }
-        if plant.flags?.trailing == true || PlantPlacementCompatibility.isHangingCapable(plant) {
-            values.insert(.createCascade)
-        }
-        if inferredKinds.contains(.groundcover) { values.insert(.coverGround) }
-        if containsAny(text, [
-            "pollinisateur", "abeille", "papillon", "pollinator", "bee friendly", "butterfly",
-            "bienenfreundlich", "mariposa", "polinizador"
-        ]) {
-            values.insert(.attractPollinators)
-        }
-        if inferredKinds.contains(.aromaticEdible) { values.insert(.edibleAromatic) }
-        if size(for: plant) == .large
-            || !inferredKinds.isDisjoint(with: [.palm, .orchid, .tree])
-            || containsAny(text, ["point focal", "architectural", "sculptural", "statement plant"]) {
-            values.insert(.focalPoint)
-        }
-
-        return values
-    }
-
-    static func kinds(for plant: Plant) -> Set<PlantCatalogKind> {
-        let text = searchableText(for: plant)
-        var values = Set<PlantCatalogKind>()
-
-        if isFlowering(plant) { values.insert(.floweringPlant) }
-        if containsAny(text, ["cactus", "succulente", "succulent", "agave", "aloe", "sukkulente", "suculenta"]) {
-            values.insert(.cactusSucculent)
-        }
-        if containsAny(text, ["palmier", "palm tree", "palm plant", "palme", "palmera"]) { values.insert(.palm) }
-        if containsAny(text, ["fougere", "fern", "farn", "helecho"]) { values.insert(.fern) }
-        if containsAny(text, ["orchidee", "orchid", "orchidee", "orquidea"]) { values.insert(.orchid) }
-        if containsAny(text, ["arbre", " tree", "baum", "arbol"]) { values.insert(.tree) }
-        if containsAny(text, ["arbuste", "shrub", "bush", "strauch", "arbusto"]) { values.insert(.shrub) }
-        if containsAny(text, ["vivace", "perennial", "mehrjahrig", "perenne"]) { values.insert(.perennial) }
-        if containsAny(text, ["annuelle", "annual plant", "einjahrig", "anual"]) { values.insert(.annual) }
-        if containsAny(text, ["graminee", "ornamental grass", "ziergras", "graminea"]) { values.insert(.grass) }
-        if containsAny(text, ["couvre-sol", "couvre sol", "groundcover", "ground cover", "bodendecker", "cubresuelo"]) {
-            values.insert(.groundcover)
-        }
-        if plant.flags?.climbing == true || containsAny(text, ["grimpante", "climbing", "climber", "kletterpflanze", "trepadora"]) {
-            values.insert(.climbing)
-        }
-        if containsAny(text, [
-            "aromatique", "comestible", "potager", "herbe culinaire", "edible", "culinary herb",
-            "aromatic herb", "essbar", "krauter", "comestible", "aromatica"
-        ]) {
-            values.insert(.aromaticEdible)
-        }
-
-        let specialKinds: Set<PlantCatalogKind> = [
-            .cactusSucculent, .palm, .fern, .orchid, .tree, .shrub, .perennial,
-            .annual, .grass, .groundcover, .climbing, .aromaticEdible
-        ]
-        if values.isDisjoint(with: specialKinds) { values.insert(.greenPlant) }
-        return values
-    }
-
-    static func colors(for plant: Plant) -> Set<PlantCatalogColor> {
-        let text = searchableText(for: plant)
-        var values = Set<PlantCatalogColor>()
-        let keywords: [(PlantCatalogColor, [String])] = [
-            (.white, ["blanc", "blanche", "white", "weiss", "blanco", "blanca"]),
-            (.yellow, ["jaune", "yellow", "gelb", "amarillo", "amarilla"]),
-            (.orange, ["orange", "orangefarben", "naranja"]),
-            (.red, ["rouge", " red ", "rot", "rojo", "roja"]),
-            (.pink, ["rose", " pink", "rosa"]),
-            (.purple, ["violet", "pourpre", "purple", "violett", "morado", "morada"]),
-            (.blue, ["bleu", " blue", "blau", "azul"]),
-            (.green, ["vert", " green", "grun", "verde"]),
-            (.dark, ["noir", "sombre", "black", "dark foliage", "schwarz", "dunkel", "negro", "oscuro"])
-        ]
-        for (color, words) in keywords where containsAny(text, words) {
-            values.insert(color)
-        }
-        return values
-    }
-
-    static func appearances(for plant: Plant) -> Set<PlantCatalogAppearance> {
-        let text = searchableText(for: plant)
-        var values = Set<PlantCatalogAppearance>()
-        if isFlowering(plant) { values.insert(.flowering) }
-        if containsAny(text, ["panache", "variegated", "panaschiert", "variegado"]) { values.insert(.variegated) }
-        if containsAny(text, ["persistant", "evergreen", "immergrun", "perenne de hoja"]) { values.insert(.evergreen) }
-        if containsAny(text, ["parfume", "odorant", "fragrant", "scented", "duftend", "perfumado", "fragante"]) {
-            values.insert(.fragrant)
-        }
-        if containsAny(text, [
-            "feuillage decoratif", "feuillage graphique", "decorative foliage", "ornamental foliage",
-            "dekoratives blatt", "follaje decorativo"
-        ]) || plant.flags?.airPurifying == true {
-            values.insert(.decorativeFoliage)
-        }
-        return values
-    }
-
-    static func habits(for plant: Plant) -> Set<PlantCatalogHabit> {
-        let text = searchableText(for: plant)
-        var values = Set<PlantCatalogHabit>()
-        if plant.flags?.climbing == true || containsAny(text, ["grimpant", "climbing", "kletternd", "trepador"]) {
-            values.insert(.climbing)
-        }
-        if plant.flags?.trailing == true || containsAny(text, ["retombant", "trailing", "hanging", "hangend", "colgante"]) {
-            values.insert(.trailing)
-        }
-        if containsAny(text, ["erige", "vertical", "upright", "columnar", "aufrecht", "erguido"]) {
-            values.insert(.upright)
-        }
-        if containsAny(text, ["etale", "buissonnant", "spreading", "bushy", "ausladend", "extendido"]) {
-            values.insert(.spreading)
-        }
-        if values.isEmpty { values.insert(.upright) }
-        return values
-    }
-
-    static func needsLittleWater(_ plant: Plant) -> Bool {
-        if plant.flags?.droughtTolerant == true { return true }
-        let text = searchableText(for: plant)
-        return containsAny(text, [
-            "peu d'arrosage", "arrosage espace", "resiste a la secheresse", "low water", "drought tolerant",
-            "wenig wasser", "trockenheitsvertraglich", "poco riego", "resistente a la sequia"
-        ])
-    }
-
-    static func isSlowGrowing(_ plant: Plant) -> Bool {
-        containsAny(searchableText(for: plant), [
-            "croissance lente", "slow growing", "slow growth", "langsam wachsend", "crecimiento lento"
-        ])
-    }
-
-    static func needsLittlePruning(_ plant: Plant) -> Bool {
-        containsAny(searchableText(for: plant), [
-            "peu de taille", "taille inutile", "sans taille", "little pruning", "no pruning",
-            "wenig schnitt", "kein schnitt", "poca poda", "sin poda"
-        ])
-    }
-
-    static func hasLongBloom(_ plant: Plant) -> Bool {
-        containsAny(searchableText(for: plant), [
-            "floraison longue", "floraison prolongee", "long blooming", "long flowering",
-            "lange blute", "floracion larga", "floracion prolongada"
-        ])
-    }
-
-    private static func containsAny(_ text: String, _ candidates: [String]) -> Bool {
-        candidates.contains { text.contains($0) }
-    }
-
-    private static func normalized(_ value: String) -> String {
-        value
+        return parts
+            .joined(separator: " ")
             .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
             .lowercased()
     }
+}
+
+/// Lecture des traits de catalogue depuis les valeurs CLOSES de la fiche.
+///
+/// Sept fonctions y dérivaient autrefois leur résultat de la prose traduite,
+/// sur ~146 lignes de listes de mots-clés en quatre langues. Trois défauts s'y
+/// cumulaient (#792) :
+///
+/// 1. **Le booléen ne savait dire qu'une moitié de la vérité.** Un
+///    `flowering: false` ne voulait pas dire « ne fleurit pas » : il faisait
+///    retomber sur la prose, et une description mentionnant « fleur »
+///    suffisait à déclarer la plante fleurie.
+/// 2. **Le trait dépendait de la langue affichée.** La même plante pouvait
+///    être `large` en français et `unknown` en allemand.
+/// 3. **Un mot-clé appariait ce qu'il ne devait pas.** La liste de `size`
+///    contenait `"mini "` avec une espace — un garde-fou ajouté après coup,
+///    qui disait à lui seul que la méthode était fragile.
+///
+/// Ce qui reste ici ne fait que LIRE : chaque fonction consulte un champ clos
+/// du profil, et à défaut un repli nommé sur un autre fait clos. Le repli suit
+/// la règle de la toxicité — seul un `true` informe, un `false` ou une absence
+/// ne prouve rien.
+enum PlantCatalogTraits {
+
+    struct SunlightTolerances {
+        let shade: Bool
+        let fullSun: Bool
+
+        var hasKnownValue: Bool { shade || fullSun }
+    }
+
+    static func snapshot(for plant: Plant) -> PlantCatalogTraitsSnapshot {
+        let kinds = kinds(for: plant)
+        let colors = colors(for: plant)
+        let size = size(for: plant)
+
+        return PlantCatalogTraitsSnapshot(
+            sunlightTolerances: sunlightTolerances(for: plant),
+            goals: goals(for: plant, kinds: kinds, colors: colors, size: size),
+            kinds: kinds,
+            colors: colors,
+            appearances: appearances(for: plant),
+            size: size,
+            habits: habits(for: plant),
+            isEasyCare: plant.trait(.easyCare),
+            needsLittleWater: needsLittleWater(plant),
+            isSlowGrowing: isSlowGrowing(plant),
+            needsLittlePruning: needsLittlePruning(plant),
+            hasLongBloom: hasLongBloom(plant)
+        )
+    }
+
+    /// Tolérances d'exposition, lues sur `directSunHours`.
+    ///
+    /// Les bornes 3 h et 6 h ne sont pas inventées ici : ce sont celles que
+    /// `appendSunlightCriterion` applique déjà au jardin de l'utilisateur, et
+    /// les appliquer aussi à la plante garde les deux côtés comparables.
+    ///
+    /// Ce chemin ne sert plus qu'aux fiches SANS `directSunHours` : quand le
+    /// fait existe, le critère d'exposition le lit directement. 920 fiches sur
+    /// 1021 le portent.
+    static func sunlightTolerances(for plant: Plant) -> SunlightTolerances {
+        if let heures = plant.botanicalProfile?.directSunHours, heures.hasValue {
+            return SunlightTolerances(
+                shade: (heures.minimum ?? 0) <= PlantThresholds.Light.shadeMaxHours,
+                fullSun: (heures.maximum ?? 24) >= PlantThresholds.Light.fullSunMinHours
+            )
+        }
+
+        // Repli par drapeaux : seul leur `true` informe.
+        guard let flags = plant.flags else {
+            return SunlightTolerances(shade: false, fullSun: false)
+        }
+        return SunlightTolerances(shade: flags.shadeTolerant, fullSun: flags.fullSunTolerant)
+    }
+
+    /// Gabarit stocké. Le repli ne connaît qu'une affirmation — `compact` dit
+    /// `small` — et ne sait rien produire d'autre : à défaut, `unknown`.
+    static func size(for plant: Plant) -> PlantCatalogSize {
+        if let stocke = plant.botanicalProfile?.size {
+            // Le fait présent décide, y compris quand il dit `unknown`.
+            return stocke.value
+        }
+        return plant.trait(.compact) == true ? .small : .unknown
+    }
+
+    /// Natures botaniques stockées.
+    ///
+    /// Il n'y a PLUS de `greenPlant` par défaut. L'ancienne lecture insérait
+    /// cette nature dès qu'aucune autre n'avait été trouvée dans la prose :
+    /// une plante dont on ignore la nature devenait « plante verte », ce qui
+    /// est une affirmation qu'aucune donnée ne portait.
+    static func kinds(for plant: Plant) -> Set<PlantCatalogKind> {
+        if let stockees = plant.botanicalProfile?.kinds {
+            // **Présent décide, même vide.** Une liste présente et vide dit
+            // « on a cherché, aucune nature ne s'applique » ; elle n'ouvre
+            // donc pas le repli. Seule l'ABSENCE du champ dit « on n'a pas
+            // cherché ».
+            return stockees.values
+        }
+        // Repli : la seule nature qu'un fait clos suffise à affirmer.
+        return plant.trait(.climbing) == true ? [.climbing] : []
+    }
+
+    /// Couleurs stockées. Aucun repli n'existe : aucun autre champ clos ne
+    /// porte la couleur d'une plante, et la deviner depuis la prose est
+    /// exactement ce que #792 retire.
+    static func colors(for plant: Plant) -> Set<PlantCatalogColor> {
+        plant.botanicalProfile?.colors?.values ?? []
+    }
+
+    /// Usages visés.
+    ///
+    /// Le champ stocké décide seul quand il existe. À défaut, un repli composé
+    /// d'autres faits CLOS — jamais de prose : la capacité de pose, la nature
+    /// botanique, le gabarit et la floraison suffisent à affirmer six des neuf
+    /// buts. `createPrivacy` et `attractPollinators` n'ont aucune source close
+    /// et restent donc absents jusqu'au remplissage du champ.
+    static func goals(for plant: Plant) -> Set<PlantCatalogGoal> {
+        goals(for: plant, kinds: kinds(for: plant), colors: colors(for: plant), size: size(for: plant))
+    }
+
+    private static func goals(
+        for plant: Plant,
+        kinds: Set<PlantCatalogKind>,
+        colors: Set<PlantCatalogColor>,
+        size: PlantCatalogSize
+    ) -> Set<PlantCatalogGoal> {
+        if let stockes = plant.botanicalProfile?.goals {
+            // Présent décide, même vide : « on a cherché, aucun but ne
+            // s'applique » n'est pas « on n'a pas cherché ».
+            return stockes.values
+        }
+
+        var valeurs = Set<PlantCatalogGoal>()
+
+        if plant.trait(.flowering) == true || !colors.isEmpty { valeurs.insert(.addColor) }
+
+        let poses = PlantPlacementCompatibility.supportedModes(for: plant)
+        if poses.contains(.wall) { valeurs.insert(.coverWall) }
+        if poses.contains(.ceiling) { valeurs.insert(.createCascade) }
+
+        if kinds.contains(.groundcover) { valeurs.insert(.coverGround) }
+        if kinds.contains(.aromaticEdible) { valeurs.insert(.edibleAromatic) }
+
+        let volumineuses: Set<PlantCatalogKind> = [.tree, .shrub, .palm, .conifer]
+        if size == .large || !kinds.isDisjoint(with: volumineuses) { valeurs.insert(.addVolume) }
+
+        let remarquables: Set<PlantCatalogKind> = [.tree, .palm, .orchid]
+        if size == .large || !kinds.isDisjoint(with: remarquables) { valeurs.insert(.focalPoint) }
+
+        return valeurs
+    }
+
+    /// Apparences.
+    ///
+    /// `flowering` se lit sur le trait clos. `decorativeFoliage` se lit sur son
+    /// `no` explicite : le champ « Période de floraison » des fiches en cache
+    /// porte la valeur « Feuillage décoratif », qui est un `flowering: no` et
+    /// non un silence — c'est tout l'intérêt du tri-état.
+    ///
+    /// `variegated`, `evergreen` et `fragrant` n'ont AUCUNE source close
+    /// aujourd'hui. Ils ne se devinent pas : ces trois critères restent donc
+    /// sans réponse jusqu'à ce qu'un champ les porte.
+    static func appearances(for plant: Plant) -> Set<PlantCatalogAppearance> {
+        var valeurs = Set<PlantCatalogAppearance>()
+        switch plant.trait(.flowering) {
+        case .some(true): valeurs.insert(.flowering)
+        case .some(false): valeurs.insert(.decorativeFoliage)
+        case .none: break
+        }
+        return valeurs
+    }
+
+    /// Ports.
+    ///
+    /// `climbing` et `trailing` se lisent sur les traits clos. `upright` et
+    /// `spreading` n'ont aucune source close, et surtout : il n'y a plus de
+    /// `upright` par défaut. L'ancienne lecture l'insérait quand rien d'autre
+    /// n'avait été trouvé, ce qui faisait passer toute plante inconnue pour
+    /// érigée.
+    static func habits(for plant: Plant) -> Set<PlantCatalogHabit> {
+        var valeurs = Set<PlantCatalogHabit>()
+        if plant.trait(.climbing) == true { valeurs.insert(.climbing) }
+        if plant.trait(.trailing) == true { valeurs.insert(.trailing) }
+        return valeurs
+    }
+
+    /// Besoin en eau faible, lu sur `droughtTolerance` — un champ au
+    /// vocabulaire fermé (`low`, `moderate`, `high`).
+    ///
+    /// `moderate` ne répond ni oui ni non : il rend `nil` plutôt que de
+    /// trancher vers l'un des deux bords.
+    static func needsLittleWater(_ plant: Plant) -> Bool? {
+        if let fait = plant.botanicalProfile?.droughtTolerance {
+            switch fait.value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "high": return true
+            case "low": return false
+            default: return nil
+            }
+        }
+        return plant.flags?.droughtTolerant == true ? true : nil
+    }
+
+    /// Les trois critères d'entretien SANS source close.
+    ///
+    /// Ils se dérivaient de la prose — « croissance lente », « peu de taille »,
+    /// « floraison longue » — et rien ne les porte aujourd'hui en valeur
+    /// fermée. Ils rendent donc `nil` : non établi, et un critère non établi
+    /// ne satisfait pas une demande.
+    ///
+    /// Les laisser visibles et muets est un choix assumé : la correction est
+    /// un champ clos côté fiche, pas un retour à la prose. En attendant, ces
+    /// trois options du filtre ne renvoient rien — voir la note de #792.
+    static func isSlowGrowing(_ plant: Plant) -> Bool? { nil }
+
+    static func needsLittlePruning(_ plant: Plant) -> Bool? { nil }
+
+    static func hasLongBloom(_ plant: Plant) -> Bool? { nil }
 }

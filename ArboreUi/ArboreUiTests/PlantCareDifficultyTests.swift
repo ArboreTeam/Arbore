@@ -74,9 +74,9 @@ final class PlantCareDifficultyTests: XCTestCase {
     /// Le filtre du catalogue ne masque pas ce qu'il ne sait pas juger.
     func testFiltreNExclutPasUnePlanteDeDifficulteInconnue() throws {
         let plant = try makePlant()
-        let filters = PlantFilters(lightType: nil, waterFrequency: nil, difficulty: "Facile")
+        let filters = PlantFilters(difficulty: .easy)
 
-        XCTAssertTrue(filters.matches(plant: plant, locale: "fr"),
+        XCTAssertTrue(filters.matches(plant),
                       "Une difficulté inconnue ne doit pas exclure la plante — c'est le bug de #485")
     }
 
@@ -126,17 +126,17 @@ final class PlantCareDifficultyTests: XCTestCase {
 
     func testFiltreExclutUnNiveauQuiNeCorrespondPas() throws {
         let exigeante = try makePlant(careDifficulty: "Exigeant")
-        let filters = PlantFilters(lightType: nil, waterFrequency: nil, difficulty: "Facile")
+        let filters = PlantFilters(difficulty: .easy)
 
-        XCTAssertFalse(filters.matches(plant: exigeante, locale: "fr"),
+        XCTAssertFalse(filters.matches(exigeante),
                        "Une plante exigeante doit être exclue d'un filtre « Facile »")
     }
 
     func testFiltreConserveUnNiveauQuiCorrespond() throws {
         let facile = try makePlant(careDifficulty: "Facile")
-        let filters = PlantFilters(lightType: nil, waterFrequency: nil, difficulty: "Facile")
+        let filters = PlantFilters(difficulty: .easy)
 
-        XCTAssertTrue(filters.matches(plant: facile, locale: "fr"))
+        XCTAssertTrue(filters.matches(facile))
     }
 
     // MARK: - Les options proposées suivent les données
@@ -180,9 +180,9 @@ final class PlantCareDifficultyTests: XCTestCase {
     /// Sans critère sélectionné, le filtre laisse tout passer.
     func testAucunCritereNExcluRien() throws {
         let plant = try makePlant(careDifficulty: "Exigeant")
-        let filters = PlantFilters(lightType: nil, waterFrequency: nil, difficulty: nil)
+        let filters = PlantFilters()
 
-        XCTAssertTrue(filters.matches(plant: plant, locale: "fr"))
+        XCTAssertTrue(filters.matches(plant))
     }
 }
 
@@ -255,9 +255,26 @@ final class PlantToxicityTests: XCTestCase {
         XCTAssertEqual(try makePlant(petToxicity: "safe").petToxicity(), .safe)
     }
 
+    /// RÉÉCRIT (#792). Ce test affirmait qu'un drapeau BAISSÉ rend `.safe`.
+    ///
+    /// C'était le piège historique inscrit comme exigence, pour la quatrième
+    /// fois dans cette suite de tests : le `false` d'un drapeau a voulu dire à
+    /// la fois « prouvé sûr » et « pas recherché » sur 65 fiches du catalogue.
+    /// Seul son `true` porte une information.
+    ///
+    /// Il avait survécu aux trois autres corrections parce qu'il vit dans
+    /// `PlantCareDifficultyTests.swift` mais appartient à la classe
+    /// `PlantToxicityTests` — et `-only-testing` cible les CLASSES, pas les
+    /// fichiers. Lancer la suite voisine ne l'exerçait jamais.
     func testReplieSurLesFlagsQuandLeProfilManque() throws {
-        XCTAssertEqual(try makePlant(toxicToPetsFlag: true).petToxicity(), .toxic)
-        XCTAssertEqual(try makePlant(toxicToPetsFlag: false).petToxicity(), .safe)
+        XCTAssertEqual(
+            try makePlant(toxicToPetsFlag: true).petToxicity(), .toxic,
+            "sans profil, un drapeau levé avertit"
+        )
+        XCTAssertNil(
+            try makePlant(toxicToPetsFlag: false).petToxicity(),
+            "un drapeau baissé ne vaut pas une innocuité démontrée"
+        )
     }
 
     // MARK: - Le prédicat

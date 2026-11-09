@@ -54,74 +54,75 @@ enum ARPlacementMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// Capacité PHYSIQUE de pose, lue sur la fiche (#792).
+///
+/// Ce qui vivait ici était le plus conséquent des six chemins de dérivation,
+/// et pas parce qu'il était le plus long : la conséquence d'une erreur n'est
+/// pas un badge inexact mais **un geste impossible** — une plante déclarée
+/// posable au mur alors qu'elle ne l'est pas.
+///
+/// Les deux listes retirées comptaient 23 et 25 mots-clés, et chacun des trois
+/// défauts suivants suffisait à les disqualifier :
+///
+/// - **C'était une taxonomie botanique dans du code d'interface.** `pothos`,
+///   `hoya`, `rhipsalis`, `senecio`, `rowleyanus`, `dischidia` étaient écrits
+///   en dur : chaque nouvelle plante grimpante exigeait une modification du
+///   binaire, alors que la donnée vit dans la fiche.
+/// - **L'appariement n'avait aucune frontière de mot.** `text.contains("hoya")`
+///   appariait n'importe quelle chaîne contenant ces quatre lettres, dans la
+///   prose des quatre langues. Le backend a son `contientMots` pour exactement
+///   cette raison ; iOS ne l'avait pas.
+/// - **Le booléen était à moitié vrai.** `flags.climbing == false` ne disait
+///   pas « ne grimpe pas », il faisait retomber sur les mots-clés.
+///
+/// Le vocabulaire existait déjà : `ARPlacementMode` est une énumération
+/// fermée. La fiche porte désormais ses modes dans `botanicalProfile.placement`.
 enum PlantPlacementCompatibility {
     static func supports(_ plant: Plant, mode: ARPlacementMode) -> Bool {
-        switch mode {
-        case .floor:
-            return true
-        case .wall:
-            return isWallCapable(plant)
-        case .ceiling:
-            return isHangingCapable(plant)
-        }
+        supportedModes(for: plant).contains(mode)
     }
 
+    /// Les modes de pose admis pour cette plante.
+    ///
+    /// `.floor` est toujours admis : poser une plante au sol ne demande aucune
+    /// capacité particulière, et c'est le seul mode dont l'absence de donnée
+    /// ne peut pas produire un geste impossible.
+    ///
+    /// `.wall` et `.ceiling` suivent l'ordre de lecture de la toxicité :
+    ///
+    /// 1. le champ clos `placement` décide quand il existe — y compris pour
+    ///    REFUSER, puisqu'une liste qui ne contient pas `.wall` est une
+    ///    affirmation et non un silence ;
+    /// 2. à défaut, les drapeaux servent de repli, et seul leur `true`
+    ///    informe. Un `climbing: false` ne vaut pas « ne grimpe pas ».
     static func supportedModes(for plant: Plant) -> Set<ARPlacementMode> {
-        Set(ARPlacementMode.allCases.filter { supports(plant, mode: $0) })
+        if let declares = plant.botanicalProfile?.placement {
+            // Présent décide, même vide : une liste présente qui ne contient
+            // pas `.wall` est une affirmation — « on a cherché, elle ne tient
+            // pas au mur » — et non un silence. Seule l'ABSENCE du champ
+            // ouvre le repli par drapeaux.
+            return declares.values.union([.floor])
+        }
+
+        var modes: Set<ARPlacementMode> = [.floor]
+        // Grimper ou retomber suffit à tenir au mur ; seule la retombée tient
+        // au plafond. C'est le repli exact de l'ancienne branche par drapeaux,
+        // conservé tel quel pour ne pas perdre de capacité en attendant le
+        // remplissage de `placement`.
+        if plant.trait(.climbing) == true || plant.trait(.trailing) == true {
+            modes.insert(.wall)
+        }
+        if plant.trait(.trailing) == true {
+            modes.insert(.ceiling)
+        }
+        return modes
     }
 
     static func isWallCapable(_ plant: Plant) -> Bool {
-        if plant.flags?.climbing == true || plant.flags?.trailing == true {
-            return true
-        }
-
-        let text = searchableText(for: plant)
-        let wallKeywords = [
-            "climbing", "climber", "vine", "vining", "ivy",
-            "grimpant", "grimpante", "grimpe", "liane", "lierre",
-            "pothos", "epipremnum", "scindapsus", "pictus", "pictum",
-            "philodendron scandens", "philodendron hederaceum", "heartleaf",
-            "ceropegia", "woodii", "hoya", "tradescantia", "monstera adansonii"
-        ]
-        return wallKeywords.contains { text.contains($0) }
+        supports(plant, mode: .wall)
     }
 
     static func isHangingCapable(_ plant: Plant) -> Bool {
-        if plant.flags?.trailing == true {
-            return true
-        }
-
-        let text = searchableText(for: plant)
-        let hangingKeywords = [
-            "hanging", "trailing", "cascade", "cascading", "string of",
-            "suspendu", "suspendue", "suspension", "retombant", "retombante",
-            "ceropegia", "woodii", "chaine des coeurs", "string of hearts",
-            "hoya bella", "hoya linearis", "hoya",
-            "philodendron scandens", "philodendron hederaceum", "heartleaf",
-            "pothos", "scindapsus", "pictus", "pictum",
-            "dischidia", "rhipsalis", "senecio", "rowleyanus",
-            "tradescantia", "chlorophytum", "spider plant"
-        ]
-        return hangingKeywords.contains { text.contains($0) }
-    }
-
-    private static func searchableText(for plant: Plant) -> String {
-        var parts = [
-            plant.name,
-            plant.type,
-            plant.description
-        ]
-
-        for translation in plant.translations.values {
-            parts.append(translation.description)
-            parts.append(translation.plantType)
-            if let growth = translation.lifeCycle?.growth { parts.append(growth) }
-            if let tips = translation.care?.extraTips { parts.append(contentsOf: tips) }
-        }
-
-        return parts
-            .joined(separator: " ")
-            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
-            .lowercased()
+        supports(plant, mode: .ceiling)
     }
 }

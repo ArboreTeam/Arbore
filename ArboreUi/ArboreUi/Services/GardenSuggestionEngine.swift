@@ -63,6 +63,12 @@ final class GardenSuggestionEngine {
 
     /// Generate a garden suggestion from wizard filters and the full plant catalogue.
     /// This runs 100% on-device and is designed to complete in < 100ms.
+    /// **`locale` ne décide plus de rien.** Aucun classement, aucune
+    /// catégorie, aucun écart de sûreté n'en dépend : la composition ne lit
+    /// que des valeurs closes, identiques pour tous les lecteurs (#792). Les
+    /// libellés et les résumés restent localisés, mais par `L10n`. Le
+    /// paramètre est conservé pour ne pas casser les appelants ; il est
+    /// délibérément inutilisé, et c'est le but.
     func suggest(
         from wizard: GardenWizardDTO,
         plants: [Plant],
@@ -90,8 +96,12 @@ final class GardenSuggestionEngine {
             let suitability = evaluator.evaluate(plant)
             guard suitability.isRecommended else { return nil }
 
-            let confidencePenalty = suitability.level == .suitable ? 1.0 : 0.78
-            let missingPenalty = min(Double(suitability.missingDataKeys.count) * 0.025, 0.20)
+            let confidencePenalty = suitability.level == .suitable
+                ? 1.0 : PlantThresholds.Scoring.unconfirmedConfidence
+            let missingPenalty = min(
+                Double(suitability.missingDataKeys.count) * PlantThresholds.Scoring.missingDataPenalty,
+                PlantThresholds.Scoring.missingDataPenaltyCap
+            )
             let score = max(0, (suitability.score ?? 0) * confidencePenalty - missingPenalty)
             let reasonKeys = suitability.positiveReasonKeys + suitability.warningReasonKeys
             let reasons = reasonKeys.isEmpty
@@ -103,11 +113,7 @@ final class GardenSuggestionEngine {
         .sorted { $0.score > $1.score }
 
         // 2. Apply composition rules (diversity, height mix, style-aware count)
-        let composed = applyCompositionRules(
-            scored: scored,
-            wizard: wizard,
-            locale: locale
-        )
+        let composed = applyCompositionRules(scored: scored, wizard: wizard)
 
         // 3. Build suggestion
         let avgScore = composed.isEmpty ? 0 : composed.map(\.score).reduce(0, +) / Double(composed.count)
@@ -132,8 +138,7 @@ final class GardenSuggestionEngine {
     /// Apply diversity & style-aware composition rules to produce a balanced garden.
     private func applyCompositionRules(
         scored: [ScoredPlant],
-        wizard: GardenWizardDTO,
-        locale: String
+        wizard: GardenWizardDTO
     ) -> [SuggestedPlant] {
 
         // Determine target count based on style
@@ -145,15 +150,15 @@ final class GardenSuggestionEngine {
             guard selected.count < count else { break }
 
             // Skip plants with very low scores
-            guard sp.score > 0.25 else { continue }
+            guard sp.score > PlantThresholds.Scoring.minimumSuggestionScore else { continue }
 
             // Diversity rule: max 2 plants of the same base type
-            let baseType = normalizeType(sp.plant.type)
+            let baseType = diversityKey(sp.plant)
             let currentCount = usedTypes[baseType, default: 0]
-            if currentCount >= 2 { continue }
+            if currentCount >= PlantThresholds.Scoring.maxPlantsPerKind { continue }
 
             // Classify by category
-            let category = classifyPlant(sp.plant, locale: locale)
+            let category = classifyPlant(sp.plant)
 
             let suggested = SuggestedPlant(
                 id: sp.plant.id,
@@ -182,6 +187,30 @@ final class GardenSuggestionEngine {
     }
 
     /// Normalize plant type for diversity tracking.
+    /// La clé de groupement de la règle de diversité.
+    ///
+    /// Elle lit `kinds`, la valeur close, et non plus le `type` en texte
+    /// libre (#793). Ce qui précédait normalisait deux chaînes FRANÇAISES en
+    /// dur — « plante d'intérieur » et « plante grimpante » — donc pour une
+    /// fiche en anglais seul, 877 sur 1021, la normalisation ne faisait rien
+    /// et le groupement tombait sur la valeur brute. La règle « au maximum
+    /// deux plantes de même nature » ne tenait pas de la même façon selon la
+    /// langue de la fiche.
+    ///
+    /// Une plante porte parfois plusieurs natures ; on groupe sur la première
+    /// dans l'ordre du vocabulaire, ce qui est stable d'une exécution à
+    /// l'autre — contrairement à l'ordre d'un `Set`.
+    private func diversityKey(_ plant: Plant) -> String {
+        let natures = plant.botanicalProfile?.kinds?.values ?? []
+        if let premiere = PlantCatalogKind.allCases.first(where: natures.contains) {
+            return premiere.rawValue
+        }
+        // Repli tant que des fiches sont sans `kinds` — 40 aujourd'hui. Il
+        // reste sensible à la langue, mais il ne s'applique plus qu'à elles.
+        return normalizeType(plant.type)
+    }
+
+    /// Repli du groupement, pour les seules fiches sans `kinds`.
     private func normalizeType(_ type: String) -> String {
         type.lowercased()
             .replacingOccurrences(of: "plante d'intérieur", with: "intérieur")
@@ -189,28 +218,39 @@ final class GardenSuggestionEngine {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Classify a plant by height/role category based on keywords in its data.
-    private func classifyPlant(_ plant: Plant, locale: String) -> SuggestedPlant.PlantCategory {
-        let name = plant.name.lowercased()
-        let type = plant.type.lowercased()
-        let desc = plant.translations[locale]?.description.lowercased() ?? ""
-        let combined = name + " " + type + " " + desc
+    /// Classe une plante par rôle de composition, depuis ses valeurs CLOSES.
+    ///
+    /// Cette fonction concaténait le nom, le type et la **description
+    /// traduite**, puis y cherchait des mots-clés. La catégorie d'une plante
+    /// dépendait donc de la formulation retenue par un traducteur — et d'un
+    /// appariement sans frontière de mot, dont la conséquence était mesurable
+    /// sur le catalogue : `mousse` appariait « tuteur **mousse** », donc le
+    /// `Monstera_Deliciosa_Pot_Tuteur_Mousse` et le
+    /// `Pothos_Dore_Vert_Sur_Tuteur_Mousse` étaient classés **couvre-sol**
+    /// parce que leur nom contenait le mot (#792).
+    ///
+    /// L'ordre des branches reste celui d'avant — le rôle le plus spécifique
+    /// d'abord — mais chaque test lit `kinds`, `goals` ou `size`.
+    private func classifyPlant(_ plant: Plant) -> SuggestedPlant.PlantCategory {
+        let traits = PlantCatalogTraits.snapshot(for: plant)
 
-        if combined.contains("grimpant") || combined.contains("climbing") || combined.contains("lierre") || combined.contains("ivy") {
+        if traits.kinds.contains(.climbing) || traits.goals.contains(.coverWall) {
             return .climbing
         }
-        if combined.contains("couvre-sol") || combined.contains("ground") || combined.contains("mousse") || combined.contains("moss") {
+        if traits.kinds.contains(.groundcover) || traits.goals.contains(.coverGround) {
             return .groundCover
         }
-        if combined.contains("arbre") || combined.contains("tree") || combined.contains("palmier")
-            || combined.contains("palm") || combined.contains("figuier") || combined.contains("olivier") {
+        if !traits.kinds.isDisjoint(with: [.tree, .palm, .conifer]) || traits.size == .large {
             return .tall
         }
-        if combined.contains("succulente") || combined.contains("succulent") || combined.contains("cactus")
-            || combined.contains("couvre") || combined.contains("mini") || combined.contains("petit") {
+        if traits.kinds.contains(.cactusSucculent) || traits.size == .small {
             return .low
         }
 
+        // `.medium` reste le défaut, et c'est assumé : une plante dont la
+        // nature et le gabarit ne sont pas établis occupe le rôle du milieu
+        // plutôt que de disparaître de la composition. C'est un défaut
+        // d'AFFICHAGE, pas un trait affirmé sur la fiche.
         return .medium
     }
 
@@ -239,7 +279,7 @@ final class GardenSuggestionEngine {
             ?? L10n.t("SUGGESTION_SUMMARY_STYLE_CUSTOM")
 
         let quality: String
-        if avgScore > 0.75 {
+        if avgScore > PlantThresholds.Scoring.wellMatchedGardenScore {
             quality = L10n.t("SUGGESTION_SUMMARY_QUALITY_EXCELLENT")
         } else if avgScore > 0.5 {
             quality = L10n.t("SUGGESTION_SUMMARY_QUALITY_GOOD")

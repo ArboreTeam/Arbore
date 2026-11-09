@@ -29,6 +29,22 @@ enum PlantThresholds {
 
         /// En deçà, on ne parle pas de plein soleil.
         static let fullSunMinHours: Double = 6
+
+        /// Au-delà, une pièce est traitée comme lumineuse, et la pose
+        /// automatique distribue alors les plantes de plein soleil vers la
+        /// zone exposée. En dessous, il n'y a pas de zone exposée à
+        /// distribuer et l'ordre de pose s'inverse.
+        ///
+        /// 500 lux est l'ordre de grandeur d'un bureau éclairé ; en dessous on
+        /// est dans un intérieur sombre. Le seuil était en dur dans
+        /// `GardenARPlacementView` (#795). Entier, comme la mesure dont il
+        /// vient : `Int(rawLux)`.
+        static let brightRoomLux: Int = 500
+
+        /// Dans une pièce sombre, une plante de plein soleil est resserrée
+        /// dans ce rayon autour du barycentre de la zone : au plus près de ce
+        /// que la pièce peut offrir, faute de zone exposée.
+        static let dimRoomCentreRadiusMeters: Float = 0.3
     }
 
     /// Intervalle entre deux arrosages, en jours.

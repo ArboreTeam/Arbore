@@ -1,0 +1,10 @@
+Filtros que dicen la verdad, también cuando no lo sabemos.
+
+• La ficha de una planta indica ahora si es segura para mascotas y para niños, con la fuente del veredicto y su fecha.
+• Cuando la toxicidad no está establecida, se dice. Esas plantas vuelven al catálogo en lugar de quedar excluidas: la incertidumbre es nuestra, no suya.
+• Los filtros de luz y de riego se aplican ahora a todas las plantas. Muchas pasaban sin ser comprobadas, según el idioma de la ficha. Sus listas pueden ser más cortas, y más exactas.
+• El filtro de riego funciona: las necesidades de agua provienen de fuentes hortícolas con nombre.
+• Nuevo filtro por color, follaje incluido.
+• La colocación automática en el jardín tiene en cuenta la necesidad real de sol de cada planta.
+
+Si una planta parece mal clasificada o mal filtrada, díganos su nombre.

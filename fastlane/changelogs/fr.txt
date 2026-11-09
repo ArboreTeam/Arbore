@@ -1,0 +1,10 @@
+Des filtres qui disent la vérité, même quand on ne sait pas.
+
+• La fiche d'une plante indique maintenant si elle est sûre pour les animaux et pour les enfants, avec la source du verdict et sa date.
+• Quand la toxicité n'est pas établie, c'est écrit. Ces plantes réapparaissent dans le catalogue au lieu d'en être exclues : l'incertitude est la nôtre, pas la leur.
+• Les filtres lumière et arrosage s'appliquent désormais à toutes les plantes. Ils en laissaient passer beaucoup sans les vérifier, selon la langue de la fiche. Vos listes peuvent donc être plus courtes, et plus justes.
+• Le filtre arrosage fonctionne : les besoins en eau viennent de sources horticoles nommées.
+• Nouveau filtre par couleur, feuillage compris.
+• Le placement automatique dans le jardin tient compte du vrai besoin en soleil de chaque plante.
+
+Si une plante vous semble mal classée ou mal filtrée, dites-le nous avec son nom.

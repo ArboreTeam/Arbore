@@ -3976,7 +3976,10 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         surfaceY=\(surfaceHeight, format: .fixed(precision: 3), privacy: .public)
                         """)
 
+                    // Mode de pose, ancre, LOD, hauteur et pot sont relus du
+                    // nœud par `init(noeud:)`, et non énumérés ici.
                     return PersistedPlant(
+                        noeud: node,
                         plantID: plantId,
                         plantName: plantNameValue,
                         modelURLString: modelFileName,
@@ -3986,11 +3989,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         transform: matrixToFloatArray(anchorTransform),
                         upAxis: plantUpAxisMap[plantId],
                         surfaceType: surfaceType,
-                        surfaceHeight: surfaceHeight,
-                        placementMode: placementMode,
-                        surfaceAnchor: node.arboreSurfaceAnchor,
-                        hasHeavy: node.arboreHasHeavy,
-                        heightMeters: node.arboreHeightMeters > 0 ? node.arboreHeightMeters : nil
+                        surfaceHeight: surfaceHeight
                     )
                 }
             }
@@ -4390,6 +4389,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                         AppLog.plants.error("worldMapAttach: model unresolvable url=\(p.modelURLString, privacy: .public)")
                         return
                     }
+                    let potURL = await self.potModelURL(pour: p.pot)
                     await MainActor.run {
                         let pending = PendingPlantPlacement(
                             modelURL: modelURL,
@@ -4407,7 +4407,9 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                             instanceId: anchor.identifier,
                             autoSelect: false,
                             hasHeavy: p.hasHeavy == true,
-                            heightMeters: p.heightMeters
+                            heightMeters: p.heightMeters,
+                            pot: p.pot,
+                            potModelURL: potURL
                         )
                         self.instantiatePlantNode(into: node, pending: pending, anchorTransform: anchorTransform)
                     }
@@ -4529,6 +4531,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                             let finalScale = SCNVector3(p.scale[0], p.scale[1], p.scale[2])
                             let captured = transform
                             group.addTask {
+                                let potURL = await self.potModelURL(pour: p.pot)
                                 do {
                                     let remoteURL = try await ModelCacheManager.shared.getModelURL(for: p.modelURLString, forceDownload: false)
                                     await MainActor.run {
@@ -4544,7 +4547,9 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                             surfaceHeight: p.surfaceHeight,
                                             placementMode: ARPlacementMode.fromPersisted(p.placementMode),
                                             surfaceAnchor: p.surfaceAnchor,
-                                            hasHeavy: p.hasHeavy == true
+                                            hasHeavy: p.hasHeavy == true,
+                                            pot: p.pot,
+                                            potModelURL: potURL
                                         )
                                     }
                                 } catch {
@@ -4563,7 +4568,9 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                                                 surfaceHeight: p.surfaceHeight,
                                                 placementMode: ARPlacementMode.fromPersisted(p.placementMode),
                                                 surfaceAnchor: p.surfaceAnchor,
-                                                hasHeavy: p.hasHeavy == true
+                                                hasHeavy: p.hasHeavy == true,
+                                                pot: p.pot,
+                                                potModelURL: potURL
                                             )
                                         }
                                     } else {
@@ -4649,6 +4656,26 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
 
                 AppLog.plants.error("model file not found name=\(fileName, privacy: .public)")
                 return nil
+            }
+
+            /// Fichier local du modèle de pot d'une plante ENREGISTRÉE, pour
+            /// que le jardin se rouvre avec ses pots.
+            ///
+            /// Un échec laisse la plante nue plutôt que de refuser la pose :
+            /// le pot reste porté par le nœud (`arborePot`), donc la
+            /// sauvegarde suivante ne le perd pas pour autant.
+            func potModelURL(pour pot: PersistedPot?) async -> URL? {
+                guard let pot, !pot.modelURLString.isEmpty else { return nil }
+                do {
+                    return try await ModelCacheManager.shared.getModelURL(
+                        for: pot.modelURLString, version: pot.version)
+                } catch {
+                    AppLog.plants.error("""
+                        pot download failed pot=\(pot.potID, privacy: .public) \
+                        error=\(String(describing: error), privacy: .public)
+                        """)
+                    return nil
+                }
             }
 
             // MARK: - Actions Standards
@@ -5072,6 +5099,11 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                     container.arboreSurfaceAnchor = pending.surfaceAnchor
                     container.arboreHasHeavy = pending.hasHeavy
                     container.arboreHeightMeters = pending.heightMeters ?? 0
+                    // Posé AVANT l'attache, et sans condition de réussite : si
+                    // le modèle du pot n'a pas pu être résolu, la plante sort
+                    // nue — visible et réparable — mais son pot reste
+                    // enregistré, donc la sauvegarde suivante ne le perd pas.
+                    container.arborePot = pending.pot
 
                     let wrapper = SCNNode()
                     for child in scene.rootNode.childNodes { wrapper.addChildNode(child) }
@@ -5278,6 +5310,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 next.arborePlacementMode = current.arborePlacementMode
                 next.arboreSurfaceAnchor = current.arboreSurfaceAnchor
                 next.arboreHasHeavy = current.arboreHasHeavy
+                next.arborePot = current.arborePot
                 next.arboreCurrentLOD = lod.rawValue
                 next.arboreLODLockedUntil = CACurrentMediaTime() + PlantLODPolicy.swapDebounce
 
@@ -5935,6 +5968,15 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
                 let halo = wrapper.flattenedClone()
                 halo.name = Self.outlineHaloName
                 halo.scale = SCNVector3(Self.outlineHaloScale, Self.outlineHaloScale, Self.outlineHaloScale)
+                // Agrandir AUTOUR DU CENTRE de la boîte englobante. Autour de
+                // l'origine, l'agrandissement multiplie le décalage de chaque
+                // point : le halo d'une plante centrée paraît juste, celui de
+                // son pot — attaché en contrebas par `attachPot` — s'éloigne
+                // proportionnellement.
+                let (haloMin, haloMax) = halo.boundingBox
+                halo.pivot = HaloDeSelection.pivot(boiteMin: haloMin, boiteMax: haloMax,
+                                                   echelle: Self.outlineHaloScale,
+                                                   orientationDuClone: halo.simdOrientation)
                 halo.opacity = 0  // hidden until selectNode / applyOutline
                 halo.renderingOrder = Self.outlineRenderingOrder
                 let mat = SCNMaterial()
@@ -7148,5 +7190,119 @@ extension SCNNode {
     var arboreModelRawHeight: Double {
         get { (value(forKey: "arboreModelRawHeight") as? Double) ?? 0 }
         set { setValue(newValue, forKey: "arboreModelRawHeight") }
+    }
+    /// Pot posé sous cette plante, porté par le nœud comme l'est déjà l'ancre
+    /// de surface.
+    ///
+    /// `attachPot` ajoute le pot en nœud enfant, mais sa géométrie ne dit ni
+    /// de quel pot il s'agit, ni à quelle échelle, ni où sa lèvre a été
+    /// posée : rien de tout cela ne se reconstruit depuis le maillage. Sans
+    /// cette métadonnée, la capture d'état n'a littéralement rien à
+    /// enregistrer, et le pot se perd à chaque sauvegarde.
+    ///
+    /// Elle vit sur le nœud, et pas dans un dictionnaire du coordinateur :
+    /// une entrée indexée par nœud survivrait à la suppression de la plante.
+    var arborePot: PersistedPot? {
+        get {
+            guard let raw = value(forKey: "arborePotJSON") as? String,
+                  let data = raw.data(using: .utf8) else {
+                return nil
+            }
+            return try? JSONDecoder().decode(PersistedPot.self, from: data)
+        }
+        set {
+            guard let newValue,
+                  let data = try? JSONEncoder().encode(newValue),
+                  let raw = String(data: data, encoding: .utf8) else {
+                setValue(nil, forKey: "arborePotJSON")
+                return
+            }
+            setValue(raw, forKey: "arborePotJSON")
+        }
+    }
+}
+
+// MARK: - Enregistrement d'une plante telle qu'elle est dans la scène
+
+extension PersistedPlant {
+    /// Enregistrement d'une plante lue DEPUIS SON NŒUD.
+    ///
+    /// Les métadonnées portées par le nœud sont relues ici, et nulle part
+    /// ailleurs. `PersistedPlant.init` les accepte toutes avec une valeur par
+    /// défaut : un argument oublié au point d'appel ne tire pas un mot au
+    /// compilateur, et c'est exactement comme ça que `pot` s'est perdu à
+    /// chaque sauvegarde. Un seul endroit relit le nœud, et l'aller-retour
+    /// scène → disque → scène devient vérifiable sans AR.
+    init(noeud: SCNNode,
+         plantID: String,
+         plantName: String,
+         modelURLString: String,
+         position: [Float],
+         rotation: [Float],
+         scale: [Float],
+         transform: [Float],
+         upAxis: String?,
+         surfaceType: String?,
+         surfaceHeight: Float?) {
+        self.init(plantID: plantID,
+                  plantName: plantName,
+                  modelURLString: modelURLString,
+                  position: position,
+                  rotation: rotation,
+                  scale: scale,
+                  transform: transform,
+                  upAxis: upAxis,
+                  surfaceType: surfaceType,
+                  surfaceHeight: surfaceHeight,
+                  placementMode: noeud.arborePlacementMode,
+                  surfaceAnchor: noeud.arboreSurfaceAnchor,
+                  hasHeavy: noeud.arboreHasHeavy,
+                  heightMeters: noeud.arboreHeightMeters > 0 ? noeud.arboreHeightMeters : nil,
+                  pot: noeud.arborePot)
+    }
+}
+
+// MARK: - Géométrie du halo de sélection
+
+/// Calculs du halo de sélection, isolés du coordinateur pour être vérifiables
+/// sans AR : un halo juste à l'écran demande un appareil, mais sa position se
+/// précalcule.
+enum HaloDeSelection {
+    /// Pivot à poser sur le clone pour que son agrandissement se fasse AUTOUR
+    /// DU CENTRE de sa boîte englobante, et non autour de son origine.
+    ///
+    /// SceneKit compose le pivot À L'EXTÉRIEUR de la transformation du nœud
+    /// (parent ← pivot⁻¹ · T·R·S : c'est la convention relevée sur appareil
+    /// pour le pivot de pose, #113). Un point `p` du clone atterrit donc en
+    /// `échelle · p − t`, et l'on veut qu'il atterrisse en
+    /// `centre + échelle · (p − centre)`, d'où `t = (échelle − 1) · centre`.
+    ///
+    /// Le pivot s'appliquant du côté du conteneur, le centre doit y être
+    /// exprimé : d'où `orientationDuClone`. Un porteur en Z-up porte une
+    /// correction de −90° autour de x, et le clone peut la reprendre ; sans
+    /// elle, le halo d'une plante en Z-up se recalerait de travers.
+    ///
+    /// Une échelle nulle ou non finie rend l'identité : mieux vaut le halo
+    /// d'avant qu'un halo parti ailleurs.
+    static func pivot(boiteMin: SCNVector3, boiteMax: SCNVector3,
+                      echelle: Float,
+                      orientationDuClone: simd_quatf = simd_quatf(ix: 0, iy: 0,
+                                                                  iz: 0, r: 1)) -> SCNMatrix4 {
+        guard echelle > 0, echelle.isFinite else { return SCNMatrix4Identity }
+        let centre = SIMD3<Float>((boiteMin.x + boiteMax.x) / 2,
+                                  (boiteMin.y + boiteMax.y) / 2,
+                                  (boiteMin.z + boiteMax.z) / 2)
+        guard centre.x.isFinite, centre.y.isFinite, centre.z.isFinite else {
+            return SCNMatrix4Identity
+        }
+        let centreConteneur = orientationDuClone.act(centre)
+        guard centreConteneur.x.isFinite, centreConteneur.y.isFinite,
+              centreConteneur.z.isFinite else {
+            return SCNMatrix4Identity
+        }
+        let k = echelle - 1
+        return SCNMatrix4MakeTranslation(k * centreConteneur.x,
+                                         k * centreConteneur.y,
+                                         k * centreConteneur.z)
     }
 }

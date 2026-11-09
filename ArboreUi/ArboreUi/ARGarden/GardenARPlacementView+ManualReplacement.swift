@@ -237,6 +237,7 @@ extension GardenARPlacementContainerView.Coordinator {
                     let transform = mp.newTransform
                     let finalScale = SCNVector3(persisted.scale[0], persisted.scale[1], persisted.scale[2])
                     group.addTask {
+                        let potURL = await self.potModelURL(pour: persisted.pot)
                         do {
                             let url = try await ModelCacheManager.shared.getModelURL(for: persisted.modelURLString, forceDownload: false)
                             await MainActor.run {
@@ -255,7 +256,9 @@ extension GardenARPlacementContainerView.Coordinator {
                                     placementMode: ARPlacementMode.fromPersisted(persisted.placementMode),
                                     surfaceAnchor: persisted.surfaceAnchor,
                                     autoSelect: false,  // batch — entering .adjusting
-                                    hasHeavy: persisted.hasHeavy == true
+                                    hasHeavy: persisted.hasHeavy == true,
+                                    pot: persisted.pot,
+                                    potModelURL: potURL
                                 )
                             }
                         } catch {
@@ -274,7 +277,9 @@ extension GardenARPlacementContainerView.Coordinator {
                                         placementMode: ARPlacementMode.fromPersisted(persisted.placementMode),
                                         surfaceAnchor: persisted.surfaceAnchor,
                                         autoSelect: false,
-                                        hasHeavy: persisted.hasHeavy == true
+                                        hasHeavy: persisted.hasHeavy == true,
+                                        pot: persisted.pot,
+                                        potModelURL: potURL
                                     )
                                 }
                             }

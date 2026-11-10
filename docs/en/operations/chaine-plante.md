@@ -170,6 +170,46 @@ one moves to the CPU downstream.
 This is the chain's real bottleneck: the GPU produces faster than a human
 decides.
 
+## 5b · Sizes — the pot as a ruler
+
+**This is a page separate from the review, and a second human intervention.**
+It lives at `/generator/tailles`.
+
+The generator returns a mesh **with no scale**: nothing in the model says
+whether the plant is 20 cm or 2 m tall. A reference is therefore needed, and
+the pot is it.
+
+**The method.** You give the **pot diameter**; the scale follows
+(`diameter / 2 × measured radius`), and the plant's height is computed. Ten
+diameters are offered, the commercial ones: 10, 12, 14, 15, 17, 19, 21, 24, 27
+and 30 cm.
+
+**Height is measured from the SOIL, not from the bottom of the pot.** That is
+what matters for placement: the user sees the plant, not the container. Until a
+cut pass has written `hauteurVegetal`, the page falls back to what rises above
+the **rim** — slightly higher than the soil, hence an **underestimate**, which
+it flags rather than papers over.
+
+**The stage** says whether the model depicts a **young** or an **adult**
+specimen. It is distinct from `matureHeightCm`: that one is the species' adult
+height, serving the `size` bracket and filtering; the `taille` is the height of
+**this model**, serving placement.
+
+Confusing the two means placing a young *Ficus elastica* sold in a Ø 15 pot at
+the species' adult height — several metres.
+
+### Why this work stays manual
+
+Measured on a batch of 221 validated plants awaiting a size: **only 33 carry a
+pot diameter extractable from their label**, or 14%. And six of those thirty-
+three fall **outside** the ten offered diameters — 6, 9 or 11 cm pots.
+
+Pre-filling was therefore not adopted, and the reason is worth writing down: a
+**wrong, pre-filled diameter is confirmed with one click**, where an empty
+field forces a look at the model. It is the same rule as at import — a field
+that decides in the human's place is worse than an absent field — applied to an
+interface.
+
 ## 6 · Cut, USDZ and levels of detail
 
 CPU work, replayable. Three outputs:

@@ -176,6 +176,46 @@ neuve ; une plante validée part vers l'aval CPU.
 C'est le goulot réel de la chaîne : le GPU produit plus vite qu'un humain ne
 tranche.
 
+## 5 bis · Les tailles — le pot sert de règle
+
+**C'est une page distincte de la revue, et une seconde intervention humaine.**
+Elle vit à `/generator/tailles`.
+
+Le générateur rend un maillage **sans échelle** : rien, dans le modèle, ne dit
+si la plante fait 20 cm ou 2 m. Il faut donc une référence, et c'est le pot.
+
+**La méthode.** On donne le **diamètre du pot** ; l'échelle s'en déduit
+(`diamètre / 2 × rayon mesuré`), et la hauteur du végétal se calcule. Dix
+diamètres sont proposés, ceux du commerce : 10, 12, 14, 15, 17, 19, 21, 24, 27
+et 30 cm.
+
+**La hauteur est mesurée depuis la TERRE, pas depuis le bas du pot.** C'est ce
+qui compte pour poser la plante : l'utilisateur voit le végétal, pas le
+contenant. Tant qu'une passe de coupe n'a pas écrit `hauteurVegetal`, la page
+retombe sur ce qui dépasse du **rebord** — un peu plus haut que la terre, donc
+une **sous-estimation**, qu'elle signale plutôt que de la maquiller.
+
+**Le stade** dit si le modèle représente un sujet **jeune** ou **adulte**. Il
+est distinct de `matureHeightCm` : celui-ci est la hauteur adulte de l'espèce,
+servant au gabarit `size` et au filtrage ; la `taille` est la hauteur **de ce
+modèle-ci**, servant à la pose.
+
+Confondre les deux conduit à poser un jeune *Ficus elastica* vendu en pot de
+Ø 15 à la hauteur de l'espèce adulte, soit **plusieurs mètres**.
+
+### Pourquoi ce travail reste manuel
+
+Mesuré sur un lot de 221 plantes validées en attente de taille : **33 seulement
+portent un diamètre de pot extractible de leur libellé**, soit 14 %. Et six de
+ces trente-trois tombent **hors** des dix diamètres proposés — pot de 6, 9 ou
+11 cm.
+
+Pré-remplir n'a donc pas été retenu, et la raison vaut d'être écrite : un
+diamètre **faux et pré-rempli se confirme d'un clic**, là où un champ vide
+force à regarder le modèle. C'est la même règle qu'à l'import — un champ qui
+décide à la place de l'humain est pire qu'un champ absent — appliquée à une
+interface.
+
 ## 6 · Coupe, USDZ et niveaux de détail
 
 Du CPU, rejouable. Trois sorties :
@@ -191,8 +231,9 @@ USDZ. Un fichier produit par un aller-retour glTF donne des plantes grises.
 
 ## 7 · Import en base
 
-Par [`appliquer-ops-mongo.py`](../../../data/generator/appliquer-ops-mongo.py),
-jamais à la main. Ses garde-fous, tous nés d'un incident :
+Par `appliquer-ops-mongo.py`, jamais à la main. Le script vit sur l'hôte de
+l'atelier, dans `GENERATOR_DATA_DIR`, et non dans le dépôt — c'est de
+l'outillage d'exploitation, pas du code livré. Ses garde-fous, tous nés d'un incident :
 
 - **`--base` est obligatoire et sans valeur par défaut**, pour qu'une
   étourderie ne vise jamais la production ;

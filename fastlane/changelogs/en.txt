@@ -1,10 +1,9 @@
-Filters that tell the truth, including when we do not know.
+Your pots stay put, and the selection no longer overflows.
 
-• A plant's page now states whether it is safe around pets and children, with the source of the verdict and its date.
-• When toxicity has not been established, it says so. Those plants are back in the catalogue instead of being excluded: the uncertainty is ours, not theirs.
-• The light and watering filters now apply to every plant. Many used to slip through unchecked, depending on the language of the entry. Your lists may therefore be shorter, and more accurate.
-• The watering filter works: water needs come from named horticultural sources.
-• New colour filter, foliage included.
-• Automatic placement in the garden now accounts for each plant's real sunlight needs.
+• A reopened garden keeps its pots. They were never saved: plants came back bare, and the potting work was lost.
+• A plant's measured height now survives reopening as well, in every case.
+• The outline of a selected plant now follows its pot instead of drifting off.
+• The light and watering filters apply to every plant, including those not translated into your language. Your lists may therefore be shorter, and more accurate.
+• A plant's page states whether it is safe around pets and children, with the source of the verdict.
 
-If a plant looks wrongly sorted or wrongly filtered, tell us its name.
+Gardens saved before this version come back without their pots: the data was never written. New ones keep them.

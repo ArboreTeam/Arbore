@@ -1,10 +1,9 @@
-Des filtres qui disent la vérité, même quand on ne sait pas.
+Vos pots restent en place, et la sélection ne déborde plus.
 
-• La fiche d'une plante indique maintenant si elle est sûre pour les animaux et pour les enfants, avec la source du verdict et sa date.
-• Quand la toxicité n'est pas établie, c'est écrit. Ces plantes réapparaissent dans le catalogue au lieu d'en être exclues : l'incertitude est la nôtre, pas la leur.
-• Les filtres lumière et arrosage s'appliquent désormais à toutes les plantes. Ils en laissaient passer beaucoup sans les vérifier, selon la langue de la fiche. Vos listes peuvent donc être plus courtes, et plus justes.
-• Le filtre arrosage fonctionne : les besoins en eau viennent de sources horticoles nommées.
-• Nouveau filtre par couleur, feuillage compris.
-• Le placement automatique dans le jardin tient compte du vrai besoin en soleil de chaque plante.
+• Un jardin rouvert retrouve ses pots. Ils n'étaient pas enregistrés : les plantes revenaient nues, et le travail de mise en pot était perdu.
+• La hauteur mesurée d'une plante survit elle aussi à la réouverture, dans tous les cas.
+• Le contour d'une plante sélectionnée épouse maintenant son pot au lieu de se décaler.
+• Les filtres lumière et arrosage s'appliquent à toutes les plantes, y compris celles qui ne sont pas traduites dans votre langue. Vos listes peuvent donc être plus courtes, et plus justes.
+• La fiche indique si une plante est sûre pour les animaux et les enfants, avec la source du verdict.
 
-Si une plante vous semble mal classée ou mal filtrée, dites-le nous avec son nom.
+Les jardins enregistrés avant cette version restent sans leurs pots : la donnée n'avait jamais été écrite. Les nouveaux les gardent.

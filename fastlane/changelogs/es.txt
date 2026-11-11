@@ -1,10 +1,9 @@
-Filtros que dicen la verdad, también cuando no lo sabemos.
+Sus macetas se quedan donde están, y la selección ya no se desplaza.
 
-• La ficha de una planta indica ahora si es segura para mascotas y para niños, con la fuente del veredicto y su fecha.
-• Cuando la toxicidad no está establecida, se dice. Esas plantas vuelven al catálogo en lugar de quedar excluidas: la incertidumbre es nuestra, no suya.
-• Los filtros de luz y de riego se aplican ahora a todas las plantas. Muchas pasaban sin ser comprobadas, según el idioma de la ficha. Sus listas pueden ser más cortas, y más exactas.
-• El filtro de riego funciona: las necesidades de agua provienen de fuentes hortícolas con nombre.
-• Nuevo filtro por color, follaje incluido.
-• La colocación automática en el jardín tiene en cuenta la necesidad real de sol de cada planta.
+• Un jardín reabierto conserva sus macetas. No se guardaban: las plantas volvían desnudas y se perdía el trabajo de trasplante.
+• La altura medida de una planta también sobrevive a la reapertura, en todos los casos.
+• El contorno de una planta seleccionada sigue ahora su maceta en lugar de desplazarse.
+• Los filtros de luz y riego se aplican a todas las plantas, incluidas las que no están traducidas a su idioma. Sus listas pueden ser más cortas, y más exactas.
+• La ficha indica si una planta es segura para mascotas y niños, con la fuente del veredicto.
 
-Si una planta parece mal clasificada o mal filtrada, díganos su nombre.
+Los jardines guardados antes de esta versión vuelven sin sus macetas: el dato nunca se escribió. Los nuevos sí las conservan.

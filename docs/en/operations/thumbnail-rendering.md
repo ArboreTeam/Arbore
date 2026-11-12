@@ -205,6 +205,32 @@ Measured outcome: those 51 plants rendered **bare**.
 }
 ```
 
+### Prerequisite: the pot library must not be empty
+
+**Rendering a thumbnail with its pot requires at least one pot in the database,
+and at least one flagged `default: true`.** Without that the render still
+succeeds and produces a bare plant — nothing reports the absence.
+
+What `choisirPot` does when given nothing usable:
+
+| state of the `pots` collection | what is served |
+|---|---|
+| empty | `nil`: no pot, the plant renders bare |
+| non-empty, no `default` | **the first in the list**, at the mercy of Mongo's ordering |
+| non-empty, one `default` | the default pot |
+
+The second case is the trap: it breaks nothing, it picks for you, and the pot
+it picks can change between requests if the ordering changes.
+
+The pot entry alone is not enough. Its **USDZ must also be deployed** in the
+target environment's model directory: the worker downloads it at render time,
+and a 404 fails the task.
+
+Measured 2026-11-12, on `arbore_dev` as on `arbore`: a single pot,
+`cachepot_pieds`, `default: true`, with its USDZ present in both `models-dev`
+and `models-prod`. **With only one entry in the library, losing that `default`
+would leave nothing dependable to compose.**
+
 ### The disc radius does not depend on the mesh
 
 That is what makes the server-side computation legitimate. By construction, the

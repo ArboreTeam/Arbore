@@ -28,6 +28,25 @@ Pas de conversion de texture. Repasser un PNG en JPEG allégerait, mais c'est
 une réduction, et la consigne est de n'en faire aucune.
 
   python usdz_sans_reduction.py <repertoire_glb> [--out ...] [--workers 2]
+
+## Nommer la sortie : ce que le fichier EST, pas d'ou il vient (#773)
+
+`--suffixe` vaut `_potless` par defaut, parce que ce script a ete ecrit pour
+les coupes d'atelier, dont le maillage n'a plus son pot.
+
+**Pour un maillage qui GARDE son pot, passer `--suffixe ""`.** Le nom doit
+s'accorder avec le champ `potless` de la fiche, que le backend lit pour decider
+s'il compose un cachepot :
+
+    func sansPot(p Plant) bool { return p.Potless != nil && *p.Potless }
+
+Un nom qui dirait autre chose que le champ ferait poser un pot sur un maillage
+qui en a deja un.
+
+La generation (Meshy, TRELLIS) ne transparait PAS dans le nom : elle se lit a
+la taille et dans `versions.model`. Ecraser un maillage par un meilleur sous le
+meme nom est la voie normale, depuis que le cache de l'app s'indexe sur
+l'empreinte du contenu (#294) et non sur le nom de fichier.
 """
 from __future__ import annotations
 
@@ -79,6 +98,8 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Coupes d'atelier -> USDZ, sans reduction")
     p.add_argument("source", help="repertoire des GLB de coupe")
     p.add_argument("--out", default="trellis_brut")
+    # Defaut tourne vers les coupes d'atelier. Un maillage qui garde son pot
+    # se convertit avec `--suffixe ""` — voir l'en-tete, et #773.
     p.add_argument("--suffixe", default="_potless")
     # Deux par defaut : chaque conversion tient plusieurs centaines de Mo en
     # fichiers temporaires, et en lancer quatre remplit le disque.

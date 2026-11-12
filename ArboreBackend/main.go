@@ -341,13 +341,123 @@ type PlantDataEvidence struct {
 	Reliability string `json:"reliability,omitempty" bson:"reliability,omitempty"`
 }
 
+// fiabilitesValides est le vocabulaire fermé de PlantDataEvidence.Reliability.
+//
+// Il est ORDONNÉ : `low` < `moderate` < `high`. Le client exige une confiance
+// minimale qui dépend de l'axe — `low` pour le soleil, l'eau et le drainage,
+// `moderate` pour la toxicité, parce qu'un arrosage déduit qui se trompe coûte
+// une plante maussade et qu'une toxicité qui se trompe coûte un animal.
+//
+// Avant #780, ce champ était libre : le lecteur exigeait l'égalité exacte avec
+// `high` pendant que les écrivains produisaient `authoritative`,
+// `authoritative-genus` et `derived`. Aucune des trois ne correspondait, donc
+// chaque contrôle de provenance échouait et aucune plante ne pouvait être
+// déclarée adaptée. La base a été migrée : `authoritative` → `high`,
+// `authoritative-genus` → `moderate`, `derived` → `low`.
+var fiabilitesValides = map[string]int{
+	"low":      0,
+	"moderate": 1,
+	"high":     2,
+}
+
+// FiabiliteValide dit si une valeur appartient au vocabulaire fermé.
+// Une valeur inconnue doit être traitée comme `low`, jamais comme `high`.
+func FiabiliteValide(v string) bool {
+	_, ok := fiabilitesValides[strings.ToLower(strings.TrimSpace(v))]
+	return ok
+}
+
+// FiabiliteAuMoins dit si `v` atteint le seuil `minimum`. Une valeur hors
+// vocabulaire vaut le plancher, et une chaîne vide n'atteint aucun seuil :
+// ne rien consigner n'est pas une confiance faible, c'est une absence de source.
+func FiabiliteAuMoins(v, minimum string) bool {
+	if strings.TrimSpace(v) == "" {
+		return false
+	}
+	seuil, ok := fiabilitesValides[strings.ToLower(strings.TrimSpace(minimum))]
+	if !ok {
+		return false
+	}
+	rang, ok := fiabilitesValides[strings.ToLower(strings.TrimSpace(v))]
+	if !ok {
+		rang = 0 // hors vocabulaire : le plancher
+	}
+	return rang >= seuil
+}
+
 type PlantStringFact struct {
 	Value    string             `json:"value" bson:"value"`
 	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`
 }
 
+// PlantToxicityFact porte un verdict de toxicité en VALEUR CLOSE, et la prose
+// qui l'explique à côté.
+//
+// Le champ annonçait déjà ces quatre valeurs en commentaire, mais il était typé
+// `string` libre et les écrivains y ont mis des phrases sourcées. Le client en
+// avait tiré un analyseur de sous-chaînes, qui s'inversait : « unsafe »
+// contient « safe » (#778). Un verdict de sécurité se stocke, il ne se lit pas
+// dans de la prose — d'où `Value` fermé et `Detail` purement informatif.
+type PlantToxicityFact struct {
+	Value    string             `json:"value" bson:"value"`
+	Detail   string             `json:"detail,omitempty" bson:"detail,omitempty"`
+	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`
+}
+
+// verdictsToxiciteValides est le vocabulaire fermé de PlantToxicityFact.Value.
+//
+// `irritant` est distinct de `toxic` parce que les sources le distinguent ; le
+// client les traite tous deux comme une atteinte. `unknown` est une valeur de
+// plein droit, et non l'absence du champ : elle dit qu'on a cherché sans
+// trouver, ce qu'aucun booléen ne sait exprimer.
+var verdictsToxiciteValides = map[string]struct{}{
+	"safe":     {},
+	"toxic":    {},
+	"irritant": {},
+	"unknown":  {},
+}
+
+// VerdictToxiciteValide dit si une valeur appartient au vocabulaire fermé.
+// Une valeur inconnue doit être traitée comme `unknown`, jamais comme `safe`.
+func VerdictToxiciteValide(v string) bool {
+	_, ok := verdictsToxiciteValides[strings.ToLower(strings.TrimSpace(v))]
+	return ok
+}
+
+// PlantTraitFact porte un trait de description en VALEUR CLOSE, et la prose qui
+// l'explique à côté (#792).
+//
+// C'est le frère de `PlantToxicityFact`, et pour la même raison : les traits se
+// lisaient dans la prose, donc `Value` est fermé et `Detail` purement
+// informatif. Rien ne lit `Detail` pour décider — il conserve la formulation de
+// la source (« Feuillage décoratif » au champ « Période de floraison »), qui
+// explique le verdict sans le produire.
+//
+// Le type est distinct de `PlantStringFact` uniquement pour ce `Detail` : le
+// client le décode et l'affiche, et un backend qui le laisserait tomber le
+// perdrait au premier aller-retour.
+type PlantTraitFact struct {
+	Value    string             `json:"value" bson:"value"`
+	Detail   string             `json:"detail,omitempty" bson:"detail,omitempty"`
+	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`
+}
+
+// PlantStringListFact est un fait de liste en valeurs closes.
+//
+// `Detail` a été ajouté après le premier remplissage des couleurs, qui en
+// avait besoin et ne l'avait pas : il devait dire, par fiche, si la source
+// avait fiché LE CULTIVAR ou seulement L'ESPÈCE — *Photinia × fraseri* n'est
+// pas rouge, 'Red Robin' l'est. Faute de champ, la mention était écrite dans
+// `Evidence.SourceName`, qui devenait un commentaire plutôt qu'un nom de
+// source, sur 711 fiches.
+//
+// C'est le même rôle que le `Detail` de `PlantStringFact` et de
+// `PlantToxicityFact` : la valeur close dit CE QUE c'est, le détail dit ce que
+// la source précise autour. Une clé `detail` posée ici avant cet ajout était
+// silencieusement perdue au premier aller-retour.
 type PlantStringListFact struct {
 	Value    []string           `json:"value" bson:"value"`
+	Detail   string             `json:"detail,omitempty" bson:"detail,omitempty"`
 	Evidence *PlantDataEvidence `json:"evidence,omitempty" bson:"evidence,omitempty"`
 }
 
@@ -380,9 +490,58 @@ type PlantBotanicalProfile struct {
 	WindTolerance          *PlantStringFact     `json:"windTolerance,omitempty" bson:"windTolerance,omitempty"`
 	DroughtTolerance       *PlantStringFact     `json:"droughtTolerance,omitempty" bson:"droughtTolerance,omitempty"`
 	SaltTolerance          *PlantStringFact     `json:"saltTolerance,omitempty" bson:"saltTolerance,omitempty"`
-	PetToxicity            *PlantStringFact     `json:"petToxicity,omitempty" bson:"petToxicity,omitempty"`
-	ChildToxicity          *PlantStringFact     `json:"childToxicity,omitempty" bson:"childToxicity,omitempty"`
-	SchemaVersion          *int                 `json:"schemaVersion,omitempty" bson:"schemaVersion,omitempty"`
+	PetToxicity            *PlantToxicityFact   `json:"petToxicity,omitempty" bson:"petToxicity,omitempty"`
+	ChildToxicity          *PlantToxicityFact   `json:"childToxicity,omitempty" bson:"childToxicity,omitempty"`
+
+	// ---------- TRAITS DE DESCRIPTION, EN VALEURS CLOSES (#792) ----------
+	//
+	// Ces champs vivent ICI, à côté de `petToxicity` et de `matureHeightCm`,
+	// et non dans un objet frère : le profil n'est pas « les exigences de
+	// culture », c'est « les faits sourcés sur la plante ». Il porte déjà un
+	// verdict de toxicité, qui est un fait et non une exigence, et une hauteur
+	// adulte, qui est de la description pure. Deux endroits où chercher un fait
+	// sur une plante en feraient un de trop.
+	//
+	// Ils héritent donc de tout ce qui vaut pour le profil : chacun porte son
+	// `evidence` (source nommée, date, fiabilité), chacun est optionnel, et une
+	// valeur absente se dit `unknown` au lieu de se deviner.
+	//
+	// Ils remplacent ~146 lignes de dérivation par mots-clés sur la prose
+	// TRADUITE côté iOS. Les vocabulaires sont fermés et validés dans
+	// `plant_traits.go` ; une valeur hors vocabulaire est refusée à l'écriture
+	// et tombe vers le plancher à la lecture.
+
+	// Size : `small` · `medium` · `large` · `unknown`.
+	Size *PlantTraitFact `json:"size,omitempty" bson:"size,omitempty"`
+	// Kinds : la nature de la plante. Liste fermée de 15 valeurs, dont
+	// `conifer` que la typologie portait sans pouvoir le dire.
+	Kinds *PlantStringListFact `json:"kinds,omitempty" bson:"kinds,omitempty"`
+	// Goals : ce que la plante permet d'obtenir dans un aménagement.
+	Goals *PlantStringListFact `json:"goals,omitempty" bson:"goals,omitempty"`
+	// Colors : les couleurs dominantes.
+	Colors *PlantStringListFact `json:"colors,omitempty" bson:"colors,omitempty"`
+	// Placement : les CAPACITÉS DE POSE — `floor` · `wall` · `ceiling`.
+	// Le champ décide d'un geste physique, pas d'un badge : il remplace deux
+	// listes de mots-clés qui pouvaient déclarer une plante posable au mur
+	// alors qu'elle ne l'est pas.
+	Placement *PlantStringListFact `json:"placement,omitempty" bson:"placement,omitempty"`
+
+	// Les sept traits ci-dessous étaient des booléens dans `PlantFlags` et sont
+	// désormais TRI-ÉTAT : `yes` · `no` · `unknown`.
+	//
+	// Un `no` est une affirmation, un champ vide est un silence. Les confondre
+	// est le défaut exact du `toxicToPets: false` qui se lisait « prouvé
+	// inoffensif » sur 65 fiches où il voulait dire « pas recherché ».
+	Flowering      *PlantTraitFact `json:"flowering,omitempty" bson:"flowering,omitempty"`
+	EasyCare       *PlantTraitFact `json:"easyCare,omitempty" bson:"easyCare,omitempty"`
+	Compact        *PlantTraitFact `json:"compact,omitempty" bson:"compact,omitempty"`
+	Climbing       *PlantTraitFact `json:"climbing,omitempty" bson:"climbing,omitempty"`
+	Trailing       *PlantTraitFact `json:"trailing,omitempty" bson:"trailing,omitempty"`
+	HumidityLoving *PlantTraitFact `json:"humidityLoving,omitempty" bson:"humidityLoving,omitempty"`
+	AirPurifying   *PlantTraitFact `json:"airPurifying,omitempty" bson:"airPurifying,omitempty"`
+
+	// SchemaVersion vaut `VersionSchemaBotanique` (2 depuis #792).
+	SchemaVersion *int `json:"schemaVersion,omitempty" bson:"schemaVersion,omitempty"`
 }
 
 type AIResponse struct {
@@ -1168,6 +1327,24 @@ func createPlant(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&plant); err != nil {
 		respondInvalidBody(c, err)
+		return
+	}
+
+	// Une valeur de trait hors vocabulaire est REFUSÉE, pas corrigée en
+	// silence (#792). Corriger ici perdrait la trace de ce que l'écrivain
+	// croyait écrire, et c'est ainsi que la base s'était remplie d'un
+	// vocabulaire de provenance que le lecteur n'attendait pas (#780).
+	if fautes := ValiderTraitsDuProfil(plant.BotanicalProfile); len(fautes) > 0 {
+		details := make([]gin.H, 0, len(fautes))
+		for _, f := range fautes {
+			details = append(details, gin.H{"field": f.Champ, "value": f.Valeur})
+		}
+		log.Printf("⚠️  traits hors vocabulaire refusés sur POST /plants : %v", fautes)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":  "Valeur de trait hors vocabulaire.",
+			"code":   "INVALID_PLANT_TRAIT",
+			"traits": details,
+		})
 		return
 	}
 

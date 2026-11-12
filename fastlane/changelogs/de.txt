@@ -1,0 +1,9 @@
+Ihre Töpfe bleiben, wo sie sind, und die Auswahl verrutscht nicht mehr.
+
+• Ein wieder geöffneter Garten behält seine Töpfe. Sie wurden nie gespeichert: die Pflanzen kamen nackt zurück, und die Arbeit des Eintopfens war verloren.
+• Auch die gemessene Höhe einer Pflanze übersteht das erneute Öffnen, in jedem Fall.
+• Die Kontur einer ausgewählten Pflanze folgt jetzt ihrem Topf, statt zu verrutschen.
+• Die Filter für Licht und Bewässerung gelten für alle Pflanzen, auch für die nicht in Ihre Sprache übersetzten. Ihre Listen können daher kürzer und genauer sein.
+• Die Seite einer Pflanze zeigt an, ob sie für Haustiere und Kinder unbedenklich ist, mit Quelle des Befunds.
+
+Gärten, die vor dieser Version gespeichert wurden, kommen ohne ihre Töpfe zurück: der Wert wurde nie geschrieben. Neue behalten sie.

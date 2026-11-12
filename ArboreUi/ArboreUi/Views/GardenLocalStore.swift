@@ -282,7 +282,13 @@ extension PersistedARScene {
                 surfaceHeight: plant.surfaceHeight,
                 placementMode: plant.placementMode,
                 surfaceAnchor: plant.surfaceAnchor,
-                hasHeavy: plant.hasHeavy
+                hasHeavy: plant.hasHeavy,
+                // `heightMeters` et `pot` étaient omis : une sauvegarde passée
+                // par ce recentrage ressortait à l'échelle d'avant #643 et
+                // SANS son pot. Reconstruire champ par champ ne prévient de
+                // rien — tous les paramètres ont une valeur par défaut.
+                heightMeters: plant.heightMeters,
+                pot: plant.pot
             )
         }
 

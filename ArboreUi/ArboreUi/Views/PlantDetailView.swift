@@ -192,7 +192,12 @@ struct PlantDetailView: View {
 
                             essentialsSection(t: t)
 
-                            GeneralInfoGridView(translation: t, plantName: plant.name)
+                            GeneralInfoGridView(
+                                translation: t,
+                                plantName: plant.name,
+                                botanicalProfile: plant.botanicalProfile,
+                                flags: plant.flags
+                            )
 
                             gallerySection(for: plant)
                         }
@@ -651,6 +656,10 @@ struct GeneralInfoGridView: View {
     @EnvironmentObject var themeManager: ThemeManager
     let translation: PlantTranslation?
     let plantName: String
+    /// Les faits de sûreté vivent hors de la traduction : un verdict de
+    /// toxicité ne dépend pas de la langue.
+    var botanicalProfile: PlantBotanicalProfile?
+    var flags: PlantFlags?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -691,6 +700,22 @@ struct GeneralInfoGridView: View {
                     description: L10n.t("PLANTDETAIL_HEALTH_SUBTITLE"),
                     color: ArboreDesign.Colors.danger,
                     destination: SanteDetailView(health: translation?.health, plantName: plantName)
+                )
+                // La sûreté du foyer est une carte À PART de la santé de la
+                // plante : l'une parle de la plante, l'autre de qui vit avec.
+                // Les confondre effacerait la distinction que tout le travail
+                // de documentation a servi à établir — une ciboulette est
+                // comestible et détruit les globules rouges d'un chat.
+                GeneralInfoCard(
+                    icon: "exclamationmark.shield.fill",
+                    title: L10n.t("PLANTDETAIL_TOXICITY_TITLE"),
+                    description: L10n.t("PLANTDETAIL_TOXICITY_SUBTITLE"),
+                    color: ArboreDesign.Colors.danger,
+                    destination: ToxiciteDetailView(
+                        profile: botanicalProfile,
+                        flags: flags,
+                        plantName: plantName
+                    )
                 )
                 GeneralInfoCard(
                     icon: "calendar",

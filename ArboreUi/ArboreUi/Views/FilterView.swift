@@ -1,93 +1,148 @@
 import SwiftUI
 
-// MARK: - Modèle de filtres
-struct PlantFilters: Equatable {
-    var lightType: String?
-    var waterFrequency: String?
-    var difficulty: String?
-    
-    var isActive: Bool {
-        lightType != nil || waterFrequency != nil || difficulty != nil
+// MARK: - Vocabulaires du filtre
+
+/// Besoin de lumière demandé par l'utilisateur, en valeur close.
+///
+/// C'était une `String` : le libellé localisé lui-même, qu'il fallait ensuite
+/// reconnaître par sous-chaînes dans cinq langues pour savoir lequel des trois
+/// boutons avait été pressé. Un libellé retouché dans un `.strings` désarmait
+/// le filtre en silence.
+enum PlantLightNeed: String, CaseIterable, Hashable {
+    case low
+    case medium
+    case high
+
+    var label: String {
+        switch self {
+        case .low: return L10n.t("FILTER_LIGHT_LOW")
+        case .medium: return L10n.t("FILTER_LIGHT_MEDIUM")
+        case .high: return L10n.t("FILTER_LIGHT_HIGH")
+        }
     }
-    
-    func matches(plant: Plant, locale: String) -> Bool {
-        guard let translation = plant.translations[locale] else { return true }
-        
-        // Filtre lumière
-        if let selectedLight = lightType {
-            let plantLight = translation.sun?.lightType?.lowercased() ?? ""
-            let normalizedSelected = selectedLight.lowercased()
-            
-            // Correspondance flexible
-            if normalizedSelected.contains("faible") || normalizedSelected.contains("low") || normalizedSelected.contains("schwach") || normalizedSelected.contains("niedrig") || normalizedSelected.contains("baja") {
-                if !plantLight.contains("faible") && !plantLight.contains("low") && !plantLight.contains("ombre") && !plantLight.contains("shade") && !plantLight.contains("schwach") && !plantLight.contains("schatten") && !plantLight.contains("baja") && !plantLight.contains("sombra") {
-                    return false
-                }
-            } else if normalizedSelected.contains("modér") || normalizedSelected.contains("medium") || normalizedSelected.contains("mittel") || normalizedSelected.contains("moderat") || normalizedSelected.contains("moderada") {
-                if !plantLight.contains("modér") && !plantLight.contains("medium") && !plantLight.contains("indirect") && !plantLight.contains("mittel") && !plantLight.contains("moderat") && !plantLight.contains("indirekt") && !plantLight.contains("moderada") && !plantLight.contains("indirecta") {
-                    return false
-                }
-            } else if normalizedSelected.contains("forte") || normalizedSelected.contains("high") || normalizedSelected.contains("stark") || normalizedSelected.contains("hoch") || normalizedSelected.contains("alta") {
-                if !plantLight.contains("direct") && !plantLight.contains("forte") && !plantLight.contains("high") && !plantLight.contains("soleil") && !plantLight.contains("sun") && !plantLight.contains("direkt") && !plantLight.contains("stark") && !plantLight.contains("hoch") && !plantLight.contains("sonne") && !plantLight.contains("alta") && !plantLight.contains("sol") {
-                    return false
-                }
-            }
-        }
-        
-        // Filtre arrosage
-        if let selectedWater = waterFrequency {
-            let plantWater = translation.water?.frequency?.lowercased() ?? ""
-            let normalizedSelected = selectedWater.lowercased()
-            
-            if normalizedSelected.contains("peu") || normalizedSelected.contains("low") || normalizedSelected.contains("wenig") || normalizedSelected.contains("bajo") || normalizedSelected.contains("poco") {
-                if !plantWater.contains("peu") && !plantWater.contains("low") && !plantWater.contains("rare") && !plantWater.contains("wenig") && !plantWater.contains("selten") && !plantWater.contains("bajo") && !plantWater.contains("poco") {
-                    return false
-                }
-            } else if normalizedSelected.contains("moyen") || normalizedSelected.contains("medium") || normalizedSelected.contains("mittel") || normalizedSelected.contains("moderado") {
-                if !plantWater.contains("moyen") && !plantWater.contains("medium") && !plantWater.contains("modér") && !plantWater.contains("mittel") && !plantWater.contains("moderat") && !plantWater.contains("moderado") {
-                    return false
-                }
-            } else if normalizedSelected.contains("souvent") || normalizedSelected.contains("high") || normalizedSelected.contains("häufig") || normalizedSelected.contains("haeufig") || normalizedSelected.contains("oft") || normalizedSelected.contains("frecuente") {
-                if !plantWater.contains("souvent") && !plantWater.contains("fréquent") && !plantWater.contains("high") && !plantWater.contains("regular") && !plantWater.contains("häufig") && !plantWater.contains("haeufig") && !plantWater.contains("oft") && !plantWater.contains("frecuente") {
-                    return false
-                }
-            }
-        }
-        
-        // Filtre difficulté (#485)
-        //
-        // Ce bloc excluait AUTREFOIS toutes les plantes : il lisait
-        // `care.difficulty`, un champ que le backend ne sérialisait pas, donc
-        // toujours vide. Aucun mot-clé ne correspondait jamais, et chaque plante
-        // tombait dans un `return false`. Sélectionner une difficulté vidait la
-        // liste.
-        //
-        // La résolution est désormais partagée avec le wizard
-        // (`Plant.careDifficulty`), et surtout elle distingue « inconnu » de
-        // « ne correspond pas » : une plante dont on ignore l'entretien n'est
-        // PAS masquée. Un filtre qui cache ce qu'il ne sait pas juger ment à
-        // l'utilisateur.
-        if let selectedDiff = difficulty {
-            let normalizedSelected = selectedDiff.lowercased()
+}
 
-            let wanted: Plant.CareDifficulty?
-            if ["facile", "easy", "einfach", "fácil", "facil"].contains(where: normalizedSelected.contains) {
-                wanted = .easy
-            } else if ["intermé", "medium", "mittel", "intermedio"].contains(where: normalizedSelected.contains) {
-                wanted = .moderate
-            } else if ["exigeant", "hard", "anspruchsvoll", "dificil", "difícil"].contains(where: normalizedSelected.contains) {
-                wanted = .demanding
-            } else {
-                wanted = nil
-            }
+/// Fréquence d'arrosage demandée, en valeur close.
+enum PlantWateringNeed: String, CaseIterable, Hashable {
+    case low
+    case medium
+    case high
 
-            if let wanted = wanted, let actual = plant.careDifficulty(locale: locale) {
-                if actual != wanted { return false }
-            }
-            // `actual == nil` → donnée absente, on n'exclut pas.
+    var label: String {
+        switch self {
+        case .low: return L10n.t("FILTER_WATER_LOW")
+        case .medium: return L10n.t("FILTER_WATER_MEDIUM")
+        case .high: return L10n.t("FILTER_WATER_HIGH")
+        }
+    }
+}
+
+extension Plant.CareDifficulty {
+    var filterLabel: String {
+        switch self {
+        case .easy: return L10n.t("FILTER_DIFFICULTY_EASY")
+        case .moderate: return L10n.t("FILTER_DIFFICULTY_MEDIUM")
+        case .demanding: return L10n.t("FILTER_DIFFICULTY_HARD")
+        }
+    }
+}
+
+// MARK: - Modèle de filtres
+
+/// Le filtre du catalogue, sans langue (#792).
+///
+/// Il en avait une, et c'était un trou béant. Sa première ligne était
+///
+///     guard let translation = plant.translations[locale] else { return true }
+///
+/// — donc **une plante sans traduction dans la langue du lecteur traversait
+/// TOUS les filtres**. Au 2026-11-08, 877 fiches sur 1021 n'ont que l'anglais :
+/// pour un utilisateur français, chacune passait le filtre lumière et le filtre
+/// arrosage sans être évaluée. Le filtre ne se trompait pas, il ne s'appliquait
+/// pas, et rien ne le signalait.
+///
+/// Cette ligne ne se répare pas, elle disparaît : la soixantaine de lignes de
+/// sous-chaînes sur les champs **traduits** `sun.lightType` et
+/// `water.frequency`, sous un commentaire qui disait « correspondance
+/// flexible », est remplacée par la lecture de deux faits chiffrés du profil
+/// botanique. Un filtre qui lit `botanicalProfile` n'a pas de langue —
+/// `directSunHours` et `wateringIntervalDays` sont les mêmes pour tous les
+/// lecteurs.
+struct PlantFilters: Equatable {
+    var light: PlantLightNeed?
+    var water: PlantWateringNeed?
+    var difficulty: Plant.CareDifficulty?
+
+    var isActive: Bool {
+        light != nil || water != nil || difficulty != nil
+    }
+
+    /// **Un critère sans fait n'exclut pas.**
+    ///
+    /// C'est la règle de #485, et elle vaut pour les trois axes : une plante
+    /// dont on ignore l'exposition n'est pas masquée. Un filtre qui cache ce
+    /// qu'il ne sait pas juger ment à l'utilisateur — et c'est aussi la seule
+    /// lecture qui n'invente rien, puisque l'incertitude est la nôtre et non
+    /// celle de la plante.
+    func matches(_ plant: Plant) -> Bool {
+        if let light, !light.admits(plant.botanicalProfile?.directSunHours) {
+            return false
+        }
+
+        if let water, !water.admits(plant.botanicalProfile?.wateringIntervalDays) {
+            return false
+        }
+
+        // La difficulté se résout via `Plant.careDifficulty()`, partagée avec
+        // le questionnaire, et `nil` y signifie « inconnu » et non « ne
+        // correspond pas » (#485).
+        if let difficulty, let actual = plant.careDifficulty(), actual != difficulty {
+            return false
         }
 
         return true
+    }
+}
+
+extension PlantLightNeed {
+    /// Les bornes viennent de `PlantThresholds.Light` (#793) — le même
+    /// jeu que l'évaluateur de compatibilité et que la pose AR, pour qu'un
+    /// filtre ne puisse pas écarter ce qu'une recommandation vient de
+    /// proposer.
+    func admits(_ heures: PlantRangeFact?) -> Bool {
+        guard let heures, heures.hasValue else { return true }
+        let minimum = heures.minimum ?? 0
+        let maximum = heures.maximum ?? 24
+
+        switch self {
+        case .low: return minimum <= PlantThresholds.Light.shadeMaxHours
+        case .medium:
+            return minimum <= PlantThresholds.Light.fullSunMinHours
+                && maximum >= PlantThresholds.Light.shadeMaxHours
+        case .high: return maximum >= PlantThresholds.Light.fullSunMinHours
+        }
+    }
+}
+
+extension PlantWateringNeed {
+    /// Les bornes viennent de `PlantThresholds.Watering` (#793).
+    ///
+    /// Elles y vivaient auparavant en dur, et l'évaluateur de compatibilité
+    /// en portait d'AUTRES : il se satisfaisait de 7 jours là où ce filtre
+    /// exigeait 10. Une plante à 7–8 jours était donc un bon choix pour
+    /// l'évaluateur et invisible pour le filtre.
+    func admits(_ intervalle: PlantRangeFact?) -> Bool {
+        guard let intervalle, intervalle.hasValue else { return true }
+        let minimum = intervalle.minimum ?? 0
+        let maximum = intervalle.maximum ?? .greatestFiniteMagnitude
+
+        switch self {
+        case .high: return minimum <= PlantThresholds.Watering.frequentMaxDays
+        case .medium:
+            return minimum <= PlantThresholds.Watering.moderateMaxDays
+                && maximum >= PlantThresholds.Watering.moderateMinDays
+        case .low: return maximum >= PlantThresholds.Watering.sparseMinDays
+        }
     }
 }
 
@@ -109,18 +164,11 @@ struct FilterView: View {
         self.plants = plants
     }
     
-    let lightOptions = [
-        L10n.t("FILTER_LIGHT_LOW"),
-        L10n.t("FILTER_LIGHT_MEDIUM"),
-        L10n.t("FILTER_LIGHT_HIGH")
-    ]
-    
-    let waterOptions = [
-        L10n.t("FILTER_WATER_LOW"),
-        L10n.t("FILTER_WATER_MEDIUM"),
-        L10n.t("FILTER_WATER_HIGH")
-    ]
-    
+    let lightOptions = PlantLightNeed.allCases
+
+    let waterOptions = PlantWateringNeed.allCases
+
+
     /// Niveaux d'entretien réellement proposables, mesurés sur le catalogue (#485).
     ///
     /// Proposer un choix auquel aucune donnée ne peut répondre est pire que ne
@@ -132,20 +180,15 @@ struct FilterView: View {
     /// dont 21 intermédiaires. Le niveau apparaît donc de lui-même, sans qu'une
     /// ligne ait changé ici — c'était l'intérêt de dériver les options de la
     /// donnée plutôt que de les coder en dur.
-    var difficultyOptions: [String] {
-        let niveaux = Set(plants.compactMap { $0.careDifficulty(locale: locale) })
+    var difficultyOptions: [Plant.CareDifficulty] {
+        let niveaux = Set(plants.compactMap { $0.careDifficulty() })
 
-        var options = [L10n.t("FILTER_DIFFICULTY_EASY")]
+        var options: [Plant.CareDifficulty] = [.easy]
         if niveaux.contains(.moderate) {
-            options.append(L10n.t("FILTER_DIFFICULTY_MEDIUM"))
+            options.append(.moderate)
         }
-        options.append(L10n.t("FILTER_DIFFICULTY_HARD"))
+        options.append(.demanding)
         return options
-    }
-
-    /// Langue courante, pour lire la bonne traduction des fiches.
-    private var locale: String {
-        Locale.current.language.languageCode?.identifier ?? "fr"
     }
 
     var body: some View {
@@ -156,20 +199,23 @@ struct FilterView: View {
                         title: L10n.t("FILTER_LIGHT_TITLE"),
                         icon: "sun.max.fill",
                         options: lightOptions,
-                        selectedOption: $tempFilters.lightType
+                        label: \.label,
+                        selectedOption: $tempFilters.light
                     )
-                    
+
                     FilterSection(
                         title: L10n.t("FILTER_WATER_TITLE"),
                         icon: "drop.fill",
                         options: waterOptions,
-                        selectedOption: $tempFilters.waterFrequency
+                        label: \.label,
+                        selectedOption: $tempFilters.water
                     )
-                    
+
                     FilterSection(
                         title: L10n.t("FILTER_DIFFICULTY_TITLE"),
                         icon: "star.fill",
                         options: difficultyOptions,
+                        label: \.filterLabel,
                         selectedOption: $tempFilters.difficulty
                     )
                     
@@ -263,14 +309,20 @@ struct FilterView: View {
 
 // MARK: - Section de filtres
 
-struct FilterSection: View {
+/// Section de filtre sur un vocabulaire FERMÉ.
+///
+/// Elle portait des `String` — les libellés localisés eux-mêmes — ce qui
+/// obligeait le filtre à les reconnaître ensuite par sous-chaînes. Le libellé
+/// n'est plus que de l'affichage ; la valeur qui circule est close (#792).
+struct FilterSection<Option: Hashable>: View {
     @EnvironmentObject var themeManager: ThemeManager
 
     let title: String
     let icon: String
-    let options: [String]
-    @Binding var selectedOption: String?
-    
+    let options: [Option]
+    let label: KeyPath<Option, String>
+    @Binding var selectedOption: Option?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
@@ -286,7 +338,7 @@ struct FilterSection: View {
             VStack(spacing: 12) {
                 ForEach(options, id: \.self) { option in
                     FilterOptionButton(
-                        title: option,
+                        title: option[keyPath: label],
                         isSelected: selectedOption == option,
                         action: {
                             if selectedOption == option {

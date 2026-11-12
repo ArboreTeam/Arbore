@@ -52,6 +52,63 @@ Résultat : le catalogue est instantané (PNG), le placement AR est rapide (lég
 - iOS : `let hasHeavy: Bool?` (`ArboreUi/ArboreUi/Models/Plant.swift`). Web : `hasHeavy?: boolean` (`web/lib/api.ts`).
 - Le champ est persisté dans la scène locale (`PersistedPlant.hasHeavy`) : à la réouverture d'un jardin, le download lourd peut être re-déclenché.
 
+## Nomenclature des fichiers de modèle
+
+Tranchée en #773. **Le nom décrit ce que le fichier EST, jamais d'où il vient.**
+
+| le maillage contient son pot | nom |
+| --- | --- |
+| oui | `<Nom>.usdz` |
+| non, le pot est composé à l'affichage | `<Nom>_potless.usdz` |
+
+Le générateur — Meshy ou TRELLIS — **ne transparaît pas** dans le nom. Il se lit
+déjà ailleurs, et mieux : à la taille (Meshy 2 à 7 Mo, TRELLIS 35 à 60 Mo) et
+dans `versions.model`.
+
+### Pourquoi ce critère, et pas la génération
+
+Parce que le nom doit s'accorder avec le champ que le backend lit :
+
+```go
+func sansPot(p Plant) bool { return p.Potless != nil && *p.Potless }
+```
+
+`potless` décide si un cachepot est composé sous la plante. Un nom qui dirait
+autre chose que le champ ferait poser un pot sur un maillage qui en a déjà un.
+Nommer d'après la génération aurait laissé ces deux-là diverger.
+
+### Écraser est permis, et ce n'est vrai que depuis #294
+
+Remplacer un maillage par un meilleur **sous le même nom** est la voie normale.
+Cela évite un second fichier, donc un orphelin : le suffixe `_potless` avait
+produit 1,90 Go de Meshy abandonnés en production, nettoyés en #734.
+
+C'était impossible tant que le cache de l'app s'indexait sur le nom de fichier.
+Depuis #294, l'empreinte du contenu est glissée dans le nom du cache local et
+passée en paramètre d'URL :
+
+```swift
+func nomEnCache(fichier: String, version: String?) -> String   // <nom>_<empreinte>.usdz
+```
+
+Un contenu nouveau donne une empreinte nouvelle, donc un nom de cache nouveau,
+donc un retéléchargement. **La condition est que la fiche porte
+`versions.model`** — c'est le cas des 123 fiches de production depuis le
+2026-11-06. Sans elle, le cache retombe sur le nom nu et l'appareil garde
+l'ancien modèle indéfiniment.
+
+### Avant d'écraser
+
+Le `heavy/` du maillage remplacé devient orphelin : un TRELLIS n'a pas de
+déclinaison lourde, et la fiche passe à `hasHeavy: false`. C'était 1,71 Go des
+1,90 nettoyés — donc l'essentiel du gaspillage vient de là, pas de la racine.
+
+### Conversion
+
+`Plant3DGenerator/usdz_sans_reduction.py` porte `--suffixe` à `_potless` par
+défaut, parce qu'il a été écrit pour les coupes d'atelier. Pour un maillage qui
+garde son pot, passer `--suffixe ""`.
+
 ## iOS — cœur du LOD
 
 `ModelCacheManager` expose un niveau de LOD :

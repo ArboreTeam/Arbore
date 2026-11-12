@@ -51,6 +51,63 @@ Result: the catalog is instant (PNG), AR placement is fast (light), and the user
 - iOS: `let hasHeavy: Bool?` (`ArboreUi/ArboreUi/Models/Plant.swift`). Web: `hasHeavy?: boolean` (`web/lib/api.ts`).
 - The field is persisted in the local scene (`PersistedPlant.hasHeavy`): when a garden is reopened, the heavy download can be re-triggered.
 
+## Model file naming
+
+Settled in #773. **The name describes what the file IS, never where it comes
+from.**
+
+| the mesh contains its pot | name |
+| --- | --- |
+| yes | `<Name>.usdz` |
+| no, the pot is composed at display time | `<Name>_potless.usdz` |
+
+The generator — Meshy or TRELLIS — **does not appear** in the name. It is
+already readable elsewhere, and better: from the size (Meshy 2 to 7 MB, TRELLIS
+35 to 60 MB) and from `versions.model`.
+
+### Why this criterion, and not the generation
+
+Because the name must agree with the field the backend reads:
+
+```go
+func sansPot(p Plant) bool { return p.Potless != nil && *p.Potless }
+```
+
+`potless` decides whether a planter is composed under the plant. A name saying
+something other than the field would place a pot on a mesh that already has
+one. Naming after the generation would have let those two drift apart.
+
+### Overwriting is allowed, and only since #294
+
+Replacing a mesh with a better one **under the same name** is the normal path.
+It avoids a second file, hence an orphan: the `_potless` suffix had produced
+1.90 GB of abandoned Meshy models in production, cleaned up in #734.
+
+This was impossible while the app's cache was keyed by file name. Since #294 the
+content fingerprint is embedded in the local cache name and passed as a URL
+parameter:
+
+```swift
+func nomEnCache(fichier: String, version: String?) -> String   // <name>_<fingerprint>.usdz
+```
+
+New content yields a new fingerprint, hence a new cache name, hence a
+re-download. **The condition is that the record carries `versions.model`** —
+true of all 123 production records since 2026-11-06. Without it the cache falls
+back to the bare name and the device keeps the old model indefinitely.
+
+### Before overwriting
+
+The replaced mesh's `heavy/` becomes an orphan: a TRELLIS has no heavy variant,
+and the record moves to `hasHeavy: false`. That was 1.71 GB of the 1.90 cleaned
+up, so most of the waste comes from there, not from the root folder.
+
+### Conversion
+
+`Plant3DGenerator/usdz_sans_reduction.py` defaults `--suffixe` to `_potless`,
+because it was written for workshop cuts. For a mesh that keeps its pot, pass
+`--suffixe ""`.
+
 ## iOS — core of the LOD
 
 `ModelCacheManager` exposes a LOD level:

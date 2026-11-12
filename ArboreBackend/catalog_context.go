@@ -381,6 +381,57 @@ func contexteFiches(ctx context.Context, db *mongo.Database, ids []string, langu
 //
 // `pourDiagnostic` choisit ce qu'on reprend : le diagnostic a besoin des
 // maladies, nuisibles et signes d'arrosage ; l'assistant, d'un aperçu des soins.
+// ligneToxicite écrit ce que l'on SAIT de la toxicité, et rien de plus.
+//
+// Elle remplace une affirmation fausse. Le code précédent écrivait
+// « ⚠️ Toxique pour les animaux domestiques (source ASPCA) » dès que
+// `Flags.ToxicToPets` était levé, alors que 44 fiches portent ce drapeau
+// PRÉCISÉMENT parce que l'ASPCA n'a aucune entrée pour l'espèce : la convention
+// « non tranché » le lève par prudence. Le backend attribuait donc à l'ASPCA un
+// avis qu'elle n'a jamais rendu, et sur les fiches les plus incertaines du
+// catalogue — celles où l'IA avait le plus besoin de nuance (#783 §3).
+//
+// Trois régimes, dans cet ordre :
+//
+//  1. verdict stocké `toxic` ou `irritant` → avertissement, avec la source
+//     RÉELLEMENT consignée, ou sans source du tout si aucune ne l'est.
+//  2. verdict `safe` → on le dit, parce qu'une innocuité sourcée empêche le
+//     modèle d'inventer un danger.
+//  3. verdict `unknown` → on dit que ce n'est pas établi. C'est la nuance que
+//     le drapeau seul était incapable de porter.
+//
+// Sans verdict stocké, on retombe sur le drapeau mais SANS citer de source, et
+// son `false` reste une abstention : il a longtemps voulu dire à la fois
+// « sûre » et « non recherchée ».
+func ligneToxicite(b *strings.Builder, fait *PlantToxicityFact, drapeau *bool, public string) {
+	source := ""
+	if fait != nil && fait.Evidence != nil {
+		if nom := strings.TrimSpace(fait.Evidence.SourceName); nom != "" {
+			source = " (source " + sanitizeLine(nom, 80) + ")"
+		}
+	}
+
+	if fait != nil {
+		switch strings.ToLower(strings.TrimSpace(fait.Value)) {
+		case "toxic", "irritant":
+			fmt.Fprintf(b, "- ⚠️ Toxique %s%s\n", public, source)
+			return
+		case "safe":
+			fmt.Fprintf(b, "- Non toxique %s%s\n", public, source)
+			return
+		case "unknown":
+			fmt.Fprintf(b, "- ⚠️ Toxicité %s NON ÉTABLIE : aucune source consultée ne tranche, "+
+				"ne pas affirmer qu'elle est sans danger\n", public)
+			return
+		}
+	}
+
+	// Pas de verdict stocké : le drapeau, sans attribution de source.
+	if drapeau != nil && *drapeau {
+		fmt.Fprintf(b, "- ⚠️ Toxique %s\n", public)
+	}
+}
+
 func formaterFiches(plantes []Plant, langue string, pourDiagnostic bool) string {
 	var b strings.Builder
 	b.WriteString("\n\nDONNÉES DE RÉFÉRENCE issues du catalogue Arbore. ")
@@ -416,17 +467,20 @@ func formaterFiches(plantes []Plant, langue string, pourDiagnostic bool) string 
 			ligneListe(&b, "Problèmes fréquents", d.Health.CommonProblems, 3)
 		}
 
-		// La toxicité ne vient PAS du texte mais des drapeaux structurés, seuls
-		// sourcés. Une abstention y est une décision, pas un oubli (#489) : on
-		// ne dit donc rien quand le drapeau est absent.
-		if p.Flags != nil {
-			if p.Flags.ToxicToPets {
-				b.WriteString("- ⚠️ Toxique pour les animaux domestiques (source ASPCA)\n")
-			}
-			if p.Flags.ToxicToChildren {
-				b.WriteString("- ⚠️ Dangereuse en cas d'ingestion par un enfant\n")
-			}
+		// La toxicité vient du VERDICT STOCKÉ, avec sa provenance réelle.
+		// Une abstention reste une décision, pas un oubli (#489).
+		var faitAnimaux, faitEnfants *PlantToxicityFact
+		if p.BotanicalProfile != nil {
+			faitAnimaux = p.BotanicalProfile.PetToxicity
+			faitEnfants = p.BotanicalProfile.ChildToxicity
 		}
+		var drapeauAnimaux, drapeauEnfants *bool
+		if p.Flags != nil {
+			drapeauAnimaux = &p.Flags.ToxicToPets
+			drapeauEnfants = &p.Flags.ToxicToChildren
+		}
+		ligneToxicite(&b, faitAnimaux, drapeauAnimaux, "pour les animaux domestiques")
+		ligneToxicite(&b, faitEnfants, drapeauEnfants, "en cas d'ingestion par un enfant")
 	}
 
 	if fiches == 0 {

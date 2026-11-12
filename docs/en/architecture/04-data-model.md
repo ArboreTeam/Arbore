@@ -255,6 +255,59 @@ Each value is either a `PlantFact<T>` (`value` plus `evidence`) or a `PlantRange
 
 Critical constraints — indoor/outdoor, hardiness, directly incompatible light, requested toxicity safety, pot volume, and available dimensions — run before aesthetic ranking. A known conflict produces **Not suitable**. With no conflict but an unknown critical value, the strongest possible verdict is **Probably compatible**.
 
+#### Descriptive traits, as closed values (#792)
+
+The profile used to carry **cultivation requirements**; it now also carries what
+a plant **is**. These fields replace seven iOS functions that inferred them from
+the **translated description** — so the same plant could be `large` in French
+and `unknown` in German, depending on the translator's wording.
+
+| Field | Shape | Vocabulary |
+|---|---|---|
+| `size` | `PlantTraitFact` | `small` · `medium` · `large` · `unknown` |
+| `kinds` | `PlantStringListFact` | 15 values, from `greenPlant` to `conifer` |
+| `goals` | `PlantStringListFact` | 9 values, from `addColor` to `focalPoint` |
+| `colors` | `PlantStringListFact` | **11 values** — the original nine plus `silver` and `brown` |
+| `placement` | `PlantStringListFact` | `floor` · `wall` · `ceiling` |
+| `flowering` · `easyCare` · `compact` · `climbing` · `trailing` · `humidityLoving` · `airPurifying` | `PlantTraitFact` | `yes` · `no` · `unknown` |
+
+Three rules govern how they are read, and each was violated before #792:
+
+- **Decoding falls to the floor.** An out-of-vocabulary value becomes
+  `unknown`, never an affirmative one. The floor of a tri-state is `unknown`
+  and **never `no`**: a `no` is an assertion, an empty field is silence.
+- **An absent list and an empty list are not the same thing.** Absent = we did
+  not look. Empty and present = we looked, nothing applies. Out-of-vocabulary
+  items are rejected **and kept** separately, otherwise an entirely invalid
+  list would read as asserted emptiness.
+- **A present fact decides, even when it says `unknown`.** The flag fallback
+  applies only when the fact is absent, and only a flag's `true` informs.
+  Before #792 an `unknown` fell through to a flag raised out of caution and
+  became a conflict: 199 axes affected, **108 plants wrongly hidden** from the
+  catalogue.
+
+`silver` and `brown` were added after the first fill measured what their
+absence cost: horticultural databases treat `Gray/Silver` and `Brown/Copper` as
+leaf colours in their own right, and **78 records** were misdescribed without
+them. `Olea europaea` is given `Gray/Silver; Green` — reducing it to `green`
+lost what makes an olive tree look like an olive tree — and `Salvia yangii`
+carries `Gray/Silver` as its **only** leaf colour, so no value was available
+for its foliage.
+
+`dark` is reserved for near-black; dark purple foliage belongs to `purple`. No
+record carries it today.
+
+**List facts carry a `detail`.** `PlantStringListFact` had none, where
+`PlantStringFact` and `PlantToxicityFact` do: a `detail` key set on a list was
+therefore silently lost. On colours, that field states the **taxonomic level**
+reached — the source documented the cultivar, or only the species. The
+distinction matters: *Photinia × fraseri* is not red, 'Red Robin' is. 800
+records carry it.
+
+`schemaVersion` moves to **2**. No reader exploits it today — neither iOS nor
+the web — and no writer sets it: the value is declarative, it lets a reader
+know it is looking at the pre-traits shape.
+
 #### Legacy `PlantFlags` sub-document
 
 Twelve historical booleans. They remain useful for search and appearance filters. A `true` toxicity flag may still trigger a precautionary exclusion, but `false` does not prove safety because the old schema conflated “false” and “not researched.”

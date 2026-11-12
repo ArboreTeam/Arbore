@@ -329,6 +329,11 @@ MARQUE_TEMPS = "[temps]"
 # Nom du cookie de session de l'atelier, cf. `COOKIE_SESSION` côté web.
 COOKIE_SESSION = "arbore_generator"
 
+# Nombre de prises refusées d'affilée avant de crier. Dix tours de boucle, soit
+# une poignée de minutes : assez pour qu'un redéploiement du web se termine sans
+# alerter pour rien, assez peu pour qu'une panne ne dorme pas deux jours.
+SEUIL_ALERTE = 10
+
 
 def ouvrir_atelier():
     """Ouvre une session d'atelier et rend le cookie qui la porte.
@@ -425,6 +430,62 @@ def appeler(biscuit, url, corps=None, methode=None, delai=120):
         return INJOIGNABLE, f"atelier : délai dépassé ({e})".encode()
 
 
+class SessionAtelier:
+    """Session d'atelier qui se rouvre d'elle-même quand elle expire.
+
+    L'ouvrier ouvrait UNE session au démarrage et la gardait pour toujours. Le
+    jour où elle expire — ou bien où un redéploiement du web change
+    `GENERATOR_SESSION_SECRET`, ce qui invalide tous les cookies émis avant —
+    chaque appel prend un 401, et la boucle se contentait de le journaliser
+    avant de recommencer. À l'identique. Indéfiniment.
+
+    Mesuré le 2026-11-11 : **6 973 refus en deux jours**, conteneur `Up`, file
+    qui s'accumule, aucune alerte. Rien ne le réveillait qu'un redémarrage du
+    conteneur, et rien ne disait qu'il fallait le redémarrer.
+
+    Une session qui se rouvre supprime la classe entière de pannes : expiration,
+    rotation du secret, atelier reconstruit. L'ouvrier n'a plus de raison de
+    rester bloqué sur un état d'authentification périmé.
+
+    ## Pourquoi un 401 ne doit PAS tuer l'ouvrier
+
+    `ouvrir_atelier()` lève `SystemExit` quand l'atelier refuse ou ne répond
+    pas — ce qui convient au démarrage, où il n'y a rien à sauver. En cours de
+    route, non : un atelier momentanément absent, c'est un déploiement du web,
+    et `appeler()` a justement été écrit pour y survivre (cf. sa docstring).
+    Une reconnexion qui échoue rend donc le 401 d'origine, et la boucle
+    réessaiera au tour suivant.
+
+    `SystemExit` dérive de `BaseException` : l'attraper demande de le nommer,
+    un `except Exception` le laisserait passer. C'est le même piège que celui
+    déjà consigné dans `scripts/test_publier_vignettes.py`.
+    """
+
+    def __init__(self):
+        self.base, self.biscuit = ouvrir_atelier()
+
+    def appeler(self, chemin, corps=None, methode=None, delai=120):
+        """Appel porté par la session, avec UNE reconnexion sur 401.
+
+        Une seule : si la session fraîchement ouverte prend elle aussi un 401,
+        ce n'est plus une expiration mais un refus — clé retirée des empreintes
+        acceptées, par exemple — et insister ne ferait que marteler l'atelier.
+        """
+        url = f"{self.base}{chemin}"
+        statut, brut = appeler(self.biscuit, url, corps, methode, delai)
+        if statut != 401:
+            return statut, brut
+
+        print("session expirée — reconnexion à l'atelier", flush=True)
+        try:
+            self.base, self.biscuit = ouvrir_atelier()
+        except SystemExit as e:
+            # Volontairement non fatal : voir la docstring de la classe.
+            print(f"  reconnexion impossible : {e}", flush=True)
+            return statut, brut
+        return appeler(self.biscuit, f"{self.base}{chemin}", corps, methode, delai)
+
+
 def rendre_une(tache, sortie):
     """Rend et publie UNE vignette. Rend None si tout va bien, le motif sinon.
 
@@ -477,22 +538,31 @@ def surveiller(pause, sortie):
     nom = os.environ.get("ARBORE_ENV_NOM", "").strip()
     if not nom:
         raise SystemExit("ARBORE_ENV_NOM est requis : un ouvrier ne sert qu'un environnement")
-    atelier, biscuit = ouvrir_atelier()
+    session = SessionAtelier()
     os.makedirs(sortie, exist_ok=True)
-    print(f"ouvrier de vignettes en veille sur « {nom} », atelier {atelier}", flush=True)
+    print(f"ouvrier de vignettes en veille sur « {nom} », atelier {session.base}", flush=True)
 
+    refus = 0
     while True:
-        statut, brut = appeler(
-            biscuit,
-            f"{atelier}/api/generator/vignettes/prendre?env={urllib.parse.quote(nom)}",
+        statut, brut = session.appeler(
+            f"/api/generator/vignettes/prendre?env={urllib.parse.quote(nom)}",
             corps={}, methode="POST")
         if statut == 204:
+            refus = 0
             time.sleep(pause)
             continue
         if statut != 200:
+            refus += 1
             print(f"prise refusée ({statut}) : {brut[:160].decode(errors='replace')}", flush=True)
+            # Une panne durable ne doit pas se lire comme 6 973 lignes
+            # identiques. Le seuil est franchi UNE fois : répété à chaque tour,
+            # le cri se noierait dans le bruit qu'il dénonce.
+            if refus == SEUIL_ALERTE:
+                print(f"ALERTE : {refus} prises refusées d'affilée, l'ouvrier "
+                      f"n'avance plus — vérifier l'atelier et la clé", flush=True)
             time.sleep(pause)
             continue
+        refus = 0
 
         tache = json.loads(brut)
         print(f"→ {tache['plante']} ({tache['env']})", flush=True)
@@ -501,15 +571,21 @@ def surveiller(pause, sortie):
         except Exception as exc:                          # noqa: BLE001
             motif = str(exc)[:400]
 
+        # Le compte rendu passe par la session lui AUSSI. Sans ça, une session
+        # expirée pendant un rendu — ils durent deux à trois minutes — ferait
+        # perdre le verdict d'une tâche pourtant menée à bien : elle resterait
+        # « en cours » jusqu'à expiration, puis serait rejouée pour rien.
         if motif:
             print(f"  ÉCHEC : {motif}", flush=True)
-            appeler(biscuit, f"{atelier}/api/generator/vignettes/{tache['id']}/echec",
-                    corps={"reservation": tache["reservation"], "erreur": motif}, methode="POST")
+            session.appeler(f"/api/generator/vignettes/{tache['id']}/echec",
+                            corps={"reservation": tache["reservation"], "erreur": motif},
+                            methode="POST")
         else:
             print("  publiée", flush=True)
-            appeler(biscuit, f"{atelier}/api/generator/vignettes/{tache['id']}/resultat",
-                    corps={"reservation": tache["reservation"], "resultat": {"publiee": True}},
-                    methode="POST")
+            session.appeler(f"/api/generator/vignettes/{tache['id']}/resultat",
+                            corps={"reservation": tache["reservation"],
+                                   "resultat": {"publiee": True}},
+                            methode="POST")
 
 
 def main():

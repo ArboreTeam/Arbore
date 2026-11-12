@@ -1493,6 +1493,7 @@
 "AR_CATALOG_KIND_GROUNDCOVER" = "Cubresuelo";
 "AR_CATALOG_KIND_CLIMBING" = "Trepadora";
 "AR_CATALOG_KIND_EDIBLE" = "Aromática o comestible";
+"AR_CATALOG_KIND_CONIFER" = "Conífera";
 "AR_CATALOG_APPEARANCE_TRAITS_TITLE" = "Aspecto";
 "AR_CATALOG_APPEARANCE_FLOWERING" = "Con flores";
 "AR_CATALOG_APPEARANCE_VARIEGATED" = "Follaje variegado";
@@ -1508,6 +1509,8 @@
 "AR_CATALOG_COLOR_PURPLE" = "Morado";
 "AR_CATALOG_COLOR_BLUE" = "Azul";
 "AR_CATALOG_COLOR_GREEN" = "Verde";
+"AR_CATALOG_COLOR_SILVER" = "Plateado";
+"AR_CATALOG_COLOR_BROWN" = "Marrón";
 "AR_CATALOG_COLOR_DARK" = "Oscuro";
 "AR_CATALOG_SCALE_TITLE" = "Volumen deseado";
 "AR_CATALOG_SCALE_COMPACT" = "Formato compacto";
@@ -2094,3 +2097,22 @@
 "CHATBOT_RENAME_PLACEHOLDER" = "Título";
 "CHATBOT_INPUT_PLACEHOLDER" = "Tu pregunta…";
 "CHATBOT_ANALYSE_THIS_PLANT" = "Analiza esta planta";
+
+
+/* MARK: - Securite du foyer (toxicite) */
+"PLANTDETAIL_TOXICITY_TITLE" = "Seguridad del hogar";
+"PLANTDETAIL_TOXICITY_SUBTITLE" = "Animales y niños: lo que dicen las fuentes";
+"TOXICITY_NAV_TITLE" = "Seguridad del hogar";
+"TOXICITY_SECTION_PETS_TITLE" = "Para los animales";
+"TOXICITY_SECTION_CHILDREN_TITLE" = "Para los niños";
+"TOXICITY_VERDICT_TOXIC" = "Tóxica";
+"TOXICITY_VERDICT_IRRITANT" = "Irritante";
+"TOXICITY_VERDICT_SAFE" = "Sin peligro conocido";
+"TOXICITY_VERDICT_UNKNOWN" = "Toxicidad no establecida";
+"TOXICITY_UNKNOWN_ADVICE_PETS" = "Ninguna de las bases veterinarias consultadas cubre esta planta. No es una garantía de inocuidad: consulte a su veterinario antes de colocarla al alcance de un animal.";
+"TOXICITY_UNKNOWN_ADVICE_CHILDREN" = "Ninguna de las bases consultadas cubre esta planta. No es una garantía de inocuidad: compruébelo usted mismo y, en caso de ingestión, llame de inmediato a un centro de toxicología.";
+"TOXICITY_SOURCE_AND_DATE" = "Fuente: %@ — consultada el %@";
+"TOXICITY_SOURCE_ONLY" = "Fuente: %@";
+"TOXICITY_REVIEWED_ONLY" = "Consultada el %@";
+"TOXICITY_DISCLAIMER_TITLE" = "Qué valor tiene esta información";
+"TOXICITY_DISCLAIMER_BODY" = "Cada veredicto procede de una fuente nombrada y fechada, nunca deducido. Cuando las fuentes se contradicen, conservamos la más prudente y citamos la otra. Esto no sustituye ni al veterinario ni al médico: en caso de ingestión, llame a un centro de toxicología.";

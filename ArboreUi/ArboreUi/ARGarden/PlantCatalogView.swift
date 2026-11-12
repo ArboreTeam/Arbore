@@ -39,6 +39,30 @@ struct PlantCatalogARView: View {
             list = list.filter { filters.matches($0.traits) }
         }
 
+        // Politique de CETTE surface — ce que l'utilisateur parcourt.
+        //
+        // Le prédicat vit dans `Plant.safetyOutcome(for:)` et ne dépend
+        // d'aucun écran ; ce qu'on en fait dépend de celui-ci. Ici :
+        //
+        //   `.conflict`     masquée. L'utilisateur vient de déclarer la
+        //                   contrainte dans le questionnaire : lui proposer
+        //                   l'inverse rompt une promesse, et les conséquences
+        //                   ne sont pas les siennes mais celles de son animal
+        //                   ou de son enfant.
+        //   `.undetermined` visible, et marquée par son badge de compatibilité.
+        //                   L'incertitude est la NÔTRE, pas celle de la plante :
+        //                   44 fiches du catalogue sont dans ce cas. Les
+        //                   masquer priverait d'autant de choix tout en cachant
+        //                   notre propre trou de données.
+        //
+        // Jusqu'ici cette surface n'appliquait RIEN en portée « tout » : une
+        // plante toxique y était listée sans que la contrainte déclarée ne
+        // change quoi que ce soit (#783).
+        let safetyRequirement = Plant.HouseholdSafetyRequirement(wizardSafety: wizard.safety)
+        if !safetyRequirement.isEmpty {
+            list = list.filter { $0.plant.isAdmitted(by: .browsable, requirement: safetyRequirement) }
+        }
+
         if scope == .adapted {
             list = list.filter { $0.suitability.isRecommended }
         }
@@ -392,8 +416,11 @@ struct PlantCatalogARView: View {
             .lowercased()
     }
 
+    /// La recherche par texte reste, et c'est le seul `contains` légitime de
+    /// cet écran : il apparie ce que l'utilisateur TAPE, pas ce que nos
+    /// propres données affirment (#792).
     private func matchesSearch(_ entry: PlantCatalogEntry) -> Bool {
-        normalizedSearch.isEmpty || entry.traits.searchableText.contains(normalizedSearch)
+        normalizedSearch.isEmpty || entry.searchText.contains(normalizedSearch)
     }
 
     private func isQuickPreferenceSelected(_ preference: PlantCatalogQuickPreference) -> Bool {
@@ -501,6 +528,9 @@ private struct PlantCatalogEntry: Identifiable {
     let plant: Plant
     let suitability: PlantSuitability
     let traits: PlantCatalogTraitsSnapshot
+    /// Texte normalisé pour la barre de recherche, et pour elle seule.
+    /// C'est le seul usage légitime de la prose dans cet écran (#792).
+    let searchText: String
 
     var id: String { plant.id }
 }
@@ -508,6 +538,7 @@ private struct PlantCatalogEntry: Identifiable {
 private struct PlantCatalogIndexedPlant {
     let plant: Plant
     let traits: PlantCatalogTraitsSnapshot
+    let searchText: String
     let supportedModes: Set<ARPlacementMode>
 }
 
@@ -539,12 +570,17 @@ private actor PlantCatalogMemoryCache {
 
 private enum PlantCatalogBuilder {
     static func index(_ plants: [Plant]) async -> [PlantCatalogIndexedPlant] {
+        // Aucun cache à purger : depuis #792 un instantané de traits n'est
+        // qu'une projection de valeurs closes. Les sept familles d'inférence
+        // qu'il mémoïsait — `kinds` seul balayait 36 motifs dans la prose des
+        // quatre langues — n'existent plus, et la prose n'est normalisée
+        // qu'une fois par plante, ici, pour la recherche.
         await Task.detached(priority: .userInitiated) {
-            PlantCatalogTraits.clearCaches()
-            return plants.map { plant in
+            plants.map { plant in
                 PlantCatalogIndexedPlant(
                     plant: plant,
                     traits: PlantCatalogTraits.snapshot(for: plant),
+                    searchText: PlantSearchIndex.text(for: plant),
                     supportedModes: PlantPlacementCompatibility.supportedModes(for: plant)
                 )
             }
@@ -564,7 +600,8 @@ private enum PlantCatalogBuilder {
                     PlantCatalogEntry(
                         plant: indexed.plant,
                         suitability: evaluator.evaluate(indexed.plant, traits: indexed.traits),
-                        traits: indexed.traits
+                        traits: indexed.traits,
+                        searchText: indexed.searchText
                     )
                 }
                 .sorted(by: precedes)

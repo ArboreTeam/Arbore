@@ -74,9 +74,9 @@ final class PlantCareDifficultyTests: XCTestCase {
     /// Le filtre du catalogue ne masque pas ce qu'il ne sait pas juger.
     func testFiltreNExclutPasUnePlanteDeDifficulteInconnue() throws {
         let plant = try makePlant()
-        let filters = PlantFilters(lightType: nil, waterFrequency: nil, difficulty: "Facile")
+        let filters = PlantFilters(difficulty: .easy)
 
-        XCTAssertTrue(filters.matches(plant: plant, locale: "fr"),
+        XCTAssertTrue(filters.matches(plant),
                       "Une difficulté inconnue ne doit pas exclure la plante — c'est le bug de #485")
     }
 
@@ -126,17 +126,17 @@ final class PlantCareDifficultyTests: XCTestCase {
 
     func testFiltreExclutUnNiveauQuiNeCorrespondPas() throws {
         let exigeante = try makePlant(careDifficulty: "Exigeant")
-        let filters = PlantFilters(lightType: nil, waterFrequency: nil, difficulty: "Facile")
+        let filters = PlantFilters(difficulty: .easy)
 
-        XCTAssertFalse(filters.matches(plant: exigeante, locale: "fr"),
+        XCTAssertFalse(filters.matches(exigeante),
                        "Une plante exigeante doit être exclue d'un filtre « Facile »")
     }
 
     func testFiltreConserveUnNiveauQuiCorrespond() throws {
         let facile = try makePlant(careDifficulty: "Facile")
-        let filters = PlantFilters(lightType: nil, waterFrequency: nil, difficulty: "Facile")
+        let filters = PlantFilters(difficulty: .easy)
 
-        XCTAssertTrue(filters.matches(plant: facile, locale: "fr"))
+        XCTAssertTrue(filters.matches(facile))
     }
 
     // MARK: - Les options proposées suivent les données
@@ -180,9 +180,9 @@ final class PlantCareDifficultyTests: XCTestCase {
     /// Sans critère sélectionné, le filtre laisse tout passer.
     func testAucunCritereNExcluRien() throws {
         let plant = try makePlant(careDifficulty: "Exigeant")
-        let filters = PlantFilters(lightType: nil, waterFrequency: nil, difficulty: nil)
+        let filters = PlantFilters()
 
-        XCTAssertTrue(filters.matches(plant: plant, locale: "fr"))
+        XCTAssertTrue(filters.matches(plant))
     }
 }
 
@@ -199,6 +199,9 @@ final class PlantCareDifficultyTests: XCTestCase {
 
 final class PlantToxicityTests: XCTestCase {
 
+    /// `petToxicity` prend une valeur du vocabulaire clos — `safe`, `toxic`,
+    /// `irritant`, `unknown` — et non plus une phrase. Le verdict est stocké
+    /// depuis #778 ; aucune prose n'est analysée.
     private func makePlant(petToxicity: String? = nil,
                            toxicToPetsFlag: Bool? = nil) throws -> Plant {
         var profile = ""
@@ -227,51 +230,82 @@ final class PlantToxicityTests: XCTestCase {
         XCTAssertNil(try makePlant().petToxicity())
     }
 
-    /// C'est la régression de #488 : 25 fiches passaient le filtre faute de
-    /// donnée, pas parce qu'elles étaient inoffensives.
-    func testUneToxiciteInconnueEstExclueDUnFiltreSurete() throws {
-        let plant = try makePlant()
-        let wizard = GardenWizardDTO(style: "", spaceType: "", safety: ["Éviter les plantes toxiques pour les animaux"])
-        XCTAssertFalse(WizardPlantFilter(wizard: wizard).matches(plant: plant, locale: "fr"),
-                       "Une toxicité non établie doit exclure quand l'utilisateur demande des plantes sûres")
+    /// Régression de #488 : 25 fiches passaient le filtre faute de donnée, pas
+    /// parce qu'elles étaient inoffensives. Le prédicat doit donc distinguer
+    /// « non établie » de « sûre », ce qu'un booléen ne savait pas faire.
+    func testUneToxiciteInconnueNEstPasRendueSure() throws {
+        let plante = try makePlant()
+        let contrainte = Plant.HouseholdSafetyRequirement(wizardSafety: [SafetyOption.pets.rawValue])
+        XCTAssertEqual(plante.safetyOutcome(for: contrainte), .undetermined)
     }
 
     // MARK: - Résolution
 
     func testLeProfilBotaniquePrimeSurLesFlags() throws {
-        // Le flag dit « sûre », l'ASPCA dit « toxique ». L'autorité l'emporte.
-        let p = try makePlant(petToxicity: "toxic to dogs, cats, horses", toxicToPetsFlag: false)
+        // Le flag dit « sûre », la source dit « toxique ». L'autorité l'emporte.
+        let p = try makePlant(petToxicity: "toxic", toxicToPetsFlag: false)
         XCTAssertEqual(p.petToxicity(), .toxic)
     }
 
-    /// « non-toxic » contient « toxic » : l'ordre d'évaluation doit protéger
-    /// contre cette lecture naïve.
-    func testNonToxiqueNEstPasLuCommeToxique() throws {
-        XCTAssertEqual(try makePlant(petToxicity: "non-toxic").petToxicity(), .safe)
+    /// Le piège de sous-chaîne qu'il fallait contourner — « non-toxic »
+    /// contient « toxic » — n'existe plus : le verdict est une valeur close,
+    /// pas une phrase à relire. Les inversions que l'analyseur produisait sont
+    /// couvertes par `PlantToxicityVerdictTests` (#778).
+    func testUnVerdictSurEstLuSur() throws {
+        XCTAssertEqual(try makePlant(petToxicity: "safe").petToxicity(), .safe)
     }
 
+    /// RÉÉCRIT (#792). Ce test affirmait qu'un drapeau BAISSÉ rend `.safe`.
+    ///
+    /// C'était le piège historique inscrit comme exigence, pour la quatrième
+    /// fois dans cette suite de tests : le `false` d'un drapeau a voulu dire à
+    /// la fois « prouvé sûr » et « pas recherché » sur 65 fiches du catalogue.
+    /// Seul son `true` porte une information.
+    ///
+    /// Il avait survécu aux trois autres corrections parce qu'il vit dans
+    /// `PlantCareDifficultyTests.swift` mais appartient à la classe
+    /// `PlantToxicityTests` — et `-only-testing` cible les CLASSES, pas les
+    /// fichiers. Lancer la suite voisine ne l'exerçait jamais.
     func testReplieSurLesFlagsQuandLeProfilManque() throws {
-        XCTAssertEqual(try makePlant(toxicToPetsFlag: true).petToxicity(), .toxic)
-        XCTAssertEqual(try makePlant(toxicToPetsFlag: false).petToxicity(), .safe)
+        XCTAssertEqual(
+            try makePlant(toxicToPetsFlag: true).petToxicity(), .toxic,
+            "sans profil, un drapeau levé avertit"
+        )
+        XCTAssertNil(
+            try makePlant(toxicToPetsFlag: false).petToxicity(),
+            "un drapeau baissé ne vaut pas une innocuité démontrée"
+        )
     }
 
-    // MARK: - Le filtre
+    // MARK: - Le prédicat
+    //
+    // `WizardPlantFilter` mêlait le prédicat et la politique d'affichage, et
+    // n'était appelé que depuis ces tests — jamais en production. Un contrôle
+    // de sécurité mort est pire qu'un contrôle absent : sa présence se lit
+    // comme une couverture, et c'est arrivé deux fois (#783). Il est supprimé ;
+    // les politiques par surface sont testées dans
+    // `PlantSafetyOutcomeTests`.
 
-    func testUnePlanteToxiqueEstExclue() throws {
-        let p = try makePlant(petToxicity: "toxic to dogs, cats, horses")
-        let wizard = GardenWizardDTO(style: "", spaceType: "", safety: ["Éviter les plantes toxiques pour les animaux"])
-        XCTAssertFalse(WizardPlantFilter(wizard: wizard).matches(plant: p, locale: "fr"))
+    func testUnePlanteToxiqueEstEnConflit() throws {
+        let p = try makePlant(petToxicity: "toxic")
+        XCTAssertEqual(p.safetyOutcome(for: contrainteAnimaux()), .conflict)
     }
 
-    func testUnePlanteSureEstConservee() throws {
-        let p = try makePlant(petToxicity: "non-toxic")
-        let wizard = GardenWizardDTO(style: "", spaceType: "", safety: ["Éviter les plantes toxiques pour les animaux"])
-        XCTAssertTrue(WizardPlantFilter(wizard: wizard).matches(plant: p, locale: "fr"))
+    func testUnePlanteSureSatisfaitLaContrainte() throws {
+        let p = try makePlant(petToxicity: "safe")
+        XCTAssertEqual(p.safetyOutcome(for: contrainteAnimaux()), .satisfied)
     }
 
-    /// Sans contrainte de sécurité demandée, rien n'est exclu — même inconnu.
-    func testSansDemandeDeSureteRienNEstExclu() throws {
+    /// Sans contrainte demandée, il n'y a rien à vérifier — même sur une
+    /// plante dont la toxicité est inconnue.
+    func testSansContrainteDemandeeRienNEstAVerifier() throws {
         let p = try makePlant()
-        XCTAssertTrue(WizardPlantFilter(wizard: GardenWizardDTO(style: "", spaceType: "")).matches(plant: p, locale: "fr"))
+        let aucune = Plant.HouseholdSafetyRequirement(wizardSafety: nil)
+        XCTAssertTrue(aucune.isEmpty)
+        XCTAssertEqual(p.safetyOutcome(for: aucune), .satisfied)
+    }
+
+    private func contrainteAnimaux() -> Plant.HouseholdSafetyRequirement {
+        Plant.HouseholdSafetyRequirement(wizardSafety: [SafetyOption.pets.rawValue])
     }
 }

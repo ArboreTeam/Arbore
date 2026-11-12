@@ -29,7 +29,7 @@ flowchart TB
     profile["📱 Views/Profile/<br/>PersonalDetailsView · DataExportView · PrivacySettingsView · CloseAccountView"]
     measure["📱 measure app/<br/>ARViewContainerMeasure"]
 
-    models["🌿 Models/<br/>User · Plant · GardenProject · WizardPlantFilter · WateringRoutine · PotMeasurement"]
+    models["🌿 Models/<br/>User · Plant · GardenProject · WateringRoutine · PotMeasurement"]
     user_svc["🌿 UserService.swift"]
     garden_svc["🌿 GardenProjectService.swift"]
     suggest["🌿 Services/GardenSuggestionEngine.swift"]
@@ -112,14 +112,13 @@ flowchart TB
 | Fichier | Rôle |
 |---|---|
 | `Models/User.swift` | Struct utilisateur, miroir du document MongoDB côté serveur. |
-| `Models/Plant.swift` | Struct catalogue plante avec traductions multilingues et URL USDZ. |
+| `Models/Plant.swift` | Struct catalogue plante avec traductions multilingues et URL USDZ. Porte aussi **le prédicat de sûreté unique** — `safetyOutcome(for:)`, trois branches (`satisfied`, `conflict`, `undetermined`) — et les deux politiques nommées `.browsable` / `.offerable`. `WizardPlantFilter` mêlait ce prédicat à une politique d'affichage et n'était appelé que depuis les tests : il a été supprimé, un contrôle de sécurité mort se lisant comme une couverture. |
 | `Models/GardenProject.swift` | Représentation locale d'un jardin (boundary, plants placées, métadonnées). |
-| `Models/WizardPlantFilter.swift` | Filtre les plantes du catalogue selon les choix du wizard (luminosité, entretien, etc.). |
 | `Models/WateringRoutine.swift` | Routine d'arrosage attachée à une plante. |
 | `Models/PotMeasurement.swift` | Mesure du diamètre d'un pot via ARKit (feature secondaire). |
 | `UserService.swift` | Récupère l'utilisateur courant via `GET /users/:uid`. |
 | `Models/GardenProjectService.swift` | CRUD des jardins via le backend. |
-| `Services/GardenSuggestionEngine.swift` | Scoring multi-axes pondéré (style, exposition, sol, entretien, sécurité) qui propose les plantes adaptées au profil du wizard. |
+| `Services/GardenSuggestionEngine.swift` | Scoring multi-axes pondéré (style, exposition, sol, entretien, sécurité) qui propose les plantes adaptées au profil du wizard. Applique la politique `.offerable` **avant** le classement : ce qui est proposé exclut le conflit ET la toxicité non établie, là où les catalogues laissent voir la seconde, marquée. |
 | `Services/CalendarService.swift` | Génère le calendrier d'arrosage à partir des `WateringRoutine`. |
 | `Services/PlantHealthScanner.swift` | Scan de santé : pipeline qualité d'image → détection Vision → colorimétrie → diagnostic IA (`POST /diagnose`), avec repli colorimétrie hors-ligne. Cf. [`../screens/plant-health-scan.md`](../screens/plant-health-scan.md). |
 | `Services/LLMService.swift` | Assistant conversationnel (`actor`) : relaie l'historique + le message vers `POST /chat`. **Ex-`GeminiService`** — le nom du fournisseur ne figure plus côté app, c'est le backend qui choisit (#555). Consulte `AIProcessingPreference` avant tout envoi. |

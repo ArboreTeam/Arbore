@@ -1,0 +1,9 @@
+Vos pots restent en place, et la sélection ne déborde plus.
+
+• Un jardin rouvert retrouve ses pots. Ils n'étaient pas enregistrés : les plantes revenaient nues, et le travail de mise en pot était perdu.
+• La hauteur mesurée d'une plante survit elle aussi à la réouverture, dans tous les cas.
+• Le contour d'une plante sélectionnée épouse maintenant son pot au lieu de se décaler.
+• Les filtres lumière et arrosage s'appliquent à toutes les plantes, y compris celles qui ne sont pas traduites dans votre langue. Vos listes peuvent donc être plus courtes, et plus justes.
+• La fiche indique si une plante est sûre pour les animaux et les enfants, avec la source du verdict.
+
+Les jardins enregistrés avant cette version restent sans leurs pots : la donnée n'avait jamais été écrite. Les nouveaux les gardent.

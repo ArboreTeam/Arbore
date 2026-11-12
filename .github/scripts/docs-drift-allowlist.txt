@@ -28,3 +28,10 @@ AiGenerator/pyproject.toml
 # c'est de la donnée de travail, pas du code. Cité par les vues composants du
 # web depuis le 2026-11-03.
 etat.json
+
+# Script de derivation du profil botanique depuis la PROSE des fiches,
+# supprime le 2026-11-08 (#792). `botanical-data-audit.md` le cite encore, et
+# c'est voulu : la page le recommandait comme outil d'enrichissement n deg 3,
+# donc elle expliquerait mal sa disparition sans le nommer. Comme pour
+# AiGenerator/pyproject.toml, la reference decrit un etat PASSE.
+derive-botanical-profile.py

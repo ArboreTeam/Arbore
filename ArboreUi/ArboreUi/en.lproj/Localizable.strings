@@ -1513,6 +1513,7 @@
 "AR_CATALOG_KIND_GROUNDCOVER" = "Groundcover";
 "AR_CATALOG_KIND_CLIMBING" = "Climbing plant";
 "AR_CATALOG_KIND_EDIBLE" = "Herb or edible plant";
+"AR_CATALOG_KIND_CONIFER" = "Conifer";
 "AR_CATALOG_APPEARANCE_TRAITS_TITLE" = "Appearance";
 "AR_CATALOG_APPEARANCE_FLOWERING" = "Flowering";
 "AR_CATALOG_APPEARANCE_VARIEGATED" = "Variegated foliage";
@@ -1528,6 +1529,8 @@
 "AR_CATALOG_COLOR_PURPLE" = "Purple";
 "AR_CATALOG_COLOR_BLUE" = "Blue";
 "AR_CATALOG_COLOR_GREEN" = "Green";
+"AR_CATALOG_COLOR_SILVER" = "Silver";
+"AR_CATALOG_COLOR_BROWN" = "Brown";
 "AR_CATALOG_COLOR_DARK" = "Dark";
 "AR_CATALOG_SCALE_TITLE" = "Desired volume";
 "AR_CATALOG_SCALE_COMPACT" = "Compact format";
@@ -2114,3 +2117,22 @@
 "CHATBOT_RENAME_PLACEHOLDER" = "Title";
 "CHATBOT_INPUT_PLACEHOLDER" = "Your question…";
 "CHATBOT_ANALYSE_THIS_PLANT" = "Analyse this plant";
+
+
+/* MARK: - Securite du foyer (toxicite) */
+"PLANTDETAIL_TOXICITY_TITLE" = "Household safety";
+"PLANTDETAIL_TOXICITY_SUBTITLE" = "Pets and children: what the sources say";
+"TOXICITY_NAV_TITLE" = "Household safety";
+"TOXICITY_SECTION_PETS_TITLE" = "For pets";
+"TOXICITY_SECTION_CHILDREN_TITLE" = "For children";
+"TOXICITY_VERDICT_TOXIC" = "Toxic";
+"TOXICITY_VERDICT_IRRITANT" = "Irritant";
+"TOXICITY_VERDICT_SAFE" = "No known hazard";
+"TOXICITY_VERDICT_UNKNOWN" = "Toxicity not established";
+"TOXICITY_UNKNOWN_ADVICE_PETS" = "None of the veterinary databases we checked covers this plant. That is not a guarantee of safety: ask your vet before placing it within reach of an animal.";
+"TOXICITY_UNKNOWN_ADVICE_CHILDREN" = "None of the databases we checked covers this plant. That is not a guarantee of safety: check for yourself, and if any part is swallowed call a poison control centre straight away.";
+"TOXICITY_SOURCE_AND_DATE" = "Source: %@ — reviewed %@";
+"TOXICITY_SOURCE_ONLY" = "Source: %@";
+"TOXICITY_REVIEWED_ONLY" = "Reviewed %@";
+"TOXICITY_DISCLAIMER_TITLE" = "What this tells you";
+"TOXICITY_DISCLAIMER_BODY" = "Every verdict is taken from a named, dated source, never inferred. Where sources disagree we keep the more cautious one and cite the other. This replaces neither a vet nor a doctor: if any part is swallowed, call a poison control centre.";

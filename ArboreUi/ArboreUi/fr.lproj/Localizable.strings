@@ -1540,6 +1540,7 @@
 "AR_CATALOG_KIND_GROUNDCOVER" = "Couvre-sol";
 "AR_CATALOG_KIND_CLIMBING" = "Grimpante";
 "AR_CATALOG_KIND_EDIBLE" = "Aromatique ou comestible";
+"AR_CATALOG_KIND_CONIFER" = "Conifère";
 "AR_CATALOG_APPEARANCE_TRAITS_TITLE" = "Aspect";
 "AR_CATALOG_APPEARANCE_FLOWERING" = "Fleurie";
 "AR_CATALOG_APPEARANCE_VARIEGATED" = "Feuillage panaché";
@@ -1555,6 +1556,8 @@
 "AR_CATALOG_COLOR_PURPLE" = "Violet";
 "AR_CATALOG_COLOR_BLUE" = "Bleu";
 "AR_CATALOG_COLOR_GREEN" = "Vert";
+"AR_CATALOG_COLOR_SILVER" = "Argenté";
+"AR_CATALOG_COLOR_BROWN" = "Brun";
 "AR_CATALOG_COLOR_DARK" = "Sombre";
 "AR_CATALOG_SCALE_TITLE" = "Volume souhaité";
 "AR_CATALOG_SCALE_COMPACT" = "Format compact";
@@ -2141,3 +2144,22 @@
 "CHATBOT_RENAME_PLACEHOLDER" = "Titre";
 "CHATBOT_INPUT_PLACEHOLDER" = "Votre question…";
 "CHATBOT_ANALYSE_THIS_PLANT" = "Analyse cette plante";
+
+
+/* MARK: - Securite du foyer (toxicite) */
+"PLANTDETAIL_TOXICITY_TITLE" = "Sécurité du foyer";
+"PLANTDETAIL_TOXICITY_SUBTITLE" = "Animaux et enfants : ce que disent les sources";
+"TOXICITY_NAV_TITLE" = "Sécurité du foyer";
+"TOXICITY_SECTION_PETS_TITLE" = "Pour les animaux";
+"TOXICITY_SECTION_CHILDREN_TITLE" = "Pour les enfants";
+"TOXICITY_VERDICT_TOXIC" = "Toxique";
+"TOXICITY_VERDICT_IRRITANT" = "Irritante";
+"TOXICITY_VERDICT_SAFE" = "Sans danger connu";
+"TOXICITY_VERDICT_UNKNOWN" = "Toxicité non établie";
+"TOXICITY_UNKNOWN_ADVICE_PETS" = "Aucune des bases vétérinaires consultées ne tranche pour cette plante. Ce n'est pas une garantie d'innocuité : renseignez-vous auprès de votre vétérinaire avant de l'installer à portée d'un animal.";
+"TOXICITY_UNKNOWN_ADVICE_CHILDREN" = "Aucune des bases consultées ne tranche pour cette plante. Ce n'est pas une garantie d'innocuité : vérifiez par vous-même, et en cas d'ingestion appelez sans attendre un centre antipoison ou le 15.";
+"TOXICITY_SOURCE_AND_DATE" = "Source : %@ — consultée le %@";
+"TOXICITY_SOURCE_ONLY" = "Source : %@";
+"TOXICITY_REVIEWED_ONLY" = "Consultée le %@";
+"TOXICITY_DISCLAIMER_TITLE" = "Ce que vaut cette information";
+"TOXICITY_DISCLAIMER_BODY" = "Chaque verdict est repris d'une base nommée et datée, jamais déduit. Quand les sources se contredisent, nous retenons la plus prudente et nous citons l'autre. Cela ne remplace ni l'avis d'un vétérinaire, ni celui d'un médecin : en cas d'ingestion, appelez un centre antipoison.";

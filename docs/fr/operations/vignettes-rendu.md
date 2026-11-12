@@ -323,6 +323,46 @@ L'ouvrier est plafonné à 2 cœurs. Un rendu Blender prend tout ce qu'on lui
 laisse, et une passe de catalogue dure des heures : sans plafond il affame le
 backend qui partage la machine.
 
+### La session se rouvre toute seule — et pourquoi il a fallu l'écrire
+
+L'ouvrier ouvrait **une** session au démarrage et la gardait pour toujours. Le
+jour où elle expire — ou bien où un redéploiement du web change
+`GENERATOR_SESSION_SECRET`, ce qui invalide tous les cookies émis avant —
+chaque prise de tâche prenait un 401 que la boucle journalisait avant de
+recommencer. À l'identique. Indéfiniment.
+
+Mesuré le 2026-11-11 sur `arbore-dev-vignettes-ouvrier` :
+
+```
+prise refusée (401) : {"error":"Non authentifié"}   × 6 973
+premier refus : 2026-11-10T00:15
+```
+
+Conteneur `Up`, file qui s'accumule, **aucune alerte**. Seul un redémarrage du
+conteneur le réveillait, et rien ne disait qu'il fallait le redémarrer. Ce
+n'était ni une clé invalide — `sha256(ATELIER_CLE)` figurait bien dans
+`GENERATOR_KEY_HASH` — ni un hôte mal apparié, qui rend 404 et non 401.
+
+`SessionAtelier` rouvre donc la session sur un 401, **une fois**, et rejoue
+l'appel. Trois points ne sont pas négociables :
+
+- **une seule tentative.** Un 401 après reconnexion n'est plus une expiration
+  mais un refus — clé retirée des empreintes acceptées — et insister
+  martèlerait l'atelier sans rien changer ;
+- **une reconnexion impossible ne tue pas l'ouvrier.** `ouvrir_atelier()` lève
+  `SystemExit`, qui dérive de `BaseException` et traverse `except Exception` :
+  il faut le nommer pour l'attraper. Au démarrage, mourir est correct ; en
+  cours de route, un atelier absent n'est qu'un déploiement du web, et
+  `appeler()` a justement été écrit pour y survivre ;
+- **le compte rendu passe par la session lui aussi.** Un rendu dure deux à
+  trois minutes : une session qui expire pendant ce temps ferait perdre le
+  verdict d'une tâche pourtant menée à bien, qui resterait « en cours »
+  jusqu'à expiration puis serait rejouée pour rien.
+
+Enfin, `SEUIL_ALERTE` prises refusées d'affilée déclenchent une ligne `ALERTE`,
+émise **une seule fois** : répétée à chaque tour, elle se noierait dans le
+bruit qu'elle dénonce.
+
 ### Déclarer les environnements
 
 `VIGNETTES_ENVIRONNEMENTS`, un tableau JSON, de préférence monté par

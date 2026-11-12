@@ -47,6 +47,10 @@ mettre à jour sont deux gestes, ils restent deux sections.
 
 ## Garde-fous propres à l'insertion
 
+  - **un document qui porte un `_id` le garde.** C'est ce qui rend la
+    promotion d'un environnement à l'autre possible sans re-rendre les
+    vignettes, dont le nom de fichier EST cet identifiant. Voir
+    `avec_identifiant`.
   - **une fiche dont le `modelURL` existe déjà n'est jamais insérée**, ni
     remplacée. Elle est comptée à part. Insérer un doublon donnerait deux
     fiches pour une plante, dont une sans vignette et sans historique.
@@ -184,6 +188,33 @@ def cibler_plantes(plants, ops: list[dict]) -> tuple[list[tuple[dict, dict]], li
     return a_faire, introuvables, rejouees
 
 
+def avec_identifiant(doc: dict, ObjectId) -> dict:
+    """Rend le document prêt à insérer, son `_id` converti s'il en porte un.
+
+    ## Pourquoi un document peut arriver avec son identifiant
+
+    Promouvoir une fiche de `arbore_dev` vers `arbore` exige de **garder son
+    `_id`** : le fichier de vignette est nommé d'après lui, et `imageURLs` le
+    contient. Laisser Mongo en générer un neuf obligerait à re-rendre les 151
+    vignettes au lieu de copier 82 Mo de PNG déjà calculés.
+
+    Ce n'est pas une liberté nouvelle, c'est l'invariant du catalogue : les
+    deux bases emploient déjà les mêmes identifiants pour une même plante —
+    relevé le 2026-11-05, les 51 `_id` de dev existaient tous en prod. Préserver
+    l'`_id` maintient cet invariant ; le laisser dériver le casserait.
+
+    L'identifiant voyage en Extended JSON (`{"$oid": "..."}`), la forme que
+    `json` sait écrire et que Mongo attend de retrouver en ObjectId.
+    """
+    d = dict(doc)
+    brut = d.get("_id")
+    if isinstance(brut, dict) and "$oid" in brut:
+        d["_id"] = ObjectId(brut["$oid"])
+    elif isinstance(brut, str):
+        d["_id"] = ObjectId(brut)
+    return d
+
+
 def trier_nouvelles(plants, docs: list[dict], modeles: Path | None):
     """Sépare ce qui s'insère de ce qui ne doit pas l'être.
 
@@ -297,10 +328,13 @@ def main() -> int:
     # Les fiches une par une, et non en lot : une insertion groupée s'arrête à
     # la première qui échoue, laissant la moitié du lot écrite sans qu'on sache
     # laquelle. Ici chaque échec est nommé et les autres passent.
-    crees, echecs = [], []
+    crees, echecs, gardes = [], [], 0
     for d in a_inserer:
+        doc = avec_identifiant(d, ObjectId)
+        if "_id" in doc:
+            gardes += 1
         try:
-            oid = plants.insert_one(dict(d)).inserted_id
+            oid = plants.insert_one(doc).inserted_id
         except Exception as e:  # noqa: BLE001
             echecs.append((d.get("modelURL"), str(e)[:120]))
             continue
@@ -313,6 +347,9 @@ def main() -> int:
 
     print(f"  écrit dans {args.base} : {len(a_faire)} plantes, {len(crees)} fiches créées, "
           f"{len(vignettes)} vignettes, {len(entrees_pots)} pots", file=sys.stderr)
+    if gardes:
+        print(f"  dont {gardes} avec leur identifiant d'origine conservé "
+              f"(les vignettes déjà rendues restent valables)", file=sys.stderr)
     for url, err in echecs:
         print(f"      ÉCHEC {url} — {err}", file=sys.stderr)
     if crees:

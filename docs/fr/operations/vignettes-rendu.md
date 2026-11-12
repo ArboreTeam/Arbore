@@ -212,6 +212,32 @@ client**. Résultat mesuré : ces 51 plantes étaient rendues **nues**.
 }
 ```
 
+### Préalable : la bibliothèque de pots doit être peuplée
+
+**Rendre une vignette avec son pot exige au moins un pot en base, et au moins
+un marqué `default: true`.** Sans cela le rendu réussit quand même, et sort une
+plante nue — l'absence ne se signale par aucune erreur.
+
+Ce que fait `choisirPot` quand on ne lui donne rien de bon :
+
+| état de la collection `pots` | ce qui est servi |
+|---|---|
+| vide | `nil` : aucun pot, la plante est rendue nue |
+| non vide, aucun `default` | **le premier de la liste**, au gré de l'ordre de Mongo |
+| non vide, un `default` | le pot par défaut |
+
+Le deuxième cas est le piège : il ne casse rien, il choisit à votre place, et le
+pot retenu peut changer d'une requête à l'autre si l'ordre change.
+
+Le pot ne suffit pas à lui seul. Il faut aussi que **son USDZ soit déployé**
+dans le répertoire des modèles de l'environnement visé : l'ouvrier le télécharge
+au moment du rendu, et un 404 fait échouer la tâche.
+
+Relevé le 2026-11-12, `arbore_dev` comme `arbore` : un seul pot,
+`cachepot_pieds`, `default: true`, et son USDZ présent dans `models-dev` et
+`models-prod`. **La bibliothèque n'ayant qu'une entrée, perdre ce `default`
+suffirait à n'avoir plus rien de fiable à composer.**
+
 ### Le rayon du disque ne dépend pas du maillage
 
 C'est ce qui rend le calcul serveur légitime. Par construction, le rayon

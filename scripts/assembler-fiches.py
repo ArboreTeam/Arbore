@@ -97,6 +97,10 @@ AXES = ("traits", "axes", "colors", "arrosage", "mesures", "hauteurs")
 # excluait d'un coup 75 plantes sur 123, dont des succulentes qui y vivent
 # très bien. Avant d'importer un champ, demander s'il DÉCRIT la plante ou
 # s'il DÉCIDE à sa place.
+# Version courante de `PlantBotanicalProfile`, cf. VersionSchemaBotanique dans
+# ArboreBackend/plant_traits.go.
+SCHEMA_BOTANIQUE = 1
+
 AXES_EXCLUS = frozenset({"environments"})
 
 # Nombre de champs « not determined » au-delà duquel la fiche est refusée.
@@ -208,8 +212,19 @@ def profil_botanique(slug: str, axes: dict[str, dict]) -> dict[str, Any]:
 
 
 def assembler(cle: str, redac: dict, slug: str | None, source: dict,
-              axes: dict[str, dict]) -> tuple[dict | None, str | None]:
-    """Rend (document, None) ou (None, motif de refus)."""
+              axes: dict[str, dict],
+              repli: dict | None = None) -> tuple[dict | None, str | None]:
+    """Rend (document, None) ou (None, motif de refus).
+
+    `repli` porte ce que la fiche source ne donne pas. Trois plantes du
+    catalogue n'ont AUCUNE fiche source appariée : leur modèle 3D est déployé,
+    leur fiche rédigée est complète, et il leur manque seulement le nom, le
+    type et la description. Le repli les débloque sans ouvrir une porte : il
+    ne s'applique champ par champ qu'à ce qui manque, et le `name` qu'il donne
+    est déjà un nom d'affichage, donc il ne repasse pas par `nom_affichable`,
+    qui pèle un conditionnement que ce nom-là n'a jamais porté.
+    """
+    repli = repli or {}
     meta = redac.get("_meta") or {}
     tox = meta.get("toxicity") or {}
     if "toxicityEstablished" not in tox:
@@ -217,25 +232,40 @@ def assembler(cle: str, redac: dict, slug: str | None, source: dict,
     en = (redac.get("translations") or {}).get("en")
     if not en:
         return None, "translations.en absent"
-    if not slug:
-        return None, "aucune fiche source appariée"
+    nom = repli.get("name")
     titre = source.get("titre")
-    if not titre:
-        return None, "titre introuvable dans la fiche source"
+    if not nom:
+        if not slug:
+            return None, "aucune fiche source appariée"
+        if not titre:
+            return None, "titre introuvable dans la fiche source"
     description = source.get("description")
     if not description:
         return None, "pas de description française dans la fiche source"
 
     doc: dict[str, Any] = {
-        "name": nom_affichable(titre),
-        "type": source.get("type") or "Plantes d’intérieur",
+        "name": nom or nom_affichable(titre),
+        "type": source.get("type") or repli.get("type") or "Plantes d’intérieur",
         "description": description,
         "modelURL": f"{cle}_potless.usdz",
         "imageURLs": [],
         "translations": {"en": en},
         "botanicalProfile": profil_botanique(slug, axes),
     }
-    if not doc["botanicalProfile"]:
+    if not doc["botanicalProfile"] and repli:
+        # Un profil vide est refusé à l'insertion, et c'est juste : une fiche
+        # sans aucun trait n'a pas été auditée. On y pose donc le seul fait
+        # qu'on tienne sans l'inventer — la version du schéma — pour que
+        # `verser-toxicite.py` ait où écrire le verdict de toxicité, qui est
+        # le trait dont l'absence compte vraiment.
+        doc["botanicalProfile"] = {"schemaVersion": SCHEMA_BOTANIQUE}
+    if not doc["botanicalProfile"] and not repli:
+        # Le profil vient des axes d'enrichissement, indexés par SLUG. Une
+        # fiche sans slug n'en a donc aucun, et le refus dirait seulement
+        # qu'elle n'a pas de fiche source — ce qu'on sait déjà. Quand un repli
+        # explicite existe, la plante est traitée sciemment hors de la chaîne
+        # normale : elle entre avec un profil réduit, que `verser-toxicite.py`
+        # remplit ensuite du seul champ qui ne peut pas manquer.
         return None, "profil botanique vide"
 
     # Une fiche dont l'identité n'a pas pu être tranchée ne se publie pas, même
@@ -281,14 +311,14 @@ def main() -> int:
 
     # Descriptions de repli, écrites depuis le bloc anglais pour les plantes
     # dont la page du producteur n'en porte aucune.
-    replis: dict[str, str] = {}
+    replis: dict[str, dict] = {}
     if a.descriptions:
         for f in a.descriptions.glob("*.json"):
             if f.name.startswith("_"):
                 continue
-            fr = (json.loads(f.read_text("utf-8")) or {}).get("fr")
-            if isinstance(fr, str) and fr.strip():
-                replis[f.stem] = fr.strip()
+            bloc = json.loads(f.read_text("utf-8")) or {}
+            if isinstance(bloc, dict):
+                replis[f.stem] = bloc
 
     prets, refuses, sans_fr, depuis_repli = [], [], 0, 0
     for f in sorted(a.nouvelles.glob("*.json")):
@@ -302,11 +332,12 @@ def main() -> int:
         # La description de repli est écrite depuis le bloc anglais, qui est
         # sourcé. Elle ne s'applique qu'à l'absence : une description présente,
         # même médiocre, reste celle du producteur et n'est pas écrasée ici.
-        if not source.get("description") and cle in replis:
+        repli = replis.get(cle) or {}
+        if not source.get("description") and repli.get("fr"):
             source = dict(source)
-            source["description"] = replis[cle]
+            source["description"] = repli["fr"].strip()
             depuis_repli += 1
-        doc, motif = assembler(cle, redac, slug, source, axes)
+        doc, motif = assembler(cle, redac, slug, source, axes, repli)
         if doc is None:
             refuses.append((cle, motif))
             continue

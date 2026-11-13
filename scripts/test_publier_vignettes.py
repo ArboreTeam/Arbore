@@ -251,5 +251,119 @@ class Chronometrage(unittest.TestCase):
         self.assertIn("ligne.startswith(MARQUE_TEMPS)", source)
 
 
+class SessionQuiSeRouvre(unittest.TestCase):
+    """Le défaut : l'ouvrier gardait une session périmée pour toujours.
+
+    Il ouvrait UNE session au démarrage. À son expiration — ou à la rotation de
+    `GENERATOR_SESSION_SECRET` lors d'un redéploiement du web — chaque appel
+    prenait un 401 que la boucle journalisait avant de recommencer, sans jamais
+    tenter de se reconnecter. Mesuré le 2026-11-11 : 6 973 refus en deux jours,
+    conteneur `Up`, file qui s'accumule, aucune alerte.
+
+    Ces tests tiennent au comportement, pas à la forme : ils remplacent
+    `appeler` et `ouvrir_atelier` et comptent ce qui est tenté.
+    """
+
+    def setUp(self):
+        self._appeler = publier.appeler
+        self._ouvrir = publier.ouvrir_atelier
+        self.addCleanup(setattr, publier, "appeler", self._appeler)
+        self.addCleanup(setattr, publier, "ouvrir_atelier", self._ouvrir)
+
+    def _session(self, reponses, ouvertures=None):
+        """Monte une session dont les appels rendent `reponses` dans l'ordre."""
+        self.appels = []
+        self.ouvertures = 0
+        suite = list(reponses)
+
+        def faux_appeler(biscuit, url, corps=None, methode=None, delai=120):
+            self.appels.append((biscuit, url))
+            return suite.pop(0)
+
+        def faux_ouvrir():
+            self.ouvertures += 1
+            if ouvertures is not None and self.ouvertures > ouvertures:
+                raise SystemExit("atelier : connexion refusée (401) — clé invalide ?")
+            return "http://web:3000", f"arbore_generator=jeton{self.ouvertures}"
+
+        publier.appeler = faux_appeler
+        publier.ouvrir_atelier = faux_ouvrir
+        return publier.SessionAtelier()
+
+    def test_un_401_declenche_une_reconnexion_et_un_rejeu(self):
+        s = self._session([(401, b"Non authentifie"), (200, b"ok")])
+
+        statut, corps = s.appeler("/api/generator/vignettes/prendre", methode="POST")
+
+        self.assertEqual((statut, corps), (200, b"ok"))
+        self.assertEqual(self.ouvertures, 2, "la session aurait dû être rouverte")
+        self.assertEqual(self.appels[0][0], "arbore_generator=jeton1")
+        self.assertEqual(self.appels[1][0], "arbore_generator=jeton2",
+                         "le rejeu doit porter le NOUVEAU cookie")
+
+    def test_le_nouveau_cookie_sert_aux_appels_suivants(self):
+        """Sans ça, chaque appel paierait une reconnexion : on garde la session."""
+        s = self._session([(401, b""), (200, b"a"), (200, b"b")])
+
+        s.appeler("/un")
+        s.appeler("/deux")
+
+        self.assertEqual(self.ouvertures, 2, "une seule reconnexion attendue")
+        self.assertEqual(self.appels[-1][0], "arbore_generator=jeton2")
+
+    def test_une_reconnexion_impossible_ne_tue_pas_l_ouvrier(self):
+        """`ouvrir_atelier` lève `SystemExit`, qui traverse `except Exception`.
+
+        Au démarrage, mourir est correct. En cours de route, non : un atelier
+        absent, c'est un déploiement du web, et l'ouvrier doit y survivre pour
+        réessayer au tour suivant. On rend le 401 d'origine.
+        """
+        s = self._session([(401, b"Non authentifie")], ouvertures=1)
+
+        statut, corps = s.appeler("/api/generator/vignettes/prendre")
+
+        self.assertEqual(statut, 401)
+        self.assertEqual(corps, b"Non authentifie")
+
+    def test_on_ne_se_reconnecte_pas_en_boucle(self):
+        """Un 401 APRÈS reconnexion est un refus, pas une expiration.
+
+        Insister martèlerait l'atelier à chaque tour de boucle sans rien
+        changer : la clé a été retirée des empreintes acceptées, et seule une
+        intervention humaine y remédie.
+        """
+        s = self._session([(401, b""), (401, b"toujours refuse")])
+
+        statut, corps = s.appeler("/api/generator/vignettes/prendre")
+
+        self.assertEqual((statut, corps), (401, b"toujours refuse"))
+        self.assertEqual(self.ouvertures, 2, "une seule tentative de reconnexion")
+
+    def test_un_statut_non_401_ne_reconnecte_pas(self):
+        for statut in (200, 204, 404, 500, publier.INJOIGNABLE):
+            with self.subTest(statut=statut):
+                s = self._session([(statut, b"")])
+                s.appeler("/un")
+                self.assertEqual(self.ouvertures, 1,
+                                 f"{statut} ne doit pas rouvrir de session")
+
+
+class AlerteSurRefusRepetes(unittest.TestCase):
+    """Une panne durable ne doit pas se lire comme 6 973 lignes identiques."""
+
+    def test_le_seuil_est_atteignable_et_laisse_passer_un_redeploiement(self):
+        self.assertGreaterEqual(publier.SEUIL_ALERTE, 2,
+                                "un seuil de 1 crierait au premier hoquet")
+        self.assertLessEqual(publier.SEUIL_ALERTE, 60,
+                             "un seuil trop haut laisserait la panne dormir")
+
+    def test_l_alerte_est_emise_une_seule_fois(self):
+        """Répétée à chaque tour, elle se noierait dans le bruit qu'elle dénonce."""
+        source = _chemin.read_text(encoding="utf-8")
+
+        self.assertIn("if refus == SEUIL_ALERTE:", source)
+        self.assertNotIn("if refus >= SEUIL_ALERTE:", source)
+
+
 if __name__ == "__main__":
     unittest.main()

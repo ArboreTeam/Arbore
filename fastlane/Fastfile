@@ -17,7 +17,7 @@
 # Usage :
 #   bundle exec fastlane beta            # build interne (3 testeurs, immédiat)
 #   bundle exec fastlane beta_dev        # build interne, mais sur le backend de DEV
-#   bundle exec fastlane public_beta     # build externe (« Bêta privée », via Apple)
+#   bundle exec fastlane public_beta     # build externe (« External Testers », via Apple)
 #   bundle exec fastlane verifier_notes  # contrôle les notes sans rien livrer
 #   bundle exec fastlane notes build:33  # republie les notes d'une build en ligne
 #   bundle exec fastlane current_build   # affiche le dernier build_number sur TestFlight
@@ -31,7 +31,7 @@
 #   `beta_dev`    → même chose, mais sur le backend de DÉVELOPPEMENT. La cible
 #                   est portée par le schéma « ArboreUi Dev » (#456), donc par
 #                   la commande lancée — pas par un fichier édité avant.
-#   `public_beta` → groupe « Bêta privée », lien public TestFlight, soumission à
+#   `public_beta` → groupe « External Testers », lien public TestFlight, soumission à
 #                   la Beta App Review. La build n'atteint personne tant
 #                   qu'Apple n'a pas approuvé, ce qui prend de quelques heures
 #                   à un jour.
@@ -56,12 +56,12 @@ AUTH_KEY  = File.expand_path("AuthKey.json", __dir__)
 # jamais existé côté ASC. Rien ne cassait, puisque rien ne la consomme — mais
 # les lanes annonçaient une livraison vers un groupe introuvable, et la
 # procédure de `docs/*/operations/testflight-deploy.md` faisait créer le mauvais.
-# Les deux seuls groupes réels : « Internal Testers » et « Bêta privée ».
+# Les deux seuls groupes réels : « Internal Testers » et « External Testers ».
 INTERNAL_GROUP = "Internal Testers"
 # Groupe EXTERNE, celui du lien public TestFlight. Distribuer ici expose la
 # build à des gens qui ne sont pas dans l'équipe, et passe par la Beta App
 # Review d'Apple.
-EXTERNAL_GROUP = "Bêta privée"
+EXTERNAL_GROUP = "External Testers"
 APP_IDENTIFIER = "com.arboreteam.arbore"
 
 # Les quatre locales que l'app dessert, et les seules déclarées côté ASC.
@@ -361,6 +361,32 @@ platform :ios do
   # Un chemin qui ne désigne aucun fichier est une FAUTE, jamais un texte
   # littéral : accepter les deux ferait publier « notes/33-fr.txt » à la moindre
   # faute de frappe.
+  # Vérifie que le groupe externe existe VRAIMENT sur App Store Connect.
+  #
+  # pilot sélectionne les groupes par égalité de nom, et quand il n'en trouve
+  # aucun il saute l'affectation **sans rien dire** : `unless beta_groups.empty?`
+  # (`pilot/build_manager.rb:462`). La lane rend alors un succès, le build est
+  # approuvé pour le test externe, et aucun testeur externe ne le reçoit.
+  #
+  # C'est arrivé le 2026-11-13 : le groupe « Bêta privée » avait été renommé
+  # « External Testers » dans ASC, et le build 4 de la 1.0.2 n'a été attaché
+  # qu'au groupe interne. Le défaut ne se voit que sur la fiche du build.
+  def verifier_groupe_externe!
+    require "spaceship"
+    Spaceship::ConnectAPI.token =
+      Spaceship::ConnectAPI::Token.from_json_file(AUTH_KEY)
+    app = Spaceship::ConnectAPI::App.find(APP_IDENTIFIER)
+    noms = app.get_beta_groups.map(&:name)
+    return if noms.include?(EXTERNAL_GROUP)
+
+    UI.user_error!(
+      "Le groupe externe « #{EXTERNAL_GROUP} » n'existe pas sur App Store Connect.\n\n" \
+      "Groupes présents : #{noms.map { |n| "« #{n} »" }.join(', ')}\n\n" \
+      "Corriger EXTERNAL_GROUP dans le Fastfile, ou renommer le groupe dans ASC. " \
+      "Sans ce contrôle, la lane aurait rendu un succès sans distribuer à personne."
+    )
+  end
+
   def lire_et_verifier_notes(options)
     options ||= {}
     fautes = []
@@ -483,13 +509,14 @@ platform :ios do
     UI.important("   Les données vues dans cette build sont celles de dev, pas de la production.")
   end
 
-  desc "Build + upload TestFlight + distribution au groupe EXTERNE « Bêta privée »."
+  desc "Build + upload TestFlight + distribution au groupe EXTERNE « External Testers »."
   desc "Soumet à la Beta App Review d'Apple et publie des notes dans les 4 langues."
   desc "Usage : fastlane public_beta fr:… en:… es:… de:… (chemins de fichiers)"
   lane :public_beta do |options|
     # Le contrôle des notes passe AVANT l'archive. Échouer sur une tournure
     # après deux minutes et demie de compilation serait une punition gratuite.
     notes = lire_et_verifier_notes(options)
+    verifier_groupe_externe!
 
     version = get_version_number(xcodeproj: "ArboreUi/ArboreUi.xcodeproj")
     latest = latest_testflight_build_number(api_key_path: AUTH_KEY, version: version)
@@ -540,6 +567,65 @@ platform :ios do
     )
 
     UI.success("✅ Build #{latest + 1} soumise à la Beta App Review → groupe #{EXTERNAL_GROUP}")
+    UI.important("   Elle n'atteindra les testeurs qu'une fois approuvée par Apple.")
+  end
+
+  desc "Distribue au groupe EXTERNE une build DÉJÀ en ligne, sans rien reconstruire."
+  desc "Usage : fastlane distribuer build:4 fr:… en:… es:… de:…"
+  #
+  # Pourquoi cette lane existe, alors que `public_beta` fait déjà tout.
+  #
+  # L'envoi d'une build à ASC se termine par des étapes de métadonnées —
+  # « CHANGE UPLOAD STATE TO COMPLETE », la description des assets, l'analyse
+  # SPI. Le 2026-11-12, le binaire est monté et ces trois étapes ont rendu des
+  # HTTP 500 : l'envoi est resté en `PROCESSING` sans jamais devenir une build,
+  # et la lane a échoué APRÈS la compilation et l'archive.
+  #
+  # Relancer `public_beta` dans ce cas recompile pour rien et consomme un
+  # numéro de build de plus, puisque `poser_build_number` repart du dernier
+  # envoi connu. Cette lane reprend la seule étape qui manque — distribuer et
+  # soumettre — sur une build déjà en ligne.
+  #
+  # Elle se distingue de `notes`, qui republie des textes sans distribuer
+  # (`distribute_external: false`, `skip_submission: true`) : ici le but est au
+  # contraire d'atteindre le groupe externe.
+  lane :distribuer do |options|
+    numero = options[:build]
+    unless numero
+      UI.user_error!("Préciser la build.\n\n" + usage_notes("distribuer build:4"))
+    end
+    notes = lire_et_verifier_notes(options)
+    verifier_groupe_externe!
+
+    version = get_version_number(xcodeproj: "ArboreUi/ArboreUi.xcodeproj")
+
+    # `skip_waiting_for_build_processing` doit rester FAUX, malgré son air de
+    # raccourci inoffensif sur une build déjà traitée. Quand il est vrai, pilot
+    # sort AVANT de distribuer si la build n'est pas exactement en
+    # `READY_FOR_BETA_TESTING` (`pilot/build_manager.rb:202`) — or une build
+    # traitée est déjà passée en `IN_BETA_TESTING`, le groupe interne la
+    # recevant sans revue. Le 2026-11-13, la lane a ainsi rendu « succès » en
+    # quatre secondes sans avoir rien distribué ni soumis.
+    #
+    # En `distribute_only`, ce drapeau n'est lu QUE là : le mettre à faux
+    # n'ajoute aucune attente, les lignes 69 à 84 appartenant au chemin d'envoi.
+    upload_to_testflight(
+      api_key_path: AUTH_KEY,
+      # Sans IPA, pilot ne peut déduire ni l'app ni la plateforme : il les
+      # demande en invite, ce qui fait planter toute exécution non interactive.
+      app_identifier: APP_IDENTIFIER,
+      app_platform: "ios",
+      app_version: version,
+      build_number: numero.to_s,
+      distribute_only: true,
+      distribute_external: true,
+      groups: [EXTERNAL_GROUP],
+      submit_beta_review: true,
+      skip_waiting_for_build_processing: false,
+      localized_build_info: notes
+    )
+
+    UI.success("✅ Build #{numero} soumise à la Beta App Review → groupe #{EXTERNAL_GROUP}")
     UI.important("   Elle n'atteindra les testeurs qu'une fois approuvée par Apple.")
   end
 

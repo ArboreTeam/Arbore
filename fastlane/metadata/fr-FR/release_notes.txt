@@ -1,9 +1,8 @@
-Des plantes plus fidèles, et posées à leur vraie taille.
+Plus du double de plantes, et vos pots restent en place.
 
-• Nouveaux modèles 3D pour une partie du catalogue, nettement plus détaillés.
-• Les plantes sont placées à leur hauteur réelle, mesurée sur l'exemplaire, sans réglage de votre part.
-• Beaucoup d'entre elles reposent désormais dans un cache-pot, posé automatiquement sous la plante.
-• Un jardin enregistré se rouvre avec ses pots, à l'endroit exact où vous les aviez laissés.
-• L'app demande votre autorisation avant d'envoyer une photo ou un message à l'assistant.
+• 274 plantes au catalogue au lieu de 123. Chacune arrive avec ses conseils de soin, son nom dans quatre langues et son verdict de toxicité pour les animaux et les enfants, appuyé sur une source nommée.
+• Un jardin rouvert retrouve ses pots, et la hauteur mesurée de chaque plante.
+• Le contour d'une plante sélectionnée épouse maintenant son pot au lieu de se décaler.
+• Les filtres lumière et arrosage s'appliquent à toutes les plantes, y compris celles qui ne sont pas encore traduites dans votre langue. Vos listes peuvent donc être plus courtes, et plus justes.
 
-Vos retours sur le rendu des plantes nous intéressent particulièrement.
+Les jardins enregistrés avant cette version reviennent sans leurs pots : la donnée n'avait jamais été écrite. Les nouveaux les gardent.

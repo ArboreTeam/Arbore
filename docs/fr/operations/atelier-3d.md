@@ -120,8 +120,12 @@ contrôle des empreintes : [`vignettes-rendu.md`](vignettes-rendu.md).
 Une plante validée n'est pas pour autant livrable. Il lui faut, dans cet
 ordre :
 
-1. **une `taille`** — hauteur réelle de l'exemplaire, posée à la revue. Sans
-   elle, pas de `heightMeters`, donc pas de pose à l'échelle ;
+1. **une `taille`** — hauteur réelle de l'exemplaire, posée sur la page
+   `/generator/tailles` et **non** pendant la revue des coupes : c'est une
+   seconde intervention humaine, avec sa propre méthode (le pot sert de règle,
+   la hauteur se mesure depuis la terre). Sans elle, pas de `heightMeters`,
+   donc pas de pose à l'échelle. Voir
+   [`chaine-plante.md`](chaine-plante.md) ;
 2. **une `coupe` acceptée**, si l'on veut une plante sans pot ;
 3. **la conversion GLB → USDZ** par
    `Plant3DGenerator/usdz_sans_reduction.py`, qui ne réduit rien (arbitrage du

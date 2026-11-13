@@ -34,6 +34,7 @@ La documentation est découpée en vues complémentaires. Selon l'information re
 | Tests Backend (Go) | [`testing/backend.md`](testing/backend.md) |
 | Tests Web (Vitest) | [`testing/web.md`](testing/web.md) |
 | Observabilité (Sentry iOS + web) | [`operations/observability.md`](operations/observability.md) |
+| **De la collecte à la plante servie (chaîne de bout en bout)** | [`operations/chaine-plante.md`](operations/chaine-plante.md) |
 | Audit des données botaniques | [`operations/botanical-data-audit.md`](operations/botanical-data-audit.md) |
 | Déploiement TestFlight, interne et bêta publique (fastlane) | [`operations/testflight-deploy.md`](operations/testflight-deploy.md) |
 | Publication App Store (fiche, App Privacy, pièges) | [`operations/publication-app-store.md`](operations/publication-app-store.md) |

@@ -34,6 +34,7 @@ The documentation is split into complementary views. Depending on what you are l
 | Backend tests (Go) | [`testing/backend.md`](testing/backend.md) |
 | Web tests (Vitest) | [`testing/web.md`](testing/web.md) |
 | Observability (Sentry iOS + web) | [`operations/observability.md`](operations/observability.md) |
+| **From collection to a served plant (end-to-end chain)** | [`operations/chaine-plante.md`](operations/chaine-plante.md) |
 | Botanical data audit | [`operations/botanical-data-audit.md`](operations/botanical-data-audit.md) |
 | TestFlight deployment, internal and public beta (fastlane) | [`operations/testflight-deploy.md`](operations/testflight-deploy.md) |
 | App Store release (listing, App Privacy, traps) | [`operations/app-store-release.md`](operations/app-store-release.md) |

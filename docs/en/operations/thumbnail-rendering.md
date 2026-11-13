@@ -205,6 +205,32 @@ Measured outcome: those 51 plants rendered **bare**.
 }
 ```
 
+### Prerequisite: the pot library must not be empty
+
+**Rendering a thumbnail with its pot requires at least one pot in the database,
+and at least one flagged `default: true`.** Without that the render still
+succeeds and produces a bare plant — nothing reports the absence.
+
+What `choisirPot` does when given nothing usable:
+
+| state of the `pots` collection | what is served |
+|---|---|
+| empty | `nil`: no pot, the plant renders bare |
+| non-empty, no `default` | **the first in the list**, at the mercy of Mongo's ordering |
+| non-empty, one `default` | the default pot |
+
+The second case is the trap: it breaks nothing, it picks for you, and the pot
+it picks can change between requests if the ordering changes.
+
+The pot entry alone is not enough. Its **USDZ must also be deployed** in the
+target environment's model directory: the worker downloads it at render time,
+and a 404 fails the task.
+
+Measured 2026-11-12, on `arbore_dev` as on `arbore`: a single pot,
+`cachepot_pieds`, `default: true`, with its USDZ present in both `models-dev`
+and `models-prod`. **With only one entry in the library, losing that `default`
+would leave nothing dependable to compose.**
+
 ### The disc radius does not depend on the mesh
 
 That is what makes the server-side computation legitimate. By construction, the
@@ -313,6 +339,44 @@ receives the secret.
 The worker is capped at 2 cores. A Blender render takes everything it is given,
 and a catalogue pass runs for hours: uncapped, it starves the backend sharing
 the machine.
+
+### The session reopens itself — and why that had to be written
+
+The worker used to open **one** session at startup and keep it forever. The day
+it expires — or the day a web redeployment changes `GENERATOR_SESSION_SECRET`,
+invalidating every cookie issued before it — each task pickup took a 401 that
+the loop logged before starting over. Identically. Indefinitely.
+
+Measured on 2026-11-11 on `arbore-dev-vignettes-ouvrier`:
+
+```
+prise refusée (401) : {"error":"Non authentifié"}   × 6,973
+first refusal: 2026-11-10T00:15
+```
+
+Container `Up`, queue piling up, **no alert**. Only restarting the container
+woke it, and nothing said it needed restarting. It was neither an invalid key —
+`sha256(ATELIER_CLE)` was indeed among the `GENERATOR_KEY_HASH` fingerprints —
+nor a host mismatch, which returns 404 rather than 401.
+
+`SessionAtelier` therefore reopens the session on a 401, **once**, and replays
+the call. Three points are not negotiable:
+
+- **a single attempt.** A 401 after reconnecting is no longer an expiry but a
+  refusal — the key removed from the accepted fingerprints — and insisting
+  would hammer the workshop without changing anything;
+- **a failed reconnection does not kill the worker.** `ouvrir_atelier()` raises
+  `SystemExit`, which derives from `BaseException` and passes straight through
+  `except Exception`: catching it means naming it. Dying is correct at startup;
+  mid-run, an absent workshop is merely a web deployment, and `appeler()` was
+  written precisely to survive one;
+- **the report goes through the session too.** A render takes two to three
+  minutes: a session expiring in that window would lose the verdict of a task
+  that actually succeeded, leaving it "in progress" until it expires and then
+  replaying it for nothing.
+
+Finally, `SEUIL_ALERTE` consecutive refusals emit an `ALERTE` line, **once
+only**: repeated every pass, it would drown in the noise it denounces.
 
 ### Declaring environments
 

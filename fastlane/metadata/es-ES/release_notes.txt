@@ -1,9 +1,8 @@
-Plantas más fieles, colocadas a su tamaño real.
+Más del doble de plantas, y sus macetas se quedan donde están.
 
-• Nuevos modelos 3D para parte del catálogo, bastante más detallados.
-• Las plantas se colocan a su altura real, medida sobre el ejemplar, sin que tengas que ajustar nada.
-• Muchas de ellas descansan ahora en una maceta, colocada automáticamente bajo la planta.
-• Un jardín guardado se reabre con sus macetas, justo donde las dejaste.
-• La app pide tu permiso antes de enviar una foto o un mensaje al asistente.
+• 274 plantas en el catálogo en lugar de 123. Cada una llega con sus cuidados, su nombre en cuatro idiomas y su veredicto de toxicidad para mascotas y niños, respaldado por una fuente citada.
+• Un jardín reabierto conserva sus macetas, y la altura medida de cada planta.
+• El contorno de una planta seleccionada sigue ahora su maceta en lugar de desplazarse.
+• Los filtros de luz y riego se aplican a todas las plantas, incluidas las que aún no están traducidas a su idioma. Sus listas pueden ser más cortas, y más exactas.
 
-Nos interesa especialmente tu opinión sobre el aspecto de las plantas.
+Los jardines guardados antes de esta versión vuelven sin sus macetas: el dato nunca se escribió. Los nuevos sí las conservan.

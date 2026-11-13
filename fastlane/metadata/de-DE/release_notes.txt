@@ -1,9 +1,8 @@
-Naturgetreuere Pflanzen, in ihrer echten Größe platziert.
+Mehr als doppelt so viele Pflanzen, und Ihre Töpfe bleiben, wo sie sind.
 
-• Neue 3D-Modelle für einen Teil des Katalogs, deutlich detaillierter.
-• Pflanzen werden in ihrer tatsächlichen Höhe platziert, am Exemplar gemessen, ohne dass Sie etwas einstellen müssen.
-• Viele von ihnen stehen jetzt in einem Übertopf, der automatisch unter die Pflanze gesetzt wird.
-• Ein gespeicherter Garten öffnet sich wieder mit seinen Töpfen, genau dort, wo Sie sie gelassen haben.
-• Die App fragt um Erlaubnis, bevor ein Foto oder eine Nachricht an den Assistenten geht.
+• 274 Pflanzen im Katalog statt 123. Jede kommt mit ihrer Pflege, ihrem Namen in vier Sprachen und ihrem Giftigkeitsbefund für Haustiere und Kinder, belegt durch eine genannte Quelle.
+• Ein wieder geöffneter Garten behält seine Töpfe und die gemessene Höhe jeder Pflanze.
+• Die Kontur einer ausgewählten Pflanze folgt jetzt ihrem Topf, statt zu verrutschen.
+• Die Filter für Licht und Bewässerung gelten für alle Pflanzen, auch für die noch nicht in Ihre Sprache übersetzten. Ihre Listen können daher kürzer und genauer sein.
 
-Ihre Rückmeldung zum Aussehen der Pflanzen interessiert uns besonders.
+Gärten, die vor dieser Version gespeichert wurden, kommen ohne ihre Töpfe zurück: der Wert wurde nie geschrieben. Neue behalten sie.

@@ -178,13 +178,58 @@ Same flow as `beta`, with three differences that matter.
 
 | | `beta` | `public_beta` |
 |---|---|---|
-| group | Internal Testers (3 testers) | Bêta privée (10 testers, public link) |
+| group | Internal Testers (3 testers) | External Testers (10 testers, public link) |
 | Apple review | none | Beta App Review |
 | delay before testers get it | after processing | after approval, hours to a day |
 
 The build **reaches nobody** until Apple approves it. Do not confuse "shipped"
 with "received": `current_build` will show the number long before anyone can
 install it.
+
+### Resuming a delivery whose finalization failed
+
+Transferring the binary is not the last step of an upload: ASC then runs a
+series of metadata steps — "CHANGE UPLOAD STATE TO COMPLETE", the asset
+description, the SPI analysis. When those return HTTP 500s, the lane fails
+**after** compiling, archiving and transferring. The expensive work is already
+done, and the reflex of re-running `public_beta` does it all again for nothing.
+
+First, find out whether Apple received the binary:
+
+```bash
+bundle exec fastlane current_build
+```
+
+That number comes from the **uploads**, not the builds: it rises as soon as a
+transfer is recorded, even one left in `PROCESSING` that never became a build.
+A number ahead of what TestFlight shows is exactly this case.
+
+Two ways it can go, and the marker to tell them apart: a healthy delivery turns
+into a visible build **one to two minutes** after its upload. Past that, the
+upload is stuck.
+
+When the build does show up, distribute it without rebuilding anything:
+
+```bash
+bundle exec fastlane distribuer build:4 \
+  fr:fastlane/changelogs/fr.txt \
+  en:fastlane/changelogs/en.txt \
+  es:fastlane/changelogs/es.txt \
+  de:fastlane/changelogs/de.txt
+```
+
+All four languages are mandatory, as with `public_beta`. The lane requires a
+build Apple has **already processed**: on a build still processing, pilot fails
+with "Could not find build".
+
+When it never shows up, `public_beta` does have to run again — but knowing that
+the bump starts from the latest known upload, the stuck one included: the build
+number will therefore skip the one that was lost.
+
+> The release-note files carry two naming schemes in the repository: `fr.txt`
+> and `fr-FR.txt`. The 1.0.2 builds shipped with the **short** ones, and those
+> hold the up-to-date notes; the long ones have not changed since #764. The
+> examples earlier on this page still cite the long ones.
 
 ### Release notes
 
@@ -313,6 +358,7 @@ Useful to confirm the previous upload was properly registered on the ASC side be
 | `App Store Connect timeout` | Abnormally long Apple processing | Check the status on [Apple System Status](https://www.apple.com/support/systemstatus/), retry later |
 | Diverging `Code signing entitlements` | Xcode capabilities changed without updating ASC | Toggle the capability in Xcode, build again |
 | `Could not set changelog: SSL_connect ... unexpected eof` | Network drop to Apple **after** the binary upload | No longer fails the lane since #511: the binary is shipped and the dSYMs already went out. Set the changelog by hand in App Store Connect |
+| `CHANGE UPLOAD STATE TO COMPLETE` returning HTTP 500 (×3) | ASC server outage **after** the binary transfer | The binary may well be up: `current_build` counts uploads, not builds. If the build appears in TestFlight, resume with `fastlane distribuer build:N` instead of recompiling everything |
 
 ### The lane's ordering, and why it changed
 

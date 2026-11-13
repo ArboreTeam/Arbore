@@ -56,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           # Doit satisfaire le `required_version` de versions.tf. `use_lockfile`
           # sur le backend S3 exige >= 1.10.
@@ -116,7 +116,7 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         if: steps.gate.outputs.skip == 'false'
         with:
           terraform_version: "1.10.5"
@@ -256,7 +256,7 @@ jobs:
             echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         if: steps.gate.outputs.skip == 'false'
         with:
           terraform_version: "1.10.5"

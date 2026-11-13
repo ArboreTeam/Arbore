@@ -4,8 +4,11 @@
 [![CodeQL](https://github.com/ArboreTeam/Arbore/actions/workflows/codeql.yml/badge.svg)](https://github.com/ArboreTeam/Arbore/actions/workflows/codeql.yml)
 [![Docker](https://github.com/ArboreTeam/Arbore/actions/workflows/deploy.yml/badge.svg)](https://github.com/ArboreTeam/Arbore/actions/workflows/deploy.yml)
 [![Docs](https://github.com/ArboreTeam/Arbore/actions/workflows/docs.yml/badge.svg)](https://github.com/ArboreTeam/Arbore/actions/workflows/docs.yml)
+[![App Store](https://img.shields.io/badge/App%20Store-T%C3%A9l%C3%A9charger-0D96F6?logo=apple&logoColor=white)](https://apps.apple.com/fr/app/arbore/id6762100087)
 
 Arbore est un projet de 4ᵉ et 5ᵉ année : une application de jardinage qui aide à concevoir et entretenir ses jardins, avec la puissance de la réalité augmentée et de l'intelligence artificielle.
+
+> 📲 **Disponible sur l'App Store** : [Arbore pour iPhone et iPad](https://apps.apple.com/fr/app/arbore/id6762100087) ([English listing](https://apps.apple.com/fr/app/arbore/id6762100087?l=en-GB)). Gratuite, sans abonnement ni achat intégré.
 
 > 📚 **Documentation technique (bilingue FR/EN)** : **[`docs/`](docs/README.md)** — architecture C4, flows, tests, opérations, ADR.
 > 🇬🇧 Technical docs are bilingual — see the [English entry point](docs/en/README.md).
@@ -27,7 +30,7 @@ Arbore est composé de quatre modules déployés :
 Arbore/
 ├── 📱 ArboreUi/          # Application iOS (SwiftUI · ARKit · RoomPlan)
 ├── 🌐 web/               # Front web compagnon (Next.js · TypeScript)
-├── 🔧 ArboreBackend/     # API backend (Go 1.24 · Gin · MongoDB)
+├── 🔧 ArboreBackend/     # API backend (Go 1.26 · Gin · MongoDB)
 ```
 
 Le backend, l'AI Generator et le web tournent en containers Docker sur un VPS unique (Docker Compose) ; l'app iOS et le web parlent au backend via une API REST sécurisée (clé API + token Firebase). Détails complets : [`docs/`](docs/README.md) ([C4 Containers](docs/fr/architecture/02-containers.md)).

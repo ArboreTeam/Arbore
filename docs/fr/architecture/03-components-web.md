@@ -1,6 +1,6 @@
 # C4 — Niveau 3 : Composants Web
 
-Cette vue ouvre le container **Web Arbore** (Next.js 16, App Router, React 18, TypeScript) déployé sur `web.arbore.app`. Le web est un **compagnon** de l'application iOS : les jardins sont **créés sur iOS** (placement AR) ; le web permet de consulter le catalogue, ses jardins et leurs plantes, un calendrier d'arrosage, un guide saisonnier, et de gérer son compte (export / suppression RGPD).
+Cette vue ouvre le container **Web Arbore** (Next.js 16, App Router, React 19, TypeScript) déployé sur `web.arbore.app`. Le web est un **compagnon** de l'application iOS : les jardins sont **créés sur iOS** (placement AR) ; le web permet de consulter le catalogue, ses jardins et leurs plantes, un calendrier d'arrosage, un guide saisonnier, et de gérer son compte (export / suppression RGPD).
 
 Pour la vue d'ensemble des containers, consulter [`02-containers.md`](02-containers.md). Pour le backend qu'il consomme, voir [`03-components-backend.md`](03-components-backend.md).
 
@@ -61,8 +61,8 @@ Les pages applicatives sont des composants client (`'use client'`) : elles véri
 
 ### 1 bis. L'atelier 3D (`/generator`)
 
-Absent de ce document jusqu'au 2026-11-02, alors qu'il représente **sept pages
-sur vingt-deux** et vingt-huit routes d'API. Il est servi par le **même**
+Absent de ce document jusqu'au 2026-11-02, alors qu'il représente **huit pages
+sur vingt-deux** et vingt-six routes d'API. Il est servi par le **même**
 container, sur `generator.arbore.app`, et c'est nginx puis le middleware qui
 l'isolent de `web.arbore.app`.
 
@@ -137,11 +137,11 @@ Le navigateur n'appelle donc **que sa propre origine** : pas de CORS, et la clé
 
 | Aspect | Détail |
 |---|---|
-| Framework | Next.js 16 (App Router), React 18, TypeScript, Tailwind. `web/next.config.js` : `output: 'standalone'`, en-têtes de sécurité globaux, pas de CSP (différée). |
+| Framework | Next.js 16 (App Router), React 19, TypeScript, Tailwind. `web/next.config.js` : `output: 'standalone'`, en-têtes de sécurité globaux, pas de CSP (différée). |
 | Variables publiques | `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_APP_VERSION` (inlinées au build). |
 | Variables serveur | `BACKEND_API_URL`, `ARBORE_API_KEY` (jamais préfixées `NEXT_PUBLIC_`). Source de vérité : `web/.env.example`. |
 | i18n | Pas de framework i18n : interface **français uniquement** (`<html lang="fr">`) ; le contenu d'entretien est lu depuis `translations.fr.*` du backend. |
-| Docker | `web/Dockerfile` multi-stage `node:20-alpine` → image `standalone` (non-root, `:3000`). |
+| Docker | `web/Dockerfile` multi-stage `node:26-alpine3.24` → image `standalone` (non-root, `:3000`). |
 
 ## Points clés
 

@@ -44,7 +44,7 @@ Arbore's test pyramid is deliberately **thick at the base** for components carry
 |---|---|
 | Backend (Go) | `make test-backend` or `cd ArboreBackend && go test -race -coverprofile=coverage.out ./...` |
 | Backend (lint) | `cd ArboreBackend && golangci-lint run --config=../.golangci.yml --timeout=5m ./...` |
-| iOS (full suite) | `cd ArboreUi && xcodebuild test -workspace ArboreUi.xcworkspace -scheme ArboreUi -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2'` |
+| iOS (full suite) | `cd ArboreUi && xcodebuild test -workspace ArboreUi.xcworkspace -scheme ArboreUi -destination 'platform=iOS Simulator,name=iPhone 16 Pro'` |
 | iOS (single suite) | add `-only-testing:ArboreUiTests/TSDFGridTests` (or use the `ci-ui-local.sh` menu) |
 | Web (Vitest) | `cd web && npm test` (or `npm run test:watch`) |
 | Web (coverage) | `cd web && npm run test:coverage` |
@@ -98,12 +98,13 @@ unverifiable — nobody can say why 80 rather than 70 — and it is easily reach
 by testing whatever is easy. "Do not go backwards" justifies itself, measures
 exactly, and forces no token tests.
 
-The floors live in **one place**, `.github/couverture-planchers.json`, so that
-raising them is a single edit:
+The floors live in **one place**, `.github/couverture-planchers.json`, which is
+authoritative — this table is a reading copy, and that file is the one to
+believe. One place also means raising them is a single edit:
 
 | area | floor | measured 2026-11-03 |
 |---|---|---|
-| Go | 52.0% | 52.7% |
+| Go | 52.7% | 53.4% (2026-11-04) |
 | Web | 32.0% | 32.5% |
 | iOS | 6.5% | 6.9% |
 
@@ -140,7 +141,7 @@ The gaps that matter, with a proposed order, are in #725.
 ## Other known limitations
 
 - Backend coverage is **published to Codecov** but **no blocking threshold** is enforced to date.
-- The Go version declared in `ArboreBackend/go.mod` (`go 1.25.12`) and the CI's `GO_VERSION` variable must be kept aligned. They had diverged (`GO_VERSION: "1.22"` against `go 1.25.12`): the toolchain mechanism therefore downloaded 1.25.12 on every run without caching, and the displayed version was not the one used (audit #338 finding 6).
+- The Go version declared in `ArboreBackend/go.mod` (**`go 1.26.10`**) and the CI's `GO_VERSION` variable (**`1.27.4`**) must stay compatible: the toolchain mechanism downloads the declared version when the runner carries an older one, without caching, and the displayed version is then not the one used (audit #338 finding 6). A `GO_VERSION` **newer** than `go.mod`, the current case, does not trigger that download. This page claimed `go 1.25.12` and `testing/backend.md` `go 1.25.14`, neither being right: a number copied into prose goes stale silently.
 - **Security scan threshold**: the Trivy gate blocks on **CRITICAL** only. **HIGH** vulnerabilities currently exist in the `package-lock.json` files (`brace-expansion`, `sharp`/libvips) — blocking on HIGH would break CI. Dependabot now watches npm (`web/`, `Plant3DGenerator/`) and Docker in addition to Go, Python and actions; the threshold should be tightened to HIGH once those PRs have landed.
 - The iOS integration tests depend on the test backend (`arbore_test` DB, routed by `ARBORE_API_KEY_TEST`); they are **skipped** automatically if `/health` does not respond.
 

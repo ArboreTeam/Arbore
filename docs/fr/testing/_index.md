@@ -45,7 +45,7 @@ La pyramide de tests d'Arbore est volontairement **épaisse à la base** sur les
 |---|---|
 | Backend (Go) | `make test-backend` ou `cd ArboreBackend && go test -race -coverprofile=coverage.out ./...` |
 | Backend (lint) | `cd ArboreBackend && golangci-lint run --config=../.golangci.yml --timeout=5m ./...` |
-| iOS (toute la suite) | `cd ArboreUi && xcodebuild test -workspace ArboreUi.xcworkspace -scheme ArboreUi -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2'` |
+| iOS (toute la suite) | `cd ArboreUi && xcodebuild test -workspace ArboreUi.xcworkspace -scheme ArboreUi -destination 'platform=iOS Simulator,name=iPhone 16 Pro'` |
 | iOS (une suite) | ajouter `-only-testing:ArboreUiTests/TSDFGridTests` (ou utiliser le menu `ci-ui-local.sh`) |
 | Web (Vitest) | `cd web && npm test` (ou `npm run test:watch`) |
 | Web (couverture) | `cd web && npm run test:coverage` |
@@ -101,11 +101,12 @@ justifie tout seul, se mesure exactement, et n'oblige à aucun test de
 complaisance.
 
 Les planchers vivent **au même endroit**, `.github/couverture-planchers.json`,
-pour que les relever soit une seule modification :
+qui fait foi — ce tableau en est une copie de lecture, et c'est ce fichier
+qu'il faut croire :
 
 | zone | plancher | mesure du 2026-11-03 |
 |---|---|---|
-| Go | 52,0 % | 52,7 % |
+| Go | 52,7 % | 53,4 % (2026-11-04) |
 | Web | 32,0 % | 32,5 % |
 | iOS | 6,5 % | 6,9 % |
 
@@ -141,7 +142,7 @@ couverture suit où le travail est allé.
 Les manques qui comptent, avec l'ordre proposé, sont dans #725.
 
 ## Autres limites connues
-- La version Go déclarée dans `ArboreBackend/go.mod` (`go 1.25.12`) et la variable `GO_VERSION` du CI doivent être maintenues alignées. Elles ont divergé (`GO_VERSION: "1.22"` face à `go 1.25.12`) : le mécanisme de toolchain téléchargeait donc 1.25.12 à chaque run sans cache, et la version affichée n'était pas celle utilisée (audit #338 constat 6).
+- La version Go déclarée dans `ArboreBackend/go.mod` (**`go 1.26.10`**) et la variable `GO_VERSION` du CI (**`1.27.4`**) doivent rester compatibles : le mécanisme de toolchain télécharge la version déclarée si le runner en porte une plus ancienne, sans cache, et la version affichée n'est alors pas celle utilisée (audit #338 constat 6). Un `GO_VERSION` **plus récent** que `go.mod`, le cas actuel, ne déclenche pas ce téléchargement. Cette page a annoncé `go 1.25.12` et `testing/backend.md` `go 1.25.14`, aucune des deux n'étant la bonne : un numéro recopié en prose se périme en silence.
 - **Seuil des scans de sécurité** : le gate Trivy bloque en **CRITICAL** seulement. Il existe aujourd'hui des vulnérabilités **HIGH** dans les `package-lock.json` (`brace-expansion`, `sharp`/libvips) — bloquer en HIGH casserait la CI. Dependabot surveille désormais npm (`web/`, `Plant3DGenerator/`) et Docker en plus de Go, Python et les actions ; le seuil doit être resserré sur HIGH une fois ces PR passées.
 - Les tests d'intégration iOS dépendent du backend de test (DB `arbore_test`, routée par `ARBORE_API_KEY_TEST`) ; ils sont **skippés** automatiquement si `/health` ne répond pas.
 

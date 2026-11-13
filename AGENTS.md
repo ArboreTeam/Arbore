@@ -79,7 +79,7 @@ Run all iOS tests:
 cd ArboreUi && xcodebuild test \
   -workspace ArboreUi.xcworkspace \
   -scheme ArboreUi \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
   -resultBundlePath build/TestResults.xcresult
 ```
 
@@ -89,7 +89,7 @@ Run one iOS test suite:
 cd ArboreUi && xcodebuild test \
   -workspace ArboreUi.xcworkspace \
   -scheme ArboreUi \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
   -only-testing:ArboreUiTests/TSDFGridTests
 ```
 

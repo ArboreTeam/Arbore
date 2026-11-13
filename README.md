@@ -24,7 +24,7 @@ Arbore est un projet de 4ᵉ et 5ᵉ année : une application de jardinage qui a
 
 ## 🏗️ Architecture
 
-Arbore est composé de quatre modules déployés :
+Arbore est composé de trois modules déployés :
 
 ```
 Arbore/
@@ -33,7 +33,7 @@ Arbore/
 ├── 🔧 ArboreBackend/     # API backend (Go 1.26 · Gin · MongoDB)
 ```
 
-Le backend, l'AI Generator et le web tournent en containers Docker sur un VPS unique (Docker Compose) ; l'app iOS et le web parlent au backend via une API REST sécurisée (clé API + token Firebase). Détails complets : [`docs/`](docs/README.md) ([C4 Containers](docs/fr/architecture/02-containers.md)).
+Le backend et le web tournent en containers Docker sur un VPS (Docker Compose), qui porte deux piles indépendantes — production et développement ; l'app iOS et le web parlent au backend via une API REST sécurisée (clé API + token Firebase). Détails complets : [`docs/`](docs/README.md) ([C4 Containers](docs/fr/architecture/02-containers.md)).
 
 ## 🚀 Démarrage rapide
 
@@ -71,7 +71,7 @@ Ajouter ensuite `GoogleService-Info.plist` (Firebase) et compiler sur un apparei
 | Cible | Commande |
 |---|---|
 | Backend (Go) | `make test-backend` |
-| iOS | `cd ArboreUi && xcodebuild test -workspace ArboreUi.xcworkspace -scheme ArboreUi -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2'` |
+| iOS | `cd ArboreUi && xcodebuild test -workspace ArboreUi.xcworkspace -scheme ArboreUi -destination 'platform=iOS Simulator,name=iPhone 16 Pro'` |
 | Web | `cd web && npm test` |
 
 Stratégie de test complète : [`docs/fr/testing/`](docs/fr/testing/).
@@ -82,8 +82,8 @@ Stratégie de test complète : [`docs/fr/testing/`](docs/fr/testing/).
 |---|---|
 | **Mobile** | SwiftUI, ARKit, RoomPlan, RealityKit, Firebase, GoogleSignIn |
 | **Web** | Next.js, React, TypeScript, Tailwind, shadcn/ui |
-| **Backend** | Go, Gin, MongoDB driver, Unsplash API |
-| **IA** | Python, FastAPI, OpenAI / Mistral |
+| **Backend** | Go, Gin, MongoDB driver |
+| **IA** | Mistral AI (Gemini en repli), relayés par le backend |
 | **Auth** | Firebase Auth, Google OAuth, Sign in with Apple |
 | **Données** | MongoDB Atlas |
 | **Observabilité** | Sentry (iOS + web) |

@@ -343,10 +343,10 @@ platform :ios do
   def usage_notes(commande)
     "Les quatre langues doivent être nommées explicitement :\n\n" \
     "  bundle exec fastlane #{commande} \\\n" \
-    "    fr:fastlane/changelogs/fr-FR.txt \\\n" \
-    "    en:fastlane/changelogs/en-US.txt \\\n" \
-    "    es:fastlane/changelogs/es-ES.txt \\\n" \
-    "    de:fastlane/changelogs/de-DE.txt"
+    "    fr:fastlane/changelogs/fr.txt \\\n" \
+    "    en:fastlane/changelogs/en.txt \\\n" \
+    "    es:fastlane/changelogs/es.txt \\\n" \
+    "    de:fastlane/changelogs/de.txt"
   end
 
   # Lit les quatre fichiers NOMMÉS SUR LA LIGNE DE COMMANDE, les contrôle, et

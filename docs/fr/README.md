@@ -16,6 +16,8 @@ La documentation est découpée en vues complémentaires. Selon l'information re
 | Modules internes côté backend Go | [`architecture/03-components-backend.md`](architecture/03-components-backend.md) |
 | Modules internes côté web Next.js | [`architecture/03-components-web.md`](architecture/03-components-web.md) |
 | Schéma de données MongoDB | [`architecture/04-data-model.md`](architecture/04-data-model.md) |
+| **Les pots et les cache-pots** (plantes recoupées, pose, persistance) | [`architecture/pots.md`](architecture/pots.md) |
+| **Profil climatique et fiche d'espace** (`POST /climate/profile`) | [`architecture/profil-climatique.md`](architecture/profil-climatique.md) |
 | **Infrastructure et exploitation** (couches, pipeline, environnements, secrets) | [`architecture/05-infrastructure.md`](architecture/05-infrastructure.md) |
 | Architecture LOD des modèles 3D | [`3d-lod-architecture.md`](3d-lod-architecture.md) |
 | Flow de signup avec rollback Firebase | [`flows/auth-signup.md`](flows/auth-signup.md) |
@@ -56,7 +58,7 @@ docs/
 ├── appstore-listing.md        # listing App Store (multilingue, neutre)
 ├── fr/                        # documentation française (référence)
 │   ├── README.md              # ce document
-│   ├── architecture/          # vue STATIQUE (C4 : context, containers, components, data, déploiement)
+│   ├── architecture/          # vue STATIQUE (C4 : context, containers, components, data, déploiement, pots)
 │   ├── flows/                 # vue DYNAMIQUE (séquences, flowcharts)
 │   ├── state-machines/        # vue COMPORTEMENTALE
 │   ├── screens/               # per-screen specs (hero screens)

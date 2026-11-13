@@ -368,7 +368,7 @@
 "TERMS_HEADER_TITLE" = "Terms of use";
 "TERMS_HEADER_INTRO" = "Thank you for using %@. Please read these Terms carefully, as they govern your access to and use of the app.";
 "TERMS_LAST_UPDATED" = "Last updated: %@";
-"TERMS_LAST_UPDATED_DATE" = "23 July 2026";
+"TERMS_LAST_UPDATED_DATE" = "13 November 2026";
 
 // Acceptance
 "TERMS_SECTION_ACCEPT_TITLE" = "Acceptance of the Terms";
@@ -386,15 +386,8 @@
 "TERMS_SECTION_ACCOUNT_ITEM2" = "Notify us immediately in case of unauthorised use of your account.";
 
 // Subscriptions & billing
-"TERMS_SECTION_SUBS_TITLE" = "Subscriptions & billing";
-"TERMS_SECTION_SUBS_ITEM1" = "Purchases are handled by the App Store / Play Store; their conditions apply.";
-"TERMS_SECTION_SUBS_ITEM2" = "Subscriptions renew automatically until cancelled.";
-"TERMS_SECTION_SUBS_ITEM3" = "Prices may change; we will inform you of any applicable changes.";
 
 // Trials & cancellation
-"TERMS_SECTION_TRIALS_TITLE" = "Free trials & cancellation";
-"TERMS_SECTION_TRIALS_ITEM1" = "Free trials, when offered, convert into a paid subscription at the end of the period unless cancelled beforehand.";
-"TERMS_SECTION_TRIALS_ITEM2" = "You can cancel your subscription at any time from your App Store / Play Store settings.";
 
 // User content
 "TERMS_SECTION_USERCONTENT_TITLE" = "User content";

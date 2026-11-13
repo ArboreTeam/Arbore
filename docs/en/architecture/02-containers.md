@@ -16,7 +16,7 @@ flowchart TB
         direction TB
         ios["📱 [Container] Arbore iOS App<br/>Swift · SwiftUI · ARKit · RoomPlan"]
 
-        subgraph vps["One VPS per environment (Docker Compose)"]
+        subgraph vps["One machine, two Docker Compose stacks"]
             direction TB
             web["🌐 [Container] Arbore Web<br/>Next.js · standalone (web.arbore.app)"]
             backend["⚙️ [Container] Backend API<br/>Go 1.26 · Gin"]
@@ -28,8 +28,8 @@ flowchart TB
         firebase_admin["[System Ext] Firebase Admin SDK<br/>Token verification"]
         mongo[("[System Ext] MongoDB Atlas<br/>users · plants · gardens · consents")]
         apple["[System Ext] Apple ID<br/>Sign in with Apple / revocation"]
-        llm["[System Ext] OpenAI / Mistral<br/>LLM plant profiles"]
-        r2[("[System Ext] Cloudflare R2<br/>3D assets — 372 objects")]
+        llm["[System Ext] Mistral AI · Gemini<br/>Assistant and diagnosis"]
+        disque[("VPS disk<br/>USDZ · thumbnails · photos")]
     end
 
     user -- "Native UI"  --> ios
@@ -42,22 +42,21 @@ flowchart TB
     backend -- "Verifies every request (service account)"      --> firebase_admin
     backend -- "Go MongoDB driver"                             --> mongo
     backend -- "Token revocation (account deletion)"           --> apple
-    backend -- "Object read / write (S3)"                     --> r2
-    ios     -. "Direct download (15 min presigned URL)" .-> r2
-    ai      -- "LLM prompt (HTTPS)"                            --> llm
+    backend -- "LLM prompt (HTTPS, key stays server-side)"     --> llm
+    backend -- "Reads assets (StorageProvider · filesystem)"   --> disque
 
     classDef person   fill:#08427B,stroke:#073B6F,color:#fff
     classDef cont     fill:#1168BD,stroke:#0B4884,color:#fff
     classDef ext_node fill:#999,stroke:#666,color:#fff
     class user person
     class ios,web,backend cont
-    class firebase_auth,firebase_admin,mongo,apple,llm,r2 ext_node
+    class firebase_auth,firebase_admin,mongo,apple,llm,disque ext_node
 ```
 
 ## Key points
 
 - **Three Arbore containers are in production**: the iOS application, the Next.js web frontend and the Go backend. The Python AI Generator was **dropped on 2026-09-20** (#558), for lack of traffic and with a stale output schema — this page still listed it as live until 2026-11-02. The two server containers are orchestrated by `docker-compose.yml`.
-- **Two VPSs, no longer one** (recorded 2026-11-02). The #652 migration is under way: `prod` stayed on the old Fedora machine, `dev` runs on the new Debian one, which also hosts the 3D workshop. See [`../operations/environments.md`](../operations/environments.md) for the exact split.
+- **A single machine carries both stacks** since the 2026-11-04 cutover (#652): one Debian 12 VPS, two git checkouts, two compose projects (`arbore-prod` and `arbore-dev`). This page claimed two separate machines — the 2026-11-02 state, mid-migration — until 2026-11-13. The old Fedora machine is still powered on as a fallback, with no traffic. See [`../operations/environments.md`](../operations/environments.md) for the exact split.
 - **The web frontend is deployed** at `web.arbore.app` (Cloudflare → nginx → `arbore-web` container on port 3000). It serves as a companion to the iOS app: browsing the catalog, the gardens, the watering calendar, and account management (GDPR export/deletion). Gardens are **created on iOS** (AR placement).
 - **The web never exposes the API key or the backend URL to the browser**: all calls go through a **same-origin server proxy** (`/api/backend`) that injects `X-API-Key` on the server side and relays the user's Firebase token. As a result: no CORS on the browser side, and the API key is never exposed.
 - **Two security barriers protect data access**:
@@ -65,19 +64,26 @@ flowchart TB
   2. **Bearer Firebase token** validated by the Firebase Admin SDK on the backend side — guarantees that the request comes from an authenticated, verified, and non-banned user, and provides their `uid`.
 - **MongoDB Atlas is external to the Arbore system** but driven exclusively by the backend. Clients (iOS, web) **never** open a direct MongoDB connection.
 - **Backend and Web share the same VPS** and communicate over the internal Docker network (`http://backend:8080`) rather than via the public IP.
+- **3D assets are served from disk, not from object storage.** `STORAGE_PROVIDER=filesystem` on both stacks since 2026-10-21: the backend reads the USDZ files and thumbnails from the VPS disk and relays them itself. The R2 bucket still exists and its credentials are kept, but nothing reads it — it is a dormant fallback. This page described a direct 15-minute presigned download until 2026-11-13; it no longer happens. The full reasoning is in [`../operations/asset-storage.md`](../operations/asset-storage.md).
 - **HTTPS at the edge**: public access is over HTTPS via Cloudflare (Full strict), with nginx restricted to Cloudflare IPs; the Cloudflare → origin TLS hardening is tracked on the operations side (see [`../operations/vps-bootstrap.md`](../operations/vps-bootstrap.md)).
 
 ### The profiled containers
 
-Three `docker-compose.yml` services **never** start with a plain
+Four `docker-compose.yml` services **never** start with a plain
 `docker compose up -d`: they sit behind a profile that has to be named. That is
 deliberate — they are tools, not services.
 
 | service | profile | role |
 |---|---|---|
 | `vignettes` | `outils` | thumbnail rendering job, invoked on demand |
-| `vignettes-ouvrier` | `vignettes` | the same binary idling, consuming the workshop queue |
+| `vignettes-ouvrier` | `vignettes` | the same binary idling, consuming the `dev` queue |
+| `vignettes-ouvrier-prod` | `vignettes-prod` | the same binary, on the `prod` queue |
 | `minio` | `dev` | local object storage, **never started** to date |
+
+A worker serves **one** queue only, the one named by its `ARBORE_ENV_NOM` —
+hence a second container rather than a second workshop. Both live on the stack
+that carries the workshop, declared by
+`ARBORE_PROFILS=vignettes,vignettes-prod`.
 
 `minio` exists to exercise the S3 provider without touching R2. Verified on
 2026-11-02: no minio container has ever run on the dev machine.

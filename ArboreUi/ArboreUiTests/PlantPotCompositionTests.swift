@@ -1,4 +1,5 @@
 import XCTest
+import SceneKit
 @testable import ArboreUi
 
 // PlantPotCompositionTests — issues #609, #623, #280, #294.
@@ -391,6 +392,288 @@ extension PlantPotCompositionTests {
                                                  rayonExterieurPose: r,
                                                  hauteurPose: h),
                          "accepté à tort pour rayon=\(r) hauteur=\(h)")
+        }
+    }
+}
+
+// MARK: - Le pot survit à l'enregistrement (#795)
+//
+// Ce que ces cas protègent : un jardin rouvert revenait avec ses plantes mais
+// SANS leurs pots. Deux endroits perdaient la même donnée, et pour la même
+// raison — `PersistedPlant.init` accepte `pot:` avec une valeur par défaut,
+// donc l'oublier au point d'appel ne tire pas un mot au compilateur :
+//
+//   - la capture d'état ne donnait jamais `pot:` ;
+//   - la migration de recentrage reconstruit chaque plante champ par champ et
+//     omettait `pot` ET `heightMeters`.
+//
+// Ces cas vérifient donc l'aller-retour COMPLET scène → disque → scène, pas
+// l'existence du champ : encoder puis décoder un `PersistedPot` passait déjà
+// avant le correctif, et ne prouvait rien.
+
+extension PlantPotCompositionTests {
+
+    private func transformMonde(x: Float, y: Float, z: Float) -> [Float] {
+        var t = [Float](repeating: 0, count: 16)
+        t[0] = 1; t[5] = 1; t[10] = 1; t[15] = 1
+        t[12] = x; t[13] = y; t[14] = z
+        return t
+    }
+
+    private func potEnregistre() throws -> PersistedPot {
+        let p = pot("cachepot_pieds", rebord: 0.058654, defaut: true)
+        let pose = try XCTUnwrap(PlantPotComposer.placement(base: socleReel(), pot: p))
+        return PersistedPot(pot: p, pose: pose)
+    }
+
+    /// Le cas qui décide : un pot posé dans la scène doit se retrouver dans le
+    /// jardin rechargé. On part du NŒUD — ce que la capture lit réellement —
+    /// et on va jusqu'au JSON relu.
+    func testEnregistrement_UnPotDansLaSceneSeRetrouveAuRechargement() throws {
+        let attendu = try potEnregistre()
+
+        // 1. la scène : le pot est porté par le nœud de la plante, comme le
+        //    sont déjà sa hauteur mesurée et son ancre de surface.
+        let noeud = SCNNode()
+        noeud.arborePot = attendu
+        noeud.arboreHeightMeters = 0.64856
+        noeud.arborePlacementMode = "floor"
+
+        // 2. la capture d'état, telle que la sauvegarde l'exécute.
+        let capturee = PersistedPlant(
+            noeud: noeud,
+            plantID: "aglaonema_mix",
+            plantName: "Aglaonema Mix",
+            modelURLString: "Aglaonema_Mix.usdz",
+            position: [1.2, 0, -0.7],
+            rotation: [0, 0, 0],
+            scale: [1, 1, 1],
+            transform: transformMonde(x: 1.2, y: 0, z: -0.7),
+            upAxis: "Y",
+            surfaceType: "floor",
+            surfaceHeight: 0)
+
+        // 3. le disque, puis la relecture — migration de lecture incluse.
+        let brut = try JSONEncoder().encode(
+            PersistedARScene(savedAt: Date(), plants: [capturee]))
+        let relue = try JSONDecoder().decode(PersistedARScene.self, from: brut)
+            .normalizedToWorldFrame()
+
+        let plante = try XCTUnwrap(relue.plants.first)
+        let relu = try XCTUnwrap(plante.pot,
+                                 "le pot a été perdu entre la scène et le disque")
+        XCTAssertEqual(relu, attendu)
+        let pose = try XCTUnwrap(relu.pose)
+        XCTAssertEqual(pose.scale, 0.16146 / 0.058654, accuracy: 1e-6,
+                       "le pot doit revenir à l'échelle où il a été posé")
+        XCTAssertEqual(plante.heightMeters, 0.64856,
+                       "la hauteur mesurée voyage par le même chemin")
+    }
+
+    /// Même sauvegarde corrigée, toute sauvegarde passant par la migration de
+    /// recentrage reperdrait son pot : elle reconstruit chaque plante.
+    func testMigration_DeRecentrageConserveLePotEtLaHauteur() throws {
+        let attendu = try potEnregistre()
+
+        // Jardin legacy : `position` est shiftée du centroïde de la bordure,
+        // `transform` ne l'est pas. L'écart déclenche la migration.
+        let legacy = PersistedPlant(
+            plantID: "aglaonema_mix",
+            plantName: "Aglaonema Mix",
+            modelURLString: "Aglaonema_Mix.usdz",
+            position: [0, 0, 0],
+            rotation: [0, 0, 0],
+            scale: [1, 1, 1],
+            transform: transformMonde(x: 2.5, y: 0, z: -1.5),
+            upAxis: "Y",
+            surfaceType: "floor",
+            surfaceHeight: 0,
+            placementMode: "floor",
+            surfaceAnchor: nil,
+            hasHeavy: true,
+            heightMeters: 0.64856,
+            pot: attendu)
+
+        let migree = PersistedARScene(savedAt: Date(), plants: [legacy],
+                                      boundaryPoints: [[0, 0, 0]])
+            .normalizedToWorldFrame()
+
+        let plante = try XCTUnwrap(migree.plants.first)
+        XCTAssertEqual(plante.position[0], 2.5, accuracy: 1e-6,
+                       "sans migration effective, ce cas ne prouve rien")
+        XCTAssertEqual(plante.position[2], -1.5, accuracy: 1e-6)
+        XCTAssertEqual(plante.pot, attendu,
+                       "le recentrage a reconstruit la plante sans son pot")
+        XCTAssertEqual(plante.heightMeters, 0.64856,
+                       "le recentrage a reconstruit la plante sans sa hauteur")
+        // Ce que la migration était déjà censée préserver, pour qu'un ajout
+        // de champ ne le fasse pas tomber en silence.
+        XCTAssertEqual(plante.hasHeavy, true)
+        XCTAssertEqual(plante.upAxis, "Y")
+    }
+
+    /// Une plante sans pot ne doit pas se voir en inventer un.
+    func testEnregistrement_UnePlanteSansPotNenRecoitAucun() throws {
+        let noeud = SCNNode()
+        let capturee = PersistedPlant(
+            noeud: noeud,
+            plantID: "pothos", plantName: "Pothos",
+            modelURLString: "Pothos.usdz",
+            position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1],
+            transform: transformMonde(x: 0, y: 0, z: 0),
+            upAxis: nil, surfaceType: "floor", surfaceHeight: 0)
+        XCTAssertNil(capturee.pot)
+        XCTAssertNil(capturee.heightMeters, "0 = non mesurée, pas « 0 mètre »")
+    }
+}
+
+// MARK: - Halo de sélection centré (#795)
+//
+// Ce que ces cas protègent : le halo est un clone AGRANDI du maillage. Agrandi
+// autour de l'origine du nœud, il déplace chaque point proportionnellement à
+// sa distance à cette origine. Une plante est proche de son origine, donc son
+// halo paraissait juste ; le pot est attaché en contrebas, et son halo
+// s'écartait d'autant.
+//
+// La position d'un halo se précalcule : c'est de la géométrie, pas du rendu.
+// On demande donc à SceneKit où il place les coins du clone, pivot inclus —
+// sans session AR ni appareil.
+
+extension PlantPotCompositionTests {
+
+    private static let echelleHalo: Float = 1.04
+
+    /// Monte un halo au-dessus d'une boîte donnée et rend cette boîte telle
+    /// que SceneKit la place dans le repère du parent, pivot compris.
+    ///
+    /// La mesure passe par `convertPosition`, et non par la boîte englobante
+    /// du parent : `SCNNode.boundingBox` d'un nœud sans géométrie rend
+    /// (0,0,0)-(0,0,0), et une mesure prise là ne prouverait rien. Sans
+    /// rotation, les deux coins opposés suffisent à décrire la boîte.
+    private func boiteDuHalo(sourceMin: SCNVector3, sourceMax: SCNVector3,
+                             echelle: Float,
+                             orientation: simd_quatf = simd_quatf(ix: 0, iy: 0, iz: 0, r: 1))
+    -> (min: SCNVector3, max: SCNVector3) {
+        let parent = SCNNode()
+        let halo = SCNNode()
+        parent.addChildNode(halo)
+        halo.simdOrientation = orientation
+        halo.scale = SCNVector3(echelle, echelle, echelle)
+        halo.pivot = HaloDeSelection.pivot(boiteMin: sourceMin, boiteMax: sourceMax,
+                                           echelle: echelle,
+                                           orientationDuClone: halo.simdOrientation)
+        return (halo.convertPosition(sourceMin, to: parent),
+                halo.convertPosition(sourceMax, to: parent))
+    }
+
+    /// Mêmes coins, sans halo : là où le conteneur voit la source.
+    private func boiteDeLaSource(sourceMin: SCNVector3, sourceMax: SCNVector3,
+                                 orientation: simd_quatf) -> (min: SCNVector3, max: SCNVector3) {
+        let parent = SCNNode()
+        let source = SCNNode()
+        parent.addChildNode(source)
+        source.simdOrientation = orientation
+        return (source.convertPosition(sourceMin, to: parent),
+                source.convertPosition(sourceMax, to: parent))
+    }
+
+    /// Garde-fou de convention. Le pivot s'applique À L'EXTÉRIEUR de la
+    /// transformation du nœud : parent ← pivot⁻¹ · T·R·S. C'est la convention
+    /// relevée sur appareil pour le pivot de pose (#113 : un pivot naïf
+    /// `T(0, minY, 0)` laissait la plante 44 cm au-dessus du sol), et c'est
+    /// celle que suit le calcul du halo. Si elle changeait, le défaut
+    /// tomberait ici plutôt que de désaxer tous les halos en silence.
+    func testHalo_ConventionDuPivotDansSceneKit() {
+        let parent = SCNNode()
+        let noeud = SCNNode()
+        parent.addChildNode(noeud)
+        noeud.scale = SCNVector3(2, 2, 2)
+        noeud.pivot = SCNMatrix4MakeTranslation(0, 1, 0)
+        XCTAssertEqual(noeud.convertPosition(SCNVector3(0, 1, 0), to: parent).y,
+                       1, accuracy: 1e-5,
+                       "pivot⁻¹ · S(2) : (0,1,0) doit atterrir à 2 − 1 = 1")
+    }
+
+    private func centre(_ boite: (min: SCNVector3, max: SCNVector3)) -> SCNVector3 {
+        SCNVector3((boite.min.x + boite.max.x) / 2,
+                   (boite.min.y + boite.max.y) / 2,
+                   (boite.min.z + boite.max.z) / 2)
+    }
+
+    /// La plante seule : son halo est juste aujourd'hui, et doit le rester.
+    func testHalo_UnNoeudCentreGardeSonHaloConcentrique() {
+        let mn = SCNVector3(-0.2, -0.695, -0.2)
+        let mx = SCNVector3(0.2, 0.695, 0.2)
+        let halo = boiteDuHalo(sourceMin: mn, sourceMax: mx,
+                               echelle: Self.echelleHalo)
+        let c = centre(halo)
+        XCTAssertEqual(c.x, 0, accuracy: 1e-5)
+        XCTAssertEqual(c.y, 0, accuracy: 1e-5)
+        XCTAssertEqual(c.z, 0, accuracy: 1e-5)
+        XCTAssertEqual(halo.max.y - halo.min.y, 1.39 * Self.echelleHalo,
+                       accuracy: 1e-4, "le halo doit bien rester agrandi")
+    }
+
+    /// Le pot : `attachPot` le pose sous la ligne de terre, donc loin de
+    /// l'origine du porteur. C'est le cas qui tombait.
+    func testHalo_UnNoeudDecaleGardeSonHaloConcentrique() {
+        // Mesures d'un pot posé : lèvre à -0,105, bas à -0,350.
+        let mn = SCNVector3(-0.145, -0.350, -0.145)
+        let mx = SCNVector3(0.145, -0.105, 0.145)
+        let attendu = centre((min: mn, max: mx))
+        let halo = boiteDuHalo(sourceMin: mn, sourceMax: mx,
+                               echelle: Self.echelleHalo)
+        let c = centre(halo)
+        XCTAssertEqual(c.y, attendu.y, accuracy: 1e-5,
+                       "le halo du pot est désaxé : son centre a glissé")
+        XCTAssertEqual(c.x, attendu.x, accuracy: 1e-5)
+        XCTAssertEqual(c.z, attendu.z, accuracy: 1e-5)
+        XCTAssertEqual(halo.max.y - halo.min.y, 0.245 * Self.echelleHalo,
+                       accuracy: 1e-4, "le halo doit bien rester agrandi")
+    }
+
+    /// Un maillage décalé en x et en z aussi : le centre doit coïncider sur
+    /// les trois axes, pas seulement sur la verticale.
+    func testHalo_UnNoeudDecaleSurLesTroisAxes() {
+        let mn = SCNVector3(0.30, -0.80, -0.50)
+        let mx = SCNVector3(0.70, -0.40, -0.10)
+        let attendu = centre((min: mn, max: mx))
+        let c = centre(boiteDuHalo(sourceMin: mn, sourceMax: mx,
+                                   echelle: Self.echelleHalo))
+        XCTAssertEqual(c.x, attendu.x, accuracy: 1e-5)
+        XCTAssertEqual(c.y, attendu.y, accuracy: 1e-5)
+        XCTAssertEqual(c.z, attendu.z, accuracy: 1e-5)
+    }
+
+    /// Un porteur en Z-up est redressé de −90° autour de x. Le pivot
+    /// s'appliquant du côté du conteneur, le centre doit y être exprimé :
+    /// sinon le halo se recale de travers, et sur un axe inattendu.
+    func testHalo_UnCloneRedresseEnZupResteConcentrique() {
+        let rotationZup = simd_quatf(angle: -.pi / 2, axis: SIMD3<Float>(1, 0, 0))
+        let mn = SCNVector3(-0.145, -0.350, -0.145)
+        let mx = SCNVector3(0.145, -0.105, 0.145)
+        let source = boiteDeLaSource(sourceMin: mn, sourceMax: mx,
+                                     orientation: rotationZup)
+        let attendu = centre(source)
+        let c = centre(boiteDuHalo(sourceMin: mn, sourceMax: mx,
+                                   echelle: Self.echelleHalo,
+                                   orientation: rotationZup))
+        XCTAssertEqual(c.x, attendu.x, accuracy: 1e-5)
+        XCTAssertEqual(c.y, attendu.y, accuracy: 1e-5)
+        XCTAssertEqual(c.z, attendu.z, accuracy: 1e-5)
+    }
+
+    /// Une échelle absurde ne doit pas produire un pivot absurde : mieux vaut
+    /// le halo d'avant qu'un halo parti ailleurs.
+    func testHalo_EchelleAberranteRendUnPivotNeutre() {
+        let mn = SCNVector3(-0.1, -0.5, -0.1)
+        let mx = SCNVector3(0.1, 0.5, 0.1)
+        for echelle in [Float(0), -1, .nan, .infinity] {
+            XCTAssertTrue(
+                SCNMatrix4EqualToMatrix4(
+                    HaloDeSelection.pivot(boiteMin: mn, boiteMax: mx, echelle: echelle),
+                    SCNMatrix4Identity),
+                "échelle \(echelle) acceptée à tort")
         }
     }
 }

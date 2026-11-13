@@ -179,7 +179,7 @@ une source.
 | VRAM | **10,27 Go**, contre 24 annoncés par le README de TRELLIS |
 | retrait du pot | **CPU seul**, quelques secondes |
 | conversion USDZ | ~3,5 s par modèle, 4 modèles en 14 s |
-| poids d'un TRELLIS | 35 à 60 Mo en USDZ, contre 2 à 7 Mo pour un Meshy |
+| poids d'un TRELLIS | 35 à 60 Mo en USDZ, contre 2 à 7 Mo pour l'ancienne génération |
 | rendu d'une vignette | 249 s par plante avec pot, mesuré sur 51 |
 
 Trois pistes ont été **fermées par la mesure** et ne se rouvrent pas sans

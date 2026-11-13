@@ -324,7 +324,7 @@ struct ARViewContainer: UIViewRepresentable {
 
         // Defensive: forces opaque blending on every PhysicallyBasedMaterial
         // in the hierarchy. Free performance-wise, prevents stray alpha values
-        // in meshy-generated base color textures from triggering transparent
+        // in generated base color textures from triggering transparent
         // rendering in iOS ARView. Back-face culling stays default (one-sided)
         // for perf — the real geometry fix lives in the USDZ pipeline
         // (subdivisionScheme = "none" injected at packaging time).

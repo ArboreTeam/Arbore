@@ -5293,7 +5293,7 @@ struct GardenARPlacementContainerView: UIViewRepresentable {
             /// de l'ancien (placement + pinch-zoom) ; pivot RE-DÉRIVÉ de la bbox du nouveau
             /// modèle (robuste si les bbox light/heavy diffèrent légèrement).
             /// Hypothèse à valider on-device : même origine/échelle model-space et même
-            /// up-axis entre les LOD (garanti par le même source Meshy).
+            /// up-axis entre les LOD (garanti par la même source de génération).
             private func swapModel(scene: SCNScene, instanceId: UUID, upAxis: String?,
                                    parentNode: SCNNode, to lod: PlantLODPolicy.LOD) {
                 // Le node a pu être supprimé entre-temps → on abandonne.

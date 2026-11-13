@@ -171,16 +171,16 @@ Document du catalogue de plantes. Chaque plante embarque ses traductions multili
 
 ##### Pourquoi les photos sont les nôtres
 
-Les 123 fiches portaient auparavant des liens directs vers les CDN de botanic
-(97) et d'Unsplash (25). L'app ne copiait rien : chaque appareil allait les
-chercher lui-même, et ces tiers voyaient l'adresse IP de l'utilisateur, l'heure
-et les fiches consultées — un flux que la politique de confidentialité ne
-mentionnait pas pour botanic.
+Les fiches portaient auparavant des liens directs vers des **CDN tiers** : 97
+vers celui d'un distributeur horticole, 25 vers Unsplash. L'app ne copiait
+rien : chaque appareil allait les chercher lui-même, et ces tiers voyaient
+l'adresse IP de l'utilisateur, l'heure et les fiches consultées — un flux que la
+politique de confidentialité ne mentionnait pas.
 
-Les CGU de botanic interdisent par ailleurs explicitement la reproduction
-(articles L.122-4 et L.335-3 du Code de la propriété intellectuelle), et une
-partie de leurs visuels vient de banques d'images qui les leur licencient.
-Héberger une copie était donc exclu.
+Les conditions d'utilisation du distributeur interdisent par ailleurs
+explicitement la reproduction (articles L.122-4 et L.335-3 du Code de la
+propriété intellectuelle), et une partie de ses visuels vient de banques
+d'images qui les lui licencient. Héberger une copie était donc exclu.
 
 Nos rendus studio règlent les trois points d'un coup : aucun appel tiers, aucun
 droit d'autrui, et l'utilisateur voit exactement ce qu'il placera en réalité

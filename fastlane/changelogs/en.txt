@@ -1,5 +1,6 @@
 Your pots stay put, and the selection no longer overflows.
 
+• The catalogue grows from 123 to 274 plants. Each one arrives with its care notes, its four languages and its toxicity for pets and children, backed by a named source.
 • A reopened garden keeps its pots. They were never saved: plants came back bare, and the potting work was lost.
 • A plant's measured height now survives reopening as well, in every case.
 • The outline of a selected plant now follows its pot instead of drifting off.

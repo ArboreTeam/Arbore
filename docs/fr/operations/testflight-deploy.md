@@ -179,13 +179,59 @@ Même déroulé que `beta`, avec trois différences qui comptent.
 
 | | `beta` | `public_beta` |
 |---|---|---|
-| groupe | Internal Testers (3 testeurs) | Bêta privée (10 testeurs, lien public) |
+| groupe | Internal Testers (3 testeurs) | External Testers (10 testeurs, lien public) |
 | revue Apple | aucune | Beta App Review |
 | délai avant réception | après le processing | après approbation, de quelques heures à un jour |
 
 La build **n'atteint personne** tant qu'Apple n'a pas approuvé. Ne pas confondre
 « livrée » et « reçue » : `current_build` affichera le numéro bien avant que
 quiconque puisse l'installer.
+
+### Reprendre une livraison dont la finalisation a échoué
+
+Le transfert du binaire n'est pas la dernière étape d'un envoi : ASC enchaîne
+ensuite des étapes de métadonnées — « CHANGE UPLOAD STATE TO COMPLETE », la
+description des assets, l'analyse SPI. Quand elles rendent des HTTP 500, la
+lane échoue **après** la compilation, l'archive et le transfert. Tout le
+travail coûteux est déjà fait, et le réflexe de relancer `public_beta` le
+refait pour rien.
+
+D'abord, savoir si Apple a reçu le binaire :
+
+```bash
+bundle exec fastlane current_build
+```
+
+Ce numéro vient des **envois**, pas des builds : il monte dès qu'un transfert
+est enregistré, même resté en `PROCESSING` sans jamais devenir une build. Un
+numéro en avance sur ce que montre TestFlight signale exactement ce cas.
+
+Deux suites possibles, et le repère pour choisir : une livraison saine devient
+une build visible **une à deux minutes** après son envoi. Au-delà, l'envoi est
+en plan.
+
+Quand la build finit par apparaître, la distribuer sans rien reconstruire :
+
+```bash
+bundle exec fastlane distribuer build:4 \
+  fr:fastlane/changelogs/fr.txt \
+  en:fastlane/changelogs/en.txt \
+  es:fastlane/changelogs/es.txt \
+  de:fastlane/changelogs/de.txt
+```
+
+Les quatre langues sont obligatoires, comme pour `public_beta`. La lane exige
+une build **déjà traitée** par Apple : sur une build encore en traitement,
+pilot échoue sur « Could not find build ».
+
+Quand elle n'apparaît pas, il faut bien relancer `public_beta` — mais en
+sachant que le bump repart du dernier envoi connu, l'envoi resté en plan
+compris : le numéro de build sautera donc celui qui est perdu.
+
+> Les fichiers de notes portent deux nommages dans le dépôt : `fr.txt` et
+> `fr-FR.txt`. Les builds de la 1.0.2 ont été livrées avec les **courts**, et
+> ce sont eux qui portent les notes à jour ; les longs n'ont plus bougé depuis
+> #764. Les exemples plus haut dans cette page citent encore les longs.
 
 ### Les notes de version
 
@@ -317,6 +363,7 @@ Utile pour confirmer que l'upload précédent a bien été enregistré côté AS
 | `App Store Connect timeout` | Processing Apple anormalement long | Vérifier le statut sur [Apple System Status](https://www.apple.com/support/systemstatus/), relancer plus tard |
 | `Code signing entitlements` divergent | Capabilities Xcode modifiées sans MAJ ASC | Activer/désactiver la capability dans Xcode, builder à nouveau |
 | `Could not set changelog: SSL_connect ... unexpected eof` | Coupure réseau vers Apple **après** l'upload du binaire | N'échoue plus la lane depuis #511 : le binaire est livré et les dSYM sont déjà partis. Le changelog se pose à la main depuis App Store Connect |
+| `CHANGE UPLOAD STATE TO COMPLETE` en HTTP 500 (×3) | Panne serveur ASC **après** le transfert du binaire | Le binaire est peut-être monté : `current_build` compte les envois, pas les builds. Si la build apparaît dans TestFlight, reprendre avec `fastlane distribuer build:N` au lieu de tout recompiler |
 
 ### L'ordre de la lane, et pourquoi il a changé
 

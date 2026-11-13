@@ -1,14 +1,18 @@
 # Stockage des assets 3D
 
-Où vivent les 369 fichiers du catalogue : 123 modèles légers, 123 haute
-définition, 123 vignettes, et comment en changer sans interrompre le service.
+Où vivent les fichiers du catalogue — **621 côté production** au 2026-11-13 :
+275 modèles légers, 72 haute définition, 274 vignettes — et comment en changer
+sans interrompre le service.
 
 ## Pourquoi ce document existe
 
-L'accès au VPS actuel est coupé **fin février**. Les assets n'y existent
-aujourd'hui qu'en un seul exemplaire : sans migration, ils disparaissent avec la
-machine. Ce document décrit la manœuvre, pour qu'elle ne dépende pas de la
-mémoire de qui l'a préparée.
+Les assets n'existent qu'en un seul exemplaire sur le disque du VPS : sans
+copie hors machine, ils disparaissent avec elle. Ce document décrit la
+manœuvre, pour qu'elle ne dépende pas de la mémoire de qui l'a préparée.
+
+> L'échéance de « fin février » qu'annonçait cette ligne visait le VPS
+> précédent, remplacé depuis (#652). Une échéance sans année ne survit pas à
+> son contexte.
 
 ## Les trois supports
 
@@ -134,14 +138,19 @@ seul.
 
 ## Migrer vers R2 — l'ordre importe
 
-> **Fait.** La production est passée sur R2, et cette section reste pour
-> documenter la marche à suivre — au cas où il faudrait recommencer sur un autre
-> seau, ou comprendre pourquoi l'ordre est celui-là.
+> **Fait, puis défait.** La production est passée sur R2 le 2026-09-11, et en
+> est **revenue le 2026-10-21** pour la raison donnée plus haut : le palier
+> gratuit plafonne à 10 Go quand les modèles vont en dépasser 30. Cette section
+> reste pour documenter la marche à suivre — au cas où il faudrait y retourner,
+> ou comprendre pourquoi l'ordre est celui-là.
 >
-> État mesuré le 2026-09-11 : `arbore-prod-backend` journalise au démarrage
-> `📦 Stockage des assets : s3(…eu.r2.cloudflarestorage.com)+garde`, et le seau
-> `arbore-assets` porte 370 objets pour 4,5 Gio. `arbore-dev-backend`
-> journalise `filesystem`.
+> État mesuré le 2026-09-11, pendant cette parenthèse : `arbore-prod-backend`
+> journalisait au démarrage `📦 Stockage des assets :
+> s3(…eu.r2.cloudflarestorage.com)+garde`, et le seau `arbore-assets` portait
+> 370 objets pour 4,5 Gio.
+>
+> État mesuré le 2026-11-13 : `STORAGE_PROVIDER=filesystem` dans le `.env` des
+> **deux** piles.
 
 L'ordre inverse ferait servir la production depuis un seau vide : tous les
 modèles en 404, immédiatement.
@@ -150,7 +159,7 @@ modèles en 404, immédiatement.
 1. ajouter les identifiants dans ops/secrets/prod.enc.env,
    en laissant STORAGE_PROVIDER=filesystem        ← la prod ne bouge pas
 2. déployer                                        ← le VPS reçoit les identifiants
-3. téléverser les 372 fichiers depuis le VPS
+3. téléverser les fichiers du catalogue depuis le VPS
 4. vérifier les empreintes
 5. passer STORAGE_PROVIDER=r2 et redéployer
 ```
@@ -212,7 +221,7 @@ fichier servi coûtait **deux** opérations, dont une qui n'ouvrait aucune porte
 
 Le plafond réel valait donc la moitié du plafond configuré, et seulement sur le
 support que la production utilise. Mesuré sur la machine neuve : `200 op/min`
-ne laissait passer que **100 vignettes**, et le catalogue en compte **123**.
+ne laissait passer que **100 vignettes**, et le catalogue en comptait **123** (274 aujourd'hui, ce qui rend la borne d'autant plus sensible).
 
 Ce n'est pas un relâchement du quota, c'est sa restauration : `200` veut
 désormais dire 200 opérations, alors qu'il en valait 100 par accident. La

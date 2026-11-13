@@ -2,7 +2,7 @@
 
 This view opens up the **Backend API** container (Go 1.26 + Gin) and exposes its main modules.
 
-The code is organized around a `main.go` file (~2,500 lines) bundling type declarations, handlers and bootstrap, supplemented by:
+The code is organized around a `main.go` file (**3,030 lines**, `wc -l` as of 2026-11-13) bundling type declarations, handlers and bootstrap, supplemented by:
 
 - `middleware/` for authentication and authorization — `api_key.go`, `firebase_auth.go`, `roles.go`, `security.go`;
 - specialised files — `config.go`, `secrets.go`, `crypto.go`, `apple_revocation.go`, `setdefault.go`, `indexes.go`, `httplogging.go`, `observability.go`, `account_cleanup.go`, `climate.go`;
@@ -36,7 +36,7 @@ flowchart TB
     firebase_admin["[System Ext]<br/>Firebase Admin SDK"]
     apple["[System Ext]<br/>Apple ID (SIWA)"]
     gemini["[System Ext]<br/>AI provider<br/>(Mistral AI · Gemini)"]
-    storage_ext[("[System Ext]<br/>Cloudflare R2 (S3)")]
+    storage_ext[("VPS disk<br/>arbore-data/models-<env>")]
 
     client --> public
     client --> apikey
@@ -46,7 +46,6 @@ flowchart TB
     access --> apple
     handlers --> gemini
     storage --> storage_ext
-    client -. "15 min presigned URL" .-> storage_ext
 
     classDef ext   fill:#999,stroke:#666,color:#fff
     classDef layer fill:#1168BD,stroke:#0B4884,color:#fff
@@ -247,7 +246,7 @@ The `/chat` and `/diagnose` proxies are decoupled from the concrete provider via
 | `promptsafety.go` | **Anti-prompt-injection**: a priority safety clause added to the system prompts (user content is data, never an instruction); bounded inputs (message, history); `plantName` sanitized (single line, no control characters) and framed as untrusted data instead of being interpolated raw. |
 | `mistral_provider.go` — `MistralProvider` | Mistral implementation, **the provider in service since 2026-09-20** (#555). Chat Completions shape: system prompt as a `system` turn, role `assistant` (not `model`), image as an `image_url` object carrying a data URI. All three differ from Gemini and are locked by tests. Default model `ministral-8b-2512` — only the Ministral family receives quota on the current plan. |
 | `llm_throttle.go` — `throttledProvider` | **Global gate** in front of the provider (#553). The `middleware` limiters are PER USER and answer fairness; they cannot protect the provider's quota, since ten clients each within their own limit together exceed the allowed rate. A decorator rather than an addition inside `Generate`: each provider keeps one reason to change, and a provider added tomorrow inherits the gate. Bounded wait, then `ErrLLMSurcharge` → **429 + `Retry-After`**, never 502. ⚠️ The gate is global **per instance**. |
-| `catalog_context.go` | **Catalogue grounding** (#554). Plant names mentioned are matched against the 123 entries, whose care data, pests and watering signs are attached to the prompt as **reference data** — never as instructions, and sanitised through `sanitizeLine`. No vector index: matching works on word prefixes of the name, with no edit distance, because finding the WRONG entry would inject another plant's care presented as verified fact. Afterwards the returned species is reconciled and the response carries `catalogPlantId`. |
+| `catalog_context.go` | **Catalogue grounding** (#554). Plant names mentioned are matched against the catalogue entries (274 as of 2026-11-13), whose care data, pests and watering signs are attached to the prompt as **reference data** — never as instructions, and sanitised through `sanitizeLine`. No vector index: matching works on word prefixes of the name, with no edit distance, because finding the WRONG entry would inject another plant's care presented as verified fact. Afterwards the returned species is reconciled and the response carries `catalogPlantId`. |
 | `diagnose_normalize.go` — `normalizeDiagnose` | **Output schema validation** for the diagnosis: typed decoding, numeric values clamped to `[0,1]`, bounded arrays never `null`, nameless diseases dropped, safe defaults. Honors the iOS decoder contract (`diseases[].name` always emitted, camelCase keys). |
 
 ## Support modules and external clients
@@ -286,7 +285,7 @@ The `/chat` and `/diagnose` proxies are decoupled from the concrete provider via
 | `AI_THROTTLE_MAX_WAIT` | Maximum wait in front of the throttle gate. Default 5 s: acceptable because an LLM call already takes several. | configuration |
 | `MISTRAL_BASE_URL` | API URL override. **Test-only**: lets a local server be targeted. | configuration |
 | `MONGODB_URI_PATH`, `ARBORE_API_KEY_PATH`, `GEMINI_API_KEY_PATH`, `MISTRAL_API_KEY_PATH`, `MASTER_ENCRYPTION_KEY_PATH` | **File** variants of the secrets (#338 finding 4, #543). An environment variable is readable through `docker inspect` and in `/proc/<pid>/environ`. Empty by default: a forgotten mount falls back to the variable rather than blocking startup. | configuration |
-| `STORAGE_PROVIDER` | `filesystem` (default) or `s3`. In production: R2 over the S3 API. | configuration |
+| `STORAGE_PROVIDER` | `filesystem` (default) or `s3`. **`filesystem` on both stacks since 2026-10-21**: assets are served from the VPS disk. The R2 bucket remains a configured fallback — see [`../operations/asset-storage.md`](../operations/asset-storage.md). | configuration |
 | `STORAGE_S3_ENDPOINT`, `_BUCKET`, `_REGION`, `_ACCESS_KEY`, `_SECRET_KEY`, `_USE_SSL` | Object storage configuration. Both keys are secrets. | 🔒 secret / configuration |
 | `CORS_ALLOWED_ORIGINS` | Allowed browser origins. **Empty = CORS disabled** (#338 finding 5): the web app goes through its server-side Next.js proxy. | configuration |
 | `SENTRY_DSN` | Backend project DSN. Sourced from `SENTRY_DSN_BACKEND` in compose — a shared name would send the web app's errors into the backend's project (#388). Without a DSN the SDK does not start and behaviour is identical. | 🔒 secret |
@@ -299,7 +298,7 @@ The `/chat` and `/diagnose` proxies are decoupled from the concrete provider via
 
 ## Key points
 
-- **Contained Go monolith**: `main.go` + `middleware/` + a few specialized files. Splitting into packages will be considered if the code exceeds ~2,500 lines.
+- **Contained Go monolith**: `main.go` + `middleware/` + a few specialized files. The threshold this page set itself — consider splitting into packages beyond ~2,500 lines — **has been crossed**: `main.go` holds 3,030. A threshold nobody measures triggers nothing; this one is to be decided, not deferred.
 - **No ORM**: the official MongoDB driver is used directly with `bson.M{...}`. Maximum readability, no structural protection against field-name typos.
 - **Self-only authz everywhere**: the `users`/`gardens` handlers filter by the `uid` extracted from the token, never by the `uid` from the body or URL (see [ADR 0005](../decisions/0005-self-authz-pattern.md)).
 - **Defense in depth**: API key (constant time) **and** Firebase token (verified, email-verified, not banned) on all business traffic.

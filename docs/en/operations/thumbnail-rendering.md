@@ -12,7 +12,7 @@ has a single path, the one described here.
 
 ## Why Blender
 
-61 of the 123 served models exist only as USDZ. An engine that reads glTF only
+61 of the 123 models served at the time existed only as USDZ — and the proportion has only grown with the catalogue. An engine that reads glTF only
 would require a conversion we do not have on Linux. Blender imports USD
 natively.
 

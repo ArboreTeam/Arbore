@@ -12,7 +12,7 @@ rendu n'a plus qu'un seul chemin, et c'est celui décrit ici.
 
 ## Pourquoi Blender
 
-61 des 123 modèles servis n'existent qu'en USDZ. Un moteur ne lisant que le
+61 des 123 modèles servis alors n'existaient qu'en USDZ — et la proportion n'a fait que croître avec le catalogue. Un moteur ne lisant que le
 glTF exigerait une conversion dont on ne dispose pas sous Linux. Blender
 importe l'USD nativement.
 

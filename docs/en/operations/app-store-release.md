@@ -171,6 +171,22 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://api.arbore.app/chat   #
 curl -sL -o /dev/null -w "%{http_code}\n" https://arbore.app/privacy
 ```
 
+And on the machine, six points that are invisible from outside:
+
+1. the deployed image is the one CI built — `curl -s .../health | jq -r .commit` against `git rev-parse origin/main`;
+2. container ports stay bound to `127.0.0.1`, exposed only through nginx;
+3. the environment file and its backups are `0600`;
+4. the Apple private key is outside the repository and readable by the service only;
+5. the `401`, `403`, `413` and `429` refusals answer, and a full account deletion goes through — tested with throwaway email, Google **and** Apple accounts, the three revocation paths differing;
+6. the published privacy policy matches `AppConfig.privacyPolicyVersion` — the number lives in the code, and that is the one that binds.
+
+> These six points came from `prepublication-security.md`, a snapshot dated
+> 2026-07-22 removed on 2026-11-13: everything else in it was covered, more
+> up to date, by
+> [`../architecture/03-components-backend.md`](../architecture/03-components-backend.md).
+> Two of its values had drifted — the server timeouts, and a "policy version
+> 2.2" when the code is at 2.5.
+
 ## See also
 
 - [`testflight-deploy.md`](testflight-deploy.md) — the lanes and the TestFlight path

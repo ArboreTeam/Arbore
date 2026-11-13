@@ -23,8 +23,8 @@ flowchart TB
     user["👤 Utilisateur"]
 
     login["📱 LoginAuth/<br/>SignUpView · LoginView · VerifyEmailView · ReAuthView"]
-    wizard["📱 Views/GardenSteps/<br/>QuestionnaireView · GardenAnalysisAuthorizationFlowView<br/>GardenExposureCaptureOverlay · GardenLocationCaptureView<br/>SpaceTypeStepView · EssentialQuestionsStepView<br/>AISuggestionStepView · LiDARScanWizardView"]
-    ar_view["📱 ARGarden/<br/>GardenARPlacementView · PlantCatalogView"]
+    wizard["📱 Views/GardenSteps/<br/>GardenWizardView · SpaceTypeStepView<br/>ScanMethodStepView · AISuggestionStepView<br/>GardenExposureCaptureOverlay · GardenLocationCaptureView<br/>LiDARScanWizardView"]
+    ar_view["📱 ARGarden/<br/>GardenARPlacementView · PlantCatalogARView"]
     manual_rep["📱 ARGarden/ManualReplacement/<br/>RelocationPhase · GardenMorpher · MVC · DistortionAnalyzer · Overlays"]
     profile["📱 Views/Profile/<br/>PersonalDetailsView · DataExportView · PrivacySettingsView · CloseAccountView"]
     measure["📱 measure app/<br/>ARViewContainerMeasure"]
@@ -100,8 +100,8 @@ flowchart TB
 | Dossier / fichier | Rôle |
 |---|---|
 | `LoginAuth/` | Signup, login, vérification email, reset mot de passe (`SignUpView`, `LoginView`, `VerifyEmailView`, `ReAuthView`). |
-| `Views/GardenSteps/` | Wizard piloté par `QuestionnaireView` avec trois écrans visibles : choix de l'espace, trois questions conditionnelles dans `EssentialQuestionsStepView`, puis suggestion finale. La méthode est choisie automatiquement et le prompt système caméra précède directement le scan ; `GardenAnalysisAuthorizationFlowView` ne sert qu'après un refus. `GardenExposureCaptureOverlay` collecte la direction lumineuse sans quitter la caméra pour une pièce, un balcon ou une terrasse ; `GardenLocationCaptureView` demande une nouvelle localisation après chaque scan. `LiDARScanWizardView` gère RoomPlan. |
-| `ARGarden/` | Placement et visualisation des plantes en AR (`GardenARPlacementView`, god object ~4 700 LOC, `PlantCatalogView`). |
+| `Views/GardenSteps/` | Wizard piloté par `GardenWizardView` (dans `QuestionnaireView.swift`) : **huit à neuf étapes** selon le type d'espace — intro, style, type d'espace, exposition, entretien, sécurité, sol (jardin seulement), méthode de scan, suggestion finale. `ScanMethodStepView` ouvre directement la vue de tracé AR, qui **crée le jardin en base** avant que le wizard ne reprenne la main sur `AISuggestionStepView`. `GardenExposureCaptureOverlay` collecte la direction lumineuse sans quitter la caméra pour une pièce, un balcon ou une terrasse ; `GardenLocationCaptureView` demande une nouvelle localisation après chaque scan. `LiDARScanWizardView` gère RoomPlan. Détail : [`../screens/questionnaire-wizard.md`](../screens/questionnaire-wizard.md). |
+| `ARGarden/` | Placement et visualisation des plantes en AR : `GardenARPlacementView` (god object, cf. points clés) et `PlantCatalogARView` — le sélecteur de plantes du parcours AR, ouvert en **plein écran** et non en feuille. Le fichier s'appelle `PlantCatalogView.swift`, la structure `PlantCatalogARView` : le contrôle de dérive valide les chemins, pas les symboles, et le mauvais nom a survécu dans quatre pages. |
 | `ARGarden/SceneUnderstanding/` | Compréhension de scène (profondeur, segmentation sémantique, fusion) : `SceneUnderstandingController`, grilles `VoxelGrid`/`TSDFGrid`, `MarchingCubes`, classifieur `SurfaceClassifier`. |
 | `ARGarden/ManualReplacement/` | Sous-module dédié au flow de re-placement manuel (#111). Composants : `RelocationPhase`, `MeanValueCoordinates`, `GardenMorpher`, `DistortionAnalyzer`, `DistortionWarning`, `GhostRenderer`, plus quatre overlays SwiftUI (`Scanning`, `BoundaryTracing`, `MorphingPreview`, `Adjusting`). La machine d'états sera diagrammée dans `state-machines/relocation-phase.md` (Phase 3). |
 | `Views/Profile/` | Gestion du compte (`PersonalDetailsView`, `DataExportView`, `PrivacySettingsView`, `CloseAccountView`). |
@@ -146,7 +146,7 @@ flowchart TB
 ## Points clés
 
 - **Trois couches sont clairement séparées** par convention de dossiers : présentation, domaine, infrastructure. Aucun framework MVVM n'est imposé ; la discipline tient à la review des PRs.
-- **`GardenARPlacementView` est le seul god object** du codebase (≈ 4 700 lignes, extensions comprises). Sa refactorisation est suivie par l'issue #124.
+- **`GardenARPlacementView` est le seul god object** du codebase : **7 308 lignes**, 7 876 avec ses deux extensions (`wc -l`, 2026-11-13). Cette page annonçait 4 700, la per-screen spec 3 300. Un chiffre de LOC ne se cite qu'avec sa mesure, sinon il vieillit sans que personne ne le voie. Sa refactorisation est suivie par l'issue #124.
 - **`NetworkManager` est le point d'entrée unique** des appels HTTP. Toute requête sortante passe par ce singleton afin de garantir l'injection des credentials et le retry réseau.
 - **`saveAuthDB.swift` est le seul appelant** à implémenter un retry métier avec backoff exponentiel et un rollback Firebase Auth. Cette logique est dédiée à la signup (issue #137).
 - **`DatabaseFireBaseStore/` est en cours de dépréciation** au profit du backend Go pour toutes les opérations métier hors authentification.

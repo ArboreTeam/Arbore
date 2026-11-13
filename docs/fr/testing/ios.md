@@ -72,11 +72,26 @@ faire disparaître une plante.
 
 ## Exécution
 
+> **Lister avant de copier.** Les destinations codées en dur se périment à
+> chaque version de Xcode : relevé le 2026-11-13 sur une machine de
+> développement, le seul runtime installé était **iOS 26.2** et aucun
+> « iPhone 16 Pro » n'existait. Les commandes ci-dessous **ne fixent donc plus
+> de version d'OS** — `xcodebuild` prend le runtime disponible — et la CI fait
+> de même. Pour savoir ce que porte votre machine :
+>
+> ```sh
+> xcrun simctl list devices available
+> ```
+>
+> La cible de déploiement du projet, elle, reste **iOS 18.2**
+> (`IPHONEOS_DEPLOYMENT_TARGET`) : c'est la version minimale supportée, pas
+> celle du simulateur sur lequel on teste.
+
 ```sh
 # Toute la suite (simulateur)
 cd ArboreUi && xcodebuild test \
   -workspace ArboreUi.xcworkspace -scheme ArboreUi \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
   -resultBundlePath build/TestResults.xcresult
 
 # Intégrations Firebase/backend (hôte signé, environnement de test uniquement)
@@ -91,7 +106,7 @@ ARBORE_RUN_LIVE_INTEGRATION_TESTS=1 xcodebuild test \
 # Une suite ciblée
 cd ArboreUi && xcodebuild test \
   -workspace ArboreUi.xcworkspace -scheme ArboreUi \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
   -only-testing:ArboreUiTests/TSDFGridTests
 
 # Menu interactif local

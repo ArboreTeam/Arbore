@@ -74,4 +74,4 @@ In CI (`.github/workflows/ci.yml`, `backend` job): `go mod download && verify` �
 - Coverage measured on 2026-11-03: **52.7%** overall (main package 51.1%, `middleware` 63.9%). The erasure paths, which were at 0%, are now at 83–100%.
 - Authorization-logic tests use mocked routers; the ones that touch the database go through `mtest`. Neither validates integration **with a real mongod** — indexes, unique constraints, real concurrency. That is covered on the iOS side by the integration tests that hit the real backend, which **skip** when it is unreachable.
 - `runReconcileGuests` stays at 0%: it requires Firebase and the package-level Mongo client. What it chains is covered separately (`reconcileGuests`, `logReconcileReport`).
-- `ArboreBackend/go.mod` declares `go 1.25.14`: the CI `GO_VERSION` variable must stay aligned.
+- `ArboreBackend/go.mod` declares **`go 1.26.10`**; the CI's `GO_VERSION` is `1.27.4`. The trade-off is detailed in [`_index.md`](_index.md) — and the number does not survive being copied into prose: this one claimed `1.25.14`.

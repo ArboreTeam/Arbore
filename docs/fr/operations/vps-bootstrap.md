@@ -7,28 +7,30 @@ existante est perdue) ou de migration (passage sur un nouveau provider).
 Chaque étape est idempotente — la re-jouer sur un système déjà configuré
 ne casse rien.
 
-> **Deux systèmes sont couverts**, parce que les deux sont en service pendant
-> la migration (#652) :
+> **Le corps de ce runbook vise Debian 12 bookworm**, la distribution des deux
+> piles en service (utilisateur `debian`, maison `/home/debian`, interface
+> `ens3`).
 >
 > | | distribution | utilisateur | maison | interface |
 > |---|---|---|---|---|
-> | **ancienne** | Fedora 40 Cloud | `fedora` | `/home/fedora` | `eth0` |
-> | **neuve** | Debian 12 bookworm | `debian` | `/home/debian` | `ens3` |
+> | **en service** | Debian 12 bookworm | `debian` | `/home/debian` | `ens3` |
+> | **repli, sans trafic** | Fedora 40 Cloud | `fedora` | `/home/debian` | `eth0` |
 >
-> Les commandes d'installation sont données pour les deux. Le reste du runbook
-> est commun.
+> L'ancienne machine Fedora est encore allumée comme repli au 2026-11-13, mais
+> ne sert plus rien. Ses commandes d'installation sont conservées en
+> [annexe](#annexe--fedora-40-ancienne-machine), pour qu'un retour en arrière
+> reste possible ; tout le reste du runbook leur est commun.
 >
-> Dans les chemins, **`/home/fedora` est un exemple qui suit l'utilisateur** :
-> sur Debian, lire `/home/debian`. Le code, lui, ne le suppose pas —
-> `deploy.sh` dérive `arbore-data/` du répertoire du checkout, et les
-> `*_HOST_PATH` du `.env` sont explicites.
+> Dans les chemins, **`/home/debian` suit l'utilisateur**. Le code, lui, ne le
+> suppose pas — `deploy.sh` dérive `arbore-data/` du répertoire du checkout, et
+> les `*_HOST_PATH` du `.env` sont explicites.
 >
 > Autres hypothèses : `sudo` NOPASSWD, accès SSH par clé publique, IP publique
 > routable.
 
 > ⚠️ **Fedora 40 est en fin de vie depuis mai 2025** et ne reçoit plus de mise
-> à jour de sécurité. Les commandes `dnf` restent documentées pour la machine
-> encore en service, pas comme un choix à reconduire.
+> à jour de sécurité. Son annexe documente une machine qu'on éteint, pas un
+> choix à reconduire.
 
 ---
 
@@ -41,7 +43,7 @@ Composants installés à la fin de la procédure :
 | Docker + Compose | Exécute `arbore-backend` (Go/Gin, `:8080`) et `arbore-web` (Next.js standalone, `:3000`) |
 | Nginx | Reverse proxy `:80` + `:443` (TLS, Cloudflare Origin cert) : `api.arbore.app` → `127.0.0.1:8080` (backend) et `web.arbore.app` → `127.0.0.1:3000` (web) |
 | MongoDB Atlas | DB hébergée (pas de Mongo local) ; `mongosh` et `mongodump` côté VPS pour cleanup et backups |
-| cronie | Lance `cleanup-test-db.sh` chaque nuit à 04:00 UTC |
+| cron | Lance les quatre tâches planifiées de `ops/crontab` (03:00 et 04:00 UTC quotidiennes, 04:00 et 05:00 UTC le dimanche) |
 | gh CLI | Utilisé par `cleanup-test-db.sh` (optionnel, fallback curl) |
 
 Le web appelle le backend sur `http://backend:8080` via le réseau Docker
@@ -125,23 +127,10 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubc
 sudo apt-get -y update && sudo apt-get -y install gh
 ```
 
-**Fedora 40** — machine encore en service
-
-```bash
-sudo dnf -y update
-sudo dnf -y install \
-    git curl wget jq vim \
-    cronie crontabs \
-    nginx \
-    gh \
-    python3
-sudo systemctl enable --now crond
-```
-
 Vérification :
 
 ```bash
-systemctl is-active cron    # Debian  — « crond » sur Fedora
+systemctl is-active cron    # « crond » sur Fedora, cf. annexe
 gh --version                # 2.x, si installé
 
 # nginx et iptables vivent dans /usr/sbin, qui n'est PAS dans le PATH d'un
@@ -175,15 +164,6 @@ sudo apt-get -y install docker-ce docker-ce-cli containerd.io docker-compose-plu
 sudo systemctl enable --now docker
 ```
 
-**Fedora 40**
-
-```bash
-sudo dnf -y install dnf-plugins-core
-sudo dnf-3 config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
-sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin
-sudo systemctl enable --now docker
-```
-
 Ajouter l'utilisateur au groupe `docker` est **optionnel** ; le projet appelle
 `sudo docker` partout (cf. `deploy.sh`), donc on peut s'en passer si on
 préfère garder la séparation de privilèges.
@@ -214,21 +194,6 @@ sudo apt-get -y update
 sudo apt-get -y install mongodb-database-tools mongodb-mongosh
 ```
 
-**Fedora 40**
-
-```bash
-sudo tee /etc/yum.repos.d/mongodb-org-7.0.repo > /dev/null << 'EOF'
-[mongodb-org-7.0]
-name=MongoDB Repository
-baseurl=https://repo.mongodb.org/yum/redhat/9/mongodb-org/7.0/x86_64/
-gpgcheck=1
-enabled=1
-gpgkey=https://pgp.mongodb.com/server-7.0.asc
-EOF
-
-sudo dnf -y install mongodb-database-tools mongodb-mongosh
-```
-
 Vérification :
 
 ```bash
@@ -256,15 +221,6 @@ sudo apt-get -y install age
 
 # La version est DÉRIVÉE, jamais écrite en dur : un numéro gelé dans une doc
 # se périme en silence et renvoie un 404 le jour où on en a besoin.
-SOPS_TAG=$(curl -fsSL https://api.github.com/repos/getsops/sops/releases/latest | jq -r .tag_name)
-curl -fsSL "https://github.com/getsops/sops/releases/download/${SOPS_TAG}/sops-${SOPS_TAG}.linux.amd64" -o /tmp/sops
-sudo install -m 0755 /tmp/sops /usr/local/bin/sops && rm -f /tmp/sops
-```
-
-**Fedora 40**
-
-```bash
-sudo dnf -y install age
 SOPS_TAG=$(curl -fsSL https://api.github.com/repos/getsops/sops/releases/latest | jq -r .tag_name)
 curl -fsSL "https://github.com/getsops/sops/releases/download/${SOPS_TAG}/sops-${SOPS_TAG}.linux.amd64" -o /tmp/sops
 sudo install -m 0755 /tmp/sops /usr/local/bin/sops && rm -f /tmp/sops
@@ -328,7 +284,7 @@ sudo systemctl enable --now nginx
 ## 5. Cloner le dépôt et configurer l'environnement
 
 ```bash
-cd ~                                                      # /home/fedora
+cd ~                                                      # /home/debian
 git clone git@github.com:ArboreTeam/Arbore.git
 cd Arbore
 ```
@@ -345,7 +301,7 @@ cd Arbore && git remote set-url origin git@github.com:ArboreTeam/Arbore.git
 
 ## 6. Reconstruire le `.env`
 
-Le fichier `/home/fedora/Arbore/.env` n'est **jamais commité**. Variables
+Le fichier `/home/debian/Arbore/.env` n'est **jamais commité**. Variables
 attendues (sources de vérité indiquées) :
 
 | Variable | Source de vérité | Notes |
@@ -374,7 +330,7 @@ attendues (sources de vérité indiquées) :
 Template à recopier :
 
 ```bash
-cat > /home/fedora/Arbore/.env << 'EOF'
+cat > /home/debian/Arbore/.env << 'EOF'
 # Mongo
 MONGODB_URI=mongodb+srv://arbore_backend_user:PASSWORD@arbore.cew6l.mongodb.net/arbore?retryWrites=true&w=majority&appName=Arbore
 MONGODB_URI_TEST=mongodb+srv://arbore_test_user:PASSWORD@arbore.cew6l.mongodb.net/arbore_test?retryWrites=true&w=majority&appName=Arbore
@@ -385,18 +341,18 @@ ARBORE_API_KEY_TEST=arbore_test_v1_xxxxxxxxxxxxxxxxxxxx
 ARBORE_ADMIN_UIDS=uid_firebase_admin
 
 # Secrets et données persistantes (chemins hôte absolus)
-FIREBASE_SERVICE_ACCOUNT_HOST_PATH=/home/fedora/arbore-data/secrets/firebase-adminsdk.json
+FIREBASE_SERVICE_ACCOUNT_HOST_PATH=/home/debian/arbore-data/secrets/firebase-adminsdk.json
 # Clé maître : le fichier est préféré à la variable (cf. encadré ci-dessous).
 MASTER_ENCRYPTION_KEY=
 MASTER_ENCRYPTION_KEY_PATH=/run/secrets/master-encryption.key
-MASTER_ENCRYPTION_KEY_HOST_PATH=/home/fedora/arbore-data/secrets/master-encryption.key
+MASTER_ENCRYPTION_KEY_HOST_PATH=/home/debian/arbore-data/secrets/master-encryption.key
 APPLE_TEAM_ID=XXXXXXXXXX
 APPLE_KEY_ID=XXXXXXXXXX
 APPLE_SIWA_CLIENT_ID=com.arboreteam.arbore
-APPLE_SIWA_KEY_HOST_PATH=/home/fedora/arbore-data/secrets/AuthKey_XXXXXXXXXX.p8
-MODELS_HOST_PATH=/home/fedora/arbore-data/models
-THUMBNAILS_HOST_PATH=/home/fedora/arbore-data/models/thumbnails
-LEGACY_COMMUNITY_UPLOADS_HOST_PATH=/home/fedora/arbore-data/uploads/community
+APPLE_SIWA_KEY_HOST_PATH=/home/debian/arbore-data/secrets/AuthKey_XXXXXXXXXX.p8
+MODELS_HOST_PATH=/home/debian/arbore-data/models
+THUMBNAILS_HOST_PATH=/home/debian/arbore-data/models/thumbnails
+LEGACY_COMMUNITY_UPLOADS_HOST_PATH=/home/debian/arbore-data/uploads/community
 # Origines navigateur autorisées. Vide = CORS désactivé, le bon réglage ici :
 # le web appelle l'API via son proxy Next.js côté serveur (#338 constat 5).
 CORS_ALLOWED_ORIGINS=
@@ -413,7 +369,7 @@ GEMINI_API_KEY=...
 GIN_MODE=release
 PORT=8080
 EOF
-chmod 600 /home/fedora/Arbore/.env
+chmod 600 /home/debian/Arbore/.env
 ```
 
 ### Clé maître en fichier plutôt qu'en variable
@@ -425,13 +381,13 @@ justement** les refresh tokens Apple : elle était moins protégée que ce qu'el
 protège (#338 constat 4). D'où la source fichier :
 
 ```bash
-mkdir -p /home/fedora/arbore-data/secrets
+mkdir -p /home/debian/arbore-data/secrets
 # Depuis une clé EXISTANTE, reprendre sa valeur telle quelle (ne PAS en générer
 # une nouvelle : les tokens déjà chiffrés deviendraient indéchiffrables).
-printf '%s' "$MASTER_ENCRYPTION_KEY" > /home/fedora/arbore-data/secrets/master-encryption.key
+printf '%s' "$MASTER_ENCRYPTION_KEY" > /home/debian/arbore-data/secrets/master-encryption.key
 # Première installation uniquement :
-#   openssl rand -hex 32 > /home/fedora/arbore-data/secrets/master-encryption.key
-chmod 600 /home/fedora/arbore-data/secrets/master-encryption.key
+#   openssl rand -hex 32 > /home/debian/arbore-data/secrets/master-encryption.key
+chmod 600 /home/debian/arbore-data/secrets/master-encryption.key
 ```
 
 Puis renseigner `MASTER_ENCRYPTION_KEY_PATH` et `MASTER_ENCRYPTION_KEY_HOST_PATH`
@@ -450,8 +406,8 @@ chemin défini mais **illisible est une erreur** et non un repli silencieux — 
 3. Uploader à la racine du dépôt :
 
 ```bash
-scp arbore-firebase-adminsdk.json fedora@<VPS>:/home/fedora/Arbore/
-chmod 600 /home/fedora/Arbore/arbore-firebase-adminsdk.json
+scp arbore-firebase-adminsdk.json debian@<VPS>:/home/debian/Arbore/
+chmod 600 /home/debian/Arbore/arbore-firebase-adminsdk.json
 ```
 
 Le bind mount dans `docker-compose.yml` monte ce fichier en lecture seule dans
@@ -483,7 +439,7 @@ déploiement ne casse pas : le tirage est tenté en anonyme, puis bascule sur un
 build local **en le signalant**.
 
 ```bash
-cd /home/fedora/Arbore
+cd /home/debian/Arbore
 ./deploy.sh                   # tire les images, ou builde en repli
 sudo docker compose ps        # backend + web → Up (healthy)
 ```
@@ -562,11 +518,11 @@ déploiements le contournaient — en sautant le snapshot Mongo pre-deploy, seul
 filet de sécurité puisque Atlas M0 n'a aucun backup automatique (cf. #341).
 
 Les USDZ, miniatures, anciens uploads et secrets sont censés vivre dans
-`/home/fedora/arbore-data` grâce aux chemins absolus du `.env`, pour qu'un
+`/home/debian/arbore-data` grâce aux chemins absolus du `.env`, pour qu'un
 nouveau checkout de release ne puisse ni les écraser ni les supprimer.
 
 > ✅ **Bascule effectuée le 05/09/2026** (#341 cause 3, #401 étape 2).
-> `MODELS_HOST_PATH=/home/fedora/arbore-data/models` est défini dans le `.env`
+> `MODELS_HOST_PATH=/home/debian/arbore-data/models` est défini dans le `.env`
 > du VPS, et le conteneur monte bien ce chemin — vérifié par `docker inspect`
 > et par comparaison d'empreintes entre le conteneur et un manifeste de
 > référence.
@@ -662,7 +618,7 @@ faire tourner en simulation avant de se fier au cron**, qui lui passe `--apply` 
 
 ```bash
 # Ne supprime rien : compte et journalise.
-/home/fedora/Arbore/ArboreBackend/scripts/reconcile-guests.sh
+/home/debian/Arbore/ArboreBackend/scripts/reconcile-guests.sh
 ```
 
 Quatre gardes le protègent, et il **sort en erreur sans rien supprimer** si
@@ -690,12 +646,12 @@ Firebase.** Sur un environnement autre que la production, vérifier
 rebuild. Pour restaurer un backup précis (catastrophe, rollback) :
 
 ```bash
-cd /home/fedora/Arbore/backups/daily
+cd /home/debian/Arbore/backups/daily
 ls -lt | head -5                                   # repérer le snapshot voulu
 SNAPSHOT="arbore-predeploy-2026-05-13T22-15-06Z"
 tar -xzf "${SNAPSHOT}.tar.gz"
 
-source /home/fedora/Arbore/.env
+source /home/debian/Arbore/.env
 mongorestore --uri="$MONGODB_URI" --drop --nsInclude="arbore.*" "$SNAPSHOT/arbore"
 ```
 
@@ -709,7 +665,7 @@ mongorestore --uri="$MONGODB_URI" --drop --nsInclude="arbore.*" "$SNAPSHOT/arbor
 
 Cocher ces points avant de considérer le VPS opérationnel :
 
-- [ ] `systemctl is-active docker crond nginx` → tous `active`
+- [ ] `systemctl is-active docker cron nginx` → tous `active` (`crond` sur Fedora)
 - [ ] `sudo docker compose ps` → `arbore-backend` + `arbore-web` healthy
 - [ ] `curl -fsS http://localhost:8080/health` → 200 OK
 - [ ] `curl -fsS http://localhost:3000/` → 200 OK (web)
@@ -726,13 +682,79 @@ Cocher ces points avant de considérer le VPS opérationnel :
       sur son repli codé en dur, donc le pare-feu restait correct mais figé.
       Un changement de plages chez Cloudflare serait passé inaperçu jusqu'à ce
       que du trafic légitime soit rejeté (#652)
-- [ ] `/home/fedora/Arbore/scripts/cleanup-test-db.sh` finit en exit 0
-- [ ] `ls /home/fedora/Arbore/backups/daily/` ne plante pas (le dossier est créé au 1er `deploy.sh`)
+- [ ] `/home/debian/Arbore/scripts/cleanup-test-db.sh` finit en exit 0
+- [ ] `ls /home/debian/Arbore/backups/daily/` ne plante pas (le dossier est créé au 1er `deploy.sh`)
 - [ ] Une PR de test sur GitHub déclenche la CI ; les tests passent en
       pointant vers `arbore_test`
 
 ---
 
+## Annexe — Fedora 40 (ancienne machine)
+
+La machine Fedora 40 n'a plus de trafic depuis la bascule du 2026-11-04 et
+reste allumée comme repli. Ces commandes sont conservées pour ce seul cas :
+elles ne doivent servir qu'à remonter cette machine-là, jamais à en
+provisionner une neuve — Fedora 40 est en fin de vie depuis mai 2025.
+
+Le reste du runbook (nginx, `.env`, Firebase, déploiement, sauvegardes,
+pare-feu) est commun aux deux distributions ; seul le gestionnaire de
+paquets change, et `crond` y remplace `cron`.
+
+### Pour l'étape « 1. Préparation système »
+
+**Fedora 40**
+
+```bash
+sudo dnf -y update
+sudo dnf -y install \
+    git curl wget jq vim \
+    cronie crontabs \
+    nginx \
+    gh \
+    python3
+sudo systemctl enable --now crond
+```
+
+### Pour l'étape « 2. Docker + Compose »
+
+**Fedora 40**
+
+```bash
+sudo dnf -y install dnf-plugins-core
+sudo dnf-3 config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo
+sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+sudo systemctl enable --now docker
+```
+
+### Pour l'étape « 3. MongoDB tools (mongosh + mongodump) »
+
+**Fedora 40**
+
+```bash
+sudo tee /etc/yum.repos.d/mongodb-org-7.0.repo > /dev/null << 'EOF'
+[mongodb-org-7.0]
+name=MongoDB Repository
+baseurl=https://repo.mongodb.org/yum/redhat/9/mongodb-org/7.0/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://pgp.mongodb.com/server-7.0.asc
+EOF
+
+sudo dnf -y install mongodb-database-tools mongodb-mongosh
+```
+
+### Pour l'étape « 3 bis. sops + age — sans eux, rien ne démarre »
+
+**Fedora 40**
+
+```bash
+sudo dnf -y install age
+SOPS_TAG=$(curl -fsSL https://api.github.com/repos/getsops/sops/releases/latest | jq -r .tag_name)
+curl -fsSL "https://github.com/getsops/sops/releases/download/${SOPS_TAG}/sops-${SOPS_TAG}.linux.amd64" -o /tmp/sops
+sudo install -m 0755 /tmp/sops /usr/local/bin/sops && rm -f /tmp/sops
+```
+
+---
 ## Annexe — Pare-feu / cloud provider
 
 Selon le provider, le pare-feu au niveau de la VM peut être géré par :
@@ -807,7 +829,7 @@ Deux workflows réagissent : `deploy.yml` publie les images étiquetées `1.2.0`
 ### Déployer une release
 
 ```bash
-cd /home/fedora/Arbore
+cd /home/debian/Arbore
 ARBORE_DEPLOY_TAG=v1.2.0 ./deploy.sh
 ```
 
@@ -840,14 +862,21 @@ déployée, ni les ports, ni le fichier d'environnement**.
 
 | | production | dev |
 |---|---|---|
-| Checkout | `/home/fedora/Arbore` | `/home/fedora/Arbore-dev` |
+| Checkout | `/home/debian/Arbore-prod` | `/home/debian/Arbore` |
 | Branche | `main` | `dev` |
 | Projet compose | `arbore-prod` | `arbore-dev` |
 | Conteneurs | `arbore-prod-*` | `arbore-dev-*` |
-| Ports | 8080 / 3000 / 8000 | 8081 / 3001 / 8001 |
+| Ports | 8080 / 3000 | 8081 / 3001 |
 | Fichier d'environnement | `.env` | `.env.dev` |
-| Base Mongo | `arbore` | `arbore_test` |
+| Base Mongo | `arbore` | `arbore_dev` |
 | Clé age | `arbore-prod.txt` | `arbore-dev.txt` |
+
+> Relevé le 2026-11-13. Trois valeurs de ce tableau étaient fausses depuis la
+> bascule : les deux checkouts (la production est dans `Arbore-prod`, dev dans
+> `Arbore` — l'inverse de l'ancienne machine), la base de dev (`arbore_dev` et
+> non `arbore_test`, qui est la base des tests d'intégration), et une troisième
+> colonne de ports `8000 / 8001` qui était celle du générateur IA, déposé le
+> 2026-09-20 (#558).
 
 **Un checkout par environnement est nécessaire, pas confortable** :
 `deploy.sh` calcule l'étiquette d'image depuis `git rev-parse HEAD`. Un checkout
@@ -857,7 +886,7 @@ l'intérêt d'avoir deux environnements.
 Déployer dev :
 
 ```bash
-cd /home/fedora/Arbore-dev
+cd /home/debian/Arbore
 ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
 ```
 

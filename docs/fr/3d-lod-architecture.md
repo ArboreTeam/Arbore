@@ -61,9 +61,9 @@ Tranchée en #773. **Le nom décrit ce que le fichier EST, jamais d'où il vient
 | oui | `<Nom>.usdz` |
 | non, le pot est composé à l'affichage | `<Nom>_potless.usdz` |
 
-Le générateur — Meshy ou TRELLIS — **ne transparaît pas** dans le nom. Il se lit
-déjà ailleurs, et mieux : à la taille (Meshy 2 à 7 Mo, TRELLIS 35 à 60 Mo) et
-dans `versions.model`.
+Le générateur — l'ancienne génération ou TRELLIS — **ne transparaît pas** dans
+le nom. Il se lit déjà ailleurs, et mieux : à la taille (2 à 7 Mo pour
+l'ancienne génération, 35 à 60 Mo pour TRELLIS) et dans `versions.model`.
 
 ### Pourquoi ce critère, et pas la génération
 
@@ -81,7 +81,8 @@ Nommer d'après la génération aurait laissé ces deux-là diverger.
 
 Remplacer un maillage par un meilleur **sous le même nom** est la voie normale.
 Cela évite un second fichier, donc un orphelin : le suffixe `_potless` avait
-produit 1,90 Go de Meshy abandonnés en production, nettoyés en #734.
+produit 1,90 Go de maillages de l'ancienne génération abandonnés en production,
+nettoyés en #734.
 
 C'était impossible tant que le cache de l'app s'indexait sur le nom de fichier.
 Depuis #294, l'empreinte du contenu est glissée dans le nom du cache local et
@@ -93,7 +94,7 @@ func nomEnCache(fichier: String, version: String?) -> String   // <nom>_<emprein
 
 Un contenu nouveau donne une empreinte nouvelle, donc un nom de cache nouveau,
 donc un retéléchargement. **La condition est que la fiche porte
-`versions.model`** — c'est le cas des 123 fiches de production depuis le
+`versions.model`** — c'est le cas de toutes les fiches de production depuis le
 2026-11-06. Sans elle, le cache retombe sur le nom nu et l'appareil garde
 l'ancien modèle indéfiniment.
 

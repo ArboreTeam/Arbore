@@ -171,15 +171,15 @@ Plant catalog document. Each plant embeds its multilingual translations so that 
 
 ##### Why the photos are ours
 
-The 123 records used to carry direct links to the botanic (97) and Unsplash (25)
-CDNs. The app copied nothing: every device fetched them itself, and those third
-parties saw the user's IP address, the time, and which records were viewed — a
-flow the privacy policy did not mention for botanic.
+The records used to carry direct links to **third-party CDNs**: 97 to a
+horticultural retailer's, 25 to Unsplash's. The app copied nothing: every device
+fetched them itself, and those third parties saw the user's IP address, the
+time, and which records were viewed — a flow the privacy policy did not mention.
 
-Botanic's terms also explicitly forbid reproduction (articles L.122-4 and
-L.335-3 of the French intellectual property code), and some of their visuals come
-from stock agencies that license them to botanic, not to us. Hosting a copy was
-therefore out.
+The retailer's terms also explicitly forbid reproduction (articles L.122-4 and
+L.335-3 of the French intellectual property code), and some of its visuals come
+from stock agencies that license them to the retailer, not to us. Hosting a copy
+was therefore out.
 
 Our studio renders settle all three points at once: no third-party call, no one
 else's rights, and the user sees exactly what they will place in augmented

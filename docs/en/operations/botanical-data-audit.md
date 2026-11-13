@@ -2,12 +2,13 @@
 
 ## Current baseline
 
-Measured 2026-11-08 on the research corpus (`BotanicScraper/data`), which
-production imports as 3D models are generated:
+Measured 2026-11-08 on the research corpus — **outside the repository**, local
+to the machine that built it — which production imports as 3D models are
+generated:
 
 ```
 1021 records carrying a botanicalProfile
-   0 validator errors (BotanicScraper/valider-lot.py)
+   0 validator errors from the corpus validator
  144 records in all four languages, 877 in English only
 ```
 

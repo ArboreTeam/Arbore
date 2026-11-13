@@ -1,6 +1,6 @@
 # Arbore — Documentation
 
-Technical documentation for Arbore, an AR gardening application (iOS app + Next.js web companion + Go backend + Python AI generator). Written in **Markdown + Mermaid** so it lives next to the source code and renders natively on GitHub.
+Technical documentation for Arbore, an AR gardening application (iOS app + Next.js web companion + Go backend). Written in **Markdown + Mermaid** so it lives next to the source code and renders natively on GitHub.
 
 This documentation is **bilingual**. French is the source of truth; English is a full mirror.
 

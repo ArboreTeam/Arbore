@@ -16,7 +16,7 @@ flowchart TB
         direction TB
         ios["📱 [Container] App iOS Arbore<br/>Swift · SwiftUI · ARKit · RoomPlan"]
 
-        subgraph vps["VPS par environnement (Docker Compose)"]
+        subgraph vps["Une machine, deux piles Docker Compose"]
             direction TB
             web["🌐 [Container] Web Arbore<br/>Next.js · standalone (web.arbore.app)"]
             backend["⚙️ [Container] Backend API<br/>Go 1.26 · Gin"]
@@ -28,8 +28,8 @@ flowchart TB
         firebase_admin["[System Ext] Firebase Admin SDK<br/>Vérification tokens"]
         mongo[("[System Ext] MongoDB Atlas<br/>users · plants · gardens · consents")]
         apple["[System Ext] Apple ID<br/>Sign in with Apple / révocation"]
-        llm["[System Ext] OpenAI / Mistral<br/>LLM fiches plantes"]
-        r2[("[System Ext] Cloudflare R2<br/>Assets 3D — 372 objets")]
+        llm["[System Ext] Mistral AI · Gemini<br/>Assistant et diagnostic"]
+        disque[("Disque du VPS<br/>USDZ · vignettes · photos")]
     end
 
     user -- "Native UI"  --> ios
@@ -42,22 +42,21 @@ flowchart TB
     backend -- "Vérifie chaque requête (service account)"      --> firebase_admin
     backend -- "MongoDB driver Go"                             --> mongo
     backend -- "Révocation token (suppression compte)"         --> apple
-    backend -- "Lecture / écriture objets (S3)"                --> r2
-    ios     -. "Téléchargement direct (URL signée 15 min)" .-> r2
-    ai      -- "Prompt LLM (HTTPS)"                            --> llm
+    backend -- "Prompt LLM (HTTPS, clé côté serveur)"          --> llm
+    backend -- "Lit les assets (StorageProvider · filesystem)" --> disque
 
     classDef person   fill:#08427B,stroke:#073B6F,color:#fff
     classDef cont     fill:#1168BD,stroke:#0B4884,color:#fff
     classDef ext_node fill:#999,stroke:#666,color:#fff
     class user person
     class ios,web,backend cont
-    class firebase_auth,firebase_admin,mongo,apple,llm,r2 ext_node
+    class firebase_auth,firebase_admin,mongo,apple,llm,disque ext_node
 ```
 
 ## Points clés
 
 - **Trois containers Arbore sont en production** : l'application iOS, le front web Next.js et le backend Go. L'AI Generator Python a été déposé le 2026-09-20 (#558), faute de trafic et avec un schéma de sortie périmé. Les deux containers serveur sont orchestrés par `docker-compose.yml`.
-- **Deux VPS, et non plus un seul** (relevé le 2026-11-02). La migration de #652 est en cours : `prod` est resté sur l'ancienne machine Fedora, `dev` tourne sur la nouvelle machine Debian, qui porte aussi l'atelier 3D. Voir [`../operations/environnements.md`](../operations/environnements.md) pour la répartition exacte.
+- **Une seule machine porte les deux piles** depuis la bascule du 2026-11-04 (#652) : un VPS Debian 12, deux checkouts git, deux projets compose (`arbore-prod` et `arbore-dev`). Cette page a annoncé deux machines distinctes — l'état du 2026-11-02, pendant la migration — jusqu'au 2026-11-13. L'ancienne machine Fedora est encore allumée comme repli, sans trafic. Voir [`../operations/environnements.md`](../operations/environnements.md) pour la répartition exacte.
 - **Le front web est déployé** sur `web.arbore.app` (Cloudflare → nginx → container `arbore-web` sur le port 3000). Il sert de compagnon à l'app iOS : consultation du catalogue, des jardins, calendrier d'arrosage, gestion du compte (export/suppression RGPD). Les jardins sont **créés sur iOS** (placement AR).
 - **Le web n'expose jamais la clé API ni l'URL du backend au navigateur** : tous les appels passent par un **proxy serveur same-origin** (`/api/backend`) qui injecte `X-API-Key` côté serveur et relaie le token Firebase de l'utilisateur. Conséquence : pas de CORS côté navigateur, clé API jamais exposée.
 - **Deux barrières de sécurité protègent l'accès aux données** :
@@ -65,19 +64,25 @@ flowchart TB
   2. **Bearer Firebase token** validé par le Firebase Admin SDK côté backend — garantit que la requête provient d'un utilisateur authentifié, vérifié et non banni, et fournit son `uid`.
 - **MongoDB Atlas est externe au système Arbore** mais piloté exclusivement par le backend. Les clients (iOS, web) n'ouvrent **jamais** de connexion MongoDB directe.
 - **Backend et Web partagent le même VPS** et communiquent via le réseau Docker interne (`http://backend:8080`) plutôt que via l'IP publique.
+- **Les assets 3D sont servis depuis le disque, pas depuis un stockage objet.** `STORAGE_PROVIDER=filesystem` sur les deux piles depuis le 2026-10-21 : le backend lit les USDZ et les vignettes sur le disque du VPS et les relaie lui-même. Le seau R2 existe toujours et ses identifiants sont conservés, mais rien ne le lit — c'est un repli dormant. Cette page a décrit jusqu'au 2026-11-13 un téléchargement direct par URL signée de 15 minutes qui n'a plus lieu. Le raisonnement complet est dans [`../operations/stockage-assets.md`](../operations/stockage-assets.md).
 - **HTTPS en façade** : l'accès public se fait en HTTPS via Cloudflare (Full strict), nginx restreint aux IP Cloudflare ; le durcissement TLS Cloudflare → origine est suivi côté opérations (cf. [`../operations/vps-bootstrap.md`](../operations/vps-bootstrap.md)).
 
 ### Les containers sous profil
 
-Trois services de `docker-compose.yml` ne démarrent **jamais** avec un
+Quatre services de `docker-compose.yml` ne démarrent **jamais** avec un
 `docker compose up -d` : ils sont déclarés sous un profil, et il faut le
 nommer. C'est délibéré — ce sont des outils, pas des services.
 
 | service | profil | rôle |
 |---|---|---|
 | `vignettes` | `outils` | job de rendu des vignettes, invoqué à la demande |
-| `vignettes-ouvrier` | `vignettes` | le même binaire en veille, consomme la file de l'atelier |
+| `vignettes-ouvrier` | `vignettes` | le même binaire en veille, consomme la file `dev` |
+| `vignettes-ouvrier-prod` | `vignettes-prod` | le même binaire, sur la file `prod` |
 | `minio` | `dev` | stockage objet local, **jamais démarré** à ce jour |
+
+Un ouvrier ne sert qu'**une** file, celle de son `ARBORE_ENV_NOM` — d'où le
+second conteneur plutôt qu'un second atelier. Les deux vivent sur la pile qui
+porte l'atelier, déclarés par `ARBORE_PROFILS=vignettes,vignettes-prod`.
 
 `minio` existe pour éprouver le fournisseur S3 sans toucher à R2. Vérifié le
 2026-11-02 : aucun conteneur minio n'a jamais tourné sur la machine de dev.

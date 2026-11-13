@@ -1,6 +1,6 @@
 # C4 — Level 3: Web Components
 
-This view opens the **Arbore Web** container (Next.js 16, App Router, React 18, TypeScript) deployed on `web.arbore.app`. The web app is a **companion** to the iOS app: gardens are **created on iOS** (AR placement); the web lets you browse the catalog, your gardens and their plants, a watering calendar, a seasonal guide, and manage your account (GDPR export / deletion).
+This view opens the **Arbore Web** container (Next.js 16, App Router, React 19, TypeScript) deployed on `web.arbore.app`. The web app is a **companion** to the iOS app: gardens are **created on iOS** (AR placement); the web lets you browse the catalog, your gardens and their plants, a watering calendar, a seasonal guide, and manage your account (GDPR export / deletion).
 
 For the container-level overview, see [`02-containers.md`](02-containers.md). For the backend it consumes, see [`03-components-backend.md`](03-components-backend.md).
 
@@ -62,7 +62,7 @@ The app pages are client components (`'use client'`): they check the authenticat
 ### 1 bis. The 3D workshop (`/generator`)
 
 Absent from this document until 2026-11-02, although it accounts for **seven
-pages out of twenty-two** and twenty-eight API routes. It is served by the
+pages out of twenty-two** and twenty-six API routes. It is served by the
 **same** container, on `generator.arbore.app`; nginx and then the middleware
 are what isolate it from `web.arbore.app`.
 
@@ -137,11 +137,11 @@ The browser therefore only ever calls **its own origin**: no CORS, and the API k
 
 | Aspect | Detail |
 |---|---|
-| Framework | Next.js 16 (App Router), React 18, TypeScript, Tailwind. `web/next.config.js`: `output: 'standalone'`, global security headers, no CSP (deferred). |
+| Framework | Next.js 16 (App Router), React 19, TypeScript, Tailwind. `web/next.config.js`: `output: 'standalone'`, global security headers, no CSP (deferred). |
 | Public variables | `NEXT_PUBLIC_FIREBASE_*`, `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_APP_VERSION` (inlined at build time). |
 | Server variables | `BACKEND_API_URL`, `ARBORE_API_KEY` (never prefixed `NEXT_PUBLIC_`). Source of truth: `web/.env.example`. |
 | i18n | No i18n framework: **French-only** interface (`<html lang="fr">`); care content is read from the backend's `translations.fr.*`. |
-| Docker | `web/Dockerfile` multi-stage `node:20-alpine` → `standalone` image (non-root, `:3000`). |
+| Docker | `web/Dockerfile` multi-stage `node:26-alpine3.24` → `standalone` image (non-root, `:3000`). |
 
 ## Key points
 

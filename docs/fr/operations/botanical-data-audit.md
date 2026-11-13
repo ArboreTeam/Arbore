@@ -2,12 +2,13 @@
 
 ## Référence actuelle
 
-Relevé le 2026-11-08 sur le corpus de recherche (`BotanicScraper/data`), que la
-production importe au fil des générations 3D :
+Relevé le 2026-11-08 sur le corpus de recherche — **hors dépôt**, local à la
+machine qui l'a constitué — que la production importe au fil des générations
+3D :
 
 ```
 1021 fiches portant un botanicalProfile
-   0 erreur au validateur (BotanicScraper/valider-lot.py)
+   0 erreur au validateur du corpus
  144 fiches dans les quatre langues, 877 en anglais seul
 ```
 

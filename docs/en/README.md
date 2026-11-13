@@ -16,6 +16,8 @@ The documentation is split into complementary views. Depending on what you are l
 | Internal modules — Go backend | [`architecture/03-components-backend.md`](architecture/03-components-backend.md) |
 | Internal modules — Next.js web | [`architecture/03-components-web.md`](architecture/03-components-web.md) |
 | MongoDB data model | [`architecture/04-data-model.md`](architecture/04-data-model.md) |
+| **Pots and planters** (cut plants, placement, persistence) | [`architecture/pots.md`](architecture/pots.md) |
+| **Climate profile and site record** (`POST /climate/profile`) | [`architecture/profil-climatique.md`](architecture/profil-climatique.md) |
 | **Infrastructure and operations** (layers, pipeline, environments, secrets) | [`architecture/05-infrastructure.md`](architecture/05-infrastructure.md) |
 | 3D model LOD architecture | [`3d-lod-architecture.md`](3d-lod-architecture.md) |
 | Signup flow with Firebase rollback | [`flows/auth-signup.md`](flows/auth-signup.md) |
@@ -39,6 +41,8 @@ The documentation is split into complementary views. Depending on what you are l
 | TestFlight deployment, internal and public beta (fastlane) | [`operations/testflight-deploy.md`](operations/testflight-deploy.md) |
 | App Store release (listing, App Privacy, traps) | [`operations/app-store-release.md`](operations/app-store-release.md) |
 | Asset provenance (images, 3D models, data) | [`operations/asset-provenance.md`](operations/asset-provenance.md) |
+| **The 3D workshop** (queue, human review, thumbnail workers) | [`operations/3d-workshop.md`](operations/3d-workshop.md) |
+| Physical-device validation (P1 test plan) | [`testing/p1-physical-devices.md`](testing/p1-physical-devices.md) |
 | Prod/dev environments (targeting dev from Xcode) | [`operations/environments.md`](operations/environments.md) |
 | VPS provisioning (Docker · nginx · Mongo) | [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md) |
 | 3D asset storage (R2 · S3 · MinIO) | [`operations/asset-storage.md`](operations/asset-storage.md) |
@@ -57,7 +61,7 @@ docs/
 ├── fr/                        # French documentation (source of truth)
 ├── en/                        # English mirror (this tree)
 │   ├── README.md              # this document
-│   ├── architecture/          # STATIC view (C4: context, containers, components, data)
+│   ├── architecture/          # STATIC view (C4: context, containers, components, data, pots)
 │   ├── flows/                 # DYNAMIC view (sequences, flowcharts)
 │   ├── state-machines/        # BEHAVIOURAL view
 │   ├── screens/               # per-screen specs (hero screens)
@@ -119,6 +123,8 @@ bash .github/scripts/docs-drift-check.sh
 
 The following files predate this structure and are isolated under [`../legacy/`](../legacy/). They remain available for historical reference but are outside the scope of the rules above.
 
+- [`../legacy/AI-GENERATOR.md`](../legacy/AI-GENERATOR.md) — the plant-sheet generation microservice, dropped on 2026-09-20
+- [`../legacy/NotificationsArchitecturePlan.md`](../legacy/NotificationsArchitecturePlan.md) — an APNs/FCM plan never shipped; notifications are local, see [`architecture/notifications.md`](architecture/notifications.md)
 - [`../legacy/AR_CAMERA_BLACK_SCREEN_FIX.md`](../legacy/AR_CAMERA_BLACK_SCREEN_FIX.md) — AR camera black-screen fix notes
 - [`../legacy/CI-CD.md`](../legacy/CI-CD.md) — detailed historical CI/CD documentation
 - [`../legacy/TROUBLESHOOTING.md`](../legacy/TROUBLESHOOTING.md) — CI troubleshooting guide

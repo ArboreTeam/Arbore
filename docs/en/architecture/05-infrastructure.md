@@ -165,43 +165,50 @@ flowchart TB
         subgraph devenv["arbore-dev · /home/debian/Arbore · dev"]
             d1["backend :8081"]
             d2["web :3001"]
-            d3["vignettes-ouvrier (profile)"]
+            d3["vignettes-ouvrier ×2 (profiles)"]
         end
         nginx["nginx (host)"]
     end
     nginx -->|api.arbore.app| p1
     nginx -->|web.arbore.app| p2
-    nginx -->|generator.arbore.app| p2
+    nginx -->|generator.arbore.app| d2
     nginx -->|api-dev.arbore.app| d1
     prod -.->|arbore| mongo[("MongoDB Atlas")]
     devenv -.->|arbore_dev| mongo
 ```
 
-> ⚠️ **`generator.arbore.app` is served by the PRODUCTION stack (`:3000`), while
-> the `dev` branch declares `:3001` — and `main` wins.**
+> **`generator.arbore.app` is served by the `dev` stack (`:3001`)**, and that is
+> the intent: the workshop is a development tool and should get new code without
+> waiting for a promotion. Measured on the machine on 2026-11-13,
+> `/etc/nginx/conf.d/generator.conf` does serve `127.0.0.1:3001`.
 >
+> The detour is worth knowing, because it constrains every future declaration.
 > nginx configuration is **machine-global**, so `deploy.sh` installs it only
 > from the **primary** environment, that is the production checkout on `main`
 > (see `do_apply_ops`). A `dev` deploy prints "host configuration unchanged" and
 > touches nothing.
 >
-> So `ops/nginx/generator.conf` on `dev` routes to `:3001` with an explicit
-> rationale — the workshop is a development tool and should get new code without
-> waiting for a promotion — but **that intent cannot take effect**: the file
-> that gets installed is `main`'s.
+> So it is `ops/nginx/generator.conf` **from `main`** that gets installed,
+> whatever `dev` declares. It has pointed at `:3001` since 2026-10-22
+> (5c0e24d), and both branches carry the same file today — which keeps the rule
+> invisible as long as they do not diverge.
 >
-> Observed on 2026-11-03: the first production deploy on this machine replaced
-> the vhost laid down at bootstrap from the `dev` checkout (`:3001`) with
-> `main`'s (`:3000`), moving the workshop from one stack to the other with
-> nothing to signal it. The nginx log shows continuous `200`s before that
-> moment — the workshop was working, served by the dev stack.
->
-> Until this is settled, **any vhost that must target a non-primary stack has to
-> be declared on `main`.**
+> **Any vhost that must target a non-primary stack therefore has to be declared
+> on `main`.** This page claimed the opposite between 2026-11-04 and
+> 2026-11-13 — "`main` wins, so the workshop is served by production." The rule
+> was right, the conclusion wrong: `main` had already carried `dev`'s value for
+> three weeks.
 
-> The old Fedora VPS stays powered on until 2026-11-06 as a fallback. It
-> receives no traffic: verified with a tagged request, which landed on the new
-> machine and never on the old one.
+> The old Fedora VPS is **still powered on** as of 2026-11-13 (117 days of
+> uptime), kept as a fallback for a few more days. It receives no traffic —
+> verified with a tagged request, which landed on the new machine and never on
+> the old one — and its crontab has been removed (`no crontab for fedora`).
+> Since the records are proxied by Cloudflare, going back is an origin address
+> change, immediate and with no redeployment.
+>
+> The deadline this page announced (2026-11-06) passed without a shutdown. A
+> date in a document does not power a machine off: this one will be, by
+> decision, and this line will go the day it is.
 
 > The Python AI generator (`ai :8000`) appeared here until 2026-11-02. It was
 > **dropped on 2026-09-20** (#558).
@@ -211,25 +218,30 @@ flowchart TB
 checkout, and the branch guard requires `main` for prod, `dev` for dev. A
 checkout can only sit on one branch at a time.
 
-> ⚠️ **Consequence for the cutover, not to be discovered on the day.** The new
-> VPS has **a single checkout** (`/home/debian/Arbore`, on `dev`) because only
-> one environment is deployed there. Bringing production onto it will require a
-> **second checkout** — otherwise the two deployments fight over the branch and
-> the guard refuses one of them.
+> ✅ **Done.** The machine has carried two checkouts since 2026-11-04:
+> `/home/debian/Arbore-prod` on `main` and `/home/debian/Arbore` on `dev`. The
+> naming asymmetry — production in `Arbore-prod`, dev in `Arbore` — is the
+> reverse of the old machine, and it is deliberate: the `dev` checkout was
+> already in service, and nothing that works moves during a migration.
 >
-> That single checkout is also what made the compose data paths converge, since
-> they are relative to the compose file. Both backends shared their thumbnail
-> directory writable until 2026-11-02. Tracked in #434.
+> Between 2026-10-21 and 2026-11-02 the machine held **one** checkout for two
+> compose stacks, and the default data paths — relative to the compose file —
+> converged: both backends shared their thumbnail directory **writable**. The
+> mounts have been partitioned since (see
+> [`../operations/environments.md`](../operations/environments.md)), and
+> `deploy.sh` now refuses to start on a shared writable mount. Tracked in
+> #434.
 
 **A non-primary environment does not touch host configuration.** The crontab is
 rendered with the current checkout path: applied from a secondary checkout, it
 would point production's jobs at that directory, the reconciliation job
 included.
 
-> Verified on 2026-11-02: the new VPS has **no** crontab, the guard having
-> held. But the first `prod` deployment there will install one — the old
-> machine's must be removed **in the same move**, or `reconcile-guests --apply`
-> will run on two machines on the same Sunday.
+> Measured on 2026-11-13: the machine's crontab carries its **four** entries,
+> all prefixed `/home/debian/Arbore-prod`. The guard held — it is the
+> production deployment that laid them down, not dev's. The old machine's
+> crontab was removed in the same move (`no crontab for fedora`), so
+> `reconcile-guests --apply` runs on one side only on Sundays.
 
 Operational detail in [`../operations/vps-bootstrap.md`](../operations/vps-bootstrap.md).
 To target dev from the iOS app, see

@@ -28,9 +28,10 @@ Relevé le 2026-11-04, **après** la bascule DNS de #652 :
 | **dev** | la même machine | `/home/debian/Arbore` (`dev`) | `debian` |
 
 Les quatre noms — `api`, `web`, `generator`, `api-dev` — résolvent désormais
-sur cette machine. L'ancien VPS Fedora reste allumé jusqu'au 2026-11-06 comme
-**repli** : les enregistrements sont proxifiés par Cloudflare, donc y revenir
-est un changement d'adresse d'origine, immédiat et sans redéploiement.
+sur cette machine. L'ancien VPS Fedora est **toujours allumé au 2026-11-13**,
+conservé comme repli quelques jours encore : les enregistrements sont proxifiés
+par Cloudflare, donc y revenir est un changement d'adresse d'origine, immédiat
+et sans redéploiement. Il ne reçoit plus de trafic et son crontab a été retiré.
 
 > **Asymétrie de nommage assumée.** La production est dans `Arbore-prod` et dev
 > dans `Arbore`, l'inverse de l'ancienne machine. `deploy.sh` tire son étiquette
@@ -72,6 +73,7 @@ l'opération bien moins chère que prévu. Le répertoire partagé portait 6,7 G
 mais chaque catalogue n'en nomme qu'une partie :
 
 ```
+au cloisonnement, 2026-11-05
 prod   123 legers (0,43 Go) + 123 heavy (4,06 Go)  =  4,49 Go
 dev    123 legers (2,36 Go) +  72 heavy (2,47 Go)  =  4,83 Go
 ```
@@ -80,10 +82,22 @@ Seul **l'utile** a été copié, pas les 6,7 Go : le cloisonnement a donc été
 l'occasion de ne pas dupliquer les 1,9 Go de poids mort de #734. Chaque fichier
 a été vérifié par empreinte, zéro écart.
 
-L'asymétrie des poids est instructive — les légers de dev pèsent cinq fois ceux
-de prod, parce que ce sont les **Trellis 2.0**, 41,6 Mo pièce contre 3,7 Mo pour
-l'ancienne génération. Les deux environnements lisaient le même répertoire pour
-des usages inverses.
+L'asymétrie des poids était instructive — les légers de dev pesaient cinq fois
+ceux de prod, parce que ce sont les **Trellis 2.0**, 41,6 Mo pièce contre 3,7 Mo
+pour l'ancienne génération. Les deux environnements lisaient le même répertoire
+pour des usages inverses.
+
+**Le catalogue a doublé depuis**, et la prod a reçu les nouveaux maillages : les
+deux côtés pèsent maintenant la même chose, et l'asymétrie a disparu. Mesuré le
+2026-11-13 :
+
+```
+prod   275 legers (4,96 Go) +  72 heavy (2,47 Go)  =  7,43 Go
+dev    279 legers (4,81 Go) +  72 heavy (2,47 Go)  =  7,28 Go
+```
+
+Les quatre fiches de plus côté dev sont des maillages en cours de validation,
+pas encore importés en production.
 
 **Le revers est assumé** : avant, un modèle déposé dans `arbore-data/models`
 apparaissait des deux côtés sans rien faire. Désormais il faut le poser dans les
@@ -240,12 +254,17 @@ Le déploiement est **manuel**, par choix : personne ne pousse en production san
 le savoir.
 
 ```sh
-# production — ancien VPS
-cd /home/fedora/Arbore && ./deploy.sh
+# production — checkout `main`, environnement primaire
+cd /home/debian/Arbore-prod && ./deploy.sh
 
-# développement — nouveau VPS
+# développement — checkout `dev`
 cd /home/debian/Arbore && ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
 ```
+
+Les deux checkouts sont sur la **même machine** depuis le 2026-11-04. Cette page
+a donné l'ancienne machine (`/home/fedora/Arbore`) comme cible de production
+jusqu'au 2026-11-13 : la commande y marchait encore, et ne déployait plus rien
+de ce que les utilisateurs atteignent.
 
 Trois pièges, tous rencontrés en vrai :
 

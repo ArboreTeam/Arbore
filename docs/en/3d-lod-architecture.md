@@ -61,9 +61,9 @@ from.**
 | yes | `<Name>.usdz` |
 | no, the pot is composed at display time | `<Name>_potless.usdz` |
 
-The generator — Meshy or TRELLIS — **does not appear** in the name. It is
-already readable elsewhere, and better: from the size (Meshy 2 to 7 MB, TRELLIS
-35 to 60 MB) and from `versions.model`.
+The generator — the previous generation or TRELLIS — **does not appear** in the
+name. It is already readable elsewhere, and better: from the size (2 to 7 MB for
+the previous generation, 35 to 60 MB for TRELLIS) and from `versions.model`.
 
 ### Why this criterion, and not the generation
 
@@ -81,7 +81,8 @@ one. Naming after the generation would have let those two drift apart.
 
 Replacing a mesh with a better one **under the same name** is the normal path.
 It avoids a second file, hence an orphan: the `_potless` suffix had produced
-1.90 GB of abandoned Meshy models in production, cleaned up in #734.
+1.90 GB of abandoned previous-generation models in production, cleaned up in
+#734.
 
 This was impossible while the app's cache was keyed by file name. Since #294 the
 content fingerprint is embedded in the local cache name and passed as a URL
@@ -93,7 +94,7 @@ func nomEnCache(fichier: String, version: String?) -> String   // <name>_<finger
 
 New content yields a new fingerprint, hence a new cache name, hence a
 re-download. **The condition is that the record carries `versions.model`** —
-true of all 123 production records since 2026-11-06. Without it the cache falls
+true of all production records since 2026-11-06. Without it the cache falls
 back to the bare name and the device keeps the old model indefinitely.
 
 ### Before overwriting

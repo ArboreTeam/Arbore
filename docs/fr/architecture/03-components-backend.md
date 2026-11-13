@@ -2,7 +2,7 @@
 
 Cette vue ouvre le container **Backend API** (Go 1.26 + Gin) et expose ses modules principaux.
 
-Le code est organisé autour d'un `main.go` (~2 500 lignes) regroupant déclarations de types, handlers et bootstrap, complété par :
+Le code est organisé autour d'un `main.go` (**3 030 lignes**, `wc -l` au 2026-11-13) regroupant déclarations de types, handlers et bootstrap, complété par :
 
 - `middleware/` pour l'authentification et l'autorisation — `api_key.go`, `firebase_auth.go`, `roles.go`, `security.go` ;
 - des fichiers spécialisés — `config.go`, `secrets.go`, `crypto.go`, `apple_revocation.go`, `setdefault.go`, `indexes.go`, `httplogging.go`, `observability.go`, `account_cleanup.go`, `climate.go` ;
@@ -36,7 +36,7 @@ flowchart TB
     firebase_admin["[System Ext]<br/>Firebase Admin SDK"]
     apple["[System Ext]<br/>Apple ID (SIWA)"]
     gemini["[System Ext]<br/>Fournisseur IA<br/>(Mistral AI · Gemini)"]
-    storage_ext[("[System Ext]<br/>Cloudflare R2 (S3)")]
+    storage_ext[("Disque du VPS<br/>arbore-data/models-<env>")]
 
     client --> public
     client --> apikey
@@ -46,7 +46,6 @@ flowchart TB
     access --> apple
     handlers --> gemini
     storage --> storage_ext
-    client -. "URL signée 15 min" .-> storage_ext
 
     classDef ext   fill:#999,stroke:#666,color:#fff
     classDef layer fill:#1168BD,stroke:#0B4884,color:#fff
@@ -249,7 +248,7 @@ Les proxies `/chat` et `/diagnose` sont découplés du fournisseur concret via `
 | `promptsafety.go` | **Anti-prompt-injection** : clause de sécurité prioritaire ajoutée aux system prompts (le contenu utilisateur est une donnée, jamais une instruction) ; entrées bornées (message, historique) ; `plantName` assaini (une ligne, sans caractères de contrôle) et encadré comme donnée non fiable au lieu d'être interpolé brut. |
 | `mistral_provider.go` — `MistralProvider` | Implémentation Mistral, **fournisseur en service depuis le 2026-09-20** (#555). Forme Chat Completions : prompt système en tour `system`, rôle `assistant` (et non `model`), image en objet `image_url` portant une URI de données. Les trois diffèrent de Gemini et sont verrouillées par test. Modèle par défaut `ministral-8b-2512` — seule la famille Ministral reçoit du quota sur le plan actuel. |
 | `llm_throttle.go` — `throttledProvider` | **Porte globale** devant le fournisseur (#553). Les limiteurs de `middleware` sont posés PAR UTILISATEUR et répondent à l'équité ; ils ne peuvent pas protéger le quota du fournisseur, dix clients chacun dans son droit produisant ensemble bien plus que le débit autorisé. Décorateur plutôt qu'ajout dans `Generate` : chaque fournisseur garde une seule raison de changer, et un fournisseur ajouté demain en hérite. Attente bornée, puis `ErrLLMSurcharge` → **429 + `Retry-After`**, jamais 502. ⚠️ La porte est globale **par instance**. |
-| `catalog_context.go` | **Ancrage sur le catalogue** (#554). Les noms de plantes cités sont rapprochés des 123 fiches, dont les soins, nuisibles et signes d'arrosage sont joints au prompt comme **données de référence** — jamais comme consignes, et assainies par `sanitizeLine`. Pas d'index vectoriel : l'appariement se fait sur les préfixes de mots du nom, sans distance d'édition, car trouver la MAUVAISE fiche injecterait les soins d'une autre plante présentés comme des faits vérifiés. Après coup, l'espèce rendue est réconciliée et la réponse porte `catalogPlantId`. |
+| `catalog_context.go` | **Ancrage sur le catalogue** (#554). Les noms de plantes cités sont rapprochés des fiches du catalogue (274 au 2026-11-13), dont les soins, nuisibles et signes d'arrosage sont joints au prompt comme **données de référence** — jamais comme consignes, et assainies par `sanitizeLine`. Pas d'index vectoriel : l'appariement se fait sur les préfixes de mots du nom, sans distance d'édition, car trouver la MAUVAISE fiche injecterait les soins d'une autre plante présentés comme des faits vérifiés. Après coup, l'espèce rendue est réconciliée et la réponse porte `catalogPlantId`. |
 | `diagnose_normalize.go` — `normalizeDiagnose` | **Validation du schéma de sortie** du diagnostic : décodage typé, valeurs numériques clampées dans `[0,1]`, tableaux bornés et jamais `null`, maladies sans nom écartées, défauts prudents. Respecte le contrat du décodeur iOS (`diseases[].name` toujours émis, clés camelCase). |
 
 ## Modules de support et clients externes
@@ -288,7 +287,7 @@ Les proxies `/chat` et `/diagnose` sont découplés du fournisseur concret via `
 | `AI_THROTTLE_MAX_WAIT` | Attente maximale devant la porte d'étranglement. Défaut 5 s : acceptable parce qu'un appel LLM en prend déjà plusieurs. | configuration |
 | `MISTRAL_BASE_URL` | Surcharge de l'URL d'API. **Réservée aux tests** : permet de viser un serveur local. | configuration |
 | `MONGODB_URI_PATH`, `ARBORE_API_KEY_PATH`, `GEMINI_API_KEY_PATH`, `MISTRAL_API_KEY_PATH`, `MASTER_ENCRYPTION_KEY_PATH` | Variantes **fichier** des secrets (#338 constat 4, #543). Une variable d'environnement est lisible par `docker inspect` et dans `/proc/<pid>/environ`. Vides par défaut : un montage oublié retombe sur la variable plutôt que d'empêcher le démarrage. | configuration |
-| `STORAGE_PROVIDER` | `filesystem` (défaut) ou `s3`. En production : R2 via l'API S3. | configuration |
+| `STORAGE_PROVIDER` | `filesystem` (défaut) ou `s3`. **`filesystem` sur les deux piles depuis le 2026-10-21** : les assets sont servis depuis le disque du VPS. Le seau R2 reste un repli configuré — cf. [`../operations/stockage-assets.md`](../operations/stockage-assets.md). | configuration |
 | `STORAGE_S3_ENDPOINT`, `_BUCKET`, `_REGION`, `_ACCESS_KEY`, `_SECRET_KEY`, `_USE_SSL` | Configuration du stockage objet. Les deux clés sont des secrets. | 🔒 secret / configuration |
 | `CORS_ALLOWED_ORIGINS` | Origines navigateur autorisées. **Vide = CORS désactivé** (#338 constat 5) : le web passe par son proxy Next.js côté serveur. | configuration |
 | `SENTRY_DSN` | DSN du projet backend. Source `SENTRY_DSN_BACKEND` dans compose — un nom partagé enverrait les erreurs du web dans le projet du backend (#388). Sans DSN, le SDK ne démarre pas et le comportement est identique. | 🔒 secret |
@@ -301,7 +300,7 @@ Les proxies `/chat` et `/diagnose` sont découplés du fournisseur concret via `
 
 ## Points clés
 
-- **Monolithe Go contenu** : `main.go` + `middleware/` + quelques fichiers spécialisés. La séparation par packages sera envisagée si le code dépasse ~2 500 lignes.
+- **Monolithe Go contenu** : `main.go` + `middleware/` + quelques fichiers spécialisés. Le seuil que cette page se donnait — envisager la séparation par packages au-delà de ~2 500 lignes — **est franchi depuis** : `main.go` en compte 3 030. Un seuil qu'on ne mesure pas ne déclenche rien ; celui-ci est à trancher, pas à repousser.
 - **Aucun ORM** : driver MongoDB officiel utilisé directement avec `bson.M{...}`. Lisibilité maximale, pas de protection structurelle contre les fautes de frappe sur les champs.
 - **Self-only authz omniprésente** : les handlers `users`/`gardens` filtrent par `uid` extrait du token, jamais par l'`uid` du body ou de l'URL (cf. [ADR 0005](../decisions/0005-self-authz-pattern.md)).
 - **Défense en profondeur** : clé API (temps constant) **et** token Firebase (vérifié, email-verified, non banni) sur tout le trafic métier.

@@ -93,7 +93,7 @@ func nomEnCache(fichier: String, version: String?) -> String   // <nom>_<emprein
 
 Un contenu nouveau donne une empreinte nouvelle, donc un nom de cache nouveau,
 donc un retéléchargement. **La condition est que la fiche porte
-`versions.model`** — c'est le cas des 123 fiches de production depuis le
+`versions.model`** — c'est le cas de toutes les fiches de production depuis le
 2026-11-06. Sans elle, le cache retombe sur le nom nu et l'appareil garde
 l'ancien modèle indéfiniment.
 

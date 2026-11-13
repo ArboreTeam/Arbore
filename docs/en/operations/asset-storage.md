@@ -1,14 +1,18 @@
 # 3D asset storage
 
-Where the catalogue's 369 files live: 123 light models, 123 high-definition,
-123 thumbnails, and how to move them without interrupting service.
+Where the catalogue files live — **621 on the production side** as of
+2026-11-13: 275 light models, 72 high-definition, 274 thumbnails — and how to
+move them without interrupting service.
 
 ## Why this document exists
 
-Access to the current VPS is cut off **at the end of February**. The assets
-exist there in a single copy: without a migration they disappear with the
-machine. This document describes the manoeuvre so it does not depend on the
-memory of whoever prepared it.
+The assets exist in a single copy on the VPS disk: without an off-machine copy
+they disappear with it. This document describes the manoeuvre so it does not
+depend on the memory of whoever prepared it.
+
+> The "end of February" deadline this line used to announce targeted the
+> previous VPS, replaced since (#652). A deadline without a year does not
+> survive its context.
 
 ## The three backing stores
 
@@ -102,14 +106,18 @@ host.
 
 ## Migrating to R2 — order matters
 
-> **Done.** Production has moved to R2. This section stays to document the
-> procedure — in case it must be redone against another bucket, or to explain
-> why the order is what it is.
+> **Done, then undone.** Production moved to R2 on 2026-09-11 and **came back
+> on 2026-10-21**, for the reason given above: the free tier caps at 10 GB when
+> the models are going to exceed 30. This section stays to document the
+> procedure — in case it has to be done again, or to explain why the order is
+> what it is.
 >
-> Measured on 2026-09-11: `arbore-prod-backend` logs
+> Measured on 2026-09-11, during that parenthesis: `arbore-prod-backend` logged
 > `📦 Stockage des assets : s3(…eu.r2.cloudflarestorage.com)+garde` at startup,
-> and the `arbore-assets` bucket holds 370 objects for 4.5 GiB.
-> `arbore-dev-backend` logs `filesystem`.
+> and the `arbore-assets` bucket held 370 objects for 4.5 GiB.
+>
+> Measured on 2026-11-13: `STORAGE_PROVIDER=filesystem` in the `.env` of
+> **both** stacks.
 
 The reverse order would have production serving from an empty bucket: every
 model 404, immediately.
@@ -118,7 +126,7 @@ model 404, immediately.
 1. add the credentials to ops/secrets/prod.enc.env,
    leaving STORAGE_PROVIDER=filesystem       ← production does not move
 2. deploy                                     ← the VPS receives the credentials
-3. upload the 372 files from the VPS
+3. upload the catalogue files from the VPS
 4. verify checksums
 5. set STORAGE_PROVIDER=r2 and redeploy
 ```
@@ -178,7 +186,7 @@ On `filesystem`, signing returns `ErrNoPresign`: no URL is handed out, so
 
 So the real ceiling was half the configured one, and only on the backend
 production actually uses. Measured on the new machine: `200 ops/min` let only
-**100 thumbnails** through, and the catalogue holds **123**.
+**100 thumbnails** through, and the catalogue held **123** (274 today, which makes the cap all the more sensitive).
 
 This is not a loosening of the quota but its restoration: `200` now means 200
 operations, where it accidentally meant 100. The configured value itself has

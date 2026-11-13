@@ -93,7 +93,7 @@ func nomEnCache(fichier: String, version: String?) -> String   // <name>_<finger
 
 New content yields a new fingerprint, hence a new cache name, hence a
 re-download. **The condition is that the record carries `versions.model`** —
-true of all 123 production records since 2026-11-06. Without it the cache falls
+true of all production records since 2026-11-06. Without it the cache falls
 back to the bare name and the device keeps the old model indefinitely.
 
 ### Before overwriting

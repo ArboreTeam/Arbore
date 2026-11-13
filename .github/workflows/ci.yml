@@ -45,7 +45,7 @@ env:
   # sans cache, et la version réellement utilisée n'était pas celle affichée
   # (audit #338 constat 6). Trois endroits à tenir ensemble : ici, `go.mod` et
   # `ArboreBackend/Dockerfile`.
-  GO_VERSION: "1.27.3"
+  GO_VERSION: "1.27.4"
   PYTHON_VERSION: "3.11"
   # Alignée sur web/Dockerfile (node:24-alpine). Tester sur une version autre
   # que celle de l'image publiée, c'est tester autre chose que ce qui tourne.

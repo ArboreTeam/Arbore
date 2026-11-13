@@ -162,10 +162,12 @@ Le garde-fou est juste, et le piège était réel. Mais une méthode dont il fau
 lecture ne peut être ni relue, ni datée, ni contredite ; elle dépend en plus de
 la langue affichée.
 
-**Parser à l'entrée, stocker le résultat, ne jamais dériver à la lecture.** Le
-scraper parse le HTML de botanic et convertit « 20 à 30 cm » en
-`{minimum: 20, maximum: 30}` — une fois, à la frontière, avec la provenance
-attachée. C'est là que le parsing a sa place, et nulle part ailleurs.
+**Parser à l'entrée, stocker le résultat, ne jamais dériver à la lecture.**
+L'outillage de collecte convertit « 20 à 30 cm » en
+`{minimum: 20, maximum: 30}` **une fois**, à la frontière, avec sa provenance
+attachée. C'est là que le parsing a sa place, et nulle part ailleurs : une
+valeur transcrite à l'entrée se relit, se date et se conteste ; une valeur
+dérivée à la lecture ne peut rien de tout cela.
 
 ## Critères d'acceptation
 

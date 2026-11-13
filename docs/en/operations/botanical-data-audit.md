@@ -157,10 +157,11 @@ The guard is sound and the trap was real. But a method whose ways of being wrong
 must be enumerated is not a source. A value derived at read time cannot be
 reviewed, dated or contradicted; it also depends on the display language.
 
-**Parse at ingestion, store the result, never derive at read time.** The scraper
-parses botanic's HTML and turns "20 à 30 cm" into `{minimum: 20, maximum: 30}` —
-once, at the boundary, with its provenance attached. That is where parsing
-belongs, and nowhere else.
+**Parse at ingestion, store the result, never derive at read time.** The
+collection tooling turns "20 to 30 cm" into `{minimum: 20, maximum: 30}`
+**once**, at the boundary, with its provenance attached. That is where parsing
+belongs, and nowhere else: a value transcribed at ingestion can be reviewed,
+dated and contested; a value derived at read time can do none of those.
 
 ## Acceptance criteria
 

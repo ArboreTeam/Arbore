@@ -167,43 +167,50 @@ flowchart TB
         subgraph devenv["arbore-dev · /home/debian/Arbore · dev"]
             d1["backend :8081"]
             d2["web :3001"]
-            d3["vignettes-ouvrier (profil)"]
+            d3["vignettes-ouvrier ×2 (profils)"]
         end
         nginx["nginx (hôte)"]
     end
     nginx -->|api.arbore.app| p1
     nginx -->|web.arbore.app| p2
-    nginx -->|generator.arbore.app| p2
+    nginx -->|generator.arbore.app| d2
     nginx -->|api-dev.arbore.app| d1
     prod -.->|arbore| mongo[("MongoDB Atlas")]
     devenv -.->|arbore_dev| mongo
 ```
 
-> ⚠️ **`generator.arbore.app` est servi par la pile de PRODUCTION (`:3000`),
-> alors que la branche `dev` déclare `:3001` — et c'est `main` qui gagne.**
+> **`generator.arbore.app` est servi par la pile `dev` (`:3001`)**, et c'est
+> l'intention : l'atelier est un outil de développement, il doit recevoir le
+> code neuf sans attendre une promotion. Relevé sur la machine le 2026-11-13,
+> `/etc/nginx/conf.d/generator.conf` sert bien `127.0.0.1:3001`.
 >
-> La configuration nginx est **globale à la machine**, donc `deploy.sh` ne
-> l'installe que depuis l'environnement **primaire**, c'est-à-dire le checkout
-> de production sur `main` (voir `do_apply_ops`). Un déploiement `dev` affiche
-> « configuration hôte inchangée » et ne touche à rien.
+> Le détour mérite d'être connu, parce qu'il contraint toute déclaration
+> future. La configuration nginx est **globale à la machine**, donc `deploy.sh`
+> ne l'installe que depuis l'environnement **primaire**, c'est-à-dire le
+> checkout de production sur `main` (voir `do_apply_ops`). Un déploiement `dev`
+> affiche « configuration hôte inchangée » et ne touche à rien.
 >
-> `ops/nginx/generator.conf` sur `dev` route donc vers `:3001` avec une
-> justification explicite — l'atelier est un outil de développement, il doit
-> recevoir le code neuf sans attendre une promotion — mais **cette intention ne
-> peut pas prendre effet** : le fichier qui s'installe est celui de `main`.
+> C'est donc `ops/nginx/generator.conf` **de `main`** qui s'installe, quoi que
+> `dev` déclare. Il pointe `:3001` depuis le 2026-10-22 (5c0e24d), et les deux
+> branches portent aujourd'hui le même fichier — ce qui rend la règle invisible
+> tant qu'elles ne divergent pas.
 >
-> Observé le 2026-11-03 : le premier déploiement de production sur cette machine
-> a remplacé le vhost posé au bootstrap depuis le checkout `dev` (`:3001`) par
-> celui de `main` (`:3000`), déplaçant l'atelier d'une pile à l'autre sans que
-> rien ne le signale. Le journal nginx montre des `200` continus avant ce
-> moment — l'atelier fonctionnait, servi par la pile dev.
->
-> Tant que ce n'est pas tranché, **tout vhost devant viser une pile non
-> primaire doit être déclaré sur `main`.**
+> **Tout vhost devant viser une pile non primaire doit donc être déclaré sur
+> `main`.** Cette page a annoncé l'inverse entre le 2026-11-04 et le
+> 2026-11-13 — « c'est `main` qui gagne, donc l'atelier est servi par la
+> production ». La règle était juste, la conclusion fausse : `main` portait
+> déjà la valeur de `dev` depuis trois semaines.
 
-> L'ancien VPS Fedora reste allumé jusqu'au 2026-11-06 comme repli. Il ne reçoit
-> plus de trafic : vérifié par une requête marquée, arrivée sur la machine neuve
-> et jamais sur l'ancienne.
+> L'ancien VPS Fedora est **toujours allumé** au 2026-11-13 (117 jours
+> d'uptime), conservé comme repli quelques jours encore. Il ne reçoit plus de
+> trafic — vérifié par une requête marquée, arrivée sur la machine neuve et
+> jamais sur l'ancienne — et son crontab a été retiré (`no crontab for
+> fedora`). Les enregistrements étant proxifiés par Cloudflare, y revenir est
+> un changement d'adresse d'origine, immédiat et sans redéploiement.
+>
+> L'échéance que cette page annonçait (2026-11-06) est passée sans extinction.
+> Une date dans un document n'éteint pas une machine : celle-ci le sera sur
+> décision, et cette ligne disparaîtra le jour où elle le sera.
 
 > Le générateur IA Python (`ai :8000`) figurait ici jusqu'au 2026-11-02. Il a
 > été **déposé le 2026-09-20** (#558).
@@ -213,26 +220,32 @@ flowchart TB
 courant, et le garde-fou de branche exige `main` pour prod, `dev` pour dev. Un
 checkout ne peut être que sur une branche à la fois.
 
-> ⚠️ **Conséquence pour la bascule, à ne pas découvrir le jour J.** Le nouveau
-> VPS n'a **qu'un seul checkout** (`/home/debian/Arbore`, sur `dev`) parce
-> qu'un seul environnement y est déployé. Y amener la production exigera un
-> **second checkout** — sans quoi les deux déploiements se disputeront la
-> branche, et le garde-fou refusera l'un des deux.
+> ✅ **Fait.** La machine porte deux checkouts depuis le 2026-11-04 :
+> `/home/debian/Arbore-prod` sur `main` et `/home/debian/Arbore` sur `dev`.
+> L'asymétrie de nommage — la production dans `Arbore-prod`, dev dans
+> `Arbore` — est l'inverse de l'ancienne machine, et c'est assumé : le checkout
+> `dev` était déjà en service, et rien de ce qui marche ne bouge pendant une
+> migration.
 >
-> C'est aussi ce checkout unique qui a fait converger les chemins de données
-> par défaut du compose, lesquels sont relatifs au fichier compose. Les deux
-> backends ont partagé leur répertoire de vignettes en écriture jusqu'au
-> 2026-11-02. Suivi dans #434.
+> Entre le 2026-10-21 et le 2026-11-02, la machine n'en a tenu **qu'un** pour
+> deux piles compose, et les chemins de données par défaut — relatifs au
+> fichier compose — ont convergé : les deux backends ont partagé leur
+> répertoire de vignettes **en écriture**. Les montages sont cloisonnés depuis
+> (cf. [`../operations/environnements.md`](../operations/environnements.md)),
+> et `deploy.sh` refuse désormais de démarrer sur un montage en écriture
+> partagé. Suivi dans #434.
 
 **Un environnement non primaire ne touche pas à la configuration hôte.** Le
 crontab est rendu avec le chemin du checkout courant : appliqué depuis un
 checkout secondaire, il ferait pointer les tâches de production vers ce
 répertoire, job de réconciliation compris.
 
-> Vérifié le 2026-11-02 : le nouveau VPS n'a **aucun** crontab, le garde-fou
-> ayant tenu. Mais le premier déploiement `prod` qu'on y fera l'installera — il
-> faudra retirer celui de l'ancienne machine **dans le même geste**, sinon
-> `reconcile-guests --apply` tournera sur deux machines le même dimanche.
+> Relevé le 2026-11-13 : le crontab de la machine porte ses **quatre** entrées,
+> toutes préfixées `/home/debian/Arbore-prod`. Le garde-fou a tenu — c'est bien
+> le déploiement de production qui les a posées, et non celui de dev. Le
+> crontab de l'ancienne machine a été retiré dans le même mouvement
+> (`no crontab for fedora`), donc `reconcile-guests --apply` ne tourne que d'un
+> côté le dimanche.
 
 Détail opérationnel dans [`../operations/vps-bootstrap.md`](../operations/vps-bootstrap.md).
 Pour viser le dev depuis l'app iOS, voir

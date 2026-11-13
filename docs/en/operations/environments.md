@@ -28,9 +28,10 @@ Recorded on 2026-11-04, **after** the #652 DNS cutover:
 | **dev** | the same machine | `/home/debian/Arbore` (`dev`) | `debian` |
 
 All four names — `api`, `web`, `generator`, `api-dev` — now resolve to this
-machine. The old Fedora VPS stays powered on until 2026-11-06 as a **fallback**:
-the records are proxied by Cloudflare, so going back is an origin-address
-change, immediate and with no redeploy.
+machine. The old Fedora VPS is **still powered on as of 2026-11-13**, kept as a
+fallback for a few more days: the records are proxied by Cloudflare, so going
+back is an origin-address change, immediate and with no redeploy. It receives no
+traffic and its crontab has been removed.
 
 > **Deliberate naming asymmetry.** Production lives in `Arbore-prod` and dev in
 > `Arbore`, the opposite of the old machine. `deploy.sh` takes its image tag
@@ -71,6 +72,7 @@ job far cheaper than expected. The shared directory held 6.7 GB, but each
 catalogue names only part of it:
 
 ```
+at partitioning time, 2026-11-05
 prod   123 light (0.43 GB) + 123 heavy (4.06 GB)  =  4.49 GB
 dev    123 light (2.36 GB) +  72 heavy (2.47 GB)  =  4.83 GB
 ```
@@ -79,10 +81,22 @@ Only **what is used** was copied, not the 6.7 GB: partitioning was therefore the
 occasion not to duplicate #734's 1.9 GB of dead weight. Every file was verified
 by checksum, zero mismatch.
 
-The asymmetry in weight is instructive — dev's light models weigh five times
+The asymmetry in weight was instructive — dev's light models weighed five times
 prod's, because they are the **Trellis 2.0** ones, 41.6 MB each against 3.7 MB
 for the previous generation. Both environments were reading the same directory
 for opposite purposes.
+
+**The catalogue has doubled since**, and production received the new meshes:
+both sides now weigh the same, and the asymmetry is gone. Measured on
+2026-11-13:
+
+```
+prod   275 light (4.96 GB) +  72 heavy (2.47 GB)  =  7.43 GB
+dev    279 light (4.81 GB) +  72 heavy (2.47 GB)  =  7.28 GB
+```
+
+The four extra records on dev are meshes still under review, not yet imported
+into production.
 
 **The downside is accepted**: before, a model dropped into `arbore-data/models`
 appeared on both sides with no further action. Now it must be laid down in both.
@@ -233,12 +247,17 @@ Deployment is **manual**, by choice: nobody ships to production without knowing
 it. On the VPS, one checkout per environment.
 
 ```sh
-# production — old VPS
-cd /home/fedora/Arbore && ./deploy.sh
+# production — `main` checkout, primary environment
+cd /home/debian/Arbore-prod && ./deploy.sh
 
-# development — new VPS
+# development — `dev` checkout
 cd /home/debian/Arbore && ARBORE_ENV=dev ARBORE_DEPLOY_BRANCH=dev ./deploy.sh
 ```
+
+Both checkouts have been on the **same machine** since 2026-11-04. This page
+gave the old machine (`/home/fedora/Arbore`) as the production target until
+2026-11-13: the command still worked there, and no longer deployed anything
+users reach.
 
 Three traps, all hit for real:
 

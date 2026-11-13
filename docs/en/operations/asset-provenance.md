@@ -17,7 +17,7 @@ never recorded what it borrows.
 | Garden style photographs | `ArboreUi/ArboreUi/Assets/Assets.xcassets/StylesImages/` | **Unsplash** | Unsplash License |
 | Plant catalogue images | catalogue | **Unsplash** | Unsplash License |
 | Plant 3D models (`.usdz`) | outside the repo, served by `GET /models/:filename` | **generated under a paid contract** | owned |
-| Plant thumbnails | rendered on the fly from the 3D models | derived from the above | owned |
+| Plant thumbnails | rendered off-device by a Blender job, from the 3D models | derived from the above | owned |
 | Toxicity data | `Plant.Flags.ToxicToPets` / `ToxicToChildren` | **ASPCA** | facts, attributed |
 | Climate estimate | `ArboreBackend/climate.go` | in-house | `Attribution` field |
 

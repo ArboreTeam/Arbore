@@ -138,11 +138,11 @@ The `createUser` handler in `main.go` enforces strict discipline:
 1. The `uid` from the body is **ignored** and overwritten by `tokenUID` extracted from the Firebase middleware. Prevents a user from registering a document with another user's uid.
 2. No application-level uniqueness check — the iOS side already handles this case upstream via Firebase.
 
-No unique index on `uid` on the Mongo side as of today. To be added (issue to be created if necessary) in order to protect against an overwrite if two concurrent signups reach the backend simultaneously.
+The `uid_1` index on the `users` collection **is unique**, created at startup by `ensureIndexesAtStartup` (`ArboreBackend/indexes.go`) and asserted by a test. Two concurrent signups therefore cannot produce two documents for the same `uid`. This page claimed the opposite — "no unique index as of today, to be added" — until 2026-11-13.
 
 ## Metrics and observability
 
-At this stage, no structured metrics are emitted from the iOS client for this flow. The only traces are the `print` statements in `saveAuthDB.swift`, viewable via the Xcode debugger and Console.app on the device. Firebase Crashlytics + Performance instrumentation will be added in Sprint 4 (issue to be created).
+No structured metrics are emitted from the iOS client for this flow: the only local traces are the `print` statements in `saveAuthDB.swift`, readable in the debugger and in Console.app. **Crashes**, however, have reached Sentry since build 29, anonymously by default — see [`../operations/observability.md`](../operations/observability.md). The Firebase Crashlytics instrumentation this page announced "in Sprint 4" was never done and will not be: Sentry fills that role.
 
 ## Out of scope for this flow
 

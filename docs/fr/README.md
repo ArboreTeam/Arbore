@@ -39,6 +39,8 @@ La documentation est découpée en vues complémentaires. Selon l'information re
 | Déploiement TestFlight, interne et bêta publique (fastlane) | [`operations/testflight-deploy.md`](operations/testflight-deploy.md) |
 | Publication App Store (fiche, App Privacy, pièges) | [`operations/publication-app-store.md`](operations/publication-app-store.md) |
 | Provenance des assets (images, modèles 3D, données) | [`operations/provenance-assets.md`](operations/provenance-assets.md) |
+| **L'atelier 3D** (file, revue humaine, ouvriers de vignettes) | [`operations/atelier-3d.md`](operations/atelier-3d.md) |
+| Validation sur appareils physiques (recette P1) | [`testing/p1-appareils-physiques.md`](testing/p1-appareils-physiques.md) |
 | Environnements prod/dev (viser le dev depuis Xcode) | [`operations/environnements.md`](operations/environnements.md) |
 | Provisionnement VPS (Docker · nginx · Mongo) | [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md) |
 | Stockage des assets 3D (R2 · S3 · MinIO) | [`operations/stockage-assets.md`](operations/stockage-assets.md) |
@@ -119,6 +121,8 @@ bash .github/scripts/docs-drift-check.sh
 
 Les fichiers suivants précèdent cette structure et sont isolés sous [`../legacy/`](../legacy/). Ils restent accessibles pour référence historique mais n'entrent pas dans le périmètre des règles ci-dessus.
 
+- [`../legacy/AI-GENERATOR.md`](../legacy/AI-GENERATOR.md) — le microservice de génération de fiches, déposé le 2026-09-20
+- [`../legacy/NotificationsArchitecturePlan.md`](../legacy/NotificationsArchitecturePlan.md) — plan APNs/FCM jamais livré ; les notifications sont locales, cf. [`architecture/notifications.md`](architecture/notifications.md)
 - [`../legacy/AR_CAMERA_BLACK_SCREEN_FIX.md`](../legacy/AR_CAMERA_BLACK_SCREEN_FIX.md) — notes du fix écran noir caméra AR
 - [`../legacy/CI-CD.md`](../legacy/CI-CD.md) — documentation détaillée de la CI/CD historique
 - [`../legacy/TROUBLESHOOTING.md`](../legacy/TROUBLESHOOTING.md) — guide de dépannage CI

@@ -310,7 +310,7 @@ Au débit observé (~500 Ko/jour côté backend), 30 Mo représentent environ **
 
 | Besoin | Aujourd'hui |
 |---|---|
-| Crash / panic | `sudo docker logs arbore-backend` — **fenêtre de rotation uniquement** |
+| Crash / panic | `sudo docker logs arbore-prod-backend` (ou `arbore-dev-backend`) — **fenêtre de rotation uniquement** |
 | Erreur 5xx | idem |
 | Trafic, 429 du rate limiter | journal d'accès, IP tronquée |
 | Commit déployé | `curl localhost:8080/health` → champ `commit` ([#341](https://github.com/ArboreTeam/Arbore/issues/341)) |

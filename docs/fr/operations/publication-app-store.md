@@ -175,6 +175,22 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://api.arbore.app/chat   #
 curl -sL -o /dev/null -w "%{http_code}\n" https://arbore.app/privacy
 ```
 
+Et sur la machine, six points qui ne se voient pas depuis l'extérieur :
+
+1. l'image déployée est bien celle de la CI — `curl -s .../health | jq -r .commit` contre `git rev-parse origin/main` ;
+2. les ports des conteneurs restent liés à `127.0.0.1`, exposés uniquement par nginx ;
+3. le fichier d'environnement et ses sauvegardes sont en `0600` ;
+4. la clé privée Apple est hors du dépôt et lisible du seul service ;
+5. les refus `401`, `403`, `413` et `429` répondent, et une suppression de compte complète passe — à tester avec des comptes jetables e-mail, Google **et** Apple, les trois parcours de révocation différant ;
+6. la politique de confidentialité publiée correspond à `AppConfig.privacyPolicyVersion` — le numéro vit dans le code, et c'est lui qui est opposable.
+
+> Ces six points venaient de `securite-avant-publication.md`, un instantané
+> daté du 2026-07-22 retiré le 2026-11-13 : tout le reste de son contenu était
+> repris, en plus à jour, par
+> [`../architecture/03-components-backend.md`](../architecture/03-components-backend.md).
+> Deux de ses valeurs avaient d'ailleurs dérivé — les délais d'expiration du
+> serveur et une « politique version 2.2 » quand le code en est à la 2.5.
+
 ## Voir aussi
 
 - [`testflight-deploy.md`](testflight-deploy.md) — les lanes et le circuit TestFlight

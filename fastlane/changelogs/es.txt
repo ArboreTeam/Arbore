@@ -1,5 +1,6 @@
 Sus macetas se quedan donde están, y la selección ya no se desplaza.
 
+• El catálogo pasa de 123 a 274 plantas. Cada una llega con sus cuidados, sus cuatro idiomas y su toxicidad para mascotas y niños, respaldada por una fuente citada.
 • Un jardín reabierto conserva sus macetas. No se guardaban: las plantas volvían desnudas y se perdía el trabajo de trasplante.
 • La altura medida de una planta también sobrevive a la reapertura, en todos los casos.
 • El contorno de una planta seleccionada sigue ahora su maceta en lugar de desplazarse.

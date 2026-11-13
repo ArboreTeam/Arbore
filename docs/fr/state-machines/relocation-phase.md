@@ -134,4 +134,4 @@ Cette modale est obligatoire pour éviter qu'un tap accidentel ne fasse perdre 5
 
 - Le détail mathématique du morphing (Mean Value Coordinates, Distortion Analyzer) est documenté dans le glossaire et reste un détail d'implémentation testé en unitaire (`GardenMorpherTests` cible de l'issue #123).
 - Le rendu graphique des ghosts (matériau doré, anneau pulsant) est documenté inline dans `GhostRenderer.swift` et n'est pas pertinent au niveau de la machine d'états.
-- Le flow d'ouverture complet (depuis le tap sur une carte jardin de la Home jusqu'à l'arrivée sur `scanning`) sera documenté dans [`../flows/ar-placement.md`](../flows/ar-placement.md).
+- Le flow d'ouverture complet (depuis le tap sur une carte jardin de la Home jusqu'à l'arrivée sur `scanning`) est documenté dans [`../flows/ar-placement.md`](../flows/ar-placement.md).

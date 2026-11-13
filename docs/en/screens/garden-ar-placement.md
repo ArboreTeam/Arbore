@@ -4,7 +4,7 @@
 
 This screen is the **AR core of the application**: it lets the user place, move, and save 3D plants in their garden via the phone's AR camera. It works equally well when creating a new garden and when reopening an existing one, with or without LiDAR.
 
-The file is also the codebase's only **god object** (≈ 3,300 lines, tracked by issue #124).
+The file is also the codebase's only **god object**: **7,308 lines**, 7,876 including its two extensions (`wc -l`, 2026-11-13). Tracked by issue #124.
 
 ## Entry points
 
@@ -41,7 +41,7 @@ flowchart TB
     completed[completed phase<br/>save WorldMap + scene JSON + PUT /gardens]
 
     dock[Bottom dock<br/>plus button catalog]
-    picker[PlantCatalogView sheet<br/>plant selection]
+    picker[PlantCatalogARView full screen<br/>plant selection]
     place[placeObject<br/>raycast to the ground]
 
     share[Capture + share sheet<br/>capturedShareImage]
@@ -90,13 +90,15 @@ Full-page ARKit + SceneKit view. Delegates:
 
 ### Bottom dock (catalog **+** button)
 
-Visible only when `relocationPhase == .scanning || relocationPhase == .completed` (see the `isManualReplacement` helper). Opens the `PlantCatalogView` sheet, which presents the list of plants filtered by the garden's profile.
+Visible only when `relocationPhase == .scanning || relocationPhase == .completed` (see the `isManualReplacement` helper). Opens `PlantCatalogARView` full screen, presenting the list of plants filtered by the garden's profile.
 
 **Why this restriction**: the catalog picker makes no sense while you are re-tracing a zone or previewing a morphing. Decision tracked in #111.
 
-### `PlantCatalogView` (sheet)
+### `PlantCatalogARView` (full screen)
 
-Modal sheet (presented via `.sheet(isPresented: $showPicker)`). Filtered list of catalog plants. On selection:
+Presented via `.fullScreenCover(isPresented: $showPicker)` — an **opaque page**, not a sheet: the AR camera behind a translucent sheet made the records hard to read. The file is named `ARGarden/PlantCatalogView.swift`, the struct `PlantCatalogARView`; this page quoted the file name as if it were the type's until 2026-11-13.
+
+Filtered list of catalogue plants, with the "Suited to my space" tab by default. On selection:
 
 1. The USDZ model is downloaded via `ModelCacheManager` if not already cached.
 2. During the download, `isDownloadingModel = true` → a loader appears in the dock bar.
@@ -121,13 +123,17 @@ Four SwiftUI overlays exclusive to the #111 flow, displayed alternately dependin
 
 After a successful save, the user can tap a share button. A capture of the AR screen is taken (`shouldCaptureSharePhoto = true` triggers the `ARSCNView`'s `snapshot()`), then presented in a preview sheet, then in the native iOS `UIActivityViewController`.
 
-### Lux widget
+### Capture and share gallery
 
-A small overlay widget that displays the brightness (lux) measured by `LuxAnalyzer`. Helps the user understand whether the lighting conditions are compatible with reliable AR relocalization.
+The dock's share button opens a **capture mode** inspired by the Camera app: HUD hidden, reticle hidden, central shutter, an `ARShareCaptureMode` selector (`.photo` / `.video`), a counter while recording (`isRecordingShareVideo`) and a thumbnail of the latest capture.
 
-### Auto-placement (AI, in progress, #125)
+The thumbnail opens `GardenShareGalleryView`, a gallery that is **local and persisted per garden** (`shareCaptures`, key `shareCaptureStorageKey`). Captures can be deleted; tapping one opens a separate edit-and-share page, with retake, system share and an optional Arbore logo.
 
-`isAutoPlacing` and `autoPlaceToast` are the states dedicated to automatic plant placement by an AI still being specified (issue #125, Sprint 3). The widget is hidden as long as the feature is not enabled.
+### Auto-placement of the wizard's plants
+
+`isAutoPlacing` and `autoPlaceToast` drive the automatic placement of the plants selected at the `aiSuggestion` step, triggered once tracking becomes stable when opening in `.create` mode. This page claimed it was "hidden as long as the feature is not enabled": it is wired and it runs.
+
+> **The lux indicator was removed.** This page described, until 2026-11-13, a widget displaying the brightness measured by `LuxAnalyzer`. The type still exists, but under `ArboreUi/ArboreUi/LuxAnalyzer/` — a separate measurement app — and the AR view does not instantiate it. Brightness survives only as an internal signal for the older auto-placement heuristics.
 
 ## Edge cases
 
@@ -156,7 +162,7 @@ A small overlay widget that displays the brightness (lux) measured by `LuxAnalyz
 - `ModelCacheManager.shared` — disk cache + LRU of USDZ files.
 - `GardenLocalStore` — reading/writing of `worldmap_{id}.arworldmap` and `scene_{id}.json`.
 - `NetworkManager.shared` — all HTTP requests go through this singleton.
-- `LuxAnalyzer` — one instance per AR session, reads brightness from the ARKit environment.
+- `GardenShareGalleryView` — gallery of the garden's captures, persisted locally.
 
 ### iOS permissions
 

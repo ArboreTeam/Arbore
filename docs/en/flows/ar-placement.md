@@ -205,5 +205,5 @@ After the save, `pendingDragTransform` is purged and the view closes.
 
 - The details of the `RelocationPhase` state machine (transitions, guards, cancel behavior) are documented in [`../state-machines/relocation-phase.md`](../state-machines/relocation-phase.md).
 - The mathematical details of MVC morphing are in `ManualReplacement/MeanValueCoordinates.swift` (pure math, testable in isolation).
-- The complete **per-screen spec** of `GardenARPlacementView` (including the inventory of its internal widgets and overlays) will be added in Phase 4 under `docs/screens/garden-ar-placement.md`.
+- The complete **per-screen spec** of `GardenARPlacementView` — the inventory of its internal widgets and overlays — is in [`../screens/garden-ar-placement.md`](../screens/garden-ar-placement.md).
 - The backend spec for the save (`PUT /gardens/:id`) is in [`../architecture/03-components-backend.md`](../architecture/03-components-backend.md).

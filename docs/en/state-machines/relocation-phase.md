@@ -134,4 +134,4 @@ This modal is mandatory to prevent an accidental tap from losing 5 minutes of re
 
 - The mathematical detail of the morphing (Mean Value Coordinates, Distortion Analyzer) is documented in the glossary and remains an implementation detail covered by unit tests (`GardenMorpherTests`, target of issue #123).
 - The graphical rendering of the ghosts (golden material, pulsing ring) is documented inline in `GhostRenderer.swift` and is not relevant at the state-machine level.
-- The full opening flow (from tapping a garden card on the Home screen through to arriving at `scanning`) will be documented in [`../flows/ar-placement.md`](../flows/ar-placement.md).
+- The full opening flow (from tapping a garden card on the Home screen through to arriving at `scanning`) is documented in [`../flows/ar-placement.md`](../flows/ar-placement.md).

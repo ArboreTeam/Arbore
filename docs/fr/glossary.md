@@ -36,7 +36,7 @@ Détecteur de tier device dans `ARGarden/Quality/DeviceCapabilities.swift`. Util
 
 ## Hero screen
 
-Écran principal et complexe qui justifie une documentation per-screen dédiée. Pour Arbore : `GardenARPlacementView`, `QuestionnaireView` et `PersonalDetailsView`. Les écrans simples (un bouton, une navigation) ne sont pas considérés comme hero screens et ne disposent pas de spec dédiée.
+Écran principal et complexe qui justifie une documentation per-screen dédiée. Pour Arbore, cinq à ce jour : `GardenARPlacementView`, le wizard de création, `PersonalDetailsView`, le scan de santé et le catalogue de plantes. La liste fait foi dans [`screens/_index.md`](screens/_index.md). Les écrans simples (un bouton, une navigation) ne sont pas considérés comme hero screens et ne disposent pas de spec dédiée.
 
 ## ICP (Iterative Closest Point)
 
@@ -68,7 +68,7 @@ Entrée du catalogue MongoDB : nom, type, image URLs, traductions multilingues, 
 
 ## RelocationPhase
 
-Enum Swift défini dans `GardenARPlacementView` qui gère les cinq états du **manual replace** : `.scanning`, `.tracingBoundary`, `.morphingPreview`, `.adjusting` et `.completed`. Diagrammée dans `state-machines/relocation-phase.md` (Phase 3).
+Enum Swift défini dans `ArboreUi/ArboreUi/ARGarden/ManualReplacement/RelocationPhase.swift` — et non dans `GardenARPlacementView`, qui ne fait que la porter — gérant les cinq états du **manual replace** : `.scanning`, `.tracingBoundary`, `.morphingPreview`, `.adjusting` et `.completed`. Diagrammée dans [`state-machines/relocation-phase.md`](state-machines/relocation-phase.md).
 
 ## RoomPlan
 
@@ -76,7 +76,7 @@ Framework Apple (iOS 16+, LiDAR uniquement) qui scanne une pièce en 3D et produ
 
 ## scanMethod
 
-Enum porté par `GardenWizardState` qui détermine la stratégie de scan : `.gardenPerimeter` (tracé 2D au sol, non-LiDAR) ou `.roomScan` (RoomPlan, LiDAR uniquement). Déterminé automatiquement après le choix de l'espace ; modifiable dans la caméra uniquement pour une pièce compatible RoomPlan.
+Enum porté par `GardenWizardState` qui détermine la stratégie de scan : `.gardenPerimeter` (tracé 2D au sol, non-LiDAR) ou `.roomScan` (RoomPlan, LiDAR uniquement). **Choisi par l'utilisateur** à l'étape `scanMethod` du wizard, dans `ScanMethodStepView` ; la carte RoomPlan est grisée si `RoomCaptureSession.isSupported` est faux.
 
 ## ScreenSpec
 
@@ -100,11 +100,11 @@ Plateforme Apple de distribution beta. Un build interne est déposé pour l'équ
 
 ## USDZ
 
-Format de modèle 3D Apple (archive ZIP contenant un fichier USD et ses textures). Tous les modèles de plantes du catalogue sont stockés au format USDZ dans `ArboreBackend/models/`, servis via l'endpoint `GET /models/:filename` et rendus en AR via SceneKit.
+Format de modèle 3D Apple (archive ZIP contenant un fichier USD et ses textures). Tous les modèles de plantes du catalogue sont stockés au format USDZ sur le disque du VPS (`arbore-data/models-<env>`, hors dépôt), servis via l'endpoint `GET /models/:filename` et rendus en AR via SceneKit.
 
-## VPS (Fedora)
+## VPS
 
-Serveur unique qui héberge le backend Go et le front web Next.js via Docker Compose. Détails dans [`architecture/02-containers.md`](architecture/02-containers.md) et [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md).
+Serveur Debian 12 qui héberge les **deux piles** — production et développement — chacune avec son backend Go et son front web Next.js, via Docker Compose. L'ancienne machine Fedora reste allumée comme repli, sans trafic. Détails dans [`architecture/05-infrastructure.md`](architecture/05-infrastructure.md) et [`operations/vps-bootstrap.md`](operations/vps-bootstrap.md).
 
 ## WorldMap
 
@@ -112,7 +112,7 @@ Voir [**ARWorldMap**](#arworldmap).
 
 ## Wizard
 
-Flux de création de jardin (`GardenWizardStep`) : `spaceType` → `essentialQuestions` → placement AR direct. Après le choix de l'espace, Arbore sélectionne automatiquement la méthode, ouvre le scan, capture éventuellement l'exposition, crée le jardin, puis demande une localisation fraîche. Les trois questions suivantes sont adaptées au type d'espace, restent facultatives et occupent chacune un niveau de la progression globale. Il n'existe ni page de méthode, ni écran de récapitulatif, ni page de suggestion intermédiaire. Implémenté dans `QuestionnaireView`. Documenté dans [`screens/questionnaire-wizard.md`](screens/questionnaire-wizard.md) et [`flows/garden-creation.md`](flows/garden-creation.md).
+Flux de création de jardin, porté par l'enum `GardenWizardStep` : **huit étapes**, neuf si l'espace est un jardin en pleine terre (l'étape `soil` s'ajoute). Dans l'ordre : intro, style, type d'espace, exposition, entretien, sécurité, sol, méthode de scan, suggestion finale. L'étape `scanMethod` ouvre le tracé AR, qui **crée le jardin en base** avec sa frontière ; le wizard reprend ensuite la main sur `aiSuggestion`, l'étape finale, dont le CTA ouvre le placement AR. Il n'y a pas d'écran de récapitulatif. Implémenté par `GardenWizardView`, dans `QuestionnaireView.swift`. Documenté dans [`screens/questionnaire-wizard.md`](screens/questionnaire-wizard.md) et [`flows/garden-creation.md`](flows/garden-creation.md).
 
 ---
 

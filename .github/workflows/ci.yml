@@ -144,7 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           # Alignée sur `vignettes/Dockerfile`, qui exécute `publier.py` en
           # production : tester sur une autre version que celle qui tourne,

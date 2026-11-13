@@ -20,9 +20,9 @@ flowchart TB
     subgraph runtime["External systems — runtime"]
         firebase["[System Ext] Firebase<br/>Auth + Admin SDK"]
         mongo[("[System Ext] MongoDB Atlas<br/>Users / plants / gardens")]
-        openai["[System Ext] OpenAI / Mistral<br/>LLM plant sheets"]
+        llm["[System Ext] Mistral AI · Gemini<br/>Assistant and diagnosis"]
         apple_id["[System Ext] Apple ID<br/>Sign in with Apple"]
-        r2[("[System Ext] Cloudflare R2<br/>3D models + thumbnails")]
+        cloudflare["[System Ext] Cloudflare<br/>Proxied DNS · TLS · WAF"]
     end
 
     %% External systems — operate-time
@@ -39,8 +39,8 @@ flowchart TB
     arbore    -- "Auth + tokens (HTTPS)"               --> firebase
     arbore    -- "Sign in with Apple"                  --> apple_id
     arbore    -- "Persistence via backend"             --> mongo
-    arbore    -- "Sheet generation (via AI Gen)"       --> openai
-    arbore    -- "3D models (presigned URL)"           --> r2
+    arbore    -- "Assistant and diagnosis (relayed by the backend)" --> llm
+    arbore    -- "All public traffic (HTTPS)"          --> cloudflare
     arbore    -- "Telemetry (opt-in)"                  --> sentry
 
     team      -- "Push + CI monitoring"                --> github
@@ -51,15 +51,18 @@ flowchart TB
     classDef ext    fill:#999,stroke:#666,color:#fff
     class user,reviewer,team person
     class arbore system
-    class firebase,mongo,openai,apple_id,github,appstore,sentry ext
+    class firebase,mongo,llm,apple_id,cloudflare,github,appstore,sentry ext
 ```
 
 ## Key points
 
-- **Arbore viewed from the outside** is a single box that communicates with several external systems at runtime (Firebase, Apple ID, MongoDB Atlas, OpenAI/Mistral, Unsplash, Sentry) and systems used at operate-time (GitHub Actions, Apple Connect).
+- **Arbore viewed from the outside** is a single box that communicates with several external systems at runtime (Firebase, Apple ID, MongoDB Atlas, the AI provider, Cloudflare, Sentry) and systems used at operate-time (GitHub Actions, Apple Connect).
 - **Three categories of human actors** are distinguished: end users (gardeners), the Apple reviewer (dedicated account `appstore.review@arbore.app`) and the internal team. The Apple review is represented as a separate actor because its usage journey is the subject of dedicated documentation (TestFlight notes).
 - **Sign in with Apple** is integrated (Guideline 5.1.1): upon account deletion, the backend revokes the associated Apple token (see [`03-components-backend.md`](03-components-backend.md)).
 - **Sentry is opt-in**: telemetry is only enabled if the user accepts diagnostics sharing (off by default), in compliance with the GDPR. Details in [`../operations/observability.md`](../operations/observability.md).
+- **The AI provider is reached by the backend, never by the app.** `/chat` and `/diagnose` are proxies: the key never leaves the server. Mistral AI has been in service since 2026-09-20 (#555), Gemini remains implemented. The Python microservice that generated plant sheets was dropped the same day (#558); this view kept showing it until 2026-11-13.
+- **Unsplash is no longer a runtime external system.** `UNSPLASH_ACCESS_KEY` died with that microservice: the catalogue images are our own renders, served by the backend. No third-party call at runtime any more.
+- **Object storage is not in this view, and that is deliberate.** The R2 bucket exists and its credentials are kept, but `STORAGE_PROVIDER=filesystem` on both sides since 2026-10-21: models are served from the VPS disk, by the backend. R2 is a dormant fallback, not a runtime dependency — see [`../operations/asset-storage.md`](../operations/asset-storage.md).
 - **No external payment system** is integrated to date: Arbore is free and offers no in-app purchases. Any change in this direction will require updating this diagram (Apple In-App Purchase and possibly a PSP).
 - **iCloud Private Relay is not represented** because it is not an integration but a transparent proxy that may disrupt outbound HTTP calls (see resolved issue #90; public access is now over HTTPS via Cloudflare, see [`../operations/vps-bootstrap.md`](../operations/vps-bootstrap.md)).
 

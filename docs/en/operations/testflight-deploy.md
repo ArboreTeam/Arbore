@@ -48,7 +48,7 @@ Verify that the file is properly gitignored:
 
 ```bash
 git check-ignore -v fastlane/AuthKey.json
-# → .gitignore:172:fastlane/AuthKey.json   fastlane/AuthKey.json
+# → .gitignore:207:fastlane/AuthKey.json   fastlane/AuthKey.json
 ```
 
 > ⚠️ If `git check-ignore` returns nothing, do NOT continue — the file would be committed on the next `git add .`. The gitleaks pre-commit hook should also catch it, but don't rely on that.
@@ -165,10 +165,10 @@ Total: 10-40 min depending on Apple processing.
 
 ```bash
 bundle exec fastlane public_beta \
-  fr:fastlane/changelogs/fr-FR.txt \
-  en:fastlane/changelogs/en-US.txt \
-  es:fastlane/changelogs/es-ES.txt \
-  de:fastlane/changelogs/de-DE.txt
+  fr:fastlane/changelogs/fr.txt \
+  en:fastlane/changelogs/en.txt \
+  es:fastlane/changelogs/es.txt \
+  de:fastlane/changelogs/de.txt
 ```
 
 All four languages are **required**. The lane refuses to start if one is
@@ -226,16 +226,22 @@ When it never shows up, `public_beta` does have to run again — but knowing tha
 the bump starts from the latest known upload, the stuck one included: the build
 number will therefore skip the one that was lost.
 
-> The release-note files carry two naming schemes in the repository: `fr.txt`
-> and `fr-FR.txt`. The 1.0.2 builds shipped with the **short** ones, and those
-> hold the up-to-date notes; the long ones have not changed since #764. The
-> examples earlier on this page still cite the long ones.
+> The repository carried two sets of release-note files — `fr.txt` and
+> `fr-FR.txt` — for two months. Real deliveries used the **short** ones; the
+> long ones still held 1.0.0 text, and they were the ones this page gave as
+> examples. Copying the command shipped stale notes. The long ones have been
+> deleted: there is only one set now.
 
 ### Release notes
 
-They live in `fastlane/changelogs/<locale>.txt`, one per language the app
-serves: `fr-FR`, `en-US`, `es-ES`, `de-DE`. Version-controlled, so they get
-reviewed like everything else.
+They live in `fastlane/changelogs/<language>.txt`, one per language the app
+serves: `fr`, `en`, `es`, `de`. Version-controlled, so they get reviewed like
+everything else.
+
+> **The file name is not the App Store locale.** The `Fastfile` maps the short
+> key to the ASC locale (`fr` → `fr-FR`, `en` → `en-US`…) in its `LOCALES`
+> table. The two sets of files were born of that double spelling, and the short
+> naming — the one you type — is the only one kept.
 
 Neither an environment variable nor generated from the git log: a tester has no
 use for commit subjects, and text you reread is text you write better.
@@ -255,16 +261,16 @@ text: accepting both would publish `notes/33-de.txt` on the smallest typo.
 
 ```bash
 bundle exec fastlane verifier_notes \
-  fr:fastlane/changelogs/fr-FR.txt \
-  en:fastlane/changelogs/en-US.txt \
-  es:fastlane/changelogs/es-ES.txt \
-  de:fastlane/changelogs/de-DE.txt
+  fr:fastlane/changelogs/fr.txt \
+  en:fastlane/changelogs/en.txt \
+  es:fastlane/changelogs/es.txt \
+  de:fastlane/changelogs/de.txt
 
 bundle exec fastlane notes build:33 \
-  fr:fastlane/changelogs/fr-FR.txt \
-  en:fastlane/changelogs/en-US.txt \
-  es:fastlane/changelogs/es-ES.txt \
-  de:fastlane/changelogs/de-DE.txt
+  fr:fastlane/changelogs/fr.txt \
+  en:fastlane/changelogs/en.txt \
+  es:fastlane/changelogs/es.txt \
+  de:fastlane/changelogs/de.txt
 ```
 
 Relative paths resolve from the **repo root**, not from `fastlane/` where
@@ -408,7 +414,7 @@ Junit reports are written to `fastlane/report.xml` (gitignored).
 
 - **macOS GitHub Actions CI** running `fastlane beta` on tag push: doable but requires macOS Actions minutes (10× more expensive than Ubuntu) + a secret for the API key. Not urgent as long as the internal deploy stays manual.
 - **match (fastlane)** for multi-machine code signing: requires a separate private repo for the encrypted certificates. Worth considering if several people upload.
-- **Automating a lane to external testers**: **external** distribution (public TestFlight link) is in place and **approved by Apple** (Beta App Review passed). The `beta` lane intentionally stays **internal only** (`distribute_external: false`, `skip_submission: true`); adding the build to the external group and any new Beta App Review submission are done on the App Store Connect side. A dedicated lane could automate this later.
+- **CI for the external delivery**: the `public_beta` lane exists and does the work — build, Beta App Review submission, distribution to the external group — but it is launched by hand. Automating it on a tag would need the same macOS minutes as the point above. This section claimed until 2026-11-13 that "a dedicated lane could automate this later," while `public_beta` and `distribuer` were already written.
 
 ---
 

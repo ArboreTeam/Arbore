@@ -345,7 +345,7 @@
 "TERMS_HEADER_TITLE" = "Nutzungsbedingungen";
 "TERMS_HEADER_INTRO" = "Danke, dass du %@ verwendest. Bitte lies diese Bedingungen sorgfältig – sie regeln deinen Zugang zur App und ihre Nutzung.";
 "TERMS_LAST_UPDATED" = "Zuletzt aktualisiert: %@";
-"TERMS_LAST_UPDATED_DATE" = "23. Juli 2026";
+"TERMS_LAST_UPDATED_DATE" = "13. November 2026";
 
 // Akzeptanz der Bedingungen
 "TERMS_SECTION_ACCEPT_TITLE" = "Akzeptanz der Bedingungen";
@@ -363,15 +363,8 @@
 "TERMS_SECTION_ACCOUNT_ITEM2" = "Informiere uns umgehend bei unbefugter Nutzung deines Kontos.";
 
 // Abonnements & Abrechnung
-"TERMS_SECTION_SUBS_TITLE" = "Abonnements & Abrechnung";
-"TERMS_SECTION_SUBS_ITEM1" = "Käufe werden über den App Store / Play Store abgewickelt; deren Bedingungen gelten.";
-"TERMS_SECTION_SUBS_ITEM2" = "Abonnements verlängern sich automatisch, bis sie gekündigt werden.";
-"TERMS_SECTION_SUBS_ITEM3" = "Preise können sich ändern; wir informieren dich über relevante Anpassungen.";
 
 // Testzeiträume & Kündigung
-"TERMS_SECTION_TRIALS_TITLE" = "Kostenlose Testzeiträume & Kündigung";
-"TERMS_SECTION_TRIALS_ITEM1" = "Kostenlose Testzeiträume, sofern angeboten, gehen am Ende in ein kostenpflichtiges Abonnement über, sofern sie nicht rechtzeitig gekündigt werden.";
-"TERMS_SECTION_TRIALS_ITEM2" = "Du kannst dein Abonnement jederzeit in den Einstellungen des App Store / Play Store kündigen.";
 
 // Nutzerinhalte
 "TERMS_SECTION_USERCONTENT_TITLE" = "Nutzerinhalte";

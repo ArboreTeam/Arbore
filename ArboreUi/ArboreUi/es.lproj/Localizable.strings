@@ -345,7 +345,7 @@
 "TERMS_HEADER_TITLE" = "Condiciones de uso";
 "TERMS_HEADER_INTRO" = "Gracias por usar %@. Lee atentamente estos Términos, ya que regulan tu acceso y uso de la aplicación.";
 "TERMS_LAST_UPDATED" = "Última actualización: %@";
-"TERMS_LAST_UPDATED_DATE" = "23 de julio de 2026";
+"TERMS_LAST_UPDATED_DATE" = "13 de noviembre de 2026";
 
 // Aceptación de las condiciones
 "TERMS_SECTION_ACCEPT_TITLE" = "Aceptación de las condiciones";
@@ -363,15 +363,8 @@
 "TERMS_SECTION_ACCOUNT_ITEM2" = "Infórmanos de inmediato en caso de uso no autorizado de tu cuenta.";
 
 // Suscripciones y facturación
-"TERMS_SECTION_SUBS_TITLE" = "Suscripciones y facturación";
-"TERMS_SECTION_SUBS_ITEM1" = "Las compras se gestionan a través de App Store / Play Store; se aplican sus condiciones.";
-"TERMS_SECTION_SUBS_ITEM2" = "Las suscripciones se renuevan automáticamente hasta que se cancelan.";
-"TERMS_SECTION_SUBS_ITEM3" = "Las tarifas pueden cambiar; te informaremos de los cambios aplicables.";
 
 // Pruebas gratuitas y cancelación
-"TERMS_SECTION_TRIALS_TITLE" = "Pruebas gratuitas y cancelación";
-"TERMS_SECTION_TRIALS_ITEM1" = "Las pruebas gratuitas, cuando se ofrecen, se convierten en una suscripción de pago al final del periodo, salvo cancelación antes de la fecha límite.";
-"TERMS_SECTION_TRIALS_ITEM2" = "Puedes cancelar tu suscripción en cualquier momento desde los ajustes de App Store / Play Store.";
 
 // Contenido del usuario
 "TERMS_SECTION_USERCONTENT_TITLE" = "Contenido del usuario";

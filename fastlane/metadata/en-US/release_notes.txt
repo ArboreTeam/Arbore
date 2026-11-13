@@ -1,9 +1,8 @@
-Truer plants, placed at their real size.
+More than twice as many plants, and your pots stay put.
 
-• New 3D models for part of the catalog, noticeably more detailed.
-• Plants are placed at their real height, measured on the specimen, with nothing for you to adjust.
-• Many of them now sit in a planter, placed automatically under the plant.
-• A saved garden reopens with its planters, exactly where you left them.
-• The app asks your permission before sending a photo or a message to the assistant.
+• 274 plants in the catalogue instead of 123. Each one arrives with its care notes, its name in four languages and its toxicity verdict for pets and children, backed by a named source.
+• A reopened garden keeps its pots, and the measured height of every plant.
+• The outline of a selected plant now follows its pot instead of drifting off.
+• The light and watering filters apply to every plant, including those not yet translated into your language. Your lists may therefore be shorter, and more accurate.
 
-We are especially interested in your feedback on how the plants look.
+Gardens saved before this version come back without their pots: the data was never written. New ones keep them.

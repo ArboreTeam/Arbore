@@ -138,11 +138,11 @@ Le handler `createUser` dans `main.go` applique une discipline stricte :
 1. Le `uid` du body est **ignoré** et écrasé par `tokenUID` extrait du middleware Firebase. Empêche un utilisateur d'enregistrer un document avec l'uid d'un autre.
 2. Aucune vérification d'unicité applicative — le côté iOS contrôle déjà ce cas en amont via Firebase.
 
-Pas d'index unique sur `uid` côté Mongo à ce jour. À ajouter (issue à créer si nécessaire) afin de protéger d'une réécriture si deux signups concurrents arrivent au backend simultanément.
+L'index `uid_1` de la collection `users` est **unique**, posé au démarrage par `ensureIndexesAtStartup` (`ArboreBackend/indexes.go`) et vérifié par un test. Deux signups concurrents ne peuvent donc pas produire deux documents pour le même `uid`. Cette page a annoncé le contraire — « pas d'index unique à ce jour, à ajouter » — jusqu'au 2026-11-13.
 
 ## Métriques et observabilité
 
-À ce stade, aucune métrique structurée n'est émise depuis le client iOS pour ce flux. Les seules traces sont les `print` dans `saveAuthDB.swift` consultables via le débogueur Xcode et Console.app sur le device. Une instrumentation Firebase Crashlytics + Performance sera ajoutée en Sprint 4 (issue à créer).
+Aucune métrique structurée n'est émise depuis le client iOS pour ce flux : les seules traces locales sont les `print` de `saveAuthDB.swift`, lisibles au débogueur et dans Console.app. Les **plantages**, eux, remontent à Sentry depuis le build 29, en régime anonyme par défaut — cf. [`../operations/observability.md`](../operations/observability.md). L'instrumentation Firebase Crashlytics que cette page annonçait « en Sprint 4 » n'a pas été faite et ne le sera pas : c'est Sentry qui tient ce rôle.
 
 ## Hors-scope de ce flux
 

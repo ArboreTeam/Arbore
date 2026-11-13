@@ -304,4 +304,4 @@ presupposes the three steps above.
 ## See also
 
 - [`observability.md`](observability.md) — what the backend logs
-- [`prepublication-security.md`](prepublication-security.md) — secret handling
+- [`../architecture/03-components-backend.md`](../architecture/03-components-backend.md) — secret handling and file-backed variants

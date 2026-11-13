@@ -315,4 +315,4 @@ Cela suppose les trois évolutions ci-dessus.
 ## Voir aussi
 
 - [`observability.md`](observability.md) — ce qui est journalisé côté backend
-- [`securite-avant-publication.md`](securite-avant-publication.md) — gestion des secrets
+- [`../architecture/03-components-backend.md`](../architecture/03-components-backend.md) — gestion des secrets et variantes fichier

@@ -306,7 +306,7 @@ At the observed rate (~500 KB/day for the backend), 30 MB is roughly **two month
 
 | Need | Today |
 |---|---|
-| Crash / panic | `sudo docker logs arbore-backend` — **rotation window only** |
+| Crash / panic | `sudo docker logs arbore-prod-backend` (or `arbore-dev-backend`) — **rotation window only** |
 | 5xx error | same |
 | Traffic, rate-limiter 429s | access log, truncated IP |
 | Deployed commit | `curl localhost:8080/health` → `commit` field ([#341](https://github.com/ArboreTeam/Arbore/issues/341)) |

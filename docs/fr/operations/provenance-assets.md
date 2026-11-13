@@ -17,7 +17,7 @@ et n'avait jamais consigné ce qu'il emprunte.
 | Photographies des styles de jardin | `ArboreUi/ArboreUi/Assets/Assets.xcassets/StylesImages/` | **Unsplash** | licence Unsplash |
 | Images du catalogue de plantes | catalogue | **Unsplash** | licence Unsplash |
 | Modèles 3D des plantes (`.usdz`) | hors dépôt, servis par `GET /models/:filename` | **générés sous contrat payant** | détenus |
-| Vignettes des plantes | rendues à la volée depuis les modèles 3D | dérivées de ce qui précède | détenues |
+| Vignettes des plantes | rendues hors appareil par un job Blender, depuis les modèles 3D | dérivées de ce qui précède | détenues |
 | Données de toxicité | `Plant.Flags.ToxicToPets` / `ToxicToChildren` | **ASPCA** | faits, attribués |
 | Estimation climatique | `ArboreBackend/climate.go` | interne | champ `Attribution` |
 

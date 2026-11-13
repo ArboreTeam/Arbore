@@ -1,57 +1,78 @@
-# Arbore - Interface Web (Next.js)
+# Arbore — front web (Next.js)
+
+Compagnon web de l'application iOS : consultation du catalogue, des jardins et
+de leurs plantes, calendrier d'arrosage, guide saisonnier, gestion du compte
+(export et suppression RGPD). **Les jardins se créent sur iOS**, en réalité
+augmentée.
+
+Le même container sert aussi l'atelier de génération 3D sur
+`generator.arbore.app` ; c'est l'hôte de la requête qui les distingue, et le
+middleware rend 404 sur `/generator*` pour toute requête arrivant par
+`web.arbore.app`.
+
+Architecture détaillée :
+[`docs/fr/architecture/03-components-web.md`](../docs/fr/architecture/03-components-web.md).
 
 ## Prérequis
 
-- Node.js 18+
+- **Node.js 24+** — l'image de production est bâtie sur `node:26-alpine3.24`
 - npm
-- Le backend Go doit tourner sur `http://localhost:8080`
+- le backend Go joignable (par défaut `http://localhost:8080`)
 
-## Installation
+## Démarrer
 
 ```bash
+cd web
 npm install
+cp .env.example .env.local   # puis renseigner les valeurs
+npm run dev                  # http://localhost:3000
 ```
 
-## Lancer le projet
-
-### 1. Démarrer le backend Go
-
-Dans un terminal séparé, depuis le dossier `Arbore/ArboreBackend` :
+Le backend, dans un autre terminal :
 
 ```bash
-ARBORE_API_KEY=arbore-secret-2024 \
-FIREBASE_SERVICE_ACCOUNT_PATH=./arbore-b1986-firebase-adminsdk-fbsvc-cd1c7271e1.json \
-go run .
+cd ArboreBackend
+cp .env.example .env         # MONGODB_URI, ARBORE_API_KEY, etc.
+go run .                     # écoute sur :8080
 ```
-
-### 2. Démarrer le frontend
-
-```bash
-npm run dev
-```
-
-L'application est disponible sur : **http://localhost:3000**
 
 ## Variables d'environnement
 
-Le fichier `.env.local` doit contenir :
+**La source de vérité est [`.env.example`](.env.example)** — ce tableau dit à
+quoi chacune sert, pas quelles valeurs y mettre.
 
-```# Firebase Configuration
-NEXT_PUBLIC_FIREBASE_API_KEY=AIzaSyDSqOesYSajdrZVEM5pyp9pydeImKkFRJ8
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=arboré-b1986.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=arbore-b1986
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=arboré-b1986.firebasestorage.app
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=669272877937
-NEXT_PUBLIC_FIREBASE_APP_ID=1:66927287937:ios:7e859ce19838259c6e7780
+| Variable | Portée | Rôle |
+|---|---|---|
+| `NEXT_PUBLIC_FIREBASE_*` | navigateur | configuration du SDK Firebase client, inlinée **à la compilation** |
+| `BACKEND_API_URL` | **serveur** | adresse du backend Go vue par le proxy (`http://backend:8080` en container) |
+| `ARBORE_API_KEY` | **serveur** | clé applicative injectée par le proxy ; **jamais** préfixée `NEXT_PUBLIC_` |
+| `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_*` | mixte | observabilité, optionnelle — sans DSN le SDK ne démarre pas |
 
-# Backend API
-NEXT_PUBLIC_API_URL=http://localhost:8080
+> ⚠️ **Le navigateur n'appelle jamais le backend directement.** Tout passe par
+> `app/api/backend/[...path]/route.ts`, un proxy same-origin qui ajoute
+> `X-API-Key` **côté serveur** et relaie le jeton Firebase de l'utilisateur.
+> C'est ce qui fait qu'il n'y a pas de CORS, et que la clé d'API n'atteint
+> jamais le client. Une variable `NEXT_PUBLIC_API_URL` pointant le backend
+> annulerait les deux propriétés : il n'y en a pas.
 
-```
+## Scripts
+
+| Commande | Effet |
+|---|---|
+| `npm run dev` | serveur de développement |
+| `npm run build` | build de production (`output: 'standalone'`) |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Vitest, une passe |
+| `npm run test:coverage` | Vitest + couverture v8 (`coverage.all: true`) |
+
+Stratégie de test : [`docs/fr/testing/web.md`](../docs/fr/testing/web.md).
 
 ## Stack
 
-- Next.js 13
-- TypeScript
-- Tailwind CSS
-- Firebase Auth
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind · shadcn/ui sur
+Radix · Firebase Auth · Sentry.
+
+Les versions exactes vivent dans [`package.json`](package.json), qui reste la
+seule source à jour : ce paragraphe a annoncé « Next.js 13 » et « Node.js
+18+ » jusqu'au 2026-11-13.

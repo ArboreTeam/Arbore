@@ -22,7 +22,7 @@ C'est le comportement voulu. Pour changer une entrée cron ou une unité systemd
 
 | Chemin | Installé vers | Rôle |
 |---|---|---|
-| `crontab` | crontab de l'utilisateur de déploiement | 3 tâches planifiées |
+| `crontab` | crontab de l'utilisateur de déploiement | 4 tâches planifiées |
 | `systemd/cf-http-firewall.service` | `/etc/systemd/system/` | restreint nginx :80 aux IP Cloudflare |
 | `systemd/cf-update-ranges.service` | `/etc/systemd/system/` | rafraîchit les plages IP Cloudflare |
 | `systemd/cf-update-ranges.timer` | `/etc/systemd/system/` | déclenche le rafraîchissement, dimanche 04:00 UTC |

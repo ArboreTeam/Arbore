@@ -3,5 +3,10 @@
   "private": true,
   "dependencies": {
     "@gltf-transform/cli": "^4.5.1"
+  },
+  "overrides": {
+    "@donmccurdy/caporal": {
+      "glob": "^14.0.6"
+    }
   }
 }

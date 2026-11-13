@@ -39,7 +39,7 @@ cd web && npm run typecheck   # tsc --noEmit
 
 - **A web CI job does exist**, added after this document was written: `🌱 Web (Next.js)` in `.github/workflows/ci.yml`. It chains `npm run typecheck`, `npm run lint` and then the tests, and only fires when `web/**` changed — hence the `skipped` on PRs that do not touch it.
 - `npm run test:coverage` **works** as of 2026-11-03: the `@vitest/coverage-v8` provider is in `devDependencies`, and the CI job runs it. Until then the command failed for want of a provider.
-- The configuration sets **`coverage.all: true`**, and that is not a detail. Without it, v8 only counts the files the tests **load**: the 140 files no test imports drop out of the denominator, and the report claims **91.64%** for a real coverage of **30.8%** (1,174 / 3,811 statements, measured on 2026-11-03). A number wrong in that direction is worse than no number.
+- The configuration sets **`coverage.all: true`**, and that is not a detail. Without it, v8 only counts the files the tests **load**: the 140 files no test imports drop out of the denominator, and the report claims **91.64%** for a real coverage of **32.5%** (1,237 / 3,811 statements, measured on 2026-11-03; `.github/couverture-planchers.json` is authoritative). A number wrong in that direction is worse than no number.
 - **No threshold** is configured, deliberately: we want to see the number move on every PR first. See #725.
 - Coverage is **deep on the workshop** and **thin on the application pages**. Measured, by directory:
 

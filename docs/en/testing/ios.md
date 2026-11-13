@@ -72,11 +72,26 @@ plant disappear.
 
 ## Running
 
+> **List before copying.** Hard-coded destinations go stale with every Xcode
+> release: measured on 2026-11-13 on a development machine, the only installed
+> runtime was **iOS 26.2** and no "iPhone 16 Pro" existed. The commands below
+> therefore **no longer pin an OS version** — `xcodebuild` takes whatever
+> runtime is available — and CI does the same. To see what your machine
+> carries:
+>
+> ```sh
+> xcrun simctl list devices available
+> ```
+>
+> The project's deployment target stays **iOS 18.2**
+> (`IPHONEOS_DEPLOYMENT_TARGET`): that is the minimum supported version, not
+> the simulator you test on.
+
 ```sh
 # Whole suite (simulator)
 cd ArboreUi && xcodebuild test \
   -workspace ArboreUi.xcworkspace -scheme ArboreUi \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
   -resultBundlePath build/TestResults.xcresult
 
 # Firebase/backend integrations (signed host, test environment only)
@@ -91,7 +106,7 @@ ARBORE_RUN_LIVE_INTEGRATION_TESTS=1 xcodebuild test \
 # A targeted suite
 cd ArboreUi && xcodebuild test \
   -workspace ArboreUi.xcworkspace -scheme ArboreUi \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro,OS=18.2' \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
   -only-testing:ArboreUiTests/TSDFGridTests
 
 # Local interactive menu

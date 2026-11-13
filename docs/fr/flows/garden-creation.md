@@ -23,7 +23,7 @@ flowchart TB
     soil["Étape 7 — Sol<br/>(spaceType garden uniquement)"]
     scan["Étape 8 — Scan method<br/>perimeter vs roomScan"]
 
-    trace_ar["fullScreenCover AR<br/>ARViewContainerMesure ou LiDARScanWizardView<br/>user trace + valide"]
+    trace_ar["fullScreenCover AR<br/>ARViewContainerMeasure ou LiDARScanWizardView<br/>user trace + valide"]
     post_garden["POST /gardens<br/>boundary + wizard + plants: []"]
     location["Localisation du jardin<br/>position approximative, ville ou passer"]
     climate["POST /climate/profile<br/>climat régional + gel + littoral"]
@@ -128,7 +128,7 @@ Pose `state.scanMethod`. Le CTA primaire **« Démarrer le scan »** ouvre direc
 
 #### Sous-flow tracé AR (perimeter)
 
-Lorsque l'utilisateur arrive dans `ARViewContainerMesure` :
+Lorsque l'utilisateur arrive dans `ARViewContainerMeasure` :
 
 1. ARSession démarre et un viseur central indique si un sol horizontal est détecté.
 2. L'utilisateur vise chaque limite de l'espace puis tape **Ajouter un point**. Le point est posé par raycast au centre de l'écran ; les doubles poses à moins de 12 cm sont refusées.

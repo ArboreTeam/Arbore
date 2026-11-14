@@ -89,6 +89,57 @@ class SafeExigeUneSource(unittest.TestCase):
                 self.assertNotIn("evidence", f)
 
 
+class LaProseExigeUneSource(unittest.TestCase):
+    """Le verdict et le détail ne se soutiennent pas de la même chose. (#841)
+
+    Le verdict `toxic` est un fait : il peut être posé sans source, et le
+    retirer faute de source rendrait le catalogue moins sûr. Le détail, lui,
+    est une FORMULATION — `detail()` ne sait le composer que de
+    `toxicPrinciple` et `signs`, deux champs calqués sur la présentation d'une
+    base externe. La servir sans nommer d'où elle vient, c'est reprendre une
+    rédaction au lieu de citer un fait.
+    """
+
+    def test_un_toxic_sans_source_garde_son_verdict(self):
+        """Le garde ne retire pas d'avertissement."""
+        f, motif = vt.fait(tox(True, False), None, "2026-11-12", False)
+        self.assertIsNone(motif)
+        self.assertEqual(f["value"], "toxic")
+
+    def test_un_toxic_sans_source_part_sans_detail(self):
+        f, _ = vt.fait(tox(True, False), None, "2026-11-12", False)
+        self.assertNotIn("detail", f)
+
+    def test_un_unknown_sans_source_part_sans_detail(self):
+        f, _ = vt.fait(tox(False, False), None, "2026-11-12", False)
+        self.assertEqual(f["value"], "unknown")
+        self.assertNotIn("detail", f)
+
+    def test_avec_une_source_le_detail_revient(self):
+        """Le garde ne ferme que le cas non attribué."""
+        f, _ = vt.fait(tox(True, False), NCSTATE, "2026-11-12", False)
+        self.assertIn("detail", f)
+        self.assertIn("Saponines", f["detail"])
+        self.assertEqual(f["evidence"]["sourceName"], "NC State Extension Gardener Plant Toolbox")
+
+    def test_une_source_de_culture_ne_fait_pas_passer_la_prose(self):
+        """`source_toxicite` l'écarte en amont : la prose reste sans appui."""
+        self.assertIsNone(vt.source_toxicite([CULTURE]))
+        f, _ = vt.fait(tox(True, False), vt.source_toxicite([CULTURE]),
+                       "2026-11-12", False)
+        self.assertNotIn("detail", f)
+
+    def test_le_detail_n_est_jamais_servi_sans_son_evidence(self):
+        """L'invariant, dit dans les deux sens : l'un ne va pas sans l'autre."""
+        for source in (None, NCSTATE, ASPCA):
+            for toxic, etabli in ((True, False), (False, False), (False, True)):
+                f, motif = vt.fait(tox(toxic, etabli), source, "2026-11-12", False)
+                if motif:
+                    continue
+                with self.subTest(source=bool(source), v=f["value"]):
+                    self.assertEqual("detail" in f, "evidence" in f)
+
+
 class LeChoixDeLaSource(unittest.TestCase):
 
     def test_la_source_de_toxicite_est_preferee_a_la_premiere(self):

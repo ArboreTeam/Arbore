@@ -60,6 +60,27 @@ Ce sont des faits scientifiques attribués, pas une œuvre reprise. L'abstention
 est une décision et non un oubli (#489) : sans drapeau, on ne dit rien plutôt
 que de rassurer à tort.
 
+### Ce que cette affirmation couvre, et ce qu'elle ne couvre pas
+
+Elle porte sur ce qui est **servi**. Relevé le 2026-11-14 sur `arbore` et
+`arbore_dev` : 274 fiches, 542 verdicts, aucun document ne porte de champ de
+prose repris d'une mise en forme externe, et les 24 verdicts sans source nommée
+sont **tous `unknown`**. L'invariant tient des deux côtés.
+
+Le corpus de recherche hors dépôt, lui, n'offre pas cette garantie. Il peut
+porter des champs calqués sur la présentation d'une base externe — et sans
+source renseignée. Tant qu'il n'est pas versé, le catalogue reste exempt ; mais
+c'est le **versement** qui doit le vérifier, pas la relecture.
+
+**Règle : une fiche dont `evidence.sourceName` est vide ne peut porter qu'un
+verdict `unknown`.** Elle est déjà respectée par les 274 fiches servies. Ce qui
+manque est son refus automatique à l'entrée, comme il en existe un sur le
+rapprochement des noms (cf. [`botanical-data-audit.md`](botanical-data-audit.md)).
+
+Une reformulation attribuée reste un fait attribué ; une formulation reprise
+sans source ne l'est plus. C'est l'attribution qui fait la différence, et elle
+se vérifie à la frontière.
+
 ## Si un asset change
 
 Toute image ou modèle ajouté doit apparaître dans le tableau ci-dessus **avant**

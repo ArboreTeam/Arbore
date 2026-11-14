@@ -59,6 +59,27 @@ These are attributed scientific facts, not a borrowed work. Abstaining there is
 a decision rather than an oversight (#489): with no flag, we say nothing rather
 than wrongly reassure.
 
+### What this claim covers, and what it does not
+
+It covers what is **served**. Measured on 2026-11-14 against `arbore` and
+`arbore_dev`: 274 entries, 542 verdicts, no document carrying a prose field
+taken from an external layout, and the 24 verdicts with no named source are
+**all `unknown`**. The invariant holds on both sides.
+
+The out-of-repository research corpus offers no such guarantee. It may carry
+fields shaped after an external base's presentation — and with no source
+recorded. As long as it is not poured in, the catalogue stays clear; but it is
+the **pouring** that must check this, not the review.
+
+**Rule: an entry whose `evidence.sourceName` is empty may only carry an
+`unknown` verdict.** The 274 served entries already honour it. What is missing
+is its automatic refusal at the boundary, as exists for name matching (see
+[`botanical-data-audit.md`](botanical-data-audit.md)).
+
+An attributed rewording remains an attributed fact; a borrowed wording with no
+source does not. Attribution is what makes the difference, and it is checked at
+the boundary.
+
 ## If an asset changes
 
 Any image or model added must appear in the table above **before** it ships. A

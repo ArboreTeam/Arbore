@@ -60,7 +60,17 @@ final class LocalizationCoverageTests: XCTestCase {
         "AIDISCLOSURE_WHY_TITLE", "AIDISCLOSURE_WHY_TEXT",
         "AIDISCLOSURE_TRAINING_TITLE", "AIDISCLOSURE_TRAINING_TEXT",
         "AIDISCLOSURE_DECLINE_NOTE", "AIDISCLOSURE_REVERSIBLE",
-        "AIDISCLOSURE_READ_POLICY", "AIDISCLOSURE_ACCEPT", "AIDISCLOSURE_DECLINE"
+        "AIDISCLOSURE_READ_POLICY", "AIDISCLOSURE_ACCEPT", "AIDISCLOSURE_DECLINE",
+        // #841 : l'intitulé de la case d'acceptation à l'inscription. Même
+        // raison que la divulgation ci-dessus, et elle compte autant : une
+        // case qu'on coche sous une phrase qu'on ne lit pas n'est pas un
+        // consentement éclairé. Elle gouverne les trois chemins de création
+        // de compte, donc elle est sur le chemin de TOUT nouveau compte.
+        "AUTH_AGREE_CHECKBOX",
+        // #841 : l'écran d'acceptation de l'invité. Il est sur le chemin de
+        // TOUT premier usage sans compte, et son corps est l'endroit où la
+        // toxicité est nommée. Non traduit, il ne prévient personne.
+        "GUEST_ACCEPT_TITLE", "GUEST_ACCEPT_BODY"
     ]
 
     private func bundle(_ langue: String) -> Bundle? {

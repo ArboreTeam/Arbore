@@ -428,7 +428,7 @@
 
 // Pie de página
 "TERMS_FOOTER_TITLE" = "Actualizaciones de estas condiciones";
-"TERMS_FOOTER_TEXT" = "Podemos modificar estas Condiciones para reflejar la evolución de nuestros servicios y requisitos legales. Te informaremos de los cambios importantes dentro de la app.";
+"TERMS_FOOTER_TEXT" = "Podemos modificar estas Condiciones para reflejar la evolución de nuestros servicios y requisitos legales. Toda modificación importante se te señalará en la app antes de su entrada en vigor.";
 
 "UPGRADE_TITLE" = "Mejorar plan";
 
@@ -779,8 +779,12 @@
 "SIGNUP_PRIVACY" = "la Política de Privacidad";
 
 // Auth — aceptación de Términos/Privacidad en registro + inicio sesión/SSO (issue #227)
-"AUTH_AGREE_SIGNUP" = "Al registrarte, aceptas nuestras";
 "AUTH_AGREE_CONTINUE" = "Al continuar, aceptas nuestras";
+// Acceptation des documents par un invité (#841)
+"GUEST_ACCEPT_TITLE" = "Antes de empezar";
+"GUEST_ACCEPT_BODY" = "Arbore ofrece información sobre plantas, incluidos veredictos de toxicidad para animales y niños pequeños. Se facilita a título informativo y no sustituye el consejo de un veterinario ni de un médico. Consulta las condiciones antes de continuar.";
+
+"AUTH_AGREE_CHECKBOX" = "He leído y acepto las";
 "AUTH_AGREE_TERMS" = "Condiciones de Uso";
 "AUTH_AGREE_AND" = "y nuestra";
 "AUTH_AGREE_PRIVACY" = "Política de Privacidad";

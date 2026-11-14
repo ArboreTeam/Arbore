@@ -174,7 +174,7 @@ struct PrivacySettingsView: View {
             "type": type,
             "granted": String(granted),
             "timestamp": timestamp,
-            "version": AppConfig.privacyPolicyVersion
+            "version": AppConfig.documentVersion(forConsentType: type)
         ])
         UserDefaults.standard.set(history, forKey: "consent_history")
 
@@ -196,7 +196,7 @@ struct PrivacySettingsView: View {
                 let consentData: [String: Any] = [
                     "consentType": type,
                     "granted": granted,
-                    "version": AppConfig.privacyPolicyVersion,
+                    "version": AppConfig.documentVersion(forConsentType: type),
                     "timestamp": timestamp
                 ]
 

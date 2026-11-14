@@ -101,6 +101,26 @@ struct AppConfig {
     /// contenu change sans que sa version bouge n'est plus opposable.
     static let termsVersion = "2.3"
 
+    /// Version du document auquel se rapporte un consentement donné.
+    ///
+    /// Le registre horodatait TOUT avec `privacyPolicyVersion`, y compris le
+    /// consentement `terms` — qui se retrouvait estampillé « 2.5 » quand les
+    /// CGU en sont à la 2.3. Une preuve de consentement qui désigne la version
+    /// d'un autre document ne prouve rien : c'est l'accountability de
+    /// l'Art. 5(2) qui tombe, pas un détail de cosmétique.
+    ///
+    /// Les consentements granulaires (analytics, marketing, caméra,
+    /// notifications) relèvent bien de la politique de confidentialité : c'est
+    /// elle qui décrit ces traitements. Seul `terms` change de référence.
+    static func documentVersion(forConsentType type: String) -> String {
+        switch type {
+        case "terms":
+            return termsVersion
+        default:
+            return privacyPolicyVersion
+        }
+    }
+
     // MARK: - App Information
 
     /// Version de l'application

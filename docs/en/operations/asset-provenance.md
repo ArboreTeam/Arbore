@@ -59,6 +59,37 @@ These are attributed scientific facts, not a borrowed work. Abstaining there is
 a decision rather than an oversight (#489): with no flag, we say nothing rather
 than wrongly reassure.
 
+### What this claim covers, and what it does not
+
+It covers what is **served**. Measured on 2026-11-14 against `arbore` and
+`arbore_dev`: 274 entries, 542 verdicts, no document carrying a prose field
+taken from an external layout, and the 24 verdicts with no named source are
+**all `unknown`**. The invariant holds on both sides.
+
+The out-of-repository research corpus offers no such guarantee. It may carry
+fields shaped after an external base's presentation — and with no source
+recorded. As long as it is not poured in, the catalogue stays clear; but it is
+the **pouring** that must check this, not the review.
+
+**Rule: no named source, no prose.** A verdict may stand without a source —
+`toxic` and `unknown` assert no safety, so they have nothing to support, and
+dropping a warning for want of a source would make the catalogue less safe
+rather than more honest. An unsourced `safe` has long been refused: it ASSERTS.
+
+The detail is not of the same order. Composed of fields shaped after an
+external base's presentation, it is a wording and not a fact: serving it
+without saying where it comes from is borrowing a rendition rather than citing.
+`verser-toxicite.py` therefore writes it only when a source has been retained,
+and the invariant reads both ways — `detail` and `evidence` are present
+together or absent together.
+
+The guard lives at the boundary, like the one on name matching (see
+[`botanical-data-audit.md`](botanical-data-audit.md)), not at review time.
+
+An attributed rewording remains an attributed fact; a borrowed wording with no
+source does not. Attribution is what makes the difference, and it is checked at
+the boundary.
+
 ## If an asset changes
 
 Any image or model added must appear in the table above **before** it ships. A

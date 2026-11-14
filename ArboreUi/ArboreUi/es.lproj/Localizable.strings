@@ -344,8 +344,8 @@
 
 "TERMS_HEADER_TITLE" = "Condiciones de uso";
 "TERMS_HEADER_INTRO" = "Gracias por usar %@. Lee atentamente estos Términos, ya que regulan tu acceso y uso de la aplicación.";
-"TERMS_LAST_UPDATED" = "Última actualización: %@";
-"TERMS_LAST_UPDATED_DATE" = "13 de noviembre de 2026";
+"TERMS_LAST_UPDATED" = "Última actualización: %@ — versión %@";
+"TERMS_LAST_UPDATED_DATE" = "14 de noviembre de 2026";
 
 // Aceptación de las condiciones
 "TERMS_SECTION_ACCEPT_TITLE" = "Aceptación de las condiciones";
@@ -397,11 +397,21 @@
 "TERMS_SECTION_AVAILABILITY_TITLE" = "Disponibilidad y modificaciones";
 "TERMS_SECTION_AVAILABILITY_ITEM1" = "El servicio se ofrece «tal cual» y «según disponibilidad». Puede evolucionar, suspenderse o interrumpirse conforme a estas condiciones.";
 "TERMS_SECTION_AVAILABILITY_ITEM2" = "No garantizamos disponibilidad ininterrumpida ni la ausencia de pérdida de datos; guarda una copia de todo contenido importante.";
+"TERMS_SECTION_AVAILABILITY_ITEM3" = "Podemos modificar estas condiciones para seguir la evolución del servicio y de nuestras obligaciones legales. La fecha y la versión figuran al principio de este documento. Toda modificación importante —en particular de las reglas de responsabilidad, de la naturaleza de la información facilitada o del tratamiento de tus datos— se te señalará en la aplicación antes de su entrada en vigor.";
 
 // Limitación de responsabilidad
+// Nature des informations fournies (toxicité, sorties d'IA) — #841
+"TERMS_SECTION_INFORMATION_TITLE" = "Naturaleza de la información facilitada";
+"TERMS_SECTION_INFORMATION_ITEM1" = "La información botánica publicada en %@ —incluidos los veredictos de toxicidad para animales y niños— se facilita a título informativo. No constituye asesoramiento botánico, veterinario, médico ni toxicológico.";
+"TERMS_SECTION_INFORMATION_ITEM2" = "No debe ser el único fundamento de una decisión de seguridad. Antes de colocar una planta al alcance de un animal o de un niño pequeño, consulta a un veterinario, a un médico o a una fuente oficial.";
+"TERMS_SECTION_INFORMATION_ITEM3" = "La ausencia de advertencia no es garantía de inocuidad. Nuestros datos pueden estar incompletos: una planta cuya toxicidad no está establecida se señala como tal, y la ausencia de señalización no confirma que sea inocua. Los filtros de seguridad del hogar descartan lo que se conoce como peligroso, no lo que aún no se ha establecido.";
+"TERMS_SECTION_INFORMATION_ITEM4" = "El diagnóstico de salud y el asistente se basan en un modelo de inteligencia artificial. Sus respuestas pueden ser inexactas o incompletas y no constituyen un diagnóstico; no deben fundamentar por sí solas un tratamiento, una compra ni una decisión de seguridad.";
+"TERMS_SECTION_INFORMATION_ITEM5" = "En caso de ingestión o contacto sospechoso, llama sin demora a un centro de toxicología, al número de emergencias de tu país o a un veterinario.";
+
 "TERMS_SECTION_LIABILITY_TITLE" = "Limitación de responsabilidad";
 "TERMS_SECTION_LIABILITY_ITEM1" = "En la medida máxima permitida por la ley, %@ no será responsable de daños indirectos, especiales, incidentales o consecuentes, ni de pérdida de datos o beneficios.";
 "TERMS_SECTION_LIABILITY_ITEM2" = "Tus derechos imperativos como consumidor no se ven afectados. Si no estás satisfecho, puedes dejar de usar la app y eliminar tu cuenta en cualquier momento.";
+"TERMS_SECTION_LIABILITY_ITEM3" = "Ninguna disposición de estas condiciones excluye ni limita nuestra responsabilidad cuando la ley no lo permite, en particular en caso de daño corporal, culpa grave o responsabilidad por producto defectuoso.";
 
 // Indemnización
 "TERMS_SECTION_INDEMNITY_TITLE" = "Indemnización";

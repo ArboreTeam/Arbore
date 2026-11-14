@@ -79,15 +79,27 @@ struct AppConfig {
     /// consentements sont horodatés avec cette version.
     static let privacyPolicyVersion = "2.5"
 
-    /// Date de dernière mise à jour de la politique
-    static let privacyPolicyLastUpdate = "20 September 2026"
-
     /// URL publique de la politique de confidentialité (FR/EN).
     /// Champ obligatoire App Store Connect + liens in-app.
     static let privacyPolicyURL = "https://arbore.app/privacy"
 
     /// URL publique des conditions générales d'utilisation (FR/EN).
     static let termsOfServiceURL = "https://arbore.app/terms"
+
+    /// Version des CGU, alignée sur `terms.html` d'Arbore_SiteVitrine, qui est
+    /// le document de référence — l'app le miroite.
+    ///
+    /// 2.3 (14 novembre 2026) ajoute la section « Nature des informations
+    /// fournies » : les verdicts de toxicité et les sorties d'IA sont donnés à
+    /// titre informatif, l'absence d'avertissement n'est pas une garantie
+    /// d'innocuité, et les filtres écartent le connu, pas le non établi (#841).
+    ///
+    /// Historique : 2.2 (13 novembre 2026) corrigeait la mention TestFlight et
+    /// retirait sept clés d'abonnement sans objet (#822).
+    ///
+    /// Les deux côtés doivent monter ENSEMBLE : un document légal dont le
+    /// contenu change sans que sa version bouge n'est plus opposable.
+    static let termsVersion = "2.3"
 
     // MARK: - App Information
 

@@ -19,6 +19,7 @@ La documentation est découpée en vues complémentaires. Selon l'information re
 | **Les pots et les cache-pots** (plantes recoupées, pose, persistance) | [`architecture/pots.md`](architecture/pots.md) |
 | **Profil climatique et fiche d'espace** (`POST /climate/profile`) | [`architecture/profil-climatique.md`](architecture/profil-climatique.md) |
 | **Infrastructure et exploitation** (couches, pipeline, environnements, secrets) | [`architecture/05-infrastructure.md`](architecture/05-infrastructure.md) |
+| **Ce que les CGU promettent, et le code qui le tient** (à lire avant un redesign ou un ajout de plantes) | [`engagements-opposables.md`](engagements-opposables.md) |
 | Architecture LOD des modèles 3D | [`3d-lod-architecture.md`](3d-lod-architecture.md) |
 | Flow de signup avec rollback Firebase | [`flows/auth-signup.md`](flows/auth-signup.md) |
 | Flow de création de jardin (wizard) | [`flows/garden-creation.md`](flows/garden-creation.md) |
@@ -67,6 +68,7 @@ docs/
 │   ├── testing/               # stratégie et suites de tests (front + back + web)
 │   ├── operations/            # runbooks (déploiement, observabilité, VPS)
 │   ├── decisions/             # Architecture Decision Records (format MADR)
+│   ├── engagements-opposables.md # ce que les CGU promettent, et le code qui le tient
 │   ├── 3d-lod-architecture.md # LOD des modèles 3D
 │   └── glossary.md            # vocabulaire du domaine
 ├── en/                        # miroir anglais (même arborescence)

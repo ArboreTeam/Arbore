@@ -170,20 +170,22 @@ struct SignUpView: View {
                         .accessibilityLabel(L10n.t("AUTH_AGREE_CHECKBOX"))
                         .accessibilityAddTraits(hasAcceptedDocuments ? [.isButton, .isSelected] : .isButton)
 
-                        HStack(spacing: 4) {
+                        VStack(spacing: 2) {
                             NavigationLink(destination: TermsConditionsView()) {
                                 Text(NSLocalizedString("AUTH_AGREE_TERMS", comment: ""))
                                     .foregroundColor(ArboreDesign.Colors.primaryGreen)
                                     .underline()
                             }
 
-                            Text(NSLocalizedString("AUTH_AGREE_AND", comment: ""))
-                                .foregroundColor(ArboreDesign.Colors.textSecondary)
+                            HStack(spacing: 4) {
+                                Text(NSLocalizedString("AUTH_AGREE_AND", comment: ""))
+                                    .foregroundColor(ArboreDesign.Colors.textSecondary)
 
-                            NavigationLink(destination: PrivacyPolicyView()) {
-                                Text(NSLocalizedString("AUTH_AGREE_PRIVACY", comment: ""))
-                                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
-                                    .underline()
+                                NavigationLink(destination: PrivacyPolicyView()) {
+                                    Text(NSLocalizedString("AUTH_AGREE_PRIVACY", comment: ""))
+                                        .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                                        .underline()
+                                }
                             }
                         }
                     }

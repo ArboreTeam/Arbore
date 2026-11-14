@@ -127,7 +127,25 @@ def fait(toxicite: dict, source: str | None, date: str,
     if v == "safe" and not source:
         return None, "verdict « safe » sans source de toxicité nommée"
     f: dict[str, Any] = {"value": v}
-    d = detail(toxicite, pour_enfant)
+    # Le second refus, plus étroit, et il ne porte PAS sur le verdict (#841).
+    #
+    # `toxic` et `unknown` passent sans source, et c'est voulu : ils
+    # n'affirment pas l'innocuité, donc ils n'ont rien à soutenir. Retirer un
+    # avertissement faute de source rendrait le catalogue moins sûr, pas plus
+    # honnête.
+    #
+    # Mais le DÉTAIL, lui, n'est pas du même ordre. `detail()` ne sait le
+    # composer que de `toxicPrinciple` et `signs` — deux champs calqués sur la
+    # présentation d'une base toxicologique externe. Servir cette formulation
+    # sans nommer d'où elle vient, c'est reprendre une rédaction au lieu de
+    # citer un fait. L'audit du 2026-11-14 a trouvé 153 fiches du corpus de
+    # recherche dans ce cas, `sources` vide ; aucune n'est en base, et ce
+    # refus est là pour qu'aucune n'y entre.
+    #
+    # Le verdict reste donc posé, nu. L'app sait l'afficher sans détail : le
+    # client ne rend la section que si le texte existe, et une toxicité sans
+    # prose reste une toxicité.
+    d = detail(toxicite, pour_enfant) if source else ""
     if d:
         f["detail"] = d[:900]
     if source:

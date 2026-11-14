@@ -72,10 +72,22 @@ porter des champs calqués sur la présentation d'une base externe — et sans
 source renseignée. Tant qu'il n'est pas versé, le catalogue reste exempt ; mais
 c'est le **versement** qui doit le vérifier, pas la relecture.
 
-**Règle : une fiche dont `evidence.sourceName` est vide ne peut porter qu'un
-verdict `unknown`.** Elle est déjà respectée par les 274 fiches servies. Ce qui
-manque est son refus automatique à l'entrée, comme il en existe un sur le
-rapprochement des noms (cf. [`botanical-data-audit.md`](botanical-data-audit.md)).
+**Règle : sans source nommée, pas de prose.** Un verdict peut être posé sans
+source — `toxic` et `unknown` n'affirment pas l'innocuité, ils n'ont rien à
+soutenir, et retirer un avertissement faute de source rendrait le catalogue
+moins sûr plutôt que plus honnête. Le `safe` sans source, lui, est refusé de
+longue date : il AFFIRME.
+
+Le détail, lui, n'est pas du même ordre. Composé de champs calqués sur la
+présentation d'une base externe, il est une formulation et non un fait : le
+servir sans dire d'où il vient, c'est reprendre une rédaction au lieu de citer.
+`verser-toxicite.py` ne l'écrit donc plus qu'avec une source retenue, et
+l'invariant se dit dans les deux sens — `detail` et `evidence` sont présents
+ensemble ou absents ensemble.
+
+Le garde vit à la frontière, comme celui qui existe sur le rapprochement des
+noms (cf. [`botanical-data-audit.md`](botanical-data-audit.md)), et non à la
+relecture.
 
 Une reformulation attribuée reste un fait attribué ; une formulation reprise
 sans source ne l'est plus. C'est l'attribution qui fait la différence, et elle

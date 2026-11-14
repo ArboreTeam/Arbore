@@ -783,8 +783,12 @@
 "SIGNUP_PRIVACY" = "die Datenschutzerklärung";
 
 // Auth — Zustimmung zu Nutzungsbedingungen/Datenschutz bei Registrierung + Login/SSO (issue #227)
-"AUTH_AGREE_SIGNUP" = "Mit der Registrierung akzeptierst du unsere";
 "AUTH_AGREE_CONTINUE" = "Wenn du fortfährst, akzeptierst du unsere";
+// Acceptation des documents par un invité (#841)
+"GUEST_ACCEPT_TITLE" = "Bevor du beginnst";
+"GUEST_ACCEPT_BODY" = "Arbore liefert Informationen zu Pflanzen, darunter Toxizitätsbewertungen für Tiere und kleine Kinder. Sie dienen ausschließlich der Information und ersetzen keinen tierärztlichen oder ärztlichen Rat. Bitte lies die Bedingungen, bevor du fortfährst.";
+
+"AUTH_AGREE_CHECKBOX" = "Ich akzeptiere die";
 "AUTH_AGREE_TERMS" = "Nutzungsbedingungen";
 "AUTH_AGREE_AND" = "und unsere";
 "AUTH_AGREE_PRIVACY" = "Datenschutzerklärung";

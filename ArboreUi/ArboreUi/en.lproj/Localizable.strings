@@ -801,8 +801,12 @@
 "SIGNUP_PRIVACY" = "Privacy Policy";
 
 // Auth — terms/privacy agreement shown on signup + login/SSO (issue #227)
-"AUTH_AGREE_SIGNUP" = "By signing up, you agree to our";
 "AUTH_AGREE_CONTINUE" = "By continuing, you agree to our";
+// Acceptation des documents par un invité (#841)
+"GUEST_ACCEPT_TITLE" = "Before you start";
+"GUEST_ACCEPT_BODY" = "Arbore provides information about plants, including toxicity verdicts for pets and young children. It is provided for information only and does not replace the advice of a vet or a doctor. Please review the terms before continuing.";
+
+"AUTH_AGREE_CHECKBOX" = "I have read and accept the";
 "AUTH_AGREE_TERMS" = "Terms & Conditions";
 "AUTH_AGREE_AND" = "and";
 "AUTH_AGREE_PRIVACY" = "Privacy Policy";

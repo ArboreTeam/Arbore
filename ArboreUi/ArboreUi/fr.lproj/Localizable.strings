@@ -926,8 +926,12 @@
 "SIGNUP_PRIVACY" = "la Politique de Confidentialité";
 
 // Auth — accord CGU/Confidentialité affiché au signup + login/SSO (issue #227)
-"AUTH_AGREE_SIGNUP" = "En vous inscrivant, vous acceptez nos";
 "AUTH_AGREE_CONTINUE" = "En continuant, vous acceptez nos";
+// Acceptation des documents par un invité (#841)
+"GUEST_ACCEPT_TITLE" = "Avant de commencer";
+"GUEST_ACCEPT_BODY" = "Arbore donne des informations sur les plantes, dont des verdicts de toxicité pour les animaux et les jeunes enfants. Elles sont fournies à titre informatif et ne remplacent ni l’avis d’un vétérinaire, ni celui d’un médecin. Prends connaissance des conditions avant de continuer.";
+
+"AUTH_AGREE_CHECKBOX" = "J’ai lu et j’accepte les";
 "AUTH_AGREE_TERMS" = "Conditions Générales d'Utilisation";
 "AUTH_AGREE_AND" = "et notre";
 "AUTH_AGREE_PRIVACY" = "Politique de Confidentialité";

@@ -135,8 +135,6 @@ func saveUserToBackendIfNeeded(uid: String, email: String, name: String, created
 /// envoyait `consentGiven`/`consentDate` sans `version` → 400 silencieux.
 func recordInitialConsents(uid: String) {
     Task {
-        let version = AppConfig.privacyPolicyVersion
-
         var snapshot: [(type: String, granted: Bool)] = [
             ("terms", true),
             ("privacy", true),
@@ -147,7 +145,7 @@ func recordInitialConsents(uid: String) {
             let body: [String: Any] = [
                 "consentType": entry.type,
                 "granted": entry.granted,
-				"version": version
+                "version": AppConfig.documentVersion(forConsentType: entry.type)
             ]
             do {
                 try await NetworkManager.shared.requestNoResponse(

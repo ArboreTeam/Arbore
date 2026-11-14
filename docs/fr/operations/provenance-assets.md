@@ -60,6 +60,39 @@ Ce sont des faits scientifiques attribués, pas une œuvre reprise. L'abstention
 est une décision et non un oubli (#489) : sans drapeau, on ne dit rien plutôt
 que de rassurer à tort.
 
+### Ce que cette affirmation couvre, et ce qu'elle ne couvre pas
+
+Elle porte sur ce qui est **servi**. Relevé le 2026-11-14 sur `arbore` et
+`arbore_dev` : 274 fiches, 542 verdicts, aucun document ne porte de champ de
+prose repris d'une mise en forme externe, et les 24 verdicts sans source nommée
+sont **tous `unknown`**. L'invariant tient des deux côtés.
+
+Le corpus de recherche hors dépôt, lui, n'offre pas cette garantie. Il peut
+porter des champs calqués sur la présentation d'une base externe — et sans
+source renseignée. Tant qu'il n'est pas versé, le catalogue reste exempt ; mais
+c'est le **versement** qui doit le vérifier, pas la relecture.
+
+**Règle : sans source nommée, pas de prose.** Un verdict peut être posé sans
+source — `toxic` et `unknown` n'affirment pas l'innocuité, ils n'ont rien à
+soutenir, et retirer un avertissement faute de source rendrait le catalogue
+moins sûr plutôt que plus honnête. Le `safe` sans source, lui, est refusé de
+longue date : il AFFIRME.
+
+Le détail, lui, n'est pas du même ordre. Composé de champs calqués sur la
+présentation d'une base externe, il est une formulation et non un fait : le
+servir sans dire d'où il vient, c'est reprendre une rédaction au lieu de citer.
+`verser-toxicite.py` ne l'écrit donc plus qu'avec une source retenue, et
+l'invariant se dit dans les deux sens — `detail` et `evidence` sont présents
+ensemble ou absents ensemble.
+
+Le garde vit à la frontière, comme celui qui existe sur le rapprochement des
+noms (cf. [`botanical-data-audit.md`](botanical-data-audit.md)), et non à la
+relecture.
+
+Une reformulation attribuée reste un fait attribué ; une formulation reprise
+sans source ne l'est plus. C'est l'attribution qui fait la différence, et elle
+se vérifie à la frontière.
+
 ## Si un asset change
 
 Toute image ou modèle ajouté doit apparaître dans le tableau ci-dessus **avant**

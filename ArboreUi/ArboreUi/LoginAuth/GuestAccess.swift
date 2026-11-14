@@ -133,6 +133,27 @@ struct ContinueAsGuestButton: View {
 
     @State private var isSigningIn = false
     @State private var errorMessage: String?
+    @State private var showAcceptance = false
+
+    /// Acceptation des documents par un invité, avec les versions acceptées
+    /// (#841).
+    ///
+    /// Un invité ne pouvait accepter nulle part : le texte d'acceptation vit
+    /// sur l'écran d'inscription, qu'il contourne par définition. Ses CGU
+    /// relevaient donc du seul « en utilisant cette app, vous acceptez » —
+    /// la forme la plus faible qui existe, et sans même un point de passage.
+    /// Or c'est dans les CGU que vit désormais l'avertissement sur la
+    /// toxicité : une clause ne vaut que ce que vaut son acceptation.
+    ///
+    /// Le stockage est LOCAL, et c'est le seul possible : `POST /consents`
+    /// répond `403 ACCOUNT_REQUIRED` à une session anonyme. La preuve n'a donc
+    /// pas la valeur d'une entrée du registre serveur — elle a celle d'un acte
+    /// positif, horodaté par les versions qu'il désigne.
+    ///
+    /// Comparer les versions, et non un booléen, fait de ce réglage le
+    /// mécanisme qui honore la clause `TERMS_SECTION_AVAILABILITY_ITEM3` :
+    /// quand un document monte de version, l'invité est resollicité.
+    @AppStorage("guestAcceptedDocuments") private var acceptedDocuments = ""
 
     var body: some View {
         VStack(spacing: 6) {
@@ -169,10 +190,34 @@ struct ContinueAsGuestButton: View {
             }
         }
         .padding(.horizontal, 30)
+        .sheet(isPresented: $showAcceptance) {
+            GuestAcceptanceSheet {
+                acceptedDocuments = currentDocuments
+                signIn()
+            }
+        }
     }
 
+    /// Les versions actuellement en vigueur, telles qu'elles seront stockées.
+    private var currentDocuments: String {
+        "terms:\(AppConfig.termsVersion)|privacy:\(AppConfig.privacyPolicyVersion)"
+    }
+
+    private var hasAcceptedCurrentDocuments: Bool {
+        acceptedDocuments == currentDocuments
+    }
+
+    /// Ouvre la session, ou demande d'abord l'acceptation.
     private func start() {
         errorMessage = nil
+        guard hasAcceptedCurrentDocuments else {
+            showAcceptance = true
+            return
+        }
+        signIn()
+    }
+
+    private func signIn() {
         isSigningIn = true
         GuestSession.signIn { result in
             isSigningIn = false
@@ -199,5 +244,98 @@ enum BackendErrorMessage {
             return L10n.t("GUEST_ACCOUNT_REQUIRED_MESSAGE")
         }
         return fallback
+    }
+}
+
+// MARK: - 4. Acceptation des documents par un invité
+
+/// Demandée avant d'ouvrir une session anonyme (#841).
+///
+/// Posée sur `ContinueAsGuestButton` et non sur chaque écran : le bouton vit à
+/// la fois sur `LoginView` et sur `SignUpView`, et une porte verrouillée d'un
+/// seul côté ne verrouille rien.
+///
+/// Le corps nomme la toxicité explicitement. Un écran d'acceptation qui ne
+/// dirait pas de QUOI il s'agit ne serait qu'une formalité de plus à balayer,
+/// et c'est précisément ce que l'acceptation par l'usage avait de faible.
+private struct GuestAcceptanceSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var hasAccepted = false
+    var onAccepted: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 18) {
+                Text(L10n.t("GUEST_ACCEPT_TITLE"))
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(ArboreDesign.Colors.textPrimary)
+
+                Text(L10n.t("GUEST_ACCEPT_BODY"))
+                    .font(.system(size: 15))
+                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Button(action: { hasAccepted.toggle() }) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Image(systemName: hasAccepted ? "checkmark.square.fill" : "square")
+                                .foregroundColor(hasAccepted ? ArboreDesign.Colors.primaryGreen : ArboreDesign.Colors.textSecondary)
+                            Text(L10n.t("AUTH_AGREE_CHECKBOX"))
+                                .foregroundColor(ArboreDesign.Colors.textSecondary)
+                                .multilineTextAlignment(.leading)
+                        }
+                    }
+                    .accessibilityLabel(L10n.t("AUTH_AGREE_CHECKBOX"))
+                    .accessibilityAddTraits(hasAccepted ? [.isButton, .isSelected] : .isButton)
+
+                    VStack(spacing: 2) {
+                        NavigationLink(destination: TermsConditionsView()) {
+                            Text(NSLocalizedString("AUTH_AGREE_TERMS", comment: ""))
+                                .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                                .underline()
+                        }
+
+                        HStack(spacing: 4) {
+                            Text(NSLocalizedString("AUTH_AGREE_AND", comment: ""))
+                                .foregroundColor(ArboreDesign.Colors.textSecondary)
+
+                            NavigationLink(destination: PrivacyPolicyView()) {
+                                Text(NSLocalizedString("AUTH_AGREE_PRIVACY", comment: ""))
+                                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                                    .underline()
+                            }
+                        }
+                    }
+                    .font(.footnote)
+                }
+
+                Spacer(minLength: 0)
+
+                Button(action: {
+                    dismiss()
+                    onAccepted()
+                }) {
+                    Text(L10n.t("COMMON_CONTINUE"))
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(hasAccepted ? ArboreDesign.Colors.primaryButton : ArboreDesign.Colors.primaryButton.opacity(0.4))
+                        .cornerRadius(ArboreDesign.Radius.button)
+                }
+                .disabled(!hasAccepted)
+
+                Button(action: { dismiss() }) {
+                    Text(L10n.t("COMMON_BACK"))
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .foregroundColor(ArboreDesign.Colors.textSecondary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(24)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .background(ArboreDesign.Colors.background)
+        }
+        .presentationDetents([.medium, .large])
     }
 }

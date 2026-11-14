@@ -101,7 +101,21 @@ struct TermsConditionsView: View {
                 icon: "antenna.radiowaves.left.and.right",
                 items: [
                     NSLocalizedString("TERMS_SECTION_AVAILABILITY_ITEM1", comment: ""),
-                    NSLocalizedString("TERMS_SECTION_AVAILABILITY_ITEM2", comment: "")
+                    NSLocalizedString("TERMS_SECTION_AVAILABILITY_ITEM2", comment: ""),
+                    NSLocalizedString("TERMS_SECTION_AVAILABILITY_ITEM3", comment: "")
+                ],
+                themeManager: themeManager
+            )
+
+            TermsCard(
+                title: NSLocalizedString("TERMS_SECTION_INFORMATION_TITLE", comment: ""),
+                icon: "info.circle",
+                items: [
+                    String(format: NSLocalizedString("TERMS_SECTION_INFORMATION_ITEM1", comment: ""), brandName),
+                    NSLocalizedString("TERMS_SECTION_INFORMATION_ITEM2", comment: ""),
+                    NSLocalizedString("TERMS_SECTION_INFORMATION_ITEM3", comment: ""),
+                    NSLocalizedString("TERMS_SECTION_INFORMATION_ITEM4", comment: ""),
+                    NSLocalizedString("TERMS_SECTION_INFORMATION_ITEM5", comment: "")
                 ],
                 themeManager: themeManager
             )
@@ -111,14 +125,17 @@ struct TermsConditionsView: View {
                 icon: "exclamationmark.triangle",
                 items: [
                     String(format: NSLocalizedString("TERMS_SECTION_LIABILITY_ITEM1", comment: ""), brandName),
-                    NSLocalizedString("TERMS_SECTION_LIABILITY_ITEM2", comment: "")
+                    NSLocalizedString("TERMS_SECTION_LIABILITY_ITEM2", comment: ""),
+                    NSLocalizedString("TERMS_SECTION_LIABILITY_ITEM3", comment: "")
                 ],
                 themeManager: themeManager
             )
 
             TermsCard(
                 title: NSLocalizedString("TERMS_SECTION_INDEMNITY_TITLE", comment: ""),
-                icon: "scales",
+                // `scales` n'existe pas dans SF Symbols : la carte affichait un
+                // carré vide, dans un document légal, depuis toujours.
+                icon: "building.columns",
                 items: [
                     String(format: NSLocalizedString("TERMS_SECTION_INDEMNITY_ITEM1", comment: ""), brandName)
                 ],
@@ -162,7 +179,8 @@ struct TermsConditionsView: View {
             Text(
                 String(
                     format: NSLocalizedString("TERMS_LAST_UPDATED", comment: ""),
-                    lastUpdated
+                    lastUpdated,
+                    AppConfig.termsVersion
                 )
             )
             .font(.system(size: 12, weight: .semibold))

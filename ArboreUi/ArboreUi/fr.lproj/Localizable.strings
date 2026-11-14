@@ -367,8 +367,8 @@
 
 "TERMS_HEADER_TITLE" = "Conditions d’utilisation";
 "TERMS_HEADER_INTRO" = "Merci d’utiliser %@. Merci de lire attentivement ces Conditions : elles encadrent ton accès à l’app et son utilisation.";
-"TERMS_LAST_UPDATED" = "Dernière mise à jour : %@";
-"TERMS_LAST_UPDATED_DATE" = "13 novembre 2026";
+"TERMS_LAST_UPDATED" = "Dernière mise à jour : %@ — version %@";
+"TERMS_LAST_UPDATED_DATE" = "14 novembre 2026";
 
 // Acceptation des conditions
 "TERMS_SECTION_ACCEPT_TITLE" = "Acceptation des conditions";
@@ -420,11 +420,21 @@
 "TERMS_SECTION_AVAILABILITY_TITLE" = "Disponibilité & modifications";
 "TERMS_SECTION_AVAILABILITY_ITEM1" = "Le service est fourni « en l’état » et « selon disponibilité ». Il peut évoluer, être suspendu ou interrompu conformément aux présentes conditions.";
 "TERMS_SECTION_AVAILABILITY_ITEM2" = "Nous ne garantissons pas une disponibilité ininterrompue ni l’absence de perte de données ; conserve une copie de tout contenu important.";
+"TERMS_SECTION_AVAILABILITY_ITEM3" = "Nous pouvons modifier ces Conditions pour suivre l’évolution du service et de nos obligations légales. La date et la version figurent en tête de ce document. Toute modification importante — notamment des règles de responsabilité, de la nature des informations fournies ou du traitement de tes données — te sera signalée dans l’application avant son entrée en vigueur.";
 
 // Limitation de responsabilité
+// Nature des informations fournies (toxicité, sorties d'IA) — #841
+"TERMS_SECTION_INFORMATION_TITLE" = "Nature des informations fournies";
+"TERMS_SECTION_INFORMATION_ITEM1" = "Les informations botaniques publiées dans %@ — y compris les verdicts de toxicité pour les animaux et les enfants — sont fournies à titre informatif. Elles ne constituent ni un avis botanique, ni un avis vétérinaire, ni un avis médical, ni un avis toxicologique.";
+"TERMS_SECTION_INFORMATION_ITEM2" = "Elles ne doivent pas être l’unique fondement d’une décision de sécurité. Avant d’installer une plante à portée d’un animal ou d’un jeune enfant, vérifie auprès d’un vétérinaire, d’un médecin ou d’une source officielle.";
+"TERMS_SECTION_INFORMATION_ITEM3" = "L’absence d’avertissement n’est pas une garantie d’innocuité. Nos données peuvent être incomplètes : une plante dont la toxicité n’est pas établie est signalée comme telle, et l’absence de signalement ne vaut pas confirmation d’innocuité. Les filtres de sécurité du foyer écartent ce qui est connu comme dangereux, pas ce qui n’a pas encore été établi.";
+"TERMS_SECTION_INFORMATION_ITEM4" = "Le diagnostic santé et l’assistant reposent sur un modèle d’intelligence artificielle. Leurs réponses peuvent être inexactes ou incomplètes et ne constituent pas un diagnostic ; elles ne doivent pas fonder seules un traitement, un achat ou une décision de sécurité.";
+"TERMS_SECTION_INFORMATION_ITEM5" = "En cas d’ingestion ou de contact suspect, appelle sans attendre un centre antipoison, le 15 en France, ou un vétérinaire.";
+
 "TERMS_SECTION_LIABILITY_TITLE" = "Limitation de responsabilité";
 "TERMS_SECTION_LIABILITY_ITEM1" = "Dans les limites autorisées par la loi, %@ ne saurait être responsable des dommages indirects, spéciaux, accessoires ou consécutifs, ni de pertes de données ou de profits.";
 "TERMS_SECTION_LIABILITY_ITEM2" = "Tes droits impératifs de consommateur ne sont pas affectés. En cas d’insatisfaction, tu peux cesser d’utiliser l’app et supprimer ton compte à tout moment.";
+"TERMS_SECTION_LIABILITY_ITEM3" = "Aucune stipulation des présentes Conditions n’exclut ni ne limite notre responsabilité lorsque la loi ne le permet pas, notamment en cas de dommage corporel, de faute lourde ou de responsabilité du fait des produits.";
 
 // Indemnisation
 "TERMS_SECTION_INDEMNITY_TITLE" = "Indemnisation";
@@ -441,7 +451,7 @@
 
 // Pied de page
 "TERMS_FOOTER_TITLE" = "Mises à jour de ces Conditions";
-"TERMS_FOOTER_TEXT" = "Nous pouvons modifier ces Conditions pour refléter l’évolution de nos services et de nos obligations légales. Nous t’informerons des changements importants dans l’app.";
+"TERMS_FOOTER_TEXT" = "Nous pouvons modifier ces Conditions pour refléter l’évolution de nos services et de nos obligations légales. Toute modification importante te sera signalée dans l’app avant son entrée en vigueur.";
 
 
 // Upgrade / Plans
@@ -916,8 +926,12 @@
 "SIGNUP_PRIVACY" = "la Politique de Confidentialité";
 
 // Auth — accord CGU/Confidentialité affiché au signup + login/SSO (issue #227)
-"AUTH_AGREE_SIGNUP" = "En vous inscrivant, vous acceptez nos";
 "AUTH_AGREE_CONTINUE" = "En continuant, vous acceptez nos";
+// Acceptation des documents par un invité (#841)
+"GUEST_ACCEPT_TITLE" = "Avant de commencer";
+"GUEST_ACCEPT_BODY" = "Arbore donne des informations sur les plantes, dont des verdicts de toxicité pour les animaux et les jeunes enfants. Elles sont fournies à titre informatif et ne remplacent ni l’avis d’un vétérinaire, ni celui d’un médecin. Prends connaissance des conditions avant de continuer.";
+
+"AUTH_AGREE_CHECKBOX" = "J’ai lu et j’accepte les";
 "AUTH_AGREE_TERMS" = "Conditions Générales d'Utilisation";
 "AUTH_AGREE_AND" = "et notre";
 "AUTH_AGREE_PRIVACY" = "Politique de Confidentialité";

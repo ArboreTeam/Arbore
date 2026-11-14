@@ -21,6 +21,11 @@ struct SignUpView: View {
     @StateObject private var appleAuth = AppleAuthService()
     @FocusState private var focusedField: Field?
 
+    /// Acceptation ACTIVE des CGU et de la politique (#841). L'inscription ne
+    /// valait acceptation que par l'usage : rien ne prouvait la lecture, et la
+    /// version acceptée n'était pas enregistrée.
+    @State private var hasAcceptedDocuments = false
+
     enum Field {
         case name, email, password
     }
@@ -29,7 +34,8 @@ struct SignUpView: View {
         !firstName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !lastName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
         !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !password.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        hasAcceptedDocuments
     }
 
     var body: some View {
@@ -148,6 +154,45 @@ struct SignUpView: View {
                     }
                     .padding(.horizontal, 30)
 
+                    // Acceptation active des documents (#841). La case gouverne les
+                    // TROIS chemins de création de compte — e-mail, Apple, Google —
+                    // sans quoi elle ne fermerait qu'une porte sur trois.
+                    VStack(spacing: 6) {
+                        Button(action: { hasAcceptedDocuments.toggle() }) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Image(systemName: hasAcceptedDocuments ? "checkmark.square.fill" : "square")
+                                    .foregroundColor(hasAcceptedDocuments ? ArboreDesign.Colors.primaryGreen : ArboreDesign.Colors.textSecondary)
+                                Text(L10n.t("AUTH_AGREE_CHECKBOX"))
+                                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+                                    .multilineTextAlignment(.leading)
+                            }
+                        }
+                        .accessibilityLabel(L10n.t("AUTH_AGREE_CHECKBOX"))
+                        .accessibilityAddTraits(hasAcceptedDocuments ? [.isButton, .isSelected] : .isButton)
+
+                        VStack(spacing: 2) {
+                            NavigationLink(destination: TermsConditionsView()) {
+                                Text(NSLocalizedString("AUTH_AGREE_TERMS", comment: ""))
+                                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                                    .underline()
+                            }
+
+                            HStack(spacing: 4) {
+                                Text(NSLocalizedString("AUTH_AGREE_AND", comment: ""))
+                                    .foregroundColor(ArboreDesign.Colors.textSecondary)
+
+                                NavigationLink(destination: PrivacyPolicyView()) {
+                                    Text(NSLocalizedString("AUTH_AGREE_PRIVACY", comment: ""))
+                                        .foregroundColor(ArboreDesign.Colors.primaryGreen)
+                                        .underline()
+                                }
+                            }
+                        }
+                    }
+                    .font(.footnote)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 30)
+
                     Button(action: registerUser) {
                         Text(L10n.t("AUTH_SIGN_UP"))
                             .fontWeight(.semibold)
@@ -179,32 +224,6 @@ struct SignUpView: View {
                             .transition(.opacity)
                     }
 
-                    VStack(spacing: 4) {
-                        Text(NSLocalizedString("AUTH_AGREE_SIGNUP", comment: ""))
-                            .foregroundColor(ArboreDesign.Colors.textSecondary)
-
-                        HStack(spacing: 4) {
-                            NavigationLink(destination: TermsConditionsView()) {
-                                Text(NSLocalizedString("AUTH_AGREE_TERMS", comment: ""))
-                                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
-                                    .underline()
-                            }
-
-                            Text(NSLocalizedString("AUTH_AGREE_AND", comment: ""))
-                                .foregroundColor(ArboreDesign.Colors.textSecondary)
-
-                            NavigationLink(destination: PrivacyPolicyView()) {
-                                Text(NSLocalizedString("AUTH_AGREE_PRIVACY", comment: ""))
-                                    .foregroundColor(ArboreDesign.Colors.primaryGreen)
-                                    .underline()
-                            }
-                        }
-                    }
-                    .font(.footnote)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, 30)
-
                     HStack {
                         Rectangle().fill(ArboreDesign.Colors.border).frame(height: 1)
                         Text(L10n.t("AUTH_OR"))
@@ -218,6 +237,8 @@ struct SignUpView: View {
                         // Bouton SIWA natif (conforme HIG) — cf. AppleSignInButton.
                         AppleSignInButton(appleAuth: appleAuth)
                             .padding(.horizontal, 30)
+                            .disabled(!hasAcceptedDocuments)
+                            .opacity(hasAcceptedDocuments ? 1.0 : 0.4)
 
                         Button(action: {
                             authViewModel.signInWithGoogle()
@@ -236,6 +257,8 @@ struct SignUpView: View {
                             .overlay(RoundedRectangle(cornerRadius: ArboreDesign.Radius.button).stroke(ArboreDesign.Colors.border))
                             .cornerRadius(ArboreDesign.Radius.button)
                         }
+                        .disabled(!hasAcceptedDocuments)
+                        .opacity(hasAcceptedDocuments ? 1.0 : 0.4)
                         .padding(.horizontal, 30)
                     }
 

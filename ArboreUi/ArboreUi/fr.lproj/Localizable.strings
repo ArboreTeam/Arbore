@@ -260,7 +260,7 @@
 "PRIVACY_HEADER_TITLE" = "%@ respecte ta vie privée.";
 "PRIVACY_HEADER_SUBTITLE" = "Cette politique explique quelles données personnelles nous traitons, pourquoi, avec qui, combien de temps, et les droits dont tu disposes au titre du RGPD.";
 "PRIVACY_LAST_UPDATED" = "Dernière mise à jour : %@ — version %@";
-"PRIVACY_LAST_UPDATED_DATE" = "9 septembre 2026";
+"PRIVACY_LAST_UPDATED_DATE" = "20 septembre 2026";
 
 // Données collectées
 "PRIVACY_SECTION_DATA_TITLE" = "Données que nous traitons";

@@ -260,7 +260,7 @@
 "PRIVACY_HEADER_TITLE" = "%@ respects your privacy.";
 "PRIVACY_HEADER_SUBTITLE" = "This policy explains what personal data we process, why, with whom, how long we keep it, and the rights you have under the GDPR.";
 "PRIVACY_LAST_UPDATED" = "Last updated: %@ — version %@";
-"PRIVACY_LAST_UPDATED_DATE" = "September 9, 2026";
+"PRIVACY_LAST_UPDATED_DATE" = "September 20, 2026";
 
 // Data we collect
 "PRIVACY_SECTION_DATA_TITLE" = "Data we process";

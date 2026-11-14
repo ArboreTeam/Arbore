@@ -241,7 +241,7 @@
 "PRIVACY_HEADER_TITLE" = "%@ respektiert deine Privatsphäre.";
 "PRIVACY_HEADER_SUBTITLE" = "Diese Richtlinie erklärt, welche personenbezogenen Daten wir verarbeiten, warum, mit wem, wie lange und welche Rechte du nach der DSGVO hast.";
 "PRIVACY_LAST_UPDATED" = "Zuletzt aktualisiert: %@ — Version %@";
-"PRIVACY_LAST_UPDATED_DATE" = "9. September 2026";
+"PRIVACY_LAST_UPDATED_DATE" = "20. September 2026";
 
 // Daten, die wir sammeln
 "PRIVACY_SECTION_DATA_TITLE" = "Daten, die wir verarbeiten";

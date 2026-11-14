@@ -241,7 +241,7 @@
 "PRIVACY_HEADER_TITLE" = "%@ respeta tu privacidad.";
 "PRIVACY_HEADER_SUBTITLE" = "Esta política explica qué datos personales tratamos, por qué, con quién, durante cuánto tiempo y los derechos que tienes según el RGPD.";
 "PRIVACY_LAST_UPDATED" = "Última actualización: %@ — versión %@";
-"PRIVACY_LAST_UPDATED_DATE" = "9 de septiembre de 2026";
+"PRIVACY_LAST_UPDATED_DATE" = "20 de septiembre de 2026";
 
 // Datos que recopilamos
 "PRIVACY_SECTION_DATA_TITLE" = "Datos que tratamos";

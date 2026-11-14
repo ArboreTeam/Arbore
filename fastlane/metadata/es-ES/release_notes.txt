@@ -1,8 +1,10 @@
-Más del doble de plantas, y sus macetas se quedan donde están.
+Lo que la app dice sobre la toxicidad de las plantas ya está escrito en las condiciones.
 
-• 274 plantas en el catálogo en lugar de 123. Cada una llega con sus cuidados, su nombre en cuatro idiomas y su veredicto de toxicidad para mascotas y niños, respaldado por una fuente citada.
-• Un jardín reabierto conserva sus macetas, y la altura medida de cada planta.
-• El contorno de una planta seleccionada sigue ahora su maceta en lugar de desplazarse.
-• Los filtros de luz y riego se aplican a todas las plantas, incluidas las que aún no están traducidas a su idioma. Sus listas pueden ser más cortas, y más exactas.
+• Las condiciones de uso indican lo que vale la información botánica: se facilita a título informativo y no sustituye el consejo de un veterinario ni de un médico.
+• La ausencia de advertencia en una planta no significa que sea inocua. Los filtros de seguridad del hogar descartan lo que se conoce como peligroso, no aquello cuya toxicidad aún no se ha establecido. La app ya lo señalaba y ahora las condiciones también lo dicen.
+• El diagnóstico de salud y el asistente se basan en un modelo de inteligencia artificial: sus respuestas pueden ser inexactas y no constituyen un diagnóstico.
+• Al crear una cuenta, aceptas las condiciones marcando una casilla, en lugar de hacerlo por el simple hecho de registrarte.
+• El acceso sin cuenta empieza por una pantalla que indica lo que ofrece la app y pide tu conformidad.
+• Las condiciones llevan un número de versión. Toda modificación importante se te señalará en la app antes de su entrada en vigor.
 
-Los jardines guardados antes de esta versión vuelven sin sus macetas: el dato nunca se escribió. Los nuevos sí las conservan.
+El catálogo, los filtros y la colocación en realidad aumentada no cambian.

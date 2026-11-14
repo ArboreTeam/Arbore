@@ -1,8 +1,10 @@
-Plus du double de plantes, et vos pots restent en place.
+Ce que l'app dit de la toxicité des plantes est maintenant écrit dans les conditions.
 
-• 274 plantes au catalogue au lieu de 123. Chacune arrive avec ses conseils de soin, son nom dans quatre langues et son verdict de toxicité pour les animaux et les enfants, appuyé sur une source nommée.
-• Un jardin rouvert retrouve ses pots, et la hauteur mesurée de chaque plante.
-• Le contour d'une plante sélectionnée épouse maintenant son pot au lieu de se décaler.
-• Les filtres lumière et arrosage s'appliquent à toutes les plantes, y compris celles qui ne sont pas encore traduites dans votre langue. Vos listes peuvent donc être plus courtes, et plus justes.
+• Les conditions d'utilisation disent ce que valent les informations botaniques : elles sont fournies à titre informatif et ne remplacent ni l'avis d'un vétérinaire, ni celui d'un médecin.
+• L'absence d'avertissement sur une plante ne signifie pas qu'elle est sans danger. Les filtres de sécurité du foyer écartent ce qui est connu comme dangereux, pas ce dont la toxicité n'a pas encore été établie. L'app le signalait déjà, les conditions le disent désormais aussi.
+• Le diagnostic santé et l'assistant reposent sur un modèle d'intelligence artificielle : leurs réponses peuvent être inexactes et ne constituent pas un diagnostic.
+• À la création d'un compte, vous acceptez les conditions en cochant une case, au lieu de le faire par le simple fait de vous inscrire.
+• L'entrée sans compte commence par un écran qui dit ce que l'app fournit et demande votre accord.
+• Les conditions portent un numéro de version. Toute modification importante vous sera signalée dans l'app avant son entrée en vigueur.
 
-Les jardins enregistrés avant cette version reviennent sans leurs pots : la donnée n'avait jamais été écrite. Les nouveaux les gardent.
+Le catalogue, les filtres et le placement en réalité augmentée ne changent pas.

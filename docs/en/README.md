@@ -19,6 +19,7 @@ The documentation is split into complementary views. Depending on what you are l
 | **Pots and planters** (cut plants, placement, persistence) | [`architecture/pots.md`](architecture/pots.md) |
 | **Climate profile and site record** (`POST /climate/profile`) | [`architecture/profil-climatique.md`](architecture/profil-climatique.md) |
 | **Infrastructure and operations** (layers, pipeline, environments, secrets) | [`architecture/05-infrastructure.md`](architecture/05-infrastructure.md) |
+| **What the Terms promise, and the code that upholds it** (read before a redesign or adding plants) | [`binding-commitments.md`](binding-commitments.md) |
 | 3D model LOD architecture | [`3d-lod-architecture.md`](3d-lod-architecture.md) |
 | Signup flow with Firebase rollback | [`flows/auth-signup.md`](flows/auth-signup.md) |
 | Garden creation flow (wizard) | [`flows/garden-creation.md`](flows/garden-creation.md) |
@@ -68,6 +69,7 @@ docs/
 │   ├── testing/               # test strategy and suites (front + back + web)
 │   ├── operations/            # runbooks (deploy, observability, VPS)
 │   ├── decisions/             # Architecture Decision Records (MADR format)
+│   ├── binding-commitments.md # what the Terms promise, and the code that upholds it
 │   ├── 3d-lod-architecture.md # 3D model LOD
 │   └── glossary.md            # domain vocabulary
 └── legacy/                    # earlier documents, outside the rules

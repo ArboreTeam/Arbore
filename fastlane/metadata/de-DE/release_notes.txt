@@ -1,8 +1,10 @@
-Mehr als doppelt so viele Pflanzen, und Ihre Töpfe bleiben, wo sie sind.
+Was die App zur Giftigkeit von Pflanzen sagt, steht jetzt auch in den Bedingungen.
 
-• 274 Pflanzen im Katalog statt 123. Jede kommt mit ihrer Pflege, ihrem Namen in vier Sprachen und ihrem Giftigkeitsbefund für Haustiere und Kinder, belegt durch eine genannte Quelle.
-• Ein wieder geöffneter Garten behält seine Töpfe und die gemessene Höhe jeder Pflanze.
-• Die Kontur einer ausgewählten Pflanze folgt jetzt ihrem Topf, statt zu verrutschen.
-• Die Filter für Licht und Bewässerung gelten für alle Pflanzen, auch für die noch nicht in Ihre Sprache übersetzten. Ihre Listen können daher kürzer und genauer sein.
+• Die Nutzungsbedingungen sagen, was die botanischen Informationen wert sind: Sie dienen ausschließlich der Information und ersetzen keinen tierärztlichen oder ärztlichen Rat.
+• Fehlt bei einer Pflanze ein Warnhinweis, heißt das nicht, dass sie unbedenklich ist. Die Sicherheitsfilter für den Haushalt schließen aus, was als gefährlich bekannt ist, nicht das, dessen Giftigkeit noch nicht belegt wurde. Die App wies bereits darauf hin, die Bedingungen sagen es nun ebenfalls.
+• Die Gesundheitsdiagnose und der Assistent beruhen auf einem Modell künstlicher Intelligenz: Ihre Antworten können ungenau sein und stellen keine Diagnose dar.
+• Beim Erstellen eines Kontos akzeptierst du die Bedingungen, indem du ein Kästchen ankreuzt, statt allein durch die Registrierung.
+• Der Zugang ohne Konto beginnt mit einem Bildschirm, der sagt, was die App liefert, und um deine Zustimmung bittet.
+• Die Bedingungen tragen eine Versionsnummer. Jede wesentliche Änderung wird dir vor ihrem Inkrafttreten in der App angezeigt.
 
-Gärten, die vor dieser Version gespeichert wurden, kommen ohne ihre Töpfe zurück: der Wert wurde nie geschrieben. Neue behalten sie.
+Katalog, Filter und die Platzierung in erweiterter Realität bleiben unverändert.

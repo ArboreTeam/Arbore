@@ -130,6 +130,30 @@ taille de repli.
 
 Penser aussi à changer le **sélecteur de langue**, qui ouvre sur le français.
 
+### `whatsNew` et `promotionalText` repartent vides à chaque version
+
+Deux champs de la fiche sont portés par la **version localisée**, et non par
+l'app : les notes de nouveauté et le texte promotionnel. Tout le reste — App
+Privacy, catégories, classification d'âge, Pricing — vit au niveau de l'app et
+se reporte seul d'une version à la suivante.
+
+Une version créée pour une mise à jour naît donc avec **ces deux champs vides,
+dans les quatre langues**, même quand la précédente les portait. La table
+d'automatisation plus haut ne protège pas de l'oubli : elle ne les mentionne ni
+l'un ni l'autre.
+
+Relevé sur la 1.0.3 : les notes avaient été posées, le texte promotionnel non.
+La fiche partait sans les 108 à 138 caractères qui s'affichent au-dessus de la
+description, là où la 1.0.2 les avait.
+
+**Le texte promotionnel se rattrape après coup**, et c'est le seul champ de la
+fiche dans ce cas : Apple le laisse modifier sans nouveau cycle de revue, y
+compris pendant `WAITING_FOR_REVIEW`. `whatsNew`, lui, se fige à la soumission.
+
+Il n'a pas à raconter la version : c'est un argumentaire produit, et celui de la
+1.0.2 a été repris tel quel en 1.0.3. Y glisser un chiffre, « 274 plantes », le
+ferait vieillir sans que rien ne le signale.
+
 ### Pas d'iPad, pas de Mac, pas de Vision Pro
 
 `TARGETED_DEVICE_FAMILY = 1` : aucune capture iPad ne sera jamais demandée.

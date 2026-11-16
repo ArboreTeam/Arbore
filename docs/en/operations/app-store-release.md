@@ -127,6 +127,29 @@ size.
 
 Remember to switch the **language selector** too; it opens on French.
 
+### `whatsNew` and `promotionalText` start empty on every version
+
+Two listing fields belong to the **localized version**, not to the app: the
+release notes and the promotional text. Everything else — App Privacy,
+categories, age rating, Pricing — lives at app level and carries over on its own
+from one version to the next.
+
+A version created for an update is therefore born with **both fields empty, in
+all four languages**, even when the previous one had them filled. The automation
+table above is no guard against the omission: it mentions neither field.
+
+Seen on 1.0.3: the release notes had been filled in, the promotional text had
+not. The listing was heading out without the 108 to 138 characters that show
+above the description, where 1.0.2 had them.
+
+**The promotional text can be fixed afterwards**, and it is the only listing
+field that can: Apple allows editing it without a new review cycle, including
+during `WAITING_FOR_REVIEW`. `whatsNew` freezes at submission.
+
+It does not have to describe the version — it is a product pitch, and 1.0.2's
+was carried over as is for 1.0.3. Slipping a number into it, “274 plants”, would
+make it age with nothing to signal it.
+
 ### No iPad, no Mac, no Vision Pro
 
 `TARGETED_DEVICE_FAMILY = 1`: no iPad screenshot will ever be requested.

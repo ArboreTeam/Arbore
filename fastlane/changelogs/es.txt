@@ -1,10 +1,5 @@
-Sus macetas se quedan donde están, y la selección ya no se desplaza.
+El escaneo de salud ya no cierra la aplicación en iPad.
 
-• El catálogo pasa de 123 a 274 plantas. Cada una llega con sus cuidados, sus cuatro idiomas y su toxicidad para mascotas y niños, respaldada por una fuente citada.
-• Un jardín reabierto conserva sus macetas. No se guardaban: las plantas volvían desnudas y se perdía el trabajo de trasplante.
-• La altura medida de una planta también sobrevive a la reapertura, en todos los casos.
-• El contorno de una planta seleccionada sigue ahora su maceta en lugar de desplazarse.
-• Los filtros de luz y riego se aplican a todas las plantas, incluidas las que no están traducidas a su idioma. Sus listas pueden ser más cortas, y más exactas.
-• La ficha indica si una planta es segura para mascotas y niños, con la fuente del veredicto.
+• Al tomar la foto, la aplicación pedía el flash sin comprobar que existiera. Los iPad no lo tienen en la parte trasera, y la aplicación se cerraba. Ahora el flash solo se activa en los dispositivos que lo tienen.
 
-Los jardines guardados antes de esta versión vuelven sin sus macetas: el dato nunca se escribió. Los nuevos sí las conservan.
+El resto de la aplicación no cambia desde la versión 1.0.3.

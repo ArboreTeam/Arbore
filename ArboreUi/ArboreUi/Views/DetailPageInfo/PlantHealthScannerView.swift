@@ -65,7 +65,13 @@ final class ScannerCameraManager: NSObject, ObservableObject {
         sessionQueue.async { [weak self] in
             guard let self = self else { return }
             let settings = AVCapturePhotoSettings()
-            settings.flashMode = .auto
+            // Les iPad n'ont pas de flash arrière : leur `supportedFlashModes`
+            // ne contient que `.off`, et imposer `.auto` lève une
+            // NSInvalidArgumentException qui termine l'app. On ne règle le mode
+            // que s'il est réellement disponible ; sinon le défaut `.off` tient.
+            if self.photoOutput.supportedFlashModes.contains(.auto) {
+                settings.flashMode = .auto
+            }
             self.photoOutput.capturePhoto(with: settings, delegate: self)
         }
         #endif

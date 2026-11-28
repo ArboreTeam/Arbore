@@ -1,10 +1,5 @@
-Vos pots restent en place, et la sélection ne déborde plus.
+Le scan santé ne ferme plus l'application sur iPad.
 
-• Le catalogue passe de 123 à 274 plantes. Chacune arrive avec ses soins, ses quatre langues et sa toxicité pour les animaux et les enfants, appuyée sur une source nommée.
-• Un jardin rouvert retrouve ses pots. Ils n'étaient pas enregistrés : les plantes revenaient nues, et le travail de mise en pot était perdu.
-• La hauteur mesurée d'une plante survit elle aussi à la réouverture, dans tous les cas.
-• Le contour d'une plante sélectionnée épouse maintenant son pot au lieu de se décaler.
-• Les filtres lumière et arrosage s'appliquent à toutes les plantes, y compris celles qui ne sont pas traduites dans votre langue. Vos listes peuvent donc être plus courtes, et plus justes.
-• La fiche indique si une plante est sûre pour les animaux et les enfants, avec la source du verdict.
+• Au moment de déclencher la photo, l'application demandait le flash sans vérifier qu'il existe. Les iPad n'en ont pas à l'arrière, et l'application se fermait. Le flash n'est désormais réglé que sur les appareils qui en ont un.
 
-Les jardins enregistrés avant cette version restent sans leurs pots : la donnée n'avait jamais été écrite. Les nouveaux les gardent.
+Le reste de l'application est inchangé depuis la 1.0.3.
